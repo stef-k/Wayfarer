@@ -1,0 +1,31 @@
+﻿@model Wayfarer.Models.ViewModels.ApiTokenDeleteViewModel
+
+@{
+    ViewData["Title"] = "Delete API Token";
+}
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-2">
+            <div class="card shadow-sm">
+                <div class="card-header text-bg-danger mb-3">
+                    <h2>Confirm Deletion</h2>
+                </div>
+                <div class="card-body">
+                    <p>Are you sure you want to delete the API token "<strong>@Model.TokenName</strong>"?</p>
+
+                    <form method="post" asp-action="DeleteConfirmed" asp-controller="ApiToken" asp-area="User">
+                        <input type="hidden" name="tokenId" value="@Model.TokenId" />
+
+                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-start">
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                            <a asp-action="Index" asp-controller="ApiToken" asp-area="User" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

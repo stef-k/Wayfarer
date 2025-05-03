@@ -1,0 +1,260 @@
+html {
+    font-size: 16px;
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: 16px;
+    }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+    position: relative;
+    min-height: 100%;
+}
+html, body {
+    height: 100%; /* Ensure the page takes full height */
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+body {
+    margin-bottom: 60px;
+    flex: 1;
+}
+footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    bottom: 0;
+    width: 100%;
+    height: 60px;
+    text-align: center;
+    margin-top: auto;
+}
+
+.user-menu {
+    z-index: 2000;
+}
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+    color: var(--bs-secondary-color);
+    text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+    text-align: start;
+}
+
+:root {
+    --bs-body-bg: #f8f9fa; /* Light theme background */
+    --bs-body-color: #212529; /* Light theme text */
+}
+
+[data-bs-theme="dark"] {
+    --bs-body-bg: #212529!important; /* Dark theme background */
+    --bs-body-color: #f8f9fa!important; /* Dark theme text */
+}
+
+[data-bs-theme="dark"] .dropdown-menu {
+    background-color: #343a40!important; /* Dark background */
+    color: #f8f9fa!important; /* Light text */
+}
+
+[data-bs-theme="dark"] .dropdown-menu .dropdown-item {
+    color: #f8f9fa!important;
+}
+
+[data-bs-theme="dark"] .dropdown-menu .dropdown-item:hover,
+[data-bs-theme="dark"] .dropdown-menu .dropdown-item:focus {
+    background-color: #495057; /* Slightly lighter on hover */
+    color: #ffffff!important;
+    }
+/* Light Theme - Identity Nav Links */
+.navbar-light .navbar-nav .nav-link {
+    color: #212529; /* Dark text for nav links in light theme */
+}
+
+.navbar-light .navbar-nav .nav-link:hover {
+    color: #0056b3; /* Blue hover effect */
+}
+
+/* Dark Theme - Identity Nav Links */
+[data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link {
+    color: #f8f9fa; /* Light text for nav links in dark theme */
+}
+
+[data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link:hover {
+    color: #adb5bd; /* Light gray hover effect for dark mode */
+}
+
+/* Adjust the active link color */
+[data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link.active,
+.navbar-light .navbar-nav .nav-link.active {
+    color: #f8f9fa; /* Light text for active links in dark mode */
+}
+
+/* Adjust the active link hover color */
+[data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link.active:hover,
+.navbar-light .navbar-nav .nav-link.active:hover {
+    color: #0056b3; /* Same as hover color for active link */
+}
+[data-bs-theme="dark"] .footer > * {
+    color: #f8f9fa!important;
+}
+/* Theme Toggle Button in Dark and Light Modes */
+#themeToggle {
+    border: 1px solid #ccc;
+    background-color: transparent;
+    transition: background-color 0.3s ease;
+}
+
+[data-bs-theme="dark"] #themeToggle {
+    border-color: #333;
+}
+
+/* Icon Colors */
+#themeIcon {
+    color: #212529;
+    transition: color 0.3s ease;
+}
+
+[data-bs-theme="dark"] #themeIcon {
+    color: #f8f9fa;
+}
+
+/* Theme Toggle Button Hover Effect */
+#themeToggle:hover {
+    background-color: #e9ecef;
+}
+
+[data-bs-theme="dark"] #themeToggle:hover {
+    background-color: #495057;
+}
+#map {
+    width: 100%;
+    height: calc(100vh - 110px);
+}
+@media (max-width: 768px) {
+    #map {
+        height: calc(100vh - 100px); /* Slightly reduce height for small screens if needed */
+    }
+}
+
+#notes {
+    height: 200px;
+    border: 1px solid #ced4da;
+    border-radius: 0.1rem;
+}
+
+.ql-container {
+    resize: vertical; /* or horizontal, both */
+    overflow: auto; /* Prevent content overflow */
+}
+
+
+.ql-editor {
+    font-family: inherit !important;
+    font-size: 16px !important;
+    padding: 5px!important;
+}
+.ql-clear {
+    color: red; /* Text color */
+    cursor: pointer; /* Pointer on hover */
+    margin-left: 10px; /* Add spacing between buttons */
+    position: relative;
+}
+.ql-clear:hover {
+    text-decoration: underline;
+}
+/* Tooltip styles */
+.ql-clear::after {
+    content: attr(data-tooltip); /* Tooltip text from data-tooltip attribute */
+    position: absolute;
+    bottom: 100%; /* Position it above the button */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Adjust horizontal centering */
+    background-color: #333;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0; /* Initially hidden */
+    visibility: hidden; /* Initially hidden */
+    transition: opacity 0.3s ease-in-out; /* Smooth fade-in effect */
+    z-index: 1000;
+    pointer-events: none; /* Prevents tooltip from interfering with clicks */
+}
+
+/* Show the tooltip on hover */
+.ql-clear:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+.ql-editor, #locationModal img {
+    max-width: 100%; /* Ensure the image doesn't overflow the container */
+    height: auto; /* Maintain the aspect ratio of the image */
+    width: auto; /* Make the image responsive, scaling with its container */
+    display: block; /* Remove inline behavior to avoid unwanted spacing */
+    margin: 0 auto; /* Center the image inside the container */
+}
+
+.table-limited-height {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.table-normal-height {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+thead th {
+    position: sticky;
+    top: 0;
+    background-color: #adb5bd; /* Or any header background */
+    z-index: 1;
+}
+
+.pulsing-marker {
+    position: relative;
+    width: 36px;
+    height: 36px;
+}
+
+.pulsing-marker::before {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: url('/icons/user-in-marker-red.svg') no-repeat center center;
+    background-size: contain;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.35);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+.pagination-container {
+    margin-left: auto;
+    margin-right: auto;
+}

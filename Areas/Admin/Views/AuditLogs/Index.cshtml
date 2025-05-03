@@ -1,0 +1,74 @@
+﻿@model IEnumerable<Wayfarer.Models.AuditLog>
+
+@{
+    ViewData["Title"] = "Audit Logs";
+}
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <!-- Search Form -->
+            <form method="get" asp-action="Index" class="mb-4">
+                <div class="input-group">
+                    <input type="text" name="search" value="@ViewBag.Search" placeholder="Search logs..." class="form-control" />
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </div>
+            </form>
+
+            <!-- Display Message for No Results -->
+            @if (!string.IsNullOrEmpty(ViewBag.Message))
+            {
+                <p class="text-center text-muted">@ViewBag.Message</p>
+            }
+            else
+            {
+                <!-- Audit Logs Table -->
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Action</th>
+                                <th>Timestamp</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in Model)
+                            {
+                                <tr>
+                                    <td>@log.UserId</td>
+                                    <td>@log.Action</td>
+                                    <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>@log.Details</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- Pagination -->
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link"
+                                   asp-area="Admin"
+                                   asp-controller="AuditLogs"
+                                   asp-action="Index"
+                                   asp-route-page="@i"
+                                   asp-route-search="@ViewBag.Search">@i</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        </div>
+    </div>
+</div>

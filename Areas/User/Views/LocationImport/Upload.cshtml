@@ -1,0 +1,54 @@
+@using Wayfarer.Models.Enums
+@model Wayfarer.Models.ViewModels.LocationImportUploadViewModel
+@{
+    ViewData["Title"] = "Upload Location Data";
+}
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-2">
+            <div class="card shadow-sm">
+                <div class="card-header text-bg-primary mb-3">
+                    <h2>Upload Timeline File</h2>
+                </div>
+
+                <div class="card-body">
+                    @if (!ViewData.ModelState.IsValid)
+                    {
+                        <div class="alert alert-danger">
+                            @Html.ValidationSummary("Please correct the errors below.", true)
+                        </div>
+                    }
+
+                    <p class="mb-3">
+                        Upload your location data file to import your location history.
+                        Ensure the file is in `.json` format and does not exceed <strong>@ViewBag.UploadLimit Megabytes</strong> in size.
+                    </p>
+
+                    <form asp-area="User" asp-controller="LocationImport" asp-action="Upload" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+
+                        <div class="mb-3">
+                            <label for="fileUpload" class="form-label">Select File:</label>
+                            <input asp-for="File" id="fileUpload" class="form-control" accept="@ViewBag.AcceptedExtensions" />
+                            @Html.ValidationMessageFor(m => m.File, "", new { @class = "text-danger" })
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="fileType" class="form-label">File Type:</label>
+                            @Html.DropDownListFor(m => m.FileType, (IEnumerable<SelectListItem>)ViewBag.FileTypes, new { id = "fileType", @class = "form-select" })
+
+                            @Html.ValidationMessageFor(m => m.FileType, "", new { @class = "text-danger" })
+                        </div>
+
+                        <div class="d-grid gap-2 mt-3">
+                            <button type="submit" class="btn btn-outline-primary">Upload File</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

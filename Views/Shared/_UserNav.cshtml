@@ -1,0 +1,26 @@
+﻿<div class="dropdown" style="margin-top: 2px;">
+    <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        User Menu
+    </button>
+    <ul class="dropdown-menu user-menu">
+
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Timeline" asp-action="Index" title="See your private timeline">My Private Timeline</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Location" asp-action="Index" title="Location manager with table/map split view">Locations</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Location" asp-action="AllLocations" title="Location manager with table view">All Locations</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="LocationImport" asp-action="Index" title="Upload location data">Location imports</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Settings" asp-action="Index" title="Timeline, profile and API settings management">Settings</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="Identity" asp-page="/Account/Manage/Index" title="Manage your account">My Account</a>
+        </li>
+    </ul>
+</div>

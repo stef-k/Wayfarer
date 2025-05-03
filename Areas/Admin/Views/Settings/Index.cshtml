@@ -1,0 +1,210 @@
+﻿@model ApplicationSettings
+@{
+    var isRegistrationOpen = ViewData["IsRegistrationOpen"] != null ? (bool)ViewData["IsRegistrationOpen"] : false;
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <div class="card shadow-sm">
+                <div class="card-header text-bg-primary">
+                    <h2 class="mb-0 text-center">@ViewData["Title"]</h2>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-center fs-4">Location Logging</h3>
+                    <p>These settings used to handle how much data will be recorded on database.
+                        The app ignores incoming requests that may be too frequent or
+                        do not meet the minimum instance change from the previous recorded location. <br/>
+                        <strong>Caution! setting the threshold level too low will result to increased records in
+                            database stored.</strong><br/>
+                        At 5 minutes/15 meters threshold (application default), about 105,120 locations will be recorded
+                        yearly per user,
+                        based in a worst case scenario that a user is always moving (24/7) meeting the distance
+                        threshold.<br/>
+                        Possible other worst case scenario values:<br/>
+                        <code>2</code> minutes: <code>262,800</code> records per user per year<br/>
+                        <code>5</code> minutes: <code>105,120</code> records per user per year<br/>
+                        <code>10</code> minutes: <code>52,560</code> records per user per year<br/>
+                        <code>15</code> minutes: <code>35,040</code> records per user per year<br/>
+                    </p>
+                    <form asp-action="Update" method="post">
+                        @Html.AntiForgeryToken()
+                        
+                        <div class="row">
+
+                            <div class="col-md-6">
+                                <label for="LocationTimeThresholdMinutes" class="form-label">Time Threshold (in
+                                    minutes):</label>
+                                <select asp-for="LocationTimeThresholdMinutes" class="form-control">
+                                    <option value="2">2</option>
+                                    <option value="5">5</option>
+                                    <option value="10">10</option>
+                                    <option value="15">15</option>
+                                </select>
+                                <span asp-validation-for="LocationTimeThresholdMinutes" class="text-danger"></span>
+                            </div>
+
+
+                            <div class="col-md-6">
+                                <label for="LocationDistanceThresholdMeters" class="form-label">Distance Threshold (in
+                                    meters):</label>
+                                <select asp-for="LocationDistanceThresholdMeters" class="form-control">
+                                    <option value="5">5</option>
+                                    <option value="15">15</option>
+                                    <option value="30">30</option>
+                                    <option value="50">50</option>
+                                </select>
+                                <span asp-validation-for="LocationDistanceThresholdMeters" class="text-danger"></span>
+                            </div>
+
+                        </div>
+                        <hr/>
+                        <div class="row">
+                            <h3 class="text-center fs-4">New User Registrations</h3>
+                            <div class="col-md-12 mb-2">
+                                <div class="form-group">
+                                    <label for="IsRegistrationOpen" class="form-label">Allow New User Registrations?</label>
+
+                                    <!-- Use Bootstrap's built-in large checkbox class -->
+                                    <div class="form-check form-switch">
+                                        <input type="checkbox" class="form-check-input form-check-input-lg" id="IsRegistrationOpen" name="IsRegistrationOpen"
+                                               value="true" @(Model.IsRegistrationOpen ? "checked" : "")/>
+                                        <label class="form-check-label" for="IsRegistrationOpen">Enable new user registrations</label>
+                                    </div>
+
+                                    <small class="form-text text-muted">Check to allow new user registrations.</small>
+                                </div>
+                            </div>
+                        </div>
+                        <hr/>
+                        <div class="row">
+                            <h3 class="text-center fs-4">User Uploads</h3>
+                            <div class="col-md-8">
+                                <div class="col-12 mb-2">
+                                    <strong>Uploads Directory Path: </strong><code>Wayfarer/Uploads/Temp</code>
+                                </div>
+
+                                <label for="UploadSizeLimitMB" class="form-label">
+                                    Maximum Size for Tile Uploads in Megabytes:
+                                </label>
+
+                                <div class="input-group">
+                                    <input asp-for="UploadSizeLimitMB"
+                                           class="form-control"
+                                           type="number"
+                                           step="0.1"
+                                           min="0"/>
+                                    <span class="input-group-text">MB</span>
+                                </div>
+
+                                <span asp-validation-for="UploadSizeLimitMB" class="text-danger"></span>
+                            </div>
+                            
+                            <div class="form-text">
+                                Use the to allow users upload data location files, such as exported Google Timeline JSON data files.
+                                Set it to 0 to disable this feature.
+                            </div>
+                            
+                        </div>
+                        <hr/>
+                        <div class="row">
+                            <h3 class="text-center fs-4">Map Tile Cache Management</h3>
+                            <div class="col-12 mb-2">
+                                <strong>Cache Directory Path: </strong><code>@ViewData["CachePath"]</code>
+                            </div>
+                            <hr/>
+                            <div class="col-5 mb-2">
+                                <strong>Total Cache Files: </strong><code
+                                    id="TotalCacheFiles">@ViewData["TotalCacheFiles"]</code>
+                            </div>
+                            <div class="col-7 mb-2">
+                                <strong>Total LRU (Least Recently Used) Cache Files for zoom levels >= 9: </strong><code
+                                    id="LruTotalFiles">@ViewData["LruTotalFiles"]</code>
+                            </div>
+                            <hr/>
+                            <div class="col-5 mb-2">
+                                <strong>Total Cache Size in Megabytes: </strong><code
+                                    id="TotalCacheSize">@ViewData["TotalCacheSize"] MB</code>
+                            </div>
+                            <div class="col-7 mb-2">
+                                <strong>Total LRU Size (zoom levels >= 9) in Megabytes: </strong><code
+                                    id="TotalLru">@ViewData["TotalLru"] MB</code>
+                            </div>
+
+                            <hr/>
+                            <div class="col-5 mb-2">
+                                <strong>Total Cache Size in Gigabytes: </strong><code
+                                    id="TotalCacheSizeGB">@ViewData["TotalCacheSizeGB"] GB</code>
+                            </div>
+
+                            <div class="col-7 mb-2">
+                                <strong>Total LRU Size (zoom levels >= 9) in Gigabytes: </strong><code
+                                    id="TotalLruGB">@ViewData["TotalLruGB"] GB</code>
+                            </div>
+                            <hr/>
+                            <div class="col-md-8">
+                                <label for="MaxCacheTileSizeInMB" class="form-label">
+                                    Maximum Size for Tile Cache in Megabytes:
+                                </label>
+
+                                <div class="input-group">
+                                    <input asp-for="MaxCacheTileSizeInMB"
+                                           class="form-control"
+                                           type="number"
+                                           step="0.01"
+                                           min="0"/>
+                                    <span class="input-group-text">MB</span>
+                                </div>
+
+                                <span asp-validation-for="MaxCacheTileSizeInMB" class="text-danger"></span>
+
+                                <div class="form-text">
+                                    • Set the maximum size for the map tiles cache storage for zoom levels equal or
+                                    greater of 9.<br/>
+                                    • The default size is 1024 MB (which is equal to 1 GB).<br/>
+                                    • Zoom levels up to 8 are about 1.31 to 1.75 GB in size and stored without counting
+                                    towards this limit.<br/>
+                                    • So zoom levels >= 9 will add another 1 GB with the current settings. With this
+                                    setting you can
+                                    increase or decrease this additional cache size. Increasing it will decrease calls
+                                    to Open Street Map
+                                    servers.
+                                </div>
+                            </div>
+
+
+                            <div class="col-md-4">
+                                <div class="row mt-3">
+                                    <div class="col">
+                                        <a href="#" class="btn btn-danger" id="clearLruCache"
+                                           title="Clear LRU Map Cache">Clear LRU Cache (zoom levels >= 9)</a>
+                                    </div>
+                                </div>
+                                <div class="row mt-3">
+                                    <div class="col"><a href="#" class="btn btn-danger" id="clearAllCache"
+                                                        title="Clear All Map Cache">Clear All Map Tile Cache!</a></div>
+                                </div>
+                            </div>
+
+                        </div>
+                        <hr/>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            @if (TempData["Message"] != null)
+            {
+                <div class="alert alert-success mt-3">
+                    @TempData["Message"]
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/Areas/Admin/Settings/Index.js" type="module"></script>
+}

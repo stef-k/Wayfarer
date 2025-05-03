@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+        @if (ViewData["Title"] != null)
+        {
+            @($"{ViewData["Title"]} - Wayfarer")
+        }
+        else
+        {
+            @("Wayfarer")
+        }
+    </title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link href="/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
+    @if (ViewData["LoadLeaflet"] as bool? == true)
+    {
+        <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
+        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
+        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
+    }
+    @if (ViewData["LoadQuill"] == null || (bool)ViewData["LoadQuill"])
+    {
+        <link href="~/lib/quill/quill.snow-2.0.3.css" rel="stylesheet" />
+    }
+</head>
+<body data-bs-theme="light">
+    <header>
+        <nav id="mainNavbar" class="navbar navbar-expand-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Wayfarer</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                        </li>
+                    </ul>
+                    <partial name="_LoginPartial" />
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="@(ViewData["BodyClass"] as string ?? "container")">
+        @if (TempData["AlertMessage"] != null)
+        {
+            <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
+                @TempData["AlertMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
+            <span id="alertMessage">This is a placeholder message.</span>
+            <button type="button" class="btn-close" onclick="hideAlert()" aria-label="Close"></button>
+        </div>
+
+
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top  " data-bs-theme="light">
+        <div class="container">
+            &copy; 2025 - Wayfarer - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        </div>
+    </footer>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteConfirmationModalLabel">Confirm Action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to proceed?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/popperjs/popper.min.js"></script>
+    <script src="~/lib/tippy/tippy-bundle.umd.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    @if (ViewData["LoadLeaflet"] == null || (bool)ViewData["LoadLeaflet"])
+    {
+        <script src="~/js/map-utils.js" type="module"></script>
+        <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>
+        <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
+    }
+
+    @if (ViewData["LoadQuill"] == null || (bool)ViewData["LoadQuill"])
+    {
+        <script src="~/lib/quill/quill-2.0.3.js" defer></script>
+    }
+
+    <script>
+        // Wayfarer cross-site object
+        window.Wayfarer = window.Wayfarer || {};
+    </script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @Html.Partial("_ValidationScriptsPartial")
+    @await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>

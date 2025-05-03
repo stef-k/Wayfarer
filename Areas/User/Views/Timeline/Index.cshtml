@@ -1,0 +1,26 @@
+﻿@{
+    ViewData["BodyClass"] = "container-fluid";
+    ViewData["LoadLeaflet"] = true;
+}
+
+<!-- Map container -->
+<div id="mapContainer" style="height: calc(100vh - 120px);"></div>
+
+<!-- Modal HTML -->
+<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
+    <div class="modal-dialog  modal-dialog-scrollable modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header text-bg-primary">
+                <h5 class="modal-title" id="locationModalLabel">Location Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/Areas/User/Timeline/index.js" type="module"></script>
+}

@@ -1,0 +1,123 @@
+﻿@model Wayfarer.Models.ViewModels.TimelineSettingsViewModel
+
+@{
+    ViewData["Title"] = "Timeline Settings";
+}
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-2">
+            <div class="card shadow-sm">
+                <div class="card-header text-bg-primary mb-3">
+                    <h2>Edit Timeline Settings</h2>
+                </div>
+                <div class="card-body">
+                    @if (!ViewData.ModelState.IsValid)
+                    {
+                        <div class="alert alert-danger">
+                            @Html.ValidationSummary("Please correct the errors below.", true)
+                        </div>
+                    }
+
+                    <form method="post" asp-action="UpdateSettings" asp-controller="Timeline" asp-area="User">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Public Timeline Toggle -->
+                        <div class="form-check form-switch mb-4">
+                            <input type="checkbox" class="form-check-input" id="IsTimelinePublic" asp-for="IsTimelinePublic" role="switch" />
+                            <label for="IsTimelinePublic" class="form-check-label">Make Timeline Public</label>
+                            <div class="form-text">!!! Set if you want to make your timeline public.</div>
+                            <div class="form-text text-danger">!!! Caution, think before you set this; it may be dangerous to make your current location public !!!</div>
+                            <div class="form-text">You can adjust up to what point in time you want to make your timeline public with the bellow setting.</div>
+                        </div>
+
+                        <!-- Time Threshold Dropdown with Custom Option -->
+                        <div class="mb-3">
+                            <label for="PublicTimelineTimeThreshold" class="form-label">Time Threshold</label>
+                            <select asp-for="PublicTimelineTimeThreshold" class="form-select" id="TimeThresholdDropdown">
+                                <option value="">Select a threshold</option>
+                                <option value="now">Now - Everyone will know where you are at now!!!</option>
+                                <option value="1h">Up to 1 hour ago</option>
+                                <option value="1d">Up to 1 day ago</option>
+                                <option value="1w">Up to 1 week ago</option>
+                                <option value="1m">Up to 1 month ago</option>
+                                <option value="1y">Up to 1 year ago</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            @Html.ValidationMessageFor(m => m.PublicTimelineTimeThreshold, "", new { @class = "text-danger" })
+                            <div class="form-text">Time threshold up to what point in time relative to current date time you want to show publicly if you set your timeline public.</div>
+                        </div>
+
+                        <!-- Custom Time Input (Hidden by default) -->
+                        <div id="CustomTimeInput" class="mb-3" style="display:none;">
+                            <label for="CustomThreshold" class="form-label">Custom Time Threshold</label>
+                            <input type="text" class="form-control" id="CustomThreshold" name="CustomThreshold" placeholder="Enter custom time (e.g., 2d, 5h)" />
+                            <div class="form-text">
+                                Use <strong>y</strong> for years, <strong>m</strong> for months, <strong>
+                                    d
+                                </strong> for days, <strong>
+                                    h
+                                </strong> for hours.
+                                If you want to refer to minutes say 10 minutes, use 0.1h <br />
+                            Examples: 1m = show timeline up to 1 month before now. <br />
+                            2w = show timeline up to 2 weeks before now. <br />
+                            1.5d = show timeline up to 1 & half days before now.
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script>
+        window.onload = function() {
+            const thresholdDropdown = document.getElementById('TimeThresholdDropdown');
+            const customTimeInput = document.getElementById('CustomTimeInput');
+            const customThresholdField = document.getElementById('CustomThreshold');
+
+            const savedValue = '@Model.PublicTimelineTimeThreshold';
+            const options = Array.from(thresholdDropdown.options).map(option => option.value);
+
+            if (savedValue && !options.includes(savedValue)) {
+                thresholdDropdown.value = 'custom';
+                customTimeInput.style.display = 'block';
+                customThresholdField.value = savedValue;
+            } else {
+                thresholdDropdown.value = savedValue;
+                customTimeInput.style.display = 'none';
+            }
+        };
+
+        document.getElementById('TimeThresholdDropdown').addEventListener('change', function () {
+            const customTimeInput = document.getElementById('CustomTimeInput');
+            const customThresholdField = document.getElementById('CustomThreshold');
+
+            if (this.value === 'custom') {
+                customTimeInput.style.display = 'block';
+            } else {
+                customTimeInput.style.display = 'none';
+                customThresholdField.value = ''; // Clear the custom input field
+            }
+        });
+
+        document.querySelector('form').addEventListener('submit', function (event) {
+            const thresholdDropdown = document.getElementById('TimeThresholdDropdown');
+            const customThresholdField = document.getElementById('CustomThreshold');
+
+            if (thresholdDropdown.value !== 'custom') {
+                customThresholdField.value = ''; // Clear custom value if not selected
+            }
+        });
+    </script>
+}

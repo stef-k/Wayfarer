@@ -1,0 +1,118 @@
+﻿@model Wayfarer.Models.ViewModels.ApiTokenViewModel
+
+<h1 class="text-center">@ViewData["Title"] for @Model.UserName</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-10 offset-1">
+            <!-- Token List Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-primary mb-3">
+                    <h2>API Tokens</h2>
+                </div>
+                <div class="card-body">
+                    @if (Model.Tokens != null && Model.Tokens.Any())
+                    {
+                        @foreach (var token in Model.Tokens)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <p class="mb-1"><strong>Token Name:</strong> @token.Name</p>
+                                    <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
+                                    <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light">@token.Token</code></p>
+                                </div>
+                                <div class="btn-group">
+                                    
+                                    @if (!token.Name.Equals("Wayfarer Incoming Location Data API Token"))
+                                    {
+                                        <a asp-action="Delete" asp-controller="ApiToken" asp-area="User" asp-route-tokenId="@token.Id" class="btn btn-danger btn-sm">Delete</a>
+                                    } else {
+                                        <a asp-action="Regenerate" asp-controller="ApiToken" asp-area="User" asp-route-name="@token.Name" class="btn btn-success btn-sm">Regenerate</a>
+                                    }
+                                </div>
+                            </div>
+                            <hr>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">No API tokens found.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-10 offset-1">
+            <!-- Store Third Party Token Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-primary mb-3">
+                    <h2>Store Third Party API Token</h2>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Store API token from a third-party service.
+                        For example, here you should store your Mapbox API token in order for reverse geocoding (get addresses from coordinates) to work.
+                    </p>
+                    <p>Select a service from the dropdown, and then paste the corresponding token.</p>
+                    <p>
+                        <strong>Third Party Charges:</strong> You should have in mind that you may be charged if you exceed usage limits from the service providers you use.
+                        For example, Mapbox provides 100,000 free API calls per month. If Wayfarer logs your location every 5 minutes, this will result in 8,640 API calls for reverse geocoding per month.
+                    </p>
+                    <form method="post" asp-action="StoreThirdPartyToken" asp-controller="ApiToken" asp-area="User">
+                        <input type="hidden" name="id" value="@Model.UserId" />
+
+                        <div class="mb-3">
+                            <label for="thirdPartyServiceName" class="form-label">Third Party Service Name:</label>
+                            <select class="form-select" id="thirdPartyServiceName" name="thirdPartyServiceName" required>
+                                <option value="">-- Select a Service --</option>
+                                <option value="Mapbox">Mapbox</option>
+                                @* <option value="GoogleMaps">Google Maps</option> *@
+                                @* <option value="OpenCage">OpenCage</option> *@
+                                @* <option value="HereMaps">HERE Maps</option> *@
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="thirdPartyToken" class="form-label">Token:</label>
+                            <input type="text" class="form-control" id="thirdPartyToken" name="thirdPartyToken" required />
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Store Third Party Token</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    @* <div class="row"> *@
+    @*     <div class="col-md-10 offset-1"> *@
+
+    @*         <!-- Create Token Section --> *@
+    @*         <div class="card shadow-sm mb-4"> *@
+    @*             <div class="card-header text-bg-primary mb-3"> *@
+    @*                 <h2>Create New API Token</h2> *@
+    @*             </div> *@
+    @*             <div class="card-body"> *@
+    @*                 <form method="post" asp-action="Create" asp-controller="ApiToken" asp-area="User"> *@
+    @*                     <input type="hidden" name="id" value="@Model.UserId" /> *@
+
+    @*                     <div class="mb-3"> *@
+    @*                         <label for="name" class="form-label">Token Name:</label> *@
+    @*                         <input type="text" class="form-control" id="name" name="name" required /> *@
+    @*                     </div> *@
+
+    @*                     <div class="d-grid"> *@
+    @*                         <button type="submit" class="btn btn-primary">Create Token</button> *@
+    @*                     </div> *@
+    @*                 </form> *@
+    @*             </div> *@
+    @*         </div> *@
+    @*     </div> *@
+    @* </div> *@
+
+</div>

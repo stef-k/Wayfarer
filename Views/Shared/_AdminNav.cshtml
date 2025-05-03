@@ -1,0 +1,25 @@
+﻿<div class="dropdown" style="margin-top: 2px;">
+    <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        Admin Menu
+    </button>
+    <ul class="dropdown-menu user-menu">
+        <li>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Users">Users</a>
+        </li>
+        <li>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Jobs">Jobs</a>
+        </li>
+        <li>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="AuditLogs">Audit Logs</a>
+        </li>
+        <li>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Settings">Application Settings</a>
+        </li>
+        <li>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="ActivityType">Activity Types</a>
+        </li>
+        <li>
+            <a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index" title="Manage your account">My Account</a>
+        </li>
+    </ul>
+</div>

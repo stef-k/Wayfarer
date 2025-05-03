@@ -1,0 +1,31 @@
+﻿@{
+    ViewData["BodyClass"] = "container-fluid";
+    ViewData["LoadLeaflet"] = true;
+    var username = ViewData["Username"];
+    var displayName = ViewData["DisplayName"];
+    var timelineLive = ViewData["TimelineLive"];
+}
+<h1 class="fs-3 text-center my-0">@(displayName != null ? $"Timeline of {displayName}" : $"Timeline of {username}")</h1>
+<!-- Map container -->
+<div id="username" data-username="@username" hidden></div>
+<div id="timelineLive" data-timeline-live="@timelineLive" hidden></div>
+<div id="mapContainer" style="height: calc(100vh - 150px);"></div>
+
+<!-- Modal HTML -->
+<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
+    <div class="modal-dialog  modal-dialog-scrollable modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header text-bg-primary">
+                <h5 class="modal-title" id="locationModalLabel">Location Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/Areas/Public/Timeline/index.js" type="module"></script>
+}

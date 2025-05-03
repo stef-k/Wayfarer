@@ -1,0 +1,65 @@
+﻿@model Wayfarer.Models.ApplicationUser
+
+@{
+    var fullurl = $"{Context.Request.Scheme}://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}";
+}
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-2">
+            <div class="card shadow-sm">
+                <div class="card-header  text-bg-primary mb-3">
+                    <h2>Timeline Settings</h2>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Display Name</dt>
+                        <dd class="col-sm-8">@((Model?.DisplayName) ?? "Not Set")</dd>
+
+                        <dt class="col-sm-4">Timeline Public</dt>
+                        <dd class="col-sm-8">
+                            @if (Model?.IsTimelinePublic == true)
+                            {
+                                <span class="badge bg-success d-inline">YES</span>
+                                <p>See your public timeline at <a href="@fullurl" title="Your public facing timeline!" target="_blank">@fullurl</a>
+                                    <br/>You can share this link to your friends or embed it in your blog!</p>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary d-inline">NO</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4">Timeline Threshold</dt>
+                        <dd class="col-sm-8">
+                            @if (Model?.PublicTimelineTimeThreshold == null)
+                            {
+                                <span class="text-muted">You can set a time threshold for your public timeline.</span>
+                            }
+                            else
+                            {
+                                @if (Model?.PublicTimelineTimeThreshold == "now")
+                                {
+                                    <span class="badge bg-danger">Live</span>
+                                    <span>Everyone will know where you are right now!</span>
+
+                                }
+                                else
+                                {
+                                    <span>Displaying your timeline up to @Model?.PublicTimelineTimeThreshold ago.</span>
+                                }
+                            }
+                        </dd>
+                    </dl>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <a class="btn btn-outline-primary" asp-area="User" asp-controller="ApiToken" asp-action="Index">Manage API Tokens</a>
+                        <a class="btn btn-outline-primary" asp-area="User" asp-controller="Timeline" asp-action="Settings">Manage Timeline Settings</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

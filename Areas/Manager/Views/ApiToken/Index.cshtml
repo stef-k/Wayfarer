@@ -1,0 +1,82 @@
+﻿@model Wayfarer.Models.ViewModels.ApiTokenViewModel
+
+@{
+    ViewData["Title"] = "API Token Management";
+}
+
+<h1 class="text-center">@ViewData["Title"] for <span class="text-primary">@Model.UserName</span></h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <!-- Token List Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-primary">
+                    <h2 class="mb-0">API Tokens</h2>
+                </div>
+                <div class="card-body">
+                    @if (Model.Tokens != null && Model.Tokens.Any())
+                    {
+                        @foreach (var token in Model.Tokens)
+                        {
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <p class="mb-1"><strong>Token Name:</strong> @token.Name</p>
+                                    <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</p>
+                                    <p class="mb-0">
+                                        <strong>Token:</strong>
+                                        <code class="border p-2 rounded bg-light">@token.Token</code>
+                                    </p>
+                                </div>
+                                <div class="btn-group">
+                                    <a asp-action="Regenerate"
+                                       asp-controller="ApiToken"
+                                       asp-area="Manager"
+                                       asp-route-id="@Model.UserId"
+                                       asp-route-name="@token.Name"
+                                       class="btn btn-success btn-sm">Regenerate</a>
+                                    @if (!token.Name.Equals("Wayfarer Incoming Location Data API Token"))
+                                    {
+                                        <a asp-action="Delete"
+                                           asp-controller="ApiToken"
+                                           asp-area="Manager"
+                                           asp-route-id="@Model.UserId"
+                                           asp-route-tokenId="@token.Id"
+                                           class="btn btn-danger btn-sm">Delete</a>
+                                    }
+                                </div>
+                            </div>
+                            <hr />
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">No API tokens found for this user.</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Create Token Section -->
+            <div class="card shadow-sm">
+                <div class="card-header text-bg-primary">
+                    <h2 class="mb-0">Create New API Token</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" asp-action="Create" asp-controller="ApiToken" asp-area="Manager">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.UserId" />
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Token Name:</label>
+                            <input type="text" class="form-control" id="name" name="name" placeholder="Enter a token name" required />
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Create Token</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

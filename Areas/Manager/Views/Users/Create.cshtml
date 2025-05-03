@@ -1,0 +1,70 @@
+﻿@model Wayfarer.Models.ViewModels.CreateUserViewModel
+
+<h2 class="mb-4">@ViewData["Title"]</h2>
+
+<!-- Validation Errors -->
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger">
+        @Html.ValidationSummary("Please correct the errors below.", true)
+    </div>
+}
+
+<!-- Card Layout for Form -->
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="post" asp-action="Create" asp-area="Manager" asp-controller="Users">
+            @Html.AntiForgeryToken()
+
+            <!-- Username Field -->
+            <div class="mb-3">
+                <label for="UserName" class="form-label">Username</label>
+                <input type="text" class="form-control" id="UserName" name="UserName" value="@Model.UserName" required />
+                <span asp-validation-for="UserName" class="text-danger"></span>
+            </div>
+
+            <!-- Password Field -->
+            <div class="mb-3">
+                <label for="Password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="Password" name="Password" required />
+                <span asp-validation-for="Password" class="text-danger"></span>
+            </div>
+
+            <!-- Display Name Field -->
+            <div class="mb-3">
+                <label for="DisplayName" class="form-label">Display Name</label>
+                <input type="text" class="form-control" id="DisplayName" name="DisplayName" value="@Model.DisplayName" required />
+                <span asp-validation-for="DisplayName" class="text-danger"></span>
+            </div>
+
+            <!-- Role Selection -->
+            <div class="mb-3">
+                <label for="Role" class="form-label">Role</label>
+                <select id="Role" asp-for="Role" class="form-control" asp-items="Model.Roles">
+                    <option value="">Select Role</option>
+                </select>
+                <span asp-validation-for="Role" class="text-danger"></span>
+            </div>
+
+            <!-- Is Active Checkbox -->
+            <div class="form-check form-switch mb-3">
+                <label class="form-check-label" for="IsActive">Is Active</label>
+                <input type="checkbox" class="form-check-input" id="IsActive" asp-for="IsActive" role="switch" />
+            </div>
+
+            <!-- Is Protected Checkbox -->
+            <div class="form-check form-switch mb-3">
+                <label class="form-check-label" for="IsProtected">Is Protected</label>
+                <input type="checkbox" class="form-check-input" id="IsProtected" asp-for="IsProtected" role="switch" />
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary">Create User</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+}

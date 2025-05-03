@@ -1,0 +1,53 @@
+﻿@model Wayfarer.Models.ActivityType
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <!-- Validation Errors -->
+            @if (!ViewData.ModelState.IsValid)
+            {
+                 <div class="alert alert-danger">
+                     @Html.ValidationSummary("Please correct the errors below.", true)
+                 </div>
+             }
+
+            <!-- Card Layout for Form -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-primary">
+                    <h2 class="mb-0">Create New Activity Type</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" asp-action="Create" asp-area="Admin">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Activity Type Name Field -->
+                        <div class="mb-3">
+                            <label for="Name" class="form-label">Activity Type Name</label>
+                            <input type="text" class="form-control" id="Name" name="Name" required />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
+
+                        <!-- Description Field -->
+                        <div class="mb-3">
+                            <label for="Description" class="form-label">Description</label>
+                            <textarea class="form-control" id="Description" name="Description" rows="3"></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Create Activity Type</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+}

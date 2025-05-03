@@ -1,0 +1,40 @@
+﻿@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+<ul class="navbar-nav">
+    <!-- Theme Toggle Button -->
+    <button id="themeToggle" class="btn btn-outline-secondary rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+        <i id="themeIcon" class="bi bi-sun" title="Change theme"></i>
+    </button>
+
+    @if (SignInManager.IsSignedIn(User))
+    {
+        @if (User.IsInRole("Admin"))
+        {
+            <partial name="_AdminNav" />
+        }
+        @if (User.IsInRole("Manager"))
+        {
+            <partial name="_ManagerNav" />
+        }
+        @if (User.IsInRole("User"))
+        {
+            <partial name="_UserNav" />
+        }
+        <li class="nav-item">
+            <form class="form-inline" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })">
+                <button type="submit" class="nav-link btn btn-link theme-toggle">Logout</button>
+            </form>
+        </li>
+    }
+    else
+    {
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="Identity" asp-page="/Account/Register">Register</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="Identity" asp-page="/Account/Login">Login</a>
+        </li>
+    }
+</ul>
