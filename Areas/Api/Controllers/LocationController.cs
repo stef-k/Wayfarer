@@ -273,11 +273,18 @@ namespace Wayfarer.Areas.Api.Controllers
                 return BadRequest(new { success = false, message = "No location IDs provided." });
             }
 
+            // Get the currently logged-in user's ID
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized(new { success = false, message = "Unauthorized." });
+            }
+            
             try
             {
-                // Find the locations in the database that match the provided IDs
+                // Find the locations in the database that match the provided IDs that belong to the current user
                 List<Location> locationsToDelete = await _dbContext.Locations
-                    .Where(location => request.LocationIds.Contains(location.Id))
+                    .Where(location => request.LocationIds.Contains(location.Id) && location.UserId == currentUserId)
                     .ToListAsync();
 
                 // If no matching locations are found
@@ -318,11 +325,25 @@ namespace Wayfarer.Areas.Api.Controllers
             int page = 1,
             int pageSize = 10)
         {
+           // Force userId to be the currently logged-in user's ID
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                return Unauthorized(); // User not authenticated
+            }
+            
+            // Always override userId with current user's ID
+            userId = currentUserId;
+            
             IQueryable<Location> query = _dbContext.Locations
                 .Include(l => l.ActivityType) // Include ActivityType for filtering by name
                 .AsNoTracking(); // Disable tracking for performance
+            
+            // Only filter by the current user's ID
+            query = query.Where(l => l.UserId == userId);
 
-            // Apply filters
+            // Apply rest filters
             if (!string.IsNullOrEmpty(userId))
             {
                 query = query.Where(l => l.UserId == userId);

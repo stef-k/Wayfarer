@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(err => {
                         console.error(err);
-                        alert('Error deleting locations');
+                        showAlert('danger', typeof err === 'string' ? err : 'Could not delete locations');
                     });
             }
         });
