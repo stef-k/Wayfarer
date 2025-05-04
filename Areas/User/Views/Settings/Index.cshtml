@@ -31,7 +31,7 @@
                                 <span class="badge bg-secondary d-inline">NO</span>
                             }
                         </dd>
-
+                        
                         <dt class="col-sm-4">Timeline Threshold</dt>
                         <dd class="col-sm-8">
                             @if (Model?.PublicTimelineTimeThreshold == null)
@@ -55,11 +55,31 @@
                     </dl>
 
                     <div class="d-grid gap-2 mt-3">
-                        <a class="btn btn-outline-primary" asp-area="User" asp-controller="ApiToken" asp-action="Index">Manage API Tokens</a>
                         <a class="btn btn-outline-primary" asp-area="User" asp-controller="Timeline" asp-action="Settings">Manage Timeline Settings</a>
                     </div>
+                    
+                    <div class="card-header  text-bg-primary my-4">
+                        <h2>API Token Settings</h2>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-3">
+                        <a class="btn btn-outline-primary" asp-area="User" asp-controller="ApiToken" asp-action="Index">Manage API Tokens</a>
+                    </div>
+                    
+                    <div class="card-header  text-bg-primary my-4">
+                        <h2>Locations Settings</h2>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-3">
+                        <button class="btn btn-danger" id="deleteAllUserLocations" data-user-id="@Model?.Id">Delete All Locations</button>
+                    </div>
+                    
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/Areas/User/Settings/index.js" type="module"></script>
+}

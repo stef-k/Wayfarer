@@ -297,12 +297,12 @@ namespace Wayfarer.Areas.Api.Controllers
             {
                 // Log the exception (optional) and return a server error
                 Console.Error.WriteLine(ex);
+                _logger.LogError(ex, $"Error in bulk-delete: {ex.Message}");
                 return StatusCode(500,
                     new { success = false, message = "An error occurred while deleting the locations." });
             }
         }
-
-
+        
         [HttpGet("search")]
         public async Task<IActionResult> Search(
             string? userId,
