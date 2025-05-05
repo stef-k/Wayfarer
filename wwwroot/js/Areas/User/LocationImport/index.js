@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 const handleStream = (event) => {
     const payload = JSON.parse(event.data);
-    updateRow(payload.FilePath, payload.LastProcessedIndex, payload.LastImportedRecord);
+    updateRow(payload.FilePath, payload.LastProcessedIndex, payload.LastImportedRecord, payload.TotalRecords, payload.Status, payload.ErrorMessage);
 }
 
 /**
@@ -95,31 +95,92 @@ const handleStream = (event) => {
  * @param {string} filePathValue        The exact text of the .filePath cell to match
  * @param {string|number} lastProcessedIndex      New value for .lastProcessedIndex
  * @param {string|number} lastImportedRecord     New value for .lastImportedRecord
+ * @param {string|number} total
+ * @param {string|number} Status     New value for .importStatus
+ * @param {string|number} ErrorMessage     New value for .errorMessage
  */
-const updateRow = (filePathValue, lastProcessedIndex, lastImportedRecord) => {
-    // Get all the filePath cells in the table
-    const filePathCells = document.querySelectorAll(
-        '#locationImport tbody .filePath'
-    );
+const updateRow = (filePathValue, lastProcessedIndex, lastImportedRecord, total, Status, ErrorMessage) => {
+    const filePathCells = document.querySelectorAll('#locationImport tbody .filePath');
 
     for (let cell of filePathCells) {
-        // Trim whitespace in case of accidental padding
         if (cell.textContent.trim() === filePathValue) {
-            // Found the matching row
             const row = cell.closest('tr');
-            if (!row) return;  // sanity check
+            if (!row) return;
 
-            // Update the two target cells
             const idxCell = row.querySelector('.lastProcessedIndex');
             const recCell = row.querySelector('.lastImportedRecord');
-            const totalRecords = idxCell.dataset.totalRecords;
-            
-            if (idxCell) idxCell.textContent = `${lastProcessedIndex} of  ${totalRecords}`;
-            if (recCell) recCell.textContent = lastImportedRecord;
+            const importStatusCell = row.querySelector('.importStatus');
+            const errorMessageCell = row.querySelector('.errorMessage');
 
-            return;  // done!
+            if (idxCell) idxCell.textContent = `${lastProcessedIndex} of ${total}`;
+            if (recCell) recCell.textContent = lastImportedRecord;
+            if (errorMessageCell) errorMessageCell.textContent = ErrorMessage ?? "";
+
+            // 🟡 Normalize status value (handle ImportStatus object)
+            const statusString = typeof Status === 'object' && Status !== null && 'Value' in Status
+                ? Status.Value
+                : String(Status);
+
+            // 🟡 Update badge
+            const statusClasses = {
+                'Stopped':     'bg-dark',
+                'Completed':   'bg-success',
+                'Failed':      'bg-danger',
+                'In Progress': 'bg-info',
+                'Stopping':    'bg-secondary'
+            };
+
+            const badgeClass = statusClasses[statusString] || 'bg-light text-dark';
+            if (importStatusCell) {
+                importStatusCell.innerHTML = `<span class="badge ${badgeClass}">${statusString}</span>`;
+            }
+
+            // 🔵 Update action buttons
+            const primaryBtn = row.querySelector('.js-import-action');
+            const dropdownToggle = row.querySelector('.dropdown-toggle');
+            const dropdownDelete = row.querySelector('.dropdown-menu .js-delete-import');
+
+            if (primaryBtn) {
+                if (statusString === 'Stopped' || statusString === 'Failed') {
+                    primaryBtn.textContent = 'Start';
+                    primaryBtn.dataset.action = 'start';
+                    primaryBtn.disabled = false;
+                } else if (statusString === 'In Progress') {
+                    primaryBtn.textContent = 'Stop';
+                    primaryBtn.dataset.action = 'stop';
+                    primaryBtn.disabled = false;
+                } else if (statusString === 'Stopping') {
+                    primaryBtn.textContent = 'Stopping…';
+                    primaryBtn.removeAttribute('data-action');
+                    primaryBtn.disabled = true;
+                } else if (statusString === 'Completed') {
+                    primaryBtn.textContent = '';
+                    primaryBtn.removeAttribute('data-action');
+                    primaryBtn.disabled = true;
+                }
+            }
+
+            // 🔵 Show/hide dropdown for applicable statuses
+            const shouldShowDropdown = (
+                statusString === 'Stopped' ||
+                statusString === 'Failed' ||
+                statusString === 'In Progress' ||
+                statusString === 'Completed'
+            );
+
+            if (dropdownToggle) {
+                dropdownToggle.style.display = shouldShowDropdown ? '' : 'none';
+            }
+
+            // 🔵 Optional: update data-status in delete link
+            if (dropdownDelete) {
+                dropdownDelete.dataset.status = statusString;
+            }
+
+            return;
         }
     }
 
     console.warn(`No row found for filePath="${filePathValue}"`);
 };
+

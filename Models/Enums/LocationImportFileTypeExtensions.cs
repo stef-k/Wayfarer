@@ -8,6 +8,7 @@ namespace Wayfarer.Models.Enums
         private static readonly Dictionary<LocationImportFileType, string[]> _allowedExtensions = new()
         {
             [LocationImportFileType.GoogleTimeline] = new[] { ".json" },
+            [LocationImportFileType.WayfarerGeoJson] = new[] { ".geojson", ".json" },
             [LocationImportFileType.Gpx] = new[] { ".gpx" },
             [LocationImportFileType.GeoJson] = new[] { ".geojson", ".json" },
             [LocationImportFileType.Kml] = new[] { ".kml" },

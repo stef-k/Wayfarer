@@ -17,6 +17,7 @@
             <th>Status</th>
             <th>Processed Records</th>
             <th>Last Processed Record</th>
+            <th>Errors</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -26,7 +27,7 @@
         <tr>
             <td class="filePath">@System.IO.Path.GetFileName(import.FilePath)</td>
             <td>@import.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-            <td>
+            <td class="importStatus">
                 @if (import.Status == ImportStatus.Stopped)
                 {
                     <span class="badge bg-dark">@import.Status</span>
@@ -53,6 +54,9 @@
             </td>
             <td class="text-center lastImportedRecord">
                 @import.LastImportedRecord
+            </td>
+            <td class="text-center errorMessage">
+                @import.ErrorMessage
             </td>
             <td>
                 @{

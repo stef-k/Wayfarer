@@ -1,9 +1,13 @@
+using System;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
-using Wayfarer.Models;
-using Wayfarer.Parsers;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
+using Wayfarer.Models.Enums;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Services
 {
@@ -36,144 +40,199 @@ namespace Wayfarer.Services
 
         public async Task ProcessImport(int importId, CancellationToken cancellationToken)
         {
+            // 0) Load the import record
             var locationImport = await _context.LocationImports.FindAsync(importId);
             if (locationImport == null || locationImport.Status != ImportStatus.InProgress)
                 return;
 
-            // Load Mapbox key if available
+            // 1) Grab Mapbox key (if any) and the fileType
             var apiToken = await _context.ApiTokens
                 .Where(t => t.UserId == locationImport.UserId
                             && t.Name.ToLower() == "mapbox")
                 .Select(t => t.Token)
                 .FirstOrDefaultAsync(cancellationToken);
-            
-            bool doGeocoding = !string.IsNullOrWhiteSpace(apiToken);
-            if (!doGeocoding)
+
+            bool hasApiKey = !string.IsNullOrWhiteSpace(apiToken);
+            var fileType  = locationImport.FileType;
+
+            if (!hasApiKey)
             {
                 _logger.LogWarning(
-                    "User {UserId} has no Mapbox key—skipping reverse-geocoding for import {ImportId}.",
+                    "User {UserId} has no Mapbox key—any missing addresses will remain blank for import {ImportId}.",
                     locationImport.UserId, importId);
             }
 
             try
             {
                 var allLocations = await GetLocationsToProcess(locationImport);
-                int total = allLocations.Count;
-                int processed = locationImport.LastProcessedIndex;
+                int total      = allLocations.Count;
+                int processed  = locationImport.LastProcessedIndex;
                 locationImport.TotalRecords = total;
                 const int batchSize = 50;
 
                 while (processed < total)
                 {
-                    // 1) Honor cancellation before each batch
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // 2) Check user‐requested status change
+                    // Refresh status in case user clicked “stop”
                     locationImport = await _context.LocationImports.FindAsync(importId);
                     if (locationImport.Status == ImportStatus.Stopping)
                     {
                         locationImport.Status = ImportStatus.Stopped;
                         await _context.SaveChangesAsync(cancellationToken);
+                        
+                        await _sse.BroadcastAsync(
+                            $"import-{locationImport.UserId}",
+                            JsonSerializer.Serialize(new {
+                                FilePath           = Path.GetFileName(locationImport.FilePath),
+                                LastImportedRecord = locationImport.LastImportedRecord,
+                                LastProcessedIndex = locationImport.LastProcessedIndex,
+                                TotalRecords     = locationImport.TotalRecords,
+                                Status             = ImportStatus.Stopped,
+                                ErrorMessage = locationImport.ErrorMessage,
+                            })
+                        );
+                        
                         _logger.LogInformation(
                             "Import {ImportId} cancelled by user after {Processed} records.",
                             importId, processed);
                         return;
                     }
 
-                    // 3) Grab next batch
+                    // Pull the next chunk
                     var batch = allLocations
                         .Skip(processed)
                         .Take(batchSize)
                         .ToList();
 
-                    // 4) Process each record (and optionally geocode)
-                    if (doGeocoding)
+                    // 2) Reverse‑geocode only if we have a key AND the record truly needs it (not having a full address data)
+                    if (hasApiKey)
                     {
                         foreach (var loc in batch)
                         {
-                            // Check cancellation between individual items
                             cancellationToken.ThrowIfCancellationRequested();
 
-                            var rev = await _reverseGeocodingService
-                                .GetReverseGeocodingDataAsync(
-                                    loc.Coordinates.Y,
-                                    loc.Coordinates.X,
-                                    apiToken);
+                            // Only geocode points that lack an address
+                            if (string.IsNullOrWhiteSpace(loc.FullAddress))
+                            {
+                                var rev = await _reverseGeocodingService
+                                    .GetReverseGeocodingDataAsync(
+                                        loc.Coordinates.Y,
+                                        loc.Coordinates.X,
+                                        apiToken);
 
-                            loc.FullAddress   = rev.FullAddress;
-                            loc.Place         = rev.Place;
-                            loc.AddressNumber = rev.AddressNumber;
-                            loc.StreetName    = rev.StreetName;
-                            loc.PostCode      = rev.PostCode;
-                            loc.Region        = rev.Region;
-                            loc.Country       = rev.Country;
+                                loc.FullAddress   = rev.FullAddress;
+                                loc.Place         = rev.Place;
+                                loc.AddressNumber = rev.AddressNumber;
+                                loc.StreetName    = rev.StreetName;
+                                loc.PostCode      = rev.PostCode;
+                                loc.Region        = rev.Region;
+                                loc.Country       = rev.Country;
 
-                            // throttle between calls
-                            await Task.Delay(200, cancellationToken);
+                                await Task.Delay(200, cancellationToken);
+                            }
                         }
                     }
 
-                    // 5) Insert & save batch
+                    // 3) Insert & save this batch
                     await InsertLocationsToDb(batch, cancellationToken);
 
-                    // 6) Update progress
+                    // 4) Update progress & SSE
                     processed += batch.Count;
-                    
-                    var latest = batch
-                        .OrderByDescending(l => l.Timestamp)
-                        .FirstOrDefault();
 
+                    var latest = batch.OrderByDescending(l => l.Timestamp).FirstOrDefault();
                     if (latest != null)
                     {
-                        locationImport.LastImportedRecord = $"Timestamp: {latest.Timestamp:u}" + 
-                                                            (!string.IsNullOrWhiteSpace(latest.FullAddress) ? $", {latest.FullAddress}" : "");
+                        locationImport.LastImportedRecord =
+                            $"Timestamp: {latest.Timestamp:u}"
+                          + (!string.IsNullOrWhiteSpace(latest.FullAddress)
+                              ? $", {latest.FullAddress}"
+                              : "");
                     }
                     else
                     {
                         locationImport.LastImportedRecord = "N/A";
                     }
-                    
+
                     locationImport.LastProcessedIndex = processed;
                     await _context.SaveChangesAsync(cancellationToken);
-                    await  _sse.BroadcastAsync($"import-{locationImport.UserId}", JsonSerializer.Serialize(new
-                    {
-                        FilePath = System.IO.Path.GetFileName(locationImport.FilePath),
-                        LastImportedRecord = locationImport.LastImportedRecord,
-                        LastProcessedIndex = locationImport.LastProcessedIndex
-                    }));
 
-                    // Optional pacing between batches
+                    await _sse.BroadcastAsync(
+                        $"import-{locationImport.UserId}",
+                        JsonSerializer.Serialize(new {
+                            FilePath             = Path.GetFileName(locationImport.FilePath),
+                            LastImportedRecord   = locationImport.LastImportedRecord,
+                            LastProcessedIndex   = locationImport.LastProcessedIndex,
+                            TotalRecords     = locationImport.TotalRecords,
+                            Status = ImportStatus.InProgress,
+                            ErrorMessage = locationImport.ErrorMessage,
+                        })
+                    );
+
+                    // brief pause between batches
                     await Task.Delay(1_000, cancellationToken);
                 }
 
-                // 7) Mark completed
+                // 5) All done
                 locationImport.Status = ImportStatus.Completed;
                 await _context.SaveChangesAsync(cancellationToken);
+                await _sse.BroadcastAsync(
+                    $"import-{locationImport.UserId}",
+                    JsonSerializer.Serialize(new {
+                        FilePath             = Path.GetFileName(locationImport.FilePath),
+                        LastImportedRecord   = locationImport.LastImportedRecord,
+                        LastProcessedIndex   = locationImport.LastProcessedIndex,
+                        Status = ImportStatus.Completed,
+                        ErrorMessage = locationImport.ErrorMessage,
+                    })
+                );
                 _logger.LogInformation(
                     "Import {ImportId} completed successfully: {Total} records processed.",
                     importId, total);
             }
             catch (OperationCanceledException)
             {
-                // Quartz or user requested cancellation
                 _logger.LogInformation("Import {ImportId} was cancelled mid-process.", importId);
-
-                // Ensure we mark it stopped if it wasn’t already
                 var li = await _context.LocationImports.FindAsync(importId);
                 if (li != null)
                 {
                     li.Status = ImportStatus.Stopped;
                     await _context.SaveChangesAsync(CancellationToken.None);
+                    await _sse.BroadcastAsync(
+                        $"import-{locationImport.UserId}",
+                        JsonSerializer.Serialize(new {
+                            FilePath             = Path.GetFileName(locationImport.FilePath),
+                            LastImportedRecord   = locationImport.LastImportedRecord,
+                            LastProcessedIndex   = locationImport.LastProcessedIndex,
+                            TotalRecords     = locationImport.TotalRecords,
+                            Status = ImportStatus.Stopped,
+                            ErrorMessage = locationImport.ErrorMessage,
+                        })
+                    );
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred while processing location import {ImportId}.", importId);
+                _logger.LogError(ex, "Error occurred while processing import {ImportId}.", importId);
                 var li = await _context.LocationImports.FindAsync(importId);
                 if (li != null)
                 {
                     li.Status = ImportStatus.Failed;
+                    li.ErrorMessage = ex.ToString().Length > 2000 
+                        ? ex.ToString().Substring(0, 2000) 
+                        : ex.ToString();
                     await _context.SaveChangesAsync(CancellationToken.None);
+                    await _sse.BroadcastAsync(
+                        $"import-{locationImport.UserId}",
+                        JsonSerializer.Serialize(new {
+                            FilePath             = Path.GetFileName(locationImport.FilePath),
+                            LastImportedRecord   = locationImport.LastImportedRecord,
+                            LastProcessedIndex   = locationImport.LastProcessedIndex,
+                            TotalRecords     = locationImport.TotalRecords,
+                            Status = ImportStatus.Failed,
+                            ErrorMessage = locationImport.ErrorMessage,
+                        })
+                    );
                 }
             }
         }

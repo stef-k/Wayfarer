@@ -98,10 +98,7 @@ namespace Wayfarer.Areas.User.Controllers
                 .WithIdentity($"LocationImportTrigger_{import.Id}")
                 .StartNow()
                 .Build();
-
-            // var schedulerFactory = HttpContext.RequestServices.GetRequiredService<ISchedulerFactory>();
-            // var scheduler = await schedulerFactory.GetScheduler();
-
+            
             if (await _scheduler.CheckExists(jobKey))
             {
                 _logger.LogWarning("Job with key {JobKey} already exists. Deleting existing job before rescheduling.",
@@ -155,10 +152,7 @@ namespace Wayfarer.Areas.User.Controllers
             var jobKey = new JobKey($"LocationImportJob_{import.Id}");
 
             _logger.LogInformation("Attempting to stop job with key {JobKey}", jobKey);
-
-            // var schedulerFactory = HttpContext.RequestServices.GetRequiredService<ISchedulerFactory>();
-            // var scheduler = await schedulerFactory.GetScheduler();
-
+            
             if (await _scheduler.CheckExists(jobKey))
             {
                 var job = await _scheduler.GetJobDetail(jobKey);

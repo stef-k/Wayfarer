@@ -4,18 +4,20 @@ namespace Wayfarer.Parsers
 {
     public class LocationDataParserFactory
     {
-        private readonly ILogger<GoogleTimelineJsonParser> _logger;
+        private readonly ILoggerFactory _loggerFactory;
 
-        public LocationDataParserFactory(ILogger<GoogleTimelineJsonParser> logger)
+        public LocationDataParserFactory(ILoggerFactory loggerFactory)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _loggerFactory = loggerFactory 
+                             ?? throw new ArgumentNullException(nameof(loggerFactory));
         }
 
         public ILocationDataParser GetParser(LocationImportFileType fileType)
         {
             return fileType switch
             {
-                LocationImportFileType.GoogleTimeline => new GoogleTimelineJsonParser(_logger),
+                LocationImportFileType.GoogleTimeline => new GoogleTimelineJsonParser(_loggerFactory.CreateLogger<GoogleTimelineJsonParser>()),
+                LocationImportFileType.WayfarerGeoJson => new WayfarerGeoJsonParser(_loggerFactory.CreateLogger<WayfarerGeoJsonParser>()),
                 // LocationImportFileType.Gpx => new GpxParser(),
                 // LocationImportFileType.GeoJson => new GeoJsonParser(),
                 // LocationImportFileType.Kml => new KmlParser(),
