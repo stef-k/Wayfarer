@@ -8,10 +8,10 @@
         public required string Token { get; set; }
         public DateTime CreatedAt { get; set; }
 
-        // Foreign key to User (nullable, meaning it's optional)
-        public string? UserId { get; set; }  // Nullable Foreign Key
+        // Foreign key to User - every token must belong to a user
+        public required string UserId { get; set; }
 
-        // Navigation property to User (Optional relationship)
-        public ApplicationUser? User { get; set; }  // Nullable navigation property
+        // Navigation property to User
+        public required ApplicationUser User { get; set; }
     }
 }

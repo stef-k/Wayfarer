@@ -46,6 +46,7 @@ namespace Wayfarer.Util
             ApiToken apiToken = new ApiToken
             {
                 UserId = userId,
+                User = user,
                 Name = name,
                 Token = token,
                 CreatedAt = DateTime.UtcNow
@@ -68,6 +69,7 @@ namespace Wayfarer.Util
             ApiToken apiToken = new ApiToken
             {
                 UserId = userId,
+                User = user,
                 Name = thirdPartyServiceName,
                 Token = thirdPartyToken,
                 CreatedAt = DateTime.UtcNow

@@ -56,6 +56,7 @@ namespace Wayfarer.Areas.User.Controllers
             SetAlert("API token created successfully!", "success");  // Example of using SetAlert from BaseController
             return RedirectToAction("Index");
         }
+        
         /// <summary>
         /// Store a third-party token for the current user
         /// </summary>
@@ -66,16 +67,22 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> StoreThirdPartyToken(string thirdPartyServiceName, string thirdPartyToken)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            // check if token exists for current user before creating it
-            bool exists = await _dbContext.ApiTokens.AnyAsync(t => t.UserId == userId && t.Name.Trim().ToLower() == thirdPartyServiceName.ToLower() ||
-            t.Name.Trim().ToLower().Contains(thirdPartyServiceName.ToLower()));
+
+            // Check if token exists for current user before creating it
+            bool exists = await _dbContext.ApiTokens.AnyAsync(t => 
+                t.UserId == userId && 
+                (t.Name.Trim().ToLower() == thirdPartyServiceName.Trim().ToLower() || 
+                 t.Name.Trim().ToLower().Contains(thirdPartyServiceName.Trim().ToLower()))
+            );
+
             if (exists)
             {
-                SetAlert("This API Token name exists, please regenerate it or create an API Token with different name!", "warning");
+                SetAlert("This API Token name exists, please regenerate it or create an API Token with a different name!", "warning");
                 return RedirectToAction("Index");
             }
 
-            ApiToken newToken = await _apiTokenService.StoreThirdPartyToken(userId, thirdPartyServiceName.Trim(), thirdPartyToken.Trim()); // Use direct ApiTokenService call
+            // Store the new token
+            ApiToken newToken = await _apiTokenService.StoreThirdPartyToken(userId, thirdPartyServiceName.Trim(), thirdPartyToken.Trim());
 
             SetAlert("API token created successfully!", "success");  // Example of using SetAlert from BaseController
             return RedirectToAction("Index");

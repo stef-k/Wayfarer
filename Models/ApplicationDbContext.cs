@@ -78,6 +78,10 @@ namespace Wayfarer.Models
                 .HasDatabaseName("IX_Vehicle_PlateNumber");
 
             builder.Entity<ApiToken>()
+                .Property(at => at.UserId)
+                .IsRequired();
+            
+            builder.Entity<ApiToken>()
                 .Property(at => at.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");  // PostgreSQL will set the current timestamp by default
 
