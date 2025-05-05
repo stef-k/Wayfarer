@@ -130,9 +130,9 @@ namespace Wayfarer.Areas.Api.Controllers
             _cache.Set($"lastLocation_{user.Id}", location, TimeSpan.FromMinutes(locationTimeThreshold));
 
             _logger.LogInformation($"User {user.DisplayName} logged location at {location.Timestamp}.");
-            
+
             // broadcast that we have a new location logged
-            await  _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
+            await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
             {
                 LocationId = location.Id,
                 TimeStamp = location.Timestamp,
@@ -141,7 +141,7 @@ namespace Wayfarer.Areas.Api.Controllers
             return Ok(new { Message = "Location logged successfully", Location = location });
         }
 
-        
+
         /// <summary>
         /// Gets user's locations filtered by zoom and map bounds.
         /// As the zoom level increases, more records will be returned up to 10.000.
@@ -160,7 +160,7 @@ namespace Wayfarer.Areas.Api.Controllers
             {
                 return BadRequest(new { Success = false, Message = "Invalid request payload." });
             }
-            
+
             // Check if the user is authenticated
             if (!User.Identity.IsAuthenticated)
             {
@@ -176,24 +176,36 @@ namespace Wayfarer.Areas.Api.Controllers
 
             try
             {
+                // 1) fetch location DTOs
                 var (locationDtos, totalItems) = await _locationService.GetLocationsAsync(
-                    request.MinLongitude, 
-                    request.MinLatitude, 
-                    request.MaxLongitude, 
-                    request.MaxLatitude, 
-                    request.ZoomLevel, 
+                    request.MinLongitude,
+                    request.MinLatitude,
+                    request.MaxLongitude,
+                    request.MaxLatitude,
+                    request.ZoomLevel,
                     userId,
                     CancellationToken.None
                 );
 
-                // get the latest location
-                var latestLocation =  _dbContext.Locations
-                    .Where(l => l.UserId ==userId)
-                    .Include(l => l.ActivityType)
-                    .OrderByDescending(l => l.LocalTimestamp)
-                    .FirstOrDefault();
-                
-                var result = locationDtos.Select(location => new PublicLocationDto()
+                // 2) materialize into a list so we can enumerate twice
+                var locationList = locationDtos.ToList();
+
+                // 3) compute each point’s UTC‐instant and find the max
+                var latestLocationId = locationList
+                    .Select(loc => new
+                    {
+                        loc.Id,
+                        Utc = CoordinateTimeZoneConverter.ConvertToUtc(
+                            latitude: loc.Coordinates.Y,
+                            longitude: loc.Coordinates.X,
+                            localDateTime: loc.LocalTimestamp
+                        )
+                    })
+                    .OrderByDescending(x => x.Utc)
+                    .FirstOrDefault()?.Id;
+
+// 4) project and flag using that Id
+                var result = locationList.Select(location => new PublicLocationDto()
                 {
                     Id = location.Id,
                     Timestamp = location.Timestamp,
@@ -218,21 +230,18 @@ namespace Wayfarer.Areas.Api.Controllers
                     Notes = location.Notes,
                     VehicleId = location.VehicleId,
 
-                    // User's latest location unrelated from filtered zoom & viewport but based on threshold
-                    // the user has set for his public timeline.
-                    IsLatestLocation = location.Id == latestLocation?.Id,
-                    // set if is live location based on application's settings location logging settings
-                    // the frontend will then compare local timestamp if current date time is <= to LocationTimeThresholdMinutes
-                    // and set the realitime  marker.
+                    // true if this was the most recent event in *absolute* time
+                    IsLatestLocation = location.Id == latestLocationId,
+
                     LocationTimeThresholdMinutes = location.LocationTimeThresholdMinutes
                 });
-                
+
                 return Ok(new
                 {
                     Success = true,
                     Data = result,
                     TotalItems = totalItems,
-                    CurrentPage = 1,  // Modify as needed for pagination
+                    CurrentPage = 1, // Modify as needed for pagination
                     PageSize = locationDtos.Count
                 });
             }
@@ -244,7 +253,7 @@ namespace Wayfarer.Areas.Api.Controllers
                     Success = true,
                     Data = $"{e}",
                     TotalItems = string.Empty,
-                    CurrentPage = 1,  // Modify as needed for pagination
+                    CurrentPage = 1, // Modify as needed for pagination
                     PageSize = 1
                 });
             }
@@ -279,7 +288,7 @@ namespace Wayfarer.Areas.Api.Controllers
             {
                 return Unauthorized(new { success = false, message = "Unauthorized." });
             }
-            
+
             try
             {
                 // Find the locations in the database that match the provided IDs that belong to the current user
@@ -309,7 +318,7 @@ namespace Wayfarer.Areas.Api.Controllers
                     new { success = false, message = "An error occurred while deleting the locations." });
             }
         }
-        
+
         [HttpGet("search")]
         public async Task<IActionResult> Search(
             string? userId,
@@ -325,21 +334,21 @@ namespace Wayfarer.Areas.Api.Controllers
             int page = 1,
             int pageSize = 10)
         {
-           // Force userId to be the currently logged-in user's ID
+            // Force userId to be the currently logged-in user's ID
             var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            
+
             if (string.IsNullOrEmpty(currentUserId))
             {
                 return Unauthorized(); // User not authenticated
             }
-            
+
             // Always override userId with current user's ID
             userId = currentUserId;
-            
+
             IQueryable<Location> query = _dbContext.Locations
                 .Include(l => l.ActivityType) // Include ActivityType for filtering by name
                 .AsNoTracking(); // Disable tracking for performance
-            
+
             // Only filter by the current user's ID
             query = query.Where(l => l.UserId == userId);
 
@@ -395,19 +404,19 @@ namespace Wayfarer.Areas.Api.Controllers
             {
                 query = query.Where(l => l.Address.ToLower().Contains(address.ToLower()));
             }
-            
+
             // Apply Country filter
             if (!string.IsNullOrEmpty(country))
             {
                 query = query.Where(l => l.Country.ToLower().Contains(country.ToLower()));
             }
-            
+
             // Apply Region filter
             if (!string.IsNullOrEmpty(region))
             {
                 query = query.Where(l => l.Region.ToLower().Contains(region.ToLower()));
             }
-            
+
             // Apply City filter (Place in reverse geocoding terms)
             if (!string.IsNullOrEmpty(place))
             {
