@@ -35,7 +35,7 @@ public class TilesController : Controller
             _logger.LogWarning("Unauthorized tile request. Referer: {Referer}", referer);
             return Unauthorized("Unauthorized request.");
         }
-        
+
         // Construct the OSM tile URL. (Customize subdomain logic if desired.)
         string tileUrl = $"https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
@@ -59,13 +59,17 @@ public class TilesController : Controller
     private bool IsValidReferer(string referer)
     {
         if (string.IsNullOrEmpty(referer))
+            return false;
+
+        try
+        {
+            var refererUri = new Uri(referer);
+            var requestHost = Request.Host.Host;
+            return refererUri.Host == requestHost;
+        }
+        catch
         {
             return false;
         }
-
-        // Dynamically build the base URL from the current request's scheme and host.
-        var baseUrl = $"{Request.Scheme}://{Request.Host}";
-        return referer.StartsWith(baseUrl);
     }
-
 }
