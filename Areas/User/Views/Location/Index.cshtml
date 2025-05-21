@@ -3,8 +3,12 @@
     ViewData["LoadLeaflet"] = true;
 }
 
-<div class="d-flex justify-content-between align-items-center my-0">
-    <h1 class="fs-4">@ViewData["Title"]</h1>
+
+<div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2 mb-3">
+    <div class="d-flex flex-wrap align-items-baseline gap-2">
+        <h1 class="fs-4 my-0">@ViewData["Title"]</h1>
+        <span id="timeline-summary" class="small font-monospace text-muted"></span>
+    </div>
     <a class="btn btn-success btn-sm" asp-action="Create" title="Add a new location manually using the map.">Add Location</a>
 </div>
 

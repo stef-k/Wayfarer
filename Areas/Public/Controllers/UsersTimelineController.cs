@@ -6,16 +6,18 @@ using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Public.Controllers
 {
-
     [Area("Public")]
     public class UsersTimelineController : BaseController
     {
         private readonly LocationService _locationService;
-        
-        public UsersTimelineController(ILogger<BaseController> logger, ApplicationDbContext dbContext, LocationService locationService) : base(logger,
+        private readonly ILocationStatsService _statsService;
+
+        public UsersTimelineController(ILogger<BaseController> logger, ApplicationDbContext dbContext,
+            LocationService locationService, ILocationStatsService statsService) : base(logger,
             dbContext)
         {
             _locationService = locationService;
+            _statsService = statsService;
         }
 
         /// <summary>
@@ -76,35 +78,35 @@ namespace Wayfarer.Areas.Public.Controllers
             string? threshold = user.PublicTimelineTimeThreshold;
             threshold ??= "now";
             TimeSpan timeSpan = Util.TimespanHelper.ParseTimeThreshold(threshold);
-            DateTime cutOffTime =  DateTime.UtcNow.Subtract(timeSpan);
+            DateTime cutOffTime = DateTime.UtcNow.Subtract(timeSpan);
 
             // get the latest location
-            var latestLocation =  _dbContext.Locations
+            var latestLocation = _dbContext.Locations
                 .Where(l => l.UserId == user.Id && l.LocalTimestamp <= cutOffTime)
                 .Include(l => l.ActivityType)
                 .OrderByDescending(l => l.LocalTimestamp)
                 .FirstOrDefault();
-            
+
             try
             {
                 var (locationDtos, totalItems) = await _locationService.GetLocationsAsync(
-                    request.MinLongitude, 
-                    request.MinLatitude, 
-                    request.MaxLongitude, 
-                    request.MaxLatitude, 
-                    request.ZoomLevel, 
+                    request.MinLongitude,
+                    request.MinLatitude,
+                    request.MaxLongitude,
+                    request.MaxLatitude,
+                    request.ZoomLevel,
                     user.Id,
                     CancellationToken.None
                 );
 
                 var settings = await _dbContext.ApplicationSettings.FirstOrDefaultAsync();
-                
+
                 // check against "now" threshold
                 if (threshold != "now")
                 {
-                    locationDtos =  locationDtos.Where(l => l.LocalTimestamp <= cutOffTime).ToList();
+                    locationDtos = locationDtos.Where(l => l.LocalTimestamp <= cutOffTime).ToList();
                 }
-               
+
                 var result = locationDtos.Select(location => new PublicLocationDto()
                 {
                     Id = location.Id,
@@ -138,13 +140,13 @@ namespace Wayfarer.Areas.Public.Controllers
                     // and set the realitime  marker.
                     LocationTimeThresholdMinutes = location.LocationTimeThresholdMinutes
                 });
-                
+
                 return Ok(new
                 {
                     Success = true,
                     Data = result,
                     TotalItems = totalItems,
-                    CurrentPage = 1,  // Modify as needed for pagination
+                    CurrentPage = 1, // Modify as needed for pagination
                     PageSize = locationDtos.Count
                 });
             }
@@ -156,11 +158,37 @@ namespace Wayfarer.Areas.Public.Controllers
                     Success = true,
                     Data = $"{e}",
                     TotalItems = string.Empty,
-                    CurrentPage = 1,  // Modify as needed for pagination
+                    CurrentPage = 1, // Modify as needed for pagination
                     PageSize = 1
                 });
             }
-            
+        }
+
+        /// <summary>
+        /// Calculates User x Location stats
+        /// </summary>
+        /// <param name="username">User's unique username</param>
+        /// <returns></returns>
+        [HttpGet("Public/Users/GetPublicStats/{username}")]
+        public async Task<IActionResult> GetPublicStats(string username)
+        {
+            if (string.IsNullOrEmpty(username))
+            {
+                return BadRequest("Username is required.");
+            }
+
+            ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
+
+            if (user == null || !user.IsTimelinePublic)
+            {
+                return NotFound("User not found or timeline is not public.");
+            }
+
+
+            // 2) Delegate all the heavy‐lifting to your stats service
+            var statsDto = await _statsService.GetStatsForUserAsync(user.Id);
+
+            return Ok(statsDto);
         }
     }
 }

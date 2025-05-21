@@ -2,57 +2,37 @@
     ViewData["BodyClass"] = "container-fluid";
 }
 
-<div class="d-flex justify-content-between align-items-center my-0">
-    <h1 class="fs-4">@ViewData["Title"]</h1>
-    <!-- Export dropdown -->
-    <div class="d-flex">
-        <div class="btn-group me-2">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <!-- Left: Title + Stats -->
+    <div class="d-flex flex-wrap align-items-baseline gap-2">
+        <h1 class="fs-4 my-0">@ViewData["Title"]</h1>
+        <span id="timeline-summary" class="small font-monospace text-muted"></span>
+    </div>
+
+    <!-- Right: Export dropdown + Add button -->
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group">
             <button
                 type="button"
                 class="btn btn-outline-primary btn-sm dropdown-toggle"
                 data-bs-toggle="dropdown"
-                aria-expanded="false" title="Export all of your location data in a selected format (CSV, GPX, GeoJSON, KML)">
+                aria-expanded="false"
+                title="Export all of your location data in a selected format (CSV, GPX, GeoJSON, KML)">
                 Export Location Data
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                    <a
-                        class="dropdown-item"
-                        asp-controller="LocationExport"
-                        asp-action="GeoJson">
-                        GeoJSON
-                    </a>
-                </li>
-                <li>
-                    <a
-                        class="dropdown-item"
-                        asp-controller="LocationExport"
-                        asp-action="Csv">
-                        CSV
-                    </a>
-                </li>
-                <li>
-                    <a
-                        class="dropdown-item"
-                        asp-controller="LocationExport"
-                        asp-action="Gpx">
-                        GPX
-                    </a>
-                </li>
-                <li>
-                    <a
-                        class="dropdown-item"
-                        asp-controller="LocationExport"
-                        asp-action="Kml">
-                        KML
-                    </a>
-                </li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="GeoJson">GeoJSON</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Csv">CSV</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Gpx">GPX</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Kml">KML</a></li>
             </ul>
         </div>
-        <a class="btn btn-success btn-sm" asp-action="Create" title="Add a new location manually using the map.">Add
-            Location</a>
+        <a class="btn btn-success btn-sm" asp-action="Create" title="Add a new location manually using the map.">
+            Add Location
+        </a>
     </div>
 </div>
+
 
 <!-- Search and Delete Buttons -->
 <div class="d-flex justify-content-between align-items-center my-2">

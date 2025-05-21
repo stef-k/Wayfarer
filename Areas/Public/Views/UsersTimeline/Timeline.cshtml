@@ -5,7 +5,16 @@
     var displayName = ViewData["DisplayName"];
     var timelineLive = ViewData["TimelineLive"];
 }
-<h1 class="fs-3 text-center my-0">@(displayName != null ? $"Timeline of {displayName}" : $"Timeline of {username}")</h1>
+
+<div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 my-0">
+    <h1 class="fs-3 my-0">
+        @(displayName != null ? $"Timeline of {displayName}" : $"Timeline of {username}")
+    </h1>
+
+    <!-- This span gets populated dynamically -->
+    <span id="timeline-summary" class="small font-monospace text-muted"></span>
+</div>
+
 <!-- Map container -->
 <div id="username" data-username="@username" hidden></div>
 <div id="timelineLive" data-timeline-live="@timelineLive" hidden></div>

@@ -66,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
             initWikipediaPopovers(modalEl);
         });
     }
+
+    getUserStats();
 });
 
 /**
@@ -374,3 +376,41 @@ const getUserLocations = () => {
 }
 
 const debouncedGetUserLocations = debounce(getUserLocations, 350);
+
+const getUserStats = async () => {
+
+    const url = `/api/users/stats`;
+
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Accept": "application/json"
+        }
+    });
+
+    if (!response.ok) {
+        // You can handle 404/403/other errors differently if you like
+        const errorText = await response.text();
+        throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+
+    // assuming the response is JSON matching UserLocationStatsDto
+    const stats = await response.json();
+    const summaryParts = [];
+
+    if (stats.totalLocations != null)
+        summaryParts.push(`<strong>Total Locations:</strong> ${stats.totalLocations}`);
+    if (stats.fromDate)
+        summaryParts.push(`<strong>From Date:</strong> ${new Date(stats.fromDate).toISOString().split('T')[0]}`);
+    if (stats.toDate)
+        summaryParts.push(`<strong>To Date:</strong> ${new Date(stats.toDate).toISOString().split('T')[0]}`);
+    if (stats.countriesVisited != null)
+        summaryParts.push(`<strong>Countries:</strong> ${stats.countriesVisited}`);
+    if (stats.regionsVisited != null)
+        summaryParts.push(`<strong>Regions:</strong> ${stats.regionsVisited}`);
+    if (stats.citiesVisited != null)
+        summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
+
+    const summary = summaryParts.join(" | ");
+    document.getElementById("timeline-summary").innerHTML  = summary;
+};

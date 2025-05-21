@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
+using Wayfarer.Services;
+
 namespace Wayfarer.Areas.Api.Controllers;
 
 [Area("Api")]
@@ -12,11 +14,13 @@ public class UsersController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<UsersController> _logger;
+    private readonly ILocationStatsService _statsService;
 
-    public UsersController(ApplicationDbContext dbContext, ILogger<UsersController> logger)
+    public UsersController(ApplicationDbContext dbContext, ILogger<UsersController> logger, ILocationStatsService statsService)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _statsService = statsService;
     }
 
     /// <summary>
@@ -50,5 +54,26 @@ public class UsersController : ControllerBase
             _logger.LogError(dbEx, "Error deleting locations for user {UserId}", userId);
             return StatusCode(500, new { message = "Database update error." });
         }
+    }
+    
+    /// <summary>
+    /// Calculates User x Location stats
+    /// </summary>
+    /// GET /api/users/stats
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetPublicStats()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (userId == null)
+        {
+            return NotFound("User not found or timeline is not public.");
+        }
+
+
+        // 2) Delegate all the heavy‐lifting to your stats service
+        var statsDto = await _statsService.GetStatsForUserAsync(userId);
+
+        return Ok(statsDto);
     }
 }

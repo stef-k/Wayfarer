@@ -398,6 +398,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     
     // Server Send Events Service setup (SSE) used to broadcast messages to clients
     builder.Services.AddSingleton<SseService>();
+    
+    // User location stats service
+    builder.Services.AddScoped<ILocationStatsService, LocationStatsService>();
+
 }
 
 // Method to configure middleware components such as error handling and performance monitoring

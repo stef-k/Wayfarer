@@ -22,6 +22,7 @@ namespace Wayfarer.Areas.Api.Controllers
         private readonly ReverseGeocodingService _reverseGeocodingService;
         private readonly LocationService _locationService;
         private readonly SseService _sse;
+        private readonly ILocationStatsService _statsService;
 
         // Constants for default threshold settings
         private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
@@ -29,7 +30,8 @@ namespace Wayfarer.Areas.Api.Controllers
 
         public LocationController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger,
             IMemoryCache cache, IApplicationSettingsService settingsService,
-            ReverseGeocodingService reverseGeocodingService, LocationService locationService, SseService sse)
+            ReverseGeocodingService reverseGeocodingService, LocationService locationService, SseService sse,
+            ILocationStatsService statsService)
             : base(dbContext, logger)
         {
             _cache = cache;
@@ -37,6 +39,7 @@ namespace Wayfarer.Areas.Api.Controllers
             _reverseGeocodingService = reverseGeocodingService;
             _locationService = locationService;
             _sse = sse;
+            _statsService = statsService;
         }
 
         [HttpPost("log-location")]
@@ -204,7 +207,7 @@ namespace Wayfarer.Areas.Api.Controllers
                     .OrderByDescending(x => x.Utc)
                     .FirstOrDefault()?.Id;
 
-// 4) project and flag using that Id
+                // 4) project and flag using that Id
                 var result = locationList.Select(location => new PublicLocationDto()
                 {
                     Id = location.Id,
@@ -469,6 +472,20 @@ namespace Wayfarer.Areas.Api.Controllers
                     CurrentPage = page,
                     PageSize = pageSize
                 });
+        }
+        
+        /// <summary>
+        /// Calculates User x Location stats
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("stats")]
+        public async Task<ActionResult<UserLocationStatsDto>> GetStats()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
+            var stats = await _statsService.GetStatsForUserAsync(userId);
+            return Ok(stats);
         }
     }
 }
