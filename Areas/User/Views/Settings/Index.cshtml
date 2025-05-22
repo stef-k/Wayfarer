@@ -2,6 +2,7 @@
 
 @{
     var fullurl = $"{Context.Request.Scheme}://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}";
+    var fullurlEmbed = $"{Context.Request.Scheme}://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}/embed";
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
@@ -24,7 +25,9 @@
                             {
                                 <span class="badge bg-success d-inline">YES</span>
                                 <p>See your public timeline at <a href="@fullurl" title="Your public facing timeline!" target="_blank">@fullurl</a>
-                                    <br/>You can share this link to your friends or embed it in your blog!</p>
+                                    <br/>You can share this link to your friends!</p>
+                                <p>Or <a href="@fullurlEmbed" title="Your public facing timeline!" target="_blank">@fullurlEmbed</a>
+                                    <br/>You can embed it in your blog!</p>
                             }
                             else
                             {

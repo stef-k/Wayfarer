@@ -58,6 +58,43 @@ namespace Wayfarer.Areas.Public.Controllers
         }
 
         /// <summary>
+        /// Returns the view page for user's public timeline
+        /// </summary>
+        /// <param name="username"></param>
+        /// <returns></returns>
+        //[HttpGet]
+        [Route("Public/Users/Timeline/{username}/embed")]
+        public async Task<IActionResult> Embed(string username)
+        {
+            if (string.IsNullOrEmpty(username))
+            {
+                return BadRequest("Username is required.");
+            }
+
+            ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
+
+            if (user == null || !user.IsTimelinePublic)
+            {
+                return NotFound("User not found or timeline is not public.");
+            }
+
+            ViewData["Username"] = user.UserName;
+            ViewData["TimelineLive"] = user.PublicTimelineTimeThreshold == "now";
+            if (!string.IsNullOrEmpty(user.DisplayName))
+            {
+                ViewData["DisplayName"] = user.DisplayName;
+                SetPageTitle($"{user.DisplayName} Timeline");
+            }
+            else
+            {
+                ViewData["DisplayName"] = user.UserName;
+                SetPageTitle($"{user.UserName} Timeline");
+            }
+
+            return View("Embed");
+        }
+        
+        /// <summary>
         /// Gets all of user's locations, based on user's settings.
         /// The location should be set to public by the user and there must be a time threshold up to what
         /// point in time from current date time the user wants to show his locations.

@@ -1,0 +1,73 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <title>
+        @if (ViewData["Title"] != null)
+        {
+            @($"{ViewData["Title"]} - Wayfarer")
+        }
+        else
+        {
+            @("Wayfarer")
+        }
+    </title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link href="/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
+    @if (ViewData["LoadLeaflet"] as bool? == true)
+    {
+        <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
+        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
+        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
+    }
+</head>
+<body data-bs-theme="light">
+    <div class="@(ViewData["BodyClass"] as string ?? "container")">
+        @if (TempData["AlertMessage"] != null)
+        {
+            <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
+                @TempData["AlertMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
+            <span id="alertMessage">This is a placeholder message.</span>
+            <button type="button" class="btn-close" onclick="hideAlert()" aria-label="Close"></button>
+        </div>
+
+
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/popperjs/popper.min.js"></script>
+    <script src="~/lib/tippy/tippy-bundle.umd.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    @if (ViewData["LoadLeaflet"] == null || (bool)ViewData["LoadLeaflet"])
+    {
+        <script src="~/js/map-utils.js" type="module"></script>
+        <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>
+        <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
+    }
+
+    <script>
+        // Wayfarer cross-site object
+        window.Wayfarer = window.Wayfarer || {};
+    </script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>
