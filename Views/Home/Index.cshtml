@@ -1,8 +1,21 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["BodyClass"] = "container-fluid";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="landing-container">
+    <div class="landing-content">
+        <div class="landing-block">
+            <h1 class="landing-title">Wayfarer</h1>
+            <img src="/logo.png" alt="Wayfarer Logo" class="landing-image landing-image-left" />
+        </div>
+        <div class="landing-block">
+            <h2 class="landing-subtitle pt-4">Track Your Timeline</h2>
+            <img src="/map.PNG" alt="Timeline Example" class="landing-image landing-image-right" />
+            <p class="lead">
+                - Add locations manually or using GPS Logging mobile apps, add notes, images (URLs), activities <br />
+                - Import from Google Timeline exported data.
+            </p>
+            <p>Check a live example with real data at <a href="https://wayfarer.stefk.me/Public/Users/Timeline/stef">https://wayfarer.stefk.me/Public/Users/Timeline/stef</a></p>
+        </div>
+    </div>
 </div>

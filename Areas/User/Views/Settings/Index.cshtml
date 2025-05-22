@@ -1,8 +1,8 @@
 ﻿@model Wayfarer.Models.ApplicationUser
 
 @{
-    var fullurl = $"{Context.Request.Scheme}://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}";
-    var fullurlEmbed = $"{Context.Request.Scheme}://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}/embed";
+    var fullurl = $"https://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}";
+    var fullurlEmbed = $"https://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}/embed";
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
