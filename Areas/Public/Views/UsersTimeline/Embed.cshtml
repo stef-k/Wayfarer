@@ -10,10 +10,10 @@
     var timelineLive = ViewData["TimelineLive"];
 }
 
-<div class="wayfarer-embed">
+<div class="wayfarer-embed py-1">
     
-    <div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 my-0">
-        <h1 class="fs-3 my-0">
+    <div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2">
+        <h1 class="fs-3">
             @(displayName != null ? $"Timeline of {displayName}" : $"Timeline of {username}")
         </h1>
 
@@ -24,7 +24,7 @@
     <!-- Map container -->
     <div id="username" data-username="@username" hidden></div>
     <div id="timelineLive" data-timeline-live="@timelineLive" hidden></div>
-    <div id="mapContainer" style="height: calc(100vh - 150px);"></div>
+    <div id="mapContainer" style="height: calc(100vh - 70px);"></div>
 
     <!-- Modal HTML -->
     <div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">

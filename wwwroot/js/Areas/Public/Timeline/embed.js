@@ -434,6 +434,7 @@ const fixParentPadding = () => {
     document.querySelectorAll('.wayfarer-embed').forEach(embed => {
         const parent = embed.closest('.container-fluid');
         if (parent) {
+            parent.style.backgroundColor = "transparent !important";
             parent.style.paddingLeft = '0';
             parent.style.paddingRight = '0';
         }
