@@ -93,7 +93,7 @@ namespace Wayfarer.Areas.Public.Controllers
 
             return View("Embed");
         }
-        
+
         /// <summary>
         /// Gets all of user's locations, based on user's settings.
         /// The location should be set to public by the user and there must be a time threshold up to what
@@ -118,11 +118,11 @@ namespace Wayfarer.Areas.Public.Controllers
             DateTime cutOffTime = DateTime.UtcNow.Subtract(timeSpan);
 
             // get the latest location
-            var latestLocation = _dbContext.Locations
+            var latestLocation = await _dbContext.Locations
                 .Where(l => l.UserId == user.Id && l.LocalTimestamp <= cutOffTime)
                 .Include(l => l.ActivityType)
                 .OrderByDescending(l => l.LocalTimestamp)
-                .FirstOrDefault();
+                .FirstOrDefaultAsync();
 
             try
             {
@@ -143,6 +143,18 @@ namespace Wayfarer.Areas.Public.Controllers
                 {
                     locationDtos = locationDtos.Where(l => l.LocalTimestamp <= cutOffTime).ToList();
                 }
+
+                // Load all hidden areas for this user
+                var hiddenAreas = await _dbContext.HiddenAreas
+                    .Where(h => h.UserId == user.Id)
+                    .ToListAsync();
+
+                // Filter out any locations that fall inside any of the user's hidden areas
+                locationDtos = locationDtos
+                    .Where(loc =>
+                        !hiddenAreas.Any(area => area.Area != null && area.Area.Contains(loc.Coordinates))
+                    )
+                    .ToList();
 
                 var result = locationDtos.Select(location => new PublicLocationDto()
                 {
@@ -182,9 +194,9 @@ namespace Wayfarer.Areas.Public.Controllers
                 {
                     Success = true,
                     Data = result,
-                    TotalItems = totalItems,
+                    TotalItems = result.Count(),
                     CurrentPage = 1, // Modify as needed for pagination
-                    PageSize = locationDtos.Count
+                    PageSize = result.Count()
                 });
             }
             catch (Exception e)
@@ -192,14 +204,15 @@ namespace Wayfarer.Areas.Public.Controllers
                 _logger.LogError(e.Message);
                 return Ok(new
                 {
-                    Success = true,
-                    Data = $"{e}",
-                    TotalItems = string.Empty,
-                    CurrentPage = 1, // Modify as needed for pagination
-                    PageSize = 1
+                    Success = false,
+                    Data = $"Error: {e.Message}",
+                    TotalItems = 0,
+                    CurrentPage = 1,
+                    PageSize = 0
                 });
             }
         }
+
 
         /// <summary>
         /// Calculates User x Location stats

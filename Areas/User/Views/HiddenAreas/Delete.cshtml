@@ -1,0 +1,17 @@
+@model Wayfarer.Models.HiddenArea
+@{
+    ViewData["Title"] = "Delete Hidden Area";
+}
+
+<h2>Are you sure you want to delete this hidden area?</h2>
+
+<div class="alert alert-warning">
+    <strong>@Model.Name</strong><br />
+    @Model.Description
+</div>
+
+<form asp-area="User" asp-controller="HiddenAreas" asp-action="Delete" method="post">
+    <input type="hidden" asp-for="Id" />
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>

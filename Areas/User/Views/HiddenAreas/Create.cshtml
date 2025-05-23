@@ -1,0 +1,143 @@
+@model Wayfarer.Models.ViewModels.HiddenAreaCreateViewModel
+@{
+ViewData["Title"] = "Add Hidden Area";
+Layout = "~/Views/Shared/_Layout.cshtml";
+ViewData["BodyClass"] = "container";
+ViewData["LoadLeaflet"] = true;  // Make sure your _Layout includes leaflet and leaflet.draw based on this
+}
+
+<h2>Add Hidden Area</h2>
+
+<form asp-area="User" asp-controller="HiddenAreas" asp-action="Create" method="post" novalidate>
+    <div class="form-group">
+        <label asp-for="Name"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Description"></label>
+        <textarea asp-for="Description" class="form-control"></textarea>
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label>Draw Hidden Area on Map</label>
+        <div id="map" style="height: 550px;" class="border rounded mb-2"></div>
+
+        <!-- Hidden input bound to AreaWKT property -->
+        <input type="hidden" asp-for="AreaWKT" id="areaInput" />
+        <span asp-validation-for="AreaWKT" class="text-danger"></span>
+        <small class="form-text text-muted">Use the polygon tool to draw the area to be hidden.</small>
+    </div>
+
+    <button type="submit" class="btn btn-success">Save</button>
+    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+<script>
+    // Initialize map centered roughly globally
+    const map = L.map('map').setView([0, 0], 3);
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Layer to hold drawn polygons
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    // Initialize Leaflet Draw control with polygon only
+    const drawControl = new L.Control.Draw({
+        draw: {
+            polyline: false,
+            rectangle: false,
+            circle: false,
+            circlemarker: false,
+            marker: false,
+            polygon: {
+                allowIntersection: false,
+                showArea: true,
+                shapeOptions: {
+                    color: '#ff7800',
+                    weight: 3
+                }
+            }
+        },
+        edit: {
+            featureGroup: drawnItems,
+            edit: true,
+            remove: true
+        }
+    });
+    map.addControl(drawControl);
+
+    // Helper: Parse WKT polygon to Leaflet latlngs array
+    function wktToLatLngs(wkt) {
+        // Example WKT: POLYGON((lng lat, lng lat, ...))
+        const matches = wkt.match(/\(\((.*)\)\)/);
+        if (!matches || matches.length < 2) return null;
+
+        const coords = matches[1].split(",").map(pair => {
+            const [lng, lat] = pair.trim().split(" ").map(Number);
+            return [lat, lng]; // Leaflet uses [lat, lng]
+        });
+        return coords;
+    }
+
+    // Load existing polygon from Model.AreaWKT if present
+    const wktString = '@(Model.AreaWKT ?? "")'.trim();
+    if (wktString) {
+        const latlngs = wktToLatLngs(wktString);
+        if (latlngs) {
+            const polygon = L.polygon(latlngs, {color: '#ff7800'});
+            drawnItems.addLayer(polygon);
+            map.fitBounds(polygon.getBounds());
+            document.getElementById('areaInput').value = wktString;
+        }
+    }
+
+    // Update hidden input with WKT polygon when a polygon is created or edited
+    function updateAreaWKTFromLayer(layer) {
+        const latlngs = layer.getLatLngs()[0]; // Outer ring only
+        let wkt = "POLYGON((";
+        for (let i = 0; i < latlngs.length; i++) {
+            wkt += `${latlngs[i].lng} ${latlngs[i].lat}, `;
+        }
+        // Close the polygon by repeating the first point without trailing comma
+        wkt += `${latlngs[0].lng} ${latlngs[0].lat}))`;
+        document.getElementById('areaInput').value = wkt;
+    }
+
+    // When a new polygon is drawn, clear existing polygons and add the new one
+    map.on(L.Draw.Event.CREATED, function (e) {
+        drawnItems.clearLayers();
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        updateAreaWKTFromLayer(layer);
+    });
+
+    // When polygons are edited, update hidden input WKT accordingly
+    map.on(L.Draw.Event.EDITED, function (e) {
+        const layers = e.layers;
+        if (layers.getLayers().length === 0) {
+            document.getElementById('areaInput').value = '';
+            return;
+        }
+
+        // Assuming only one polygon in drawnItems
+        layers.eachLayer(layer => {
+            updateAreaWKTFromLayer(layer);
+        });
+    });
+
+    // When polygons are deleted, clear the hidden input
+    map.on(L.Draw.Event.DELETED, function (e) {
+        document.getElementById('areaInput').value = '';
+    });
+    
+</script>
+}

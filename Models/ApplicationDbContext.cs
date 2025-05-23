@@ -29,6 +29,7 @@ namespace Wayfarer.Models
         
         public DbSet<LocationImport> LocationImports { get; set; }
         
+        public DbSet<HiddenArea> HiddenAreas { get; set; }
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -174,6 +175,12 @@ namespace Wayfarer.Models
             builder.Entity<LocationImport>()
                 .Property(li => li.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            
+            builder.Entity<HiddenArea>()
+                .HasOne(h => h.User)
+                .WithMany(u => u.HiddenAreas) // <- You'll need this nav property on ApplicationUser
+                .HasForeignKey(h => h.UserId)
+                .OnDelete(DeleteBehavior.Cascade); 
         }
         
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

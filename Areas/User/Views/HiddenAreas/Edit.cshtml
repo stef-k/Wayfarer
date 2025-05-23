@@ -1,0 +1,110 @@
+@model Wayfarer.Models.ViewModels.HiddenAreaEditViewModel
+@{
+    ViewData["Title"] = "Edit Hidden Area";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["BodyClass"] = "container";
+    ViewData["LoadLeaflet"] = true;
+}
+
+<h2>Edit Hidden Area</h2>
+
+<form asp-area="User" asp-controller="HiddenAreas" asp-action="Edit" method="post">
+    <input type="hidden" asp-for="Id"/>
+
+    <div class="form-group">
+        <label asp-for="Name"></label>
+        <input asp-for="Name" class="form-control"/>
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Description"></label>
+        <textarea asp-for="Description" class="form-control"></textarea>
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label>Edit Hidden Area on Map</label>
+        <div id="map" style="height: 550px" class="border rounded"></div>
+        <input type="hidden" asp-for="AreaWKT" id="areaInput"/>
+        <span asp-validation-for="AreaWKT" class="text-danger"></span>
+        <span class="form-text text-muted">Edit or redraw the hidden area polygon.</span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">Cancel</a>
+</form>
+
+@section Scripts {
+    <script>
+        const map = L.map('map').setView([0, 0], 2);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        const drawControl = new L.Control.Draw({
+            draw: false,
+            edit: {
+                featureGroup: drawnItems,
+                edit: true,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+
+        // Load existing WKT polygon into map
+        const wkt = @Html.Raw(Json.Serialize(Model.AreaWKT?.Replace("POLYGON ((", "POLYGON((").Replace("\n", "").Replace("\r", "") ?? ""));
+
+        if (wkt.startsWith("POLYGON")) {
+            try {
+                const raw = wkt
+                    .replace("POLYGON((", "")
+                    .replace("))", "")
+                    .trim();
+
+                const coords = raw
+                    .split(",")
+                    .map(pair => {
+                        const [lngStr, latStr] = pair.trim().split(/\s+/);
+                        const lng = parseFloat(lngStr);
+                        const lat = parseFloat(latStr);
+                        if (isNaN(lat) || isNaN(lng)) throw new Error("Invalid coordinates");
+                        return [lat, lng]; // [lat, lng] for Leaflet
+                    });
+
+                const polygon = L.polygon(coords);
+                drawnItems.addLayer(polygon);
+                map.fitBounds(polygon.getBounds());
+
+                document.getElementById('areaInput').value = wkt;
+            } catch (err) {
+                console.error("WKT parsing error:", err, "WKT:", wkt);
+            }
+
+
+        }
+
+        function updateWktFromLayer(layer) {
+            const latlngs = layer.getLatLngs()[0];
+            let wkt = "POLYGON((";
+            for (let i = 0; i < latlngs.length; i++) {
+                wkt += `${latlngs[i].lng} ${latlngs[i].lat}, `;
+            }
+            wkt += `${latlngs[0].lng} ${latlngs[0].lat}))`;
+            document.getElementById('areaInput').value = wkt;
+        }
+
+        map.on(L.Draw.Event.EDITED, function (e) {
+            e.layers.eachLayer(updateWktFromLayer);
+        });
+
+        map.on(L.Draw.Event.DELETED, function () {
+            document.getElementById('areaInput').value = "";
+        });
+    </script>
+}
