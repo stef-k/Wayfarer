@@ -44,9 +44,11 @@ namespace Wayfarer.Areas.Api.Controllers
         }
 
         [HttpPost]
-        [Route("/api/location/log-location")] 
+        [Route("/api/location/log-location")]
         public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
         {
+            var requestId = Guid.NewGuid();
+
             ApplicationUser? user = GetUserFromToken();
             if (user == null)
                 return Unauthorized("Invalid or missing API token.");
@@ -54,106 +56,134 @@ namespace Wayfarer.Areas.Api.Controllers
             if (!user.IsActive)
                 return Forbid("User is not active.");
 
-            if (dto == null || dto.Latitude == 0 && dto.Longitude == 0)
-                return BadRequest("Location data is invalid.");
-
-            // Fetch settings and fallback to defaults if needed
-            ApplicationSettings? settings = _settingsService.GetSettings();
-            int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
-            double locationDistanceThreshold =
-                settings?.LocationDistanceThresholdMeters ?? DefaultLocationDistanceThresholdMeters;
-
-            // Convert local timestamp to UTC
-            DateTime utcTimestamp;
-            string timeZoneId;
-            try
+            using (_logger.BeginScope(
+                       new Dictionary<string, object> { ["RequestId"] = requestId, ["UserId"] = user.Id }))
             {
-                timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(dto.Latitude, dto.Longitude);
-                utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to convert local time to UTC for coordinates {Lat}, {Lon}", dto.Latitude,
-                    dto.Longitude);
-                return StatusCode(500, "Failed to process timestamp and timezone.");
-            }
+                _logger.LogInformation("Received location update request.");
 
-            // Construct geometry
-            Point coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+                if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
+                {
+                    _logger.LogWarning("Invalid location data received.");
+                    return BadRequest("Location data is invalid.");
+                }
 
-            // Fetch the last known location (from cache or DB)
-            string cacheKey = $"lastLocation_{user.Id}";
-            if (!_cache.TryGetValue(cacheKey, out Location? lastLocation))
-            {
-                lastLocation = _dbContext.Locations
-                    .Where(l => l.UserId == user.Id)
-                    .OrderByDescending(l => l.Timestamp)
-                    .FirstOrDefault();
+                if (dto.Latitude < -90 || dto.Latitude > 90 || dto.Longitude < -180 || dto.Longitude > 180)
+                {
+                    _logger.LogWarning("Out-of-range coordinates: {Latitude}, {Longitude}", dto.Latitude,
+                        dto.Longitude);
+                    return BadRequest("Latitude or Longitude is out of range.");
+                }
+
+                ApplicationSettings? settings = _settingsService.GetSettings();
+                int locationTimeThreshold =
+                    settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
+                double locationDistanceThreshold =
+                    settings?.LocationDistanceThresholdMeters ?? DefaultLocationDistanceThresholdMeters;
+
+                DateTime utcTimestamp;
+                string timeZoneId;
+                try
+                {
+                    timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(dto.Latitude, dto.Longitude);
+                    utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to convert local time to UTC for coordinates {Lat}, {Lon}",
+                        dto.Latitude, dto.Longitude);
+                    return StatusCode(500, "Failed to process timestamp and timezone.");
+                }
+
+                Point coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+
+                string cacheKey = $"lastLocation_{user.Id}";
+                if (!_cache.TryGetValue(cacheKey, out Location? lastLocation))
+                {
+                    lastLocation = _dbContext.Locations
+                        .Where(l => l.UserId == user.Id)
+                        .OrderByDescending(l => l.Timestamp)
+                        .FirstOrDefault();
+
+                    if (lastLocation != null)
+                        _cache.Set(cacheKey, lastLocation, TimeSpan.FromMinutes(locationTimeThreshold));
+                }
 
                 if (lastLocation != null)
-                    _cache.Set(cacheKey, lastLocation, TimeSpan.FromMinutes(locationTimeThreshold));
+                {
+                    var timeDifference = utcTimestamp - lastLocation.Timestamp;
+                    if (timeDifference.TotalMinutes < locationTimeThreshold)
+                    {
+                        _logger.LogDebug("Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
+                            timeDifference.TotalMinutes);
+                        return Ok(new { Message = "Location skipped. Time threshold not met." });
+                    }
+
+                    double distanceDifference = coordinates.Distance(lastLocation.Coordinates);
+                    if (distanceDifference < locationDistanceThreshold)
+                    {
+                        _logger.LogDebug(
+                            "Location skipped due to distance threshold. DistanceDifference: {DistanceDiff} meters",
+                            distanceDifference);
+                        return Ok(new { Message = "Location skipped. Distance threshold not met." });
+                    }
+                }
+
+                var location = new Location
+                {
+                    UserId = user.Id,
+                    Timestamp = utcTimestamp,
+                    LocalTimestamp = dto.Timestamp,
+                    TimeZoneId = timeZoneId,
+                    Coordinates = coordinates,
+                    Accuracy = dto.Accuracy,
+                    Altitude = dto.Altitude,
+                    Speed = dto.Speed,
+                    LocationType = dto.LocationType,
+                    Notes = dto.Notes,
+                    ActivityTypeId = dto.ActivityTypeId,
+                    VehicleId = dto.VehicleId
+                };
+
+                try
+                {
+                    var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                    if (apiToken != null)
+                    {
+                        var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
+                            dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
+
+                        location.FullAddress = locationInfo.FullAddress;
+                        location.Address = locationInfo.Address;
+                        location.AddressNumber = locationInfo.AddressNumber;
+                        location.StreetName = locationInfo.StreetName;
+                        location.PostCode = locationInfo.PostCode;
+                        location.Place = locationInfo.Place;
+                        location.Region = locationInfo.Region;
+                        location.Country = locationInfo.Country;
+                    }
+
+                    _dbContext.Locations.Add(location);
+                    await _dbContext.SaveChangesAsync();
+
+                    _logger.LogInformation("Location saved with ID {LocationId} at {Timestamp}", location.Id,
+                        location.Timestamp);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to save location for user.");
+                    return StatusCode(500, "Internal server error while saving location.");
+                }
+
+                _cache.Set(cacheKey, location, TimeSpan.FromMinutes(locationTimeThreshold));
+
+                await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
+                {
+                    LocationId = location.Id,
+                    TimeStamp = location.Timestamp,
+                }));
+
+                return Ok(new { Message = "Location logged successfully", Location = location });
             }
-
-            // Threshold checks
-            if (lastLocation != null)
-            {
-                var timeDifference = utcTimestamp - lastLocation.Timestamp;
-                if (timeDifference.TotalMinutes < locationTimeThreshold)
-                    return Ok(new { Message = "Location skipped. Time threshold not met." });
-
-                double distanceDifference = coordinates.Distance(lastLocation.Coordinates);
-                if (distanceDifference < locationDistanceThreshold)
-                    return Ok(new { Message = "Location skipped. Distance threshold not met." });
-            }
-
-            // Create the location entity
-            var location = new Location
-            {
-                UserId = user.Id,
-                Timestamp = utcTimestamp,
-                LocalTimestamp = dto.Timestamp,
-                TimeZoneId = timeZoneId,
-                Coordinates = coordinates,
-                Accuracy = dto.Accuracy,
-                Altitude = dto.Altitude,
-                Speed = dto.Speed,
-                LocationType = dto.LocationType,
-                Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId,
-                VehicleId = dto.VehicleId
-            };
-
-            // Reverse geocoding if API token is present
-            var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
-            if (apiToken != null)
-            {
-                ReverseLocationResults locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
-                    dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
-
-                location.FullAddress = locationInfo.FullAddress;
-                location.Address = locationInfo.Address;
-                location.AddressNumber = locationInfo.AddressNumber;
-                location.StreetName = locationInfo.StreetName;
-                location.PostCode = locationInfo.PostCode;
-                location.Place = locationInfo.Place;
-                location.Region = locationInfo.Region;
-                location.Country = locationInfo.Country;
-            }
-
-            _dbContext.Locations.Add(location);
-            await _dbContext.SaveChangesAsync();
-
-            _cache.Set(cacheKey, location, TimeSpan.FromMinutes(locationTimeThreshold));
-
-            _logger.LogInformation($"User {user.DisplayName} logged location at {location.Timestamp}.");
-
-            await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
-            {
-                LocationId = location.Id,
-                TimeStamp = location.Timestamp,
-            }));
-
-            return Ok(new { Message = "Location logged successfully", Location = location });
         }
 
 
