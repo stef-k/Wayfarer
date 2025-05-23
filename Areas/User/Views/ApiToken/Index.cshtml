@@ -1,5 +1,9 @@
 ﻿@model Wayfarer.Models.ViewModels.ApiTokenViewModel
 
+@{
+    var fullurl = $"https://{Context.Request.Host}/api/location/log-location";
+}
+
 <h1 class="text-center">@ViewData["Title"] for @Model.UserName</h1>
 
 <div class="container">
@@ -20,6 +24,26 @@
                                     <p class="mb-1"><strong>Token Name:</strong> @token.Name</p>
                                     <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
                                     <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light">@token.Token</code></p>
+                                    @if (token.Name.Equals("Wayfarer Incoming Location Data API Token"))
+                                    {
+                                        <p class="mt-2"><strong>Use it with mobile apps to log your location at:</strong><br/>
+                                            <code>@fullurl</code><br/>
+                                            <strong>Required parameters:</strong> <code>coordinates {x, y}, localTimestamp</code><br/>
+                                            <strong> GPS Logger example:</strong><br/>
+                                            <pre>
+{
+  "coordinates": {
+    "x": %LON,
+    "y": %LAT
+  },
+  "localTimestamp": "%TIME",
+  "accuracy": %ACC,
+  "altitude": %ALT,
+  "speed": %SPD,
+}
+</pre>
+                                        </p>
+                                    }
                                 </div>
                                 <div class="btn-group">
                                     
