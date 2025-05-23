@@ -48,6 +48,7 @@ namespace Wayfarer.Areas.Api.Controllers
         public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
         {
             var requestId = Guid.NewGuid();
+            _logger.LogInformation($"GpsLoggerLocationDto: {dto}");
 
             ApplicationUser? user = GetUserFromToken();
             if (user == null)
@@ -113,7 +114,7 @@ namespace Wayfarer.Areas.Api.Controllers
                     var timeDifference = utcTimestamp - lastLocation.Timestamp;
                     if (timeDifference.TotalMinutes < locationTimeThreshold)
                     {
-                        _logger.LogDebug("Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
+                        _logger.LogInformation("Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
                             timeDifference.TotalMinutes);
                         return Ok(new { Message = "Location skipped. Time threshold not met." });
                     }
@@ -121,7 +122,7 @@ namespace Wayfarer.Areas.Api.Controllers
                     double distanceDifference = coordinates.Distance(lastLocation.Coordinates);
                     if (distanceDifference < locationDistanceThreshold)
                     {
-                        _logger.LogDebug(
+                        _logger.LogInformation(
                             "Location skipped due to distance threshold. DistanceDifference: {DistanceDiff} meters",
                             distanceDifference);
                         return Ok(new { Message = "Location skipped. Distance threshold not met." });
