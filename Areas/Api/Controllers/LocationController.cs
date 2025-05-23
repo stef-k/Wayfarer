@@ -44,6 +44,7 @@ namespace Wayfarer.Areas.Api.Controllers
         }
 
         [HttpPost]
+        [Route("/api/location/log-location")] 
         public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
         {
             ApplicationUser? user = GetUserFromToken();
