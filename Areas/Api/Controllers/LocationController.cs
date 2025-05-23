@@ -48,7 +48,7 @@ namespace Wayfarer.Areas.Api.Controllers
         public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
         {
             var requestId = Guid.NewGuid();
-            _logger.LogInformation($"GpsLoggerLocationDto: {dto}");
+            _logger.LogInformation($"Lat: {dto.Latitude}, Long: {dto.Longitude}, Accuracy: {dto.Accuracy}, Speed: {dto.Speed}, Altitude: {dto.Altitude}");
 
             ApplicationUser? user = GetUserFromToken();
             if (user == null)
