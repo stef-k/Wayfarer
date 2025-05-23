@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 using System.Text.Json;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
@@ -42,79 +43,91 @@ namespace Wayfarer.Areas.Api.Controllers
             _statsService = statsService;
         }
 
-        [HttpPost("log-location")]
-        public async Task<IActionResult> LogLocation([FromBody] Location location)
+        [HttpPost]
+        public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
         {
             ApplicationUser? user = GetUserFromToken();
             if (user == null)
-            {
                 return Unauthorized("Invalid or missing API token.");
-            }
 
             if (!user.IsActive)
-            {
                 return Forbid("User is not active.");
-            }
 
-            // Additional validation for the location data
-            if (location == null || location.Coordinates == null)
-            {
+            if (dto == null || dto.Latitude == 0 && dto.Longitude == 0)
                 return BadRequest("Location data is invalid.");
-            }
 
-            // Fetch settings from the settings service
+            // Fetch settings and fallback to defaults if needed
             ApplicationSettings? settings = _settingsService.GetSettings();
-
-            // Use default values if the settings are null or missing
             int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
             double locationDistanceThreshold =
                 settings?.LocationDistanceThresholdMeters ?? DefaultLocationDistanceThresholdMeters;
 
-            // Try to get the last location from the cache
-            if (!_cache.TryGetValue($"lastLocation_{user.Id}", out Location? lastLocation))
+            // Convert local timestamp to UTC
+            DateTime utcTimestamp;
+            string timeZoneId;
+            try
             {
-                // If not in cache, fetch from the database
+                timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(dto.Latitude, dto.Longitude);
+                utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to convert local time to UTC for coordinates {Lat}, {Lon}", dto.Latitude,
+                    dto.Longitude);
+                return StatusCode(500, "Failed to process timestamp and timezone.");
+            }
+
+            // Construct geometry
+            Point coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+
+            // Fetch the last known location (from cache or DB)
+            string cacheKey = $"lastLocation_{user.Id}";
+            if (!_cache.TryGetValue(cacheKey, out Location? lastLocation))
+            {
                 lastLocation = _dbContext.Locations
                     .Where(l => l.UserId == user.Id)
                     .OrderByDescending(l => l.Timestamp)
                     .FirstOrDefault();
 
                 if (lastLocation != null)
-                {
-                    // Cache the last location with a dynamic expiration time (e.g., 5 minutes)
-                    _cache.Set($"lastLocation_{user.Id}", lastLocation, TimeSpan.FromMinutes(locationTimeThreshold));
-                }
+                    _cache.Set(cacheKey, lastLocation, TimeSpan.FromMinutes(locationTimeThreshold));
             }
 
-            // If lastLocation is available, perform the threshold checks
+            // Threshold checks
             if (lastLocation != null)
             {
-                // Check time difference
-                TimeSpan timeDifference = location.Timestamp - lastLocation.Timestamp;
+                var timeDifference = utcTimestamp - lastLocation.Timestamp;
                 if (timeDifference.TotalMinutes < locationTimeThreshold)
-                {
                     return Ok(new { Message = "Location skipped. Time threshold not met." });
-                }
 
-                // Check distance difference
-                double distanceDifference = location.Coordinates.Distance(lastLocation.Coordinates);
+                double distanceDifference = coordinates.Distance(lastLocation.Coordinates);
                 if (distanceDifference < locationDistanceThreshold)
-                {
                     return Ok(new { Message = "Location skipped. Distance threshold not met." });
-                }
             }
 
-            // Log the new location
-            location.UserId = user.Id;
-            location.Timestamp = DateTime.UtcNow; // Set server timestamp
+            // Create the location entity
+            var location = new Location
+            {
+                UserId = user.Id,
+                Timestamp = utcTimestamp,
+                LocalTimestamp = dto.Timestamp,
+                TimeZoneId = timeZoneId,
+                Coordinates = coordinates,
+                Accuracy = dto.Accuracy,
+                Altitude = dto.Altitude,
+                Speed = dto.Speed,
+                LocationType = dto.LocationType,
+                Notes = dto.Notes,
+                ActivityTypeId = dto.ActivityTypeId,
+                VehicleId = dto.VehicleId
+            };
 
-            ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
-
+            // Reverse geocoding if API token is present
+            var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
             if (apiToken != null)
             {
-                ReverseLocationResults locationInfo =
-                    await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,
-                        location.Coordinates.X, apiToken.Token, apiToken.Name);
+                ReverseLocationResults locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
+                    dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
 
                 location.FullAddress = locationInfo.FullAddress;
                 location.Address = locationInfo.Address;
@@ -129,12 +142,10 @@ namespace Wayfarer.Areas.Api.Controllers
             _dbContext.Locations.Add(location);
             await _dbContext.SaveChangesAsync();
 
-            // Update the cache with the new location
-            _cache.Set($"lastLocation_{user.Id}", location, TimeSpan.FromMinutes(locationTimeThreshold));
+            _cache.Set(cacheKey, location, TimeSpan.FromMinutes(locationTimeThreshold));
 
             _logger.LogInformation($"User {user.DisplayName} logged location at {location.Timestamp}.");
 
-            // broadcast that we have a new location logged
             await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
             {
                 LocationId = location.Id,
@@ -473,7 +484,7 @@ namespace Wayfarer.Areas.Api.Controllers
                     PageSize = pageSize
                 });
         }
-        
+
         /// <summary>
         /// Calculates User x Location stats
         /// </summary>

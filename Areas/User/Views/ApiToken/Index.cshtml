@@ -26,10 +26,12 @@
                                     <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light">@token.Token</code></p>
                                     @if (token.Name.Equals("Wayfarer Incoming Location Data API Token"))
                                     {
-                                        <p class="mt-2"><strong>Use it with mobile apps to log your location at:</strong><br/>
+                                        <p class="mt-3"><strong>Use it with mobile apps to log your location at:</strong><br/>
                                             <code>@fullurl</code><br/>
-                                            <strong>Required parameters:</strong> <code>coordinates {x, y}, localTimestamp</code><br/><br/>
-                                            <strong> GPS Logger example:</strong><br/>
+                                            <strong>Required parameters:</strong> <code>latitude, longitude, timestamp</code><br/>
+                                            Note: <code>timestamp</code> should be the device's <strong>local time</strong>(not UTC).<br/>
+                                            Ensure <code>%TIME</code> is in <strong>ISO 8601</strong> format (e.g., `"2025-05-23T14:30:00"`).<br/><br/>
+                                            <strong> <a href="https://gpslogger.app/" title="Read about GPSLogger" target="_blank"> GPSLogger</a> example:</strong><br/>
                                             <ol>
                                                 <li>Set HTTP Method to POST</li>
                                                 <li>Add the following headers:</li>
@@ -39,14 +41,12 @@
                                                 </ul>
                                                 <li>Use the following JSON Template</li></ol><pre>
 {
-  "coordinates": {
-    "x": %LON,
-    "y": %LAT
-  },
-  "localTimestamp": "%TIME",
+  "latitude": %LAT,
+  "longitude": %LON,
+  "timestamp": "%TIME",
   "accuracy": %ACC,
   "altitude": %ALT,
-  "speed": %SPD,
+  "speed": %SPD
 }
 </pre>
                                         </p>
