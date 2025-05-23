@@ -28,9 +28,16 @@
                                     {
                                         <p class="mt-2"><strong>Use it with mobile apps to log your location at:</strong><br/>
                                             <code>@fullurl</code><br/>
-                                            <strong>Required parameters:</strong> <code>coordinates {x, y}, localTimestamp</code><br/>
+                                            <strong>Required parameters:</strong> <code>coordinates {x, y}, localTimestamp</code><br/><br/>
                                             <strong> GPS Logger example:</strong><br/>
-                                            <pre>
+                                            <ol>
+                                                <li>Set HTTP Method to POST</li>
+                                                <li>Add the following headers:</li>
+                                                <ul>
+                                                    <li><code>Content-Type: application/json</code></li>
+                                                    <li> <code>Authorization: Bearer @token.Token</code></li>
+                                                </ul>
+                                                <li>Use the following JSON Template</li></ol><pre>
 {
   "coordinates": {
     "x": %LON,
