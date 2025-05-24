@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.Geometries;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
 namespace Wayfarer.Areas.Api.Controllers
@@ -42,7 +43,9 @@ namespace Wayfarer.Areas.Api.Controllers
                     return null;
                 }
 
-                return _dbContext.Users.FirstOrDefault(u => u.Id == apiToken.UserId);
+                return _dbContext.Users
+                    .Include(u => u.ApiTokens)
+                    .FirstOrDefault(u => u.Id == apiToken.UserId);
             }
             catch (Exception ex)
             {
