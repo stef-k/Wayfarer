@@ -154,31 +154,9 @@ namespace Wayfarer.Services
                                : zoomLevel <= 10 ? "Region"
                                : zoomLevel <= 18 ? "Place"
                                                   : "Street";
-            bool hasGeo = geocodingLevel switch
-            {
-                "Country" => locations.Any(l => !string.IsNullOrEmpty(l.Country)),
-                "Region"  => locations.Any(l => !string.IsNullOrEmpty(l.Region)),
-                "Place"   => locations.Any(l => !string.IsNullOrEmpty(l.Place)),
-                "Street"  => locations.Any(l => !string.IsNullOrEmpty(l.StreetName)),
-                _          => false
-            };
-
-            if (hasGeo)
-            {
-                locations = geocodingLevel switch
-                {
-                    "Country" => locations.Where(l => !string.IsNullOrEmpty(l.Country)).ToList(),
-                    "Region"  => locations.Where(l => !string.IsNullOrEmpty(l.Region)).ToList(),
-                    "Place"   => locations.Where(l => !string.IsNullOrEmpty(l.Place)).ToList(),
-                    "Street"  => locations.Where(l => !string.IsNullOrEmpty(l.StreetName)).ToList(),
-                    _          => locations
-                };
-            }
-            else
-            {
-                var quads = DivideMapIntoQuadrants(minLongitude, minLatitude, maxLongitude, maxLatitude);
-                locations = SampleLocationsByQuadrants(locations, quads, zoomLevel).ToList();
-            }
+            
+            var quads = DivideMapIntoQuadrants(minLongitude, minLatitude, maxLongitude, maxLatitude);
+            locations = SampleLocationsByQuadrants(locations, quads, zoomLevel).ToList();
 
             // 6) Map to DTO
             var resultDtos = locations.Select(l => new PublicLocationDto
