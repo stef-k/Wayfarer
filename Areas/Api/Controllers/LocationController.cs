@@ -499,7 +499,7 @@ namespace Wayfarer.Areas.Api.Controllers
                         },
                         LocalTimestamp =
                             CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X,
-                                l.LocalTimestamp),
+                                DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
                         l.TimeZoneId,
                         Activity = l.ActivityType?.Name,
                         l.Address,
