@@ -51,7 +51,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ApplicationSettings");
+                    b.ToTable("ApplicationSettings", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -207,7 +207,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ActivityTypes");
+                    b.ToTable("ActivityTypes", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApiToken", b =>
@@ -243,7 +243,7 @@ namespace Wayfarer.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_ApiToken_Name_UserId");
 
-                    b.ToTable("ApiTokens");
+                    b.ToTable("ApiTokens", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApplicationUser", b =>
@@ -358,7 +358,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.HiddenArea", b =>
@@ -388,7 +388,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("HiddenAreas");
+                    b.ToTable("HiddenAreas", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.JobHistory", b =>
@@ -412,7 +412,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("JobHistories");
+                    b.ToTable("JobHistories", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Location", b =>
@@ -449,7 +449,7 @@ namespace Wayfarer.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime>("LocalTimestamp")
-                        .HasColumnType("timestamp without time zone");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LocationType")
                         .HasColumnType("text");
@@ -499,7 +499,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("VehicleId");
 
-                    b.ToTable("Locations");
+                    b.ToTable("Locations", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationImport", b =>
@@ -551,7 +551,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("LocationImports");
+                    b.ToTable("LocationImports", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.TileCacheMetadata", b =>
@@ -598,7 +598,7 @@ namespace Wayfarer.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TileLocation"), "GIST");
 
-                    b.ToTable("TileCacheMetadata");
+                    b.ToTable("TileCacheMetadata", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Vehicle", b =>
@@ -652,7 +652,7 @@ namespace Wayfarer.Migrations
                     b.HasIndex("PlateNumber")
                         .HasDatabaseName("IX_Vehicle_PlateNumber");
 
-                    b.ToTable("Vehicles");
+                    b.ToTable("Vehicles", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

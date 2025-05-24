@@ -52,10 +52,6 @@ namespace Wayfarer.Models
                 .HasMethod("GIST") // 👈 this forces GiST for faster Gis spatial queries
                 .HasDatabaseName("IX_Location_Coordinates");
             
-            builder.Entity<Location>()
-                .Property(l => l.LocalTimestamp)
-                .HasColumnType("timestamp without time zone");
-
             // Configure the Vehicle entity to use JSONB for Passengers field
             builder.Entity<Vehicle>()
                 .Property(v => v.Passengers)
