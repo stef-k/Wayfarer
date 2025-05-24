@@ -87,6 +87,7 @@ namespace Wayfarer.Areas.Api.Controllers
                 {
                     timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(dto.Latitude, dto.Longitude);
                     utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp);
+                    utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
                 }
                 catch (Exception ex)
                 {
@@ -132,8 +133,8 @@ namespace Wayfarer.Areas.Api.Controllers
                 var location = new Location
                 {
                     UserId = user.Id,
-                    Timestamp = utcTimestamp,
-                    LocalTimestamp = dto.Timestamp,
+                    Timestamp = DateTime.UtcNow,
+                    LocalTimestamp = utcTimestamp,
                     TimeZoneId = timeZoneId,
                     Coordinates = coordinates,
                     Accuracy = dto.Accuracy,
