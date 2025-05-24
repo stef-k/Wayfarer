@@ -89,7 +89,7 @@ namespace Wayfarer.Services
                                                        .ConvertUtcToLocal(
                                                            l.Coordinates.Y,
                                                            l.Coordinates.X,
-                                                           DateTime.SpecifyKind(l.Timestamp, DateTimeKind.Utc)),
+                                                           DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
                     Timezone                      = l.TimeZoneId,
                     Accuracy                      = l.Accuracy,
                     Altitude                      = l.Altitude,
@@ -208,7 +208,7 @@ namespace Wayfarer.Services
                                                    .ConvertUtcToLocal(
                                                       l.Coordinates.Y,
                                                       l.Coordinates.X,
-                                                      DateTime.SpecifyKind(l.Timestamp, DateTimeKind.Utc)),
+                                                      DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
                 Timezone                      = l.TimeZoneId,
                 Accuracy                      = l.Accuracy,
                 Altitude                      = l.Altitude,
