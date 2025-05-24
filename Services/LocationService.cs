@@ -154,9 +154,10 @@ namespace Wayfarer.Services
                                : zoomLevel <= 10 ? "Region"
                                : zoomLevel <= 18 ? "Place"
                                                   : "Street";
-            
-            var quads = DivideMapIntoQuadrants(minLongitude, minLatitude, maxLongitude, maxLatitude);
-            locations = SampleLocationsByQuadrants(locations, quads, zoomLevel).ToList();
+
+            // Use improved sampling: divide map into grid, sample per grid cell
+            var grid = DivideMapIntoQuadrants(minLongitude, minLatitude, maxLongitude, maxLatitude, zoomLevel);
+            locations = SampleLocationsByQuadrants(locations, grid, zoomLevel).ToList();
 
             // 6) Map to DTO
             var resultDtos = locations.Select(l => new PublicLocationDto
@@ -236,50 +237,73 @@ namespace Wayfarer.Services
         }
 
 
-        private List<(double minX, double minY, double maxX, double maxY)> DivideMapIntoQuadrants(
-            double minLongitude, double minLatitude,
-            double maxLongitude, double maxLatitude)
-        {
-            var midX = (minLongitude + maxLongitude) / 2;
-            var midY = (minLatitude  + maxLatitude)  / 2;
-
-            return new List<(double, double, double, double)>
-            {
-                (minLongitude, minLatitude, midX, midY),
-                (midX,          minLatitude, maxLongitude, midY),
-                (minLongitude, midY,         midX,         maxLatitude),
-                (midX,          midY,         maxLongitude, maxLatitude)
-            };
-        }
-
-        private IEnumerable<Location> SampleLocationsByQuadrants(
-            List<Location> locations,
-            List<(double minX, double minY, double maxX, double maxY)> quadrants,
+        /// <summary>
+        /// Divide the bounding box into a grid based on zoom level.
+        /// Returns a list of grid cell rectangles as tuples (minLon, minLat, maxLon, maxLat).
+        /// </summary>
+        private List<(double minLon, double minLat, double maxLon, double maxLat)> DivideMapIntoQuadrants(
+            double minLon, double minLat,
+            double maxLon, double maxLat,
             double zoomLevel)
         {
-            int sampleSize = zoomLevel switch
+            // At low zoom, use bigger grid cells; at high zoom, smaller grid
+            int cellsPerSide = zoomLevel switch
             {
-                <= 5  => 1,
-                <= 10 => 3,
-                _     => 5
+                <= 3 => 2,
+                <= 5 => 4,
+                <= 8 => 6,
+                <= 10 => 8,
+                <= 12 => 10,
+                <= 15 => 12,
+                _ => 16
             };
 
-            var sampled = new List<Location>();
-            foreach (var q in quadrants)
+            double lonStep = (maxLon - minLon) / cellsPerSide;
+            double latStep = (maxLat - minLat) / cellsPerSide;
+
+            var cells = new List<(double, double, double, double)>();
+
+            for (int i = 0; i < cellsPerSide; i++)
             {
-                sampled.AddRange(
-                    locations
-                      .Where(l => IsWithinQuadrant(l.Coordinates.Coordinate, q))
-                      .Take(sampleSize)
-                );
+                for (int j = 0; j < cellsPerSide; j++)
+                {
+                    double cellMinLon = minLon + i * lonStep;
+                    double cellMaxLon = cellMinLon + lonStep;
+                    double cellMinLat = minLat + j * latStep;
+                    double cellMaxLat = cellMinLat + latStep;
+                    cells.Add((cellMinLon, cellMinLat, cellMaxLon, cellMaxLat));
+                }
             }
-            return sampled;
+
+            return cells;
         }
 
-        private bool IsWithinQuadrant(
-            Coordinate coord,
-            (double minX, double minY, double maxX, double maxY) q)
-            => coord.X >= q.minX && coord.X <= q.maxX
-            && coord.Y >= q.minY && coord.Y <= q.maxY;
+        /// <summary>
+        /// From all locations, pick top recent location in each grid cell.
+        /// </summary>
+        private IEnumerable<Location> SampleLocationsByQuadrants(
+            List<Location> locations,
+            List<(double minLon, double minLat, double maxLon, double maxLat)> quadrants,
+            double zoomLevel)
+        {
+            var sampled = new List<Location>();
+            int maxPerCell = zoomLevel <= 5 ? 2 : 1;
+
+            foreach (var (minLon, minLat, maxLon, maxLat) in quadrants)
+            {
+                var locsInCell = locations.Where(l =>
+                    l.Coordinates.X >= minLon && l.Coordinates.X < maxLon &&
+                    l.Coordinates.Y >= minLat && l.Coordinates.Y < maxLat)
+                    .OrderByDescending(l => l.LocalTimestamp)
+                    .Take(maxPerCell);
+
+                sampled.AddRange(locsInCell);
+            }
+
+            // Optional: deduplicate by Id (in case of overlaps)
+            var distinctSampled = sampled.GroupBy(l => l.Id).Select(g => g.First());
+
+            return distinctSampled;
+        }
     }
 }
