@@ -154,6 +154,8 @@ namespace Wayfarer.Areas.Api.Controllers
                         var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                             dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
 
+                        _logger.LogInformation($"Log-location, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");
+
                         location.FullAddress = locationInfo.FullAddress;
                         location.Address = locationInfo.Address;
                         location.AddressNumber = locationInfo.AddressNumber;
@@ -408,16 +410,17 @@ namespace Wayfarer.Areas.Api.Controllers
             // Handle fromTimestamp as a date-only filter
             if (fromTimestamp.HasValue)
             {
-                DateTime fromDateUtc = fromTimestamp.Value.Date.ToUniversalTime(); // Convert to UTC, truncating time
-                query = query.Where(l => l.LocalTimestamp >= fromDateUtc);
+                // Assume the fromTimestamp is UTC already from the frontend (e.g., React, JS)
+                var from = DateTime.SpecifyKind(fromTimestamp.Value.Date, DateTimeKind.Utc);
+                query = query.Where(l => l.LocalTimestamp >= from);
             }
 
             // Handle toTimestamp as a date-only filter
             if (toTimestamp.HasValue)
             {
-                // Convert to UTC, including the full day (end of the day)
-                DateTime toDateUtc = toTimestamp.Value.Date.AddDays(1).AddSeconds(-1).ToUniversalTime();
-                query = query.Where(l => l.LocalTimestamp <= toDateUtc);
+                // Include the entire "to" day by going up to 23:59:59
+                var to = DateTime.SpecifyKind(toTimestamp.Value.Date.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+                query = query.Where(l => l.LocalTimestamp <= to);
             }
 
             if (!string.IsNullOrEmpty(locationType))
@@ -425,49 +428,45 @@ namespace Wayfarer.Areas.Api.Controllers
                 query = query.Where(l => l.LocationType == locationType);
             }
 
-            if (!string.IsNullOrEmpty(activity)) // Filter by ActivityType.Name
+            if (!string.IsNullOrWhiteSpace(activity)) // Filtering by ActivityType.Name
             {
-                query = query.Where(l => l.ActivityType.Name.ToLower() == activity.ToLower());
+                var loweredActivity = activity.ToLower();
+                query = query.Where(l => l.ActivityType != null && l.ActivityType.Name.ToLower() == loweredActivity);
             }
 
-            // Initially, there was a geofence design in app but for now it will not be implemented
-            // if (!string.IsNullOrEmpty(geofenceName))
-            // {
-            //     query = query.Where(l => l.GeofenceName.ToLower() == geofenceName.ToLower());
-            // }
-            //
-            // if (isInsideGeofence.HasValue)
-            // {
-            //     query = query.Where(l => l.IsInsideGeofence == isInsideGeofence.Value);
-            // }
-
-            if (!string.IsNullOrEmpty(notes))
+            if (!string.IsNullOrWhiteSpace(notes))
             {
-                query = query.Where(l => l.Notes.ToLower().Contains(notes.ToLower()));
+                var loweredNotes = notes.ToLower();
+                query = query.Where(l => l.Notes != null && l.Notes.ToLower().Contains(loweredNotes));
             }
 
             // Apply address filter
-            if (!string.IsNullOrEmpty(address))
+            if (!string.IsNullOrWhiteSpace(address))
             {
-                query = query.Where(l => l.Address.ToLower().Contains(address.ToLower()));
+                var loweredAddress = address.ToLower();
+                query = query.Where(l => l.Address != null && l.Address.ToLower().Contains(loweredAddress));
             }
 
             // Apply Country filter
-            if (!string.IsNullOrEmpty(country))
+            if (!string.IsNullOrWhiteSpace(country))
             {
-                query = query.Where(l => l.Country.ToLower().Contains(country.ToLower()));
+                var lowered = country.ToLower();
+                query = query.Where(l => l.Country != null && l.Country.ToLower().Contains(lowered));
             }
 
+
             // Apply Region filter
-            if (!string.IsNullOrEmpty(region))
+            if (!string.IsNullOrWhiteSpace(region))
             {
-                query = query.Where(l => l.Region.ToLower().Contains(region.ToLower()));
+                var loweredRegion = region.ToLower();
+                query = query.Where(l => l.Region != null && l.Region.ToLower().Contains(loweredRegion));
             }
 
             // Apply City filter (Place in reverse geocoding terms)
-            if (!string.IsNullOrEmpty(place))
+            if (!string.IsNullOrWhiteSpace(place))
             {
-                query = query.Where(l => l.Place.ToLower().Contains(place.ToLower()));
+                var loweredPlace = place.ToLower();
+                query = query.Where(l => l.Place != null && l.Place.ToLower().Contains(loweredPlace));
             }
 
             // Apply pagination
