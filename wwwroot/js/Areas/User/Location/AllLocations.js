@@ -155,9 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
 const loadLocations = (page = 1) => {
     currentPage = page;
     let url = `/api/Location/search?page=${page}&pageSize=${pageSize}`;
-    if (Object.keys(currentFilters).length) {
-        url += '&' + new URLSearchParams(currentFilters).toString();
-    }
 
     fetch(url, {credentials: 'include'})
         .then(r => r.json())
