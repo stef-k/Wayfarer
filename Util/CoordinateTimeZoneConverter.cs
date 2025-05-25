@@ -58,6 +58,12 @@ namespace Wayfarer.Util
         {
             try
             {
+                // Coerce unspecified/local kinds into UTC so Instant.FromDateTimeUtc won’t throw
+                if (utcDateTime.Kind != DateTimeKind.Utc)
+                {
+                    utcDateTime = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+                }
+
                 // Get timezone ID from coordinates
                 string timeZoneId = GetTimeZoneIdFromCoordinates(latitude, longitude);
 
@@ -72,14 +78,15 @@ namespace Wayfarer.Util
                 ZonedDateTime zonedDateTime = instant.InZone(dateTimeZone);
                 LocalDateTime localDateTime = zonedDateTime.LocalDateTime;
 
-                // Return the local datetime (which can be passed to the frontend)
-                return localDateTime.ToDateTimeUnspecified(); // Return as DateTime (without kind)
+                // Return the local datetime (without Kind)
+                return localDateTime.ToDateTimeUnspecified();
             }
             catch (Exception ex)
             {
                 throw new InvalidOperationException("Failed to convert UTC to local datetime", ex);
             }
         }
+
 
         /// <summary>
         /// Gets the timezone ID based on the given coordinates.

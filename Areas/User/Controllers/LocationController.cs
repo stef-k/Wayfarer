@@ -138,12 +138,13 @@ namespace Wayfarer.Areas.User.Controllers
                 ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
                 DateTime Timestamp = DateTime.UtcNow;
                 // Map the ViewModel to the Location entity
+                var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
+                
                 Location location = new Location
                 {
                     UserId = model.UserId,
                     Timestamp = Timestamp, // Server-side timestamp
-                    LocalTimestamp =
-                        CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp),
+                    LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc),
                     TimeZoneId =
                         CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude),
                     Coordinates =
@@ -323,12 +324,12 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             // Update the location fields
+            var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
             location.Coordinates.X = model.Longitude;
             location.Coordinates.Y = model.Latitude;
             location.Altitude = model.Altitude;
             location.Address = model.Address;
-            location.LocalTimestamp =
-                CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
+            location.LocalTimestamp = DateTime.SpecifyKind(utc,  DateTimeKind.Utc);
             location.TimeZoneId =
                 CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
             location.ActivityTypeId = model.SelectedActivityId;
