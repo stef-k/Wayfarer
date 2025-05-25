@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
-    
+
     // Wire up the Bootstrap “shown” event for Wikipedia hover cards
     const modalEl = document.getElementById('locationModal');
     if (!modalEl) {
@@ -152,7 +152,7 @@ const generateLocationModalContent = location => {
     return `<div class="container-fluid">
         <div class="row mb-2">
             <div class="col-6"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T', ' ').split('.')[0]}</span></div>
-            <div class="col-6"><strong>Timezone:</strong> <span>${location.timeZoneId}</span></div>
+            <div class="col-6"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId}</span></div>
         </div>
         <div class="row mb-2">
             <div class="col-12"><strong>Coordinates:</strong></div>
@@ -164,11 +164,13 @@ const generateLocationModalContent = location => {
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Activity:</strong> <span>${location.activity} </span></div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude || 'Not provided'}</span></div>
+            <div class="col-6"><strong>Activity:</strong>   
+            <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType : 
+            '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
+            <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude || '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">
-            <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || 'No address provided'}</span>
+            <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span>
             <br/>
             ${generateGoogleMapsLink(location.fullAddress)}
             ${generateWikipediaLink(location)}
@@ -204,9 +206,9 @@ export const generateGoogleMapsLink = address => {
     <a
       href="https://www.google.com/maps/search/?api=1&query=${q}"
       target="_blank"
-      class="ms-2"
+      class="ms-2 btn btn-outline-primary btn-sm"
       title="View in Google Maps"
-    >📍 Maps</a>
+    ><i class="bi bi-globe-europe-africa"></i> Maps</a>
   `;
 };
 
@@ -220,10 +222,10 @@ const generateWikipediaLink = location => {
     return `
     <a
       href="#"
-      class="ms-2 wikipedia-link"
+      class="ms-2 wikipedia-link btn btn-outline-primary btn-sm"
       data-lat="${latitude}"
       data-lon="${longitude}"
-    >📖 Wiki</a>
+    ><i class="bi bi-wikipedia"></i> Wiki</a>
   `;
 };
 
@@ -412,5 +414,5 @@ const getUserStats = async () => {
         summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
 
     const summary = summaryParts.join(" | ");
-    document.getElementById("timeline-summary").innerHTML  = summary;
+    document.getElementById("timeline-summary").innerHTML = summary;
 };
