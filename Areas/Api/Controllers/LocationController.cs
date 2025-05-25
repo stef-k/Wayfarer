@@ -396,10 +396,10 @@ namespace Wayfarer.Areas.Api.Controllers
 
             IQueryable<Location> query = _dbContext.Locations
                 .Include(l => l.ActivityType) // Include ActivityType for filtering by name
-                .AsNoTracking(); // Disable tracking for performance
-
-            // Only filter by the current user's ID
-            query = query.Where(l => l.UserId == userId);
+                .AsNoTracking()
+                .Where(l => l.UserId == userId)   // Only filter by the current user's ID
+                .OrderByDescending(l => l.LocalTimestamp); // Disable tracking for performance
+            
 
             // Apply rest filters
             if (!string.IsNullOrEmpty(userId))
@@ -488,7 +488,8 @@ namespace Wayfarer.Areas.Api.Controllers
                 : (IActionResult)Ok(new
                 {
                     Success = true,
-                    Data = locations.Select(l => new
+                    Data = locations
+                        .Select(l => new
                     {
                         l.Id,
                         Coordinates = new
