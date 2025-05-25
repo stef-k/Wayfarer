@@ -16,7 +16,8 @@ namespace Wayfarer.Areas.User.Controllers
     {
         private readonly ReverseGeocodingService _reverseGeocodingService;
 
-        public LocationController(ILogger<BaseController> logger, ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocodingService)
+        public LocationController(ILogger<BaseController> logger, ApplicationDbContext dbContext,
+            ReverseGeocodingService reverseGeocodingService)
             : base(logger, dbContext)
         {
             _reverseGeocodingService = reverseGeocodingService;
@@ -132,8 +133,8 @@ namespace Wayfarer.Areas.User.Controllers
                 // Associate the location with the current user
                 model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 ApplicationUser? user = await _dbContext.ApplicationUsers
-                        .Include(u => u.ApiTokens)
-                        .FirstOrDefaultAsync(u => u.Id == model.UserId);
+                    .Include(u => u.ApiTokens)
+                    .FirstOrDefaultAsync(u => u.Id == model.UserId);
                 ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
                 DateTime Timestamp = DateTime.UtcNow;
                 // Map the ViewModel to the Location entity
@@ -141,9 +142,13 @@ namespace Wayfarer.Areas.User.Controllers
                 {
                     UserId = model.UserId,
                     Timestamp = Timestamp, // Server-side timestamp
-                    LocalTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp),
-                    TimeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude),
-                    Coordinates = new NetTopologySuite.Geometries.Point(model.Longitude, model.Latitude) { SRID = 4326 }, // Create Point, in PostGIS lon comes first then lat!
+                    LocalTimestamp =
+                        CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp),
+                    TimeZoneId =
+                        CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude),
+                    Coordinates =
+                        new NetTopologySuite.Geometries.Point(model.Longitude, model.Latitude)
+                            { SRID = 4326 }, // Create Point, in PostGIS lon comes first then lat!
                     ActivityTypeId = model.SelectedActivityId, // Use the selected activity ID
                     Accuracy = model.Accuracy,
                     Altitude = model.Altitude,
@@ -155,7 +160,9 @@ namespace Wayfarer.Areas.User.Controllers
 
                 if (apiToken != null)
                 {
-                    ReverseLocationResults locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y, location.Coordinates.X, apiToken.Token, apiToken.Name);
+                    ReverseLocationResults locationInfo =
+                        await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,
+                            location.Coordinates.X, apiToken.Token, apiToken.Name);
 
                     location.FullAddress = locationInfo.FullAddress;
                     location.Address = locationInfo.Address;
@@ -178,7 +185,8 @@ namespace Wayfarer.Areas.User.Controllers
             catch (Exception ex)
             {
                 HandleError(ex);
-                return StatusCode(500, new { success = false, message = "An error occurred while adding the location." });
+                return StatusCode(500,
+                    new { success = false, message = "An error occurred while adding the location." });
             }
         }
 
@@ -191,50 +199,95 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("Edit[GET] start for LocationId={Id}, UserId={User}",
+                id, User.FindFirstValue(ClaimTypes.NameIdentifier));
 
-            // Retrieve the location based on the ID and the current user's ID
-            Location? location = await _dbContext.Locations
-                .Include(l => l.ActivityType)
-                .FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId);
-
-            if (location == null)
+            try
             {
-                SetAlert("Location not found.", "danger");
-                return RedirectToAction("Index");
-            }
+                string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // Retrieve the list of activity types from the database
-            List<ActivityType> activityTypes = await _dbContext.ActivityTypes.ToListAsync();
+                var location = await _dbContext.Locations
+                    .Include(l => l.ActivityType)
+                    .FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId);
 
-            AddLocationViewModel viewModel = new AddLocationViewModel
-            {
-                Id = location.Id,
-                Latitude = location.Coordinates.Y,
-                Longitude = location.Coordinates.X,
-                Altitude = location.Altitude,
-                Address = location.Address,
-                SelectedActivityId = location.ActivityTypeId,
-                ActivityTypes = activityTypes.Select(a => new SelectListItem
+                if (location == null)
                 {
-                    Value = a.Id.ToString(),
-                    Text = a.Name,
-                    Selected = a.Id == location.ActivityTypeId
-                }).ToList(),
-                LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(location.Coordinates.Y, location.Coordinates.X, location.LocalTimestamp),
-                TimeZoneId = location.TimeZoneId,
-                Notes = location.Notes,
-                FullAddress = location.FullAddress,
-                AddressNumber = location.AddressNumber,
-                StreetName = location.StreetName,
-                PostCode = location.PostCode,
-                Place = location.Place,
-                Region = location.Region,
-                Country = location.Country,
-            };
+                    _logger.LogWarning("Edit[GET] Location not found (Id={Id}, User={User})",
+                        id, userId);
+                    SetAlert("Location not found.", "danger");
+                    return RedirectToAction("Index");
+                }
 
-            SetPageTitle("Edit Location");
-            return View(viewModel);
+                _logger.LogInformation("Edit[GET] Loaded Location {@Location}", new
+                {
+                    location.Id,
+                    location.Coordinates,
+                    location.LocalTimestamp,
+                    location.TimeZoneId
+                });
+
+                var activityTypes = await _dbContext.ActivityTypes.ToListAsync();
+                _logger.LogInformation("Edit[GET] Retrieved {Count} activity types",
+                    activityTypes.Count);
+
+                DateTime localTs;
+                try
+                {
+                    localTs = CoordinateTimeZoneConverter
+                        .ConvertUtcToLocal(
+                            location.Coordinates.Y,
+                            location.Coordinates.X,
+                            location.LocalTimestamp);
+                    _logger.LogInformation("Edit[GET] Converted timestamp to local: {LocalTs}",
+                        localTs);
+                }
+                catch (Exception tzEx)
+                {
+                    _logger.LogError(tzEx,
+                        "Edit[GET] Timezone conversion failed for coords ({Lat},{Lng}) TZ={TzId}",
+                        location.Coordinates.Y,
+                        location.Coordinates.X,
+                        location.TimeZoneId);
+                    // you can choose to fallback or rethrow
+                    throw;
+                }
+
+                var viewModel = new AddLocationViewModel
+                {
+                    Id = location.Id,
+                    Latitude = location.Coordinates.Y,
+                    Longitude = location.Coordinates.X,
+                    Altitude = location.Altitude,
+                    Address = location.Address,
+                    SelectedActivityId = location.ActivityTypeId,
+                    ActivityTypes = activityTypes.Select(a => new SelectListItem
+                    {
+                        Value = a.Id.ToString(),
+                        Text = a.Name,
+                        Selected = a.Id == location.ActivityTypeId
+                    }).ToList(),
+                    LocalTimestamp = localTs,
+                    TimeZoneId = location.TimeZoneId,
+                    Notes = location.Notes,
+                    FullAddress = location.FullAddress,
+                    AddressNumber = location.AddressNumber,
+                    StreetName = location.StreetName,
+                    PostCode = location.PostCode,
+                    Place = location.Place,
+                    Region = location.Region,
+                    Country = location.Country,
+                };
+
+                _logger.LogInformation("Edit[GET] Returning view model {@Vm}", viewModel);
+                SetPageTitle("Edit Location");
+                return View(viewModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Edit[GET] Unhandled exception for LocationId={Id}", id);
+                // rethrow so your existing UseExceptionHandler still shows the friendly error
+                throw;
+            }
         }
 
         /// <summary>
@@ -274,20 +327,24 @@ namespace Wayfarer.Areas.User.Controllers
             location.Coordinates.Y = model.Latitude;
             location.Altitude = model.Altitude;
             location.Address = model.Address;
-            location.LocalTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
-            location.TimeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
+            location.LocalTimestamp =
+                CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
+            location.TimeZoneId =
+                CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
             location.ActivityTypeId = model.SelectedActivityId;
             location.Notes = model.Notes;
 
             model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             ApplicationUser? user = await _dbContext.ApplicationUsers
-                                    .Include(u => u.ApiTokens)
-                                    .FirstOrDefaultAsync(u => u.Id == model.UserId);
+                .Include(u => u.ApiTokens)
+                .FirstOrDefaultAsync(u => u.Id == model.UserId);
             ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
 
             if (apiToken != null)
             {
-                ReverseLocationResults locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y, location.Coordinates.X, apiToken.Token, apiToken.Name);
+                ReverseLocationResults locationInfo =
+                    await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,
+                        location.Coordinates.X, apiToken.Token, apiToken.Name);
 
                 location.FullAddress = locationInfo.FullAddress;
                 location.Address = locationInfo.Address;
