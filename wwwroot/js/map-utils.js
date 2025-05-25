@@ -40,3 +40,21 @@ export const liveMarker = L.divIcon({
     iconSize: [36, 36],
     iconAnchor: [18, 18],
 });
+
+export const eatMarker = L.divIcon({
+    iconUrl: '/lib/bootstrap-icons/bootstrap-icons-1.13.1/fork-knife.svg',
+    iconAnchor: [18, 18],
+    popupAnchor: [12, 12],
+});
+
+export const drinkMarker = L.divIcon({
+    iconUrl: '/lib/bootstrap-icons/bootstrap-icons-1.13.1/cup-straw.svg',
+    iconAnchor: [18, 18],
+    popupAnchor: [12, 12],
+});
+
+export const cameraMarker = L.divIcon({
+    iconUrl: '/lib/bootstrap-icons/bootstrap-icons-1.13.1/camera.svg',
+    iconAnchor: [18, 18],
+    popupAnchor: [12, 12],
+});
