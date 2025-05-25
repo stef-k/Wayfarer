@@ -138,8 +138,9 @@ namespace Wayfarer.Areas.User.Controllers
                 ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
                 DateTime Timestamp = DateTime.UtcNow;
                 // Map the ViewModel to the Location entity
-                var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
-                
+                var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude,
+                    model.LocalTimestamp);
+
                 Location location = new Location
                 {
                     UserId = model.UserId,
@@ -200,47 +201,31 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id)
         {
-            _logger.LogInformation("Edit[GET] start for LocationId={Id}, UserId={User}",
-                id, User.FindFirstValue(ClaimTypes.NameIdentifier));
+            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _logger.LogInformation("Edit[GET] start for LocationId={Id}, UserId={User}", id, userId);
 
             try
             {
-                string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
                 var location = await _dbContext.Locations
                     .Include(l => l.ActivityType)
                     .FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId);
 
                 if (location == null)
                 {
-                    _logger.LogWarning("Edit[GET] Location not found (Id={Id}, User={User})",
-                        id, userId);
+                    _logger.LogWarning("Edit[GET] Location not found (Id={Id}, User={User})", id, userId);
                     SetAlert("Location not found.", "danger");
                     return RedirectToAction("Index");
                 }
 
-                _logger.LogInformation("Edit[GET] Loaded Location {@Location}", new
-                {
-                    location.Id,
-                    location.Coordinates,
-                    location.LocalTimestamp,
-                    location.TimeZoneId
-                });
-
                 var activityTypes = await _dbContext.ActivityTypes.ToListAsync();
-                _logger.LogInformation("Edit[GET] Retrieved {Count} activity types",
-                    activityTypes.Count);
 
                 DateTime localTs;
                 try
                 {
-                    localTs = CoordinateTimeZoneConverter
-                        .ConvertUtcToLocal(
-                            location.Coordinates.Y,
-                            location.Coordinates.X,
-                            location.LocalTimestamp);
-                    _logger.LogInformation("Edit[GET] Converted timestamp to local: {LocalTs}",
-                        localTs);
+                    localTs = CoordinateTimeZoneConverter.ConvertUtcToLocal(
+                        location.Coordinates.Y,
+                        location.Coordinates.X,
+                        location.LocalTimestamp);
                 }
                 catch (Exception tzEx)
                 {
@@ -249,7 +234,6 @@ namespace Wayfarer.Areas.User.Controllers
                         location.Coordinates.Y,
                         location.Coordinates.X,
                         location.TimeZoneId);
-                    // you can choose to fallback or rethrow
                     throw;
                 }
 
@@ -279,14 +263,12 @@ namespace Wayfarer.Areas.User.Controllers
                     Country = location.Country,
                 };
 
-                _logger.LogInformation("Edit[GET] Returning view model {@Vm}", viewModel);
                 SetPageTitle("Edit Location");
                 return View(viewModel);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Edit[GET] Unhandled exception for LocationId={Id}", id);
-                // rethrow so your existing UseExceptionHandler still shows the friendly error
                 throw;
             }
         }
@@ -329,7 +311,7 @@ namespace Wayfarer.Areas.User.Controllers
             location.Coordinates.Y = model.Latitude;
             location.Altitude = model.Altitude;
             location.Address = model.Address;
-            location.LocalTimestamp = DateTime.SpecifyKind(utc,  DateTimeKind.Utc);
+            location.LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
             location.TimeZoneId =
                 CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
             location.ActivityTypeId = model.SelectedActivityId;
