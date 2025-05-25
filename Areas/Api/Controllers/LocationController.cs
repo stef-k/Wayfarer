@@ -48,7 +48,8 @@ namespace Wayfarer.Areas.Api.Controllers
         public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
         {
             var requestId = Guid.NewGuid();
-            _logger.LogInformation($"Lat: {dto.Latitude}, Long: {dto.Longitude}, Accuracy: {dto.Accuracy}, Speed: {dto.Speed}, Altitude: {dto.Altitude}");
+            _logger.LogInformation(
+                $"Lat: {dto.Latitude}, Long: {dto.Longitude}, Accuracy: {dto.Accuracy}, Speed: {dto.Speed}, Altitude: {dto.Altitude}");
 
             ApplicationUser? user = GetUserFromToken();
             if (user == null)
@@ -115,12 +116,16 @@ namespace Wayfarer.Areas.Api.Controllers
                     var timeDifference = utcTimestamp - lastLocation.Timestamp;
                     if (timeDifference.TotalMinutes < locationTimeThreshold)
                     {
-                        _logger.LogInformation("Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
+                        _logger.LogInformation(
+                            "Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
                             timeDifference.TotalMinutes);
                         return Ok(new { Message = "Location skipped. Time threshold not met." });
                     }
 
-                    double distanceDifference = coordinates.Distance(lastLocation.Coordinates);
+                    double distanceDifference = DistanceChecker.HaversineDistance(lastLocation.Coordinates.Y,
+                        lastLocation.Coordinates.X,
+                        dto.Latitude, dto.Longitude);
+
                     if (distanceDifference < locationDistanceThreshold)
                     {
                         _logger.LogInformation(
@@ -154,7 +159,8 @@ namespace Wayfarer.Areas.Api.Controllers
                         var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                             dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
 
-                        _logger.LogInformation($"Log-location, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");
+                        _logger.LogInformation(
+                            $"Log-location, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");
 
                         location.FullAddress = locationInfo.FullAddress;
                         location.Address = locationInfo.Address;
@@ -397,9 +403,9 @@ namespace Wayfarer.Areas.Api.Controllers
             IQueryable<Location> query = _dbContext.Locations
                 .Include(l => l.ActivityType) // Include ActivityType for filtering by name
                 .AsNoTracking()
-                .Where(l => l.UserId == userId)   // Only filter by the current user's ID
+                .Where(l => l.UserId == userId) // Only filter by the current user's ID
                 .OrderByDescending(l => l.LocalTimestamp); // Disable tracking for performance
-            
+
 
             // Apply rest filters
             if (!string.IsNullOrEmpty(userId))
@@ -490,28 +496,28 @@ namespace Wayfarer.Areas.Api.Controllers
                     Success = true,
                     Data = locations
                         .Select(l => new
-                    {
-                        l.Id,
-                        Coordinates = new
                         {
-                            Longitude = l.Coordinates?.X,
-                            Latitude = l.Coordinates?.Y
-                        },
-                        LocalTimestamp =
-                            CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X,
-                                DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                        l.TimeZoneId,
-                        Activity = l.ActivityType?.Name,
-                        l.Address,
-                        l.Country,
-                        l.Place,
-                        l.Region,
-                        l.FullAddress,
-                        l.PostCode,
-                        l.AddressNumber,
-                        l.Notes,
-                        l.Altitude
-                    }).ToList(),
+                            l.Id,
+                            Coordinates = new
+                            {
+                                Longitude = l.Coordinates?.X,
+                                Latitude = l.Coordinates?.Y
+                            },
+                            LocalTimestamp =
+                                CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X,
+                                    DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
+                            l.TimeZoneId,
+                            Activity = l.ActivityType?.Name,
+                            l.Address,
+                            l.Country,
+                            l.Place,
+                            l.Region,
+                            l.FullAddress,
+                            l.PostCode,
+                            l.AddressNumber,
+                            l.Notes,
+                            l.Altitude
+                        }).ToList(),
                     TotalItems = totalItems,
                     CurrentPage = page,
                     PageSize = pageSize
