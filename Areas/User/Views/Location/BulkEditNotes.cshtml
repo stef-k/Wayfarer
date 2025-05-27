@@ -1,0 +1,114 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model Wayfarer.Models.ViewModels.BulkEditNotesViewModel
+
+@{
+    ViewData["BodyClass"] = "container-fluid";
+    ViewData["LoadQuill"] = true;
+    ViewData["Title"] = "Bulk Edit Location Notes";
+}
+
+<h1 class="fs-3 text-center">@ViewData["Title"]</h1>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header text-bg-primary">
+                <h2 class="fs-4">Filters &amp; Notes</h2>
+            </div>
+            <div class="card-body">
+                <form asp-action="BulkEditNotes" method="post" id="locationForm">
+                    @Html.AntiForgeryToken()
+
+                    <!-- ==== Filters ==== -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Country" class="form-label"></label>
+                            <select asp-for="Country" class="form-select" asp-items="Model.Countries">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Region" class="form-label"></label>
+                            <select asp-for="Region" class="form-select" asp-items="Model.Regions">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Place" class="form-label"></label>
+                            <select asp-for="Place" class="form-select" asp-items="Model.Places">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="FromDate" class="form-label"></label>
+                            <input asp-for="FromDate" class="form-control"/>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ToDate" class="form-label"></label>
+                            <input asp-for="ToDate" class="form-control"/>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input asp-for="Append"
+                               class="form-check-input"
+                               id="Append"/>
+                        <label asp-for="Append" class="form-check-label"></label>
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input asp-for="ClearNotes"
+                               class="form-check-input"
+                               id="ClearNotes"/>
+                        <label asp-for="ClearNotes" class="form-check-label">
+                            @Html.DisplayNameFor(m => m.ClearNotes)
+                        </label>
+                    </div>
+
+
+                    <!-- ==== Quill Notes ==== -->
+                    <div class="form-group mb-4">
+                        <label for="notes" class="form-label">Notes (HTML)</label>
+                        <div id="notes" data-notes-content="@(Model.NotesHtml ?? "")"></div>
+                        <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@(Model.NotesHtml ?? "")"/>
+                        <small class="text-muted d-block">
+                            Use the toolbar to add text, links or images (via URL).
+                        </small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="applyBtn">
+                        Apply to @(Model.AffectedCount ?? 0) locations
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Copy‐paste your existing image‐URL modal exactly as in Edit.cshtml -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">Insert Image URL</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label for="imageUrl" class="form-label">Image URL</label>
+                <input type="text" id="imageUrl" class="form-control" placeholder="Enter the image URL here">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" id="insertImageBtn" class="btn btn-primary">Insert Image</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Reuse your existing script; it will find #notes, #hiddenNotes, #locationForm & #imageModal just as before -->
+    <script src="~/js/Areas/User/Location/BulkEditNotes.js"></script>
+}

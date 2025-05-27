@@ -344,5 +344,252 @@ namespace Wayfarer.Areas.User.Controllers
             SetAlert("Location updated successfully.", "success");
             return RedirectToAction("Index");
         }
+
+        [HttpGet]
+        public async Task<IActionResult> BulkEditNotes()
+        {
+            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // Pull distinct filter values for this user
+            var query = _dbContext.Locations
+                .Where(l => l.UserId == userId);
+
+            var vm = new BulkEditNotesViewModel
+            {
+                Countries = await query
+                    .Select(l => l.Country!)
+                    .Distinct()
+                    .OrderBy(c => c)
+                    .Select(c => new SelectListItem(c, c))
+                    .ToListAsync(),
+
+                Regions = await query
+                    .Select(l => l.Region!)
+                    .Distinct()
+                    .OrderBy(r => r)
+                    .Select(r => new SelectListItem(r, r))
+                    .ToListAsync(),
+
+                Places = await query
+                    .Select(l => l.Place!)
+                    .Distinct()
+                    .OrderBy(p => p)
+                    .Select(p => new SelectListItem(p, p))
+                    .ToListAsync()
+            };
+
+            SetPageTitle("Bulk Edit Notes");
+            return View(vm);
+        }
+        
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> BulkEditNotes(BulkEditNotesViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                // Re-populate dropdown lists with selected values and keep dates intact
+                string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var allLocations = _dbContext.Locations.Where(l => l.UserId == userId);
+
+                // Countries
+                var countries = await allLocations
+                    .Select(l => l.Country!)
+                    .Distinct()
+                    .OrderBy(c => c)
+                    .ToListAsync();
+                model.Countries = countries
+                    .Select(c => new SelectListItem(c, c, c == model.Country))
+                    .ToList();
+
+                // Regions *within* the selected country
+                var regionsQuery = allLocations;
+                if (!string.IsNullOrEmpty(model.Country))
+                    regionsQuery = regionsQuery.Where(l => l.Country == model.Country);
+                var regions = await regionsQuery
+                    .Select(l => l.Region!)
+                    .Distinct()
+                    .OrderBy(r => r)
+                    .ToListAsync();
+                model.Regions = regions
+                    .Select(r => new SelectListItem(r, r, r == model.Region))
+                    .ToList();
+
+                // Places *within* the selected country+region
+                var placesQuery = allLocations;
+                if (!string.IsNullOrEmpty(model.Country))
+                    placesQuery = placesQuery.Where(l => l.Country == model.Country);
+                if (!string.IsNullOrEmpty(model.Region))
+                    placesQuery = placesQuery.Where(l => l.Region == model.Region);
+                var places = await placesQuery
+                    .Select(l => l.Place!)
+                    .Distinct()
+                    .OrderBy(p => p)
+                    .ToListAsync();
+                model.Places = places
+                    .Select(p => new SelectListItem(p, p, p == model.Place))
+                    .ToList();
+
+                return View(model);
+            }
+
+            // Proceed with your existing POST logic here (unchanged)
+            string userId2 = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var query = _dbContext.Locations
+                .Where(l => l.UserId == userId2);
+
+            if (!string.IsNullOrEmpty(model.Country))
+                query = query.Where(l => l.Country == model.Country);
+            if (!string.IsNullOrEmpty(model.Region))
+                query = query.Where(l => l.Region == model.Region);
+            if (!string.IsNullOrEmpty(model.Place))
+                query = query.Where(l => l.Place == model.Place);
+
+            if (model.FromDate.HasValue)
+            {
+                var fromDate = DateTime.SpecifyKind(model.FromDate.Value.Date, DateTimeKind.Utc);
+                query = query.Where(l => l.LocalTimestamp >= fromDate);
+            }
+
+            if (model.ToDate.HasValue)
+            {
+                var toDate = DateTime.SpecifyKind(model.ToDate.Value.Date.AddDays(1), DateTimeKind.Utc);
+                query = query.Where(l => l.LocalTimestamp < toDate);
+            }
+
+            var list = await query.ToListAsync();
+            model.AffectedCount = list.Count;
+
+            foreach (var loc in list)
+            {
+                if (model.ClearNotes)
+                {
+                    loc.Notes = null;
+                }
+                else if (model.Append)
+                {
+                    if (!string.IsNullOrWhiteSpace(model.NotesHtml))
+                        loc.Notes = (loc.Notes ?? "") + model.NotesHtml;
+                }
+                else
+                {
+                    loc.Notes = string.IsNullOrWhiteSpace(model.NotesHtml)
+                        ? null
+                        : model.NotesHtml;
+                }
+            }
+
+            await _dbContext.SaveChangesAsync();
+
+            SetAlert($"{model.AffectedCount} location(s) updated.", "success");
+
+            var allLocations2 = _dbContext.Locations.Where(l => l.UserId == userId2);
+
+            // Countries
+            var countries2 = await allLocations2
+                .Select(l => l.Country!)
+                .Distinct()
+                .OrderBy(c => c)
+                .ToListAsync();
+            model.Countries = countries2
+                .Select(c => new SelectListItem(c, c, c == model.Country))
+                .ToList();
+
+            // Regions *within* the selected country
+            var regionsQuery2 = allLocations2;
+            if (!string.IsNullOrEmpty(model.Country))
+                regionsQuery2 = regionsQuery2.Where(l => l.Country == model.Country);
+            var regions2 = await regionsQuery2
+                .Select(l => l.Region!)
+                .Distinct()
+                .OrderBy(r => r)
+                .ToListAsync();
+            model.Regions = regions2
+                .Select(r => new SelectListItem(r, r, r == model.Region))
+                .ToList();
+
+            // Places *within* the selected country+region
+            var placesQuery2 = allLocations2;
+            if (!string.IsNullOrEmpty(model.Country))
+                placesQuery2 = placesQuery2.Where(l => l.Country == model.Country);
+            if (!string.IsNullOrEmpty(model.Region))
+                placesQuery2 = placesQuery2.Where(l => l.Region == model.Region);
+            var places2 = await placesQuery2
+                .Select(l => l.Place!)
+                .Distinct()
+                .OrderBy(p => p)
+                .ToListAsync();
+            model.Places = places2
+                .Select(p => new SelectListItem(p, p, p == model.Place))
+                .ToList();
+
+            return View(model);
+        }
+
+
+        [HttpGet]
+        public async Task<JsonResult> GetRegions(string country)
+        {
+            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var regions = await _dbContext.Locations
+                .Where(l => l.UserId == userId && l.Country == country)
+                .Select(l => l.Region!)
+                .Distinct()
+                .OrderBy(r => r)
+                .ToListAsync();
+            return Json(regions);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetPlaces(string country, string region)
+        {
+            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var places = await _dbContext.Locations
+                .Where(l => l.UserId == userId
+                            && l.Country == country
+                            && l.Region == region)
+                .Select(l => l.Place!)
+                .Distinct()
+                .OrderBy(p => p)
+                .ToListAsync();
+            return Json(places);
+        }
+
+        /// <summary>
+        /// Preview how many rows match the current filter (no update)
+        /// </summary>
+        [HttpGet]
+        public async Task<JsonResult> PreviewCount(
+            string? country, string? region, string? place,
+            DateTime? fromDate, DateTime? toDate)
+        {
+            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (fromDate.HasValue)
+                fromDate = DateTime.SpecifyKind(fromDate.Value.Date, DateTimeKind.Utc);
+
+            if (toDate.HasValue)
+            {
+                // Exclusive end boundary: less than next day
+                toDate = DateTime.SpecifyKind(toDate.Value.Date.AddDays(1), DateTimeKind.Utc);
+            }
+
+
+            var q = _dbContext.Locations.Where(l => l.UserId == userId);
+
+            if (!string.IsNullOrEmpty(country)) q = q.Where(l => l.Country == country);
+            if (!string.IsNullOrEmpty(region)) q = q.Where(l => l.Region == region);
+            if (!string.IsNullOrEmpty(place)) q = q.Where(l => l.Place == place);
+
+            if (fromDate.HasValue)
+                q = q.Where(l => l.LocalTimestamp >= fromDate.Value);
+
+            if (toDate.HasValue)
+                q = q.Where(l => l.LocalTimestamp < toDate.Value);
+
+
+            int count = await q.CountAsync();
+            return Json(count);
+        }
     }
 }
