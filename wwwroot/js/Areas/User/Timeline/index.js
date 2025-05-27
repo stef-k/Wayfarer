@@ -310,9 +310,11 @@ const initWikipediaPopovers = modalEl => {
 // max radius dynamic change based on map's zoom level
 const dynamicClustering = (level) => {
     if (zoomLevel <= 5) {
+        return 0
+    } else if (zoomLevel >= 6 && zoomLevel < 12) {
         return 15;
     } else {
-        return 5;
+        return 25;
     }
 }
 const onZoomOrMoveChanges = () => {
