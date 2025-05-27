@@ -14,17 +14,17 @@ import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../ma
 document.addEventListener('DOMContentLoaded', () => {
     username = document.getElementById('username').dataset.username;
     timelineLive = document.getElementById('timelineLive').dataset.timelineLive;
-    
+
     try {
         stream = new EventSource(`/api/sse/stream/location-update/${username}`);
-    }  catch (e) {
+    } catch (e) {
         console.error(`Could not connect to stream ${e}`);
     }
     if (!username) {
         console.error('Username not found!');
         return;
     }
-    
+
     // Initialize the mapContainer and load location data
     mapContainer = initializeMap();
     mapBounds = mapContainer.getBounds();
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stream.onmessage = (event) => {
         handleStream(event);
     }
-    
+
     // Wire up the Bootstrap “shown” event for Wikipedia hover cards
     const modalEl = document.getElementById('locationModal');
     if (!modalEl) {
@@ -46,13 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
             initWikipediaPopovers(modalEl);
         });
     }
-    
+
     getUserStats(username);
-    
+
 });
 
 const handleStream = (event) => {
-    if(timelineLive) {
+    if (timelineLive) {
         getUserLocations();
     }
 };
@@ -169,7 +169,7 @@ const generateLocationModalContent = location => {
         <div class="row mb-2">
             <div class="col-6"><strong>Activity:</strong>   
             <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType :
-            '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
+        '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
              <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude || '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">
@@ -312,9 +312,11 @@ const initWikipediaPopovers = modalEl => {
 
 const dynamicClustering = (level) => {
     if (zoomLevel <= 5) {
+        return 0
+    } else if (zoomLevel >= 6 && zoomLevel < 12) {
         return 15;
     } else {
-        return 5;
+        return 25;
     }
 }
 
@@ -425,5 +427,5 @@ const getUserStats = async (username) => {
         summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
 
     const summary = summaryParts.join(" | ");
-    document.getElementById("timeline-summary").innerHTML  = summary;
+    document.getElementById("timeline-summary").innerHTML = summary;
 };
