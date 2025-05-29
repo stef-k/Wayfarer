@@ -375,7 +375,7 @@ namespace Wayfarer.Areas.Api.Controllers
                 // Delete the locations
                 _dbContext.Locations.RemoveRange(locationsToDelete);
                 await _dbContext.SaveChangesAsync();
-
+                
                 return Ok(new
                     { success = true, message = $"{locationsToDelete.Count} locations deleted successfully." });
             }

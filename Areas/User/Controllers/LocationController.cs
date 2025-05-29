@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
@@ -15,12 +16,14 @@ namespace Wayfarer.Areas.User.Controllers
     public class LocationController : BaseController
     {
         private readonly ReverseGeocodingService _reverseGeocodingService;
+        private readonly SseService _sse;
 
         public LocationController(ILogger<BaseController> logger, ApplicationDbContext dbContext,
-            ReverseGeocodingService reverseGeocodingService)
+            ReverseGeocodingService reverseGeocodingService, SseService sse)
             : base(logger, dbContext)
         {
             _reverseGeocodingService = reverseGeocodingService;
+            _sse = sse;
         }
 
         /// <summary>
@@ -182,6 +185,13 @@ namespace Wayfarer.Areas.User.Controllers
 
                 LogAction("CreateLocation", $"Location added for user {model.UserId}");
                 SetAlert("The location has been successfully created.", "success");
+                
+                await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
+                {
+                    LocationId = location.Id,
+                    TimeStamp = location.Timestamp,
+                }));
+                
                 return RedirectToAction("Edit", new { location.Id });
             }
             catch (Exception ex)
