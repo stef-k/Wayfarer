@@ -279,7 +279,7 @@ namespace Wayfarer.Areas.Api.Controllers
                 {
                     Id = location.Id,
                     Timestamp = location.Timestamp,
-                    LocalTimestamp = location.LocalTimestamp,
+                    LocalTimestamp = DateTimeUtils.ConvertUtcToLocalTime(location.LocalTimestamp, location.Timezone),
                     Coordinates = location.Coordinates,
                     Timezone = location.Timezone,
                     Accuracy = location.Accuracy,
@@ -519,8 +519,8 @@ namespace Wayfarer.Areas.Api.Controllers
                                 Latitude = l.Coordinates?.Y
                             },
                             LocalTimestamp =
-                                CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X,
-                                    DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
+                                DateTimeUtils.ConvertUtcToLocalTime(CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X,
+                                    DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)), l.TimeZoneId),
                             l.TimeZoneId,
                             Activity = l.ActivityType?.Name,
                             l.Address,
