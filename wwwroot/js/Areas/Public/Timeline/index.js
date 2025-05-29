@@ -13,7 +13,8 @@ import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../ma
 
 document.addEventListener('DOMContentLoaded', () => {
     username = document.getElementById('username').dataset.username;
-    timelineLive = document.getElementById('timelineLive').dataset.timelineLive;
+    const timelineLiveStr = document.getElementById('timelineLive').dataset.timelineLive;
+    timelineLive = timelineLiveStr && timelineLiveStr.toLowerCase() === "true";
 
     try {
         stream = new EventSource(`/api/sse/stream/location-update/${username}`);
