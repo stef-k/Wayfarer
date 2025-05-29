@@ -4,8 +4,9 @@ let zoomLevel = 3;
 let mapBounds = null;
 let maxClusterRadius = 50;
 let markerClusterGroup = null;
+let stream;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-import {addZoomLevelControl, latestLocationMarker} from '../../../map-utils.js';
+import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the mapContainer and load location data
@@ -15,6 +16,22 @@ document.addEventListener('DOMContentLoaded', () => {
     zoomLevel = mapContainer.getZoom();
     getUserLocations();
     onZoomOrMoveChanges();
+
+    let username = document.getElementById('username').dataset.username;
+    try {
+        stream = new EventSource(`/api/sse/stream/location-update/${username}`);
+    } catch (e) {
+        console.error(`Could not connect to stream ${e}`);
+    }
+    if (!username) {
+        console.error('Username not found!');
+        return;
+    }
+
+    // handle the SSE stream
+    stream.onmessage = (event) => {
+        handleStream(event);
+    }
 
     // delete events from pop ups
     document.addEventListener("click", function (event) {
@@ -116,17 +133,43 @@ const displayLocationsOnMap = (mapContainer, locations) => {
     // Add each location into the cluster
     locations.forEach(location => {
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
-        const modalContent = generateLocationModalContent(location);
-        const marker = L.marker(coords, location.isLatestLocation ? {icon: latestLocationMarker} : {}).on('click', () => {
-            document.getElementById('modalContent').innerHTML = modalContent;
-            new bootstrap.Modal(document.getElementById('locationModal')).show();
-        });
 
-        if (location.isLatestLocation) {
+        // Decide which icon to use _now_ for the marker itself:
+        const nowMin = Math.floor(Date.now() / 60000);
+        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+        const isLiveIcon = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
+        const isLatestIcon = location.isLatestLocation;
+
+        let markerOptions = {};
+        if (isLiveIcon) {
+            markerOptions.icon = liveMarker;
+        } else if (isLatestIcon) {
+            markerOptions.icon = latestLocationMarker;
+        }
+        const marker = L.marker(coords, markerOptions);
+
+        // Tooltip for latest only (live already has its icon + tooltip in your previous code)
+        if (isLatestIcon && !isLiveIcon) {
             marker.bindTooltip("User's latest location.", {
-                direction: "top", offset: [0, -25]
+                direction: "top",
+                offset: [0, -25]
             });
         }
+
+        marker.on('click', () => {
+            // 1) recompute “live” for the modal badge
+            const now2 = Math.floor(Date.now() / 60000);
+            const loc2 = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+            const isLiveM = (now2 - loc2) <= location.locationTimeThresholdMinutes;
+
+            // 2) grab the latest-flag from your DTO
+            const isLatestM = location.isLatestLocation;
+
+            // 3) generate & show
+            document.getElementById('modalContent').innerHTML =
+                generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});
+            new bootstrap.Modal(document.getElementById('locationModal')).show();
+        });
 
         markerClusterGroup.addLayer(marker);
     });
@@ -135,8 +178,17 @@ const displayLocationsOnMap = (mapContainer, locations) => {
     mapContainer.addLayer(markerClusterGroup);
 };
 
+
 // Generate the content for the modal when a marker is clicked
-const generateLocationModalContent = location => {
+const generateLocationModalContent = (location, {isLive, isLatest}) => {
+    // build your badge HTML
+    let badge = '';
+    if (isLive) {
+        badge = '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>';
+    } else if (isLatest) {
+        badge = '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>';
+    }
+
     let dynamicMinHeight;
     let style;
     let charCount = location?.notes ? location.notes.length : 0;
@@ -149,7 +201,13 @@ const generateLocationModalContent = location => {
         dynamicMinHeight = 16 * (lineHeightEm * minLines);
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
+
     return `<div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-12">
+                ${badge}
+            </div>
+        </div>
         <div class="row mb-2">
             <div class="col-6"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T', ' ').split('.')[0]}</span></div>
             <div class="col-6"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId}</span></div>
@@ -165,13 +223,12 @@ const generateLocationModalContent = location => {
         </div>
         <div class="row mb-2">
             <div class="col-6"><strong>Activity:</strong>   
-            <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType : 
-            '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude || '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
+            <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType :
+        '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
+             <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude || '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">
-            <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span>
-            <br/>
+            <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span><br/>
             ${generateGoogleMapsLink(location.fullAddress)}
             ${generateWikipediaLink(location)}
             </div>
@@ -192,7 +249,7 @@ const generateLocationModalContent = location => {
             </div>
         </div>
     </div>
-`
+`;
 };
 
 /**
@@ -417,4 +474,8 @@ const getUserStats = async () => {
 
     const summary = summaryParts.join(" | ");
     document.getElementById("timeline-summary").innerHTML = summary;
+};
+
+const handleStream = (event) => {
+    getUserLocations();
 };

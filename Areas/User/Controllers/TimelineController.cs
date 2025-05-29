@@ -26,6 +26,9 @@ namespace Wayfarer.Controllers
         // Action to display the timeline for the logged-in user
         public async Task<IActionResult> Index()
         {
+            ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
+            ViewData["Username"] = currentUser.UserName;
+            
             SetPageTitle("Private Timeline");
             return View();
         }

@@ -1,9 +1,11 @@
 ﻿@{
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
+    var username = ViewData["Username"];
 }
 
 <span id="timeline-summary" class="small font-monospace text-muted"></span>
+<div id="username" data-username="@username" hidden></div>
 <!-- Map container -->
 <div id="mapContainer" style="height: calc(100vh - 140px);"></div>
 

@@ -93,57 +93,77 @@ const displayLocationsOnMap = (mapContainer, locations) => {
         mapContainer = initializeMap();
     }
 
-    // Clear all markers from the map before adding new ones
+    // Clear all existing markers
     mapContainer.eachLayer(layer => {
         if (layer instanceof L.Marker || layer instanceof L.MarkerClusterGroup) {
             mapContainer.removeLayer(layer);
         }
     });
 
-    // Create a fresh marker cluster group
+    // Build a fresh cluster group
     markerClusterGroup = L.markerClusterGroup({
         maxClusterRadius: dynamicClustering(),
     });
 
-    // We'll still compute bounds, but we no longer auto-fit them.
-    const bounds = L.latLngBounds();
-
+    // Add each location into the cluster
     locations.forEach(location => {
-        const modalContent = generateLocationModalContent(location);
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
 
-        // Compute “live” vs “latest”:
+        // Decide which icon to use _now_ for the marker itself:
         const nowMin = Math.floor(Date.now() / 60000);
         const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-        const isLive = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
+        const isLiveIcon = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
+        const isLatestIcon = location.isLatestLocation;
 
-        let marker;
-        if (isLive) {
-            marker = L.marker(coords, {icon: liveMarker})
-                .bindTooltip("User's real time location!", {direction: "top", offset: [0, -25]});
-        } else if (location.isLatestLocation) {
-            marker = L.marker(coords, {icon: latestLocationMarker})
-                .bindTooltip("User's latest location.", {direction: "top", offset: [0, -25]});
-        } else {
-            marker = L.marker(coords);
+        let markerOptions = {};
+        if (isLiveIcon) {
+            markerOptions.icon = liveMarker;
+        } else if (isLatestIcon) {
+            markerOptions.icon = latestLocationMarker;
+        }
+        const marker = L.marker(coords, markerOptions);
+
+        // Tooltip for latest only (live already has its icon + tooltip in your previous code)
+        if (isLatestIcon && !isLiveIcon) {
+            marker.bindTooltip("User's latest location.", {
+                direction: "top",
+                offset: [0, -25]
+            });
         }
 
         marker.on('click', () => {
-            document.getElementById('modalContent').innerHTML = modalContent;
+            // 1) recompute “live” for the modal badge
+            const now2 = Math.floor(Date.now() / 60000);
+            const loc2 = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+            const isLiveM = (now2 - loc2) <= location.locationTimeThresholdMinutes;
+
+            // 2) grab the latest-flag from your DTO
+            const isLatestM = location.isLatestLocation;
+
+            // 3) generate & show
+            document.getElementById('modalContent').innerHTML =
+                generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});
             new bootstrap.Modal(document.getElementById('locationModal')).show();
         });
 
         markerClusterGroup.addLayer(marker);
-        bounds.extend(coords);
     });
 
-    // Add the cluster group—BUT do NOT fit or recenter the map.
+    // **NO** fitBounds or recentering here any more:
     mapContainer.addLayer(markerClusterGroup);
 };
 
 
 // Generate the content for the modal when a marker is clicked
-const generateLocationModalContent = location => {
+const generateLocationModalContent = (location, { isLive, isLatest }) => {
+    // build your badge HTML
+    let badge = '';
+    if (isLive) {
+        badge = '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>';
+    } else if (isLatest) {
+        badge = '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>';
+    }
+
     let dynamicMinHeight;
     let style;
     let charCount = location?.notes ? location.notes.length : 0;
@@ -156,7 +176,13 @@ const generateLocationModalContent = location => {
         dynamicMinHeight = 16 * (lineHeightEm * minLines);
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
+
     return `<div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-12">
+                ${badge}
+            </div>
+        </div>
         <div class="row mb-2">
             <div class="col-6"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T', ' ').split('.')[0]}</span></div>
             <div class="col-6"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId}</span></div>
@@ -171,9 +197,9 @@ const generateLocationModalContent = location => {
             </div>
         </div>
         <div class="row mb-2">
-             <div class="col-6"><strong>Activity:</strong>   
+            <div class="col-6"><strong>Activity:</strong>   
             <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType :
-            '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
+        '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
              <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude || '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">
@@ -190,8 +216,9 @@ const generateLocationModalContent = location => {
             </div>
         </div>
     </div>
-`
+`;
 };
+
 
 /**
  * Generates a link query for Google Maps and opens in new tab
