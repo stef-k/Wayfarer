@@ -86,16 +86,31 @@ namespace Wayfarer.Areas.Api.Controllers
                 string timeZoneId;
                 try
                 {
-                    timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(dto.Latitude, dto.Longitude);
-                    utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp);
+                    timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
+                        dto.Latitude, dto.Longitude);
+
+                    // Only convert if the incoming timestamp isn’t already UTC
+                    if (dto.Timestamp.Kind == DateTimeKind.Utc)
+                    {
+                        utcTimestamp = dto.Timestamp;
+                    }
+                    else
+                    {
+                        utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(
+                            dto.Latitude, dto.Longitude, dto.Timestamp);
+                    }
+
+                    // Ensure we mark this as UTC so EF/SQL stores it correctly
                     utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to convert local time to UTC for coordinates {Lat}, {Lon}",
+                    _logger.LogError(ex,
+                        "Failed to convert local time to UTC for coordinates {Lat}, {Lon}",
                         dto.Latitude, dto.Longitude);
                     return StatusCode(500, "Failed to process timestamp and timezone.");
                 }
+
 
                 Point coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
 
