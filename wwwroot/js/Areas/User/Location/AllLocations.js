@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clearSearchForm').onclick = () => {
         document.getElementById('advancedSearchForm').reset();
         currentFilters = {};
-        loadLocations(1);
+        loadLocations(1, {});
     };
 
     // SEARCH SUBMIT
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
             region: document.getElementById('region').value,
             notes: document.getElementById('notes').value,
         };
-        loadLocations(1);
+        loadLocations(1, currentFilters);
     };
 
     // ROW ACTIONS (view, edit, delete-in-modal)
@@ -154,21 +154,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const loadLocations = (page = 1) => {
     currentPage = page;
-    let url = `/api/Location/search?page=${page}&pageSize=${pageSize}`;
 
-    fetch(url, {credentials: 'include'})
+    const params = new URLSearchParams({
+        page,
+        pageSize
+    });
+
+    // append any filters the user set (will be {} on initial load)
+    Object.entries(currentFilters).forEach(([key, value]) => {
+        if (value != null && value !== '') {
+            params.append(key, value);
+        }
+    });
+
+    const url = `/api/Location/search?${params.toString()}`;
+
+    fetch(url, { credentials: 'include' })
         .then(r => r.json())
         .then(res => {
             locations = res.data || res.Data || [];
             displayLocationsInTable(locations);
-            updatePagination(res.TotalItems || res.totalItems, page);
-            // ⚪ After repopulating the table, clear the header checkbox state
+            updatePagination(res.TotalItems || res.totalItems, currentPage);
+
+            // clear the “select all” checkbox
             const selectAll = document.getElementById('selectAll');
             selectAll.checked = false;
             selectAll.indeterminate = false;
         })
         .catch(console.error);
-}
+};
+
 
 const displayLocationsInTable = (locations) => {
     const tbody = document.querySelector('#locationsTable tbody');

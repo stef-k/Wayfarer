@@ -402,7 +402,7 @@ namespace Wayfarer.Areas.Api.Controllers
             string? region,
             string? place,
             int page = 1,
-            int pageSize = 10)
+            int pageSize = 20)
         {
             // Force userId to be the currently logged-in user's ID
             var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
