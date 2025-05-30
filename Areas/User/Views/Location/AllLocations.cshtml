@@ -89,26 +89,16 @@
                     </div>
                 </div>
                 <div class="row mt-2">
-                    @* we won't be using geofence for now *@
-                    @* <div class="col-md-4"> *@
-                    @*     <label for="geofenceName" class="form-label">Geofence Name</label> *@
-                    @*     <input type="text" class="form-control" id="geofenceName"> *@
-                    @* </div> *@
-                    @* <div class="col-md-4"> *@
-                    @*     <label for="isInsideGeofence" class="form-label">Inside Geofence</label> *@
-                    @*     <select class="form-select" id="isInsideGeofence"> *@
-                    @*         <option value="">Select...</option> *@
-                    @*         <option value="true">Yes</option> *@
-                    @*         <option value="false">No</option> *@
-                    @*     </select> *@
-                    @* </div> *@
                     <div class="col-md-4">
                         <label for="notes" class="form-label">Notes</label>
                         <textarea class="form-control" id="notes"></textarea>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-sm mt-3">Search</button>
-                <button type="button" class="btn btn-secondary btn-sm mt-3" id="clearSearchForm">Clear</button>
+
+                <div class="row mt-1">
+                    <div class="col-2"><button type="submit" class="btn btn-primary btn-sm mt-3">Search</button></div>
+                    <div class="col-2"><button type="button" class="btn btn-secondary btn-sm mt-3" id="clearSearchForm">Clear</button></div>
+                </div>
             </form>
         </div>
     </div>
