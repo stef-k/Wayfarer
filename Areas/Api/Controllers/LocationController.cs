@@ -531,7 +531,9 @@ namespace Wayfarer.Areas.Api.Controllers
                             l.PostCode,
                             l.AddressNumber,
                             l.Notes,
-                            l.Altitude
+                            l.Altitude,
+                            l.Accuracy,
+                            l.Speed
                         }).ToList(),
                     TotalItems = totalItems,
                     CurrentPage = page,

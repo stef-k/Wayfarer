@@ -193,6 +193,7 @@ const displayLocationsInTable = (locations) => {
         return;
     }
     for (const loc of locations) {
+        console.log(loc);
         tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="checkbox" name="locationCheckbox" value="${loc.id}"></td>
@@ -368,11 +369,14 @@ const generateLocationModalContent = (location) => {
 
 const generateGoogleMapsLink = (address) => {
     const q = encodeURIComponent(address || '');
-    return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2" title="View in Google Maps">📍 Maps</a>`;
+    return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps">
+    <i class="bi bi-globe-europe-africa"></i> Maps
+</a>`;
 }
 
 const generateWikipediaLink = (location) => {
-    return `<a href="#" class="ms-2 wikipedia-link" data-lat="${location.coordinates.latitude}" data-lon="${location.coordinates.longitude}">📖 Wiki</a>`;
+    return `<a href="#" class="ms-2 wikipedia-link btn btn-outline-primary btn-sm" data-lat="${location.coordinates.latitude}" data-lon="${location.coordinates.longitude}">
+    <i class="bi bi-wikipedia"></i> Wiki</a>`;
 }
 
 const initWikipediaPopovers = (modalEl) => {
