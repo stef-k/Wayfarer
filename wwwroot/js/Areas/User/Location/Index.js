@@ -449,7 +449,7 @@ const displayLocationsInTable = (locations) => {
                 <td>${location.coordinates.longitude}</td>
                 <td class="text-center">${location.accuracy || '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
                 <td class="text-center">${location.altitude || '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
-                <td>${location.activityType || location.activity}</td>
+                <td>${location.activityType || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</td>
                 <td>${location.address || '<i class="bi bi-patch-question" title="No available data for Address"></i>'}</td>
                 <td>${location.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
                 <td>${location.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
@@ -591,7 +591,6 @@ const getUserLocations = () => {
             return response.json();
         })
         .then(data => {
-            // TODO: Update map with new data
             locations = data.data; // Store the fetched locations in the global variable
             if (locations && locations.length > 0) {
                 displayLocationsOnMap(mapContainer, locations);

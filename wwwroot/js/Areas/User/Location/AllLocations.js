@@ -193,7 +193,6 @@ const displayLocationsInTable = (locations) => {
         return;
     }
     for (const loc of locations) {
-        console.log(loc);
         tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="checkbox" name="locationCheckbox" value="${loc.id}"></td>
@@ -203,7 +202,7 @@ const displayLocationsInTable = (locations) => {
         <td>${loc.coordinates.longitude}</td>
         <td class="text-center">${loc.accuracy ?? '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
         <td class="text-center">${loc.altitude ?? '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
-        <td>${loc.activityType || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</td>
+        <td>${loc.activityType || loc.activity || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</td>
         <td>${loc.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'}</td>
         <td>${loc.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
         <td>${loc.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
