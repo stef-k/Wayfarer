@@ -4,10 +4,22 @@ let zoomLevel = 3;
 let mapBounds = null;
 let markerClusterGroup = null;
 let username = null;
-// const tilesUrl = `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 let timelineLive;
 let stream;
+
+// permalink setup
+const urlParams = new URLSearchParams(window.location.search);
+const initialLat = parseFloat(urlParams.get('lat'));
+const initialLng = parseFloat(urlParams.get('lng'));
+const initialZoom = parseInt(urlParams.get('zoom'), 10);
+const z = parseInt(urlParams.get('zoom'), 10);
+zoomLevel = (!isNaN(z) && z >= 0) ? z : 3;
+let initialCenter = (
+    !isNaN(initialLat) && !isNaN(initialLng)
+        ? [initialLat, initialLng]
+        : [20, 0]
+);
 
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 
@@ -32,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize the mapContainer and load location data
     mapContainer = initializeMap();
     mapBounds = mapContainer.getBounds();
-    zoomLevel = mapContainer.getZoom();
     getUserLocations();
     onZoomOrMoveChanges();
 
@@ -75,7 +86,7 @@ const initializeMap = () => {
     mapContainer = L.map('mapContainer', {
         scrollWheelZoom: false,
         zoomAnimation: true
-    }).setView([20, 0], zoomLevel);
+    }).setView(initialCenter, zoomLevel);
     L.tileLayer(tilesUrl, {
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
@@ -343,14 +354,10 @@ const initWikipediaPopovers = modalEl => {
 };
 
 const dynamicClustering = (level) => {
-    if (zoomLevel <= 5) {
-        return 0
-    } else if (zoomLevel >= 6 && zoomLevel < 12) {
-        return 15;
-    } else {
-        return 25;
-    }
-}
+    if (level <= 5) return 0;
+    else if (level < 12) return 15;
+    else return 25;
+};
 
 const onZoomOrMoveChanges = () => {
     mapContainer.on("moveend zoomend", () => {
@@ -364,7 +371,25 @@ const onZoomOrMoveChanges = () => {
         mapBounds = mapContainer.getBounds();
         zoomLevel = mapContainer.getZoom();
         debouncedGetUserLocations();
+        updateUrlWithMapState();
     });
+};
+
+/**
+ * Update URL based on user interaction with the map
+ */
+const updateUrlWithMapState = () => {
+    const c = mapContainer.getCenter();
+    const z = mapContainer.getZoom();
+    const params = new URLSearchParams();
+    params.set('lat',  c.lat.toFixed(6));
+    params.set('lng',  c.lng.toFixed(6));
+    params.set('zoom', z);
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    if (zoomLevel !== 3 || c.lat.toFixed(6) !== '20.000000' || c.lng.toFixed(6) !== '0.000000') {
+        history.replaceState(null, '', newUrl);
+    }
 };
 
 // delay execution of a function (used on fetch to avoid excessive api calls)
