@@ -108,10 +108,14 @@ const displayLocationsOnMap = (mapContainer, locations) => {
         }
     });
 
-    // Build a fresh cluster group
+
+    // Build a fresh cluster group, with built-in zoom threshold
     markerClusterGroup = L.markerClusterGroup({
-        maxClusterRadius: dynamicClustering(),
+        disableClusteringAtZoom: 5,  // ≤5 ⇒ no clustering
+        maxClusterRadius: 25,        // clusters above zoom 5 use a 25px radius
+        chunkedLoading: true         // break work into small batches
     });
+
 
     // Add each location into the cluster
     locations.forEach(location => {
@@ -347,12 +351,6 @@ const initWikipediaPopovers = modalEl => {
     ;
 };
 
-const dynamicClustering = () => {
-    if (zoomLevel <= 5) return 0;
-    else if (zoomLevel < 12) return 15;
-    else return 25;
-};
-
 /**
  * Track on map zoom and move changes
  */
@@ -361,9 +359,6 @@ const onZoomOrMoveChanges = () => {
         let z = mapContainer.getZoom();
         if (z !== zoomLevel) {
             zoomLevel = z;
-            if (markerClusterGroup) {
-                markerClusterGroup.options.maxClusterRadius = dynamicClustering();
-            }
         }
         mapBounds = mapContainer.getBounds();
         zoomLevel = mapContainer.getZoom();
@@ -379,8 +374,8 @@ const updateUrlWithMapState = () => {
     const c = mapContainer.getCenter();
     const z = mapContainer.getZoom();
     const params = new URLSearchParams();
-    params.set('lat',  c.lat.toFixed(6));
-    params.set('lng',  c.lng.toFixed(6));
+    params.set('lat', c.lat.toFixed(6));
+    params.set('lng', c.lng.toFixed(6));
     params.set('zoom', z);
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
