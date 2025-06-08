@@ -115,7 +115,6 @@ const displayLocationsOnMap = (mapContainer, locations) => {
 
     // Build a fresh cluster group, with built-in zoom threshold
     markerClusterGroup = L.markerClusterGroup({
-        disableClusteringAtZoom: 5,  // ≤5 ⇒ no clustering
         maxClusterRadius: 25,        // clusters above zoom 5 use a 25px radius
         chunkedLoading: true         // break work into small batches
     });
@@ -361,6 +360,11 @@ const onZoomOrMoveChanges = () => {
         let z = mapContainer.getZoom();
         if (z !== zoomLevel) {
             zoomLevel = z;
+        }
+        if (z <= 5) {
+            markerClusterGroup.disableClustering();
+        } else {
+            markerClusterGroup.enableClustering();
         }
         mapBounds = mapContainer.getBounds();
         zoomLevel = mapContainer.getZoom();
