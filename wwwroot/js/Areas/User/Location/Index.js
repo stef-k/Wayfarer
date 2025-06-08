@@ -542,9 +542,9 @@ document.getElementById('deleteSelected').addEventListener('click', () => {
 });
 
 // max radius dynamic change based on map's zoom level
-const dynamicClustering = (level) => {
-    if (level <= 5) return 0;
-    else if (level < 12) return 15;
+const dynamicClustering = () => {
+    if (zoomLevel <= 5) return 0;
+    else if (zoomLevel < 12) return 15;
     else return 25;
 };
 
@@ -554,7 +554,7 @@ const onZoomOrMoveChanges = () => {
         if (z !== zoomLevel) {
             zoomLevel = z;
             if (markerClusterGroup) {
-                markerClusterGroup.options.maxClusterRadius = dynamicClustering(zoomLevel);
+                markerClusterGroup.options.maxClusterRadius = dynamicClustering();
             }
         }
         mapBounds = mapContainer.getBounds();

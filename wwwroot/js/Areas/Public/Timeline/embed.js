@@ -366,7 +366,7 @@ const onZoomOrMoveChanges = () => {
         if (z !== zoomLevel) {
             zoomLevel = z;
             if (markerClusterGroup) {
-                markerClusterGroup.options.maxClusterRadius = dynamicClustering(zoomLevel);
+                markerClusterGroup.options.maxClusterRadius = dynamicClustering();
             }
         }
         mapBounds = mapContainer.getBounds();
