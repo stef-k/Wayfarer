@@ -4,6 +4,7 @@ let zoomLevel = 3;
 let mapBounds = null;
 let maxClusterRadius = 50;
 let markerClusterGroup = null;
+let markerLayer, clusterLayer;
 let stream;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
@@ -125,45 +126,32 @@ const initializeMap = () => {
     return mapContainer;
 };
 
-// Display locations on the mapContainer with markers
-const displayLocationsOnMap = (mapContainer, locations) => {
-    if (!mapContainer) {
-        mapContainer = initializeMap();
-    }
+const buildLayers = (locations) => {
+    // --- FLAT marker layer (no clustering) ---
+    markerLayer = L.layerGroup();
 
-    // Clear all existing markers
-    mapContainer.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.MarkerClusterGroup) {
-            mapContainer.removeLayer(layer);
-        }
+    // --- CLUSTERED marker layer ---
+    clusterLayer = L.markerClusterGroup({
+        maxClusterRadius: 25,
+        chunkedLoading:  true
     });
 
-    // Build a fresh cluster group, with built-in zoom threshold
-    markerClusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 25,        // clusters above zoom 5 use a 25px radius
-        chunkedLoading: true         // break work into small batches
-    });
-
-
-    // Add each location into the cluster
     locations.forEach(location => {
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
 
-        // Decide which icon to use _now_ for the marker itself:
+        // decide icon
         const nowMin = Math.floor(Date.now() / 60000);
         const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-        const isLiveIcon = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
+        const isLiveIcon   = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
         const isLatestIcon = location.isLatestLocation;
 
-        let markerOptions = {};
-        if (isLiveIcon) {
-            markerOptions.icon = liveMarker;
-        } else if (isLatestIcon) {
-            markerOptions.icon = latestLocationMarker;
-        }
+        const markerOptions = {};
+        if (isLiveIcon)   markerOptions.icon = liveMarker;
+        else if (isLatestIcon) markerOptions.icon = latestLocationMarker;
+
         const marker = L.marker(coords, markerOptions);
 
-        // Tooltip for latest only (live already has its icon + tooltip in your previous code)
+        // only show “latest” tooltip if not live
         if (isLatestIcon && !isLiveIcon) {
             marker.bindTooltip("User's latest location.", {
                 direction: "top",
@@ -171,28 +159,49 @@ const displayLocationsOnMap = (mapContainer, locations) => {
             });
         }
 
+        // click ⇒ fill & show modal
         marker.on('click', () => {
-            // 1) recompute “live” for the modal badge
-            const now2 = Math.floor(Date.now() / 60000);
-            const loc2 = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-            const isLiveM = (now2 - loc2) <= location.locationTimeThresholdMinutes;
-
-            // 2) grab the latest-flag from your DTO
+            const now2  = Math.floor(Date.now() / 60000);
+            const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+            const isLiveM   = (now2 - loc2) <= location.locationTimeThresholdMinutes;
             const isLatestM = location.isLatestLocation;
 
-            // 3) generate & show
             document.getElementById('modalContent').innerHTML =
-                generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});
+                generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
+
             new bootstrap.Modal(document.getElementById('locationModal')).show();
         });
 
-        markerClusterGroup.addLayer(marker);
+        // add to both flat and cluster layers
+        markerLayer.addLayer(marker);
+        clusterLayer.addLayer(marker);
     });
 
-    // **NO** fitBounds or recentering here any more:
-    mapContainer.addLayer(markerClusterGroup);
+    // add only the appropriate layer
+    if (mapContainer.getZoom() <= 5) {
+        mapContainer.addLayer(markerLayer);
+    } else {
+        mapContainer.addLayer(clusterLayer);
+    }
 };
 
+// Display locations on the mapContainer with markers
+const displayLocationsOnMap = (mapContainer, locations) => {
+    if (!mapContainer) {
+        mapContainer = initializeMap();
+    }
+
+    // remove any old layers
+    if (markerLayer  && mapContainer.hasLayer(markerLayer))  {
+        mapContainer.removeLayer(markerLayer);
+    }
+    if (clusterLayer && mapContainer.hasLayer(clusterLayer)) {
+        mapContainer.removeLayer(clusterLayer);
+    }
+
+    // rebuild & add the right one
+    buildLayers(locations);
+};
 
 // Generate the content for the modal when a marker is clicked
 const generateLocationModalContent = (location, {isLive, isLatest}) => {
@@ -385,11 +394,19 @@ const onZoomOrMoveChanges = () => {
         if (z !== zoomLevel) {
             zoomLevel = z;
         }
+
         if (z <= 5) {
-            markerClusterGroup.disableClustering();
+            if (mapContainer.hasLayer(clusterLayer)) {
+                mapContainer.removeLayer(clusterLayer);
+                mapContainer.addLayer(markerLayer);
+            }
         } else {
-            markerClusterGroup.enableClustering();
+            if (mapContainer.hasLayer(markerLayer)) {
+                mapContainer.removeLayer(markerLayer);
+                mapContainer.addLayer(clusterLayer);
+            }
         }
+        
         mapBounds = mapContainer.getBounds();
         zoomLevel = mapContainer.getZoom();
         debouncedGetUserLocations();

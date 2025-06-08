@@ -4,8 +4,9 @@ let zoomLevel = 2;
 let mapBounds = null;
 let markerClusterGroup = null;
 let isSearchPanelOpen = false;
+let markerLayer, clusterLayer;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-import {addZoomLevelControl, latestLocationMarker} from '../../../map-utils.js';
+import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 
 // permalink setup
 const urlParams = new URLSearchParams(window.location.search);
@@ -215,48 +216,83 @@ const fetchFilteredLocations = (mapContainer, page = 1, pageSize = 20, searchPar
         });
 }
 
+const buildLayers = (locations) => {
+    // --- FLAT marker layer (no clustering) ---
+    markerLayer = L.layerGroup();
+
+    // --- CLUSTERED marker layer ---
+    clusterLayer = L.markerClusterGroup({
+        maxClusterRadius: 25,
+        chunkedLoading:  true
+    });
+
+    locations.forEach(location => {
+        const coords = [location.coordinates.latitude, location.coordinates.longitude];
+
+        // decide icon
+        const nowMin = Math.floor(Date.now() / 60000);
+        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+        const isLiveIcon   = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
+        const isLatestIcon = location.isLatestLocation;
+
+        const markerOptions = {};
+        if (isLiveIcon)   markerOptions.icon = liveMarker;
+        else if (isLatestIcon) markerOptions.icon = latestLocationMarker;
+
+        const marker = L.marker(coords, markerOptions);
+
+        // only show “latest” tooltip if not live
+        if (isLatestIcon && !isLiveIcon) {
+            marker.bindTooltip("User's latest location.", {
+                direction: "top",
+                offset: [0, -25]
+            });
+        }
+
+        // click ⇒ fill & show modal
+        marker.on('click', () => {
+            const now2  = Math.floor(Date.now() / 60000);
+            const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+            const isLiveM   = (now2 - loc2) <= location.locationTimeThresholdMinutes;
+            const isLatestM = location.isLatestLocation;
+
+            document.getElementById('modalContent').innerHTML =
+                generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
+
+            new bootstrap.Modal(document.getElementById('locationModal')).show();
+        });
+
+        // add to both flat and cluster layers
+        markerLayer.addLayer(marker);
+        clusterLayer.addLayer(marker);
+    });
+
+    // add only the appropriate layer
+    if (mapContainer.getZoom() <= 5) {
+        mapContainer.addLayer(markerLayer);
+    } else {
+        mapContainer.addLayer(clusterLayer);
+    }
+};
+
+// Display locations on the mapContainer with markers
 const displayLocationsOnMap = (mapContainer, locations) => {
     if (!mapContainer) {
         mapContainer = initializeMap();
     }
 
-    // Clear all existing markers
-    mapContainer.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.MarkerClusterGroup) {
-            mapContainer.removeLayer(layer);
-        }
-    });
+    // remove any old layers
+    if (markerLayer  && mapContainer.hasLayer(markerLayer))  {
+        mapContainer.removeLayer(markerLayer);
+    }
+    if (clusterLayer && mapContainer.hasLayer(clusterLayer)) {
+        mapContainer.removeLayer(clusterLayer);
+    }
 
-    // Build a fresh cluster group, with built-in zoom threshold
-    markerClusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 25,        // clusters above zoom 5 use a 25px radius
-        chunkedLoading: true         // break work into small batches
-    });
-    
-    // Add each location into the cluster
-    locations.forEach(location => {
-        const coords = [location.coordinates.latitude, location.coordinates.longitude];
-        const modalContent = generateLocationModalContent(location);
-        const marker = L.marker(coords, location.isLatestLocation
-            ? {icon: latestLocationMarker}
-            : {}
-        ).on('click', () => {
-            document.getElementById('modalContent').innerHTML = modalContent;
-            new bootstrap.Modal(document.getElementById('locationModal')).show();
-        });
-
-        if (location.isLatestLocation) {
-            marker.bindTooltip("User's latest location.", {
-                direction: "top", offset: [0, -25]
-            });
-        }
-
-        markerClusterGroup.addLayer(marker);
-    });
-
-    // **NO** fitBounds or recentering here any more:
-    mapContainer.addLayer(markerClusterGroup);
+    // rebuild & add the right one
+    buildLayers(locations);
 };
+
 // Generate the content for the modal when a marker is clicked
 const generateLocationModalContent = location => {
     let dynamicMinHeight;
@@ -548,11 +584,19 @@ const onZoomOrMoveChanges = () => {
         if (z !== zoomLevel) {
             zoomLevel = z;
         }
+        
         if (z <= 5) {
-            markerClusterGroup.disableClustering();
+            if (mapContainer.hasLayer(clusterLayer)) {
+                mapContainer.removeLayer(clusterLayer);
+                mapContainer.addLayer(markerLayer);
+            }
         } else {
-            markerClusterGroup.enableClustering();
+            if (mapContainer.hasLayer(markerLayer)) {
+                mapContainer.removeLayer(markerLayer);
+                mapContainer.addLayer(clusterLayer);
+            }
         }
+        
         mapBounds = mapContainer.getBounds();
         zoomLevel = mapContainer.getZoom();
         debouncedGetUserLocations();
