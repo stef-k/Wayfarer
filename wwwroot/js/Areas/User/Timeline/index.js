@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // handle the SSE stream
     stream.onmessage = (event) => {
         handleStream(event);
+        getUserStats();
     }
 
     // delete events from pop ups
