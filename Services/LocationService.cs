@@ -21,17 +21,17 @@ namespace Wayfarer.Services
             double zoomLevel, string userId, CancellationToken cancellationToken)
         {
             // 1) Expand bbox
-            double eps    = zoomLevel <= 5   ? 0.1
-                          : zoomLevel <= 10 ? 0.05
-                                             : 0.01;
-            double expand = zoomLevel <= 5   ? eps
-                          : zoomLevel <= 10 ? eps * 0.5
-                                             : eps * 0.25;
+            double eps = zoomLevel <= 5 ? 0.1
+                : zoomLevel <= 10 ? 0.05
+                : 0.01;
+            double expand = zoomLevel <= 5 ? eps
+                : zoomLevel <= 10 ? eps * 0.5
+                : eps * 0.25;
 
             minLongitude -= expand;
             maxLongitude += expand;
-            minLatitude  -= expand;
-            maxLatitude  += expand;
+            minLatitude -= expand;
+            maxLatitude += expand;
 
             // 2) RAW-SQL COUNT
             var countCmd = _dbContext.Database.GetDbConnection().CreateCommand();
@@ -85,88 +85,100 @@ namespace Wayfarer.Services
 
                 var dtos = allLocations.Select(l => new PublicLocationDto
                 {
-                    Id                           = l.Id,
-                    Coordinates                  = l.Coordinates,
-                    Timestamp                    = l.Timestamp,
-                    LocalTimestamp               = CoordinateTimeZoneConverter
-                                                       .ConvertUtcToLocal(
-                                                           l.Coordinates.Y,
-                                                           l.Coordinates.X,
-                                                           DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                    Timezone                     = l.TimeZoneId,
-                    Accuracy                     = l.Accuracy,
-                    Altitude                     = l.Altitude,
-                    Speed                        = l.Speed,
-                    LocationType                 = l.LocationType,
-                    ActivityType                 = l.ActivityType?.Name ?? "Unknown",
-                    Address                      = l.Address,
-                    FullAddress                  = l.FullAddress,
-                    StreetName                   = l.StreetName,
-                    PostCode                     = l.PostCode,
-                    Place                        = l.Place,
-                    Region                       = l.Region,
-                    Country                      = l.Country,
-                    Notes                        = l.Notes,
-                    VehicleId                    = l.VehicleId,
-                    IsLatestLocation             = false,
+                    Id = l.Id,
+                    Coordinates = l.Coordinates,
+                    Timestamp = l.Timestamp,
+                    LocalTimestamp = CoordinateTimeZoneConverter
+                        .ConvertUtcToLocal(
+                            l.Coordinates.Y,
+                            l.Coordinates.X,
+                            DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
+                    Timezone = l.TimeZoneId,
+                    Accuracy = l.Accuracy,
+                    Altitude = l.Altitude,
+                    Speed = l.Speed,
+                    LocationType = l.LocationType,
+                    ActivityType = l.ActivityType?.Name ?? "Unknown",
+                    Address = l.Address,
+                    FullAddress = l.FullAddress,
+                    StreetName = l.StreetName,
+                    PostCode = l.PostCode,
+                    Place = l.Place,
+                    Region = l.Region,
+                    Country = l.Country,
+                    Notes = l.Notes,
+                    VehicleId = l.VehicleId,
+                    IsLatestLocation = false,
                     LocationTimeThresholdMinutes = locationTimeThreshold
                 }).ToList();
 
                 return (dtos, totalItems);
             }
 
-            // 4) ZOOM ≤5: one-per-country + fill by recency
+            // 4) ZOOM ≤5: per-country sampling with zoom-specific counts
             List<Location> locations;
             if (zoomLevel <= 5)
             {
-                // 4.1) CTE: latest per country
-                var countrySql = @"
-                    WITH recent_per_country AS (
-                      SELECT DISTINCT ON (""Country"") *
+                int perCountry = zoomLevel <= 3 ? 1 : zoomLevel == 4 ? 2 : 1;
+
+                var countrySql = $@"
+                    WITH ranked AS (
+                      SELECT *,
+                             ROW_NUMBER() OVER (
+                               PARTITION BY ""Country""
+                               ORDER BY ""LocalTimestamp"" DESC
+                             ) AS rn
                         FROM ""public"".""Locations""
-                       WHERE ST_X((""Coordinates""::geometry)) BETWEEN {0} AND {1}
-                         AND ST_Y((""Coordinates""::geometry)) BETWEEN {2} AND {3}
-                         AND ""UserId"" = {4}
+                       WHERE ST_X((""Coordinates""::geometry)) BETWEEN @minLon AND @maxLon
+                         AND ST_Y((""Coordinates""::geometry)) BETWEEN @minLat AND @maxLat
+                         AND ""UserId"" = @userId
                          AND ""Country"" IS NOT NULL
-                       ORDER BY ""Country"", ""LocalTimestamp"" DESC
                     )
-                    SELECT * FROM recent_per_country
+                    SELECT * FROM ranked WHERE rn <= {perCountry}
                 ";
-                var countryLatest = await _dbContext.Locations
-                    .FromSqlRaw(countrySql,
-                        minLongitude, maxLongitude,
-                        minLatitude,  maxLatitude,
-                        userId)
+                var countryParams = new[]
+                {
+                    new NpgsqlParameter("minLon", minLongitude),
+                    new NpgsqlParameter("maxLon", maxLongitude),
+                    new NpgsqlParameter("minLat", minLatitude),
+                    new NpgsqlParameter("maxLat", maxLatitude),
+                    new NpgsqlParameter("userId", userId)
+                };
+
+                var countryBatch = await _dbContext.Locations
+                    .FromSqlRaw(countrySql, countryParams)
                     .Include(l => l.ActivityType)
                     .ToListAsync(cancellationToken);
 
-                var pickedIds = countryLatest.Select(l => l.Id).ToHashSet();
+                var pickedIds = countryBatch.Select(l => l.Id).ToHashSet();
 
-                // 4.2) Fill remainder via your geohash sampler
-                int fillLimit = Math.Max(0, 500 - countryLatest.Count);
-                var fill = await GetSampledLocationsAsync(
-                    minLongitude, minLatitude,
-                    maxLongitude, maxLatitude,
-                    precision: 2,
-                    limit: fillLimit,
-                    userId, cancellationToken);
+                if (zoomLevel == 5)
+                {
+                    int fillLimit = Math.Max(0, 500 - countryBatch.Count);
+                    var fill = await GetSampledLocationsAsync(
+                        minLongitude, minLatitude,
+                        maxLongitude, maxLatitude,
+                        precision: 2,
+                        limit: fillLimit,
+                        userId, cancellationToken);
 
-                locations = countryLatest
-                    .Concat(fill.Where(l => !pickedIds.Contains(l.Id)))
-                    .ToList();
+                    locations = countryBatch.Concat(fill.Where(l => !pickedIds.Contains(l.Id))).ToList();
+                }
+                else
+                {
+                    locations = countryBatch;
+                }
             }
-            // 5) ZOOM 6–10: existing precision sampling
             else if (zoomLevel <= 10)
             {
-                int precision = zoomLevel <= 5 ? 2 : 4;
-                int limit     = zoomLevel <= 5 ? 500 : 1000;
+                int precision = 4;
+                int limit = 1000;
                 locations = await GetSampledLocationsAsync(
                     minLongitude, minLatitude,
                     maxLongitude, maxLatitude,
                     precision, limit,
                     userId, cancellationToken);
             }
-            // 6) ZOOM >10: simple LIMIT
             else
             {
                 var sql = @"
@@ -192,19 +204,18 @@ namespace Wayfarer.Services
                     .ToListAsync(cancellationToken);
             }
 
-            // 7) Geocoding‐fallback + quadrant sampling (unchanged)
-            var geocodingLevel = zoomLevel <= 5   ? "Country"
-                               : zoomLevel <= 10  ? "Region"
-                               : zoomLevel <= 18  ? "Place"
-                                                  : "Street";
+            var geocodingLevel = zoomLevel <= 5 ? "Country"
+                : zoomLevel <= 10 ? "Region"
+                : zoomLevel <= 18 ? "Place"
+                : "Street";
 
             bool hasGeo = geocodingLevel switch
             {
                 "Country" => locations.Any(l => !string.IsNullOrEmpty(l.Country)),
-                "Region"  => locations.Any(l => !string.IsNullOrEmpty(l.Region)),
-                "Place"   => locations.Any(l => !string.IsNullOrEmpty(l.Place)),
-                "Street"  => locations.Any(l => !string.IsNullOrEmpty(l.StreetName)),
-                _         => false
+                "Region" => locations.Any(l => !string.IsNullOrEmpty(l.Region)),
+                "Place" => locations.Any(l => !string.IsNullOrEmpty(l.Place)),
+                "Street" => locations.Any(l => !string.IsNullOrEmpty(l.StreetName)),
+                _ => false
             };
 
             if (hasGeo)
@@ -212,22 +223,22 @@ namespace Wayfarer.Services
                 var geocoded = geocodingLevel switch
                 {
                     "Country" => locations.Where(l => !string.IsNullOrEmpty(l.Country)).ToList(),
-                    "Region"  => locations.Where(l => !string.IsNullOrEmpty(l.Region)).ToList(),
-                    "Place"   => locations.Where(l => !string.IsNullOrEmpty(l.Place)).ToList(),
-                    "Street"  => locations.Where(l => !string.IsNullOrEmpty(l.StreetName)).ToList(),
-                    _         => locations
+                    "Region" => locations.Where(l => !string.IsNullOrEmpty(l.Region)).ToList(),
+                    "Place" => locations.Where(l => !string.IsNullOrEmpty(l.Place)).ToList(),
+                    "Street" => locations.Where(l => !string.IsNullOrEmpty(l.StreetName)).ToList(),
+                    _ => locations
                 };
                 var nonGeo = geocodingLevel switch
                 {
                     "Country" => locations.Where(l => string.IsNullOrEmpty(l.Country)).ToList(),
-                    "Region"  => locations.Where(l => string.IsNullOrEmpty(l.Region)).ToList(),
-                    "Place"   => locations.Where(l => string.IsNullOrEmpty(l.Place)).ToList(),
-                    "Street"  => locations.Where(l => string.IsNullOrEmpty(l.StreetName)).ToList(),
-                    _         => new List<Location>()
+                    "Region" => locations.Where(l => string.IsNullOrEmpty(l.Region)).ToList(),
+                    "Place" => locations.Where(l => string.IsNullOrEmpty(l.Place)).ToList(),
+                    "Street" => locations.Where(l => string.IsNullOrEmpty(l.StreetName)).ToList(),
+                    _ => new List<Location>()
                 };
-                var quads   = DivideMapIntoQuadrants(minLongitude, minLatitude, maxLongitude, maxLatitude);
+                var quads = DivideMapIntoQuadrants(minLongitude, minLatitude, maxLongitude, maxLatitude);
                 var sampled = SampleLocationsByQuadrants(nonGeo, quads, zoomLevel);
-                locations   = geocoded.Concat(sampled).ToList();
+                locations = geocoded.Concat(sampled).ToList();
             }
             else
             {
@@ -235,33 +246,32 @@ namespace Wayfarer.Services
                 locations = SampleLocationsByQuadrants(locations, quads, zoomLevel).ToList();
             }
 
-            // 8) Map to DTOs (unchanged)
             var resultDtos = locations.Select(l => new PublicLocationDto
             {
-                Id                           = l.Id,
-                Coordinates                  = l.Coordinates,
-                Timestamp                    = l.Timestamp,
-                LocalTimestamp               = CoordinateTimeZoneConverter
-                                                   .ConvertUtcToLocal(
-                                                       l.Coordinates.Y,
-                                                       l.Coordinates.X,
-                                                       DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                Timezone                     = l.TimeZoneId,
-                Accuracy                     = l.Accuracy,
-                Altitude                     = l.Altitude,
-                Speed                        = l.Speed,
-                LocationType                 = l.LocationType,
-                ActivityType                 = l.ActivityType?.Name ?? "Unknown",
-                Address                      = l.Address,
-                FullAddress                  = l.FullAddress,
-                StreetName                   = l.StreetName,
-                PostCode                     = l.PostCode,
-                Place                        = l.Place,
-                Region                       = l.Region,
-                Country                      = l.Country,
-                Notes                        = l.Notes,
-                VehicleId                    = l.VehicleId,
-                IsLatestLocation             = false,
+                Id = l.Id,
+                Coordinates = l.Coordinates,
+                Timestamp = l.Timestamp,
+                LocalTimestamp = CoordinateTimeZoneConverter
+                    .ConvertUtcToLocal(
+                        l.Coordinates.Y,
+                        l.Coordinates.X,
+                        DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
+                Timezone = l.TimeZoneId,
+                Accuracy = l.Accuracy,
+                Altitude = l.Altitude,
+                Speed = l.Speed,
+                LocationType = l.LocationType,
+                ActivityType = l.ActivityType?.Name ?? "Unknown",
+                Address = l.Address,
+                FullAddress = l.FullAddress,
+                StreetName = l.StreetName,
+                PostCode = l.PostCode,
+                Place = l.Place,
+                Region = l.Region,
+                Country = l.Country,
+                Notes = l.Notes,
+                VehicleId = l.VehicleId,
+                IsLatestLocation = false,
                 LocationTimeThresholdMinutes = locationTimeThreshold
             }).ToList();
 
@@ -298,12 +308,12 @@ namespace Wayfarer.Services
             var parameters = new[]
             {
                 new NpgsqlParameter("p_precision", precision),
-                new NpgsqlParameter("p_minLon",    minLon),
-                new NpgsqlParameter("p_maxLon",    maxLon),
-                new NpgsqlParameter("p_minLat",    minLat),
-                new NpgsqlParameter("p_maxLat",    maxLat),
-                new NpgsqlParameter("p_userId",    userId),
-                new NpgsqlParameter("p_limit",     limit)
+                new NpgsqlParameter("p_minLon", minLon),
+                new NpgsqlParameter("p_maxLon", maxLon),
+                new NpgsqlParameter("p_minLat", minLat),
+                new NpgsqlParameter("p_maxLat", maxLat),
+                new NpgsqlParameter("p_userId", userId),
+                new NpgsqlParameter("p_limit", limit)
             };
 
             return await _dbContext.Locations
@@ -318,14 +328,14 @@ namespace Wayfarer.Services
             double maxLongitude, double maxLatitude)
         {
             var midX = (minLongitude + maxLongitude) / 2;
-            var midY = (minLatitude  + maxLatitude)  / 2;
+            var midY = (minLatitude + maxLatitude) / 2;
 
             return new List<(double, double, double, double)>
             {
                 (minLongitude, minLatitude, midX, midY),
-                (midX,          minLatitude, maxLongitude, midY),
-                (minLongitude, midY,         midX,         maxLatitude),
-                (midX,          midY,         maxLongitude, maxLatitude)
+                (midX, minLatitude, maxLongitude, midY),
+                (minLongitude, midY, midX, maxLatitude),
+                (midX, midY, maxLongitude, maxLatitude)
             };
         }
 
@@ -336,9 +346,9 @@ namespace Wayfarer.Services
         {
             int sampleSize = zoomLevel switch
             {
-                <= 5  => 1,
+                <= 5 => 1,
                 <= 10 => 3,
-                _     => 5
+                _ => 5
             };
 
             var sampled = new List<Location>();
@@ -346,10 +356,11 @@ namespace Wayfarer.Services
             {
                 sampled.AddRange(
                     locations
-                      .Where(l => IsWithinQuadrant(l.Coordinates.Coordinate, q))
-                      .Take(sampleSize)
+                        .Where(l => IsWithinQuadrant(l.Coordinates.Coordinate, q))
+                        .Take(sampleSize)
                 );
             }
+
             return sampled;
         }
 
@@ -357,6 +368,6 @@ namespace Wayfarer.Services
             Coordinate coord,
             (double minX, double minY, double maxX, double maxY) q)
             => coord.X >= q.minX && coord.X <= q.maxX
-            && coord.Y >= q.minY && coord.Y <= q.maxY;
+                                 && coord.Y >= q.minY && coord.Y <= q.maxY;
     }
 }
