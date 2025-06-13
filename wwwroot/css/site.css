@@ -37,6 +37,7 @@ footer {
     height: 60px;
     text-align: center;
     margin-top: auto;
+    border-top: 1px solid rgba(33, 37, 41, 0.10);
 }
 
 .user-menu {
@@ -75,7 +76,7 @@ footer {
 [data-bs-theme="dark"] .dropdown-menu .dropdown-item:focus {
     background-color: #495057; /* Slightly lighter on hover */
     color: #ffffff!important;
-    }
+}
 /* Light Theme - Identity Nav Links */
 .navbar-light .navbar-nav .nav-link {
     color: #212529; /* Dark text for nav links in light theme */
@@ -105,8 +106,12 @@ footer {
 .navbar-light .navbar-nav .nav-link.active:hover {
     color: #0056b3; /* Same as hover color for active link */
 }
-[data-bs-theme="dark"] .footer > * {
+[data-bs-theme="dark"] footer > * {
     color: #f8f9fa!important;
+}
+
+[data-bs-theme="dark"] footer  {
+    border-top: 1px solid rgba(248, 249, 250, 0.25) !important;
 }
 /* Theme Toggle Button in Dark and Light Modes */
 #themeToggle {
@@ -348,4 +353,225 @@ thead th {
 [data-bs-theme="dark"] .landing-container {
     background: linear-gradient(to bottom right, #2c2f36, #1f2228);
     color: #f8f9fa;
+}
+
+
+#sidebar {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 120px); /* or your existing constraint */
+    background-color: var(--bs-light);
+    border-right: 1px solid var(--bs-border-color);
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+#sidebarHeader {
+    flex-shrink: 0; /* Prevents shrinking */
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background-color: var(--bs-light);
+    z-index: 1;
+}
+
+#sidebarContent {
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.trip-searchbar {
+    max-width: 600px;
+}
+
+/* Dark theme for Trip sidebar */
+[data-bs-theme="dark"] #sidebarHeader {
+    background-color: #343a40 !important; /* or another dark shade consistent with your theme */
+    border-bottom: 1px solid #495057 !important;
+    color: #f8f9fa !important;
+}
+
+[data-bs-theme="dark"] #sidebar {
+    background-color: #2b3035 !important; /* Dark background for sidebar */
+    color: #f8f9fa !important; /* Light text for sidebar content */
+    border-color: #495057 !important; /* Adjust border color for dark mode */
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.4); /* Darker shadow for contrast */
+}
+
+/* Adjust accordion items within sidebar for dark mode */
+[data-bs-theme="dark"] #sidebar .accordion-item {
+    background-color: #2b3035 !important;
+    border-color: #495057 !important;
+    color: #f8f9fa !important;
+}
+
+[data-bs-theme="dark"] #sidebar .accordion-button {
+    background-color: #343a40 !important; /* Slightly lighter header for accordion */
+    color: #f8f9fa !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] #sidebar .accordion-button:not(.collapsed) {
+    background-color: #3e444a !important; /* Even lighter when open */
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] #sidebar .accordion-button::after {
+    filter: invert(1) grayscale(100%) brightness(200%); /* Invert the SVG arrow color */
+}
+
+/* Adjust list group items within sidebar for dark mode */
+[data-bs-theme="dark"] #sidebar .list-group-item {
+    background-color: #2b3035 !important;
+    color: #f8f9fa !important;
+    border-color: #495057 !important;
+}
+
+/* Adjust form controls (input, textarea) within sidebar for dark mode */
+[data-bs-theme="dark"] #sidebar .form-control,
+[data-bs-theme="dark"] #sidebar .form-check-input {
+    background-color: #343a40 !important;
+    color: #f8f9fa !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] #sidebar .form-control:focus {
+    background-color: #3e444a !important;
+    border-color: #6c757d !important;
+    box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25) !important; /* Adjust focus shadow */
+}
+
+/* Adjust labels for dark mode */
+[data-bs-theme="dark"] #sidebar label.form-label {
+    color: #f8f9fa !important;
+}
+
+/* Ensure the hr divider is visible in dark mode */
+[data-bs-theme="dark"] #sidebar hr {
+    border-top: 1px solid rgba(248, 249, 250, 0.25) !important; /* Lighten the HR */
+}
+
+/*do not outline trip sidebar's collapse buttons*/
+/* Custom CSS to remove focus outline from SPECIFIC collapse buttons in the sidebar */
+
+#sidebar .btn[data-bs-toggle="collapse"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#regions-accordion .accordion-button:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+[data-bs-theme="dark"] .trip-searchbar {
+    background-color: #2b3035 !important; /* Dark background for the search bar */
+    color: #f8f9fa !important; /* Light text color for any direct text */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important; /* Darker shadow */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .form-control {
+    background-color: #343a40 !important; /* Darker background for the input */
+    color: #f8f9fa !important; /* Light text for input content */
+    border-color: #495057 !important; /* Darker border for input */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .form-control::placeholder {
+    color: #adb5bd !important; /* Lighter placeholder text */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .form-control:focus {
+    background-color: #3e444a !important; /* Slightly lighter on focus */
+    border-color: #6c757d !important; /* Focus border color */
+    box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25) !important; /* Focus shadow */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .btn-outline-secondary {
+    background-color: #343a40 !important; /* Dark background for outline buttons */
+    color: #f8f9fa !important; /* Light text/icon color */
+    border-color: #495057 !important; /* Dark border color */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .btn-outline-secondary:hover {
+    background-color: #495057 !important; /* Slightly lighter on hover */
+    color: #ffffff !important;
+    border-color: #6c757d !important;
+}
+
+/* To ensure icons within buttons are also themed */
+[data-bs-theme="dark"] .trip-searchbar .btn .bi {
+    color: inherit !important; /* Inherit color from parent button */
+}
+
+/* dark theme for Quill.js */
+[data-bs-theme="dark"] .ql-container.ql-snow {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow {
+    background-color: var(--bs-dark);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-stroke {
+    stroke: var(--bs-light);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-fill {
+    fill: var(--bs-light);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label {
+    color: var(--bs-light);
+    background-color: transparent;
+    border: none;
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button:hover,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button.ql-active,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label:hover,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label.ql-active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button svg,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker svg {
+    fill: none;
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button:focus,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+[data-bs-theme="dark"] .ql-picker-options {
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+    border: 1px solid var(--bs-border-color);
+}
+
+.bg-info-soft {
+    background-color: rgba(255, 243, 205, 0.4) !important;
+}
+
+#mapping-context-banner {
+    min-height: 40px; /* or whatever your typical height is */
+    transition: opacity 0.2s ease-in-out;
+    opacity: 0;
+    visibility: hidden;
+}
+
+#mapping-context-banner.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.bg-success-subtle {
+    background-color: rgba(25, 135, 84, 0.2) !important;
+}
+[data-bs-theme="dark"] #btn-clear-context {
+    filter: invert(1); /* make it white */
 }

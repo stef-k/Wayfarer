@@ -1,0 +1,181 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@model Wayfarer.Models.Trip
+
+@{
+  ViewData["LoadLeaflet"] = true;
+  ViewData["LoadQuill"] = true;
+  Layout = "~/Views/Shared/_Layout.cshtml";
+  var regions = Model.Regions ?? new List<Region>();
+  ViewData["BodyClass"] = "container-fluid";
+}
+
+<div class="row">
+  <div class="col-3">
+
+    <div id="sidebar" class="show collapse-horizontal d-flex flex-column">
+      <!-- Sidebar Header -->
+      <div id="sidebarHeader" class="p-3 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Trip Settings</h5>
+        <button class="btn btn-link p-0" type="button" data-bs-toggle="collapse"
+                data-bs-target="#tripSettingsCollapse" aria-expanded="true" aria-controls="tripSettingsCollapse">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+
+      <!-- Sidebar Content -->
+      <div id="sidebarContent" class="flex-grow-1 overflow-y-auto p-3">
+        <div class="collapse show" id="tripSettingsCollapse">
+          <form id="trip-form" class="row g-3 mb-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id"/>
+            <div class="col-md-12">
+              <label asp-for="Name" class="form-label"></label>
+              <input asp-for="Name" class="form-control"/>
+              <div class="invalid-feedback" asp-validation-for="Name"></div>
+            </div>
+            <div class="col-md-6">
+              <label asp-for="StartDate" class="form-label"></label>
+              <input asp-for="StartDate" type="date" class="form-control"/>
+              <div class="invalid-feedback" asp-validation-for="StartDate"></div>
+            </div>
+            <div class="col-md-6">
+              <label asp-for="EndDate" class="form-label"></label>
+              <input asp-for="EndDate" type="date" class="form-control"/>
+              <div class="invalid-feedback" asp-validation-for="EndDate"></div>
+            </div>
+            <div class="col-md-6">
+              <label asp-for="Days" class="form-label">Trip duration in days</label>
+              <input asp-for="Days" class="form-control"/>
+              <div class="invalid-feedback" asp-validation-for="Days"></div>
+            </div>
+            <div class="col-md-6 align-self-end">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="isPublicSwitch" asp-for="IsPublic">
+                <label class="form-check-label" for="isPublicSwitch">Make Trip Public</label>
+                <div class="invalid-feedback" asp-validation-for="IsPublic"></div>
+              </div>
+            </div>
+            <div class="col-md-12">
+              <label for="notes">Notes</label>
+              <div id="notes" data-notes-content="@Model.NotesHtml"></div>
+              <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@Model.NotesHtml"/>
+              <small class="text-muted">
+                You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
+              </small>
+              <div class="invalid-feedback" asp-validation-for="NotesHtml"></div>
+            </div>
+            <div class="col-md-12">
+              <button id="btn-save-trip" type="button" class="btn btn-primary me-2">
+                <i class="bi bi-save"></i> Save Trip
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <hr/>
+
+        <h6>Regions &amp; Places</h6>
+        <button id="btn-add-region" class="btn btn-sm btn-success mb-2">
+          <i class="bi bi-plus-lg"></i> Add Region
+        </button>
+
+        <div id="regions-accordion" class="accordion mb-4">
+          @if (!regions.Any())
+          {
+            <div class="alert alert-info" role="alert">
+              No regions created yet.
+            </div>
+          }
+          else
+          {
+            @foreach (var region in regions)
+            {
+              @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", region)
+            }
+          }
+        </div>
+
+
+        <hr/>
+
+
+        <h6>Segments</h6>
+        <button id="btn-add-segment" class="btn btn-sm btn-success mb-2">
+          <i class="bi bi-plus-lg"></i> Add Segment
+        </button>
+
+        <div id="segments-list">
+          @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", Model)
+        </div>
+
+        
+      </div>
+    </div>
+
+    <div>
+
+    </div>
+  </div>
+
+  <div class="col-9">
+
+    <div class="row">
+      <div class="col-12 ">
+        <div class="bg-white shadow rounded p-2 my-2 trip-searchbar">
+          <div class="input-group flex-grow-1">
+            @* <button id="btn-toggle-sidebar" class="btn btn-sm btn-outline-secondary z-3" type="button" *@
+            @*         title="Toggle the left sidebar" *@
+            @*         data-bs-toggle="collapse" data-bs-target="#sidebar" aria-expanded="true" aria-controls="sidebar"> *@
+            @*   <i class="bi bi-layout-sidebar-inset"></i> Sidebar *@
+            @* </button> *@
+            <input id="place-search" type="text" class="form-control" placeholder="Search for places…"/>
+            <button id="btn-search" class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-12">
+        <div id="mapping-context-banner" class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-cente" role="alert">
+          <i class="bi bi-pencil me-1"></i>
+          <span id="mapping-context-text">Editing: —</span>
+          <button id="btn-clear-context"
+                  type="button"
+                  class="btn-close btn-close-primary btn-sm ms-auto"
+                  aria-label="Clear mapping context"
+                  title="Clear selection"></button>
+        </div>
+
+        <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal for image URL input -->
+  <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="imageModalLabel">Insert Image URL</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <label for="imageUrl" class="form-label">Image URL</label>
+          <input type="text" id="imageUrl" class="form-control" placeholder="Enter the image URL here">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" id="insertImageBtn" class="btn btn-primary">Insert Image</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+  <partial name="_ValidationScriptsPartial"/>
+  @* <script type="module" src="~/js/Areas/User/Trip/Edit.js" asp-append-version="true"></script> *@
+  <script type="module" src="~/js/Areas/User/Trip/trip.js" asp-append-version="true"></script>
+}

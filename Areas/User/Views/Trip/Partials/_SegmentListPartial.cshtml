@@ -1,0 +1,75 @@
+@model Wayfarer.Models.Trip
+@{
+    var modeIcons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["walk"] = "bi-person-walking",
+        ["drive"] = "bi-car-front",
+        ["train"] = "bi-train-front",
+        ["bus"] = "bi-bus-front",
+        ["bike"] = "bi-bicycle",
+        ["boat"] = "bi-boat",
+        ["flight"] = "bi-airplane",
+        ["taxi"] = "bi-taxi-front",
+        ["tram"] = "bi-train-lightrail-front"
+    };
+}
+
+@if (Model.Segments == null || !Model.Segments.Any())
+{
+    <div class="alert alert-info" role="alert">
+        No travel segments added yet.
+    </div>
+}
+else
+{
+    <ul class="list-group mb-4">
+        @foreach (var segment in Model.Segments.OrderBy(s => s.DisplayOrder))
+        {
+            var fromName = segment.FromPlace?.Name ?? "Start";
+            var toName = segment.ToPlace?.Name ?? "End";
+            var iconClass = modeIcons.TryGetValue(segment.Mode ?? "", out var icon) ? icon : "bi-geo-alt";
+            var duration = segment.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
+            var distance = segment.EstimatedDistanceKm?.ToString("0.##") ?? "—";
+
+            <li class="segment-list-item list-group-item d-flex justify-content-between align-items-center"
+                id="segment-item-@segment.Id"
+                data-segment-id="@segment.Id"
+                data-segment-name="@($"{segment.FromPlace?.Name} → {segment.ToPlace?.Name}")">
+                <div class="me-auto">
+                    <div>
+                        <span class="selected-indicator d-none me-1" id="segment-indicator-@segment.Id">➡️</span>
+                        <i class="bi @iconClass me-1"></i>
+                        <strong class="text-capitalize">@segment.Mode</strong>
+                    </div>
+
+                    <div class="text-muted small d-flex align-items-center gap-2">
+                        <span>
+                            <i class="bi bi-geo-fill text-success me-1"></i>
+                            @fromName
+                        </span>
+                        <span><i class="bi bi-arrow-right-short text-secondary"></i></span>
+                        <span>
+                            <i class="bi bi-geo-fill text-danger me-1"></i>
+                            @toName
+                        </span>
+                    </div>
+
+                    <div class="text-muted small">
+                        Duration: @duration |
+                        Distance: @distance km
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary btn-edit-segment" data-segment-id="@segment.Id">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger btn-delete-segment" data-segment-id="@segment.Id">
+                        <i class="bi bi-trash"></i>
+                    </button>
+
+                </div>
+            </li>
+        }
+    </ul>
+}

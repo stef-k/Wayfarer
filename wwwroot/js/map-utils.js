@@ -98,8 +98,6 @@ export const addZoomLevelControl = (map) => {
     map.addControl(zoomLevelControl);
 };
 
-// ... other marker exports remain unchanged ...
-
 export const latestLocationMarker = L.icon({
     iconUrl: '/icons/location-latest-green.svg',
     iconSize: [36, 36],

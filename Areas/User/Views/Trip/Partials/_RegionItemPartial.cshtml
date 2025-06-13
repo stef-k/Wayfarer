@@ -1,0 +1,134 @@
+@model Wayfarer.Models.Region
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using NetTopologySuite.IO
+
+<div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id">
+    <h2 class="accordion-header region-header" id="heading-@Model.Id">
+        <div class="d-flex justify-content-between align-items-center w-100">
+            <!-- Toggler (collapse control) -->
+            <button class="accordion-button collapsed flex-grow-1 text-start bg-primary-subtle"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapse-@Model.Id"
+                    aria-expanded="false"
+                    aria-controls="collapse-@Model.Id">
+                <span class="selected-indicator d-none me-1" id="region-indicator-@Model.Id">🗺️</span>
+                <strong class="d-flex align-items-center gap-2">
+                    @Model.Name
+                    @if (Model.Days > 0)
+                    {
+                        <small class="text-muted">( @Model.Days days)</small>
+                    }
+                    @if (Model.Boundary == null)
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary ms-2 btn-draw-boundary"
+                                data-region-id="@Model.Id"
+                                data-region-name="@Model.Name"
+                                title="Draw Region Boundary">
+                            <i class="bi bi-vector-pen"></i>
+                        </button>
+                    }
+                    @if (Model.Boundary != null)
+                    {
+                        <i class="bi bi-shapes ms-2 text-primary" title="Boundary defined" id="boundary-icon-@Model.Id"></i>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary btn-edit-boundary"
+                                data-region-id="@Model.Id"
+                                title="Edit Region Boundary">
+                            <i class="bi bi-vector-pen"></i>
+                        </button>
+                    }
+                </strong>
+
+            </button>
+            <!-- Select region action -->
+            <button type="button"
+                    class="btn btn-sm btn-outline-primary ms-2 region-select-area"
+                    data-region-id="@Model.Id"
+                    data-region-name="@Model.Name"
+                    title="Select Region for Mapping">
+                <i class="bi bi-crosshair"></i>
+            </button>
+        </div>
+    </h2>
+
+    <!-- 🔍 Hidden boundary GeoJSON -->
+    @if (Model.Boundary != null)
+    {
+        var writer = new GeoJsonWriter();
+        var geoJson = writer.Write(Model.Boundary);
+        <input type="hidden" id="region-boundary-@Model.Id" value="@geoJson" />
+    }
+
+    <div id="collapse-@Model.Id" class="accordion-collapse collapse show">
+        <div class="accordion-body">
+            <!-- Action buttons -->
+            <div class="mb-3">
+                <button type="button"
+                        data-region-id="@Model.Id"
+                        class="btn btn-sm btn-outline-primary btn-edit-region me-1">
+                    <i class="bi bi-pencil"></i> Edit
+                </button>
+                <button type="button"
+                        data-region-id="@Model.Id"
+                        class="btn btn-sm btn-outline-danger btn-delete-region">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            </div>
+
+            <!-- Places -->
+            <div class="ps-1">
+                <h6>Places</h6>
+
+                @if (Model.Places != null && Model.Places.Any())
+                {
+                    <ul class="list-group list-group-flush small">
+                        @foreach (var place in Model.Places.OrderBy(p => p.DisplayOrder))
+                        {
+                            <li class="place-list-item list-group-item d-flex justify-content-between align-items-center"
+                                data-place-id="@place.Id"
+                                data-region-id="@Model.Id">
+                                <span class="place-name">
+                                    <span class="selected-indicator d-none me-1" id="place-indicator-@place.Id">📍</span>
+                                    <i class="bi bi-geo-alt-fill me-1 text-primary"></i>@place.Name
+                                </span>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button"
+                                            class="btn btn-outline-primary btn-edit-place"
+                                            data-place-id="@place.Id"
+                                            data-region-id="@Model.Id"
+                                            title="Edit place">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-outline-danger btn-delete-place"
+                                            data-place-id="@place.Id"
+                                            data-region-id="@Model.Id"
+                                            title="Delete place">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="alert alert-info p-2 small mb-2" role="alert">
+                        <i class="bi bi-info-circle me-1"></i> No places added to this region yet.
+                    </div>
+                }
+            </div>
+
+            <!-- Add Place Button -->
+            <div class="ps-1 mt-2 mb-3">
+                <button type="button"
+                        class="btn btn-sm btn-success btn-add-place"
+                        data-region-id="@Model.Id">
+                    <i class="bi bi-plus-circle"></i> Add Place
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

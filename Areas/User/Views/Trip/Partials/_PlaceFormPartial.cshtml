@@ -1,0 +1,46 @@
+@model Wayfarer.Models.Place
+
+<form id="place-form-@Model.Id"
+      class="accordion-item border p-3 rounded mb-2 bg-light-subtle">
+
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="RegionId" />
+    <input type="hidden" asp-for="UserId" />
+
+    @* Show validation errors *@
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="place-form-errors" data-errors="true">
+            <ul class="text-danger small mb-2">
+                @foreach (var entry in ViewData.ModelState.Values)
+                {
+                    foreach (var error in entry.Errors)
+                    {
+                        <li>@error.ErrorMessage</li>
+                    }
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="mb-2">
+        <label asp-for="Name" class="form-label">Place Name</label>
+        <input asp-for="Name" class="form-control" />
+    </div>
+
+    <div class="d-flex justify-content-end gap-2">
+        <button type="button"
+                class="btn btn-sm btn-secondary btn-place-cancel"
+                data-place-id="@Model.Id"
+                data-region-id="@Model.RegionId">
+            Cancel
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-primary btn-place-save"
+                data-place-id="@Model.Id"
+                data-region-id="@Model.RegionId">
+            Save Place
+        </button>
+    </div>
+</form>

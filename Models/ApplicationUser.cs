@@ -33,7 +33,11 @@ namespace Wayfarer.Models
         
         // A user may have location exclusion zones for privacy
         public virtual ICollection<HiddenArea> HiddenAreas { get; set; } = new List<HiddenArea>();
-
+        
+        /// <summary>
+        /// Navigation property for the user's trips.
+        /// </summary>
+        public ICollection<Trip> Trips { get; set; }
     }
 
 }

@@ -1,0 +1,74 @@
+@model Wayfarer.Models.Segment
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    var places = ViewData["Places"] as List<Wayfarer.Models.Place> ?? new();
+}
+
+<div id="segment-item-@Model.Id">
+    <form class="p-3 border rounded mb-2 bg-light-subtle" id="segment-form-@Model.Id">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="TripId" />
+        <input type="hidden" asp-for="UserId" />
+
+        <div class="row g-2">
+            <div class="col-md-6">
+                <label asp-for="FromPlaceId" class="form-label">From</label>
+                <select asp-for="FromPlaceId"
+                        asp-items="@(new SelectList(places, "Id", "Name", Model.FromPlaceId))"
+                        class="form-select">
+                    <option value="">-- Choose --</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="ToPlaceId" class="form-label">To</label>
+                <select asp-for="ToPlaceId"
+                        asp-items="@(new SelectList(places, "Id", "Name", Model.ToPlaceId))"
+                        class="form-select">
+                    <option value="">-- Choose --</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-2">
+            <label asp-for="Mode" class="form-label">Mode</label>
+            <input asp-for="Mode" class="form-control" />
+            <span class="invalid-feedback" asp-validation-for="Mode"></span>
+        </div>
+
+        <div class="row mt-2 g-2">
+            <div class="col-md-6">
+                <label for="EstimatedDurationMinutes" class="form-label">Duration (minutes)</label>
+                <input type="number"
+                       name="EstimatedDurationMinutes"
+                       class="form-control"
+                       value="@(Model.EstimatedDuration?.TotalMinutes.ToString("0") ?? "")" />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="EstimatedDistanceKm" class="form-label">Distance (km)</label>
+                <input asp-for="EstimatedDistanceKm" class="form-control" />
+                <span class="invalid-feedback" asp-validation-for="EstimatedDistanceKm"></span>
+            </div>
+        </div>
+
+        <div class="mt-2">
+            <label asp-for="NotesHtml" class="form-label">Notes</label>
+            <textarea asp-for="NotesHtml" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="mt-3 d-flex justify-content-end gap-2">
+            <button type="button"
+                    class="btn btn-sm btn-secondary btn-segment-cancel"
+                    data-segment-id="@Model.Id"
+                    data-trip-id="@Model.TripId">
+                Cancel
+            </button>
+            <button type="button"
+                    class="btn btn-sm btn-primary btn-segment-save"
+                    data-segment-id="@Model.Id"
+                    data-trip-id="@Model.TripId">
+                Save Segment
+            </button>
+        </div>
+    </form>
+</div>
