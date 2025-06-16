@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using NetTopologySuite.Geometries;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Wayfarer.Models;
 
@@ -50,5 +47,5 @@ public class Segment
     public int DisplayOrder { get; set; }
 
     /// <summary>Rich-text HTML notes about this travel leg.</summary>
-    public string? NotesHtml { get; set; }
+    public string? Notes { get; set; }
 }

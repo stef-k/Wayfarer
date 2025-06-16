@@ -21,6 +21,9 @@
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link href="/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet"
+          href="~/icons/wayfarer-map-icons/dist/wayfarer-map-icons.css"
+          asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
     @if (ViewData["LoadLeaflet"] as bool? == true)
@@ -125,7 +128,7 @@
 
     <script>
         // Wayfarer cross-site object
-        window.Wayfarer = window.Wayfarer || {};
+        window.wayfarer = window.wayfarer || {};
     </script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @Html.Partial("_ValidationScriptsPartial")

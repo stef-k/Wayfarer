@@ -575,3 +575,21 @@ thead th {
 [data-bs-theme="dark"] #btn-clear-context {
     filter: invert(1); /* make it white */
 }
+
+.marker-circle {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 50%;
+    background-color: var(--map-icon-bg, #dee2e6); /* 👈 uses your bg-* color */
+    vertical-align: middle;
+}
+
+.color-preview {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 0.5em;
+}

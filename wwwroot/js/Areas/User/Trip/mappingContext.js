@@ -5,7 +5,7 @@
 let mappingContext = {
     type: null,       // 'place' | 'region' | 'segment'
     id: null,         // object UUID
-    action: null,     // 'set-location' | 'set-center' | 'draw-boundary' | 'trace-route'
+    action: null,     // 'set-location' | 'set-center' | 'trace-route'
     meta: {}          // optional UI data like { name: 'Boracay Beach', color: '#FF0' }
 };
 

@@ -1,10 +1,37 @@
 // placeHandlers.js
 // Handles create/edit/delete of places within a region
-import { setMappingContext } from './mappingContext.js';
+import {setMappingContext, getMappingContext, clearMappingContext} from './mappingContext.js';
+import { renderPlaceMarker, removePlaceMarker  } from './mapManager.js';
+import {populateIconDropdown, populateColorDropdown, updateIconPreview, updateDropdownIconColors} from './uiCore.js';
 
 export const initPlaceHandlers = () => {
     attachPlaceFormHandlers();
 };
+
+export const enhancePlaceForm = async (formEl) => {
+    const iconMenu = formEl.querySelector('.icon-dropdown-menu');
+    if (iconMenu) {
+        await populateIconDropdown(iconMenu);
+    } else {
+        console.warn('⚠️ No icon menu found in form');
+    }
+
+    const colorMenu = formEl.querySelector('.color-dropdown-menu');
+    if (colorMenu) {
+        await populateColorDropdown(formEl);
+    } else {
+        console.warn('⚠️ No color menu found in form');
+    }
+
+    const hiddenColorInput = formEl.querySelector('input[name="MarkerColor"]');
+    const currentColor = hiddenColorInput?.value || 'bg-blue';
+
+    // Apply preview + recolor icons now
+    updateIconPreview(formEl);
+    updateDropdownIconColors(formEl, currentColor);
+
+};
+
 
 const attachPlaceFormHandlers = () => {
     document.querySelectorAll('.btn-place-cancel').forEach(btn => {
@@ -20,6 +47,8 @@ const attachPlaceFormHandlers = () => {
 
             const event = new CustomEvent('region-dom-reloaded', { detail: { regionId } });
             document.dispatchEvent(event);
+            removePlaceMarker(placeId);
+            clearMappingContext();
         };
     });
 
@@ -47,13 +76,37 @@ const attachPlaceFormHandlers = () => {
 
                 const event = new CustomEvent('region-dom-reloaded', { detail: { regionId } });
                 document.dispatchEvent(event);
+                regionEl.querySelectorAll('form[id^="place-form-"]').forEach(await enhancePlaceForm);
+
+                const context = getMappingContext();
+                if (context?.type === 'place' && context.id === placeId) {
+                    const el = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+                    if (el) {
+                        const lat = el.dataset.placeLat;
+                        const lon = el.dataset.placeLon;
+                        const icon = el.dataset.placeIcon;
+                        const color = el.dataset.placeColor;
+
+                        if (lat && lon) {
+                            const name = el.querySelector('.place-name')?.innerText || 'Unnamed';
+                            renderPlaceMarker?.({
+                                Id: placeId,
+                                Name: name,
+                                Latitude: lat,
+                                Longitude: lon,
+                                IconName: icon,
+                                MarkerColor: color,
+                                RegionId: regionId
+                            });
+                        }
+                    }
+                }
             } else {
                 wrapper.outerHTML = html;
                 attachPlaceFormHandlers();
 
                 const dom = new DOMParser().parseFromString(html, 'text/html');
                 const errorsBlock = dom.querySelector('.place-form-errors ul');
-
                 if (errorsBlock) {
                     const errors = Array.from(errorsBlock.querySelectorAll('li')).map(li => li.textContent.trim());
                     showAlert('danger', errors.join('\n'));
@@ -68,7 +121,6 @@ const attachPlaceFormHandlers = () => {
             const regionId = li.dataset.regionId;
             if (!placeId || !regionId) return;
 
-            // Clear all highlights
             document.querySelectorAll('.place-list-item').forEach(el =>
                 el.classList.remove('bg-warning-subtle')
             );
@@ -76,10 +128,7 @@ const attachPlaceFormHandlers = () => {
                 el.classList.remove('bg-info-subtle', 'bg-info-soft')
             );
 
-            // Highlight place
             li.classList.add('bg-warning-subtle');
-
-            // Soft highlight the region this place belongs to
             const regionEl = document.getElementById(`region-item-${regionId}`);
             regionEl?.classList.add('bg-info-soft');
 
@@ -93,5 +142,17 @@ const attachPlaceFormHandlers = () => {
             });
         });
     });
-
 };
+
+document.addEventListener('region-dom-reloaded', (e) => {
+    (async () => {
+        const regionId = e.detail.regionId;
+        const regionEl = document.getElementById(`region-item-${regionId}`);
+        if (!regionEl) return;
+
+        const forms = regionEl.querySelectorAll('form[id^="place-form-"]');
+        for (const form of forms) {
+            await enhancePlaceForm(form);
+        }
+    })();
+});

@@ -1,28 +1,23 @@
 // regionHandlers.js
 // Handles create/edit/delete of regions and triggers context updates
 
-import {clearMappingContext, setMappingContext} from './mappingContext.js';
-import {refreshTripDays} from './uiCore.js';
-import {initPlaceHandlers} from './placeHandlers.js';
-
-let activeDrawingRegionId = null;
+import { clearMappingContext, setMappingContext } from './mappingContext.js';
+import { initPlaceHandlers, enhancePlaceForm } from './placeHandlers.js';
 
 export const initRegionHandlers = (tripId) => {
-
     document.getElementById('btn-add-region')?.addEventListener('click', async () => {
         if (!tripId) return;
 
-        const resp = await fetch(`/User/Regions/Create?tripId=${tripId}`);
+        const resp = await fetch(`/User/Regions/CreateOrUpdate?tripId=${tripId}`);
         const html = await resp.text();
 
         const container = document.getElementById('regions-accordion');
         container.insertAdjacentHTML('beforeend', html);
 
-        initRegionHandlers(tripId); // Rebind region handlers for new form
-        initPlaceHandlers();        // Rebind places if form includes place slots
-        attachRegionFormHandlers(); // Attach the form handlers 
+        initRegionHandlers(tripId);
+        initPlaceHandlers();
+        attachRegionFormHandlers();
     });
-
 
     document.querySelectorAll('.btn-edit-region').forEach(btn => {
         btn.onclick = () => handleEditRegion(btn.dataset.regionId, tripId);
@@ -38,8 +33,8 @@ export const initRegionHandlers = (tripId) => {
 
     document.querySelectorAll('.region-select-area').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            e.preventDefault();       // Prevent any link default
-            e.stopPropagation();      // Prevent Bootstrap collapse
+            e.preventDefault();
+            e.stopPropagation();
 
             const regionId = btn.dataset.regionId;
             const regionName = btn.dataset.regionName || 'Unnamed Region';
@@ -56,54 +51,14 @@ export const initRegionHandlers = (tripId) => {
                 type: 'region',
                 id: regionId,
                 action: 'set-center',
-                meta: {name: regionName}
+                meta: { name: regionName }
             });
         });
     });
-
-    document.querySelectorAll('.btn-edit-boundary').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const regionId = btn.dataset.regionId;
-            const regionName = document.querySelector(`#region-item-${regionId} .accordion-button strong`)?.textContent || 'Unnamed Region';
-
-            // Toggle logic
-            if (activeDrawingRegionId === regionId) {
-                clearMappingContext(); // cancels draw
-                activeDrawingRegionId = null;
-            } else {
-                setMappingContext({
-                    type: 'region',
-                    id: regionId,
-                    action: 'draw-boundary',
-                    meta: {name: regionName}
-                });
-                activeDrawingRegionId = regionId;
-            }
-        });
-    });
-
-    document.querySelectorAll('.btn-draw-boundary').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const regionId = btn.dataset.regionId;
-            const regionName = btn.dataset.regionName;
-
-            setMappingContext({
-                type: 'region',
-                id: regionId,
-                action: 'draw-boundary',
-                meta: {name: regionName}
-            });
-        });
-    });
-    
 };
 
-
 const handleEditRegion = async (regionId, tripId) => {
-    const resp = await fetch(`/User/Regions/Create?tripId=${tripId}&regionId=${regionId}`);
+    const resp = await fetch(`/User/Regions/CreateOrUpdate?tripId=${tripId}&regionId=${regionId}`);
     const html = await resp.text();
     const item = document.getElementById(`region-item-${regionId}`);
     item.outerHTML = html;
@@ -127,7 +82,7 @@ const handleDeleteRegion = (regionId) => {
             if (resp.ok) {
                 const el = document.getElementById(`region-item-${regionId}`);
                 el?.remove();
-                await refreshTripDays();
+                clearMappingContext();
                 showAlert('success', 'Region deleted.');
             } else {
                 showAlert('danger', 'Failed to delete region.');
@@ -139,20 +94,36 @@ const handleDeleteRegion = (regionId) => {
 const handleAddPlace = async (regionId) => {
     const resp = await fetch(`/User/Places/CreateOrUpdate?regionId=${regionId}`);
     const html = await resp.text();
+
     const regionItem = document.getElementById(`region-item-${regionId}`);
     regionItem.insertAdjacentHTML('beforeend', html);
 
-    initPlaceHandlers();
+    const formEl = regionItem.querySelector('[id^="place-form-"]');
+    let newPlaceId = null;
+
+    if (formEl) {
+        await enhancePlaceForm(formEl);
+        newPlaceId = formEl.id.replace('place-form-', '');
+    }
+
+    if (newPlaceId) {
+        setMappingContext({
+            type: 'place',
+            id: newPlaceId,
+            action: 'set-location',
+            meta: { name: '', regionId }
+        });
+    }
+
+    document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
 };
 
 const attachRegionFormHandlers = () => {
     document.querySelectorAll('.btn-region-cancel').forEach(btn => {
-        btn.onclick = async () => {
-            const regionId = btn.dataset.regionId;
-            const wrapper = document.getElementById(`region-form-${regionId}`);
-            const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-            wrapper.outerHTML = await resp.text();
-            initRegionHandlers();
+        btn.onclick = () => {
+            const wrapper = btn.closest('.accordion-item');
+            wrapper?.remove();
+            clearMappingContext();
         };
     });
 
@@ -161,10 +132,11 @@ const attachRegionFormHandlers = () => {
             const regionId = btn.dataset.regionId;
             const formEl = document.getElementById(`region-form-${regionId}`);
             const fd = new FormData(formEl);
-            const resp = await fetch(`/User/Regions/Create`, {
+
+            const resp = await fetch(`/User/Regions/CreateOrUpdate`, {
                 method: 'POST',
                 body: fd,
-                headers: {'X-CSRF-TOKEN': fd.get('__RequestVerificationToken')}
+                headers: { 'X-CSRF-TOKEN': fd.get('__RequestVerificationToken') }
             });
 
             const html = await resp.text();
@@ -172,11 +144,15 @@ const attachRegionFormHandlers = () => {
 
             if (resp.ok) {
                 wrapper.outerHTML = html;
-                initRegionHandlers();
-                await refreshTripDays();
+                const newRegionId = wrapper?.id?.replace('region-item-', '');
+                if (newRegionId) {
+                    document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId: newRegionId } }));
+                }
+                clearMappingContext();
             } else {
                 wrapper.outerHTML = html;
                 attachRegionFormHandlers();
+
                 const dom = new DOMParser().parseFromString(html, 'text/html');
                 const errorsBlock = dom.querySelector('.region-form-errors ul');
                 if (errorsBlock) {

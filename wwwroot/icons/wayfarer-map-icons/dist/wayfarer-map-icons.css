@@ -1,0 +1,128 @@
+/* Core */
+.map-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  vertical-align: middle;
+  color: #000; /* default glyph color */
+}
+
+.map-icon-bg {
+  fill: var(--map-icon-bg, #cfe2ff); /* default fallback background */
+  opacity: 1;
+}
+
+/* colour the outer stroke */
+.map-icon-bg-outline {
+  stroke: var(--map-icon-bg);
+}
+
+/* Glyph Color Utilities */
+.color-black {
+  color: #000000;
+}
+.color-white {
+  color: #ffffff;
+}
+.color-gray {
+  color: #6c757d;
+}
+.color-red {
+  color: #dc3545;
+}
+.color-orange {
+  color: #fd7e14;
+}
+.color-yellow {
+  color: #ffc107;
+}
+.color-green {
+  color: #198754;
+}
+.color-teal {
+  color: #20c997;
+}
+.color-cyan {
+  color: #0dcaf0;
+}
+.color-blue {
+  color: #0d6efd;
+}
+.color-indigo {
+  color: #6610f2;
+}
+.color-purple {
+  color: #6f42c1;
+}
+.color-pink {
+  color: #d63384;
+}
+.color-brown {
+  color: #8b4513;
+}
+.color-navy {
+  color: #001f3f;
+}
+
+/* Background Color Utilities (tint fill) */
+.bg-black {
+  --map-icon-bg: #000000;
+}
+.bg-white {
+  --map-icon-bg: #ffffff;
+}
+.bg-gray {
+  --map-icon-bg: #6c757d;
+}
+.bg-red {
+  --map-icon-bg: #dc3545;
+}
+.bg-orange {
+  --map-icon-bg: #fd7e14;
+}
+.bg-yellow {
+  --map-icon-bg: #ffc107;
+}
+.bg-green {
+  --map-icon-bg: #198754;
+}
+.bg-teal {
+  --map-icon-bg: #20c997;
+}
+.bg-cyan {
+  --map-icon-bg: #0dcaf0;
+}
+.bg-blue {
+  --map-icon-bg: #0d6efd;
+}
+.bg-indigo {
+  --map-icon-bg: #6610f2;
+}
+.bg-purple {
+  --map-icon-bg: #6f42c1;
+}
+.bg-pink {
+  --map-icon-bg: #d63384;
+}
+.bg-brown {
+  --map-icon-bg: #8b4513;
+}
+.bg-navy {
+  --map-icon-bg: #001f3f;
+}
+
+.bg-soft-blue {
+  --map-icon-bg: #cfe2ff;
+}
+.bg-soft-green {
+  --map-icon-bg: #d1e7dd;
+}
+.bg-soft-yellow {
+  --map-icon-bg: #fff3cd;
+}
+.bg-soft-red {
+  --map-icon-bg: #f8d7da;
+}
+.bg-soft-purple {
+  --map-icon-bg: #e2d9f3;
+}

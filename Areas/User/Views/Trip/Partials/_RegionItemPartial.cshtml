@@ -15,30 +15,6 @@
                 <span class="selected-indicator d-none me-1" id="region-indicator-@Model.Id">🗺️</span>
                 <strong class="d-flex align-items-center gap-2">
                     @Model.Name
-                    @if (Model.Days > 0)
-                    {
-                        <small class="text-muted">( @Model.Days days)</small>
-                    }
-                    @if (Model.Boundary == null)
-                    {
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary ms-2 btn-draw-boundary"
-                                data-region-id="@Model.Id"
-                                data-region-name="@Model.Name"
-                                title="Draw Region Boundary">
-                            <i class="bi bi-vector-pen"></i>
-                        </button>
-                    }
-                    @if (Model.Boundary != null)
-                    {
-                        <i class="bi bi-shapes ms-2 text-primary" title="Boundary defined" id="boundary-icon-@Model.Id"></i>
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary btn-edit-boundary"
-                                data-region-id="@Model.Id"
-                                title="Edit Region Boundary">
-                            <i class="bi bi-vector-pen"></i>
-                        </button>
-                    }
                 </strong>
 
             </button>
@@ -52,14 +28,6 @@
             </button>
         </div>
     </h2>
-
-    <!-- 🔍 Hidden boundary GeoJSON -->
-    @if (Model.Boundary != null)
-    {
-        var writer = new GeoJsonWriter();
-        var geoJson = writer.Write(Model.Boundary);
-        <input type="hidden" id="region-boundary-@Model.Id" value="@geoJson" />
-    }
 
     <div id="collapse-@Model.Id" class="accordion-collapse collapse show">
         <div class="accordion-body">
@@ -88,7 +56,11 @@
                         {
                             <li class="place-list-item list-group-item d-flex justify-content-between align-items-center"
                                 data-place-id="@place.Id"
-                                data-region-id="@Model.Id">
+                                data-region-id="@Model.Id"
+                                data-place-lat="@(place.Location != null ? place.Location.Y.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"
+                                data-place-lon="@(place.Location != null ? place.Location.X.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"
+                                data-place-icon="@place.IconName"
+                                data-place-color="@place.MarkerColor">
                                 <span class="place-name">
                                     <span class="selected-indicator d-none me-1" id="place-indicator-@place.Id">📍</span>
                                     <i class="bi bi-geo-alt-fill me-1 text-primary"></i>@place.Name
@@ -111,6 +83,7 @@
                                 </div>
                             </li>
                         }
+
                     </ul>
                 }
                 else

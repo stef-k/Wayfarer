@@ -229,16 +229,10 @@ namespace Wayfarer.Models
             builder.Entity<Region>()
                 .Property(r => r.Center)
                 .HasColumnType("geography(Point,4326)");
-            builder.Entity<Region>()
-                .Property(r => r.Boundary)
-                .HasColumnType("geography(Polygon,4326)");
 
             builder.Entity<Place>()
                 .Property(p => p.Location)
                 .HasColumnType("geography(Point,4326)");
-            builder.Entity<Place>()
-                .Property(p => p.RouteTrace)
-                .HasColumnType("geography(LineString,4326)");
 
             builder.Entity<Segment>()
                 .Property(s => s.RouteGeometry)
@@ -261,143 +255,7 @@ namespace Wayfarer.Models
                     entry.Property(x => x.UpdatedAt).CurrentValue = DateTime.UtcNow;
                 }
             }
-
-            // Trip planning days recalculation hooks
-            // Places → Regions → Trips
-            var segmentEntries = ChangeTracker.Entries<Segment>()
-                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified ||
-                            e.State == EntityState.Deleted)
-                .ToList();
-
-            var tripsFromSegments = segmentEntries
-                .Select(e => e.State == EntityState.Deleted
-                    ? e.OriginalValues.GetValue<Guid>(nameof(Segment.TripId))
-                    : e.Entity.TripId)
-                .Distinct();
-
-            var segmentDayMap = tripsFromSegments.ToDictionary(
-                tripId => tripId,
-                tripId =>
-                {
-                    var durations = ChangeTracker.Entries<Segment>()
-                        .Where(e =>
-                            (e.State != EntityState.Deleted && e.Entity.TripId == tripId) ||
-                            (e.State == EntityState.Deleted &&
-                             e.OriginalValues.GetValue<Guid>(nameof(Segment.TripId)) == tripId)
-                        )
-                        .Select(e => e.State == EntityState.Deleted
-                            ? e.OriginalValues.GetValue<TimeSpan?>(nameof(Segment.EstimatedDuration))
-                            : e.Entity.EstimatedDuration)
-                        .Where(d => d.HasValue)
-                        .Select(d => d.Value.TotalDays);
-
-                    return durations.Any()
-                        ? (int?)Math.Ceiling(durations.Sum())
-                        : null;
-                });
-
-            var placeEntries = ChangeTracker.Entries<Place>()
-                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified ||
-                            e.State == EntityState.Deleted)
-                .ToList();
-
-            var affectedRegionIds = placeEntries
-                .Select(e => e.State == EntityState.Deleted
-                    ? e.OriginalValues.GetValue<Guid>(nameof(Place.RegionId))
-                    : e.Entity.RegionId)
-                .Distinct();
-
-            foreach (var regionId in affectedRegionIds)
-            {
-                // Always query from database to ensure accuracy
-                var durations = await Places
-                    .Where(p => p.RegionId == regionId)
-                    .Select(p => p.SuggestedDuration)
-                    .Where(d => d.HasValue)
-                    .Select(d => d.Value.TotalDays)
-                    .ToListAsync(cancellationToken);
-
-
-                int? newRegionDays = durations.Any()
-                    ? (int?)Math.Ceiling(durations.Sum())
-                    : 0; // ✅ default to 0 if no durations exist
-
-                var regionEntry = ChangeTracker.Entries<Region>()
-                    .FirstOrDefault(e => e.Entity.Id == regionId);
-
-                if (regionEntry != null)
-                {
-                    regionEntry.Entity.Days = newRegionDays;
-                    regionEntry.State = EntityState.Modified;
-                }
-                else
-                {
-                    // ✅ FIX: replace FindAsync with FirstOrDefaultAsync
-                    var region = await Regions.FirstOrDefaultAsync(r => r.Id == regionId, cancellationToken);
-                    if (region != null)
-                    {
-                        region.Days = newRegionDays;
-                        Entry(region).State = EntityState.Modified;
-                    }
-                }
-            }
-
-            var regionEntries = ChangeTracker.Entries<Region>()
-                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified ||
-                            e.State == EntityState.Deleted)
-                .ToList();
-
-            var affectedTripIds = regionEntries
-                .Select(e => e.State == EntityState.Deleted
-                    ? e.OriginalValues.GetValue<Guid>(nameof(Region.TripId))
-                    : e.Entity.TripId)
-                .Union(tripsFromSegments)
-                .Distinct();
-
-            foreach (var tripId in affectedTripIds)
-            {
-                var regionDays = ChangeTracker.Entries<Region>()
-                    .Where(e =>
-                        (e.State != EntityState.Deleted && e.Entity.TripId == tripId) ||
-                        (e.State == EntityState.Deleted &&
-                         e.OriginalValues.GetValue<Guid>(nameof(Region.TripId)) == tripId)
-                    )
-                    .Select(e => e.State == EntityState.Deleted
-                        ? e.OriginalValues.GetValue<int?>(nameof(Region.Days))
-                        : e.Entity.Days)
-                    .Where(d => d.HasValue)
-                    .Select(d => d.Value)
-                    .ToList();
-
-                int regionSum = regionDays.Any() ? regionDays.Sum() : 0;
-                int segmentSum = segmentDayMap.TryGetValue(tripId, out var segDays) && segDays.HasValue
-                    ? segDays.Value
-                    : 0;
-
-                int? newTripDays = (regionSum + segmentSum) > 0
-                    ? (int?)(regionSum + segmentSum)
-                    : null;
-
-                var tripEntry = ChangeTracker.Entries<Trip>()
-                    .FirstOrDefault(e => e.Entity.Id == tripId);
-
-                if (tripEntry != null)
-                {
-                    tripEntry.Entity.Days = newTripDays;
-                    tripEntry.State = EntityState.Modified;
-                }
-                else
-                {
-                    // ✅ FIX: replace FindAsync with FirstOrDefaultAsync
-                    var trip = await Trips.FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken);
-                    if (trip != null)
-                    {
-                        trip.Days = newTripDays;
-                        Entry(trip).State = EntityState.Modified;
-                    }
-                }
-            }
-
+            
             // Trip.UpdatedAt handling
             var tripIdsToStamp = new HashSet<Guid>();
 

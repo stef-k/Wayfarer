@@ -46,6 +46,7 @@
     <Folder Include="Scripts\" />
     <Folder Include="Uploads\Temp\" />
     <Folder Include="wwwroot\icons\" />
+    <Folder Include="wwwroot\lib\choices\" />
   </ItemGroup>
 
   <ItemGroup>

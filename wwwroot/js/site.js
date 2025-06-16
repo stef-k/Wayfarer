@@ -1,4 +1,5 @@
-﻿// Make sure the function is globally available
+﻿window.wayfarer = window.wayfarer || {};
+
 function hideAlert() {
     let alertBox = document.getElementById("alertBox");
     if (alertBox) {
@@ -114,3 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setTheme(currentTheme);
     });
 });
+
+window.showConfirmationModal = showConfirmationModal;
+wayfarer.showConfirmationModal = showConfirmationModal;
+window.showAlert = showAlert;
+wayfarer.showAlert = showAlert;
+window.hideAlert = hideAlert;
+wayfarer.hideAlert = hideAlert;

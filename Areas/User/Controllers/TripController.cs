@@ -29,7 +29,7 @@ namespace Wayfarer.Areas.User.Controllers
 
                 var trips = await _dbContext.Trips
                     .Where(t => t.UserId == userId)
-                    .OrderByDescending(t => t.StartDate)
+                    .OrderByDescending(t => t.UpdatedAt)
                     .ToListAsync();
 
                 return View(trips);
@@ -124,7 +124,8 @@ namespace Wayfarer.Areas.User.Controllers
                 SetAlert("Trip not found.", "warning");
                 return RedirectToAction(nameof(Index));
             }
-
+            
+            
             // 2) Materialize to concrete Lists
             trip.Regions = trip.Regions?.ToList() ?? new List<Region>();
             foreach (var region in trip.Regions)
@@ -181,11 +182,8 @@ namespace Wayfarer.Areas.User.Controllers
 
                 // Update editable fields
                 trip.Name = model.Name;
-                trip.StartDate = model.StartDate;
-                trip.EndDate = model.EndDate;
-                trip.Days = model.Days;
                 trip.IsPublic = model.IsPublic;
-                trip.NotesHtml = model.NotesHtml;
+                trip.Notes = model.Notes;
                 trip.UpdatedAt = DateTime.UtcNow;
 
                 await _dbContext.SaveChangesAsync();
@@ -209,20 +207,38 @@ namespace Wayfarer.Areas.User.Controllers
             }
         }
         
-        [HttpGet]
-        public async Task<IActionResult> GetTripDays(Guid tripId)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(Guid id)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var trip = await _dbContext.Trips
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
+                var trip = await _dbContext.Trips.FindAsync(id);
+                if (trip == null)
+                {
+                    SetAlert("Trip not found.", "warning");
+                    return RedirectToAction(nameof(Index));
+                }
 
-            if (trip == null)
-                return NotFound();
+                if (trip.UserId != userId)
+                {
+                    SetAlert("Unauthorized access.", "danger");
+                    return RedirectToAction(nameof(Index));
+                }
 
-            return Content(trip.Days?.ToString() ?? string.Empty);
+                _dbContext.Trips.Remove(trip);
+                await _dbContext.SaveChangesAsync();
+
+                SetAlert("Trip deleted successfully!");
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception ex)
+            {
+                HandleError(ex);
+                return RedirectToAction(nameof(Index));
+            }
         }
-
     }
 }

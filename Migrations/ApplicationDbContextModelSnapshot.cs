@@ -563,17 +563,11 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
-                    b.Property<string>("DescriptionHtml")
-                        .HasColumnType("text");
-
                     b.Property<int?>("DisplayOrder")
                         .HasColumnType("integer");
 
                     b.Property<string>("IconName")
                         .HasColumnType("text");
-
-                    b.Property<bool>("IsVisible")
-                        .HasColumnType("boolean");
 
                     b.Property<Point>("Location")
                         .HasColumnType("geography(Point,4326)");
@@ -585,29 +579,14 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("OpeningHoursJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PhoneNumber")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PriceCategory")
+                    b.Property<string>("Notes")
                         .HasColumnType("text");
 
                     b.Property<Guid>("RegionId")
                         .HasColumnType("uuid");
 
-                    b.Property<LineString>("RouteTrace")
-                        .HasColumnType("geography(LineString,4326)");
-
-                    b.Property<TimeSpan?>("SuggestedDuration")
-                        .HasColumnType("interval");
-
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("WebsiteUrl")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -623,29 +602,20 @@ namespace Wayfarer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Polygon>("Boundary")
-                        .HasColumnType("geography(Polygon,4326)");
-
                     b.Property<Point>("Center")
                         .HasColumnType("geography(Point,4326)");
 
                     b.Property<string>("CoverImageUrl")
                         .HasColumnType("text");
 
-                    b.Property<int?>("Days")
-                        .HasColumnType("integer");
-
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("integer");
-
-                    b.Property<bool>("IsVisible")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("NotesHtml")
+                    b.Property<string>("Notes")
                         .HasColumnType("text");
 
                     b.Property<Guid>("TripId")
@@ -684,7 +654,7 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("NotesHtml")
+                    b.Property<string>("Notes")
                         .HasColumnType("text");
 
                     b.Property<LineString>("RouteGeometry")
@@ -767,12 +737,6 @@ namespace Wayfarer.Migrations
                     b.Property<string>("CoverImageUrl")
                         .HasColumnType("text");
 
-                    b.Property<int?>("Days")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("EndDate")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<bool>("IsPublic")
                         .HasColumnType("boolean");
 
@@ -781,11 +745,8 @@ namespace Wayfarer.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("NotesHtml")
+                    b.Property<string>("Notes")
                         .HasColumnType("text");
-
-                    b.Property<DateTime?>("StartDate")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()

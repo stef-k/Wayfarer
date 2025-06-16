@@ -27,7 +27,6 @@ public class PlacesController : BaseController
         {
             Id = Guid.NewGuid(),
             RegionId = regionId,
-            IsVisible = true,
             DisplayOrder = 0
         };
 
@@ -43,7 +42,14 @@ public class PlacesController : BaseController
         model.UserId = userId;
         ModelState.Remove(nameof(model.UserId));
         ModelState.Remove(nameof(model.Region));
-        ModelState.Remove(nameof(model.Location)); // until map UI
+        
+        if (Request.Form.TryGetValue("Latitude", out var latStr) &&
+            Request.Form.TryGetValue("Longitude", out var lonStr) &&
+            double.TryParse(latStr, out var lat) &&
+            double.TryParse(lonStr, out var lon))
+        {
+            model.Location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+        }
 
         if (!ModelState.IsValid)
             return PartialView("~/Areas/User/Views/Trip/Partials/_PlaceFormPartial.cshtml", model);
@@ -56,20 +62,11 @@ public class PlacesController : BaseController
         {
             // ✅ Update mode
             existing.Name = model.Name;
-            existing.DescriptionHtml = model.DescriptionHtml;
-            existing.SuggestedDuration = model.SuggestedDuration ?? existing.SuggestedDuration;
-            existing.IsVisible = model.IsVisible;
+            existing.Notes = model.Notes;
             existing.IconName = model.IconName;
             existing.MarkerColor = model.MarkerColor;
             existing.DisplayOrder = model.DisplayOrder;
             existing.Address = model.Address;
-            existing.WebsiteUrl = model.WebsiteUrl;
-            existing.PhoneNumber = model.PhoneNumber;
-            existing.PriceCategory = model.PriceCategory;
-            existing.OpeningHoursJson = model.OpeningHoursJson;
-
-            // ✅ Mark as modified to ensure EF triggers updates
-            _dbContext.Entry(existing).State = EntityState.Modified;
         }
         else
         {
@@ -109,7 +106,7 @@ public class PlacesController : BaseController
 
         _dbContext.Places.Remove(place);
         await _dbContext.SaveChangesAsync();
-
+        
         // Return updated region block
         var region = await _dbContext.Regions
             .AsNoTracking() // ✅ force reload to reflect recalculated Days

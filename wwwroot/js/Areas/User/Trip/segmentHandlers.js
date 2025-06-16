@@ -1,6 +1,6 @@
 // segmentHandlers.js
 // Handles create/edit/delete for segments (travel legs)
-import { setMappingContext } from './mappingContext.js';
+import {clearMappingContext, setMappingContext} from './mappingContext.js';
 
 export const initSegmentHandlers = () => {
     bindSegmentActions();
@@ -84,6 +84,7 @@ const bindSegmentFormHandlers = () => {
             const item = document.getElementById(`segment-item-${segmentId}`);
             item.outerHTML = html;
             bindSegmentActions(); // rebind
+            clearMappingContext();
         };
     });
 

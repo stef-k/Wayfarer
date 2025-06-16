@@ -1,20 +1,21 @@
 // trip.js – modular entry point for trip editing
-import {rebindMainButtons} from './uiCore.js';
-import {initializeMap, setupDrawingTools, renderRegionBoundary, disableDrawingTools, removeRegionBoundaryFromMap  } from './mapManager.js';
-import {initRegionHandlers} from './regionHandlers.js';
-import {initPlaceHandlers} from './placeHandlers.js';
-import {initSegmentHandlers, loadSegmentCreateForm} from './segmentHandlers.js';
-import {setupQuill} from './quillNotes.js';
-import {clearMappingContext, setMappingContext} from './mappingContext.js';
+import { rebindMainButtons } from './uiCore.js';
+import { initializeMap, disableDrawingTools, getMapInstance, renderPlaceMarker } from './mapManager.js';
+import { initRegionHandlers } from './regionHandlers.js';
+import { initPlaceHandlers } from './placeHandlers.js';
+import { initSegmentHandlers, loadSegmentCreateForm } from './segmentHandlers.js';
+import { setupQuill } from './quillNotes.js';
+import { clearMappingContext, setMappingContext, getMappingContext } from './mappingContext.js';
 
 let activeDrawingRegionId = null;
+let currentTripId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const lat = parseFloat(urlParams.get('lat'));
     const lng = parseFloat(urlParams.get('lng'));
     const zoom = parseInt(urlParams.get('zoom'), 10);
-    const tripId = document.querySelector('#trip-form input[name="Id"]')?.value;
+    currentTripId = document.querySelector('#trip-form input[name="Id"]')?.value;
 
     const center = (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : [20, 0];
     const zoomLevel = (!isNaN(zoom) && zoom >= 0) ? zoom : 3;
@@ -22,48 +23,62 @@ document.addEventListener('DOMContentLoaded', () => {
     activeDrawingRegionId = null;
     disableDrawingTools();
 
-    initializeMap(center, zoomLevel);
-    
-    // show all region boundaries
-    document.querySelectorAll('input[type="hidden"][id^="region-boundary-"]').forEach(input => {
-        try {
-            const geoJson = JSON.parse(input.value);
-            if (geoJson) {
-                const regionId = input.id.replace('region-boundary-', '');
-                renderRegionBoundary(geoJson, regionId);
+    const map = initializeMap(center, zoomLevel);
+
+    map.on('click', (e) => {
+        const context = getMappingContext();
+        if (context.type === 'place' && context.action === 'set-location') {
+            const lat = e.latlng.lat.toFixed(6);
+            const lon = e.latlng.lng.toFixed(6);
+
+            const form = document.querySelector(`#place-form-${context.id}`);
+            if (!form) return;
+
+            const latInput = form.querySelector('input[name="Latitude"]');
+            const lonInput = form.querySelector('input[name="Longitude"]');
+
+            if (latInput && lonInput) {
+                latInput.value = lat;
+                lonInput.value = lon;
             }
-        } catch (err) {
-            console.warn('Could not parse region boundary for region', input.id, err);
+
+            showAlert('info', `Location set: ${lat}, ${lon}`);
         }
     });
-    
-    rebindMainButtons(); // Setup save buttons
-    initRegionHandlers(tripId);
+
+    rebindMainButtons();
+    initRegionHandlers(currentTripId);
     initPlaceHandlers();
     initSegmentHandlers();
     setupQuill();
 
     document.getElementById('btn-add-segment')?.addEventListener('click', () => {
-        loadSegmentCreateForm(tripId);
+        loadSegmentCreateForm(currentTripId);
     });
 
+    document.querySelectorAll('.place-list-item').forEach(el => {
+        const data = el.dataset;
+        if (data.placeLat && data.placeLon) {
+            renderPlaceMarker({
+                Id: data.placeId,
+                Name: el.querySelector('span')?.textContent || '',
+                Latitude: data.placeLat,
+                Longitude: data.placeLon,
+                IconName: data.placeIcon,
+                MarkerColor: data.placeColor,
+                RegionId: data.regionId
+            });
+        }
+    });
 });
 
 document.addEventListener('mapping-context-changed', (e) => {
-    const {type, meta, id} = e.detail;
+    const { type, meta, id, action } = e.detail;
     const banner = document.getElementById('mapping-context-banner');
     const label = document.getElementById('mapping-context-text');
 
-    // Clear all icons
     document.querySelectorAll('.selected-indicator').forEach(el => el.classList.add('d-none'));
 
-    // Cancel drawing mode if switching away from drawing context
-    if (e.detail.type !== 'region' || e.detail.action !== 'draw-boundary') {
-        disableDrawingTools();
-        activeDrawingRegionId = null;
-    }
-
-    // Then show only the active one:
     if (type === 'place') {
         document.getElementById(`place-indicator-${id}`)?.classList.remove('d-none');
     } else if (type === 'region') {
@@ -72,7 +87,6 @@ document.addEventListener('mapping-context-changed', (e) => {
         document.getElementById(`segment-indicator-${id}`)?.classList.remove('d-none');
     }
 
-    // Clear all highlights before applying new one
     document.querySelectorAll('.place-list-item').forEach(el =>
         el.classList.remove('bg-warning-subtle')
     );
@@ -86,12 +100,9 @@ document.addEventListener('mapping-context-changed', (e) => {
     let icon = '';
     if (type === 'place') {
         icon = '📍';
-
-        // Highlight place
-        const placeItem = document.querySelector(`.place-list-item[data-place-id="${e.detail.id}"]`);
+        const placeItem = document.querySelector(`.place-list-item[data-place-id="${id}"]`);
         placeItem?.classList.add('bg-warning-subtle');
 
-        // Highlight containing region softly
         if (meta?.regionId) {
             const regionItem = document.getElementById(`region-item-${meta.regionId}`);
             regionItem?.classList.add('bg-info-soft');
@@ -99,42 +110,47 @@ document.addEventListener('mapping-context-changed', (e) => {
 
     } else if (type === 'region') {
         icon = '🗺️';
-
-        const regionHeaderBtn = document.querySelector(`#region-item-${e.detail.id} .accordion-button`);
+        const regionHeaderBtn = document.querySelector(`#region-item-${id} .accordion-button`);
         regionHeaderBtn?.classList.add('bg-info-subtle');
 
-        // Check if region has boundary in DOM
-        const hiddenField = document.getElementById(`region-boundary-${id}`);
-        if (hiddenField?.value) {
-            try {
-                const polygonGeoJson = JSON.parse(hiddenField.value);
-                renderRegionBoundary(polygonGeoJson);
-            } catch (e) {
-                console.warn('Could not parse region boundary:', e);
-            }
+        const collapse = document.querySelector(`#collapse-${id}`);
+        const accordionBtn = document.querySelector(`#region-item-${id} .accordion-button`);
+        if (collapse && accordionBtn && !collapse.classList.contains('show')) {
+            accordionBtn.click();
         }
 
     } else if (type === 'segment') {
         icon = '➡️';
-
-        const segmentItem = document.querySelector(`.segment-list-item[data-segment-id="${e.detail.id}"]`);
+        const segmentItem = document.querySelector(`.segment-list-item[data-segment-id="${id}"]`);
         segmentItem?.classList.add('bg-success-subtle');
+    }
+
+    if (type === 'region') {
+        document.getElementById(`region-item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (type === 'place') {
+        document.querySelector(`.place-list-item[data-place-id="${id}"]`)?.scrollIntoView({
+            behavior: 'smooth', block: 'nearest'
+        });
+    } else if (type === 'segment') {
+        document.querySelector(`.segment-list-item[data-segment-id="${id}"]`)?.scrollIntoView({
+            behavior: 'smooth', block: 'start'
+        });
+    }
+
+    const map = getMapInstance();
+    if (type === 'place') {
+        const latInput = document.querySelector(`#place-form-${id} input[name="Latitude"]`);
+        const lonInput = document.querySelector(`#place-form-${id} input[name="Longitude"]`);
+        const lat = parseFloat(latInput?.value);
+        const lon = parseFloat(lonInput?.value);
+        if (!isNaN(lat) && !isNaN(lon)) {
+            map?.setView([lat, lon], 14);
+        }
     }
 
     if (!type || !meta?.name) {
         banner.classList.remove('active');
         return;
-    }
-
-    if (type === 'region' && e.detail.action === 'draw-boundary') {
-        if (activeDrawingRegionId !== id) {
-            setupDrawingTools(id);
-            activeDrawingRegionId = id;
-        } else {
-            disableDrawingTools();
-            clearMappingContext();
-            activeDrawingRegionId = null;
-        }
     }
 
     label.textContent = `${icon} Editing: ${meta.name}`;
@@ -146,7 +162,6 @@ document.addEventListener('mapping-context-cleared', () => {
     banner?.classList.remove('active');
     activeDrawingRegionId = null;
 
-    // Remove highlights from all object types
     document.querySelectorAll('.place-list-item').forEach(el =>
         el.classList.remove('bg-warning-subtle')
     );
@@ -156,50 +171,14 @@ document.addEventListener('mapping-context-cleared', () => {
     document.querySelectorAll('.segment-list-item').forEach(el =>
         el.classList.remove('bg-success-subtle')
     );
-
     document.querySelectorAll('.selected-indicator').forEach(el =>
         el.classList.add('d-none')
     );
 });
 
-document.addEventListener('boundary-saved', async (e) => {
-    const regionId = e.detail.regionId;
-
-    try {
-        const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-        if (!resp.ok) throw new Error("Failed to reload region partial");
-
-        const html = await resp.text();
-        const container = document.getElementById(`region-item-${regionId}`);
-        if (container) {
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = html;
-            container.replaceWith(wrapper.firstElementChild);
-            document.dispatchEvent(new CustomEvent('region-dom-reloaded'));
-        }
-
-        // ✅ Re-render region boundary if present
-        const updatedInput = document.getElementById(`region-boundary-${regionId}`);
-        if (updatedInput && updatedInput.value) {
-            try {
-                const geoJson = JSON.parse(updatedInput.value);
-                renderRegionBoundary(geoJson, regionId);
-            } catch (err) {
-                console.warn('Could not parse reloaded boundary:', err);
-            }
-        } else {
-            // Boundary was deleted
-            removeRegionBoundaryFromMap(regionId);
-        }
-
-    } catch (err) {
-        console.error("Reloading region failed:", err);
-    }
-});
-
-
 document.addEventListener('region-dom-reloaded', () => {
-    initRegionHandlers();
+    if (!currentTripId) return;
+    initRegionHandlers(currentTripId);
     initPlaceHandlers();
 });
 
@@ -207,10 +186,8 @@ document.getElementById('btn-clear-context')?.addEventListener('click', () => {
     clearMappingContext();
 });
 
-
-// ✅ New: handle place click globally and set context
 document.addEventListener('place-context-selected', (e) => {
-    const {placeId, regionId, name} = e.detail;
+    const { placeId, regionId, name } = e.detail;
 
     document.querySelectorAll('.place-list-item').forEach(item =>
         item.classList.remove('bg-warning-subtle')
@@ -223,6 +200,6 @@ document.addEventListener('place-context-selected', (e) => {
         type: 'place',
         id: placeId,
         action: 'set-location',
-        meta: {name, regionId}
+        meta: { name, regionId }
     });
 });

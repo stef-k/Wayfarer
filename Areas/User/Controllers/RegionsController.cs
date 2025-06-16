@@ -1,13 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Wayfarer.Models;
-using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Features;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.IO;
-using Newtonsoft.Json;
-
+using Wayfarer.Models;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -21,7 +16,7 @@ namespace Wayfarer.Areas.User.Controllers
         }
 
         // GET: /User/Regions/Create?tripId={tripId}&regionId={regionId}
-        public async Task<IActionResult> Create(Guid tripId, Guid? regionId = null)
+        public async Task<IActionResult> CreateOrUpdate(Guid tripId, Guid? regionId = null)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -44,7 +39,6 @@ namespace Wayfarer.Areas.User.Controllers
                 Id = Guid.NewGuid(),
                 TripId = tripId,
                 DisplayOrder = 0,
-                IsVisible = true
             };
 
             return PartialView("~/Areas/User/Views/Trip/Partials/_RegionFormPartial.cshtml", model);
@@ -54,11 +48,10 @@ namespace Wayfarer.Areas.User.Controllers
         // POST: /User/Regions/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Region model)
+        public async Task<IActionResult> CreateOrUpdate(Region model)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // Set server-only fields
             model.UserId = userId;
             ModelState.Remove(nameof(model.UserId));
             ModelState.Remove(nameof(model.Trip));
@@ -72,32 +65,26 @@ namespace Wayfarer.Areas.User.Controllers
 
             if (existing != null)
             {
-                // ✏️ Update mode
                 existing.Name = model.Name;
-                existing.Days = model.Days;
                 existing.Center = model.Center;
-                existing.Boundary = model.Boundary;
-                existing.NotesHtml = model.NotesHtml;
+                existing.Notes = model.Notes;
                 existing.DisplayOrder = model.DisplayOrder;
-                existing.IsVisible = model.IsVisible;
                 existing.CoverImageUrl = model.CoverImageUrl;
 
+                _dbContext.Entry(existing).State = EntityState.Modified;
                 await _dbContext.SaveChangesAsync();
-
-                // 🔁 Re-query with Places included to avoid them disappearing in UI
-                var regionWithPlaces = await _dbContext.Regions
+                
+                var updated = await _dbContext.Regions
                     .Include(r => r.Places)
                     .FirstOrDefaultAsync(r => r.Id == existing.Id && r.UserId == userId);
 
-                return PartialView("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", regionWithPlaces);
+                return PartialView("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", updated);
             }
             else
             {
-                // ➕ Create mode
                 _dbContext.Regions.Add(model);
                 await _dbContext.SaveChangesAsync();
 
-                // 🔁 Re-query with Places (empty) just for consistency
                 var newRegion = await _dbContext.Regions
                     .Include(r => r.Places)
                     .FirstOrDefaultAsync(r => r.Id == model.Id && r.UserId == userId);
@@ -131,71 +118,16 @@ namespace Wayfarer.Areas.User.Controllers
             var region = await _dbContext.Regions
                 .Where(r => r.Id == id && r.UserId == userId)
                 .FirstOrDefaultAsync();
+
             if (region == null)
                 return NotFound();
+
+            var tripId = region.TripId;
 
             _dbContext.Regions.Remove(region);
             await _dbContext.SaveChangesAsync();
 
             return Ok(id);
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> SaveBoundary(Guid regionId)
-        {
-            try
-            {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                var region = await _dbContext.Regions
-                    .Where(r => r.Id == regionId && r.UserId == userId)
-                    .FirstOrDefaultAsync();
-
-                if (region == null)
-                    return NotFound();
-
-                using var reader = new StreamReader(Request.Body);
-                var body = await reader.ReadToEndAsync();
-
-                if (string.IsNullOrWhiteSpace(body))
-                {
-                    //  Clear boundary
-                    region.Boundary = null;
-                    _dbContext.Update(region);
-                    await _dbContext.SaveChangesAsync();
-                    return Ok();
-                }
-
-                var serializer = NetTopologySuite.IO.GeoJsonSerializer.Create();
-                using var stringReader = new StringReader(body);
-                using var jsonReader = new JsonTextReader(stringReader);
-
-                var feature = serializer.Deserialize<NetTopologySuite.Features.Feature>(jsonReader);
-
-                if (feature == null || feature.Geometry == null)
-                {
-                    // 🧹 Clear boundary
-                    region.Boundary = null;
-                }
-                else if (feature.Geometry is not Polygon polygon)
-                {
-                    return BadRequest("Submitted geometry is not a valid polygon.");
-                }
-                else
-                {
-                    region.Boundary = polygon;
-                }
-
-                _dbContext.Update(region);
-                await _dbContext.SaveChangesAsync();
-
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-                return StatusCode(500, "Error parsing or saving polygon geometry.");
-            }
         }
     }
 }
