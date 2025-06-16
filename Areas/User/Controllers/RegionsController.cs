@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -129,5 +130,24 @@ namespace Wayfarer.Areas.User.Controllers
 
             return Ok(id);
         }
+        
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Reorder([FromBody] List<OrderDto> items)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var idToOrder = items.ToDictionary(i => i.Id, i => i.Order);
+
+            var regions = await _dbContext.Regions
+                .Where(p => idToOrder.Keys.Contains(p.Id) && p.UserId == userId)
+                .ToListAsync();
+
+            foreach (var p in regions)
+                p.DisplayOrder = idToOrder[p.Id];
+
+            await _dbContext.SaveChangesAsync();
+            return NoContent();
+        }
+
     }
 }

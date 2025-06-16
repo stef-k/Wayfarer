@@ -6,6 +6,7 @@ import { initPlaceHandlers } from './placeHandlers.js';
 import { initSegmentHandlers, loadSegmentCreateForm } from './segmentHandlers.js';
 import { setupQuill } from './quillNotes.js';
 import { clearMappingContext, setMappingContext, getMappingContext } from './mappingContext.js';
+import { initOrdering } from './regionsOrder.js';
 
 let activeDrawingRegionId = null;
 let currentTripId = null;
@@ -44,8 +45,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             showAlert('info', `Location set: ${lat}, ${lon}`);
         }
+
     });
 
+    initOrdering();
+    document.addEventListener('region-dom-reloaded', initOrdering);
+    document.addEventListener('mapping-context-cleared', initOrdering);
+    
     rebindMainButtons();
     initRegionHandlers(currentTripId);
     initPlaceHandlers();

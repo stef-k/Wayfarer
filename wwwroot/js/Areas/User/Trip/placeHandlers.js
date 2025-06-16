@@ -2,7 +2,7 @@
 // Handles create/edit/delete of places within a region
 import {setMappingContext, getMappingContext, clearMappingContext} from './mappingContext.js';
 import { renderPlaceMarker, removePlaceMarker  } from './mapManager.js';
-import {populateIconDropdown, populateColorDropdown, updateIconPreview, updateDropdownIconColors} from './uiCore.js';
+import {populateIconDropdown, populateColorDropdown, updateDropdownIconColors} from './uiCore.js';
 
 export const initPlaceHandlers = () => {
     attachPlaceFormHandlers();
@@ -27,7 +27,6 @@ export const enhancePlaceForm = async (formEl) => {
     const currentColor = hiddenColorInput?.value || 'bg-blue';
 
     // Apply preview + recolor icons now
-    updateIconPreview(formEl);
     updateDropdownIconColors(formEl, currentColor);
 
 };
@@ -58,13 +57,15 @@ const attachPlaceFormHandlers = () => {
             const regionId = btn.dataset.regionId;
             const formEl = document.getElementById(`place-form-${placeId}`);
             const fd = new FormData(formEl);
+            const token = fd.get('__RequestVerificationToken');   // Razor adds this
 
-            const resp = await fetch(`/User/Places/CreateOrUpdate`, {
+            const resp = await fetch('/User/Places/CreateOrUpdate', {
                 method: 'POST',
                 body: fd,
-                headers: {
-                    'X-CSRF-TOKEN': fd.get('__RequestVerificationToken')
-                }
+                credentials: 'same-origin',              // send the anti-forgery cookie
+                headers: token ? {                       // add header only if we have one
+                    RequestVerificationToken: token      // official ASP.NET Core header name
+                } : {}
             });
 
             const html = await resp.text();

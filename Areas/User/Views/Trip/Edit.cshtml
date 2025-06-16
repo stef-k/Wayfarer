@@ -73,7 +73,7 @@
           }
           else
           {
-            @foreach (var region in regions)
+            @foreach (var region in regions.OrderBy(r => r.DisplayOrder))
             {
               @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", region)
             }
@@ -89,7 +89,7 @@
           <i class="bi bi-plus-lg"></i> Add Segment
         </button>
 
-        <div id="segments-list">
+        <div>
           @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", Model)
         </div>
 

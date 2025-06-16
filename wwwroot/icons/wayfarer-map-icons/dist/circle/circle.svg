@@ -1,0 +1,12 @@
+<svg xmlns='http://www.w3.org/2000/svg'
+             viewBox='-1 -1 26 26' class='map-icon'>
+  <!-- coloured outer ring -->
+  <circle cx='12' cy='12' r='11'
+          class='map-icon-bg-outline' fill='none' stroke-width='3'/>
+  <!-- solid background disc -->
+  <circle cx='12' cy='12' r='11' class='map-icon-bg'/>
+  <!-- thin white keyline -->
+  <circle cx='12' cy='12' r='10'
+          fill='none' stroke='white' stroke-width='1.5'/>
+  
+</svg>

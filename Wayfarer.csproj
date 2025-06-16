@@ -46,7 +46,7 @@
     <Folder Include="Scripts\" />
     <Folder Include="Uploads\Temp\" />
     <Folder Include="wwwroot\icons\" />
-    <Folder Include="wwwroot\lib\choices\" />
+    <Folder Include="wwwroot\lib\sortablejs\" />
   </ItemGroup>
 
   <ItemGroup>

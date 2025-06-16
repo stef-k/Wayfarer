@@ -73,13 +73,40 @@ export const populateIconDropdown = async (menuEl) => {
 
     try {
         const res = await fetch('/api/icons?layout=marker');
-        const icons = await res.json();
+        let icons = await res.json();
+        // Priority icons: keep the order below
+        const PRIORITY_ICONS = [
+            'marker',     // default selected
+            'star',
+            'camera',
+            'museum',
+            'eat',
+            'drink',
+            'hotel',
+            'info',
+            'help',
+            'flag',
+            'danger',
+            'beach',
+            'hike',
+            'wc',
+            'sos'
+        ];
+        icons = [
+            ...PRIORITY_ICONS.filter(p => icons.includes(p)),
+            ...icons.filter(i => !PRIORITY_ICONS.includes(i))
+        ];
 
         menuEl.innerHTML = '';
 
-        const currentIcon = hiddenInput.value || icons[0];
-        hiddenInput.value ||= currentIcon;
-
+        // Prefer the builtin “marker.svg” when no icon was saved yet
+        const defaultIcon = icons.includes('marker') ? 'marker' : icons[0];
+        const currentIcon = hiddenInput.value || defaultIcon;
+        // If the form (there can be multiple hidden inputs after partial reloads
+        // has no IconName yet, stamp it with the default.
+        form?.querySelectorAll('input[name="IconName"]').forEach(inp => {
+            if (!inp.value) inp.value = currentIcon;
+        });
         for (const icon of icons) {
             const li = document.createElement('li');
             const a = document.createElement('a');
@@ -92,7 +119,7 @@ export const populateIconDropdown = async (menuEl) => {
 
             const svg = await fetchSvg(icon);
             if (svg) {
-                svg.classList.add(getCurrentColor());  // 🔥 Apply bg color to all items
+                svg.classList.add(getCurrentColor());  // Apply bg color to all items
                 a.appendChild(svg);
             }
             a.appendChild(label);
@@ -101,7 +128,8 @@ export const populateIconDropdown = async (menuEl) => {
 
             a.addEventListener('click', (e) => {
                 e.preventDefault();
-                hiddenInput.value = icon;
+
+                form?.querySelectorAll('input[name="IconName"]').forEach(inp => inp.value = icon);
                 const color = getCurrentColor();
 
                 selectedLabel.innerHTML = '';
@@ -109,8 +137,6 @@ export const populateIconDropdown = async (menuEl) => {
                 selectedSvg.classList.add(color);
                 selectedLabel.appendChild(selectedSvg);
                 selectedLabel.append(` ${icon}`);
-
-                updateIconPreview(hiddenInput);
             });
 
             if (icon === currentIcon) {
@@ -144,8 +170,14 @@ export const populateColorDropdown = async (formEl) => {
         if (!resp.ok) throw new Error('Failed to load colors');
 
         const data = await resp.json();
-        const colors = data?.backgrounds || [];
 
+        let colors = data?.backgrounds || [];
+        // Always show these first, in this exact order.
+        const priority = ['bg-blue', 'bg-black', 'bg-purple', 'bg-green', 'bg-red'];
+        colors = [
+            ...priority.filter(c => colors.includes(c)),      // the five we care about
+            ...colors.filter(c => !priority.includes(c)),     // everything else
+        ];
         // Fallback to blue if not set
         if (!hiddenInput.value) hiddenInput.value = 'bg-blue';
 
@@ -170,7 +202,8 @@ export const populateColorDropdown = async (formEl) => {
             }
 
             const label = document.createElement('span');
-            label.textContent = color;
+            // show friendly name:  "blue", "red", …
+            label.textContent = color.replace(/^bg-/, '');
 
             a.appendChild(dot);
             a.appendChild(label);
@@ -179,34 +212,19 @@ export const populateColorDropdown = async (formEl) => {
 
             a.addEventListener('click', async (e) => {
                 e.preventDefault();
-                hiddenInput.value = color;
-
-                console.log('Color clicked:', color);
-                console.log('Toggle button before renderSelectedColor:', toggleBtn);
-
+                formEl.querySelectorAll('input[name="MarkerColor"]').forEach(inp => inp.value = color);
                 // Update toggle button UI
                 renderSelectedColor(toggleBtn, color);
 
                 // Confirm updateSelectedIconDropdown call
-                const hiddenIconInput = formEl.querySelector('input[name="IconName"]');
-                if (hiddenIconInput) {
-                    const iconValue = hiddenIconInput.value;
-                    if (iconValue) {
-                        console.log('Updating selected icon dropdown for icon:', iconValue);
-                        await updateSelectedIconDropdown(formEl);
-                    }
-                }
-
-                updateIconPreview(formEl);
+                await updateSelectedIconDropdown(formEl);
                 updateDropdownIconColors(formEl, color);
             });
 
-
         });
 
-        // 🟦 Initial display
+        //  Initial display
         renderSelectedColor(toggleBtn, hiddenInput.value);
-
     } catch (err) {
         console.error('💥 Error loading colors for dropdown:', err);
     }
@@ -227,7 +245,6 @@ export const updateDropdownIconColors = (formEl, newColor) => {
 
 export const updateSelectedIconDropdown = async (formEl) => {
     const icon = formEl.querySelector('input[name="IconName"]')?.value;
-    console.log('updateSelectedIconDropdown called with icon:', icon);
     const colorClass = formEl.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
     const selectedLabel = formEl.querySelector('.selected-icon-label');
 
@@ -290,35 +307,12 @@ export const renderSelectedColor = (btn, color) => {
     }
 
     const text = document.createElement('span');
-    text.textContent = color;
+    // show friendly name
+    text.textContent = color.replace(/^bg-/, '');
 
     btn.appendChild(dot);
     btn.appendChild(text);
 };
-
-export const updateIconPreview = (formEl) => {
-    const icon = formEl.querySelector('input[name="IconName"]')?.value || 'flag';
-    const color = formEl.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
-    const preview = formEl.querySelector('img[id^="place-icon-preview"]');
-
-    if (!preview) return;
-
-    // Update src based on icon name
-    preview.src = `/icons/wayfarer-map-icons/dist/marker/${icon}.svg`;
-
-    // Remove any old bg-* classes
-    preview.classList.forEach(cls => {
-        if (cls.startsWith('bg-')) {
-            preview.classList.remove(cls);
-        }
-    });
-
-    // Apply new background class
-    preview.className = `map-icon ${color} color-white`;
-
-};
-
-
 
 export const rebindMainButtons = () => {
     document.getElementById('btn-save-trip')?.addEventListener('click', () => saveTrip('save'));

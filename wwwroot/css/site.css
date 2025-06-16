@@ -593,3 +593,11 @@ thead th {
     vertical-align: middle;
     margin-right: 0.5em;
 }
+.drag-handle {
+    cursor: grab;
+    opacity: .7;          /* looks “touchable” */
+}
+.drag-handle:active { cursor: grabbing; }
+
+.sortable-chosen  { transition: background-color .2s; background-color: var(--bs-warning-bg-subtle, #fff3cd); }
+.sortable-ghost   { opacity: 0.4; }

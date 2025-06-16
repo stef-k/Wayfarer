@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 
 namespace Wayfarer.Areas.User.Controllers;
 
@@ -142,5 +143,23 @@ public class SegmentsController : BaseController
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", trip);
+    }
+    
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reorder([FromBody] List<OrderDto> items)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var idToOrder = items.ToDictionary(i => i.Id, i => i.Order);
+
+        var segments = await _dbContext.Segments
+            .Where(p => idToOrder.Keys.Contains(p.Id) && p.UserId == userId)
+            .ToListAsync();
+
+        foreach (var p in segments)
+            p.DisplayOrder = idToOrder[p.Id];
+
+        await _dbContext.SaveChangesAsync();
+        return NoContent();
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 
 namespace Wayfarer.Areas.User.Controllers;
 
@@ -132,4 +133,23 @@ public class PlacesController : BaseController
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_PlaceFormPartial.cshtml", place);
     }
+    
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Reorder([FromBody] List<OrderDto> items)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var idToOrder = items.ToDictionary(i => i.Id, i => i.Order);
+
+        var places = await _dbContext.Places
+            .Where(p => idToOrder.Keys.Contains(p.Id) && p.UserId == userId)
+            .ToListAsync();
+
+        foreach (var p in places)
+            p.DisplayOrder = idToOrder[p.Id];
+
+        await _dbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
 }

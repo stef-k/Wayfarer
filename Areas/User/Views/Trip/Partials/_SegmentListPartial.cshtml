@@ -22,7 +22,7 @@
 }
 else
 {
-    <ul class="list-group mb-4">
+    <ul class="list-group mb-4" id="segments-list">
         @foreach (var segment in Model.Segments.OrderBy(s => s.DisplayOrder))
         {
             var fromName = segment.FromPlace?.Name ?? "Start";
@@ -35,6 +35,7 @@ else
                 id="segment-item-@segment.Id"
                 data-segment-id="@segment.Id"
                 data-segment-name="@($"{segment.FromPlace?.Name} → {segment.ToPlace?.Name}")">
+                <i class="bi bi-grip-vertical drag-handle me-1"></i>
                 <div class="me-auto">
                     <div>
                         <span class="selected-indicator d-none me-1" id="segment-indicator-@segment.Id">➡️</span>

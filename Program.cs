@@ -341,8 +341,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Import Location Data service
     builder.Services.AddScoped<ILocationImportService, LocationImportService>();
 
-    // Add controllers with views for MVC routing
-    builder.Services.AddControllersWithViews();
+    // Add controllers with views for MVC routing & ingore JSON property-name case
+    builder.Services
+        .AddControllersWithViews()
+        .AddJsonOptions(o => o.JsonSerializerOptions.PropertyNameCaseInsensitive = true);;
     
 
     // Add Swagger generation

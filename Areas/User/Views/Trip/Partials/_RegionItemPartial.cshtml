@@ -5,6 +5,7 @@
 <div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id">
     <h2 class="accordion-header region-header" id="heading-@Model.Id">
         <div class="d-flex justify-content-between align-items-center w-100">
+            <i class="bi bi-grip-vertical drag-handle me-1"></i>
             <!-- Toggler (collapse control) -->
             <button class="accordion-button collapsed flex-grow-1 text-start bg-primary-subtle"
                     type="button"
@@ -51,21 +52,24 @@
 
                 @if (Model.Places != null && Model.Places.Any())
                 {
-                    <ul class="list-group list-group-flush small">
+                    <ul class="list-group list-group-flush small" data-region-places id="places-@Model.Id">
                         @foreach (var place in Model.Places.OrderBy(p => p.DisplayOrder))
                         {
-                            <li class="place-list-item list-group-item d-flex justify-content-between align-items-center"
+                            <li class="place-list-item list-group-item d-flex  align-items-center"
                                 data-place-id="@place.Id"
                                 data-region-id="@Model.Id"
                                 data-place-lat="@(place.Location != null ? place.Location.Y.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"
                                 data-place-lon="@(place.Location != null ? place.Location.X.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"
                                 data-place-icon="@place.IconName"
                                 data-place-color="@place.MarkerColor">
+                                <i class="bi bi-grip-vertical drag-handle me-1"></i>
                                 <span class="place-name">
                                     <span class="selected-indicator d-none me-1" id="place-indicator-@place.Id">📍</span>
-                                    <i class="bi bi-geo-alt-fill me-1 text-primary"></i>@place.Name
+                                    @* inject SVG and add colour class *@
+                                    @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml", (place.IconName, place.MarkerColor))
+                                    @place.Name
                                 </span>
-                                <div class="btn-group btn-group-sm">
+                                <div class="btn-group btn-group-sm ms-auto">
                                     <button type="button"
                                             class="btn btn-outline-primary btn-edit-place"
                                             data-place-id="@place.Id"
