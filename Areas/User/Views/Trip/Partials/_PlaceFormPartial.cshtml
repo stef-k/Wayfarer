@@ -5,8 +5,8 @@
     <div class="px-2 py-1">
         <input type="hidden" asp-for="Id"/>
         <input type="hidden" asp-for="RegionId"/>
-        <input type="hidden" name="IconName" value="@Model.IconName"/>
-        <input type="hidden" name="MarkerColor" value="@Model.MarkerColor"/>
+        <input type="hidden" name="Latitude"  value="@Model.Location?.Y" />
+        <input type="hidden" name="Longitude" value="@Model.Location?.X" />
 
         <h5>New Place</h5>
 
@@ -60,17 +60,23 @@
                     <input type="hidden" name="MarkerColor" id="color-input-@Model.Id" value="@Model.MarkerColor"/>
                 </div>
             </div>
+            
+            
 
         </div>
 
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Latitude</label>
-                <input name="Latitude" type="number" step="0.000001" class="form-control"/>
+        <div class="row g-2 mb-2 small text-muted">
+            <div class="col">
+                <label class="form-label mb-0">Lat</label>
+                <input type="text" class="form-control-plaintext ps-0" readonly
+                       name="Latitude_display"
+                       value="@(Model.Location?.Y.ToString("F6") ?? "")" />
             </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label">Longitude</label>
-                <input name="Longitude" type="number" step="0.000001" class="form-control"/>
+            <div class="col">
+                <label class="form-label mb-0">Lon</label>
+                <input type="text" class="form-control-plaintext ps-0" readonly
+                       name="Longitude_display"
+                       value="@(Model.Location?.X.ToString("F6") ?? "")" />
             </div>
         </div>
 

@@ -237,6 +237,21 @@ namespace Wayfarer.Models
             builder.Entity<Segment>()
                 .Property(s => s.RouteGeometry)
                 .HasColumnType("geography(LineString,4326)");
+            
+            // Segment → Place (origin)
+            builder.Entity<Segment>()
+                .HasOne(s => s.FromPlace)
+                .WithMany()                     // no back-reference needed
+                .HasForeignKey(s => s.FromPlaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Segment → Place (destination)
+            builder.Entity<Segment>()
+                .HasOne(s => s.ToPlace)
+                .WithMany()
+                .HasForeignKey(s => s.ToPlaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

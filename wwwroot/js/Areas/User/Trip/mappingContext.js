@@ -52,4 +52,5 @@ export const clearMappingContext = () => {
     // Hide banner visually
     const banner = document.getElementById('mapping-context-banner');
     if (banner) banner.classList.remove('active');
+    document.dispatchEvent(new CustomEvent('mapping-context-cleared'));
 };

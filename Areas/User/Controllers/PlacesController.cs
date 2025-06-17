@@ -68,6 +68,8 @@ public class PlacesController : BaseController
             existing.MarkerColor = model.MarkerColor;
             existing.DisplayOrder = model.DisplayOrder;
             existing.Address = model.Address;
+            if (model.Location != null)
+                existing.Location = model.Location;
         }
         else
         {

@@ -1,11 +1,25 @@
-// regionHandlers.js
-// Handles create/edit/delete of regions and triggers context updates
+// regionHandlers.js – create / edit / delete regions
 
-import { clearMappingContext, setMappingContext } from './mappingContext.js';
-import { initPlaceHandlers, enhancePlaceForm } from './placeHandlers.js';
+import {
+    clearMappingContext,
+    setMappingContext
+} from './mappingContext.js';
+
+import {
+    initPlaceHandlers,
+    enhancePlaceForm
+} from './placeHandlers.js';
+
+import {
+    clearSelectedMarker,
+    getMapInstance, getRegionMarkerById,
+    removeRegionMarker, selectMarker
+} from './mapManager.js';
 
 export const initRegionHandlers = (tripId) => {
-    document.getElementById('btn-add-region')?.addEventListener('click', async () => {
+    /* ---------- add region ---------- */
+    const addBtn = document.getElementById('btn-add-region');
+    if (addBtn) addBtn.onclick = async () => {
         if (!tripId) return;
 
         const resp = await fetch(`/User/Regions/CreateOrUpdate?tripId=${tripId}`);
@@ -14,57 +28,74 @@ export const initRegionHandlers = (tripId) => {
         const container = document.getElementById('regions-accordion');
         container.insertAdjacentHTML('beforeend', html);
 
+        const newRegionForm = container.lastElementChild;
+        const newRegionId   = newRegionForm.id.replace('region-form-', '');
+
+        newRegionForm.classList.add('bg-info-subtle');   // highlight
+
+        setMappingContext({
+            type:   'region',
+            id:     newRegionId,
+            action: 'set-center',
+            meta:   { name: 'New region' }
+        });
+
+        /* re-bind fresh DOM */
         initRegionHandlers(tripId);
         initPlaceHandlers();
         attachRegionFormHandlers();
-    });
+    };
 
-    document.querySelectorAll('.btn-edit-region').forEach(btn => {
-        btn.onclick = () => handleEditRegion(btn.dataset.regionId, tripId);
-    });
+    /* other buttons … */
+    document.querySelectorAll('.btn-edit-region')
+        .forEach(btn => btn.onclick = () => handleEditRegion(btn.dataset.regionId, tripId));
 
-    document.querySelectorAll('.btn-delete-region').forEach(btn => {
-        btn.onclick = () => handleDeleteRegion(btn.dataset.regionId);
-    });
+    document.querySelectorAll('.btn-delete-region')
+        .forEach(btn => btn.onclick = () => handleDeleteRegion(btn.dataset.regionId));
 
-    document.querySelectorAll('.btn-add-place').forEach(btn => {
-        btn.onclick = () => handleAddPlace(btn.dataset.regionId);
-    });
+    document.querySelectorAll('.btn-add-place')
+        .forEach(btn => btn.onclick = () => handleAddPlace(btn.dataset.regionId));
 
+    /* select region (centre on map) */
     document.querySelectorAll('.region-select-area').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
 
-            const regionId = btn.dataset.regionId;
+            const wrapper = btn.closest('.accordion-item');
+            const latStr  = wrapper?.dataset.centerLat;
+            const lonStr  = wrapper?.dataset.centerLon;
+            const lat = parseFloat(latStr);
+            const lon = parseFloat(lonStr);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                getMapInstance()?.setView([lat, lon], 8);
+            }
+
+            const regionId   = btn.dataset.regionId;
             const regionName = btn.dataset.regionName || 'Unnamed Region';
             if (!regionId) return;
 
-            document.querySelectorAll('.accordion-item').forEach(item =>
-                item.classList.remove('bg-info-subtle', 'bg-info-soft')
-            );
+            document.querySelectorAll('.accordion-item')
+                .forEach(i => i.classList.remove('bg-info-subtle', 'bg-info-soft'));
 
-            const regionPanel = btn.closest('.accordion-item');
-            regionPanel?.classList.add('bg-info-subtle');
+            wrapper?.classList.add('bg-info-subtle');
 
             setMappingContext({
-                type: 'region',
-                id: regionId,
+                type:   'region',
+                id:     regionId,
                 action: 'set-center',
-                meta: { name: regionName }
+                meta:   { name: regionName }
             });
-        });
+            clearSelectedMarker();
+            const marker = getRegionMarkerById(regionId);
+            if (marker) selectMarker(marker);
+        };
     });
 };
 
-const handleEditRegion = async (regionId, tripId) => {
-    const resp = await fetch(`/User/Regions/CreateOrUpdate?tripId=${tripId}&regionId=${regionId}`);
-    const html = await resp.text();
-    const item = document.getElementById(`region-item-${regionId}`);
-    item.outerHTML = html;
-    attachRegionFormHandlers();
-};
-
+/* ------------------------------------------------------------------ *
+ *  edit / delete / add place helpers (unchanged except delete)
+ * ------------------------------------------------------------------ */
 const handleDeleteRegion = (regionId) => {
     showConfirmationModal({
         title: 'Delete Region?',
@@ -72,7 +103,8 @@ const handleDeleteRegion = (regionId) => {
         confirmText: 'Delete',
         onConfirm: async () => {
             const fd = new FormData();
-            fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+            fd.set('__RequestVerificationToken',
+                document.querySelector('input[name="__RequestVerificationToken"]').value);
 
             const resp = await fetch(`/User/Regions/Delete/${regionId}`, {
                 method: 'POST',
@@ -80,8 +112,8 @@ const handleDeleteRegion = (regionId) => {
             });
 
             if (resp.ok) {
-                const el = document.getElementById(`region-item-${regionId}`);
-                el?.remove();
+                document.getElementById(`region-item-${regionId}`)?.remove();
+                removeRegionMarker(regionId);          // ← ensure pin disappears
                 clearMappingContext();
                 showAlert('success', 'Region deleted.');
             } else {
@@ -111,7 +143,7 @@ const handleAddPlace = async (regionId) => {
             type: 'place',
             id: newPlaceId,
             action: 'set-location',
-            meta: { name: '', regionId }
+            meta: { name: 'New place', regionId }
         });
     }
 
@@ -120,9 +152,24 @@ const handleAddPlace = async (regionId) => {
 
 const attachRegionFormHandlers = () => {
     document.querySelectorAll('.btn-region-cancel').forEach(btn => {
-        btn.onclick = () => {
-            const wrapper = btn.closest('.accordion-item');
-            wrapper?.remove();
+        btn.onclick = async () => {
+            const regionId = btn.dataset.regionId;
+            const wrapper  = btn.closest('.accordion-item');
+
+            // brand-new / unsaved region → just drop it
+            if (!regionId) {
+                wrapper?.remove();
+                clearMappingContext();
+                return;
+            }
+
+            // existing region → reload the read-only partial
+            const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+            wrapper.outerHTML = await resp.text();
+
+            document.dispatchEvent(
+                new CustomEvent('region-dom-reloaded', { detail: { regionId } })
+            );
             clearMappingContext();
         };
     });
@@ -163,3 +210,17 @@ const attachRegionFormHandlers = () => {
         };
     });
 };
+document.addEventListener('mapping-context-changed', (e) => {
+    const ctx = e.detail;
+    if (ctx.type !== 'region' || ctx.action !== 'set-center') return;
+
+    const el = document.getElementById(`region-item-${ctx.id}`);
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    document.querySelectorAll('.accordion-item')
+        .forEach(i => i.classList.remove('bg-primary-subtle'));
+
+    el.classList.add('bg-primary-subtle');
+});

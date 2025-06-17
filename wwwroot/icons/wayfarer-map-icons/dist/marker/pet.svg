@@ -1,5 +1,5 @@
 <svg xmlns='http://www.w3.org/2000/svg'
-             viewBox='-1 -1 26 26' class='map-icon'>
+             viewBox='-1 -1 26 26' class='map-icon' width='28' height='45'>
   <!-- coloured outer ring -->
   <path d='M12 1C6.5 1 3 5.5 3 10c0 6.5 9 13 9 13s9-6.5 9-13c0-4.5-3.5-9-9-9z'
         class='map-icon-bg-outline' fill='none' stroke-width='3'/>

@@ -2,7 +2,7 @@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @using NetTopologySuite.IO
 
-<div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id">
+<div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id" data-region-name="@Model.Name" data-center-lat="@Model.Center?.Y" data-center-lon="@Model.Center?.X">
     <h2 class="accordion-header region-header" id="heading-@Model.Id">
         <div class="d-flex justify-content-between align-items-center w-100">
             <i class="bi bi-grip-vertical drag-handle me-1"></i>
@@ -32,16 +32,24 @@
 
     <div id="collapse-@Model.Id" class="accordion-collapse collapse show">
         <div class="accordion-body">
+            @* region fields *@
+            <div class="row text-muted mb-2">
+                @if (Model.Center != null)
+                {
+                    <div class="col-6"><strong>Lat:</strong> <code>@(Model.Center.Y.ToString("F5"))</code> </div>
+                    <div class="col-6"><strong>Lon:</strong> <code>@(Model.Center.X.ToString("F5"))</code></div>
+                }
+            </div>
             <!-- Action buttons -->
             <div class="mb-3">
                 <button type="button"
                         data-region-id="@Model.Id"
-                        class="btn btn-sm btn-outline-primary btn-edit-region me-1">
+                        class="btn btn-sm btn-outline-primary btn-edit-region me-1" title="Edit Region">
                     <i class="bi bi-pencil"></i> Edit
                 </button>
                 <button type="button"
                         data-region-id="@Model.Id"
-                        class="btn btn-sm btn-outline-danger btn-delete-region">
+                        class="btn btn-sm btn-outline-danger btn-delete-region" title="Delete Region">
                     <i class="bi bi-trash"></i> Delete
                 </button>
             </div>
@@ -58,8 +66,8 @@
                             <li class="place-list-item list-group-item d-flex  align-items-center"
                                 data-place-id="@place.Id"
                                 data-region-id="@Model.Id"
-                                data-place-lat="@(place.Location != null ? place.Location.Y.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"
-                                data-place-lon="@(place.Location != null ? place.Location.X.ToString(System.Globalization.CultureInfo.InvariantCulture) : null)"
+                                data-place-lat="@place.Location?.Y"
+                                data-place-lon="@place.Location?.X"
                                 data-place-icon="@place.IconName"
                                 data-place-color="@place.MarkerColor">
                                 <i class="bi bi-grip-vertical drag-handle me-1"></i>
@@ -69,6 +77,12 @@
                                     @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml", (place.IconName, place.MarkerColor))
                                     @place.Name
                                 </span>
+                                @if (place.Location != null)
+                                {
+                                    <span class="badge bg-light text-secondary fw-normal small">
+                                        @(place.Location.Y.ToString("F5")), @(place.Location.X.ToString("F5"))
+                                    </span>
+                                }
                                 <div class="btn-group btn-group-sm ms-auto">
                                     <button type="button"
                                             class="btn btn-outline-primary btn-edit-place"

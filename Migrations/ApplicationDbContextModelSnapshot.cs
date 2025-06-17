@@ -950,11 +950,13 @@ namespace Wayfarer.Migrations
                 {
                     b.HasOne("Wayfarer.Models.Place", "FromPlace")
                         .WithMany()
-                        .HasForeignKey("FromPlaceId");
+                        .HasForeignKey("FromPlaceId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("Wayfarer.Models.Place", "ToPlace")
                         .WithMany()
-                        .HasForeignKey("ToPlaceId");
+                        .HasForeignKey("ToPlaceId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("Wayfarer.Models.Trip", "Trip")
                         .WithMany("Segments")

@@ -1,106 +1,257 @@
 // mapManager.js
-import { addZoomLevelControl } from '../../../map-utils.js';
-import { clearMappingContext, setMappingContext  } from './mappingContext.js';
+import {
+    addZoomLevelControl,
+    latestLocationMarker            // little green pin for “centre here”
+} from '../../../map-utils.js';
 
-let mapContainer = null;
-let drawControl = null;
-let drawnLayerGroup = null;
-const placeMarkersById = {};
+import { setMappingContext, getMappingContext } from './mappingContext.js';
 
-export const disableDrawingTools = () => {
-    const map = getMapInstance();
-    if (!map || !drawControl) return;
+/* ------------------------------------------------------------------ *
+ *  Private state
+ * ------------------------------------------------------------------ */
+let mapContainer   = null;
+let drawControl    = null;
+let drawnLayerGroup= null;
+let selectedMarker = null;
 
-    try {
-        map.removeControl(drawControl);
-    } catch (e) {
-        console.warn('Draw control already removed or failed:', e);
-    }
+const placeMarkersById  = {};
+const regionMarkersById = {};
+const regionPreviewById = {};
 
-    drawControl = null;
+/* 25×41 is Leaflet’s reference pin size. 12×41 = bottom-centre tip. */
+const WF_WIDTH  = 28;
+const WF_HEIGHT = 45;
+const WF_ANCHOR = [14, 45];
 
-    if (drawnLayerGroup) {
-        drawnLayerGroup.clearLayers();
-    }
+export const getRegionMarkerById = (id) => regionMarkersById[id] || null;
+export const getPlaceMarkerById  = (id) => placeMarkersById[id]  || null;
+
+/* ------------------------------------------------------------------ *
+ *  Build PNG URL
+ * ------------------------------------------------------------------ */
+const buildPngIconUrl = (iconName, bgClass) =>
+    `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
+
+/* ------------------------------------------------------------------ *
+ *  applyCoordinates (unchanged)
+ * ------------------------------------------------------------------ */
+export const applyCoordinates = ({ lat, lon }) => {
+    const ctx = getMappingContext();
+    if (!ctx?.type || !ctx?.action) return;
+
+    const fill = (selector, fldLat, fldLon) => {
+        const form = document.querySelector(selector);
+        if (!form) return;
+
+        const latInp = form.querySelector(`input[name="${fldLat}"]`);
+        const lonInp = form.querySelector(`input[name="${fldLon}"]`);
+
+        if (latInp) {
+            latInp.value = lat;
+            const latDisp = form.querySelector(`input[name="${fldLat}_display"]`);
+            if (latDisp) latDisp.value = lat;
+        }
+
+        if (lonInp) {
+            lonInp.value = lon;
+            const lonDisp = form.querySelector(`input[name="${fldLon}_display"]`);
+            if (lonDisp) lonDisp.value = lon;
+        }
+    };
+
+    if (ctx.type === 'place' && ctx.action === 'set-location')
+        fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
+
+    if (ctx.type === 'region' && ctx.action === 'set-center')
+        fill(`#region-form-${ctx.id}`, 'CenterLat', 'CenterLon');
+
+    (window.wayfarer?.showAlert ?? window.showAlert ?? console.log)(
+        'info', `Location set: ${lat}, ${lon}`
+    );
 };
 
 
-/**
- * Renders a place marker on the map using icon name and color.
- * @param {object} place - The place object.
- *  Requires: Id, Latitude, Longitude, IconName, MarkerColor, Name, RegionId
- */
-export const renderPlaceMarker = (place) => {
-    if (!place?.Latitude || !place?.Longitude) return;
+/* ------------------------------------------------------------------ *
+ *  REGION  – render / remove
+ * ------------------------------------------------------------------ */
+export const renderRegionMarker = async ({ Id, CenterLat, CenterLon, Name }) => {
+    if (!CenterLat || !CenterLon) return;
+    const lat = +CenterLat, lon = +CenterLon;
+    if (isNaN(lat) || isNaN(lon)) return;
 
-    const lat = parseFloat(place.Latitude);
-    const lon = parseFloat(place.Longitude);
+    if (regionMarkersById[Id]) mapContainer.removeLayer(regionMarkersById[Id]);
 
-    // Remove existing if exists
-    if (placeMarkersById[place.Id]) {
-        map.removeLayer(placeMarkersById[place.Id]);
-    }
-
-    const iconUrl = `/icons/wayfarer-map-icons/dist/marker/${place.IconName || 'flag'}.svg`;
-
+    const iconUrl = buildPngIconUrl('map', 'bg-blue');
     const marker = L.marker([lat, lon], {
         icon: L.icon({
             iconUrl,
-            iconSize: [24, 24],
-            iconAnchor: [12, 24],
-            className: `map-icon ${place.MarkerColor || 'bg-soft-blue'} color-white`
+            iconSize: [WF_WIDTH, WF_HEIGHT],
+            iconAnchor: WF_ANCHOR,
+            className: 'map-icon'
         })
-    });
-    
-    marker.on('click', () => {
-        setMappingContext({
-            type: 'place',
-            id: place.Id,
-            action: 'set-location',
-            meta: { name: place.Name, regionId: place.RegionId }
-        });
-    });
-
-    marker.addTo(map);
-    placeMarkersById[place.Id] = marker;
-};
-
-export const removePlaceMarker = (placeId) => {
-    if (placeMarkersById[placeId]) {
-        map.removeLayer(placeMarkersById[placeId]);
-        delete placeMarkersById[placeId];
-    }
-};
-
-export const initializeMap = (initialCenter = [20, 0], zoomLevel = 3) => {
-    if (mapContainer) {
-        mapContainer.off();
-        mapContainer.remove();
-    }
-
-    const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-
-    mapContainer = L.map('mapContainer', {
-        zoomAnimation: true
-    }).setView(initialCenter, zoomLevel);
-
-    L.tileLayer(tilesUrl, {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
     }).addTo(mapContainer);
 
-    mapContainer.attributionControl.setPrefix('&copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
-    addZoomLevelControl(mapContainer);
-
-    window.addEventListener('resize', () => {
-        mapContainer.invalidateSize();
+    marker.on('click', () => {
+        selectedMarker?.getElement()?.classList.remove('selected-marker');
+        selectedMarker = marker;
+        selectMarker(marker);
+        setMappingContext({
+            type: 'region',
+            id: Id,
+            action: 'set-center',
+            meta: { name: Name || 'Unnamed Region' }
+        })
     });
 
+    regionMarkersById[Id] = marker;
+};
+
+export const removeRegionMarker = (id) => {
+    if (regionMarkersById[id]) {
+        mapContainer.removeLayer(regionMarkersById[id]);
+        delete regionMarkersById[id];
+    }
+};
+
+/* ------------------------------------------------------------------ *
+ *  PLACE – render / remove
+ * ------------------------------------------------------------------ */
+export const renderPlaceMarker = async (p) => {
+    if (!p?.Latitude || !p?.Longitude) return;
+    const lat = +p.Latitude, lon = +p.Longitude;
+    if (isNaN(lat) || isNaN(lon)) return;
+
+    if (placeMarkersById[p.Id]) mapContainer.removeLayer(placeMarkersById[p.Id]);
+
+    const iconUrl = buildPngIconUrl(p.IconName || 'marker', p.MarkerColor || 'bg-blue');
+    const marker = L.marker([lat, lon], {
+        icon: L.icon({
+            iconUrl,
+            iconSize: [WF_WIDTH, WF_HEIGHT],
+            iconAnchor: WF_ANCHOR,
+            className: 'map-icon'
+        })
+    }).addTo(mapContainer);
+
+    marker.on('click', () => {
+        selectedMarker?.getElement()?.classList.remove('selected-marker');
+        selectedMarker = marker;
+        selectMarker(marker);
+        setMappingContext({
+            type: 'place', id: p.Id, action: 'set-location',
+            meta: { name: p.Name, regionId: p.RegionId }
+        })
+    });
+
+    placeMarkersById[p.Id] = marker;
+};
+
+export const removePlaceMarker = (id) => {
+    if (placeMarkersById[id]) {
+        mapContainer.removeLayer(placeMarkersById[id]);
+        delete placeMarkersById[id];
+    }
+};
+
+/* ------------------------------------------------------------------ *
+ *  disableDrawingTools, initializeMap, getMapInstance – unchanged
+ * ------------------------------------------------------------------ */
+export const disableDrawingTools = () => {
+    if (!mapContainer || !drawControl) return;
+    try { mapContainer.removeControl(drawControl); } catch { }
+    drawControl = null;
+    drawnLayerGroup?.clearLayers();
+};
+
+export const initializeMap = (center = [20,0], zoom = 3) => {
+    if (mapContainer) { mapContainer.off(); mapContainer.remove(); }
+    mapContainer = L.map('mapContainer', { zoomAnimation:true }).setView(center, zoom);
+
+    L.tileLayer(`${location.origin}/Public/tiles/{z}/{x}/{y}.png`, {
+        maxZoom: 19, attribution: '© OpenStreetMap contributors'
+    }).addTo(mapContainer);
+
+    mapContainer.attributionControl.setPrefix(
+        '&copy; <a href="https://leafletjs.com/">Leaflet</a>'
+    );
+    addZoomLevelControl(mapContainer);
+
+    window.addEventListener('resize', () => mapContainer.invalidateSize());
+
     mapContainer.createPane('region-boundary');
-    mapContainer.getPane('region-boundary').style.zIndex = 250; // below markers
-    mapContainer.getPane('region-boundary').style.pointerEvents = 'auto'; // allow clicks to pass through
-    
+    Object.assign(mapContainer.getPane('region-boundary').style, {
+        zIndex:250, pointerEvents:'auto'
+    });
+
     return mapContainer;
 };
+
+export const clearSelectedMarker = () => {
+    if (!selectedMarker) return;
+
+    const el = selectedMarker.getElement?.();
+    if (el) {
+        el.classList.remove('selected-marker');
+        el.style.removeProperty('--selected-shadow-color');
+    }
+
+    selectedMarker = null;
+};
+
+// export const selectMarker = (marker) => {
+//     clearSelectedMarker();
+//     const el = marker.getElement?.();
+//     if (el) {
+//         el.classList.add('selected-marker');
+//     } else {
+//         requestAnimationFrame(() => selectMarker(marker)); // retry next frame
+//         return;
+//     }
+//     selectedMarker = marker;
+// };
+
+export const selectMarker = (marker) => {
+    clearSelectedMarker();
+
+    const el = marker.getElement?.();
+    if (!el || !(el instanceof HTMLImageElement)) {
+        requestAnimationFrame(() => selectMarker(marker));
+        return;
+    }
+
+    // ✅ Extract bg-* from the image src URL (e.g. ".../bg-purple/star.png")
+    const src = el.getAttribute('src') || '';
+    const match = src.match(/\/(bg-[a-z]+)\//i);
+    const bgClass = match?.[1] || 'bg-blue';
+
+    const colorMap = {
+        'bg-black':  '#000000',
+        'bg-purple': '#6f42c1',
+        'bg-blue':   '#0d6efd',
+        'bg-green':  '#198754',
+        'bg-red':    '#dc3545',
+    };
+
+    const color = colorMap[bgClass] || '#0d6efd';
+    el.style.setProperty('--selected-shadow-color', color);
+
+    el.classList.add('selected-marker');
+    selectedMarker = marker;
+};
+
+document.addEventListener('mapping-context-cleared', () => {
+    // Remove region previews
+    Object.values(regionPreviewById).forEach(m => mapContainer?.removeLayer(m));
+    Object.keys(regionPreviewById).forEach(k => delete regionPreviewById[k]);
+
+    // 🧼 Also remove selected marker from map
+    try {
+        clearSelectedMarker?.();
+    } catch (err) {
+        console.warn('⚠️ Failed to clear selected marker from mapManager', err);
+    }
+});
+
+
 
 export const getMapInstance = () => mapContainer;

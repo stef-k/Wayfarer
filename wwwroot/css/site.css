@@ -558,7 +558,7 @@ thead th {
 }
 
 #mapping-context-banner {
-    min-height: 40px; /* or whatever your typical height is */
+    min-height: 40px; 
     transition: opacity 0.2s ease-in-out;
     opacity: 0;
     visibility: hidden;
@@ -574,6 +574,41 @@ thead th {
 }
 [data-bs-theme="dark"] #btn-clear-context {
     filter: invert(1); /* make it white */
+}
+
+/* Preview icon inside place form dropdown toggle */
+.selected-icon-label img.map-icon {
+    height: 41px;
+    width: 24px;
+    vertical-align: middle;
+    margin-right: 0.5em;
+}
+
+/* Preview dot for MarkerColor dropdown */
+.color-selector .color-preview {
+    height: 24px;
+    width: 24px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.5em;
+}
+
+/* Optional: vertically center the button content */
+.color-selector,
+.selected-icon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+}
+.color-selector.btn-sm {
+    height: 51px;                   /* Match icon dropdown box height */
+    padding: 0.25rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    line-height: 1.2;
+    box-sizing: border-box;
 }
 
 .marker-circle {
@@ -601,3 +636,24 @@ thead th {
 
 .sortable-chosen  { transition: background-color .2s; background-color: var(--bs-warning-bg-subtle, #fff3cd); }
 .sortable-ghost   { opacity: 0.4; }
+
+.map, #map, #mapContainer, .mapContainer {
+    cursor: default;
+}
+.wf-pin{
+    display:inline-block;
+    width:40px;height:40px;
+}
+
+/* TRIP PLANNING MARKER IN FOCUS, POSSIBLY TO BRAKE TIMELINE MARKERS */
+.map-icon {
+    --selected-shadow-color: #0d6efd; /* bootstrap blue fallback */
+}
+.map-icon.selected-marker {
+    filter:
+            drop-shadow(0 0 3px var(--selected-shadow-color, #0d6efd))
+            drop-shadow(0 0 1px var(--selected-shadow-color, #0d6efd));
+    transition: filter 0.3s ease;
+}
+
+

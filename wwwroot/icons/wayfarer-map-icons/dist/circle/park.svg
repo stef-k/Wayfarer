@@ -1,14 +1,16 @@
 <svg xmlns='http://www.w3.org/2000/svg'
-             viewBox='-1 -1 26 26' class='map-icon'>
-  <!-- coloured outer ring -->
-  <circle cx='12' cy='12' r='11'
-          class='map-icon-bg-outline' fill='none' stroke-width='3'/>
-  <!-- solid background disc -->
-  <circle cx='12' cy='12' r='11' class='map-icon-bg'/>
-  <!-- thin white keyline -->
-  <circle cx='12' cy='12' r='10'
-          fill='none' stroke='white' stroke-width='1.5'/>
-  <g class="map-icon-glyph" fill="currentColor" transform='translate(4.800000000000001 19.2) scale(0.015)'>
+             viewBox='-1 -1 26 35.5' class='map-icon' width='28' height='45'>
+  <g transform='translate(0,9.5)'>
+    <!-- coloured outer ring -->
+    <circle cx='12' cy='12' r='11'
+            class='map-icon-bg-outline' fill='none' stroke-width='3'/>
+    <!-- solid background disc -->
+    <circle cx='12' cy='12' r='11' class='map-icon-bg'/>
+    <!-- thin white keyline -->
+    <circle cx='12' cy='12' r='10'
+            fill='none' stroke='white' stroke-width='1.5'/>
+    <g class="map-icon-glyph" fill="currentColor" transform='translate(4.800000000000001 19.2) scale(0.015)'>
     <path d="M558-80H402v-160H120l160-240h-80l280-400 280 400h-80l160 240H558v160ZM270-320h160-76 252-76 160-420Zm0 0h420L530-560h76L480-740 354-560h76L270-320Z"/>
+  </g>
   </g>
 </svg>

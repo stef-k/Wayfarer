@@ -22,8 +22,10 @@
     <input type="hidden" asp-for="Id" />
     <input type="hidden" asp-for="TripId" />
     <input type="hidden" asp-for="UserId" />
+    <input type="hidden" name="CenterLat"  value="@Model.Center?.Y" />
+    <input type="hidden" name="CenterLon"  value="@Model.Center?.X" />
     
-    <h5>New Region</h5>
+    <h5>Region</h5>
 
     <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
 
@@ -31,6 +33,21 @@
         <label asp-for="Name" class="form-label"></label>
         <input asp-for="Name" class="form-control" />
         <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    
+    <div class="row g-2 mb-2 small text-muted">
+        <div class="col">
+            <label class="form-label mb-0">Center Lat</label>
+            <input type="text" class="form-control-plaintext ps-0" readonly
+                   name="CenterLat_display"
+                   value="@Model.Center?.Y.ToString("F6")" />
+        </div>
+        <div class="col">
+            <label class="form-label mb-0">Center Lon</label>
+            <input type="text" class="form-control-plaintext ps-0" readonly
+                   name="CenterLon_display"
+                   value="@Model.Center?.X.ToString("F6")" />
+        </div>
     </div>
     
     <div class="d-flex justify-content-end mt-2 gap-2">

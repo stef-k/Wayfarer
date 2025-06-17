@@ -1,8 +1,13 @@
 // placeHandlers.js
 // Handles create/edit/delete of places within a region
-import {setMappingContext, getMappingContext, clearMappingContext} from './mappingContext.js';
-import { renderPlaceMarker, removePlaceMarker  } from './mapManager.js';
-import {populateIconDropdown, populateColorDropdown, updateDropdownIconColors} from './uiCore.js';
+import { setMappingContext, getMappingContext, clearMappingContext } from './mappingContext.js';
+import {
+    renderPlaceMarker,
+    removePlaceMarker,
+    getMapInstance,
+    getPlaceMarkerById, clearSelectedMarker, selectMarker
+} from './mapManager.js';
+import { populateIconDropdown, populateColorDropdown, updateDropdownIconColors } from './uiCore.js';
 
 export const initPlaceHandlers = () => {
     attachPlaceFormHandlers();
@@ -16,144 +21,182 @@ export const enhancePlaceForm = async (formEl) => {
         console.warn('⚠️ No icon menu found in form');
     }
 
-    const colorMenu = formEl.querySelector('.color-dropdown-menu');
-    if (colorMenu) {
-        await populateColorDropdown(formEl);
-    } else {
-        console.warn('⚠️ No color menu found in form');
-    }
+    await populateColorDropdown(formEl);
 
-    const hiddenColorInput = formEl.querySelector('input[name="MarkerColor"]');
-    const currentColor = hiddenColorInput?.value || 'bg-blue';
-
-    // Apply preview + recolor icons now
+    // ✅ Keep dropdown previews in sync
+    const currentColor = formEl.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
     updateDropdownIconColors(formEl, currentColor);
-
 };
 
 
 const attachPlaceFormHandlers = () => {
+    /* ---------- cancel ---------- */
     document.querySelectorAll('.btn-place-cancel').forEach(btn => {
         btn.onclick = async () => {
-            const placeId = btn.dataset.placeId;
+            const placeId  = btn.dataset.placeId;
             const regionId = btn.dataset.regionId;
-
             if (!placeId) return;
 
             const regionEl = document.getElementById(`region-item-${regionId}`);
             const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
             regionEl.outerHTML = await resp.text();
 
-            const event = new CustomEvent('region-dom-reloaded', { detail: { regionId } });
-            document.dispatchEvent(event);
+            document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
             removePlaceMarker(placeId);
             clearMappingContext();
         };
     });
 
+    /* ---------- save ---------- */
     document.querySelectorAll('.btn-place-save').forEach(btn => {
         btn.onclick = async () => {
-            const placeId = btn.dataset.placeId;
+            const placeId  = btn.dataset.placeId;
             const regionId = btn.dataset.regionId;
-            const formEl = document.getElementById(`place-form-${placeId}`);
-            const fd = new FormData(formEl);
-            const token = fd.get('__RequestVerificationToken');   // Razor adds this
+            const formEl   = document.getElementById(`place-form-${placeId}`);
+
+            const fd    = new FormData(formEl);
+            const token = fd.get('__RequestVerificationToken');
 
             const resp = await fetch('/User/Places/CreateOrUpdate', {
-                method: 'POST',
-                body: fd,
-                credentials: 'same-origin',              // send the anti-forgery cookie
-                headers: token ? {                       // add header only if we have one
-                    RequestVerificationToken: token      // official ASP.NET Core header name
-                } : {}
+                method:      'POST',
+                body:        fd,
+                credentials: 'same-origin',
+                headers:     token ? { RequestVerificationToken: token } : {}
             });
 
-            const html = await resp.text();
-            const wrapper = formEl.closest('form');
-
+            const html    = await resp.text();
+            const wrapper = formEl.closest('.accordion-item');
             if (resp.ok) {
-                const regionEl = document.getElementById(`region-item-${regionId}`);
-                regionEl.outerHTML = html;
+                wrapper.outerHTML = html;
+                attachPlaceFormHandlers();
 
-                const event = new CustomEvent('region-dom-reloaded', { detail: { regionId } });
-                document.dispatchEvent(event);
-                regionEl.querySelectorAll('form[id^="place-form-"]').forEach(await enhancePlaceForm);
-
+                // Re-render marker for the *currently active* place, if any
                 const context = getMappingContext();
                 if (context?.type === 'place' && context.id === placeId) {
-                    const el = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
-                    if (el) {
-                        const lat = el.dataset.placeLat;
-                        const lon = el.dataset.placeLon;
-                        const icon = el.dataset.placeIcon;
-                        const color = el.dataset.placeColor;
+                    const el    = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+                    const lat   = el?.dataset.placeLat;
+                    const lon   = el?.dataset.placeLon;
+                    const icon  = el?.dataset.placeIcon;
+                    const color = el?.dataset.placeColor;
 
-                        if (lat && lon) {
-                            const name = el.querySelector('.place-name')?.innerText || 'Unnamed';
-                            renderPlaceMarker?.({
-                                Id: placeId,
-                                Name: name,
-                                Latitude: lat,
-                                Longitude: lon,
-                                IconName: icon,
-                                MarkerColor: color,
-                                RegionId: regionId
-                            });
-                        }
+                    if (lat && lon) {
+                        const name = el.querySelector('.place-name')?.innerText || 'Unnamed';
+                        renderPlaceMarker?.({
+                            Id:           placeId,
+                            Name:         name,
+                            Latitude:     lat,
+                            Longitude:    lon,
+                            IconName:     icon,
+                            MarkerColor:  color,
+                            RegionId:     regionId
+                        });
                     }
                 }
             } else {
                 wrapper.outerHTML = html;
                 attachPlaceFormHandlers();
 
-                const dom = new DOMParser().parseFromString(html, 'text/html');
-                const errorsBlock = dom.querySelector('.place-form-errors ul');
-                if (errorsBlock) {
-                    const errors = Array.from(errorsBlock.querySelectorAll('li')).map(li => li.textContent.trim());
-                    showAlert('danger', errors.join('\n'));
-                }
+                const dom          = new DOMParser().parseFromString(html, 'text/html');
+                const errorsBlock  = dom.querySelector('.place-form-errors ul');
+                const errors       = [...errorsBlock?.querySelectorAll('li') || []].map(li => li.textContent.trim());
+                showAlert('danger', errors.join('\n'));
             }
         };
     });
 
+    /* ---------- place list (select) ---------- */
     document.querySelectorAll('.place-list-item').forEach(li => {
-        li.addEventListener('click', () => {
-            const placeId = li.dataset.placeId;
+        li.onclick = () => {
+            const placeId  = li.dataset.placeId;
             const regionId = li.dataset.regionId;
             if (!placeId || !regionId) return;
 
-            document.querySelectorAll('.place-list-item').forEach(el =>
-                el.classList.remove('bg-warning-subtle')
-            );
-            document.querySelectorAll('.accordion-item').forEach(el =>
-                el.classList.remove('bg-info-subtle', 'bg-info-soft')
-            );
+            const lat   = li.dataset.placeLat;
+            const lon   = li.dataset.placeLon;
+            const icon  = li.dataset.placeIcon;
+            const color = li.dataset.placeColor;
+            const name  = li.querySelector('.place-name')?.innerText || 'Unnamed';
 
-            li.classList.add('bg-warning-subtle');
-            const regionEl = document.getElementById(`region-item-${regionId}`);
-            regionEl?.classList.add('bg-info-soft');
-
-            const name = li.querySelector('.place-name')?.innerText || 'Unnamed Place';
+            document.querySelectorAll('.place-list-item').forEach(i =>
+                i.classList.remove('bg-info-subtle', 'bg-info-soft')
+            );
+            li.classList.add('bg-info-subtle');
 
             setMappingContext({
-                type: 'place',
-                id: placeId,
+                type:   'place',
+                id:     placeId,
                 action: 'set-location',
-                meta: { name, regionId }
+                meta:   { name, regionId }
             });
-        });
+
+            if (lat && lon) {
+                renderPlaceMarker?.({
+                    Id:           placeId,
+                    Name:         name,
+                    Latitude:     lat,
+                    Longitude:    lon,
+                    IconName:     icon,
+                    MarkerColor:  color,
+                    RegionId:     regionId
+                });
+                const map = getMapInstance();
+                if (map) map.setView([lat, lon], Math.max(map.getZoom(), 10));
+                clearSelectedMarker();
+                const marker = getPlaceMarkerById(placeId);
+                if (marker) selectMarker(marker);
+            }
+        };
+    });
+
+    /* ---------- delete ---------- */
+    document.querySelectorAll('.btn-delete-place').forEach(btn => {
+        btn.onclick = () => {
+            const { placeId, regionId } = btn.dataset;
+            if (!placeId) return;
+
+            showConfirmationModal({
+                title:       'Delete place?',
+                message:     'This action cannot be undone.',
+                confirmText: 'Delete',
+                onConfirm: async () => {
+                    const fd = new FormData();
+                    fd.set('__RequestVerificationToken',
+                        document.querySelector('input[name="__RequestVerificationToken"]').value);
+
+                    const resp = await fetch(`/User/Places/Delete/${placeId}`, {
+                        method:  'POST',
+                        body:    fd,
+                        headers: { RequestVerificationToken: fd.get('__RequestVerificationToken') }
+                    });
+
+                    if (resp.ok) {
+                        const regionEl = document.getElementById(`region-item-${regionId}`);
+                        const html     = await resp.text();
+                        regionEl.outerHTML = html;
+                        document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
+                        removePlaceMarker(placeId);
+                        clearMappingContext();
+                    } else {
+                        showAlert('danger', 'Failed to delete place.');
+                    }
+                }
+            });
+        };
     });
 };
 
-document.addEventListener('region-dom-reloaded', (e) => {
+/* ------------------------------------------------------------------ */
+/*  When the region container is re-rendered, re-bind its new DOM      */
+/* ------------------------------------------------------------------ */
+document.addEventListener('region-dom-reloaded', e => {
     (async () => {
-        const regionId = e.detail.regionId;
-        const regionEl = document.getElementById(`region-item-${regionId}`);
-        if (!regionEl) return;
+        const { regionId }   = e.detail;
+        const regionEl       = document.getElementById(`region-item-${regionId}`);
 
-        const forms = regionEl.querySelectorAll('form[id^="place-form-"]');
-        for (const form of forms) {
-            await enhancePlaceForm(form);
-        }
+        // Auto-expand the accordion panel that just changed
+        regionEl?.querySelector('.accordion-button')?.classList.remove('collapsed');
+        regionEl?.querySelector('.accordion-collapse')?.classList.add('show');
+
+        attachPlaceFormHandlers();
     })();
 });

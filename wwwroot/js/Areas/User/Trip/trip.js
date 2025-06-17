@@ -1,12 +1,12 @@
 // trip.js – modular entry point for trip editing
-import { rebindMainButtons } from './uiCore.js';
-import { initializeMap, disableDrawingTools, getMapInstance, renderPlaceMarker } from './mapManager.js';
-import { initRegionHandlers } from './regionHandlers.js';
-import { initPlaceHandlers } from './placeHandlers.js';
-import { initSegmentHandlers, loadSegmentCreateForm } from './segmentHandlers.js';
-import { setupQuill } from './quillNotes.js';
-import { clearMappingContext, setMappingContext, getMappingContext } from './mappingContext.js';
-import { initOrdering } from './regionsOrder.js';
+import {rebindMainButtons} from './uiCore.js';
+import {initializeMap, disableDrawingTools, getMapInstance, renderPlaceMarker, applyCoordinates, renderRegionMarker } from './mapManager.js';
+import {initRegionHandlers} from './regionHandlers.js';
+import {initPlaceHandlers} from './placeHandlers.js';
+import {initSegmentHandlers, loadSegmentCreateForm} from './segmentHandlers.js';
+import {setupQuill} from './quillNotes.js';
+import {clearMappingContext, setMappingContext, getMappingContext} from './mappingContext.js';
+import {initOrdering} from './regionsOrder.js';
 
 let activeDrawingRegionId = null;
 let currentTripId = null;
@@ -26,32 +26,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const map = initializeMap(center, zoomLevel);
 
-    map.on('click', (e) => {
-        const context = getMappingContext();
-        if (context.type === 'place' && context.action === 'set-location') {
-            const lat = e.latlng.lat.toFixed(6);
-            const lon = e.latlng.lng.toFixed(6);
-
-            const form = document.querySelector(`#place-form-${context.id}`);
-            if (!form) return;
-
-            const latInput = form.querySelector('input[name="Latitude"]');
-            const lonInput = form.querySelector('input[name="Longitude"]');
-
-            if (latInput && lonInput) {
-                latInput.value = lat;
-                lonInput.value = lon;
-            }
-
-            showAlert('info', `Location set: ${lat}, ${lon}`);
-        }
-
-    });
+    map.on('click', ({latlng}) =>
+        applyCoordinates({
+            lat: latlng.lat.toFixed(6),
+            lon: latlng.lng.toFixed(6)
+        })
+    );
 
     initOrdering();
     document.addEventListener('region-dom-reloaded', initOrdering);
     document.addEventListener('mapping-context-cleared', initOrdering);
-    
+
     rebindMainButtons();
     initRegionHandlers(currentTripId);
     initPlaceHandlers();
@@ -62,24 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
         loadSegmentCreateForm(currentTripId);
     });
 
-    document.querySelectorAll('.place-list-item').forEach(el => {
-        const data = el.dataset;
-        if (data.placeLat && data.placeLon) {
-            renderPlaceMarker({
-                Id: data.placeId,
-                Name: el.querySelector('span')?.textContent || '',
-                Latitude: data.placeLat,
-                Longitude: data.placeLon,
-                IconName: data.placeIcon,
-                MarkerColor: data.placeColor,
-                RegionId: data.regionId
-            });
-        }
-    });
+    loadPersistedMarkers();
 });
 
 document.addEventListener('mapping-context-changed', (e) => {
-    const { type, meta, id, action } = e.detail;
+    const {type, meta, id, action} = e.detail;
     const banner = document.getElementById('mapping-context-banner');
     const label = document.getElementById('mapping-context-text');
 
@@ -132,7 +104,7 @@ document.addEventListener('mapping-context-changed', (e) => {
     }
 
     if (type === 'region') {
-        document.getElementById(`region-item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById(`region-item-${id}`)?.scrollIntoView({behavior: 'smooth', block: 'start'});
     } else if (type === 'place') {
         document.querySelector(`.place-list-item[data-place-id="${id}"]`)?.scrollIntoView({
             behavior: 'smooth', block: 'nearest'
@@ -186,6 +158,7 @@ document.addEventListener('region-dom-reloaded', () => {
     if (!currentTripId) return;
     initRegionHandlers(currentTripId);
     initPlaceHandlers();
+    loadPersistedMarkers();
 });
 
 document.getElementById('btn-clear-context')?.addEventListener('click', () => {
@@ -193,7 +166,7 @@ document.getElementById('btn-clear-context')?.addEventListener('click', () => {
 });
 
 document.addEventListener('place-context-selected', (e) => {
-    const { placeId, regionId, name } = e.detail;
+    const {placeId, regionId, name} = e.detail;
 
     document.querySelectorAll('.place-list-item').forEach(item =>
         item.classList.remove('bg-warning-subtle')
@@ -206,6 +179,39 @@ document.addEventListener('place-context-selected', (e) => {
         type: 'place',
         id: placeId,
         action: 'set-location',
-        meta: { name, regionId }
+        meta: {name, regionId}
     });
 });
+
+const loadPersistedMarkers = () => {
+    document.querySelectorAll('.place-list-item').forEach(el => {
+        const d = el.dataset;
+        if (d.placeLat && d.placeLon) {
+            renderPlaceMarker({
+                Id:          d.placeId,
+                Name:        el.querySelector('.place-name')?.textContent || '',
+                Latitude:    d.placeLat,
+                Longitude:   d.placeLon,
+                IconName:    d.placeIcon,
+                MarkerColor: d.placeColor,
+                RegionId:    d.regionId
+            });
+        }
+    });
+    /* ---------- regions ---------- */
+    document.querySelectorAll('#regions-accordion .accordion-item')
+        .forEach(item => {
+            const lat  = item.dataset.centerLat;
+            const lon  = item.dataset.centerLon;
+            const id   = item.id?.replace('region-item-', '');
+            const name = item.dataset.regionName || 'Unnamed Region';
+            if (id && lat && lon) {
+                renderRegionMarker({
+                    Id: id,
+                    CenterLat: lat,
+                    CenterLon: lon,
+                    Name: name
+                });
+            }
+        });
+};

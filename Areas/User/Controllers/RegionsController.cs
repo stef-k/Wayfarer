@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 
@@ -57,6 +58,14 @@ namespace Wayfarer.Areas.User.Controllers
             ModelState.Remove(nameof(model.UserId));
             ModelState.Remove(nameof(model.Trip));
 
+            if (Request.Form.TryGetValue("CenterLat", out var latStr) &&
+                Request.Form.TryGetValue("CenterLon", out var lonStr) &&
+                double.TryParse(latStr, out var lat) &&
+                double.TryParse(lonStr, out var lon))
+            {
+                model.Center = new Point(lon, lat) { SRID = 4326 };
+            }
+            
             if (!ModelState.IsValid)
                 return PartialView("~/Areas/User/Views/Trip/Partials/_RegionFormPartial.cshtml", model);
 

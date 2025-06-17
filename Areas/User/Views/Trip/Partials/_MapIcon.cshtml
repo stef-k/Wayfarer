@@ -1,24 +1,9 @@
-@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
 @model (string Icon, string Colour)
 
 @{
-    /* pick values or fall back */
-    var icon   = string.IsNullOrWhiteSpace(Model.Icon)   ? "marker"
-        : Model.Icon.Trim().ToLowerInvariant();
-    var colour = string.IsNullOrWhiteSpace(Model.Colour) ? "bg-blue"
-        : Model.Colour.Trim();
-
-    /* build the absolute file path */
-    var path = System.IO.Path.Combine(Env.WebRootPath,          // <-- fully-qualified
-        "icons", "wayfarer-map-icons", "dist",
-        "marker", $"{icon}.svg");
-
-    /* read the SVG (one-liner; add caching later if you like) */
-    var svg  = System.IO.File.ReadAllText(path);
-
-    /* inject utility classes so CSS can tint it */
-    svg = svg.Replace("<svg",
-        $"<svg class=\"map-icon color-white me-1 {colour}\" width=\"20\" height=\"20\"");
+    var icon = string.IsNullOrWhiteSpace(Model.Icon) ? "marker" : Model.Icon.Trim().ToLowerInvariant();
+    var colour = string.IsNullOrWhiteSpace(Model.Colour) ? "bg-blue" : Model.Colour.Trim();
+    var imgPath = $"/icons/wayfarer-map-icons/dist/png/marker/{colour}/{icon}.png";
 }
 
-@Html.Raw(svg)
+<img src="@imgPath" class="map-icon me-1" width="24" height="41" alt="@icon" />
