@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Security.Claims;
 using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
@@ -43,24 +44,23 @@ public class PlacesController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         model.UserId = userId;
 
-        // ✅ Always pull lat/lon first
+        // Parse coordinates from form using invariant culture
         double? lat = null, lon = null;
-        if (Request.Form.TryGetValue("Latitude",  out var latStr) &&
+        if (Request.Form.TryGetValue("Latitude", out var latStr) &&
             Request.Form.TryGetValue("Longitude", out var lonStr) &&
-            double.TryParse(latStr,  NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedLat) &&
+            double.TryParse(latStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedLat) &&
             double.TryParse(lonStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedLon))
         {
             lat = parsedLat;
             lon = parsedLon;
         }
 
-        // Skip modelstate entirely
         var existing = await _dbContext.Places
             .FirstOrDefaultAsync(p => p.Id == model.Id && p.UserId == userId);
 
         if (existing != null)
         {
-            // Replace scalar fields
+            // Update scalar fields
             existing.Name = model.Name;
             existing.Notes = model.Notes;
             existing.IconName = model.IconName;
@@ -68,25 +68,18 @@ public class PlacesController : BaseController
             existing.DisplayOrder = model.DisplayOrder;
             existing.Address = model.Address;
 
-            // Replace geometry completely with new object
+            // Update geometry if provided
             if (lat.HasValue && lon.HasValue)
             {
                 existing.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };
-
-                // Add: explicitly mark spatial property as modified
-                _dbContext.Entry(existing)
-                    .Property(p => p.Location)
-                    .IsModified = true;
+                _dbContext.Entry(existing).Property(p => p.Location).IsModified = true;
             }
         }
         else
         {
             if (lat.HasValue && lon.HasValue)
             {
-                model.Location = new NetTopologySuite.Geometries.Point(lon.Value, lat.Value)
-                {
-                    SRID = 4326
-                };
+                model.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };
             }
 
             _dbContext.Places.Add(model);

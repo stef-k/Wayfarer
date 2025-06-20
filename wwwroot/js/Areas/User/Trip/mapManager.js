@@ -56,52 +56,50 @@ export const applyCoordinates = ({ lat, lon }) => {
             if (lonDisp) lonDisp.value = lon;
         }
 
-        // Remove previous temp marker if exists
-        if (previewMarker) {
-            mapContainer?.removeLayer(previewMarker);
-            previewMarker = null;
-        }
-
-        // Show marker only in place context
         if (ctx.type === 'place') {
             const iconInput = form.querySelector('input[name="IconName"]');
             const colorInput = form.querySelector('input[name="MarkerColor"]');
 
             const icon = iconInput?.value || 'marker';
             const color = colorInput?.value || 'bg-blue';
-
             const iconUrl = buildPngIconUrl(icon, color);
 
-            previewMarker = L.marker([lat, lon], {
-                icon: L.icon({
-                    iconUrl,
-                    iconSize: [WF_WIDTH, WF_HEIGHT],
-                    iconAnchor: WF_ANCHOR,
-                    className: 'map-icon'
-                })
-            }).addTo(mapContainer);
+            // Try to reuse previously rendered marker if it exists
+            const existing = placeMarkersById[ctx.id];
+            if (existing) {
+                existing.setLatLng([lat, lon]);
+                previewMarker = existing;
+            } else if (previewMarker) {
+                previewMarker.setLatLng([lat, lon]);
+            } else {
+                previewMarker = L.marker([lat, lon], {
+                    icon: L.icon({
+                        iconUrl,
+                        iconSize: [WF_WIDTH, WF_HEIGHT],
+                        iconAnchor: WF_ANCHOR,
+                        className: 'map-icon'
+                    })
+                }).addTo(mapContainer);
+            }
 
             selectMarker(previewMarker);
         }
     };
 
-    if (ctx.type === 'place' && ctx.action === 'set-location') {
+    if (ctx.type === 'place' && ['set-location', 'edit', 'create'].includes(ctx.action)) {
         const formEl = document.querySelector(`#place-form-${ctx.id}`);
-        if (!formEl) {
-            console.warn(`⚠️ Cannot find form #place-form-${ctx.id} to apply coordinates`);
-            return;
-        }
-
+        if (!formEl) return console.warn(`⚠️ Cannot find form #place-form-${ctx.id}`);
         fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
     }
-    if (ctx.type === 'region' && ctx.action === 'set-center')
+
+    if (ctx.type === 'region' && ctx.action === 'set-center') {
         fill(`#region-form-${ctx.id}`, 'CenterLat', 'CenterLon');
+    }
 
     const coordsEl = document.getElementById('context-coords');
     if (coordsEl) {
         const latNum = parseFloat(lat);
         const lonNum = parseFloat(lon);
-
         if (!isNaN(latNum) && !isNaN(lonNum)) {
             coordsEl.innerHTML = `Coordinates (Lat, Lon): <code class="user-select-all">${latNum.toFixed(5)}, ${lonNum.toFixed(5)}</code>`;
             coordsEl.classList.remove('d-none');
