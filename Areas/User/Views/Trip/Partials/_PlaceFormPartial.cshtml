@@ -74,13 +74,13 @@
                 <label class="form-label mb-0">Lat</label>
                 <input type="text" class="form-control-plaintext ps-0" readonly
                        name="Latitude_display"
-                       value="@(Model.Location?.Y.ToString("F6") ?? "")" />
+                       value="@(Model.Location?.Y.ToString("F6", CultureInfo.InvariantCulture) ?? "")" />
             </div>
             <div class="col">
                 <label class="form-label mb-0">Lon</label>
                 <input type="text" class="form-control-plaintext ps-0" readonly
                        name="Longitude_display"
-                       value="@(Model.Location?.X.ToString("F6") ?? "")" />
+                       value="@(Model.Location?.X.ToString("F6", CultureInfo.InvariantCulture) ?? "")" />
             </div>
         </div>
 

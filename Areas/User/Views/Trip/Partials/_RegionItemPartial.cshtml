@@ -1,7 +1,10 @@
+@using System.Globalization
 @model Wayfarer.Models.Region
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
-<div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id" data-region-name="@Model.Name" data-center-lat="@Model.Center?.Y" data-center-lon="@Model.Center?.X">
+<div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id" 
+     data-region-name="@Model.Name" data-center-lat="@Model.Center?.Y.ToString(CultureInfo.InvariantCulture)" 
+     data-center-lon="@Model.Center?.X.ToString(CultureInfo.InvariantCulture)">
     <h2 class="accordion-header region-header" id="heading-@Model.Id">
         <div class="d-flex justify-content-between align-items-center w-100">
             <i class="bi bi-grip-vertical drag-handle me-1"></i>
@@ -39,8 +42,8 @@
             <div class="row text-muted mb-2">
                 @if (Model.Center != null)
                 {
-                    <div class="col-6"><strong>Lat:</strong> <code>@(Model.Center.Y.ToString("F5"))</code> </div>
-                    <div class="col-6"><strong>Lon:</strong> <code>@(Model.Center.X.ToString("F5"))</code></div>
+                    <div class="col-6"><strong>Lat:</strong> <code>@(Model.Center.Y.ToString("F5", CultureInfo.InvariantCulture))</code> </div>
+                    <div class="col-6"><strong>Lon:</strong> <code>@(Model.Center.X.ToString("F5", CultureInfo.InvariantCulture))</code></div>
                 }
             </div>
             <!-- Action buttons -->
@@ -82,7 +85,7 @@
                                 @if (place.Location != null)
                                 {
                                     <span class="badge bg-light text-secondary fw-normal small">
-                                        @(place.Location.Y.ToString("F5")), @(place.Location.X.ToString("F5"))
+                                        @(place.Location.Y.ToString("F5", CultureInfo.InvariantCulture)), @(place.Location.X.ToString("F5", CultureInfo.InvariantCulture))
                                     </span>
                                 }
                                 <div class="btn-group btn-group-sm ms-auto">
