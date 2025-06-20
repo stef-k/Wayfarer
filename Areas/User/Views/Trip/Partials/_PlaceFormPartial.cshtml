@@ -1,3 +1,4 @@
+@using System.Globalization
 @model Wayfarer.Models.Place
 
 <form id="place-form-@Model.Id">
@@ -5,8 +6,11 @@
     <div class="px-2 py-1">
         <input type="hidden" asp-for="Id"/>
         <input type="hidden" asp-for="RegionId"/>
-        <input type="hidden" name="Latitude"  value="@Model.Location?.Y" />
-        <input type="hidden" name="Longitude" value="@Model.Location?.X" />
+        <input type="hidden" name="Latitude"
+               value="@Model.Location?.Y.ToString(CultureInfo.InvariantCulture)" />
+        <input type="hidden" name="Longitude"
+               value="@Model.Location?.X.ToString(CultureInfo.InvariantCulture)" />
+
 
         <h5>New Place</h5>
 
