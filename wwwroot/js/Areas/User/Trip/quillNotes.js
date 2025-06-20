@@ -1,14 +1,12 @@
 // quillNotes.js
-// Initializes the Quill editor and syncs its content with the hidden input
+// Initializes the Quill editor and syncs its cleaned content with the hidden Notes input
 
 export const setupQuill = () => {
     const quill = new Quill('#notes', {
         theme: 'snow',
         placeholder: 'Add your notes...',
         modules: {
-            clipboard: {
-                matchVisual: false
-            },
+            clipboard: { matchVisual: false },
             toolbar: [
                 [{ header: [1, 2, 3, 4, 5, 6, false] }],
                 ['bold', 'italic', 'underline'],
@@ -20,26 +18,34 @@ export const setupQuill = () => {
         }
     });
 
-    // Remove base64 images if pasted
-    quill.on("text-change", () => {
-        const editor = document.querySelector(".ql-editor");
-        const images = editor.querySelectorAll("img");
+    // Helper: normalize Quill output
+    const getCleanedHtml = () => {
+        const html = quill.root.innerHTML.trim();
+        return html === '<p><br></p>' ? '' : html;
+    };
+
+    // Remove base64 images if pasted, and sync Notes
+    quill.on('text-change', () => {
+        const editor = document.querySelector('.ql-editor');
+        const images = editor.querySelectorAll('img');
         images.forEach(img => {
-            if (img.src.startsWith("data:image")) img.remove();
+            if (img.src.startsWith('data:image')) img.remove();
         });
+
+        const hiddenInput = document.getElementById('Notes');
+        if (hiddenInput) hiddenInput.value = getCleanedHtml();
     });
 
-    // Custom clear button
+    // Custom clear button in toolbar
     const toolbar = quill.getModule('toolbar');
     const clearText = document.createElement('span');
     clearText.classList.add('ql-clear');
     clearText.innerText = 'Clear';
     clearText.setAttribute('data-tooltip', 'Clear editor text');
     toolbar.container.appendChild(clearText);
-
     clearText.addEventListener('click', () => quill.setText(''));
 
-    // Hook up image button to modal
+    // Hook up image insert modal
     toolbar.addHandler('image', () => {
         const modal = new bootstrap.Modal(document.getElementById('imageModal'));
         modal.show();
@@ -68,13 +74,16 @@ export const setupQuill = () => {
         document.getElementById('imageUrl').value = '';
     });
 
-    // Set initial content from data attribute
+    // Set initial value if present
     const notesElement = document.getElementById('notes');
-    const notesContent = notesElement.dataset.notesContent;
+    const notesContent = notesElement?.dataset.notesContent;
     if (notesContent) quill.root.innerHTML = notesContent;
 
-    // Sync hidden input on form submit
-    document.getElementById("trip-form")?.addEventListener("submit", () => {
-        document.getElementById("hiddenNotes").value = quill.root.innerHTML;
+    // Final sync before form submit
+    document.getElementById('trip-form')?.addEventListener('submit', () => {
+        const hiddenInput = document.getElementById('Notes');
+        if (hiddenInput) {
+            hiddenInput.value = getCleanedHtml();
+        }
     });
 };

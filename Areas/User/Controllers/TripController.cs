@@ -124,8 +124,8 @@ namespace Wayfarer.Areas.User.Controllers
                 SetAlert("Trip not found.", "warning");
                 return RedirectToAction(nameof(Index));
             }
-            
-            
+
+
             // 2) Materialize to concrete Lists
             trip.Regions = trip.Regions?.ToList() ?? new List<Region>();
             foreach (var region in trip.Regions)
@@ -149,21 +149,16 @@ namespace Wayfarer.Areas.User.Controllers
         {
             SetPageTitle("Edit Trip");
 
+            // Check ID mismatch
             if (id != model.Id)
             {
                 SetAlert("ID mismatch.", "danger");
                 return RedirectToAction(nameof(Index));
             }
 
-            // Ensure only the owner can edit
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (model.UserId != userId)
-            {
-                SetAlert("Unauthorized.", "danger");
-                return RedirectToAction(nameof(Index));
-            }
 
-            // Cleanup server-only props
+            // Remove client-posted values that should not be trusted
             ModelState.Remove(nameof(model.UserId));
             ModelState.Remove(nameof(model.User));
 
@@ -172,33 +167,30 @@ namespace Wayfarer.Areas.User.Controllers
 
             try
             {
-                // Fetch the tracked entity
+                // Load actual Trip from DB to ensure ownership and prevent overwrite
                 var trip = await _dbContext.Trips.FindAsync(id);
-                if (trip == null)
+
+                if (trip == null || trip.UserId != userId)
                 {
-                    SetAlert("Trip not found.", "warning");
+                    SetAlert("Unauthorized or trip not found.", "danger");
                     return RedirectToAction(nameof(Index));
                 }
 
-                // Update editable fields
+                // Update editable fields only
                 trip.Name = model.Name;
                 trip.IsPublic = model.IsPublic;
                 trip.Notes = model.Notes;
+                trip.CenterLat = model.CenterLat;
+                trip.CenterLon = model.CenterLon;
+                trip.Zoom = model.Zoom;
                 trip.UpdatedAt = DateTime.UtcNow;
 
                 await _dbContext.SaveChangesAsync();
                 SetAlert("Trip updated successfully!");
 
-                if (submitAction == "save-edit")
-                {
-                    // Stay on edit page
-                    return RedirectToAction(nameof(Edit), new { id });
-                }
-                else
-                {
-                    // Back to list
-                    return RedirectToAction(nameof(Index));
-                }
+                return submitAction == "save-edit"
+                    ? RedirectToAction(nameof(Edit), new { id })
+                    : RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
@@ -206,7 +198,8 @@ namespace Wayfarer.Areas.User.Controllers
                 return View(model);
             }
         }
-        
+
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(Guid id)

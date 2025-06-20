@@ -33,6 +33,15 @@ namespace Wayfarer.Models
 
         /// <summary>Whether this trip is publicly shareable.</summary>
         public bool IsPublic { get; set; } = false;
+        
+        // Lat, Lon and Zoom for Trip set views and permalinks
+        // Trip URL latitude
+        public double? CenterLat { get; set; }
+        // Trip URL Longitude
+        public double? CenterLon { get; set; }
+        // Trip URL Zoom
+        public int? Zoom { get; set; }
+
 
         /// <summary>Optional cover image URL for the trip.</summary>
         [Url]

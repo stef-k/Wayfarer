@@ -16,8 +16,16 @@ import {
     removeRegionMarker, selectMarker
 } from './mapManager.js';
 
+let cachedTripId = null;
+
+const initRegionHandlersWrapper = () => {
+    if (cachedTripId) initRegionHandlers(cachedTripId);
+    else console.warn('⚠️ No tripId available for initRegionHandlers.');
+};
+
 export const initRegionHandlers = (tripId) => {
     /* ---------- add region ---------- */
+    cachedTripId = tripId;
     const addBtn = document.getElementById('btn-add-region');
     if (addBtn) addBtn.onclick = async () => {
         if (!tripId) return;
@@ -91,6 +99,7 @@ export const initRegionHandlers = (tripId) => {
             if (marker) selectMarker(marker);
         };
     });
+    attachRegionFormHandlers();
 };
 
 /* ------------------------------------------------------------------ *
@@ -149,6 +158,35 @@ const handleAddPlace = async (regionId) => {
 
     document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
 };
+
+const handleEditRegion = async (regionId, tripId) => {
+    if (!regionId || !tripId) return;
+
+    const wrapper = document.getElementById(`region-item-${regionId}`);
+    const resp = await fetch(`/User/Regions/CreateOrUpdate?regionId=${regionId}&tripId=${tripId}`);
+    const html = await resp.text();
+
+    wrapper.outerHTML = html;
+
+    // 🔁 Re-acquire the new element after replacement
+    const newEl = document.getElementById(`region-item-${regionId}`);
+    const name = newEl?.dataset?.regionName || 'Unnamed Region';
+
+    // 🆕 fix: rebind all buttons inside the reloaded DOM
+    initRegionHandlers(tripId); // ✅ fixes "Edit" button doing nothing
+    initPlaceHandlers();
+    initRegionHandlersWrapper();
+
+    document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
+
+    setMappingContext({
+        type: 'region',
+        id: regionId,
+        action: 'edit',
+        meta: { name }
+    });
+};
+
 
 const attachRegionFormHandlers = () => {
     document.querySelectorAll('.btn-region-cancel').forEach(btn => {

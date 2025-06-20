@@ -462,6 +462,13 @@ thead th {
     box-shadow: none !important;
 }
 
+/* ✅ Remove unwanted blue background when region is expanded but not selected */
+#regions-accordion .accordion-button:not(.collapsed) {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+
 [data-bs-theme="dark"] .trip-searchbar {
     background-color: #2b3035 !important; /* Dark background for the search bar */
     color: #f8f9fa !important; /* Light text color for any direct text */
@@ -655,5 +662,14 @@ thead th {
             drop-shadow(0 0 1px var(--selected-shadow-color, #0d6efd));
     transition: filter 0.3s ease;
 }
-
-
+.place-list-item.dimmed {
+    opacity: 0.3;
+    transition: opacity 0.3s ease;
+}
+.accordion-item.dimmed {
+    opacity: 0.4;
+    transition: opacity 0.2s ease-in-out;
+}
+.region-place-neutral {
+    background-color: var(--bs-body-bg) !important;
+}

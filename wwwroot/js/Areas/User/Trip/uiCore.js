@@ -3,15 +3,26 @@
 
 export const saveTrip = async (action) => {
     const form = document.getElementById('trip-form');
+    if (!form) return;
+
+    // Sync Quill notes before collecting form data
+    const notesInput = form.querySelector('#Notes');
+    const editor = document.querySelector('#notes .ql-editor');
+    if (notesInput && editor) {
+        const html = editor.innerHTML;
+        // Normalize Quill's default "empty" value
+        notesInput.value = (html === '<p><br></p>') ? '' : html;
+    }
+
     const formData = new FormData(form);
-    formData.set('submitAction', action);
+    formData.set('submitAction', action || 'save');
 
     try {
         const resp = await fetch(form.action, {
             method: 'POST',
             body: formData,
             headers: {
-                'X-CSRF-TOKEN': formData.get('__RequestVerificationToken')
+                'RequestVerificationToken': formData.get('__RequestVerificationToken')
             }
         });
 
@@ -19,18 +30,17 @@ export const saveTrip = async (action) => {
             window.location.href = resp.url;
         } else {
             const html = await resp.text();
+            console.log('📄 Received HTML (non-redirect):', html);
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             const newForm = doc.querySelector('#trip-form');
-
             if (newForm) {
                 form.replaceWith(newForm);
-                rebindMainButtons(); // re-attach after replacing DOM
             }
         }
     } catch (err) {
-        console.error(err);
-        alert('Error saving trip.');
+        console.error('❌ Error saving trip:', err);
+        showAlert('danger', `Failed to save the trip. Please try again.<br>${err?.message || ''}`);
     }
 };
 

@@ -14,17 +14,17 @@ namespace Wayfarer.Migrations
         {
             // Rename note fields to the new unified "Notes" name
             migrationBuilder.RenameColumn(
-                name: "NotesHtml",
+                name: "Notes",
                 table: "Trips",
                 newName: "Notes");
 
             migrationBuilder.RenameColumn(
-                name: "NotesHtml",
+                name: "Notes",
                 table: "Segments",
                 newName: "Notes");
 
             migrationBuilder.RenameColumn(
-                name: "NotesHtml",
+                name: "Notes",
                 table: "Regions",
                 newName: "Notes");
 
@@ -139,17 +139,17 @@ namespace Wayfarer.Migrations
             migrationBuilder.RenameColumn(
                 name: "Notes",
                 table: "Trips",
-                newName: "NotesHtml");
+                newName: "Notes");
 
             migrationBuilder.RenameColumn(
                 name: "Notes",
                 table: "Segments",
-                newName: "NotesHtml");
+                newName: "Notes");
 
             migrationBuilder.RenameColumn(
                 name: "Notes",
                 table: "Regions",
-                newName: "NotesHtml");
+                newName: "Notes");
 
             migrationBuilder.RenameColumn(
                 name: "Notes",

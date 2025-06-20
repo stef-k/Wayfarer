@@ -1,31 +1,34 @@
 @model Wayfarer.Models.Region
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
-@using NetTopologySuite.IO
 
 <div class="accordion-item" id="region-item-@Model.Id" data-region-id="@Model.Id" data-region-name="@Model.Name" data-center-lat="@Model.Center?.Y" data-center-lon="@Model.Center?.X">
     <h2 class="accordion-header region-header" id="heading-@Model.Id">
         <div class="d-flex justify-content-between align-items-center w-100">
             <i class="bi bi-grip-vertical drag-handle me-1"></i>
             <!-- Toggler (collapse control) -->
-            <button class="accordion-button collapsed flex-grow-1 text-start bg-primary-subtle"
+            <button class="accordion-button collapsed flex-grow-1 text-start"
                     type="button"
                     data-bs-toggle="collapse"
                     data-bs-target="#collapse-@Model.Id"
                     aria-expanded="false"
                     aria-controls="collapse-@Model.Id">
-                <span class="selected-indicator d-none me-1" id="region-indicator-@Model.Id">🗺️</span>
-                <strong class="d-flex align-items-center gap-2">
-                    @Model.Name
-                </strong>
+                <span class="d-flex align-items-center gap-2">
+                    <img src="/icons/wayfarer-map-icons/dist/png/marker/bg-red/map.png"
+                         alt="Region marker"
+                         width="20"
+                         height="30"
+                         class="map-icon me-1" />
 
+                    <strong>@Model.Name</strong>
+                </span>
             </button>
             <!-- Select region action -->
             <button type="button"
-                    class="btn btn-sm btn-outline-primary ms-2 region-select-area"
+                    class="btn btn-outline-primary btn-sm me-2 region-select-area"
                     data-region-id="@Model.Id"
                     data-region-name="@Model.Name"
-                    title="Select Region for Mapping">
-                <i class="bi bi-crosshair"></i>
+                    title="Focus map on this region">
+                <i class="bi bi-geo-alt-fill"></i>
             </button>
         </div>
     </h2>
@@ -72,7 +75,6 @@
                                 data-place-color="@place.MarkerColor">
                                 <i class="bi bi-grip-vertical drag-handle me-1"></i>
                                 <span class="place-name">
-                                    <span class="selected-indicator d-none me-1" id="place-indicator-@place.Id">📍</span>
                                     @* inject SVG and add colour class *@
                                     @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml", (place.IconName, place.MarkerColor))
                                     @place.Name

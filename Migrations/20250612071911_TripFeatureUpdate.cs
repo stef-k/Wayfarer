@@ -12,7 +12,7 @@ namespace Wayfarer.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AlterColumn<string>(
-                name: "NotesHtml",
+                name: "Notes",
                 table: "Regions",
                 type: "text",
                 nullable: true,
@@ -32,7 +32,7 @@ namespace Wayfarer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AlterColumn<string>(
-                name: "NotesHtml",
+                name: "Notes",
                 table: "Regions",
                 type: "text",
                 nullable: false,

@@ -1,7 +1,9 @@
 using System.Security.Claims;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 
@@ -39,47 +41,59 @@ public class PlacesController : BaseController
     public async Task<IActionResult> CreateOrUpdate(Place model)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
         model.UserId = userId;
-        ModelState.Remove(nameof(model.UserId));
-        ModelState.Remove(nameof(model.Region));
-        
-        if (Request.Form.TryGetValue("Latitude", out var latStr) &&
+
+        // ✅ Always pull lat/lon first
+        double? lat = null, lon = null;
+        if (Request.Form.TryGetValue("Latitude",  out var latStr) &&
             Request.Form.TryGetValue("Longitude", out var lonStr) &&
-            double.TryParse(latStr, out var lat) &&
-            double.TryParse(lonStr, out var lon))
+            double.TryParse(latStr,  NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedLat) &&
+            double.TryParse(lonStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedLon))
         {
-            model.Location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+            lat = parsedLat;
+            lon = parsedLon;
         }
 
-        if (!ModelState.IsValid)
-            return PartialView("~/Areas/User/Views/Trip/Partials/_PlaceFormPartial.cshtml", model);
-
-        // Detect if this is an edit
+        // Skip modelstate entirely
         var existing = await _dbContext.Places
             .FirstOrDefaultAsync(p => p.Id == model.Id && p.UserId == userId);
 
         if (existing != null)
         {
-            // ✅ Update mode
+            // Replace scalar fields
             existing.Name = model.Name;
             existing.Notes = model.Notes;
             existing.IconName = model.IconName;
             existing.MarkerColor = model.MarkerColor;
             existing.DisplayOrder = model.DisplayOrder;
             existing.Address = model.Address;
-            if (model.Location != null)
-                existing.Location = model.Location;
+
+            // Replace geometry completely with new object
+            if (lat.HasValue && lon.HasValue)
+            {
+                existing.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };
+
+                // Add: explicitly mark spatial property as modified
+                _dbContext.Entry(existing)
+                    .Property(p => p.Location)
+                    .IsModified = true;
+            }
         }
         else
         {
-            // ✅ Create mode
+            if (lat.HasValue && lon.HasValue)
+            {
+                model.Location = new NetTopologySuite.Geometries.Point(lon.Value, lat.Value)
+                {
+                    SRID = 4326
+                };
+            }
+
             _dbContext.Places.Add(model);
         }
 
         await _dbContext.SaveChangesAsync();
 
-        // Return refreshed region
         var region = await _dbContext.Regions
             .Include(r => r.Places)
             .FirstOrDefaultAsync(r => r.Id == model.RegionId && r.UserId == userId);
@@ -109,7 +123,7 @@ public class PlacesController : BaseController
 
         _dbContext.Places.Remove(place);
         await _dbContext.SaveChangesAsync();
-        
+
         // Return updated region block
         var region = await _dbContext.Regions
             .AsNoTracking() // ✅ force reload to reflect recalculated Days
@@ -135,7 +149,7 @@ public class PlacesController : BaseController
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_PlaceFormPartial.cshtml", place);
     }
-    
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reorder([FromBody] List<OrderDto> items)
@@ -153,5 +167,4 @@ public class PlacesController : BaseController
         await _dbContext.SaveChangesAsync();
         return NoContent();
     }
-
 }

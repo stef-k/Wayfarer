@@ -13,6 +13,7 @@ let mapContainer   = null;
 let drawControl    = null;
 let drawnLayerGroup= null;
 let selectedMarker = null;
+let previewMarker = null;
 
 const placeMarkersById  = {};
 const regionMarkersById = {};
@@ -32,9 +33,6 @@ export const getPlaceMarkerById  = (id) => placeMarkersById[id]  || null;
 const buildPngIconUrl = (iconName, bgClass) =>
     `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
 
-/* ------------------------------------------------------------------ *
- *  applyCoordinates (unchanged)
- * ------------------------------------------------------------------ */
 export const applyCoordinates = ({ lat, lon }) => {
     const ctx = getMappingContext();
     if (!ctx?.type || !ctx?.action) return;
@@ -57,19 +55,59 @@ export const applyCoordinates = ({ lat, lon }) => {
             const lonDisp = form.querySelector(`input[name="${fldLon}_display"]`);
             if (lonDisp) lonDisp.value = lon;
         }
+
+        // Remove previous temp marker if exists
+        if (previewMarker) {
+            mapContainer?.removeLayer(previewMarker);
+            previewMarker = null;
+        }
+
+        // Show marker only in place context
+        if (ctx.type === 'place') {
+            const iconInput = form.querySelector('input[name="IconName"]');
+            const colorInput = form.querySelector('input[name="MarkerColor"]');
+
+            const icon = iconInput?.value || 'marker';
+            const color = colorInput?.value || 'bg-blue';
+
+            const iconUrl = buildPngIconUrl(icon, color);
+
+            previewMarker = L.marker([lat, lon], {
+                icon: L.icon({
+                    iconUrl,
+                    iconSize: [WF_WIDTH, WF_HEIGHT],
+                    iconAnchor: WF_ANCHOR,
+                    className: 'map-icon'
+                })
+            }).addTo(mapContainer);
+
+            selectMarker(previewMarker);
+        }
     };
 
-    if (ctx.type === 'place' && ctx.action === 'set-location')
-        fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
+    if (ctx.type === 'place' && ctx.action === 'set-location') {
+        const formEl = document.querySelector(`#place-form-${ctx.id}`);
+        if (!formEl) {
+            console.warn(`⚠️ Cannot find form #place-form-${ctx.id} to apply coordinates`);
+            return;
+        }
 
+        fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
+    }
     if (ctx.type === 'region' && ctx.action === 'set-center')
         fill(`#region-form-${ctx.id}`, 'CenterLat', 'CenterLon');
 
-    (window.wayfarer?.showAlert ?? window.showAlert ?? console.log)(
-        'info', `Location set: ${lat}, ${lon}`
-    );
-};
+    const coordsEl = document.getElementById('context-coords');
+    if (coordsEl) {
+        const latNum = parseFloat(lat);
+        const lonNum = parseFloat(lon);
 
+        if (!isNaN(latNum) && !isNaN(lonNum)) {
+            coordsEl.innerHTML = `Coordinates (Lat, Lon): <code class="user-select-all">${latNum.toFixed(5)}, ${lonNum.toFixed(5)}</code>`;
+            coordsEl.classList.remove('d-none');
+        }
+    }
+};
 
 /* ------------------------------------------------------------------ *
  *  REGION  – render / remove
@@ -81,7 +119,7 @@ export const renderRegionMarker = async ({ Id, CenterLat, CenterLon, Name }) => 
 
     if (regionMarkersById[Id]) mapContainer.removeLayer(regionMarkersById[Id]);
 
-    const iconUrl = buildPngIconUrl('map', 'bg-blue');
+    const iconUrl = buildPngIconUrl('map', 'bg-red');
     const marker = L.marker([lat, lon], {
         icon: L.icon({
             iconUrl,
@@ -249,6 +287,20 @@ document.addEventListener('mapping-context-cleared', () => {
         clearSelectedMarker?.();
     } catch (err) {
         console.warn('⚠️ Failed to clear selected marker from mapManager', err);
+    }
+    // ✅ Remove preview marker
+    try {
+        if (previewMarker) {
+            mapContainer?.removeLayer(previewMarker);
+            previewMarker = null;
+        }
+    } catch (err) {
+        console.warn('⚠️ Failed to clear preview marker', err);
+    }
+    const coordsEl = document.getElementById('context-coords');
+    if (coordsEl) {
+        coordsEl.classList.add('d-none');
+        coordsEl.innerHTML = '';
     }
 });
 

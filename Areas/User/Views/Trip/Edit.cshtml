@@ -14,13 +14,28 @@
 
     <div id="sidebar" class="show collapse-horizontal d-flex flex-column">
       <!-- Sidebar Header -->
-      <div id="sidebarHeader" class="p-3 border-bottom d-flex justify-content-between align-items-center">
+      <div id="sidebarHeader" class="p-3 border-bottom d-flex align-items-center justify-content-between">
         <h5 class="mb-0">Trip Settings</h5>
-        <button class="btn btn-link p-0" type="button" data-bs-toggle="collapse"
-                data-bs-target="#tripSettingsCollapse" aria-expanded="true" aria-controls="tripSettingsCollapse">
-          <i class="bi bi-chevron-down"></i>
-        </button>
+
+        <div class="d-flex align-items-center gap-2">
+          <button type="button"
+                  id="btn-trip-recenter"
+                  class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1"
+                  title="Recenter map to saved trip view">
+            <i class="bi bi-geo-alt-fill"></i>
+            <span class="d-none d-md-inline">Map</span>
+          </button>
+
+          <button class="btn btn-link p-0" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#tripSettingsCollapse"
+                  aria-expanded="true"
+                  aria-controls="tripSettingsCollapse">
+            <i class="bi bi-chevron-down"></i>
+          </button>
+        </div>
       </div>
+
 
       <!-- Sidebar Content -->
       <div id="sidebarContent" class="flex-grow-1 overflow-y-auto p-3">
@@ -28,6 +43,10 @@
           <form id="trip-form" class="row g-3 mb-4">
             @Html.AntiForgeryToken()
             <input type="hidden" asp-for="Id"/>
+            <input type="hidden" asp-for="Id" id="trip-id" />
+            <input type="hidden" asp-for="CenterLat" data-default="@Model.CenterLat?.ToString("F6")" />
+            <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")" />
+            <input type="hidden" asp-for="Zoom"      data-default="@Model.Zoom" />
             <div class="col-md-12">
               <label asp-for="Name" class="form-label"></label>
               <input asp-for="Name" class="form-control"/>
@@ -43,21 +62,38 @@
             <div class="col-md-12">
               <label for="notes">Notes</label>
               <div id="notes" data-notes-content="@Model.Notes"></div>
-              <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@Model.Notes"/>
+              <input type="hidden" asp-for="Notes" id="Notes" />
               <small class="text-muted">
                 You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
               </small>
-              <div class="invalid-feedback" asp-validation-for="NotesHtml"></div>
+              <div class="invalid-feedback" asp-validation-for="Notes"></div>
             </div>
-            <div class="col-md-12">
-              <button id="btn-save-trip" type="button" class="btn btn-primary me-2">
-                <i class="bi bi-save"></i> Save Trip
+            <div class="col-md-12 d-flex gap-2">
+              <input type="hidden" name="submitAction" id="submitAction" value="save" />
+
+              <button id="btn-save-trip" type="button" class="btn btn-sm btn-primary">
+                <i class="bi bi-save"></i> Save & Exit
               </button>
+
+              <button id="btn-save-edit-trip" type="button" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil-square"></i> Save & Continue
+              </button>
+
+              <a asp-area="User"
+                 asp-controller="Trip"
+                 asp-action="Index"
+                 class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-arrow-left-circle"></i> Back to Trips
+              </a>
             </div>
+
+
           </form>
         </div>
 
         <hr/>
+        
+        <!-- Region Area -->
 
         <h6>Regions &amp; Places</h6>
         <button id="btn-add-region" class="btn btn-sm btn-success mb-2">
@@ -75,6 +111,7 @@
           {
             @foreach (var region in regions.OrderBy(r => r.DisplayOrder))
             {
+              <!-- Place Area -->
               @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", region)
             }
           }
@@ -83,7 +120,7 @@
 
         <hr/>
 
-
+        <!-- Segments Area -->
         <h6>Segments</h6>
         <button id="btn-add-segment" class="btn btn-sm btn-success mb-2">
           <i class="bi bi-plus-lg"></i> Add Segment
@@ -125,13 +162,15 @@
         <div id="mapping-context-banner" class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-center" role="alert">
           <i class="bi bi-pencil me-1"></i>
           <span id="mapping-context-text">Selected: —</span>
+          <span id="context-coords" class="ms-2 text-muted d-none">
+            <code class="user-select-all"></code>
+          </span>
           <button id="btn-clear-context"
                   type="button"
                   class="btn-close btn-close-primary btn-sm ms-auto"
                   aria-label="Clear mapping context"
                   title="Clear selection"></button>
         </div>
-
         <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
       </div>
     </div>

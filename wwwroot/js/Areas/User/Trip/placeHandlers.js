@@ -1,13 +1,13 @@
 // placeHandlers.js
 // Handles create/edit/delete of places within a region
-import { setMappingContext, getMappingContext, clearMappingContext } from './mappingContext.js';
+import {setMappingContext, getMappingContext, clearMappingContext} from './mappingContext.js';
 import {
     renderPlaceMarker,
     removePlaceMarker,
     getMapInstance,
     getPlaceMarkerById, clearSelectedMarker, selectMarker
 } from './mapManager.js';
-import { populateIconDropdown, populateColorDropdown, updateDropdownIconColors } from './uiCore.js';
+import {populateIconDropdown, populateColorDropdown, updateDropdownIconColors} from './uiCore.js';
 
 export const initPlaceHandlers = () => {
     attachPlaceFormHandlers();
@@ -33,7 +33,7 @@ const attachPlaceFormHandlers = () => {
     /* ---------- cancel ---------- */
     document.querySelectorAll('.btn-place-cancel').forEach(btn => {
         btn.onclick = async () => {
-            const placeId  = btn.dataset.placeId;
+            const placeId = btn.dataset.placeId;
             const regionId = btn.dataset.regionId;
             if (!placeId) return;
 
@@ -43,28 +43,68 @@ const attachPlaceFormHandlers = () => {
 
             document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
             removePlaceMarker(placeId);
-            clearMappingContext();
+
+            // ✅ Restore context to "view mode" (not edit)
+            const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+            const name = item?.querySelector('.place-name')?.innerText || 'Unnamed';
+
+            setMappingContext({
+                type: 'place',
+                id: placeId,
+                action: 'set-location',
+                meta: { name, regionId }
+            });
+        };
+    });
+
+    /* ---------- edit ---------- */
+    document.querySelectorAll('.btn-edit-place').forEach(btn => {
+        btn.onclick = async () => {
+            const placeId = btn.dataset.placeId;
+            const regionId = btn.dataset.regionId;
+            if (!placeId || !regionId) return;
+
+            const resp = await fetch(`/User/Places/Edit/${placeId}`);
+            const html = await resp.text();
+
+            const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+            if (!item) return;
+
+            item.outerHTML = html;
+
+            const formEl = document.getElementById(`place-form-${placeId}`);
+            if (formEl) await enhancePlaceForm(formEl);
+            attachPlaceFormHandlers();
+
+            const name = formEl.querySelector('input[name="Name"]')?.value || 'Unnamed';
+
+            setMappingContext({
+                type: 'place',
+                id: placeId,
+                action: 'edit',
+                meta: {name, regionId}
+            });
         };
     });
 
     /* ---------- save ---------- */
     document.querySelectorAll('.btn-place-save').forEach(btn => {
         btn.onclick = async () => {
-            const placeId  = btn.dataset.placeId;
+            const placeId = btn.dataset.placeId;
             const regionId = btn.dataset.regionId;
-            const formEl   = document.getElementById(`place-form-${placeId}`);
+            const formEl = document.getElementById(`place-form-${placeId}`);
 
-            const fd    = new FormData(formEl);
+            const fd = new FormData(formEl);
             const token = fd.get('__RequestVerificationToken');
 
             const resp = await fetch('/User/Places/CreateOrUpdate', {
-                method:      'POST',
-                body:        fd,
+                method: 'POST',
+                body: fd,
                 credentials: 'same-origin',
-                headers:     token ? { RequestVerificationToken: token } : {}
+                headers: token ? {RequestVerificationToken: token} : {}
             });
 
-            const html    = await resp.text();
+            const html = await resp.text();
             const wrapper = formEl.closest('.accordion-item');
             if (resp.ok) {
                 wrapper.outerHTML = html;
@@ -73,22 +113,22 @@ const attachPlaceFormHandlers = () => {
                 // Re-render marker for the *currently active* place, if any
                 const context = getMappingContext();
                 if (context?.type === 'place' && context.id === placeId) {
-                    const el    = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
-                    const lat   = el?.dataset.placeLat;
-                    const lon   = el?.dataset.placeLon;
-                    const icon  = el?.dataset.placeIcon;
+                    const el = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+                    const lat = el?.dataset.placeLat;
+                    const lon = el?.dataset.placeLon;
+                    const icon = el?.dataset.placeIcon;
                     const color = el?.dataset.placeColor;
 
                     if (lat && lon) {
                         const name = el.querySelector('.place-name')?.innerText || 'Unnamed';
                         renderPlaceMarker?.({
-                            Id:           placeId,
-                            Name:         name,
-                            Latitude:     lat,
-                            Longitude:    lon,
-                            IconName:     icon,
-                            MarkerColor:  color,
-                            RegionId:     regionId
+                            Id: placeId,
+                            Name: name,
+                            Latitude: lat,
+                            Longitude: lon,
+                            IconName: icon,
+                            MarkerColor: color,
+                            RegionId: regionId
                         });
                     }
                 }
@@ -96,9 +136,9 @@ const attachPlaceFormHandlers = () => {
                 wrapper.outerHTML = html;
                 attachPlaceFormHandlers();
 
-                const dom          = new DOMParser().parseFromString(html, 'text/html');
-                const errorsBlock  = dom.querySelector('.place-form-errors ul');
-                const errors       = [...errorsBlock?.querySelectorAll('li') || []].map(li => li.textContent.trim());
+                const dom = new DOMParser().parseFromString(html, 'text/html');
+                const errorsBlock = dom.querySelector('.place-form-errors ul');
+                const errors = [...errorsBlock?.querySelectorAll('li') || []].map(li => li.textContent.trim());
                 showAlert('danger', errors.join('\n'));
             }
         };
@@ -107,15 +147,15 @@ const attachPlaceFormHandlers = () => {
     /* ---------- place list (select) ---------- */
     document.querySelectorAll('.place-list-item').forEach(li => {
         li.onclick = () => {
-            const placeId  = li.dataset.placeId;
+            const placeId = li.dataset.placeId;
             const regionId = li.dataset.regionId;
             if (!placeId || !regionId) return;
 
-            const lat   = li.dataset.placeLat;
-            const lon   = li.dataset.placeLon;
-            const icon  = li.dataset.placeIcon;
+            const lat = li.dataset.placeLat;
+            const lon = li.dataset.placeLon;
+            const icon = li.dataset.placeIcon;
             const color = li.dataset.placeColor;
-            const name  = li.querySelector('.place-name')?.innerText || 'Unnamed';
+            const name = li.querySelector('.place-name')?.innerText || 'Unnamed';
 
             document.querySelectorAll('.place-list-item').forEach(i =>
                 i.classList.remove('bg-info-subtle', 'bg-info-soft')
@@ -123,21 +163,21 @@ const attachPlaceFormHandlers = () => {
             li.classList.add('bg-info-subtle');
 
             setMappingContext({
-                type:   'place',
-                id:     placeId,
+                type: 'place',
+                id: placeId,
                 action: 'set-location',
-                meta:   { name, regionId }
+                meta: {name, regionId}
             });
 
             if (lat && lon) {
                 renderPlaceMarker?.({
-                    Id:           placeId,
-                    Name:         name,
-                    Latitude:     lat,
-                    Longitude:    lon,
-                    IconName:     icon,
-                    MarkerColor:  color,
-                    RegionId:     regionId
+                    Id: placeId,
+                    Name: name,
+                    Latitude: lat,
+                    Longitude: lon,
+                    IconName: icon,
+                    MarkerColor: color,
+                    RegionId: regionId
                 });
                 const map = getMapInstance();
                 if (map) map.setView([lat, lon], Math.max(map.getZoom(), 10));
@@ -151,12 +191,12 @@ const attachPlaceFormHandlers = () => {
     /* ---------- delete ---------- */
     document.querySelectorAll('.btn-delete-place').forEach(btn => {
         btn.onclick = () => {
-            const { placeId, regionId } = btn.dataset;
+            const {placeId, regionId} = btn.dataset;
             if (!placeId) return;
 
             showConfirmationModal({
-                title:       'Delete place?',
-                message:     'This action cannot be undone.',
+                title: 'Delete place?',
+                message: 'This action cannot be undone.',
                 confirmText: 'Delete',
                 onConfirm: async () => {
                     const fd = new FormData();
@@ -164,16 +204,16 @@ const attachPlaceFormHandlers = () => {
                         document.querySelector('input[name="__RequestVerificationToken"]').value);
 
                     const resp = await fetch(`/User/Places/Delete/${placeId}`, {
-                        method:  'POST',
-                        body:    fd,
-                        headers: { RequestVerificationToken: fd.get('__RequestVerificationToken') }
+                        method: 'POST',
+                        body: fd,
+                        headers: {RequestVerificationToken: fd.get('__RequestVerificationToken')}
                     });
 
                     if (resp.ok) {
                         const regionEl = document.getElementById(`region-item-${regionId}`);
-                        const html     = await resp.text();
+                        const html = await resp.text();
                         regionEl.outerHTML = html;
-                        document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
+                        document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId}}));
                         removePlaceMarker(placeId);
                         clearMappingContext();
                     } else {
@@ -190,8 +230,8 @@ const attachPlaceFormHandlers = () => {
 /* ------------------------------------------------------------------ */
 document.addEventListener('region-dom-reloaded', e => {
     (async () => {
-        const { regionId }   = e.detail;
-        const regionEl       = document.getElementById(`region-item-${regionId}`);
+        const {regionId} = e.detail;
+        const regionEl = document.getElementById(`region-item-${regionId}`);
 
         // Auto-expand the accordion panel that just changed
         regionEl?.querySelector('.accordion-button')?.classList.remove('collapsed');
