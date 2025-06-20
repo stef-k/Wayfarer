@@ -48,6 +48,9 @@
             <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")" />
             <input type="hidden" asp-for="Zoom"      data-default="@Model.Zoom" />
             <div class="col-md-12">
+              <span class="text-muted small">Last updated at @Model.UpdatedAt.ToLongDateString()</span>
+            </div>
+            <div class="col-md-12">
               <label asp-for="Name" class="form-label"></label>
               <input asp-for="Name" class="form-control"/>
               <div class="invalid-feedback" asp-validation-for="Name"></div>
@@ -68,6 +71,30 @@
               </small>
               <div class="invalid-feedback" asp-validation-for="Notes"></div>
             </div>
+            <div class="col-md-12">
+              <label for="CoverImageUrl" class="form-label">Cover Image URL</label>
+              <input type="url"
+                     class="form-control form-control-sm"
+                     name="CoverImageUrl"
+                     id="CoverImageUrl"
+                     title="Paste a URL of an image/photo for this Trip"
+                     value="@Model.CoverImageUrl"
+                     placeholder="https://...">
+  
+              @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
+              {
+                <div class="mt-2">
+                  <a href="@Model.CoverImageUrl" target="_blank" rel="noopener noreferrer" title="Open full image in new tab">
+                    <img src="@Model.CoverImageUrl"
+                         class="img-fluid rounded shadow-sm"
+                         alt="Trip Cover Preview"
+                         title="Trip Cover Preview click to open image in new tab"
+                         style="max-height: 150px;" />
+                  </a>
+                </div>
+              }
+            </div>
+
             <div class="col-md-12 d-flex gap-2">
               <input type="hidden" name="submitAction" id="submitAction" value="save" />
 

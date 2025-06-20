@@ -14,6 +14,18 @@ export const initPlaceHandlers = () => {
 };
 
 export const enhancePlaceForm = async (formEl) => {
+    const placeId = formEl.dataset?.placeId || formEl.id.replace('place-form-', '');
+    const selector = `#place-notes-${placeId}`;
+    const inputSelector = `#Notes-${placeId}`;
+    const formSelector = `#place-form-${placeId}`;
+
+    try {
+        const {setupQuill, waitForQuill} = await import('./quillNotes.js');
+        await waitForQuill(selector);
+        await setupQuill(selector, inputSelector, formSelector);
+    } catch (err) {
+        console.warn(`❌ Failed to init Quill for place ${placeId}:`, err);
+    }
     const iconMenu = formEl.querySelector('.icon-dropdown-menu');
     if (iconMenu) {
         await populateIconDropdown(iconMenu);
@@ -41,21 +53,42 @@ const attachPlaceFormHandlers = () => {
             const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
             regionEl.outerHTML = await resp.text();
 
-            document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
+            document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId}}));
             removePlaceMarker(placeId);
 
-            // ✅ Restore context to "view mode" (not edit)
+            // ✅ Restore view mode and context
             const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
             const name = item?.querySelector('.place-name')?.innerText || 'Unnamed';
+            const lat = item?.dataset.placeLat;
+            const lon = item?.dataset.placeLon;
+            const icon = item?.dataset.placeIcon;
+            const color = item?.dataset.placeColor;
+
+            if (lat && lon) {
+                renderPlaceMarker?.({
+                    Id: placeId,
+                    Name: name,
+                    Latitude: lat,
+                    Longitude: lon,
+                    IconName: icon,
+                    MarkerColor: color,
+                    RegionId: regionId
+                });
+            }
 
             setMappingContext({
                 type: 'place',
                 id: placeId,
                 action: 'set-location',
-                meta: { name, regionId }
+                meta: {name, regionId}
             });
+
+            document.dispatchEvent(new CustomEvent('place-context-selected', {
+                detail: {placeId, regionId, name}
+            }));
         };
     });
+
 
     /* ---------- edit ---------- */
     document.querySelectorAll('.btn-edit-place').forEach(btn => {
@@ -240,3 +273,33 @@ document.addEventListener('region-dom-reloaded', e => {
         attachPlaceFormHandlers();
     })();
 });
+
+document.addEventListener('mapping-context-cleared', () => {
+    clearSelectedMarker?.();
+
+    // ✅ Do NOT invoke .btn-place-cancel here
+    // Instead just close any open edit form by reloading region DOM without restoring selection
+
+    const openPlaceForm = document.querySelector('form[id^="place-form-"]');
+    const placeId = openPlaceForm?.querySelector('[name="Id"]')?.value;
+    const regionId = openPlaceForm?.querySelector('[name="RegionId"]')?.value;
+
+    if (placeId && regionId) {
+        (async () => {
+            const regionEl = document.getElementById(`region-item-${regionId}`);
+            if (!regionEl) return;
+            const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+            regionEl.outerHTML = await resp.text();
+
+            document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
+            removePlaceMarker(placeId);
+        })();
+    }
+});
+
+
+
+
+
+
+

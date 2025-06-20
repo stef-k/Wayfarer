@@ -114,7 +114,9 @@ const attachListeners = () => {
 
             // Dim other regions
             document.querySelectorAll('.accordion-item').forEach(el => {
-                if (el.id !== `region-item-${id}`) {
+                const isRegionItem = el.id === `region-item-${id}`;
+                const isRegionForm = el.id === `region-form-${id}`;
+                if (!isRegionItem && !isRegionForm) {
                     el.classList.add('dimmed');
                 }
             });
@@ -281,7 +283,7 @@ const loadPersistedMarkers = () => {
 };
 
 // Entry point
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async() => {
     const urlParams = new URLSearchParams(window.location.search);
     const centerLat = parseFloat(urlParams.get('lat'));
     const centerLon = parseFloat(urlParams.get('lng'));
@@ -353,8 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initRegionHandlers(currentTripId);
     initPlaceHandlers();
     initSegmentHandlers();
-    setupQuill();
-
+    await setupQuill();
     attachListeners();
     loadPersistedMarkers();
 });

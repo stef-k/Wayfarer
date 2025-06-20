@@ -183,6 +183,7 @@ namespace Wayfarer.Areas.User.Controllers
                 trip.CenterLat = model.CenterLat;
                 trip.CenterLon = model.CenterLon;
                 trip.Zoom = model.Zoom;
+                trip.CoverImageUrl = model.CoverImageUrl;
                 trip.UpdatedAt = DateTime.UtcNow;
 
                 await _dbContext.SaveChangesAsync();
