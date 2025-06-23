@@ -11,45 +11,47 @@
 }
 else
 {
-    <table class="table table-bordered table-striped">
-        <thead>
-        <tr>
-            <th>Name</th>
-            <th>Notes</th>
-            <th>Public</th>
-            <th>Actions</th>
-        </tr>
-        </thead>
-        <tbody>
-        @foreach (var trip in Model)
-        {
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover">
+            <thead>
             <tr>
-                <td>@trip.Name</td>
-                <td>@trip.Notes</td>
-                <td>@(trip.IsPublic ? "Yes" : "No")</td>
-                <td>
-                    <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@trip.Id"
-                       class="btn btn-sm btn-secondary">Edit</a>
-                    <a asp-area="User" asp-controller="Trip" asp-action="Details" asp-route-id="@trip.Id"
-                       class="btn btn-sm btn-info">View</a>
-                    <form id="delete-form-@trip.Id"
-                          asp-action="Delete"
-                          method="post"
-                          class="d-none">
-                        <input type="hidden" name="id" value="@trip.Id"/>
-                    </form>
-
-                    <button type="button"
-                            class="btn btn-sm btn-outline-danger btn-trip-delete"
-                            data-trip-id="@trip.Id"
-                            title="Delete trip">
-                        Delete
-                    </button>
-                </td>
+                <th class="w-auto">Name</th>
+                <th class="w-auto">Notes</th>
+                <th>Public</th>
+                <th class="w-25">Actions</th>
             </tr>
-        }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+            @foreach (var trip in Model)
+            {
+                <tr>
+                    <td>@trip.Name</td>
+                    <td>@Html.Raw(trip.Notes)</td>
+                    <td>@(trip.IsPublic ? "Yes" : "No")</td>
+                    <td>
+                        <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@trip.Id"
+                           class="btn btn-sm btn-secondary">Edit</a>
+                        <a asp-area="User" asp-controller="Trip" asp-action="Details" asp-route-id="@trip.Id"
+                           class="btn btn-sm btn-info">View</a>
+                        <form id="delete-form-@trip.Id"
+                              asp-action="Delete"
+                              method="post"
+                              class="d-none">
+                            <input type="hidden" name="id" value="@trip.Id"/>
+                        </form>
+
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger btn-trip-delete"
+                                data-trip-id="@trip.Id"
+                                title="Delete trip">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
 }
 
 @section Scripts

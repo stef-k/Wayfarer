@@ -1,325 +1,273 @@
-// trip.js – modular entry point for trip editing
-import {rebindMainButtons, saveTrip} from './uiCore.js';
+// trip.js – modular entry point for trip editing (pure-store, banner + new-region fix)
+
 import {
-    initializeMap,
+    clearDim,
+    dimAll,
+    hideAllIndicators,
+    rebindMainButtons,
+    saveTrip
+} from './uiCore.js';
+
+import {
+    applyCoordinates,
     disableDrawingTools,
     getMapInstance,
+    initializeMap,
     renderPlaceMarker,
-    applyCoordinates,
     renderRegionMarker
 } from './mapManager.js';
-import {initRegionHandlers} from './regionHandlers.js';
-import {initPlaceHandlers} from './placeHandlers.js';
-import {initSegmentHandlers, loadSegmentCreateForm} from './segmentHandlers.js';
-import {setupQuill} from './quillNotes.js';
-import {clearMappingContext, setMappingContext, getMappingContext} from './mappingContext.js';
-import {initOrdering} from './regionsOrder.js';
 
+import { initRegionHandlers }   from './regionHandlers.js';
+import { initPlaceHandlers }    from './placeHandlers.js';
+import { initSegmentHandlers,
+    loadSegmentCreateForm } from './segmentHandlers.js';
+import { setupQuill }           from './quillNotes.js';
+import { store }                from './storeInstance.js';
+import { initOrdering }         from './regionsOrder.js';
+
+let currentTripId        = null;
 let activeDrawingRegionId = null;
-let currentTripId = null;
 
+/* ------------------------------------------------------------------ *
+ *  Helpers – banner
+ * ------------------------------------------------------------------ */
+const bannerEl  = () => document.getElementById('mapping-context-banner');
+const bannerLbl = () => document.getElementById('mapping-context-text');
+
+const setBanner = (action, name) => {
+    const banner = bannerEl();
+    const label  = bannerLbl();
+    if (!banner || !label) return;
+
+    const clean   = name?.replace(/^[^\w]+/, '').trim() || 'Unnamed';
+    const prefix  = action === 'edit' ? 'Editing' : 'Selected';
+    label.innerHTML = `<span class="me-1"></span>${prefix}: ${clean}`;
+    banner.classList.add('active');
+};
+
+const hideBanner = () => bannerEl()?.classList.remove('active');
+
+/* ------------------------------------------------------------------ *
+ *  Bind UI buttons & store events
+ * ------------------------------------------------------------------ */
 const attachListeners = () => {
     const form = document.getElementById('trip-form');
     if (!form) return;
 
-    document.getElementById('btn-save-trip')?.addEventListener('click', () => {
-        saveTrip('save');
-    });
+    /* ----- main action buttons ----- */
+    document.getElementById('btn-save-trip')
+        ?.addEventListener('click', () => saveTrip('save'));
+    document.getElementById('btn-save-edit-trip')
+        ?.addEventListener('click', () => saveTrip('save-edit'));
 
-    document.getElementById('btn-save-edit-trip')?.addEventListener('click', () => {
-        saveTrip('save-edit');
-    });
+    /* ----- recenter map ----- */
+    document.getElementById('btn-trip-recenter')
+        ?.addEventListener('click', () => {
+            const lat  = parseFloat(form.querySelector('[name="CenterLat"]')?.dataset.default ?? '');
+            const lon  = parseFloat(form.querySelector('[name="CenterLon"]')?.dataset.default ?? '');
+            const zoom = parseInt( form.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10 );
 
-    document.getElementById('btn-trip-recenter')?.addEventListener('click', () => {
-        const lat = parseFloat(form.querySelector('[name="CenterLat"]')?.dataset.default || '');
-        const lon = parseFloat(form.querySelector('[name="CenterLon"]')?.dataset.default || '');
-        const zoom = parseInt(form.querySelector('[name="Zoom"]')?.dataset.default || '3', 10);
+            if (!Number.isNaN(lat) && !Number.isNaN(lon))
+                getMapInstance()?.setView([lat, lon], zoom || 3);
 
-        if (!isNaN(lat) && !isNaN(lon)) {
-            const map = getMapInstance();
-            if (map) map.setView([lat, lon], zoom || 3);
-        }
-        // Scroll trip form into view
-        document.getElementById('trip-form')?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            store.dispatch('clear-context');
         });
-        // Clear any existing mapping context (places/regions/segments)
-        document.dispatchEvent(new CustomEvent('mapping-context-cleared'));
-    });
 
-    document.getElementById('btn-add-segment')?.addEventListener('click', () => {
-        loadSegmentCreateForm(currentTripId);
-    });
+    /* ----- add segment shortcut ----- */
+    document.getElementById('btn-add-segment')
+        ?.addEventListener('click', () => loadSegmentCreateForm(currentTripId));
 
-    document.getElementById('btn-clear-context')?.addEventListener('click', () => {
-        clearMappingContext();
-    });
+    /* ----- clear context banner (❌) ----- */
+    document.getElementById('btn-clear-context')
+        ?.addEventListener('click', () => store.dispatch('clear-context'));
 
-    document.addEventListener('mapping-context-changed', (e) => {
-        const { type, meta, id } = e.detail;
-        const banner = document.getElementById('mapping-context-banner');
-        const label = document.getElementById('mapping-context-text');
+    /* ------------------------------------------------------------------ *
+     *  Store listener – react to context changes
+     * ------------------------------------------------------------------ */
+    store.subscribe(({ type, payload }) => {
 
-        // Clear all indicators
-        document.querySelectorAll('.selected-indicator').forEach(el =>
-            el.classList.add('d-none')
-        );
-        
-        // Full clean before applying highlights
-        document.querySelectorAll('.place-list-item').forEach(el =>
-            el.classList.remove('bg-warning-subtle', 'bg-info-subtle', 'dimmed', 'region-place-neutral')
-        );
-        document.querySelectorAll('.accordion-button').forEach(el =>
-            el.classList.remove('bg-info-subtle', 'bg-info-soft')
-        );
-        document.querySelectorAll('.segment-list-item').forEach(el =>
-            el.classList.remove('bg-success-subtle')
-        );
-        document.querySelectorAll('.accordion-item').forEach(el =>
-            el.classList.remove('bg-info-soft', 'bg-primary-subtle', 'dimmed')
-        );
+        /* ========== CONTEXT SET ========== */
+        if (type === 'set-context') {
+            const { id, type: ctxType, meta, action } = payload;
+            hideAllIndicators();
 
-        if (type === 'place') {
-            const placeItem = document.querySelector(`.place-list-item[data-place-id="${id}"]`);
-            placeItem?.classList.add('bg-warning-subtle');
+            if (ctxType === 'place') {
+                const placeItem = document.querySelector(`.place-list-item[data-place-id="${id}"]`);
 
-            if (meta?.regionId) {
-                const regionItem = document.getElementById(`region-item-${meta.regionId}`);
-                regionItem?.classList.add('bg-info-soft');
-                regionItem?.querySelector('.accordion-button')?.classList.add('bg-info-soft');
-
-                // Dim siblings
-                regionItem?.querySelectorAll('.place-list-item').forEach(el => {
-                    if (el !== placeItem) el.classList.add('dimmed');
-                });
-
-                // Dim other regions
-                document.querySelectorAll('.accordion-item').forEach(item => {
-                    if (item.id !== `region-item-${meta.regionId}`) {
-                        item.classList.add('dimmed');
+                if (meta?.regionId) {
+                    const regionItem = document.getElementById(`region-item-${meta.regionId}`);
+                    if (regionItem) {
+                        dimAll();
+                        regionItem.querySelectorAll('.place-list-item')
+                            .forEach(el => { if (el !== placeItem) el.classList.add('dimmed'); });
+                        regionItem.classList.remove('dimmed');
+                        regionItem.querySelector('.accordion-button')?.classList.remove('dimmed');
                     }
-                });
+                }
+                placeItem?.classList.remove('dimmed');
             }
 
-        } else if (type === 'region') {
-            const regionItem = document.getElementById(`region-item-${id}`);
-            regionItem?.classList.add('bg-primary-subtle');
-            regionItem?.querySelector('.accordion-button')?.classList.add('bg-info-subtle');
+            if (ctxType === 'region') {
+                /* Wrapper may be either the normal list item OR an open form */
+                const regionItem  = document.getElementById(`region-item-${id}`);
+                const regionForm  = document.getElementById(`region-form-${id}`);
+                const wrapper     = regionItem || regionForm;
 
-            // Reset all places inside the selected region
-            regionItem?.querySelectorAll('.place-list-item').forEach(el =>
-                el.classList.add('region-place-neutral')
-            );
+                wrapper?.classList.remove('dimmed');
+                wrapper?.querySelector('.accordion-button')?.classList?.remove('dimmed');
 
-            // Dim other regions
-            document.querySelectorAll('.accordion-item').forEach(el => {
-                const isRegionItem = el.id === `region-item-${id}`;
-                const isRegionForm = el.id === `region-form-${id}`;
-                if (!isRegionItem && !isRegionForm) {
-                    el.classList.add('dimmed');
+                document.querySelectorAll('.accordion-item')
+                    .forEach(el => (el.id === `region-item-${id}` || el.id === `region-form-${id}`)
+                        ? el.classList.remove('dimmed')
+                        : el.classList.add('dimmed'));
+            }
+
+            if (ctxType === 'segment') {
+                document.getElementById(`segment-item-${id}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            /* ----- banner ----- */
+            (meta?.name && ctxType) ? setBanner(action, meta.name) : hideBanner();
+        }
+
+        /* ========== CONTEXT CLEARED ========== */
+        if (type === 'clear-context') {
+            clearDim();
+            hideBanner();
+            hideAllIndicators();
+        }
+
+        /**
+         * re attach handlers after reload
+         */
+        store.subscribe(({ type, payload }) => {
+            if (type === 'region-dom-reloaded') {
+                initRegionHandlers(currentTripId);
+                initPlaceHandlers();
+                initSegmentHandlers(currentTripId);
+                initOrdering();
+            }
+        });
+
+        /**
+         * ensure only one active form at all times
+         */
+        if (type === 'trip-cleanup-open-forms') {
+            // Regions: remove open form and reload from server if needed
+            document.querySelectorAll('form[id^="region-form-"]').forEach(async (form) => {
+                const regionId = form.querySelector('[name="Id"]')?.value;
+                if (!regionId || regionId.length !== 36) {
+                    form.closest('.accordion-item')?.remove(); // new form, remove entirely
+                } else {
+                    const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+                    form.outerHTML = await resp.text();
+                    store.dispatch('region-dom-reloaded', { regionId });
                 }
             });
 
-            const collapse = regionItem?.querySelector('.accordion-collapse');
-            if (collapse && !collapse.classList.contains('show')) {
-                regionItem.querySelector('.accordion-button')?.click();
-            }
-
-        } else if (type === 'segment') {
-            const segmentItem = document.querySelector(`.segment-list-item[data-segment-id="${id}"]`);
-            segmentItem?.classList.add('bg-success-subtle');
-        }
-
-        // Scroll selected item into view
-        if (type === 'region') {
-            document.getElementById(`region-item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else if (type === 'place') {
-            document.querySelector(`.place-list-item[data-place-id="${id}"]`)?.scrollIntoView({
-                behavior: 'smooth', block: 'nearest'
+            // Places: remove open form and reload from server if needed
+            document.querySelectorAll('form[id^="place-form-"]').forEach(async (form) => {
+                const placeId = form.querySelector('[name="Id"]')?.value;
+                const regionId = form.querySelector('[name="RegionId"]')?.value;
+                if (!placeId || placeId.length !== 36) {
+                    form.closest('.place-list-item')?.remove(); // new form, remove entirely
+                } else {
+                    const regionEl = document.getElementById(`region-item-${regionId}`);
+                    if (regionEl) {
+                        const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+                        regionEl.outerHTML = await resp.text();
+                        store.dispatch('region-dom-reloaded', { regionId });
+                    }
+                }
             });
-        } else if (type === 'segment') {
-            document.querySelector(`.segment-list-item[data-segment-id="${id}"]`)?.scrollIntoView({
-                behavior: 'smooth', block: 'start'
+
+            // Segments: remove open form and reload from server if needed
+            document.querySelectorAll('form[id^="segment-form-"]').forEach(async (form) => {
+                const segmentId = form.querySelector('[name="Id"]')?.value;
+                if (!segmentId || segmentId.length !== 36) {
+                    form.closest('.accordion-item')?.remove(); // new form, remove entirely
+                } else {
+                    const resp = await fetch(`/User/Segments/GetItemPartial?segmentId=${segmentId}`);
+                    form.outerHTML = await resp.text();
+                    store.dispatch('segment-dom-reloaded', { segmentId });
+                }
             });
+
+            store.dispatch('clear-context');
         }
-
-        // Recenter map if place
-        const map = getMapInstance();
-        if (type === 'place') {
-            const latInput = document.querySelector(`#place-form-${id} input[name="Latitude"]`);
-            const lonInput = document.querySelector(`#place-form-${id} input[name="Longitude"]`);
-            const lat = parseFloat(latInput?.value);
-            const lon = parseFloat(lonInput?.value);
-            if (!isNaN(lat) && !isNaN(lon)) {
-                map?.setView([lat, lon], 14);
-            }
-        }
-
-        // Show context banner
-        if (!type || !meta?.name) {
-            banner.classList.remove('active');
-            return;
-        }
-
-        const cleanName = meta.name.replace(/^[^\w]+/, '').trim();
-        const actionLabel = e.detail.action === 'edit' ? 'Editing' : 'Selected';
-        label.innerHTML = `<span class="me-1"></span>${actionLabel}: ${cleanName}`;
-        banner.classList.add('active');
+                
     });
-
-
-    document.addEventListener('mapping-context-cleared', () => {
-        const banner = document.getElementById('mapping-context-banner');
-        banner?.classList.remove('active');
-        activeDrawingRegionId = null;
-
-        // Clear all selected indicators
-        document.querySelectorAll('.selected-indicator').forEach(el =>
-            el.classList.add('d-none')
-        );
-
-        // Clear all place highlights and dimming
-        document.querySelectorAll('.place-list-item').forEach(el =>
-            el.classList.remove(
-                'bg-warning-subtle',
-                'bg-info-subtle',
-                'dimmed',
-                'region-place-neutral'
-            )
-        );
-
-        // Clear segment highlights
-        document.querySelectorAll('.segment-list-item').forEach(el =>
-            el.classList.remove('bg-success-subtle')
-        );
-
-        // Clear region highlights and dimming
-        document.querySelectorAll('.accordion-item').forEach(el =>
-            el.classList.remove('bg-primary-subtle', 'bg-info-subtle', 'bg-info-soft', 'dimmed')
-        );
-
-        // Clear region header backgrounds
-        document.querySelectorAll('.accordion-button').forEach(el =>
-            el.classList.remove('bg-primary-subtle', 'bg-info-subtle', 'bg-info-soft')
-        );
-    });
-
-
-    document.addEventListener('region-dom-reloaded', () => {
-        if (!currentTripId) return;
-        initRegionHandlers(currentTripId);
-        initPlaceHandlers();
-        loadPersistedMarkers();
-    });
-
-    document.addEventListener('place-context-selected', (e) => {
-        const { placeId, regionId, name } = e.detail;
-
-        // Remove highlights from all
-        document.querySelectorAll('.place-list-item').forEach(item =>
-            item.classList.remove('bg-warning-subtle', 'bg-info-subtle')
-        );
-
-        // Highlight selected place row
-        const selected = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
-        selected?.classList.add('bg-warning-subtle');
-
-        // Highlight region wrapper (soft background)
-        const regionCard = document.getElementById(`region-item-${regionId}`);
-        regionCard?.classList.add('bg-info-soft');
-
-        // ✅ Highlight region header too
-        regionCard?.querySelector('.accordion-button')?.classList.add('bg-info-subtle');
-
-        // Show 📍 icon
-        document.querySelectorAll('.selected-indicator').forEach(el =>
-            el.classList.add('d-none')
-        );
-        document.getElementById(`place-indicator-${placeId}`)?.classList.remove('d-none');
-
-        // Set context
-        setMappingContext({
-            type: 'place',
-            id: placeId,
-            action: 'set-location',
-            meta: { name, regionId }
-        });
-    });
-
 };
 
+/* ------------------------------------------------------------------ *
+ *  Render markers present in HTML on load
+ * ------------------------------------------------------------------ */
 const loadPersistedMarkers = () => {
+    /* places */
     document.querySelectorAll('.place-list-item').forEach(el => {
         const d = el.dataset;
         if (d.placeLat && d.placeLon) {
             renderPlaceMarker({
-                Id: d.placeId,
-                Name: el.querySelector('.place-name')?.textContent || '',
-                Latitude: d.placeLat,
-                Longitude: d.placeLon,
-                IconName: d.placeIcon,
-                MarkerColor: d.placeColor,
-                RegionId: d.regionId
+                Id       : d.placeId,
+                Name     : (d.placeName ||
+                    el.querySelector('.place-name')?.textContent ||
+                    '').trim(),
+                Latitude    : d.placeLat,
+                Longitude   : d.placeLon,
+                IconName    : d.placeIcon,
+                MarkerColor : d.placeColor,
+                RegionId    : d.regionId
             });
         }
     });
-    /* ---------- regions ---------- */
-    document.querySelectorAll('#regions-accordion .accordion-item')
-        .forEach(item => {
-            const lat = item.dataset.centerLat;
-            const lon = item.dataset.centerLon;
-            const id = item.id?.replace('region-item-', '');
-            const name = item.dataset.regionName || 'Unnamed Region';
-            if (id && lat && lon) {
-                renderRegionMarker({
-                    Id: id,
-                    CenterLat: lat,
-                    CenterLon: lon,
-                    Name: name
-                });
-            }
-        });
+
+    /* regions */
+    document.querySelectorAll('#regions-accordion .accordion-item').forEach(item => {
+        const lat  = item.dataset.centerLat;
+        const lon  = item.dataset.centerLon;
+        const id   = item.id?.replace('region-item-', '');
+        const name = item.dataset.regionName || 'Unnamed Region';
+        if (id && lat && lon)
+            renderRegionMarker({ Id: id, CenterLat: lat, CenterLon: lon, Name: name });
+    });
 };
 
-// Entry point
-document.addEventListener('DOMContentLoaded', async() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const centerLat = parseFloat(urlParams.get('lat'));
-    const centerLon = parseFloat(urlParams.get('lng'));
-    const zoomParam = parseInt(urlParams.get('zoom'), 10);
+/* ------------------------------------------------------------------ *
+ *  Bootstrap
+ * ------------------------------------------------------------------ */
+document.addEventListener('DOMContentLoaded', async () => {
 
-    const form = document.getElementById('trip-form');
-    const modelLat = parseFloat(form?.querySelector('[name="CenterLat"]')?.dataset.default || '0');
-    const modelLon = parseFloat(form?.querySelector('[name="CenterLon"]')?.dataset.default || '0');
-    const modelZoom = parseInt(form?.querySelector('[name="Zoom"]')?.dataset.default || '3', 10);
+    /* ----- map initial centre (URL has priority) ----- */
+    const urlParams  = new URLSearchParams(window.location.search);
+    const centerLat  = parseFloat(urlParams.get('lat'));
+    const centerLon  = parseFloat(urlParams.get('lng'));
+    const zoomParam  = parseInt(urlParams.get('zoom'), 10);
 
-    const lat = !isNaN(centerLat) ? centerLat : modelLat;
-    const lon = !isNaN(centerLon) ? centerLon : modelLon;
-    const zoom = !isNaN(zoomParam) && zoomParam >= 0 ? zoomParam : modelZoom;
+    const form       = document.getElementById('trip-form');
+    const modelLat   = parseFloat(form?.querySelector('[name="CenterLat"]')?.dataset.default ?? '0');
+    const modelLon   = parseFloat(form?.querySelector('[name="CenterLon"]')?.dataset.default ?? '0');
+    const modelZoom  = parseInt(form?.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10);
 
-    const center = [lat, lon];
-    const zoomLevel = zoom;
+    const lat  = !Number.isNaN(centerLat) ? centerLat : modelLat;
+    const lon  = !Number.isNaN(centerLon) ? centerLon : modelLon;
+    const zoom = !Number.isNaN(zoomParam) && zoomParam >= 0 ? zoomParam : modelZoom;
 
-    const tripIdField = form.querySelector('[name="Id"]');
-    if (tripIdField) {
-        currentTripId = tripIdField.value;
-    }
+    /* ----- trip id ----- */
+    currentTripId = form.querySelector('[name="Id"]')?.value;
+    store.dispatch('set-trip-id', currentTripId);
 
-    
+    /* ----- map ----- */
     activeDrawingRegionId = null;
     disableDrawingTools();
+    const map = initializeMap([lat, lon], zoom);
 
-    const map = initializeMap(center, zoomLevel);
-
+    /* keep hidden inputs + URL in sync */
     if (form) {
-        const latInput = form.querySelector('[name="CenterLat"]');
-        const lonInput = form.querySelector('[name="CenterLon"]');
-        const zoomInput = form.querySelector('[name="Zoom"]');
-
-        if (latInput) latInput.value = center[0].toFixed(6);
-        if (lonInput) lonInput.value = center[1].toFixed(6);
-        if (zoomInput) zoomInput.value = zoomLevel;
+        form.querySelector('[name="CenterLat"]').value = lat.toFixed(6);
+        form.querySelector('[name="CenterLon"]').value = lon.toFixed(6);
+        form.querySelector('[name="Zoom"]').value      = zoom;
     }
 
     map.on('moveend zoomend', () => {
@@ -327,34 +275,27 @@ document.addEventListener('DOMContentLoaded', async() => {
         const z = map.getZoom();
 
         const params = new URLSearchParams(window.location.search);
-        params.set('lat', c.lat.toFixed(6));
-        params.set('lng', c.lng.toFixed(6));
+        params.set('lat',  c.lat.toFixed(6));
+        params.set('lng',  c.lng.toFixed(6));
         params.set('zoom', z);
         history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 
-        if (form) {
-            const latInput = form.querySelector('[name="CenterLat"]');
-            const lonInput = form.querySelector('[name="CenterLon"]');
-            const zoomInput = form.querySelector('[name="Zoom"]');
-
-            if (latInput) latInput.value = c.lat.toFixed(6);
-            if (lonInput) lonInput.value = c.lng.toFixed(6);
-            if (zoomInput) zoomInput.value = z;
-        }
+        form.querySelector('[name="CenterLat"]').value = c.lat.toFixed(6);
+        form.querySelector('[name="CenterLon"]').value = c.lng.toFixed(6);
+        form.querySelector('[name="Zoom"]').value      = z;
     });
 
-    map.on('click', ({latlng}) =>
-        applyCoordinates({
-            lat: latlng.lat.toFixed(6),
-            lon: latlng.lng.toFixed(6)
-        })
+    map.on('click', ({ latlng }) =>
+        applyCoordinates({ lat: latlng.lat.toFixed(6), lon: latlng.lng.toFixed(6) })
     );
 
+    /* ----- sub-modules ----- */
     initOrdering();
     rebindMainButtons();
     initRegionHandlers(currentTripId);
     initPlaceHandlers();
-    initSegmentHandlers();
+    initSegmentHandlers(currentTripId);
+
     await setupQuill();
     attachListeners();
     loadPersistedMarkers();

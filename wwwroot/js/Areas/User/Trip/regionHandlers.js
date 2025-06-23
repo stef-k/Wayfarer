@@ -1,81 +1,101 @@
-// regionHandlers.js – create / edit / delete regions
+// regionHandlers.js – pure store architecture (new region prepend + rebind place handlers)
+/**
+ * Manages region-related UI and interactions.
+ * - Add/Edit/Delete regions.
+ * - Add/Cancel/Save region forms.
+ * - Listeners for selecting region areas.
+ * - Integrates with central store for context and events.
+ */
 
-import {
-    clearMappingContext, getMappingContext,
-    setMappingContext
-} from './mappingContext.js';
-
-import {
-    initPlaceHandlers,
-    enhancePlaceForm
-} from './placeHandlers.js';
-
-import {
-    clearSelectedMarker,
-    getMapInstance, getRegionMarkerById,
-    removeRegionMarker, selectMarker
-} from './mapManager.js';
+import { enhancePlaceForm, initPlaceHandlers } from './placeHandlers.js';
+import { getMapInstance, getRegionMarkerById, removeRegionMarker, selectMarker, clearSelectedMarker } from './mapManager.js';
+import { store } from './storeInstance.js';
 
 let cachedTripId = null;
 
-const initRegionHandlersWrapper = () => {
-    if (cachedTripId) initRegionHandlers(cachedTripId);
-    else console.warn('⚠️ No tripId available for initRegionHandlers.');
-};
-
+/**
+ * Initializes all region-related handlers for the given trip.
+ * @param {string} tripId
+ */
 export const initRegionHandlers = (tripId) => {
-    /* ---------- add region ---------- */
     cachedTripId = tripId;
+
+    // “Add region” button
     const addBtn = document.getElementById('btn-add-region');
     if (addBtn) addBtn.onclick = async () => {
-        if (!tripId) return;
+        store.dispatch('trip-cleanup-open-forms');
 
         const resp = await fetch(`/User/Regions/CreateOrUpdate?tripId=${tripId}`);
         const html = await resp.text();
 
-        const container = document.getElementById('regions-accordion');
-        container.insertAdjacentHTML('beforeend', html);
+        const list = document.getElementById('regions-accordion');
+        if (!list) return;
 
-        const newRegionForm = container.lastElementChild;
-        const newRegionId = newRegionForm.id.replace('region-form-', '');
+        // PREPEND new region form to top
+        list.insertAdjacentHTML('afterbegin', html);
 
-        newRegionForm.classList.add('bg-info-subtle');   // highlight
+        const newForm = list.firstElementChild;
+        const newRegionId = newForm?.id?.replace('region-form-', '');
+        if (newRegionId) {
+            try {
+                const { setupQuill, waitForQuill } = await import('./quillNotes.js');
+                await waitForQuill(`#region-notes-${newRegionId}`);
+                await setupQuill(
+                    `#region-notes-${newRegionId}`,
+                    `#Notes-${newRegionId}`,
+                    `#region-form-${newRegionId}`
+                );
+            } catch (err) {
+                console.error(`❌ Failed to init Quill for new region ${newRegionId}:`, err);
+            }
 
-        setMappingContext({
-            type: 'region',
-            id: newRegionId,
-            action: 'set-center',
-            meta: {name: 'New region'}
-        });
+            store.dispatch('set-context', {
+                type: 'region',
+                id: newRegionId,
+                action: 'set-center',
+                meta: { name: 'New region' }
+            });
+        }
 
-        /* re-bind fresh DOM */
+        // Rebind handlers after DOM insertion
         initRegionHandlers(tripId);
         initPlaceHandlers();
         attachRegionFormHandlers();
     };
 
-    /* other buttons … */
-    document.querySelectorAll('.btn-edit-region')
-        .forEach(btn => btn.onclick = () => handleEditRegion(btn.dataset.regionId, tripId));
+    // Edit region buttons
+    document.querySelectorAll('.btn-edit-region').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.onclick = () => handleEditRegion(btn.dataset.regionId, tripId);
+    });
 
-    document.querySelectorAll('.btn-delete-region')
-        .forEach(btn => btn.onclick = () => handleDeleteRegion(btn.dataset.regionId));
+    // Delete region buttons
+    document.querySelectorAll('.btn-delete-region').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.onclick = () => handleDeleteRegion(btn.dataset.regionId);
+    });
 
-    document.querySelectorAll('.btn-add-place')
-        .forEach(btn => btn.onclick = () => handleAddPlace(btn.dataset.regionId));
+    // Add place buttons
+    document.querySelectorAll('.btn-add-place').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
+        btn.onclick = () => handleAddPlace(btn.dataset.regionId);
+    });
 
-    /* select region (centre on map) */
+    // Region area selection
     document.querySelectorAll('.region-select-area').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
         btn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
 
             const wrapper = btn.closest('.accordion-item');
-            const latStr = wrapper?.dataset.centerLat;
-            const lonStr = wrapper?.dataset.centerLon;
-            const lat = parseFloat(latStr);
-            const lon = parseFloat(lonStr);
-            if (!isNaN(lat) && !isNaN(lon)) {
+            const lat = parseFloat(wrapper?.dataset.centerLat);
+            const lon = parseFloat(wrapper?.dataset.centerLon);
+            if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
                 getMapInstance()?.setView([lat, lon], 8);
             }
 
@@ -83,28 +103,29 @@ export const initRegionHandlers = (tripId) => {
             const regionName = btn.dataset.regionName || 'Unnamed Region';
             if (!regionId) return;
 
-            document.querySelectorAll('.accordion-item')
-                .forEach(i => i.classList.remove('bg-info-subtle', 'bg-info-soft'));
+            document.querySelectorAll('.accordion-item').forEach(el => el.classList.add('dimmed'));
+            wrapper.classList.remove('dimmed');
 
-            wrapper?.classList.add('bg-info-subtle');
-
-            setMappingContext({
+            store.dispatch('set-context', {
                 type: 'region',
                 id: regionId,
                 action: 'set-center',
-                meta: {name: regionName}
+                meta: { name: regionName }
             });
+
             clearSelectedMarker();
             const marker = getRegionMarkerById(regionId);
             if (marker) selectMarker(marker);
         };
     });
+
     attachRegionFormHandlers();
 };
 
-/* ------------------------------------------------------------------ *
- *  edit / delete / add place helpers (unchanged except delete)
- * ------------------------------------------------------------------ */
+/**
+ * Handles deleting a region after user confirmation.
+ * @param {string} regionId
+ */
 const handleDeleteRegion = (regionId) => {
     showConfirmationModal({
         title: 'Delete Region?',
@@ -112,8 +133,7 @@ const handleDeleteRegion = (regionId) => {
         confirmText: 'Delete',
         onConfirm: async () => {
             const fd = new FormData();
-            fd.set('__RequestVerificationToken',
-                document.querySelector('input[name="__RequestVerificationToken"]').value);
+            fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
 
             const resp = await fetch(`/User/Regions/Delete/${regionId}`, {
                 method: 'POST',
@@ -122,8 +142,8 @@ const handleDeleteRegion = (regionId) => {
 
             if (resp.ok) {
                 document.getElementById(`region-item-${regionId}`)?.remove();
-                removeRegionMarker(regionId);          // ← ensure pin disappears
-                clearMappingContext();
+                removeRegionMarker(regionId);
+                store.dispatch('clear-context');
                 showAlert('success', 'Region deleted.');
             } else {
                 showAlert('danger', 'Failed to delete region.');
@@ -132,110 +152,120 @@ const handleDeleteRegion = (regionId) => {
     });
 };
 
+/**
+ * Adds a new place form to the specified region and rebinds handlers.
+ * @param {string} regionId
+ */
 const handleAddPlace = async (regionId) => {
+    store.dispatch('trip-cleanup-open-forms');
+
     const resp = await fetch(`/User/Places/CreateOrUpdate?regionId=${regionId}`);
     const html = await resp.text();
-
     const regionItem = document.getElementById(`region-item-${regionId}`);
-    regionItem.insertAdjacentHTML('beforeend', html);
+    const placesContainer = regionItem.querySelector('[data-region-places]');
+    if (placesContainer) {
+        placesContainer.insertAdjacentHTML('afterbegin', html);  // ✅ correctly inserts within the region
+    } else {
+        console.warn('⚠️ Region places container not found, fallback used.');
+        regionItem.insertAdjacentHTML('beforeend', html);  // fallback to safe default
+    }
 
     const formEl = regionItem.querySelector('[id^="place-form-"]');
     let newPlaceId = null;
-
     if (formEl) {
         await enhancePlaceForm(formEl);
         newPlaceId = formEl.id.replace('place-form-', '');
     }
 
+    // Rebind place handlers so Cancel works correctly
+    initPlaceHandlers();
+
     if (newPlaceId) {
-        setMappingContext({
+        store.dispatch('set-context', {
             type: 'place',
             id: newPlaceId,
             action: 'set-location',
-            meta: {name: 'New place', regionId}
+            meta: { name: 'New place', regionId }
         });
     }
 
-    document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId}}));
+    store.dispatch('region-dom-reloaded', { regionId });
 };
 
+/**
+ * Loads and enhances the region edit form.
+ * @param {string} regionId
+ * @param {string} tripId
+ */
 const handleEditRegion = async (regionId, tripId) => {
     if (!regionId || !tripId) return;
 
     const wrapper = document.getElementById(`region-item-${regionId}`);
     const resp = await fetch(`/User/Regions/CreateOrUpdate?regionId=${regionId}&tripId=${tripId}`);
     const html = await resp.text();
-
     wrapper.outerHTML = html;
 
-    // 🔁 Re-acquire the new element after replacement
-    const newEl = document.getElementById(`region-form-${regionId}`);
-    const name = newEl?.getAttribute('data-region-name')?.trim() || 'Unnamed Region';
-    
-    // ✳️ Force highlight refresh after setting context
-    document.dispatchEvent(new CustomEvent('mapping-context-changed', {
-        detail: getMappingContext()
-    }));
-    // 🆕 fix: rebind all buttons inside the reloaded DOM
-    initRegionHandlers(tripId); // ✅ fixes "Edit" button doing nothing
+    // Rebind handlers on new markup
+    initRegionHandlers(tripId);
     initPlaceHandlers();
-    initRegionHandlersWrapper();
 
+    // Quill setup
     try {
-        // ⏬ Lazy load to avoid bundler crash
         const { setupQuill, waitForQuill } = await import('./quillNotes.js');
-
         await waitForQuill(`#region-notes-${regionId}`);
         await setupQuill(`#region-notes-${regionId}`, `#Notes-${regionId}`, `#region-form-${regionId}`);
     } catch (err) {
         console.error(`❌ Failed to init Quill for region ${regionId}:`, err);
     }
 
-    document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId}}));
-
-    setMappingContext({
+    store.dispatch('region-dom-reloaded', { regionId });
+    store.dispatch('set-context', {
         type: 'region',
         id: regionId,
         action: 'edit',
-        meta: {name}
+        meta: { name: wrapper?.getAttribute('data-region-name')?.trim() || 'Unnamed Region' }
     });
 };
 
-
+/**
+ * Binds cancel & save buttons inside region forms.
+ */
 const attachRegionFormHandlers = () => {
     document.querySelectorAll('.btn-region-cancel').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
         btn.onclick = async () => {
             const regionId = btn.dataset.regionId;
             const wrapper = btn.closest('.accordion-item');
 
-            // brand-new / unsaved region → just drop it
+            // Cancel new region
             if (!regionId) {
-                wrapper?.remove();
-                clearMappingContext();
+                wrapper.remove();
+                store.dispatch('clear-context');
                 return;
             }
 
-            // existing region → reload the read-only partial
+            // Reload original region item
             const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
             wrapper.outerHTML = await resp.text();
 
-            document.dispatchEvent(
-                new CustomEvent('region-dom-reloaded', {detail: {regionId}})
-            );
-            clearMappingContext();
+            store.dispatch('region-dom-reloaded', { regionId });
+            store.dispatch('clear-context');
         };
     });
 
     document.querySelectorAll('.btn-region-save').forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = '1';
         btn.onclick = async () => {
             const regionId = btn.dataset.regionId;
             const formEl = document.getElementById(`region-form-${regionId}`);
             const fd = new FormData(formEl);
 
-            const resp = await fetch(`/User/Regions/CreateOrUpdate`, {
+            const resp = await fetch('/User/Regions/CreateOrUpdate', {
                 method: 'POST',
                 body: fd,
-                headers: {'X-CSRF-TOKEN': fd.get('__RequestVerificationToken')}
+                headers: { 'X-CSRF-TOKEN': fd.get('__RequestVerificationToken') }
             });
 
             const html = await resp.text();
@@ -243,51 +273,41 @@ const attachRegionFormHandlers = () => {
 
             if (resp.ok) {
                 wrapper.outerHTML = html;
-                const newRegionId = wrapper?.id?.replace('region-item-', '');
-                if (newRegionId) {
-                    document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId: newRegionId}}));
-                }
-                clearMappingContext();
+                const newRegionId = wrapper.id.replace('region-item-', '');
+                if (newRegionId) store.dispatch('region-dom-reloaded', { regionId: newRegionId });
+                store.dispatch('clear-context');
             } else {
                 wrapper.outerHTML = html;
                 attachRegionFormHandlers();
 
                 const dom = new DOMParser().parseFromString(html, 'text/html');
-                const errorsBlock = dom.querySelector('.region-form-errors ul');
-                if (errorsBlock) {
-                    const errors = Array.from(errorsBlock.querySelectorAll('li')).map(li => li.textContent.trim());
-                    showAlert('danger', errors.join('\n'));
-                }
+                const errors = Array.from(dom.querySelectorAll('.region-form-errors ul li'))
+                    .map(li => li.textContent.trim());
+                if (errors.length) showAlert('danger', errors.join('\n'));
             }
         };
     });
 };
-document.addEventListener('mapping-context-changed', (e) => {
-    const ctx = e.detail;
-    if (ctx.type !== 'region' || (ctx.action !== 'set-center' && ctx.action !== 'edit')) return;
 
-    const el = document.getElementById(`region-item-${ctx.id}`);
-    if (!el) return;
+/**
+ * Store subscribers for auto-scrolling and form restore on clear.
+ */
+store.subscribe(({ type, payload }) => {
+    // Scroll to region on select
+    if (type === 'set-context' && payload?.type === 'region') {
+        document.getElementById(`region-item-${payload.id}`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
-    el.scrollIntoView({behavior: 'smooth', block: 'center'});
-
-    document.querySelectorAll('.accordion-item')
-        .forEach(i => i.classList.remove('bg-primary-subtle'));
-
-    el.classList.add('bg-primary-subtle');
-});
-
-// on closing the mapping context, close edit form
-document.addEventListener('mapping-context-cleared', async () => {
-    const openRegionForm = document.querySelector('form[id^="region-form-"]');
-    const regionId = openRegionForm?.querySelector('[name="Id"]')?.value;
-
-    if (regionId) {
-        const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-        openRegionForm.outerHTML = await resp.text();
-
-        document.dispatchEvent(
-            new CustomEvent('region-dom-reloaded', { detail: { regionId } })
-        );
+    // Restore open form on clear-context
+    if (type === 'clear-context') {
+        const openForm = document.querySelector('form[id^="region-form-"]');
+        const regionId = openForm?.querySelector('[name="Id"]')?.value;
+        if (!regionId) return;
+        (async () => {
+            const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+            openForm.outerHTML = await resp.text();
+            store.dispatch('region-dom-reloaded', { regionId });
+        })();
     }
 });

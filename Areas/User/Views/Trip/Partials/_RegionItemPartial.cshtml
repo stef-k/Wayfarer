@@ -112,7 +112,8 @@
                                 data-place-lat="@place.Location?.Y"
                                 data-place-lon="@place.Location?.X"
                                 data-place-icon="@place.IconName"
-                                data-place-color="@place.MarkerColor">
+                                data-place-color="@place.MarkerColor"
+                                data-place-name="@place.Name?.Trim()">
                                 <i class="bi bi-grip-vertical drag-handle me-1"></i>
 
                                 @if (place.Location != null)

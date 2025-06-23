@@ -83,7 +83,7 @@
   
               @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
               {
-                <div class="mt-2">
+                <div class="mt-2 text-center">
                   <a href="@Model.CoverImageUrl" target="_blank" rel="noopener noreferrer" title="Open full image in new tab">
                     <img src="@Model.CoverImageUrl"
                          class="img-fluid rounded shadow-sm"
@@ -153,7 +153,7 @@
           <i class="bi bi-plus-lg"></i> Add Segment
         </button>
 
-        <div>
+        <div id="segments-list">
           @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", Model)
         </div>
 

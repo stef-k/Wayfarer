@@ -1,13 +1,33 @@
-// placeHandlers.js
-// Handles create/edit/delete of places within a region
-import {setMappingContext, getMappingContext, clearMappingContext} from './mappingContext.js';
+// placeHandlers.js – full file with robust “cancel new place” fix
 import {
     renderPlaceMarker,
     removePlaceMarker,
     getMapInstance,
-    getPlaceMarkerById, clearSelectedMarker, selectMarker
+    getPlaceMarkerById,
+    clearSelectedMarker,
+    selectMarker
 } from './mapManager.js';
-import {populateIconDropdown, populateColorDropdown, updateDropdownIconColors} from './uiCore.js';
+import {
+    populateIconDropdown,
+    populateColorDropdown,
+    updateDropdownIconColors,
+    clearDim,
+    dimAll
+} from './uiCore.js';
+import { store } from './storeInstance.js';
+
+/**
+ * Returns a clean place title from a list-item or form element.
+ * Falls back to DOM text if the data-attr is missing.
+ */
+const getPlaceName = (el) => {
+    const raw = (
+        el?.dataset?.placeName ??                 // preferred
+        el?.querySelector('.place-name')?.textContent ??
+        ''
+    ).trim();
+    return raw || 'Unnamed';
+};
 
 export const initPlaceHandlers = () => {
     attachPlaceFormHandlers();
@@ -20,12 +40,13 @@ export const enhancePlaceForm = async (formEl) => {
     const formSelector = `#place-form-${placeId}`;
 
     try {
-        const {setupQuill, waitForQuill} = await import('./quillNotes.js');
+        const { setupQuill, waitForQuill } = await import('./quillNotes.js');
         await waitForQuill(selector);
         await setupQuill(selector, inputSelector, formSelector);
     } catch (err) {
         console.warn(`❌ Failed to init Quill for place ${placeId}:`, err);
     }
+
     const iconMenu = formEl.querySelector('.icon-dropdown-menu');
     if (iconMenu) {
         await populateIconDropdown(iconMenu);
@@ -34,127 +55,59 @@ export const enhancePlaceForm = async (formEl) => {
     }
 
     await populateColorDropdown(formEl);
-
-    // ✅ Keep dropdown previews in sync
     const currentColor = formEl.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
     updateDropdownIconColors(formEl, currentColor);
 };
 
-
 const attachPlaceFormHandlers = () => {
-    /* ---------- cancel ---------- */
+    
     document.querySelectorAll('.btn-place-cancel').forEach(btn => {
         btn.onclick = async () => {
-            const placeId = btn.dataset.placeId;
-            const regionId = btn.dataset.regionId;
-            if (!placeId) return;
+            // 1) Find the surrounding form to read hidden inputs if needed
+            const formEl = btn.closest('form[id^="place-form-"]');
+            const placeId = btn.dataset.placeId ||
+                formEl?.querySelector('[name="Id"]')?.value;
+            const regionId = btn.dataset.regionId ||
+                formEl?.querySelector('[name="RegionId"]')?.value;
+            if (!regionId) return; // nothing we can reload
 
+            const existingItem = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+            const isNew = !existingItem; // no existing list item means this is truly new
+            const context = store.getState().context;
+
+            // 2) Reload the entire region accordion item
             const regionEl = document.getElementById(`region-item-${regionId}`);
-            const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-            regionEl.outerHTML = await resp.text();
-
-            document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId}}));
-            removePlaceMarker(placeId);
-
-            // ✅ Restore view mode and context
-            const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
-            const name = item?.querySelector('.place-name')?.innerText || 'Unnamed';
-            const lat = item?.dataset.placeLat;
-            const lon = item?.dataset.placeLon;
-            const icon = item?.dataset.placeIcon;
-            const color = item?.dataset.placeColor;
-
-            if (lat && lon) {
-                renderPlaceMarker?.({
-                    Id: placeId,
-                    Name: name,
-                    Latitude: lat,
-                    Longitude: lon,
-                    IconName: icon,
-                    MarkerColor: color,
-                    RegionId: regionId
-                });
+            if (regionEl) {
+                const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+                regionEl.outerHTML = await resp.text();
+                store.dispatch('region-dom-reloaded', { regionId });
             }
 
-            setMappingContext({
-                type: 'place',
-                id: placeId,
-                action: 'set-location',
-                meta: {name, regionId}
-            });
+            // 3) Remove any temporary marker
+            if (placeId) removePlaceMarker(placeId);
+            
 
-            document.dispatchEvent(new CustomEvent('place-context-selected', {
-                detail: {placeId, regionId, name}
-            }));
-        };
-    });
+            // 4) If it was a new place (or context mismatches), clear the context banner
+            if (isNew || context?.id !== placeId) {
+                store.dispatch('clear-context');
+                return;
+            }
 
-
-    /* ---------- edit ---------- */
-    document.querySelectorAll('.btn-edit-place').forEach(btn => {
-        btn.onclick = async () => {
-            const placeId = btn.dataset.placeId;
-            const regionId = btn.dataset.regionId;
-            if (!placeId || !regionId) return;
-
-            const resp = await fetch(`/User/Places/Edit/${placeId}`);
-            const html = await resp.text();
-
-            const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
-            if (!item) return;
-
-            item.outerHTML = html;
-
-            const formEl = document.getElementById(`place-form-${placeId}`);
-            if (formEl) await enhancePlaceForm(formEl);
-            attachPlaceFormHandlers();
-
-            const name = formEl.querySelector('input[name="Name"]')?.value || 'Unnamed';
-
-            setMappingContext({
-                type: 'place',
-                id: placeId,
-                action: 'edit',
-                meta: {name, regionId}
-            });
-        };
-    });
-
-    /* ---------- save ---------- */
-    document.querySelectorAll('.btn-place-save').forEach(btn => {
-        btn.onclick = async () => {
-            const placeId = btn.dataset.placeId;
-            const regionId = btn.dataset.regionId;
-            const formEl = document.getElementById(`place-form-${placeId}`);
-
-            const fd = new FormData(formEl);
-            const token = fd.get('__RequestVerificationToken');
-
-            const resp = await fetch('/User/Places/CreateOrUpdate', {
-                method: 'POST',
-                body: fd,
-                credentials: 'same-origin',
-                headers: token ? {RequestVerificationToken: token} : {}
-            });
-
-            const html = await resp.text();
-            const wrapper = formEl.closest('.accordion-item');
-            if (resp.ok) {
-                wrapper.outerHTML = html;
-                attachPlaceFormHandlers();
-
-                // Re-render marker for the *currently active* place, if any
-                const context = getMappingContext();
-                if (context?.type === 'place' && context.id === placeId) {
-                    const el = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
-                    const lat = el?.dataset.placeLat;
-                    const lon = el?.dataset.placeLon;
-                    const icon = el?.dataset.placeIcon;
-                    const color = el?.dataset.placeColor;
-
+            // 5) Otherwise (editing an existing place), wait for the DOM to reload,
+            //    then restore the place marker and re-select it in the store.
+            store.subscribeOnce(
+                ({ type, payload }) =>
+                    type === 'region-dom-reloaded' && payload.regionId === regionId,
+                () => {
+                    const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+                    if (!item) {
+                        store.dispatch('clear-context');
+                        return;
+                    }
+                    const name = getPlaceName(item);
+                    const { placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color } = item.dataset;
                     if (lat && lon) {
-                        const name = el.querySelector('.place-name')?.innerText || 'Unnamed';
-                        renderPlaceMarker?.({
+                        renderPlaceMarker({
                             Id: placeId,
                             Name: name,
                             Latitude: lat,
@@ -164,56 +117,101 @@ const attachPlaceFormHandlers = () => {
                             RegionId: regionId
                         });
                     }
+                    store.dispatch('set-context', {
+                        type: 'place',
+                        id: placeId,
+                        action: 'set-location',
+                        meta: { name, regionId }
+                    });
                 }
-            } else {
-                wrapper.outerHTML = html;
-                attachPlaceFormHandlers();
+            );
+        };
+    });
 
-                const dom = new DOMParser().parseFromString(html, 'text/html');
-                const errorsBlock = dom.querySelector('.place-form-errors ul');
-                const errors = [...errorsBlock?.querySelectorAll('li') || []].map(li => li.textContent.trim());
-                showAlert('danger', errors.join('\n'));
+    /* ─────────────────────────────────────────────────────────────── *
+     *  EDIT
+     * ─────────────────────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-edit-place').forEach(btn => {
+        btn.onclick = async () => {
+            const { placeId, regionId } = btn.dataset;
+            if (!placeId || !regionId) return;
+
+            store.dispatch('trip-cleanup-open-forms');
+            const resp = await fetch(`/User/Places/Edit/${placeId}`);
+            const html = await resp.text();
+
+            const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+            if (!item) return;
+            item.outerHTML = html;
+
+            const formEl = document.getElementById(`place-form-${placeId}`);
+            if (formEl) await enhancePlaceForm(formEl);
+            attachPlaceFormHandlers();
+
+            const name = formEl.querySelector('input[name="Name"]')?.value || 'Unnamed';
+            store.dispatch('set-context', {
+                type: 'place',
+                id: placeId,
+                action: 'edit',
+                meta: { name, regionId }
+            });
+        };
+    });
+
+    /* ─────────────────────────────────────────────────────────────── *
+     *  SAVE
+     * ─────────────────────────────────────────────────────────────── */
+    document.querySelectorAll('.btn-place-save').forEach(btn => {
+        btn.onclick = async () => {
+            const { placeId } = btn.dataset;
+            const formEl = document.getElementById(`place-form-${placeId}`);
+            const fd     = new FormData(formEl);
+            const token  = fd.get('__RequestVerificationToken');
+
+            const resp = await fetch('/User/Places/CreateOrUpdate', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: token ? { RequestVerificationToken: token } : {}
+            });
+
+            const html    = await resp.text();
+            const wrapper = formEl.closest('.accordion-item');
+            wrapper.outerHTML = html;
+            attachPlaceFormHandlers();
+
+            if (!resp.ok) {
+                const dom    = new DOMParser().parseFromString(html, 'text/html');
+                const errors = [...dom.querySelectorAll('.place-form-errors ul li')]
+                    .map(li => li.textContent.trim());
+                wayfarer.showAlert('danger', errors.join('\n'));
             }
         };
     });
 
-    /* ---------- place list (select) ---------- */
+    /* ─────────────────────────────────────────────────────────────── *
+     *  SELECT in list
+     * ─────────────────────────────────────────────────────────────── */
     document.querySelectorAll('.place-list-item').forEach(li => {
         li.onclick = () => {
-            const placeId = li.dataset.placeId;
-            const regionId = li.dataset.regionId;
+            const { placeId, regionId, placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color } = li.dataset;
+            const name = getPlaceName(li);
             if (!placeId || !regionId) return;
 
-            const lat = li.dataset.placeLat;
-            const lon = li.dataset.placeLon;
-            const icon = li.dataset.placeIcon;
-            const color = li.dataset.placeColor;
-            const name = li.querySelector('.place-name')?.innerText || 'Unnamed';
+            dimAll();
+            document.getElementById(`region-item-${regionId}`)?.classList.remove('dimmed');
+            li.classList.remove('dimmed');
 
-            document.querySelectorAll('.place-list-item').forEach(i =>
-                i.classList.remove('bg-info-subtle', 'bg-info-soft')
-            );
-            li.classList.add('bg-info-subtle');
-
-            setMappingContext({
+            store.dispatch('set-context', {
                 type: 'place',
                 id: placeId,
                 action: 'set-location',
-                meta: {name, regionId}
+                meta: { name, regionId }
             });
 
             if (lat && lon) {
-                renderPlaceMarker?.({
-                    Id: placeId,
-                    Name: name,
-                    Latitude: lat,
-                    Longitude: lon,
-                    IconName: icon,
-                    MarkerColor: color,
-                    RegionId: regionId
-                });
-                const map = getMapInstance();
-                if (map) map.setView([lat, lon], Math.max(map.getZoom(), 10));
+                renderPlaceMarker({ Id: placeId, Name: name, Latitude: lat, Longitude: lon, IconName: icon, MarkerColor: color, RegionId: regionId });
+                getMapInstance()?.setView([lat, lon], 10);
                 clearSelectedMarker();
                 const marker = getPlaceMarkerById(placeId);
                 if (marker) selectMarker(marker);
@@ -221,36 +219,36 @@ const attachPlaceFormHandlers = () => {
         };
     });
 
-    /* ---------- delete ---------- */
+    /* ─────────────────────────────────────────────────────────────── *
+     *  DELETE
+     * ─────────────────────────────────────────────────────────────── */
     document.querySelectorAll('.btn-delete-place').forEach(btn => {
         btn.onclick = () => {
-            const {placeId, regionId} = btn.dataset;
+            const { placeId, regionId } = btn.dataset;
             if (!placeId) return;
 
-            showConfirmationModal({
-                title: 'Delete place?',
-                message: 'This action cannot be undone.',
+            wayfarer.showConfirmationModal({
+                title      : 'Delete place?',
+                message    : 'This action cannot be undone.',
                 confirmText: 'Delete',
-                onConfirm: async () => {
+                onConfirm  : async () => {
                     const fd = new FormData();
-                    fd.set('__RequestVerificationToken',
-                        document.querySelector('input[name="__RequestVerificationToken"]').value);
+                    fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
 
                     const resp = await fetch(`/User/Places/Delete/${placeId}`, {
-                        method: 'POST',
-                        body: fd,
-                        headers: {RequestVerificationToken: fd.get('__RequestVerificationToken')}
+                        method : 'POST',
+                        body   : fd,
+                        headers: { RequestVerificationToken: fd.get('__RequestVerificationToken') }
                     });
 
                     if (resp.ok) {
-                        const regionEl = document.getElementById(`region-item-${regionId}`);
                         const html = await resp.text();
-                        regionEl.outerHTML = html;
-                        document.dispatchEvent(new CustomEvent('region-dom-reloaded', {detail: {regionId}}));
+                        document.getElementById(`region-item-${regionId}`).outerHTML = html;
+                        store.dispatch('region-dom-reloaded', { regionId });
                         removePlaceMarker(placeId);
-                        clearMappingContext();
+                        store.dispatch('clear-context');
                     } else {
-                        showAlert('danger', 'Failed to delete place.');
+                        wayfarer.showAlert('danger', 'Failed to delete place.');
                     }
                 }
             });
@@ -258,48 +256,24 @@ const attachPlaceFormHandlers = () => {
     });
 };
 
-/* ------------------------------------------------------------------ */
-/*  When the region container is re-rendered, re-bind its new DOM      */
-/* ------------------------------------------------------------------ */
-document.addEventListener('region-dom-reloaded', e => {
-    (async () => {
-        const {regionId} = e.detail;
-        const regionEl = document.getElementById(`region-item-${regionId}`);
+/* ─────────────────────────────────────────────────────────────── *
+ *  Ensure any open form is torn down on clear-context
+ * ─────────────────────────────────────────────────────────────── */
+store.subscribe(({ type }) => {
+    if (type === 'clear-context') {
+        const openForm  = document.querySelector('form[id^="place-form-"]');
+        const placeId   = openForm?.querySelector('[name="Id"]')?.value;
+        const regionId  = openForm?.querySelector('[name="RegionId"]')?.value;
 
-        // Auto-expand the accordion panel that just changed
-        regionEl?.querySelector('.accordion-button')?.classList.remove('collapsed');
-        regionEl?.querySelector('.accordion-collapse')?.classList.add('show');
-
-        attachPlaceFormHandlers();
-    })();
-});
-
-document.addEventListener('mapping-context-cleared', () => {
-    clearSelectedMarker?.();
-
-    // ✅ Do NOT invoke .btn-place-cancel here
-    // Instead just close any open edit form by reloading region DOM without restoring selection
-
-    const openPlaceForm = document.querySelector('form[id^="place-form-"]');
-    const placeId = openPlaceForm?.querySelector('[name="Id"]')?.value;
-    const regionId = openPlaceForm?.querySelector('[name="RegionId"]')?.value;
-
-    if (placeId && regionId) {
-        (async () => {
-            const regionEl = document.getElementById(`region-item-${regionId}`);
-            if (!regionEl) return;
-            const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-            regionEl.outerHTML = await resp.text();
-
-            document.dispatchEvent(new CustomEvent('region-dom-reloaded', { detail: { regionId } }));
-            removePlaceMarker(placeId);
-        })();
+        if (placeId && regionId) {
+            (async () => {
+                const regionEl = document.getElementById(`region-item-${regionId}`);
+                if (!regionEl) return;
+                const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+                regionEl.outerHTML = await resp.text();
+                store.dispatch('region-dom-reloaded', { regionId });
+                removePlaceMarker(placeId);
+            })();
+        }
     }
 });
-
-
-
-
-
-
-

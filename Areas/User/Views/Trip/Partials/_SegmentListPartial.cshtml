@@ -37,11 +37,19 @@ else
                 data-segment-name="@($"{segment.FromPlace?.Name} → {segment.ToPlace?.Name}")">
                 <i class="bi bi-grip-vertical drag-handle me-1"></i>
                 <div class="me-auto">
-                    <div>
-                        <i class="bi @iconClass me-1"></i>
-                        <strong class="text-capitalize">@segment.Mode</strong>
+                    <div class="d-flex align-items-center gap-1">
+                        <i class="bi @iconClass"></i>
+                        <strong class="text-capitalize mb-0">@segment.Mode</strong>
+                        @if (!string.IsNullOrWhiteSpace(segment.Notes))
+                        {
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-2"
+                                    data-bs-toggle="modal" data-bs-target="#segmentNotesModal-@segment.Id"
+                                    title="@segment.Mode from @segment?.FromPlace?.Name to @segment?.ToPlace?.Name - Click to view notes"
+                                    style="line-height: 1;">
+                                <i class="bi bi-info-circle"></i>
+                            </button>
+                        }
                     </div>
-
                     <div class="text-muted small d-flex align-items-center gap-2">
                         <span>
                             <i class="bi bi-geo-fill text-success me-1"></i>
@@ -61,6 +69,12 @@ else
                 </div>
 
                 <div class="btn-group">
+                    <input type="checkbox"
+                           class="form-check-input me-2 btn-segment-toggle-visibility"
+                           id="segment-visibility-@segment.Id"
+                           data-segment-id="@segment.Id"
+                           checked
+                           title="Show/Hide this segment on map" />
                     <button class="btn btn-sm btn-outline-primary btn-edit-segment" title="Edit Segment" data-segment-id="@segment.Id">
                         <i class="bi bi-pencil"></i>
                     </button>
@@ -70,6 +84,30 @@ else
 
                 </div>
             </li>
+            @if (!string.IsNullOrWhiteSpace(segment.Notes))
+            {
+                <div class="modal fade" id="segmentNotesModal-@segment.Id" tabindex="-1"
+                     aria-labelledby="segmentNotesLabel-@segment.Id" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="segmentNotesLabel-@segment.Id">
+                                    Notes for <span class="fw-semibold">@segment.Mode from @segment?.FromPlace?.Name to @segment?.ToPlace?.Name</span>
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                @Html.Raw(segment?.Notes)
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-sm btn-secondary"
+                                        data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
         }
     </ul>
 }

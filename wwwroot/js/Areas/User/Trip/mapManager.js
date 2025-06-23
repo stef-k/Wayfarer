@@ -1,70 +1,64 @@
-// mapManager.js
+// mapManager.js – refactored to use store
 import {
     addZoomLevelControl,
-    latestLocationMarker            // little green pin for “centre here”
+    latestLocationMarker
 } from '../../../map-utils.js';
 
-import { setMappingContext, getMappingContext } from './mappingContext.js';
+import { store } from './storeInstance.js';
 
 /* ------------------------------------------------------------------ *
  *  Private state
  * ------------------------------------------------------------------ */
-let mapContainer   = null;
-let drawControl    = null;
-let drawnLayerGroup= null;
+let mapContainer = null;
+let drawControl = null;
+let drawnLayerGroup = null;
 let selectedMarker = null;
 let previewMarker = null;
 
-const placeMarkersById  = {};
+const placeMarkersById = {};
 const regionMarkersById = {};
 const regionPreviewById = {};
 
-/* 25×41 is Leaflet’s reference pin size. 12×41 = bottom-centre tip. */
-const WF_WIDTH  = 28;
+const WF_WIDTH = 28;
 const WF_HEIGHT = 45;
 const WF_ANCHOR = [14, 45];
 
 export const getRegionMarkerById = (id) => regionMarkersById[id] || null;
-export const getPlaceMarkerById  = (id) => placeMarkersById[id]  || null;
+export const getPlaceMarkerById = (id) => placeMarkersById[id] || null;
 
-/* ------------------------------------------------------------------ *
- *  Build PNG URL
- * ------------------------------------------------------------------ */
 const buildPngIconUrl = (iconName, bgClass) =>
     `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
 
 export const applyCoordinates = ({ lat, lon }) => {
-    const ctx = getMappingContext();
+    const ctx = store.getState().context;
     if (!ctx?.type || !ctx?.action) return;
 
     const fill = (selector, fldLat, fldLon) => {
         const form = document.querySelector(selector);
         if (!form) return;
 
-        const latInp = form.querySelector(`input[name="${fldLat}"]`);
-        const lonInp = form.querySelector(`input[name="${fldLon}"]`);
+        const latNum = parseFloat(lat);
+        const lonNum = parseFloat(lon);
 
-        if (latInp) {
-            latInp.value = lat;
-            const latDisp = form.querySelector(`input[name="${fldLat}_display"]`);
-            if (latDisp) latDisp.value = lat;
+        const latInp = form.querySelector(`input[name="${fldLat}"]`);
+        const latDisp = form.querySelector(`input[name="${fldLat}_display"]`);
+        if (!isNaN(latNum)) {
+            if (latInp) latInp.value = latNum;
+            if (latDisp) latDisp.value = latNum;
         }
 
-        if (lonInp) {
-            lonInp.value = lon;
-            const lonDisp = form.querySelector(`input[name="${fldLon}_display"]`);
-            if (lonDisp) lonDisp.value = lon;
+        const lonInp = form.querySelector(`input[name="${fldLon}"]`);
+        const lonDisp = form.querySelector(`input[name="${fldLon}_display"]`);
+        if (!isNaN(lonNum)) {
+            if (lonInp) lonInp.value = lonNum;
+            if (lonDisp) lonDisp.value = lonNum;
         }
 
         if (ctx.type === 'place') {
-            const iconInput = form.querySelector('input[name="IconName"]');
-            const colorInput = form.querySelector('input[name="MarkerColor"]');
-
-            const icon = iconInput?.value || 'marker';
-            const color = colorInput?.value || 'bg-blue';
+            const icon = form.querySelector('input[name="IconName"]')?.value || 'marker';
+            const color = form.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
             const iconUrl = buildPngIconUrl(icon, color);
 
-            // Try to reuse previously rendered marker if it exists
             const existing = placeMarkersById[ctx.id];
             if (existing) {
                 existing.setLatLng([lat, lon]);
@@ -81,17 +75,13 @@ export const applyCoordinates = ({ lat, lon }) => {
                     })
                 }).addTo(mapContainer);
             }
-
             selectMarker(previewMarker);
         }
     };
 
     if (ctx.type === 'place' && ['set-location', 'edit', 'create'].includes(ctx.action)) {
-        const formEl = document.querySelector(`#place-form-${ctx.id}`);
-        if (!formEl) return console.warn(`⚠️ Cannot find form #place-form-${ctx.id}`);
         fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
     }
-
     if (ctx.type === 'region' && ctx.action === 'set-center') {
         fill(`#region-form-${ctx.id}`, 'CenterLat', 'CenterLon');
     }
@@ -107,9 +97,6 @@ export const applyCoordinates = ({ lat, lon }) => {
     }
 };
 
-/* ------------------------------------------------------------------ *
- *  REGION  – render / remove
- * ------------------------------------------------------------------ */
 export const renderRegionMarker = async ({ Id, CenterLat, CenterLon, Name }) => {
     if (!CenterLat || !CenterLon) return;
     const lat = +CenterLat, lon = +CenterLon;
@@ -119,24 +106,15 @@ export const renderRegionMarker = async ({ Id, CenterLat, CenterLon, Name }) => 
 
     const iconUrl = buildPngIconUrl('map', 'bg-red');
     const marker = L.marker([lat, lon], {
-        icon: L.icon({
-            iconUrl,
-            iconSize: [WF_WIDTH, WF_HEIGHT],
-            iconAnchor: WF_ANCHOR,
-            className: 'map-icon'
-        })
+        icon: L.icon({ iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon' })
     }).addTo(mapContainer);
 
     marker.on('click', () => {
-        selectedMarker?.getElement()?.classList.remove('selected-marker');
-        selectedMarker = marker;
+        clearSelectedMarker();
         selectMarker(marker);
-        setMappingContext({
-            type: 'region',
-            id: Id,
-            action: 'set-center',
-            meta: { name: Name || 'Unnamed Region' }
-        })
+        store.dispatch('set-context', {
+            type: 'region', id: Id, action: 'set-center', meta: { name: Name || 'Unnamed Region' }
+        });
     });
 
     regionMarkersById[Id] = marker;
@@ -149,9 +127,6 @@ export const removeRegionMarker = (id) => {
     }
 };
 
-/* ------------------------------------------------------------------ *
- *  PLACE – render / remove
- * ------------------------------------------------------------------ */
 export const renderPlaceMarker = async (p) => {
     if (!p?.Latitude || !p?.Longitude) return;
     const lat = +p.Latitude, lon = +p.Longitude;
@@ -161,22 +136,15 @@ export const renderPlaceMarker = async (p) => {
 
     const iconUrl = buildPngIconUrl(p.IconName || 'marker', p.MarkerColor || 'bg-blue');
     const marker = L.marker([lat, lon], {
-        icon: L.icon({
-            iconUrl,
-            iconSize: [WF_WIDTH, WF_HEIGHT],
-            iconAnchor: WF_ANCHOR,
-            className: 'map-icon'
-        })
+        icon: L.icon({ iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon' })
     }).addTo(mapContainer);
 
     marker.on('click', () => {
-        selectedMarker?.getElement()?.classList.remove('selected-marker');
-        selectedMarker = marker;
+        clearSelectedMarker();
         selectMarker(marker);
-        setMappingContext({
-            type: 'place', id: p.Id, action: 'set-location',
-            meta: { name: p.Name, regionId: p.RegionId }
-        })
+        store.dispatch('set-context', {
+            type: 'place', id: p.Id, action: 'set-location', meta: { name: p.Name, regionId: p.RegionId }
+        });
     });
 
     placeMarkersById[p.Id] = marker;
@@ -189,9 +157,6 @@ export const removePlaceMarker = (id) => {
     }
 };
 
-/* ------------------------------------------------------------------ *
- *  disableDrawingTools, initializeMap, getMapInstance – unchanged
- * ------------------------------------------------------------------ */
 export const disableDrawingTools = () => {
     if (!mapContainer || !drawControl) return;
     try { mapContainer.removeControl(drawControl); } catch { }
@@ -199,24 +164,24 @@ export const disableDrawingTools = () => {
     drawnLayerGroup?.clearLayers();
 };
 
-export const initializeMap = (center = [20,0], zoom = 3) => {
+export const initializeMap = (center = [20, 0], zoom = 3) => {
     if (mapContainer) { mapContainer.off(); mapContainer.remove(); }
-    mapContainer = L.map('mapContainer', { zoomAnimation:true }).setView(center, zoom);
+    mapContainer = L.map('mapContainer', { zoomAnimation: true }).setView(center, zoom);
 
     L.tileLayer(`${location.origin}/Public/tiles/{z}/{x}/{y}.png`, {
-        maxZoom: 19, attribution: '© OpenStreetMap contributors'
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
     }).addTo(mapContainer);
 
-    mapContainer.attributionControl.setPrefix(
-        '&copy; <a href="https://leafletjs.com/">Leaflet</a>'
-    );
+    mapContainer.attributionControl.setPrefix('&copy; <a href="https://leafletjs.com/">Leaflet</a>');
     addZoomLevelControl(mapContainer);
 
     window.addEventListener('resize', () => mapContainer.invalidateSize());
 
     mapContainer.createPane('region-boundary');
     Object.assign(mapContainer.getPane('region-boundary').style, {
-        zIndex:250, pointerEvents:'auto'
+        zIndex: 250,
+        pointerEvents: 'auto'
     });
 
     return mapContainer;
@@ -234,74 +199,76 @@ export const clearSelectedMarker = () => {
     selectedMarker = null;
 };
 
-// export const selectMarker = (marker) => {
-//     clearSelectedMarker();
-//     const el = marker.getElement?.();
-//     if (el) {
-//         el.classList.add('selected-marker');
-//     } else {
-//         requestAnimationFrame(() => selectMarker(marker)); // retry next frame
-//         return;
-//     }
-//     selectedMarker = marker;
-// };
-
 export const selectMarker = (marker) => {
     clearSelectedMarker();
-
     const el = marker.getElement?.();
     if (!el || !(el instanceof HTMLImageElement)) {
         requestAnimationFrame(() => selectMarker(marker));
         return;
     }
 
-    // ✅ Extract bg-* from the image src URL (e.g. ".../bg-purple/star.png")
     const src = el.getAttribute('src') || '';
     const match = src.match(/\/(bg-[a-z]+)\//i);
     const bgClass = match?.[1] || 'bg-blue';
 
     const colorMap = {
-        'bg-black':  '#000000',
+        'bg-black': '#000000',
         'bg-purple': '#6f42c1',
-        'bg-blue':   '#0d6efd',
-        'bg-green':  '#198754',
-        'bg-red':    '#dc3545',
+        'bg-blue': '#0d6efd',
+        'bg-green': '#198754',
+        'bg-red': '#dc3545',
     };
 
     const color = colorMap[bgClass] || '#0d6efd';
     el.style.setProperty('--selected-shadow-color', color);
-
     el.classList.add('selected-marker');
     selectedMarker = marker;
 };
 
-document.addEventListener('mapping-context-cleared', () => {
-    // Remove region previews
-    Object.values(regionPreviewById).forEach(m => mapContainer?.removeLayer(m));
-    Object.keys(regionPreviewById).forEach(k => delete regionPreviewById[k]);
+export const addLayer = (layer) => {
+    const map = getMapInstance();
+    if (!map) return;
+    map.addLayer(layer);
+};
 
-    // 🧼 Also remove selected marker from map
-    try {
-        clearSelectedMarker?.();
-    } catch (err) {
-        console.warn('⚠️ Failed to clear selected marker from mapManager', err);
-    }
-    // ✅ Remove preview marker
-    try {
-        if (previewMarker) {
-            mapContainer?.removeLayer(previewMarker);
-            previewMarker = null;
+export const removeLayer = (layer) => {
+    const map = getMapInstance();
+    if (!map) return;
+    map.removeLayer(layer);
+};
+
+export const fitBounds = (bounds, options = {}) => {
+    const map = getMapInstance();
+    if (!map) return;
+    map.fitBounds(bounds, options);
+};
+
+store.subscribe(({ type }) => {
+    if (type === 'context-cleared') {
+        Object.values(regionPreviewById).forEach(m => mapContainer?.removeLayer(m));
+        Object.keys(regionPreviewById).forEach(k => delete regionPreviewById[k]);
+
+        try {
+            clearSelectedMarker?.();
+        } catch (err) {
+            console.warn('⚠️ Failed to clear selected marker from mapManager', err);
         }
-    } catch (err) {
-        console.warn('⚠️ Failed to clear preview marker', err);
-    }
-    const coordsEl = document.getElementById('context-coords');
-    if (coordsEl) {
-        coordsEl.classList.add('d-none');
-        coordsEl.innerHTML = '';
+
+        try {
+            if (previewMarker) {
+                mapContainer?.removeLayer(previewMarker);
+                previewMarker = null;
+            }
+        } catch (err) {
+            console.warn('⚠️ Failed to clear preview marker', err);
+        }
+
+        const coordsEl = document.getElementById('context-coords');
+        if (coordsEl) {
+            coordsEl.classList.add('d-none');
+            coordsEl.innerHTML = '';
+        }
     }
 });
-
-
 
 export const getMapInstance = () => mapContainer;

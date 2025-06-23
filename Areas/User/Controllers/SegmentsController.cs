@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 
@@ -11,34 +12,60 @@ namespace Wayfarer.Areas.User.Controllers;
 [Authorize(Roles = "User")]
 public class SegmentsController : BaseController
 {
-    private readonly ILogger<PlacesController> _logger;
-    private readonly ApplicationDbContext _dbContext;
+    private readonly ILogger<SegmentsController> _logger;
+    private readonly ApplicationDbContext _db;
 
-    public SegmentsController(ILogger<PlacesController> logger, ApplicationDbContext dbContext) : base(logger, dbContext)
+    public SegmentsController(ILogger<SegmentsController> logger, ApplicationDbContext dbContext) : base(logger,
+        dbContext)
     {
         _logger = logger;
-        _dbContext = dbContext;
+        _db = dbContext;
     }
 
-    // GET: /User/Segments/Create?tripId=...
-    public async Task<IActionResult> Create(Guid tripId)
+    // Transport modes and their travel speed in km/h
+    private static readonly Dictionary<string, double> ModeSpeedsKmh = new()
+    {
+        ["walk"] = 5,
+        ["bicycle"] = 15,
+        ["bike"] = 40,
+        ["car"] = 60,
+        ["bus"] = 35,
+        ["train"] = 100,
+        ["ferry"] = 30,
+        ["boat"] = 25,
+        ["flight"] = 800,
+        ["helicopter"] = 200
+    };
+
+    // GET: /User/Segments/CreateOrUpdate?tripId=...
+    [HttpGet]
+    public async Task<IActionResult> CreateOrUpdate(Guid? segmentId, Guid tripId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        var trip = await _dbContext.Trips
+        var trip = await _db.Trips
             .Include(t => t.Regions)
-                .ThenInclude(r => r.Places)
+            .ThenInclude(r => r.Places)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
 
-        if (trip == null)
-            return NotFound();
+        if (trip == null) return NotFound();
 
-        var segment = new Segment
+        Segment segment;
+
+        if (segmentId.HasValue)
         {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            UserId = userId
-        };
+            segment = await _db.Segments.FirstOrDefaultAsync(s => s.Id == segmentId && s.UserId == userId);
+            if (segment == null) return NotFound();
+        }
+        else
+        {
+            segment = new Segment
+            {
+                Id = Guid.NewGuid(),
+                TripId = trip.Id,
+                UserId = userId
+            };
+        }
 
         ViewData["Places"] = trip.Regions
             .SelectMany(r => r.Places ?? new List<Place>())
@@ -48,44 +75,31 @@ public class SegmentsController : BaseController
         return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentFormPartial.cshtml", segment);
     }
 
-    // GET: /User/Segments/Edit/{id}
-    public async Task<IActionResult> Edit(Guid id)
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        var segment = await _dbContext.Segments
-            .Include(s => s.Trip)
-            .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
-
-        if (segment == null)
-            return NotFound();
-
-        var places = await _dbContext.Places
-            .Where(p => p.UserId == userId && p.Region.TripId == segment.TripId)
-            .OrderBy(p => p.Name)
-            .ToListAsync();
-
-        ViewData["Places"] = places;
-
-        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentFormPartial.cshtml", segment);
-    }
-
-    // POST: /User/Segments/Create
+    // POST: /User/Segments/CreateOrUpdate
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(Segment model)
+    public async Task<IActionResult> CreateOrUpdate(Segment model)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         model.UserId = userId;
-        
-        // Convert EstimatedDurationMinutes from form
+
+        // Convert EstimatedDurationMinutes from form (existing)
         if (Request.Form.TryGetValue("EstimatedDurationMinutes", out var durationStr) &&
             double.TryParse(durationStr, out var durationMin))
         {
             model.EstimatedDuration = TimeSpan.FromMinutes(durationMin);
         }
 
-        
+        // --- Auto-calculate EstimatedDuration if missing but distance and mode are present ---
+        if (model.EstimatedDistanceKm.HasValue && !model.EstimatedDuration.HasValue)
+        {
+            if (ModeSpeedsKmh.TryGetValue(model.Mode?.ToLower() ?? "", out var speedKmh) && speedKmh > 0)
+            {
+                var hours = model.EstimatedDistanceKm.Value / speedKmh;
+                model.EstimatedDuration = TimeSpan.FromHours(hours);
+            }
+        }
+
         ModelState.Remove(nameof(model.Trip));
         ModelState.Remove(nameof(model.FromPlace));
         ModelState.Remove(nameof(model.ToPlace));
@@ -97,13 +111,9 @@ public class SegmentsController : BaseController
             .AnyAsync(s => s.Id == model.Id && s.UserId == userId);
 
         if (exists)
-        {
             _dbContext.Segments.Update(model);
-        }
         else
-        {
             _dbContext.Segments.Add(model);
-        }
 
         await _dbContext.SaveChangesAsync();
 
@@ -124,27 +134,23 @@ public class SegmentsController : BaseController
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        var segment = await _dbContext.Segments
-            .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
-
-        if (segment == null)
-            return NotFound();
+        var segment = await _db.Segments.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
+        if (segment == null) return NotFound();
 
         var tripId = segment.TripId;
 
-        _dbContext.Segments.Remove(segment);
-        await _dbContext.SaveChangesAsync();
+        _db.Segments.Remove(segment);
+        await _db.SaveChangesAsync();
 
-        var trip = await _dbContext.Trips
-            .Include(t => t.Segments)
-            .ThenInclude(s => s.FromPlace)
-            .Include(t => t.Segments)
-            .ThenInclude(s => s.ToPlace)
+        var trip = await _db.Trips
+            .Include(t => t.Segments).ThenInclude(s => s.FromPlace)
+            .Include(t => t.Segments).ThenInclude(s => s.ToPlace)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", trip);
     }
-    
+
+    // POST: /User/Segments/Reorder
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reorder([FromBody] List<OrderDto> items)
@@ -152,14 +158,72 @@ public class SegmentsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var idToOrder = items.ToDictionary(i => i.Id, i => i.Order);
 
-        var segments = await _dbContext.Segments
-            .Where(p => idToOrder.Keys.Contains(p.Id) && p.UserId == userId)
+        var segments = await _db.Segments
+            .Where(s => idToOrder.Keys.Contains(s.Id) && s.UserId == userId)
             .ToListAsync();
 
-        foreach (var p in segments)
-            p.DisplayOrder = idToOrder[p.Id];
+        foreach (var seg in segments)
+            seg.DisplayOrder = idToOrder[seg.Id];
 
-        await _dbContext.SaveChangesAsync();
+        await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // GET: /User/Segments/GetItemPartial?segmentId=...
+    [HttpGet]
+    public async Task<IActionResult> GetItemPartial(Guid segmentId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        var segment = await _db.Segments
+            .Include(s => s.FromPlace)
+            .Include(s => s.ToPlace)
+            .FirstOrDefaultAsync(s => s.Id == segmentId && s.UserId == userId);
+
+        if (segment == null)
+            return NotFound();
+
+        var trip = await _db.Trips
+            .Include(t => t.Segments)
+            .ThenInclude(s => s.FromPlace)
+            .Include(t => t.Segments)
+            .ThenInclude(s => s.ToPlace)
+            .FirstOrDefaultAsync(t => t.Id == segment.TripId && t.UserId == userId);
+
+        if (trip == null)
+            return NotFound();
+
+        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", trip);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSegments(Guid tripId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var segments = await _db.Segments
+            .Where(s => s.UserId == userId && s.TripId == tripId)
+            .Select(s => new SegmentDto
+            {
+                Id = s.Id,
+                Mode = s.Mode,
+                EstimatedDistanceKm = s.EstimatedDistanceKm,
+                EstimatedDuration = s.EstimatedDuration,
+                Notes = s.Notes,
+                FromPlace = new PlaceDto
+                {
+                    Id = s.FromPlace.Id,
+                    Name = s.FromPlace.Name,
+                    Location = s.FromPlace.Location
+                },
+                ToPlace = new PlaceDto
+                {
+                    Id = s.ToPlace.Id,
+                    Name = s.ToPlace.Name,
+                    Location = s.ToPlace.Location
+                }
+            })
+            .ToListAsync();
+        
+        return Json(segments);
     }
 }
