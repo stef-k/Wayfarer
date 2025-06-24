@@ -10,7 +10,7 @@ export const initOrdering = () => {
     );
 
     // Segments list
-    enableSortable(document.getElementById('segments-list'), 'segment');
+    enableSortable(document.getElementById('segments-inner-list'), 'segment');
 };
 
 /**

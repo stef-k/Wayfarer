@@ -1,0 +1,113 @@
+@model Wayfarer.Models.Segment
+
+@{
+    var fromName = Model.FromPlace?.Name ?? "Start";
+    var toName = Model.ToPlace?.Name ?? "End";
+    var segmentId = Model.Id;
+    var duration = Model.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
+    var distance = Model.EstimatedDistanceKm?.ToString("0.##") ?? "—";
+    var hasNotes = !string.IsNullOrWhiteSpace(Model.Notes);
+
+    var emojiMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["walk"] = "🚶",
+        ["bicycle"] = "🚴",
+        ["bike"] = "🏍️",
+        ["car"] = "🚗",
+        ["bus"] = "🚌",
+        ["train"] = "🚆",
+        ["ferry"] = "⛴️",
+        ["boat"] = "🚤",
+        ["flight"] = "✈️",
+        ["helicopter"] = "🚁",
+        ["drive"] = "🚗",
+        ["taxi"] = "🚕",
+        ["tram"] = "🚊"
+    };
+
+    var modeKey = (Model.Mode ?? "").ToLowerInvariant();
+    var emojiIcon = emojiMap.ContainsKey(modeKey) ? emojiMap[modeKey] : "❓";
+}
+
+<!-- ✅ Multi-line segment list item -->
+<li class="segment-list-item list-group-item px-3 py-2"
+    data-segment-id="@segmentId"
+    data-segment-name="@($"{Model.Mode}: {fromName} → {toName}")"
+    data-from-lat="@Model.FromPlace?.Location?.Y"
+    data-from-lon="@Model.FromPlace?.Location?.X"
+    data-to-lat="@Model.ToPlace?.Location?.Y"
+    data-to-lon="@Model.ToPlace?.Location?.X">
+
+    <!-- Line 1: Mode, icon, duration/distance, controls -->
+    <div class="d-flex align-items-center justify-content-between gap-3">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-grip-vertical drag-handle"></i>
+            <span class="emoji-icon fs-5" aria-label="@Model.Mode icon" title="@Model.Mode icon">@emojiIcon</span>
+            <strong>@Model.Mode</strong>
+            <span class="">(@duration / @distance km)</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            @if (hasNotes)
+            {
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#segmentNotesModal-@segmentId"
+                        title="Click to view notes">
+                    <i class="bi bi-info-circle"></i>
+                </button>
+            }
+
+            <input type="checkbox"
+                   class="form-check-input btn-segment-toggle-visibility"
+                   id="segment-visibility-@segmentId"
+                   data-segment-id="@segmentId"
+                   checked
+                   title="Show/Hide this segment on map"/>
+
+            <button class="btn btn-outline-primary btn-sm btn-edit-segment"
+                    data-segment-id="@segmentId"
+                    title="Edit segment">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-sm btn-delete-segment"
+                    data-segment-id="@segmentId"
+                    title="Delete segment">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Line 2 & 3: From → To label, with optional notes icon -->
+    <div class="mt-1 ms-4 ">
+        <div class="mb-1"><strong>From:</strong> @fromName</div>
+        <div><strong>To:</strong> @toName</div>
+    </div>
+</li>
+
+@if (hasNotes)
+{
+    <div class="modal fade" id="segmentNotesModal-@segmentId" tabindex="-1"
+         aria-labelledby="segmentNotesLabel-@segmentId" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="segmentNotesLabel-@segmentId">
+                        Notes for <span class="fw-semibold">@Model.Mode from @fromName to @toName</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @Html.Raw(Model.Notes)
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

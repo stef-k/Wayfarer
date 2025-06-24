@@ -148,13 +148,56 @@
         <hr/>
 
         <!-- Segments Area -->
-        <h6>Segments</h6>
         <button id="btn-add-segment" class="btn btn-sm btn-success mb-2">
           <i class="bi bi-plus-lg"></i> Add Segment
         </button>
 
-        <div id="segments-list">
-          @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", Model)
+        <div id="segments-list" class="accordion mb-4">
+          <div class="accordion-item" id="segments-container">
+            <h2 class="accordion-header" id="heading-segments">
+              <div class="d-flex justify-content-between align-items-center w-100">
+                <button class="accordion-button collapsed flex-grow-1 text-start"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapse-segments"
+                        aria-expanded="false"
+                        aria-controls="collapse-segments">
+                  <strong>Segments</strong>
+                </button>
+                <!-- Segment Master Visibility Toggle -->
+                <div class="d-flex align-items-center gap-2">
+                  <div class="form-check mb-0 mx-2">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           id="toggle-all-segments"
+                           title="Show/Hide all segments on map"
+                           checked
+                           aria-label="Toggle all segments visibility" />
+                  </div>
+                </div>
+              </div>
+            </h2>
+
+            <div id="collapse-segments" class="accordion-collapse collapse show" aria-labelledby="heading-segments">
+              <div class="accordion-body">
+                @if (Model.Segments == null || !Model.Segments.Any())
+                {
+                  <div class="alert alert-info" role="alert">
+                    No travel segments added yet.
+                  </div>
+                }
+                else
+                {
+                  <ul class="list-group list-group-flush small" id="segments-inner-list">
+                    @foreach (var segment in Model.Segments.OrderBy(s => s.DisplayOrder))
+                    {
+                      @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment)
+                    }
+                  </ul>
+                }
+              </div>
+            </div>
+          </div>
         </div>
 
         

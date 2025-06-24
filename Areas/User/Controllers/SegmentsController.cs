@@ -83,14 +83,14 @@ public class SegmentsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         model.UserId = userId;
 
-        // Convert EstimatedDurationMinutes from form (existing)
+        // Convert EstimatedDurationMinutes from form (if present)
         if (Request.Form.TryGetValue("EstimatedDurationMinutes", out var durationStr) &&
             double.TryParse(durationStr, out var durationMin))
         {
             model.EstimatedDuration = TimeSpan.FromMinutes(durationMin);
         }
 
-        // --- Auto-calculate EstimatedDuration if missing but distance and mode are present ---
+        // Auto-calculate EstimatedDuration if missing but distance and mode are present
         if (model.EstimatedDistanceKm.HasValue && !model.EstimatedDuration.HasValue)
         {
             if (ModeSpeedsKmh.TryGetValue(model.Mode?.ToLower() ?? "", out var speedKmh) && speedKmh > 0)
@@ -100,12 +100,15 @@ public class SegmentsController : BaseController
             }
         }
 
+        // Remove navigation properties from validation
         ModelState.Remove(nameof(model.Trip));
         ModelState.Remove(nameof(model.FromPlace));
         ModelState.Remove(nameof(model.ToPlace));
 
         if (!ModelState.IsValid)
+        {
             return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentFormPartial.cshtml", model);
+        }
 
         var exists = await _dbContext.Segments
             .AnyAsync(s => s.Id == model.Id && s.UserId == userId);
@@ -117,14 +120,16 @@ public class SegmentsController : BaseController
 
         await _dbContext.SaveChangesAsync();
 
-        var trip = await _dbContext.Trips
-            .Include(t => t.Segments)
-            .ThenInclude(s => s.FromPlace)
-            .Include(t => t.Segments)
-            .ThenInclude(s => s.ToPlace)
-            .FirstOrDefaultAsync(t => t.Id == model.TripId && t.UserId == userId);
+        // Re-fetch the full segment with related From/To place for display
+        var segment = await _dbContext.Segments
+            .Include(s => s.FromPlace)
+            .Include(s => s.ToPlace)
+            .FirstOrDefaultAsync(s => s.Id == model.Id && s.UserId == userId);
 
-        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", trip);
+        if (segment == null)
+            return NotFound();
+
+        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment);
     }
 
     // POST: /User/Segments/Delete/{id}
@@ -135,19 +140,14 @@ public class SegmentsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var segment = await _db.Segments.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
-        if (segment == null) return NotFound();
-
-        var tripId = segment.TripId;
+        if (segment == null)
+            return NotFound();
 
         _db.Segments.Remove(segment);
         await _db.SaveChangesAsync();
 
-        var trip = await _db.Trips
-            .Include(t => t.Segments).ThenInclude(s => s.FromPlace)
-            .Include(t => t.Segments).ThenInclude(s => s.ToPlace)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
-
-        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", trip);
+        // Return a marker for frontend removal
+        return Json(new { deleted = id });
     }
 
     // POST: /User/Segments/Reorder
@@ -183,17 +183,7 @@ public class SegmentsController : BaseController
         if (segment == null)
             return NotFound();
 
-        var trip = await _db.Trips
-            .Include(t => t.Segments)
-            .ThenInclude(s => s.FromPlace)
-            .Include(t => t.Segments)
-            .ThenInclude(s => s.ToPlace)
-            .FirstOrDefaultAsync(t => t.Id == segment.TripId && t.UserId == userId);
-
-        if (trip == null)
-            return NotFound();
-
-        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentListPartial.cshtml", trip);
+        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment);
     }
 
     [HttpGet]

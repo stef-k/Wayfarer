@@ -68,7 +68,7 @@
                     </div>
                 </div>
 
-                <select asp-for="Mode" class="form-select my-2">
+                <select asp-for="Mode" class="form-select my-2" data-selected="@Model.Mode">
                     <option value="">-- Select transport mode --</option>
 
                     <optgroup label="Land">
@@ -90,6 +90,7 @@
                         <option value="helicopter">🚁 Helicopter</option>
                     </optgroup>
                 </select>
+
                 <span class="invalid-feedback" asp-validation-for="Mode"></span>
 
                 <div class="row mt-2 g-2">

@@ -5,7 +5,22 @@ import { store } from './storeInstance.js';
 import { calculateLineDistanceKm } from '../../../map-utils.js';
 import { setupQuill, waitForQuill } from './quillNotes.js';
 
+let cachedInitOrdering = null;
 let cachedTripId = null;
+
+
+// lazy load exported method
+const loadInitOrdering = async () => {
+    if (!cachedInitOrdering) {
+        const mod = await import('./regionsOrder.js');
+        cachedInitOrdering = mod.initOrdering;
+    }
+    return cachedInitOrdering;
+};
+const callInitOrdering = async () => {
+    const fn = await loadInitOrdering();
+    return fn();
+};
 /**
  * Stores Leaflet polylines keyed by segment ID, to manage and update polylines on the map.
  * @type {Map<string, L.Polyline>}
@@ -141,8 +156,6 @@ const renderAllSegmentsOnMap = async (segments) => {
         const polyline = await updateSegmentPolyline(segId, fromLatLon, toLatLon, false);
 
         if (polyline) {
-            segmentPolylines.set(segId, polyline);
-
             const visibility = store.getState().segmentVisibility[segId];
             if (visibility === undefined) {
                 store.dispatch('set-segment-visibility', { segmentId: segId, visible: true });
@@ -322,7 +335,18 @@ export const loadSegmentCreateForm = async (tripId) => {
  */
 const bindSegmentActions = () => {
     
-    /* Toggle segment visibility */
+    // Toggle all segments visibility
+    const masterToggle = document.getElementById('toggle-all-segments');
+    masterToggle.addEventListener('click', e => {
+        e.stopPropagation(); // prevent focus
+    });
+    masterToggle.addEventListener('change', () => {
+        const show = masterToggle.checked;
+        document.querySelectorAll('.btn-segment-toggle-visibility').forEach(checkbox => {
+            if (checkbox.checked !== show) checkbox.click(); // triggers existing logic
+        });
+    });
+    /* Toggle single segment visibility */
     document.querySelectorAll('.btn-segment-toggle-visibility').forEach(checkbox => {
         const segId = checkbox.dataset.segmentId;
         if (!segId) return;
@@ -384,12 +408,38 @@ const bindSegmentActions = () => {
                 headers: token ? { RequestVerificationToken: token } : {}
             });
 
-            const html    = await resp.text();
-            const wrapper = formEl.closest('.accordion-item');
-            wrapper.outerHTML = html;
+            const html = await resp.text();
+            const list = document.getElementById('segments-list');
+            if (!list) return;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html.trim();
+            const newItem = tempDiv.firstElementChild;
+
+            if (!newItem) return;
+
+            const existing = document.getElementById(`segment-item-${segId}`);
+            if (existing) {
+                existing.replaceWith(newItem);
+            } else {
+                list.appendChild(newItem);
+            }
+
+            // Redraw polyline if coords are present
+            const fromEl = newItem.querySelector('[data-from-lat]');
+            const toEl   = newItem.querySelector('[data-to-lat]');
+            if (fromEl && toEl) {
+                const from = [parseFloat(fromEl.dataset.fromLat), parseFloat(fromEl.dataset.fromLon)];
+                const to   = [parseFloat(toEl.dataset.toLat), parseFloat(toEl.dataset.toLon)];
+
+                if (from.every(c => !isNaN(c)) && to.every(c => !isNaN(c))) {
+                    await updateSegmentPolyline(segId, from, to, false);
+                }
+            }
 
             bindSegmentActions();
             attachSegmentFormHandlers();
+            await callInitOrdering();
             store.dispatch('clear-context');
         };
     });
@@ -404,10 +454,9 @@ const bindSegmentActions = () => {
                 title      : 'Delete segment?',
                 message    : 'This action cannot be undone.',
                 confirmText: 'Delete',
-                onConfirm  : async () => {
+                onConfirm: async () => {
                     const fd = new FormData();
-                    fd.set('__RequestVerificationToken',
-                        document.querySelector('input[name="__RequestVerificationToken"]').value);
+                    fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
 
                     const resp = await fetch(`/User/Segments/Delete/${segId}`, {
                         method : 'POST',
@@ -417,6 +466,15 @@ const bindSegmentActions = () => {
 
                     if (resp.ok) {
                         document.getElementById(`segment-item-${segId}`)?.remove();
+
+                        // ✅ REMOVE POLYLINE FROM MAP
+                        const polyline = segmentPolylines.get(segId);
+                        if (polyline) {
+                            const { removeLayer } = await import('./mapManager.js');
+                            removeLayer(polyline);
+                            segmentPolylines.delete(segId);
+                        }
+                        await callInitOrdering();
                         store.dispatch('clear-context');
                     } else {
                         wayfarer.showAlert('danger', 'Failed to delete segment.');
@@ -428,22 +486,39 @@ const bindSegmentActions = () => {
 
     /* ---------- SELECT ---------- */
     document.querySelectorAll('.segment-list-item').forEach(item => {
-        item.onclick = () => {
+        item.onclick = async (e) => {
+            // 🔒 Ignore clicks on interactive controls
+            if (
+                e.target.closest('button') ||
+                e.target.closest('a') ||
+                e.target.closest('input') ||
+                e.target.classList.contains('btn') ||
+                e.target.classList.contains('form-check-input')
+            ) {
+                return;
+            }
+
             const segId = item.dataset.segmentId;
             const name  = item.dataset.segmentName || 'Unnamed segment';
             if (!segId) return;
 
-            // dim others
             document.querySelectorAll('.segment-list-item')
                 .forEach(i => i.classList.add('dimmed'));
             item.classList.remove('dimmed');
 
             store.dispatch('set-context', {
-                type  : 'segment',
-                id    : segId,
+                type: 'segment',
+                id: segId,
                 action: 'edit',
-                meta  : { name }
+                meta: { name }
             });
+
+            // Focus map on polyline bounds
+            const polyline = segmentPolylines.get(segId);
+            if (polyline) {
+                const { fitBounds } = await import('./mapManager.js');
+                fitBounds(polyline.getBounds(), { padding: [50, 50] });
+            }
         };
     });
 };
@@ -451,7 +526,7 @@ const bindSegmentActions = () => {
 /**
  * Attaches handlers for segment form cancel and realtime updates for distance/time inputs.
  */
-const attachSegmentFormHandlers = () => {
+const attachSegmentFormHandlers =  () => {
     /* ---------- CANCEL ---------- */
     document.querySelectorAll('.btn-segment-cancel').forEach(btn => {
         btn.onclick = async () => {
@@ -524,7 +599,8 @@ store.subscribe(async ({ type, payload }) => {
                 const resp = await fetch(`/User/Segments/GetItemPartial?segmentId=${segId}`);
                 const html = await resp.text();
 
-                openForm.outerHTML = html;
+                const wrapper = openForm.closest('.accordion-item');
+                if (wrapper) wrapper.outerHTML = html;
                 bindSegmentActions();
                 attachSegmentFormHandlers();
             })();
