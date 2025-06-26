@@ -8,5 +8,7 @@ public class SegmentDto
     public TimeSpan? EstimatedDuration { get; set; }
     public PlaceDto FromPlace { get; set; }
     public PlaceDto ToPlace { get; set; }
+    
+    public string? RouteJson { get; set; }
     public string Notes { get; set; }
 }

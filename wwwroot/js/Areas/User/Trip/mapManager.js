@@ -166,8 +166,11 @@ export const disableDrawingTools = () => {
 
 export const initializeMap = (center = [20, 0], zoom = 3) => {
     if (mapContainer) { mapContainer.off(); mapContainer.remove(); }
-    mapContainer = L.map('mapContainer', { zoomAnimation: true }).setView(center, zoom);
-
+    mapContainer = L.map('mapContainer', {
+        zoomAnimation: true,
+        editable: true
+    }).setView(center, zoom);
+    
     L.tileLayer(`${location.origin}/Public/tiles/{z}/{x}/{y}.png`, {
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
@@ -184,6 +187,8 @@ export const initializeMap = (center = [20, 0], zoom = 3) => {
         pointerEvents: 'auto'
     });
 
+    window.wayfarer = window.wayfarer || {};
+    window.wayfarer._leaflet_map = mapContainer;
     return mapContainer;
 };
 

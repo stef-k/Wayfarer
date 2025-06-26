@@ -1,13 +1,273 @@
-// segmentHandlers.js – pure store architecture
+// segmentHandlers.js
 //-------------------------------------------------------------
 
-import { store } from './storeInstance.js';
-import { calculateLineDistanceKm } from '../../../map-utils.js';
-import { setupQuill, waitForQuill } from './quillNotes.js';
+import {store} from './storeInstance.js';
+import {calculateLineDistanceKm} from '../../../map-utils.js';
+import {setupQuill, waitForQuill} from './quillNotes.js';
 
 let cachedInitOrdering = null;
 let cachedTripId = null;
+const drawnSegmentPolylines = new Map();
 
+const scrollToSegment = (segId) => {
+    const el = document.querySelector(`.segment-list-item[data-segment-id="${segId}"]`);
+    if (!el) return;
+
+    const collapse = el.closest('.accordion-collapse');
+    if (collapse && !collapse.classList.contains('show')) {
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapse);
+        bsCollapse.show();
+    }
+
+    setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+};
+
+/**
+ * Renders a static (non-editable) segment route on the map.
+ * Uses RouteJson if available, else falls back to From/To coordinates.
+ *
+ * @param {string} segId - Segment ID
+ * @param {HTMLElement} wrapperEl - The DOM element containing segment data
+ */
+const renderStaticSegmentRoute = async (segId, wrapperEl) => {
+    if (!wrapperEl) return;
+
+    const rawJson = wrapperEl.querySelector('input[name="RouteJson"]')?.value;
+    let coords = [];
+
+    if (rawJson && rawJson.trim() && rawJson !== '[]') {
+        try {
+            const parsed = JSON.parse(rawJson);
+            if (Array.isArray(parsed) && parsed.length >= 2) {
+                coords = parsed;
+            }
+        } catch {
+            coords = [];
+        }
+    }
+
+    const { addLayer, removeLayer } = await import('./mapManager.js');
+
+    // 🔄 Remove old polyline if it exists
+    if (segmentPolylines.has(segId)) {
+        removeLayer(segmentPolylines.get(segId));
+        segmentPolylines.delete(segId);
+    }
+
+    // ✅ Render polyline from RouteJson
+    if (coords.length >= 2) {
+        const poly = L.polyline(coords, {
+            color: 'blue',
+            weight: 3,
+            className: 'segment-polyline'
+        });
+
+        // 🏷️ Tooltip from data attributes
+        const mode = wrapperEl.dataset.segmentMode || 'unknown';
+        const from = wrapperEl.dataset.segmentFrom || 'Start';
+        const to = wrapperEl.dataset.segmentTo || 'End';
+        const dist = wrapperEl.dataset.segmentDistance || '?';
+
+        let mins = null;
+        const durStr = wrapperEl.dataset.segmentDuration;
+        if (durStr) {
+            const [hh, mm, ss] = durStr.split(':').map(Number);
+            mins = Math.round(hh * 60 + mm + ss / 60);
+        }
+
+        const time = mins ? `in ~${mins} min` : '';
+        const capitalizedName = mode.charAt(0).toUpperCase() + mode.slice(1);
+        const tooltipText = `${capitalizedName} <br>From: ${from} <br>To: ${to}<br>Distance: ${dist} km ${time}`;
+
+        poly.bindTooltip(tooltipText, {
+            sticky: true,
+            direction: 'top',
+            className: 'segment-tooltip'
+        });
+
+        poly.on('click', async () => {
+            const name = `${wrapperEl.dataset.segmentMode || 'Segment'}: ${wrapperEl.dataset.segmentFrom || 'Start'} → ${wrapperEl.dataset.segmentTo || 'End'}`;
+
+            store.dispatch('set-context', {
+                type: 'segment',
+                id: segId,
+                action: 'edit',
+                meta: { name }
+            });
+
+            const el = document.getElementById(`segment-item-${segId}`);
+            scrollToSegment(segId);
+
+            if (el) {
+                el.classList.add('segment-highlight');
+                setTimeout(() => el.classList.remove('segment-highlight'), 1000);
+            }
+
+            // Map focus and flash
+            const { getMapInstance } = await import('./mapManager.js');
+            const map = getMapInstance();
+            if (map && poly.getBounds) {
+                map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+                const originalColor = poly.options.color;
+                poly.setStyle({ color: 'yellow', weight: 5 });
+                setTimeout(() => poly.setStyle({ color: originalColor, weight: 3 }), 500);
+            }
+        });
+
+        addLayer(poly);
+        segmentPolylines.set(segId, poly);
+        return;
+    }
+
+    // 🔁 Fallback to from→to straight line
+    const fromEl = wrapperEl.hasAttribute('data-from-lat') ? wrapperEl : wrapperEl.querySelector('[data-from-lat]');
+    const toEl = wrapperEl.hasAttribute('data-to-lat') ? wrapperEl : wrapperEl.querySelector('[data-to-lat]');
+    if (fromEl && toEl) {
+        const from = [parseFloat(fromEl.dataset.fromLat), parseFloat(fromEl.dataset.fromLon)];
+        const to = [parseFloat(toEl.dataset.toLat), parseFloat(toEl.dataset.toLon)];
+        if (from.every(c => !isNaN(c)) && to.every(c => !isNaN(c))) {
+            await updateSegmentPolyline(segId, from, to, false);
+        }
+    }
+};
+
+/**
+ * Render an editable polyline for the current segment being edited.
+ * Falls back to From/To straight line if no RouteJson exists.
+ */
+const renderEditableSegmentRoute = async (segId, formEl) => {
+    const {getMapInstance, addLayer, removeLayer} = await import('./mapManager.js');
+    const map = getMapInstance();
+    if (!map || !formEl) return;
+
+    // 🧼 Remove any previously drawn red editable route
+    if (drawnSegmentPolylines.has(segId)) {
+        removeLayer(drawnSegmentPolylines.get(segId));
+        drawnSegmentPolylines.delete(segId);
+    }
+
+    // 🧼 Also remove default blue route if it exists
+    if (segmentPolylines.has(segId)) {
+        removeLayer(segmentPolylines.get(segId));
+        segmentPolylines.delete(segId);
+    }
+
+    document.getElementById('segment-route-toolbar')?.classList.remove('d-none');
+
+    const jsonInput = formEl.querySelector('input[name="RouteJson"]');
+    let coords = [];
+    const rawJson = jsonInput?.value?.trim();
+
+    if (rawJson && rawJson !== '[]') {
+        try {
+            const parsed = JSON.parse(rawJson);
+            if (Array.isArray(parsed) && parsed.length >= 2) {
+                coords = parsed;
+            }
+        } catch {
+            coords = [];
+        }
+    }
+
+    // Fallback: use From/To coords
+    if (!coords.length) {
+        // ONLY fallback if we're editing and RouteJson is empty
+        const fromOpt = formEl.querySelector('select[name="FromPlaceId"] option:checked');
+        const toOpt = formEl.querySelector('select[name="ToPlaceId"] option:checked');
+        if (fromOpt && toOpt) {
+            const fromLat = parseFloat(fromOpt.dataset.lat);
+            const fromLon = parseFloat(fromOpt.dataset.lon);
+            const toLat = parseFloat(toOpt.dataset.lat);
+            const toLon = parseFloat(toOpt.dataset.lon);
+            if ([fromLat, fromLon, toLat, toLon].every(c => !isNaN(c))) {
+                coords = [[fromLat, fromLon], [toLat, toLon]];
+            }
+        }
+    }
+
+    if (coords.length < 2) return;
+
+    const poly = L.polyline(coords, {
+        color: 'red', weight: 4, dashArray: '6,3'
+    }).addTo(map);
+
+    poly.enableEdit();
+    drawnSegmentPolylines.set(segId, poly);
+
+    // Watch for edits to update hidden input + distance
+    poly.on('editable:dragend editable:vertex:dragend editable:vertex:deleted', () => {
+        const latlngs = poly.getLatLngs().map(p => [p.lat, p.lng]);
+        if (jsonInput) jsonInput.value = JSON.stringify(latlngs);
+        updateDistanceAndDuration(formEl, poly);
+    });
+
+    // Immediately sync inputs
+    const latlngs = poly.getLatLngs().map(p => [p.lat, p.lng]);
+    if (jsonInput) jsonInput.value = JSON.stringify(latlngs);
+    updateDistanceAndDuration(formEl, poly);
+
+    map.fitBounds(poly.getBounds(), {padding: [50, 50]});
+};
+
+/**
+ * Saves the Segment
+ * @param segId Segment ID
+ * @returns {Promise<void>}
+ */
+const saveSegment = async (segId) => {
+    const formEl = document.getElementById(`segment-form-${segId}`);
+    if (!formEl) return;
+
+    const fd = new FormData(formEl);
+    const token = fd.get('__RequestVerificationToken');
+
+    const resp = await fetch('/User/Segments/CreateOrUpdate', {
+        method: 'POST', body: fd, headers: token ? {RequestVerificationToken: token} : {}
+    });
+
+    const html = await resp.text();
+    const list = document.getElementById('segments-inner-list');
+    if (!list) return;
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html.trim();
+    const newItem = tempDiv.firstElementChild;
+
+    if (!newItem) return;
+
+
+    const {removeLayer} = await import('./mapManager.js');
+
+    // 🧹 Remove red editable line
+    const redLine = drawnSegmentPolylines.get(segId);
+    if (redLine) {
+        removeLayer(redLine);
+        drawnSegmentPolylines.delete(segId);
+    }
+
+    // 🧹 Remove blue default polyline
+    const blueLine = segmentPolylines.get(segId);
+    if (blueLine) {
+        removeLayer(blueLine);
+        segmentPolylines.delete(segId);
+    }
+
+    // 🛑 Hide the editing toolbar
+    document.getElementById('segment-route-toolbar')?.classList.add('d-none');
+
+    document.querySelector(`#segment-form-${segId}`)?.closest('.accordion-item')?.remove();
+    document.querySelector(`.segment-list-item[data-segment-id="${segId}"]`)?.remove();
+    list.appendChild(newItem);
+
+    await renderStaticSegmentRoute(segId, newItem);
+
+    bindSegmentActions();
+    attachSegmentFormHandlers();
+    await callInitOrdering();
+    store.dispatch('clear-context');
+};
 
 // lazy load exported method
 const loadInitOrdering = async () => {
@@ -32,16 +292,7 @@ const segmentPolylines = new Map();
  * @constant {Object.<string, number>}
  */
 const ModeSpeedsKmh = {
-    walk: 5,
-    bicycle: 15,
-    bike: 40,
-    car: 60,
-    bus: 35,
-    train: 100,
-    ferry: 30,
-    boat: 25,
-    flight: 800,
-    helicopter: 200
+    walk: 5, bicycle: 15, bike: 40, car: 60, bus: 35, train: 100, ferry: 30, boat: 25, flight: 800, helicopter: 200
 };
 /**
  * Calculates estimated duration in minutes given distance and mode of transport.
@@ -58,7 +309,6 @@ const calculateDurationMinutes = (distanceKm, mode) => {
     return Math.round((distanceKm / speed) * 60); // minutes
 };
 
-
 /**
  * Adds or updates a polyline on the map for a given segment, representing the route
  * between two geographic coordinates.
@@ -70,7 +320,7 @@ const calculateDurationMinutes = (distanceKm, mode) => {
  * @param {[number, number]} toCoords - [lat, lon] of end point
  * @returns {Promise<L.Polyline|null>} The created polyline or null if coords missing
  */
-const updateSegmentPolyline = async (segId, fromCoords, toCoords, fitMap = true) => {
+const updateSegmentPolyline = async (segId, fromCoords, toCoords, fitMap = true, segment = null) => {
     const { getMapInstance, removeLayer, addLayer, fitBounds } = await import('./mapManager.js');
     const map = getMapInstance();
     if (!map) return;
@@ -83,17 +333,61 @@ const updateSegmentPolyline = async (segId, fromCoords, toCoords, fitMap = true)
     }
 
     if (fromCoords && toCoords) {
-        const latlngs = [
-            [fromCoords[0], fromCoords[1]],
-            [toCoords[0], toCoords[1]]
-        ];
+        const latlngs = [fromCoords, toCoords];
+        const polyline = L.polyline(latlngs, {
+            color: 'blue',
+            weight: 3,
+            dashArray: '4',
+            className: 'segment-polyline'
+        });
 
-        const polyline = L.polyline(latlngs, { color: 'blue', weight: 3, dashArray: '4' });
+        // Tooltip text
+        const mode = segment?.mode || 'unknown';
+        const from = segment?.fromPlace?.name || 'Start';
+        const to = segment?.toPlace?.name || 'End';
+        const dist = segment?.estimatedDistanceKm?.toFixed(1) || '?';
+        const mins = segment?.estimatedDuration
+            ? Math.round(segment.estimatedDuration.totalMinutes ?? segment.estimatedDuration / 60)
+            : null;
+        const time = mins ? `in ~${mins} min` : '';
+
+        const capitalizedName = mode.charAt(0).toUpperCase() + mode.slice(1);
+        const tooltipText = `${capitalizedName} <br>From: ${from} <br>To: ${to}<br>Distance: ${dist} km ${time}`;
+
+        polyline.bindTooltip(tooltipText, {
+            sticky: true,
+            direction: 'top',
+            className: 'segment-tooltip'
+        });
+        polyline.on('click', async () => {
+            const name = `${segment?.mode || 'Segment'}: ${segment?.fromPlace?.name || 'Start'} → ${segment?.toPlace?.name || 'End'}`;
+
+            store.dispatch('set-context', {
+                type: 'segment',
+                id: segId,
+                action: 'edit',
+                meta: { name }
+            });
+
+            const el = document.getElementById(`segment-item-${segId}`);
+            scrollToSegment(segId);
+
+            if (el) {
+                el.classList.add('segment-highlight');
+                setTimeout(() => el.classList.remove('segment-highlight'), 1000);
+            }
+
+            // ✨ Flash polyline
+            const originalColor = polyline.options.color;
+            polyline.setStyle({ color: 'yellow', weight: 5 });
+            setTimeout(() => polyline.setStyle({ color: originalColor, weight: 3 }), 500);
+
+            const { getMapInstance } = await import('./mapManager.js');
+            getMapInstance()?.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+        });
 
         addLayer(polyline);
-        if (fitMap) {
-            fitBounds(polyline.getBounds(), { padding: [50, 50] });
-        }
+        if (fitMap) fitBounds(polyline.getBounds(), { padding: [50, 50] });
 
         segmentPolylines.set(segId, polyline);
         return polyline;
@@ -133,32 +427,95 @@ const updateDistanceAndDuration = async (form, polyline) => {
 };
 
 const renderAllSegmentsOnMap = async (segments) => {
-
     for (const segment of segments) {
-        const segId = segment.id;  // also lowercase 'id'
+        const segId = segment.id;
+        const routeJson = segment.routeJson;
 
-        // Use camelCase keys exactly as returned by API
+        // If custom route exists, use it
+        if (routeJson?.trim() && routeJson !== '[]') {
+            try {
+                const coords = JSON.parse(routeJson);
+                if (Array.isArray(coords) && coords.length >= 2) {
+                    const polyline = L.polyline(coords, {
+                        color: 'blue',
+                        weight: 3,
+                        className: 'segment-polyline'
+                    });
+
+                    // Tooltip for RouteJson
+                    const mode = segment?.mode || 'unknown';
+                    const from = segment?.fromPlace?.name || 'Start';
+                    const to = segment?.toPlace?.name || 'End';
+                    const dist = segment?.estimatedDistanceKm?.toFixed(1) || '?';
+                    let mins = null;
+                    if (typeof segment?.estimatedDuration === 'string') {
+                        const [hh, mm, ss] = segment.estimatedDuration.split(':').map(Number);
+                        mins = Math.round(hh * 60 + mm + ss / 60);
+                    } else if (typeof segment?.estimatedDuration === 'number') {
+                        mins = Math.round(segment.estimatedDuration / 60);
+                    }
+                    const time = mins ? `in ~${mins} min` : '';
+
+                    const capitalizedName = mode.charAt(0).toUpperCase() + mode.slice(1);
+                    const tooltipText = `${capitalizedName} <br>From: ${from} <br>To: ${to}<br>Distance: ${dist} km ${time}`;
+                    polyline.bindTooltip(tooltipText, {
+                        sticky: true,
+                        direction: 'top',
+                        className: 'segment-tooltip'
+                    });
+
+                    polyline.on('click', async () => {
+                        const name = `${segment?.mode || 'Segment'}: ${segment?.fromPlace?.name || 'Start'} → ${segment?.toPlace?.name || 'End'}`;
+
+                        store.dispatch('set-context', {
+                            type: 'segment',
+                            id: segId,
+                            action: 'edit',
+                            meta: { name }
+                        });
+                        
+                        const el = document.getElementById(`segment-item-${segId}`);
+                        scrollToSegment(segId);
+
+                        if (el) {
+                            el.classList.add('segment-highlight');
+                            setTimeout(() => el.classList.remove('segment-highlight'), 1000);
+                        }
+
+                        const originalColor = polyline.options.color;
+                        polyline.setStyle({ color: 'yellow', weight: 5 });
+                        setTimeout(() => polyline.setStyle({ color: originalColor, weight: 3 }), 500);
+
+                        const { getMapInstance } = await import('./mapManager.js');
+                        getMapInstance()?.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+                    });
+
+                    const {addLayer} = await import('./mapManager.js');
+                    addLayer(polyline);
+                    segmentPolylines.set(segId, polyline);
+                    continue;
+                }
+            } catch {
+                console.warn(`Invalid RouteJson for segment ${segId}`);
+            }
+        }
+
+        // Fallback to From→To line
         const fromLoc = segment.fromPlace?.location;
         const toLoc = segment.toPlace?.location;
-        
-        if (
-            !fromLoc || !toLoc ||
-            fromLoc.latitude === undefined || fromLoc.longitude === undefined ||
-            toLoc.latitude === undefined || toLoc.longitude === undefined
-        ) {
+
+        if (!fromLoc || !toLoc || fromLoc.latitude === undefined || fromLoc.longitude === undefined || toLoc.latitude === undefined || toLoc.longitude === undefined) {
             console.warn(`Skipping segment ${segId} due to missing coordinates`);
             continue;
         }
 
         const fromLatLon = [fromLoc.latitude, fromLoc.longitude];
         const toLatLon = [toLoc.latitude, toLoc.longitude];
-        
-        const polyline = await updateSegmentPolyline(segId, fromLatLon, toLatLon, false);
-
-        if (polyline) {
+        const polyline = await updateSegmentPolyline(segId, fromLatLon, toLatLon, false, segment);
+        if (polyline ) {
             const visibility = store.getState().segmentVisibility[segId];
             if (visibility === undefined) {
-                store.dispatch('set-segment-visibility', { segmentId: segId, visible: true });
+                store.dispatch('set-segment-visibility', {segmentId: segId, visible: true});
             }
         }
     }
@@ -197,7 +554,6 @@ const bindPlaceSelectChange = (form) => {
     if (toSelect) toSelect.addEventListener('change', redrawPolyline);
 };
 
-
 /**
  * Pans the map to the selected place in a dropdown and selects its marker.
  *
@@ -207,7 +563,7 @@ const bindPlaceSelectChange = (form) => {
  * @returns {Promise<void>}
  */
 const panToPlace = async (selectEl) => {
-    const { getMapInstance, getPlaceMarkerById, clearSelectedMarker, selectMarker } = await import('./mapManager.js');
+    const {getMapInstance, getPlaceMarkerById, clearSelectedMarker, selectMarker} = await import('./mapManager.js');
     const selectedOption = selectEl.selectedOptions[0];
     if (!selectedOption) return;
 
@@ -227,17 +583,13 @@ const panToPlace = async (selectEl) => {
         selectMarker(marker);
     }
 
-    store.dispatch('set-context', {
-        type: 'place',
-        id: placeId,
-        action: 'edit',
-        meta: { name: selectedOption.text }
-    });
+    const currentCtx = store.getState().context;
+    if (currentCtx?.type !== 'segment') {
+        store.dispatch('set-context', {
+            type: 'place', id: placeId, action: 'edit', meta: {name: selectedOption.text}
+        });
+    }
 };
-
-/* ------------------------------------------------------------------ *
- *  Public API
- * ------------------------------------------------------------------ */
 
 /**
  * Initializes segment handlers for the specified trip.
@@ -267,6 +619,18 @@ export const initSegmentHandlers = async (tripId) => {
         addBtn.onclick = async () => {
             await loadSegmentCreateForm(tripId);
         };
+    }
+
+    if (!document.getElementById('segment-route-toolbar')) {
+        const toolbar = document.createElement('div');
+        toolbar.id = 'segment-route-toolbar';
+        toolbar.className = 'leaflet-bar route-toolbar d-none';
+        toolbar.innerHTML = `
+      <button class="btn-reset-route" title="Reset to straight line">🔄</button>
+      <button class="btn-clear-route" title="Clear route">🗑️</button>
+      <button class="btn-done-route" title="Done editing">✅</button>
+    `;
+        document.getElementById('mapContainer')?.appendChild(toolbar);
     }
 
     bindSegmentActions?.();
@@ -315,10 +679,7 @@ export const loadSegmentCreateForm = async (tripId) => {
 
     if (segId) {
         store.dispatch('set-context', {
-            type: 'segment',
-            id: segId,
-            action: 'edit',
-            meta: { name: mode }
+            type: 'segment', id: segId, action: 'edit', meta: {name: mode}
         });
     }
 
@@ -326,15 +687,11 @@ export const loadSegmentCreateForm = async (tripId) => {
     attachSegmentFormHandlers();
 };
 
-/* ------------------------------------------------------------------ *
- *  Internal helpers
- * ------------------------------------------------------------------ */
-
 /**
  * Binds event handlers for editing, saving, deleting, and selecting segments.
  */
 const bindSegmentActions = () => {
-    
+
     // Toggle all segments visibility
     const masterToggle = document.getElementById('toggle-all-segments');
     masterToggle.addEventListener('click', e => {
@@ -358,8 +715,7 @@ const bindSegmentActions = () => {
         checkbox.onchange = () => {
             const newVisibility = checkbox.checked;
             store.dispatch('set-segment-visibility', {
-                segmentId: segId,
-                visible: newVisibility
+                segmentId: segId, visible: newVisibility
             });
         };
     });
@@ -375,7 +731,13 @@ const bindSegmentActions = () => {
             const resp = await fetch(`/User/Segments/CreateOrUpdate?segmentId=${segId}&tripId=${cachedTripId}`);
             const html = await resp.text();
 
-            document.getElementById(`segment-item-${segId}`).outerHTML = html;
+            const existing = document.getElementById(`segment-item-${segId}`);
+            if (existing) {
+                existing.outerHTML = html;
+            } else {
+                const list = document.getElementById('segments-list');
+                if (list) list.insertAdjacentHTML('beforeend', html);
+            }
 
             // Quill setup for the new form DOM
             const segmentNotesSelector = `#segment-notes-${segId}`;
@@ -389,6 +751,17 @@ const bindSegmentActions = () => {
                 console.error(`Failed to initialize Quill for segment ${segId}:`, err);
             }
 
+            const form = document.getElementById(`segment-form-${segId}`);
+            const mode = form?.querySelector('select[name="Mode"]')?.value || 'Segment';
+            const from = form?.querySelector('select[name="FromPlaceId"] option:checked')?.textContent?.trim() || '...';
+            const to = form?.querySelector('select[name="ToPlaceId"] option:checked')?.textContent?.trim() || '...';
+
+            const name = `${mode}: ${from} → ${to}`;
+
+            store.dispatch('set-context', {
+                type: 'segment', id: segId, action: 'edit', meta: {name}
+            });
+
             bindSegmentActions();
             attachSegmentFormHandlers();
         };
@@ -396,52 +769,7 @@ const bindSegmentActions = () => {
 
     /* ---------- SAVE ---------- */
     document.querySelectorAll('.btn-segment-save').forEach(btn => {
-        btn.onclick = async () => {
-            const segId  = btn.dataset.segmentId;
-            const formEl = document.getElementById(`segment-form-${segId}`);
-            const fd     = new FormData(formEl);
-            const token  = fd.get('__RequestVerificationToken');
-
-            const resp = await fetch('/User/Segments/CreateOrUpdate', {
-                method : 'POST',
-                body   : fd,
-                headers: token ? { RequestVerificationToken: token } : {}
-            });
-
-            const html = await resp.text();
-            const list = document.getElementById('segments-list');
-            if (!list) return;
-
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = html.trim();
-            const newItem = tempDiv.firstElementChild;
-
-            if (!newItem) return;
-
-            const existing = document.getElementById(`segment-item-${segId}`);
-            if (existing) {
-                existing.replaceWith(newItem);
-            } else {
-                list.appendChild(newItem);
-            }
-
-            // Redraw polyline if coords are present
-            const fromEl = newItem.querySelector('[data-from-lat]');
-            const toEl   = newItem.querySelector('[data-to-lat]');
-            if (fromEl && toEl) {
-                const from = [parseFloat(fromEl.dataset.fromLat), parseFloat(fromEl.dataset.fromLon)];
-                const to   = [parseFloat(toEl.dataset.toLat), parseFloat(toEl.dataset.toLon)];
-
-                if (from.every(c => !isNaN(c)) && to.every(c => !isNaN(c))) {
-                    await updateSegmentPolyline(segId, from, to, false);
-                }
-            }
-
-            bindSegmentActions();
-            attachSegmentFormHandlers();
-            await callInitOrdering();
-            store.dispatch('clear-context');
-        };
+        btn.onclick = () => saveSegment(btn.dataset.segmentId);
     });
 
     /* ---------- DELETE ---------- */
@@ -451,17 +779,17 @@ const bindSegmentActions = () => {
             if (!segId) return;
 
             wayfarer.showConfirmationModal({
-                title      : 'Delete segment?',
-                message    : 'This action cannot be undone.',
+                title: 'Delete segment?',
+                message: 'This action cannot be undone.',
                 confirmText: 'Delete',
                 onConfirm: async () => {
                     const fd = new FormData();
                     fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
 
                     const resp = await fetch(`/User/Segments/Delete/${segId}`, {
-                        method : 'POST',
-                        body   : fd,
-                        headers: { RequestVerificationToken: fd.get('__RequestVerificationToken') }
+                        method: 'POST',
+                        body: fd,
+                        headers: {RequestVerificationToken: fd.get('__RequestVerificationToken')}
                     });
 
                     if (resp.ok) {
@@ -470,7 +798,7 @@ const bindSegmentActions = () => {
                         // ✅ REMOVE POLYLINE FROM MAP
                         const polyline = segmentPolylines.get(segId);
                         if (polyline) {
-                            const { removeLayer } = await import('./mapManager.js');
+                            const {removeLayer} = await import('./mapManager.js');
                             removeLayer(polyline);
                             segmentPolylines.delete(segId);
                         }
@@ -488,18 +816,12 @@ const bindSegmentActions = () => {
     document.querySelectorAll('.segment-list-item').forEach(item => {
         item.onclick = async (e) => {
             // 🔒 Ignore clicks on interactive controls
-            if (
-                e.target.closest('button') ||
-                e.target.closest('a') ||
-                e.target.closest('input') ||
-                e.target.classList.contains('btn') ||
-                e.target.classList.contains('form-check-input')
-            ) {
+            if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input') || e.target.classList.contains('btn') || e.target.classList.contains('form-check-input')) {
                 return;
             }
 
             const segId = item.dataset.segmentId;
-            const name  = item.dataset.segmentName || 'Unnamed segment';
+            const name = item.dataset.segmentName || 'Unnamed segment';
             if (!segId) return;
 
             document.querySelectorAll('.segment-list-item')
@@ -507,17 +829,14 @@ const bindSegmentActions = () => {
             item.classList.remove('dimmed');
 
             store.dispatch('set-context', {
-                type: 'segment',
-                id: segId,
-                action: 'edit',
-                meta: { name }
+                type: 'segment', id: segId, action: 'edit', meta: {name}
             });
 
             // Focus map on polyline bounds
             const polyline = segmentPolylines.get(segId);
             if (polyline) {
-                const { fitBounds } = await import('./mapManager.js');
-                fitBounds(polyline.getBounds(), { padding: [50, 50] });
+                const {fitBounds} = await import('./mapManager.js');
+                fitBounds(polyline.getBounds(), {padding: [50, 50]});
             }
         };
     });
@@ -526,84 +845,183 @@ const bindSegmentActions = () => {
 /**
  * Attaches handlers for segment form cancel and realtime updates for distance/time inputs.
  */
-const attachSegmentFormHandlers =  () => {
+const attachSegmentFormHandlers = () => {
+
+    /* ---------- DRAW ROUTE ---------- */
+    document.querySelector('.btn-reset-route')?.addEventListener('click', async () => {
+        const segId = store.getState().context?.id;
+        const formEl = document.getElementById(`segment-form-${segId}`);
+        if (!segId || !formEl) return;
+
+        const fromOpt = formEl.querySelector('select[name="FromPlaceId"] option:checked');
+        const toOpt = formEl.querySelector('select[name="ToPlaceId"] option:checked');
+        if (!fromOpt || !toOpt) return;
+
+        const fromLat = parseFloat(fromOpt.dataset.lat);
+        const fromLon = parseFloat(fromOpt.dataset.lon);
+        const toLat = parseFloat(toOpt.dataset.lat);
+        const toLon = parseFloat(toOpt.dataset.lon);
+        if ([fromLat, fromLon, toLat, toLon].some(isNaN)) return;
+
+        const {getMapInstance, removeLayer} = await import('./mapManager.js');
+        const map = getMapInstance();
+
+        if (drawnSegmentPolylines.has(segId)) {
+            removeLayer(drawnSegmentPolylines.get(segId));
+            drawnSegmentPolylines.delete(segId);
+        }
+
+        const poly = L.polyline([[fromLat, fromLon], [toLat, toLon]], {
+            color: 'red', weight: 4, dashArray: '6,3'
+        }).addTo(map);
+        poly.enableEdit();
+        drawnSegmentPolylines.set(segId, poly);
+
+        const jsonInput = formEl.querySelector('input[name="RouteJson"]');
+        if (jsonInput) jsonInput.value = JSON.stringify([[fromLat, fromLon], [toLat, toLon]]);
+        updateDistanceAndDuration(formEl, poly);
+        map.fitBounds(poly.getBounds(), {padding: [50, 50]});
+    });
+
+    // draw toolbar buttons listeners
+    document.querySelector('.btn-done-route')?.addEventListener('click', async () => {
+        const segId = store.getState().context?.id;
+        if (!segId) return;
+
+        await saveSegment(segId);
+        document.getElementById('segment-route-toolbar')?.classList.add('d-none');
+    });
+
+    document.querySelector('.btn-clear-route')?.addEventListener('click', async () => {
+        const segId = store.getState().context?.id;
+        const formEl = document.getElementById(`segment-form-${segId}`);
+        if (!segId || !formEl) return;
+
+        const {removeLayer} = await import('./mapManager.js');
+        if (drawnSegmentPolylines.has(segId)) {
+            removeLayer(drawnSegmentPolylines.get(segId));
+            drawnSegmentPolylines.delete(segId);
+        }
+
+        const jsonInput = formEl.querySelector('input[name="RouteJson"]');
+        if (jsonInput) jsonInput.value = '';
+    });
+
     /* ---------- CANCEL ---------- */
     document.querySelectorAll('.btn-segment-cancel').forEach(btn => {
         btn.onclick = async () => {
+            document.getElementById('segment-route-toolbar')?.classList.add('d-none');
+
             const segId = btn.dataset.segmentId;
             if (!segId) return;
 
-            const resp = await fetch(`/User/Segments/GetItemPartial?segmentId=${segId}`);
-            const html = await resp.text();
+            const {removeLayer} = await import('./mapManager.js');
+            const redLine = drawnSegmentPolylines.get(segId);
+            if (redLine) {
+                removeLayer(redLine);
+                drawnSegmentPolylines.delete(segId);
+            }
 
-            document.getElementById(`segment-item-${segId}`).outerHTML = html;
-
-            bindSegmentActions();
-            attachSegmentFormHandlers();
-            store.dispatch('clear-context');
+            store.dispatch('clear-context'); // 🧠 Let store handle full restoration
         };
     });
 
     // Add realtime duration calculation and place select change handling on all open segment forms
-    document.querySelectorAll('form[id^="segment-form-"]').forEach(form => {
+    document.querySelectorAll('form[id^="segment-form-"]').forEach(async (form) => {
+        const segId = form.querySelector('input[name="Id"]')?.value;
+        if (!segId) return;
+
+        // ✅ Make the route editable (or fall back to straight line)
+        await renderEditableSegmentRoute(segId, form);
+
+        // Existing bindings
         const distInput = form.querySelector('input[name="EstimatedDistanceKm"]');
         const modeSelect = form.querySelector('select[name="Mode"]');
         const durationInput = form.querySelector('input[name="EstimatedDurationMinutes"]');
 
-        if (!distInput || !modeSelect || !durationInput) return;
+        if (distInput && modeSelect && durationInput) {
+            const updateDuration = () => {
+                const dist = parseFloat(distInput.value);
+                const mode = modeSelect.value;
+                if (isNaN(dist) || !mode) return;
 
-        const updateDuration = () => {
-            const dist = parseFloat(distInput.value);
-            const mode = modeSelect.value;
-            if (isNaN(dist) || !mode) return;
-
-            // Only auto-set if duration input is empty or zero
-            if (!durationInput.value || durationInput.value === '0') {
-                const mins = calculateDurationMinutes(dist, mode);
-                if (mins !== null) {
-                    durationInput.value = mins;
+                if (!durationInput.value || durationInput.value === '0') {
+                    const mins = calculateDurationMinutes(dist, mode);
+                    if (mins !== null) {
+                        durationInput.value = mins;
+                    }
                 }
-            }
-        };
+            };
+            distInput.addEventListener('input', updateDuration);
+            modeSelect.addEventListener('change', updateDuration);
+        }
 
-        distInput.addEventListener('input', updateDuration);
-        modeSelect.addEventListener('change', updateDuration);
-        // also attach the pan to map to place handler
         bindPlaceSelectChange(form);
     });
+
 };
-
-/* ------------------------------------------------------------------ *
- *  Store listeners
- * ------------------------------------------------------------------ */
-
 
 /**
  * Subscribe to store events for context changes to sync UI and scroll to segments.
  */
-store.subscribe(async ({ type, payload }) => {
+store.subscribe(async ({type, payload}) => {
 
     // Scroll the currently-selected segment into view
     if (type === 'set-context' && payload?.type === 'segment') {
         document.getElementById(`segment-item-${payload.id}`)
-            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            ?.scrollIntoView({behavior: 'smooth', block: 'center'});
     }
 
     // If context is cleared while a form is open, restore list item
     if (type === 'clear-context') {
-        const openForm  = document.querySelector('form[id^="segment-form-"]');
-        const segId     = openForm?.querySelector('[name="Id"]')?.value;
+        const openForm = document.querySelector('form[id^="segment-form-"]');
+        const segId = openForm?.querySelector('[name="Id"]')?.value;
+        if (!segId) return;
 
-        if (segId) {
-            (async () => {
-                const resp = await fetch(`/User/Segments/GetItemPartial?segmentId=${segId}`);
-                const html = await resp.text();
+        try {
+            // ✅ Remove both form and any leftover display item
+            const formItem = openForm.closest('.accordion-item');
+            const displayItem = document.querySelector(`.segment-list-item[data-segment-id="${segId}"]`);
 
-                const wrapper = openForm.closest('.accordion-item');
-                if (wrapper) wrapper.outerHTML = html;
-                bindSegmentActions();
-                attachSegmentFormHandlers();
-            })();
+            if (formItem) formItem.remove();
+            if (displayItem) displayItem.remove();
+
+            // ✅ Load fresh partial
+            const resp = await fetch(`/User/Segments/GetItemPartial?segmentId=${segId}`);
+            const html = await resp.text();
+            const temp = document.createElement('div');
+            temp.innerHTML = html.trim();
+            const newItem = temp.firstElementChild;
+            if (!newItem) return;
+
+            // ✅ Append to the correct parent
+            const list = document.getElementById('segments-inner-list');
+            list.appendChild(newItem);
+
+            // ✅ Wait for element to be laid out (not display: none / detached)
+            await new Promise(resolve => {
+                const check = () => {
+                    if (newItem.offsetParent !== null) resolve();
+                    else requestAnimationFrame(check);
+                };
+                check();
+            });
+
+            // ✅ Remove old line if any
+            if (segmentPolylines.has(segId)) {
+                const old = segmentPolylines.get(segId);
+                const { removeLayer } = await import('./mapManager.js');
+                removeLayer(old);
+                segmentPolylines.delete(segId);
+            }
+            
+            // ✅ Always draw the proper route
+            await renderStaticSegmentRoute(segId, newItem);
+
+            bindSegmentActions();
+            attachSegmentFormHandlers();
+        } catch (err) {
+            console.error('Failed to restore segment after cancel:', err);
         }
     }
 
@@ -612,7 +1030,7 @@ store.subscribe(async ({ type, payload }) => {
         const visible = store.getState().segmentVisibility[segId];
         const polyline = segmentPolylines.get(segId);
         if (!polyline) return;
-        const { addLayer, removeLayer } = await import('./mapManager.js');
+        const {addLayer, removeLayer} = await import('./mapManager.js');
         if (visible) {
             addLayer(polyline);
         } else {

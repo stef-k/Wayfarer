@@ -7,6 +7,11 @@
     var duration = Model.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
     var distance = Model.EstimatedDistanceKm?.ToString("0.##") ?? "—";
     var hasNotes = !string.IsNullOrWhiteSpace(Model.Notes);
+    var routeJson = Model.RouteGeometry != null
+        ? System.Text.Json.JsonSerializer.Serialize(
+            Model.RouteGeometry.Coordinates.Select(c => new[] { c.Y, c.X })
+        )
+        : "[]";
 
     var emojiMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -33,18 +38,27 @@
 <li class="segment-list-item list-group-item px-3 py-2"
     data-segment-id="@segmentId"
     data-segment-name="@($"{Model.Mode}: {fromName} → {toName}")"
+    data-segment-mode="@Model.Mode"
+    data-segment-from="@fromName"
+    data-segment-to="@toName"
+    data-segment-distance="@distance"
+    data-segment-duration="@Model.EstimatedDuration?.ToString("c")"
     data-from-lat="@Model.FromPlace?.Location?.Y"
     data-from-lon="@Model.FromPlace?.Location?.X"
     data-to-lat="@Model.ToPlace?.Location?.Y"
     data-to-lon="@Model.ToPlace?.Location?.X">
 
-    <!-- Line 1: Mode, icon, duration/distance, controls -->
+    <!-- Line 1 & 2: Mode, icon, duration/distance, controls -->
     <div class="d-flex align-items-center justify-content-between gap-3">
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-grip-vertical drag-handle"></i>
-            <span class="emoji-icon fs-5" aria-label="@Model.Mode icon" title="@Model.Mode icon">@emojiIcon</span>
-            <strong>@Model.Mode</strong>
-            <span class="">(@duration / @distance km)</span>
+        <div class="d-flex gap-2 align-items-start">
+            <i class="bi bi-grip-vertical drag-handle mt-1" title="Drag to reorder"></i>
+            <div class="d-flex flex-column">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="emoji-icon fs-5" aria-label="@Model.Mode icon" title="@Model.Mode icon">@emojiIcon</span>
+                    <strong>@Model.Mode</strong>
+                </div>
+                <div class="ms-1">( @duration / @distance km )</div>
+            </div>
         </div>
 
         <div class="d-flex align-items-center gap-2">
@@ -79,10 +93,12 @@
         </div>
     </div>
 
-    <!-- Line 2 & 3: From → To label, with optional notes icon -->
+    <!-- Line 3 & 4: From → To label, with optional notes icon -->
     <div class="mt-1 ms-4 ">
-        <div class="mb-1"><strong>From:</strong> @fromName</div>
-        <div><strong>To:</strong> @toName</div>
+        <input type="hidden" name="RouteJson" value="@routeJson" />
+
+        <div class="mb-1"><strong>From:</strong> @fromName (@Model?.FromPlace?.Region.Name)</div>
+        <div><strong>To:</strong> @toName (@Model?.ToPlace?.Region.Name)</div>
     </div>
 </li>
 

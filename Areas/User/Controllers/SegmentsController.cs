@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,14 @@ public class SegmentsController : BaseController
         {
             segment = await _db.Segments.FirstOrDefaultAsync(s => s.Id == segmentId && s.UserId == userId);
             if (segment == null) return NotFound();
+            if (segment.RouteGeometry is { } geom && geom.NumPoints >= 2)
+            {
+                var coords = geom.Coordinates
+                    .Select(c => new[] { c.Y, c.X }) // [lat, lon]
+                    .ToList();
+
+                ViewData["RouteJson"] = JsonSerializer.Serialize(coords);
+            }
         }
         else
         {
@@ -104,6 +113,28 @@ public class SegmentsController : BaseController
         ModelState.Remove(nameof(model.Trip));
         ModelState.Remove(nameof(model.FromPlace));
         ModelState.Remove(nameof(model.ToPlace));
+
+        // Handle RouteJson → RouteGeometry
+        if (Request.Form.TryGetValue("RouteJson", out var routeJsonStr) && !string.IsNullOrWhiteSpace(routeJsonStr))
+        {
+            try
+            {
+                var points = JsonSerializer.Deserialize<List<double[]>>(routeJsonStr);
+                if (points != null && points.Count >= 2)
+                {
+                    var coords = points.Select(p => new Coordinate(p[1], p[0])).ToArray(); // [lon, lat]
+                    model.RouteGeometry = new LineString(coords) { SRID = 4326 };
+                }
+            }
+            catch (JsonException)
+            {
+                _logger.LogWarning("Invalid RouteJson ignored for Segment {SegmentId}", model.Id);
+            }
+        }
+        else
+        {
+            model.RouteGeometry = null;
+        }
 
         if (!ModelState.IsValid)
         {
@@ -187,33 +218,43 @@ public class SegmentsController : BaseController
     }
 
     [HttpGet]
+    [HttpGet]
     public async Task<IActionResult> GetSegments(Guid tripId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
         var segments = await _db.Segments
+            .Include(s => s.FromPlace)
+            .Include(s => s.ToPlace)
             .Where(s => s.UserId == userId && s.TripId == tripId)
-            .Select(s => new SegmentDto
-            {
-                Id = s.Id,
-                Mode = s.Mode,
-                EstimatedDistanceKm = s.EstimatedDistanceKm,
-                EstimatedDuration = s.EstimatedDuration,
-                Notes = s.Notes,
-                FromPlace = new PlaceDto
-                {
-                    Id = s.FromPlace.Id,
-                    Name = s.FromPlace.Name,
-                    Location = s.FromPlace.Location
-                },
-                ToPlace = new PlaceDto
-                {
-                    Id = s.ToPlace.Id,
-                    Name = s.ToPlace.Name,
-                    Location = s.ToPlace.Location
-                }
-            })
             .ToListAsync();
-        
-        return Json(segments);
+
+        var dtoList = segments.Select(s => new SegmentDto
+        {
+            Id = s.Id,
+            Mode = s.Mode,
+            EstimatedDistanceKm = s.EstimatedDistanceKm,
+            EstimatedDuration = s.EstimatedDuration,
+            Notes = s.Notes,
+            RouteJson = s.RouteGeometry != null
+                ? JsonSerializer.Serialize(
+                    s.RouteGeometry.Coordinates.Select(c => new[] { c.Y, c.X })
+                )
+                : null,
+            FromPlace = new PlaceDto
+            {
+                Id = s.FromPlace.Id,
+                Name = s.FromPlace.Name,
+                Location = s.FromPlace.Location
+            },
+            ToPlace = new PlaceDto
+            {
+                Id = s.ToPlace.Id,
+                Name = s.ToPlace.Name,
+                Location = s.ToPlace.Location
+            }
+        }).ToList();
+
+        return Json(dtoList);
     }
 }
