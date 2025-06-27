@@ -63,8 +63,7 @@ const attachPlaceFormHandlers = () => {
 
             // 2) Subscribe before region reload so we don't miss the event
             store.subscribeOnce(({
-                                     type,
-                                     payload
+                                     type, payload
                                  }) => type === 'region-dom-reloaded' && payload.regionId === regionId, () => {
                 const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
                 if (!item) {
@@ -159,9 +158,6 @@ const attachPlaceFormHandlers = () => {
             });
 
             const html = await resp.text();
-            const wrapper = formEl.closest('.accordion-item');
-            wrapper.outerHTML = html;
-            attachPlaceFormHandlers();
 
             if (!resp.ok) {
                 const dom = new DOMParser().parseFromString(html, 'text/html');
@@ -171,9 +167,55 @@ const attachPlaceFormHandlers = () => {
                 return;
             }
 
+            const parsed = new DOMParser().parseFromString(html, 'text/html');
+            const newRegionEl = parsed.body.firstElementChild;
+
+            // These must be strings or they'll silently fail
+            const oldRegionId = formEl.querySelector('[name="RegionId"]')?.dataset?.original;
+            const newRegionId = formEl.querySelector('[name="RegionIdOverride"]')?.value || formEl.querySelector('[name="RegionId"]')?.value;
+
+            const oldRegionEl = document.getElementById(`region-item-${oldRegionId}`);
+            const existingNewRegionEl = document.getElementById(`region-item-${newRegionId}`);
+
+            const reloadRegionDom = async (regionId) => {
+                const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+                if (resp.ok) {
+                    const html = await resp.text();
+                    const dom = new DOMParser().parseFromString(html, 'text/html');
+                    const updatedRegion = dom.body.firstElementChild;
+                    const existing = document.getElementById(`region-item-${regionId}`);
+                    if (existing) {
+                        existing.replaceWith(updatedRegion);
+                    } else {
+                        document.getElementById('regions-accordion')?.append(updatedRegion);
+                    }
+
+                    const regionInput = updatedRegion.querySelector('[name="RegionId"]');
+                    if (regionInput) {
+                        regionInput.dataset.original = regionInput.value;
+                    }
+
+                    store.dispatch('region-dom-reloaded', { regionId });
+                }
+            };
+
+            if (oldRegionId !== newRegionId) {
+                await reloadRegionDom(oldRegionId);
+                await reloadRegionDom(newRegionId);
+            } else {
+                if (existingNewRegionEl) {
+                    existingNewRegionEl.replaceWith(newRegionEl);
+                } else {
+                    document.getElementById('regions-accordion')?.append(newRegionEl);
+                }
+                store.dispatch('region-dom-reloaded', { regionId: newRegionId });
+            }
+
+            store.dispatch('region-dom-reloaded', { regionId: newRegionId });
+            attachPlaceFormHandlers();
             store.dispatch('clear-context');
 
-            // 🧭 Extend route if location changed
+            // 🧭 Extend segment if coords changed
             const newItem = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
             const newLat = parseFloat(newItem?.dataset.placeLat);
             const newLon = parseFloat(newItem?.dataset.placeLon);
@@ -184,7 +226,7 @@ const attachPlaceFormHandlers = () => {
                 await extendSegmentRouteForMovedPlace(placeId, oldLat, oldLon, newLat, newLon);
             }
 
-            // ✅ Reload and re-render segment polylines
+            // ✅ Re-render all segments
             const tripId = document.querySelector('#trip-form [name="Id"]')?.value;
             if (tripId) {
                 const segResp = await fetch(`/User/Segments/GetSegments?tripId=${tripId}`);
@@ -264,7 +306,7 @@ const attachPlaceFormHandlers = () => {
                         store.dispatch('clear-context');
                         const tripId = document.querySelector('#trip-form [name="Id"]')?.value;
                         if (tripId) {
-                            const { initSegmentHandlers } = await import('./segmentHandlers.js');
+                            const {initSegmentHandlers} = await import('./segmentHandlers.js');
                             await initSegmentHandlers(tripId);
                         }
                     } else {

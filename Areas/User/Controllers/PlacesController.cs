@@ -25,7 +25,7 @@ public class PlacesController : BaseController
     }
 
     // GET: /User/Places/CreateOrUpdate?regionId={regionId}
-    public IActionResult CreateOrUpdate(Guid regionId)
+    public async Task<IActionResult> CreateOrUpdate(Guid regionId)
     {
         var model = new Place
         {
@@ -33,6 +33,12 @@ public class PlacesController : BaseController
             RegionId = regionId,
             DisplayOrder = 0
         };
+
+        ViewData["AllRegions"] = await _dbContext.Regions
+            .Where(r => r.UserId == User.FindFirstValue(ClaimTypes.NameIdentifier))
+            .OrderBy(r => r.DisplayOrder)
+            .ToListAsync();
+
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_PlaceFormPartial.cshtml", model);
     }
@@ -68,7 +74,18 @@ public class PlacesController : BaseController
             existing.DisplayOrder = model.DisplayOrder;
             existing.Address = model.Address;
 
-            // Update geometry if provided
+            if (Request.Form.TryGetValue("RegionIdOverride", out var regionOverride) &&
+                Guid.TryParse(regionOverride, out var newRegionId))
+            {
+                model.RegionId = newRegionId;
+            }
+
+            if (existing.RegionId != model.RegionId)
+            {
+                existing.RegionId = model.RegionId;
+                _dbContext.Entry(existing).Property(p => p.RegionId).IsModified = true;
+            }
+
             if (lat.HasValue && lon.HasValue)
             {
                 existing.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };
@@ -93,6 +110,11 @@ public class PlacesController : BaseController
 
         if (region == null)
             return NotFound();
+
+        ViewData["AllRegions"] = await _dbContext.Regions
+            .Where(r => r.UserId == User.FindFirstValue(ClaimTypes.NameIdentifier))
+            .OrderBy(r => r.DisplayOrder)
+            .ToListAsync();
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", region);
     }
@@ -140,6 +162,11 @@ public class PlacesController : BaseController
         if (place == null)
             return NotFound();
 
+        ViewData["AllRegions"] = await _dbContext.Regions
+            .Where(r => r.UserId == userId)
+            .OrderBy(r => r.DisplayOrder)
+            .ToListAsync();
+
         return PartialView("~/Areas/User/Views/Trip/Partials/_PlaceFormPartial.cshtml", place);
     }
 
@@ -160,5 +187,4 @@ public class PlacesController : BaseController
         await _dbContext.SaveChangesAsync();
         return NoContent();
     }
-    
 }

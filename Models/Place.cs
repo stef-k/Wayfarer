@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NetTopologySuite.Geometries;
 
@@ -9,12 +10,14 @@ public class Place
     public Guid Id { get; set; }
 
     /// <summary>User identifier from ASP.NET Identity.</summary>
+    [BindNever, ValidateNever] 
     public string UserId { get; set; }
 
     /// <summary>Foreign key to the parent region.</summary>
     public Guid RegionId { get; set; }
 
     /// <summary>Navigation property to the parent region.</summary>
+    [ValidateNever] 
     public Region Region { get; set; }
 
     /// <summary>Place name or title.</summary>

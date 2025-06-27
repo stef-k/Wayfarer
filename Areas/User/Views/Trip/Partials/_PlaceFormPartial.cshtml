@@ -8,7 +8,7 @@
     @Html.AntiForgeryToken()
     <div class="px-2 py-1">
         <input type="hidden" asp-for="Id"/>
-        <input type="hidden" asp-for="RegionId"/>
+        <input type="hidden" asp-for="RegionId" data-original="@Model.RegionId" />
         <input type="hidden" name="Latitude"
                value="@Model.Location?.Y.ToString(CultureInfo.InvariantCulture)" />
         <input type="hidden" name="Longitude"
@@ -18,6 +18,22 @@
 
         <h5>Place Details</h5>
 
+        @if (ViewData["AllRegions"] is List<Wayfarer.Models.Region> allRegions && allRegions.Count > 1)
+        {
+            <div class="mb-3">
+                <label class="form-label small">Region</label>
+                <select name="RegionIdOverride" class="form-select form-select-sm">
+                    @foreach (var r in allRegions)
+                    {
+                        <option value="@r.Id" selected="@(Model.RegionId == r.Id)">
+                            @r.Name
+                        </option>
+                    }
+                </select>
+                <small class="text-muted">Changing this will move the place to another region.</small>
+            </div>
+        }
+        
         <div class="mb-3">
             <label asp-for="Name" class="form-label">Place Name</label>
             <input asp-for="Name" class="form-control"/>

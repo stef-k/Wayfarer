@@ -158,7 +158,7 @@ export const renderPlaceMarker = async (p) => {
     const lat = +p.Latitude, lon = +p.Longitude;
     if (isNaN(lat) || isNaN(lon)) return;
 
-    if (placeMarkersById[p.Id]) mapContainer.removeLayer(placeMarkersById[p.Id]);
+    removePlaceMarker(p.Id); // 🔥 remove any stale marker
 
     const iconUrl = buildPngIconUrl(p.IconName || 'marker', p.MarkerColor || 'bg-blue');
     const marker = L.marker([lat, lon], {
@@ -274,7 +274,7 @@ export const fitBounds = (bounds, options = {}) => {
     map.fitBounds(bounds, options);
 };
 
-store.subscribe(({ type }) => {
+store.subscribe(({ type, payload  }) => {
     if (type === 'context-cleared') {
         Object.values(regionPreviewById).forEach(m => mapContainer?.removeLayer(m));
         Object.keys(regionPreviewById).forEach(k => delete regionPreviewById[k]);
@@ -298,6 +298,43 @@ store.subscribe(({ type }) => {
         if (coordsEl) {
             coordsEl.classList.add('d-none');
             coordsEl.innerHTML = '';
+        }
+    }
+
+    if (type === 'region-dom-reloaded' && payload?.regionId) {
+        if (previewMarker) {
+            mapContainer?.removeLayer(previewMarker);
+            previewMarker = null;
+        }
+        const regionEl = document.getElementById(`region-item-${payload.regionId}`);
+        if (!regionEl) return;
+
+        const placeEls = regionEl.querySelectorAll('.place-list-item');
+        for (const markerId in placeMarkersById) {
+            const el = document.querySelector(`.place-list-item[data-place-id="${markerId}"]`);
+            if (el?.closest(`#region-item-${payload.regionId}`)) {
+                removePlaceMarker(markerId);
+            }
+        }
+        for (const el of placeEls) {
+            const placeId = el.dataset.placeId;
+            const lat = parseFloat(el.dataset.placeLat);
+            const lon = parseFloat(el.dataset.placeLon);
+            const icon = el.dataset.placeIcon;
+            const color = el.dataset.placeColor;
+            const name = el.dataset.placeName;
+
+            if (!isNaN(lat) && !isNaN(lon)) {
+                renderPlaceMarker({
+                    Id: placeId,
+                    Name: name,
+                    Latitude: lat,
+                    Longitude: lon,
+                    IconName: icon,
+                    MarkerColor: color,
+                    RegionId: payload.regionId
+                });
+            }
         }
     }
 });
