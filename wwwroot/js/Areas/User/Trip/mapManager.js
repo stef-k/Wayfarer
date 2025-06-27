@@ -26,6 +26,14 @@ const WF_ANCHOR = [14, 45];
 export const getRegionMarkerById = (id) => regionMarkersById[id] || null;
 export const getPlaceMarkerById = (id) => placeMarkersById[id] || null;
 
+export const clearPreviewMarker = () => {
+    if (previewMarker) {
+        mapContainer.removeLayer(previewMarker);
+        previewMarker = null;
+    }
+};
+
+
 const buildPngIconUrl = (iconName, bgClass) =>
     `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
 
@@ -33,12 +41,12 @@ export const applyCoordinates = ({ lat, lon }) => {
     const ctx = store.getState().context;
     if (!ctx?.type || !ctx?.action) return;
 
+    const latNum = parseFloat(lat);
+    const lonNum = parseFloat(lon);
+
     const fill = (selector, fldLat, fldLon) => {
         const form = document.querySelector(selector);
         if (!form) return;
-
-        const latNum = parseFloat(lat);
-        const lonNum = parseFloat(lon);
 
         const latInp = form.querySelector(`input[name="${fldLat}"]`);
         const latDisp = form.querySelector(`input[name="${fldLat}_display"]`);
@@ -54,18 +62,21 @@ export const applyCoordinates = ({ lat, lon }) => {
             if (lonDisp) lonDisp.value = lonNum;
         }
 
+        // ✅ Place marker preview
         if (ctx.type === 'place') {
-            const icon = form.querySelector('input[name="IconName"]')?.value || 'marker';
-            const color = form.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
-            const iconUrl = buildPngIconUrl(icon, color);
-
+            // remove saved marker before creating preview
             const existing = placeMarkersById[ctx.id];
             if (existing) {
-                existing.setLatLng([lat, lon]);
-                previewMarker = existing;
-            } else if (previewMarker) {
+                mapContainer.removeLayer(existing);
+                delete placeMarkersById[ctx.id];
+            }
+
+            if (previewMarker) {
                 previewMarker.setLatLng([lat, lon]);
             } else {
+                const icon = form.querySelector('input[name="IconName"]')?.value || 'marker';
+                const color = form.querySelector('input[name="MarkerColor"]')?.value || 'bg-blue';
+                const iconUrl = buildPngIconUrl(icon, color);
                 previewMarker = L.marker([lat, lon], {
                     icon: L.icon({
                         iconUrl,
@@ -75,25 +86,40 @@ export const applyCoordinates = ({ lat, lon }) => {
                     })
                 }).addTo(mapContainer);
             }
+
             selectMarker(previewMarker);
+        }
+
+        //  Region marker update
+        if (ctx.type === 'region') {
+            const regionMarker = regionMarkersById[ctx.id];
+            if (regionMarker && !isNaN(latNum) && !isNaN(lonNum)) {
+                regionMarker.setLatLng([latNum, lonNum]);
+            }
         }
     };
 
     if (ctx.type === 'place' && ['set-location', 'edit', 'create'].includes(ctx.action)) {
         fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
     }
+
     if (ctx.type === 'region' && ctx.action === 'set-center') {
         fill(`#region-form-${ctx.id}`, 'CenterLat', 'CenterLon');
     }
 
+    // ✅ Context banner coordinates
     const coordsEl = document.getElementById('context-coords');
-    if (coordsEl) {
-        const latNum = parseFloat(lat);
-        const lonNum = parseFloat(lon);
-        if (!isNaN(latNum) && !isNaN(lonNum)) {
-            coordsEl.innerHTML = `Coordinates (Lat, Lon): <code class="user-select-all">${latNum.toFixed(5)}, ${lonNum.toFixed(5)}</code>`;
-            coordsEl.classList.remove('d-none');
-        }
+    if (coordsEl && !isNaN(latNum) && !isNaN(lonNum)) {
+        coordsEl.innerHTML = `Coordinates (Lat, Lon): <code class="user-select-all">${latNum.toFixed(5)}, ${lonNum.toFixed(5)}</code>`;
+        coordsEl.classList.remove('d-none');
+    }
+
+    // ✅ Sync visible Lat/Lon fields
+    const latInput = document.getElementById('contextLat');
+    const lonInput = document.getElementById('contextLon');
+    if (latInput && lonInput && !isNaN(latNum) && !isNaN(lonNum)) {
+        latInput.value = latNum.toFixed(6);
+        lonInput.value = lonNum.toFixed(6);
     }
 };
 

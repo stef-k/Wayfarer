@@ -1,7 +1,10 @@
 @using System.Globalization
 @model Wayfarer.Models.Place
 
-<form id="place-form-@Model.Id">
+<form id="place-form-@Model.Id"
+      data-place-id="@Model.Id"
+      data-old-lat="@Model.Location?.Y.ToString(CultureInfo.InvariantCulture)"
+      data-old-lon="@Model.Location?.X.ToString(CultureInfo.InvariantCulture)">
     @Html.AntiForgeryToken()
     <div class="px-2 py-1">
         <input type="hidden" asp-for="Id"/>
@@ -10,6 +13,7 @@
                value="@Model.Location?.Y.ToString(CultureInfo.InvariantCulture)" />
         <input type="hidden" name="Longitude"
                value="@Model.Location?.X.ToString(CultureInfo.InvariantCulture)" />
+        
 
 
         <h5>Place Details</h5>

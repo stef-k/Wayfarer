@@ -9,7 +9,7 @@ import {
 } from './uiCore.js';
 
 import {
-    applyCoordinates,
+    applyCoordinates, clearPreviewMarker,
     disableDrawingTools,
     getMapInstance,
     initializeMap,
@@ -33,6 +33,17 @@ let activeDrawingRegionId = null;
  * ------------------------------------------------------------------ */
 const bannerEl  = () => document.getElementById('mapping-context-banner');
 const bannerLbl = () => document.getElementById('mapping-context-text');
+
+const replaceOuterHtmlAndWait = async (el, html) => {
+    return new Promise(resolve => {
+        const parent = el.parentNode;
+        const placeholder = document.createElement('div');
+        placeholder.innerHTML = html;
+        const newEl = placeholder.firstElementChild;
+        parent.replaceChild(newEl, el);
+        requestAnimationFrame(() => resolve(newEl)); // safe one-frame defer
+    });
+};
 
 const setBanner = (action, name) => {
     const banner = bannerEl();
@@ -130,10 +141,43 @@ const attachListeners = () => {
 
             /* ----- banner ----- */
             (meta?.name && ctxType) ? setBanner(action, meta.name) : hideBanner();
+
+            // 🧭 Sync lat/lon to inputs + form when context is set
+            const formSelector = ctxType === 'place'
+                ? `#place-form-${id}`
+                : ctxType === 'region'
+                    ? `#region-form-${id}`
+                    : null;
+
+            const latField = ctxType === 'place' ? 'Latitude' : 'CenterLat';
+            const lonField = ctxType === 'place' ? 'Longitude' : 'CenterLon';
+
+            const form = document.querySelector(formSelector);
+            if (form) {
+                const latRaw = form.querySelector(`input[name="${latField}"]`)?.value;
+                const lonRaw = form.querySelector(`input[name="${lonField}"]`)?.value;
+
+                const lat = parseFloat(latRaw);
+                const lon = parseFloat(lonRaw);
+
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    applyCoordinates({ lat, lon });
+                }
+            }
         }
 
         /* ========== CONTEXT CLEARED ========== */
         if (type === 'clear-context') {
+            const latInput = document.getElementById('contextLat');
+            const lonInput = document.getElementById('contextLon');
+            const coordsEl = document.getElementById('context-coords');
+
+            if (latInput) latInput.value = '';
+            if (lonInput) lonInput.value = '';
+            if (coordsEl) {
+                coordsEl.classList.add('d-none');
+                coordsEl.querySelector('code')?.replaceChildren();
+            }
             clearDim();
             hideBanner();
             hideAllIndicators();
@@ -169,18 +213,42 @@ const attachListeners = () => {
 
             // Places: remove open form and reload from server if needed
             document.querySelectorAll('form[id^="place-form-"]').forEach(async (form) => {
-                const placeId = form.querySelector('[name="Id"]')?.value;
+                const placeId  = form.querySelector('[name="Id"]')?.value;
                 const regionId = form.querySelector('[name="RegionId"]')?.value;
+
                 if (!placeId || placeId.length !== 36) {
                     form.closest('.place-list-item')?.remove(); // new form, remove entirely
+                    clearPreviewMarker(); // 🧹 cleanup unsaved preview marker
                 } else {
                     const regionEl = document.getElementById(`region-item-${regionId}`);
                     if (regionEl) {
                         const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-                        regionEl.outerHTML = await resp.text();
+                        const html = await resp.text();
+
+                        const newRegionEl = await replaceOuterHtmlAndWait(regionEl, html);
                         store.dispatch('region-dom-reloaded', { regionId });
+
+                        // 🔁 Restore marker for the saved place
+                        const placeItem = newRegionEl.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
+                        if (placeItem) {
+                            const d = placeItem.dataset;
+                            if (d.placeLat && d.placeLon) {
+                                renderPlaceMarker({
+                                    Id          : d.placeId,
+                                    Name        : d.placeName || '',
+                                    Latitude    : d.placeLat,
+                                    Longitude   : d.placeLon,
+                                    IconName    : d.placeIcon,
+                                    MarkerColor : d.placeColor,
+                                    RegionId    : d.regionId
+                                });
+                            }
+                        }
+
+                        clearPreviewMarker(); // ✅ Clear AFTER redrawing the saved marker
                     }
                 }
+
             });
 
             // Segments: remove open form and reload from server if needed
@@ -288,6 +356,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     map.on('click', ({ latlng }) =>
         applyCoordinates({ lat: latlng.lat.toFixed(6), lon: latlng.lng.toFixed(6) })
     );
+    const syncToContext = () => {
+        const latInput = document.getElementById('contextLat');
+        const lonInput = document.getElementById('contextLon');
+        const lat = parseFloat(latInput?.value);
+        const lon = parseFloat(lonInput?.value);
+        if (!isNaN(lat) && !isNaN(lon)) {
+            applyCoordinates({ lat, lon });
+        }
+    };
+
+    document.getElementById('contextLat')?.addEventListener('change', syncToContext);
+    document.getElementById('contextLon')?.addEventListener('change', syncToContext);
 
     /* ----- sub-modules ----- */
     initOrdering();

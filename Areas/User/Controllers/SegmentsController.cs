@@ -89,6 +89,7 @@ public class SegmentsController : BaseController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CreateOrUpdate(Segment model)
     {
+        ModelState.Remove(nameof(model.UserId));
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         model.UserId = userId;
 
@@ -138,7 +139,12 @@ public class SegmentsController : BaseController
 
         if (!ModelState.IsValid)
         {
+            _logger.LogWarning("Invalid model — exiting early");
             return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentFormPartial.cshtml", model);
+        }
+        else
+        {
+            _logger.LogInformation("Valid model — proceeding to save segment...");
         }
 
         var exists = await _dbContext.Segments
@@ -150,17 +156,35 @@ public class SegmentsController : BaseController
             _dbContext.Segments.Add(model);
 
         await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
 
         // Re-fetch the full segment with related From/To place for display
         var segment = await _dbContext.Segments
-            .Include(s => s.FromPlace)
-            .Include(s => s.ToPlace)
+            .Include(s => s.FromPlace).ThenInclude(p => p.Region)
+            .Include(s => s.ToPlace).ThenInclude(p => p.Region)
             .FirstOrDefaultAsync(s => s.Id == model.Id && s.UserId == userId);
 
         if (segment == null)
-            return NotFound();
+        {
+            _logger.LogError("Segment not found after save.");
+            return Problem("Segment not found.");
+        }
 
-        return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment);
+        if (segment.FromPlace == null || segment.ToPlace == null)
+        {
+            _logger.LogError("Segment {SegmentId} has null FromPlace or ToPlace.", segment.Id);
+            return Problem("Segment references are incomplete.");
+        }
+
+        try
+        {
+            return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "🛑 Rendering failed for SegmentItemPartial.");
+            return Problem("An error occurred while rendering the updated segment.");
+        }
     }
 
     // POST: /User/Segments/Delete/{id}
@@ -207,8 +231,8 @@ public class SegmentsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var segment = await _db.Segments
-            .Include(s => s.FromPlace)
-            .Include(s => s.ToPlace)
+            .Include(s => s.FromPlace).ThenInclude(p => p.Region)
+            .Include(s => s.ToPlace).ThenInclude(p => p.Region)
             .FirstOrDefaultAsync(s => s.Id == segmentId && s.UserId == userId);
 
         if (segment == null)
@@ -216,16 +240,15 @@ public class SegmentsController : BaseController
 
         return PartialView("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment);
     }
-
-    [HttpGet]
+    
     [HttpGet]
     public async Task<IActionResult> GetSegments(Guid tripId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var segments = await _db.Segments
-            .Include(s => s.FromPlace)
-            .Include(s => s.ToPlace)
+            .Include(s => s.FromPlace).ThenInclude(p => p.Region)
+            .Include(s => s.ToPlace).ThenInclude(p => p.Region)
             .Where(s => s.UserId == userId && s.TripId == tripId)
             .ToListAsync();
 

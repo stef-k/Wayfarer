@@ -7,7 +7,17 @@
         .GroupBy(p => p.Region?.Name ?? "Unknown")
         .OrderBy(g => g.Key);
 }
-
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="segment-form-errors alert alert-danger">
+        <ul class="mb-0">
+            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <li>@error.ErrorMessage</li>
+            }
+        </ul>
+    </div>
+}
 <div id="segment-item-@Model.Id"
      class="accordion-item segment-list-item"
      data-segment-id="@Model.Id"
@@ -29,7 +39,6 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="Id" />
                 <input type="hidden" asp-for="TripId" />
-                <input type="hidden" asp-for="UserId" />
                 <input type="hidden" asp-for="DisplayOrder" />
 
                 <div class="row g-2">

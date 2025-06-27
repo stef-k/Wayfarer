@@ -144,6 +144,11 @@ const handleDeleteRegion = (regionId) => {
                 document.getElementById(`region-item-${regionId}`)?.remove();
                 removeRegionMarker(regionId);
                 store.dispatch('clear-context');
+                const tripId = store.getState().tripId;
+                if (tripId) {
+                    const { initSegmentHandlers } = await import('./segmentHandlers.js');
+                    await initSegmentHandlers(tripId);
+                }
                 showAlert('success', 'Region deleted.');
             } else {
                 showAlert('danger', 'Failed to delete region.');

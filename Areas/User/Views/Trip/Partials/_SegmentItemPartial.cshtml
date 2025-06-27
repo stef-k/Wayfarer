@@ -43,10 +43,10 @@
     data-segment-to="@toName"
     data-segment-distance="@distance"
     data-segment-duration="@Model.EstimatedDuration?.ToString("c")"
-    data-from-lat="@Model.FromPlace?.Location?.Y"
-    data-from-lon="@Model.FromPlace?.Location?.X"
-    data-to-lat="@Model.ToPlace?.Location?.Y"
-    data-to-lon="@Model.ToPlace?.Location?.X">
+    data-from-lat="@(Model.FromPlace?.Location?.Y ?? 0)"
+    data-from-lon="@(Model.FromPlace?.Location?.X ?? 0)"
+    data-to-lat="@(Model.ToPlace?.Location?.Y ?? 0)"
+    data-to-lon="@(Model.ToPlace?.Location?.X ?? 0)">
 
     <!-- Line 1 & 2: Mode, icon, duration/distance, controls -->
     <div class="d-flex align-items-center justify-content-between gap-3">

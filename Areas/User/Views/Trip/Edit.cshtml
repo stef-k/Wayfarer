@@ -209,43 +209,76 @@
     </div>
   </div>
 
-  <div class="col-9">
-
-    <div class="row">
-      <div class="col-12 ">
-        <div class="bg-white shadow rounded p-2 my-2 trip-searchbar">
-          <div class="input-group flex-grow-1">
-            @* <button id="btn-toggle-sidebar" class="btn btn-sm btn-outline-secondary z-3" type="button" *@
-            @*         title="Toggle the left sidebar" *@
-            @*         data-bs-toggle="collapse" data-bs-target="#sidebar" aria-expanded="true" aria-controls="sidebar"> *@
-            @*   <i class="bi bi-layout-sidebar-inset"></i> Sidebar *@
-            @* </button> *@
-            <input id="place-search" type="text" class="form-control" placeholder="Search for places…"/>
-            <button id="btn-search" class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
-          </div>
-        </div>
+<div class="col-9">
+  <!-- 🔍 Search + 🧭 Coordinates -->
+  <div class="row g-2 align-items-end mb-2">
+    <div class="col-lg-6 col-md-12">
+      <label for="place-search" class="form-label visually-hidden">Search</label>
+      <div class="input-group flex-grow-1 bg-white shadow rounded p-2 trip-searchbar">
+        <input id="place-search" type="text" class="form-control" placeholder="Search for places…" />
+        <button id="btn-search" class="btn btn-outline-secondary" type="button">
+          <i class="bi bi-search"></i>
+        </button>
       </div>
     </div>
 
-    <div class="row">
-      <div class="col-12">
-        <div id="mapping-context-banner" class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-center" role="alert">
-          <i class="bi bi-pencil me-1"></i>
-          <span id="mapping-context-text">Selected: —</span>
-          <span id="context-coords" class="ms-2 text-muted d-none">
-            <code class="user-select-all"></code>
-          </span>
-          <button id="btn-clear-context"
-                  type="button"
-                  class="btn-close btn-close-primary btn-sm ms-auto"
-                  aria-label="Clear mapping context"
-                  title="Clear selection"></button>
-        </div>
-        <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
+    <!-- 🧭 Latitude -->
+    <div class="col-sm-3 col-6">
+      <label for="contextLat" class="form-label visually-hidden">Lat</label>
+      <div class="input-group bg-white shadow rounded p-2">
+        <input type="number"
+               step="0.000001"
+               class="form-control"
+               id="contextLat"
+               title="Insert latitude manually"
+               placeholder="Latitude"
+               autocomplete="off" />
       </div>
     </div>
 
+    <!-- 🧭 Longitude -->
+    <div class="col-sm-3 col-6">
+      <label for="contextLon" class="form-label visually-hidden">Lon</label>
+      <div class="input-group bg-white shadow rounded p-2">
+        <input type="number"
+               step="0.000001"
+               class="form-control"
+               id="contextLon"
+               title="Insert longitude manually"
+               placeholder="Longitude"
+               autocomplete="off" />
+      </div>
+    </div>
   </div>
+
+  <!-- 📌 Context Banner -->
+  <div class="row">
+    <div class="col-12">
+      <div id="mapping-context-banner"
+           class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-center"
+           role="alert">
+        <i class="bi bi-pencil me-1"></i>
+        <span id="mapping-context-text">Selected: —</span>
+        <span id="context-coords" class="ms-2 text-muted d-none">
+          <code class="user-select-all"></code>
+        </span>
+        <button id="btn-clear-context"
+                type="button"
+                class="btn-close btn-close-primary btn-sm ms-auto"
+                aria-label="Clear mapping context"
+                title="Clear selection"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🗺️ Map -->
+  <div class="row">
+    <div class="col-12">
+      <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
+    </div>
+  </div>
+</div>
+
 
   <!-- Modal for image URL input -->
   <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">

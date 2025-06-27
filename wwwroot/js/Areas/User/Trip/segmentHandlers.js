@@ -224,21 +224,30 @@ const saveSegment = async (segId) => {
     const token = fd.get('__RequestVerificationToken');
 
     const resp = await fetch('/User/Segments/CreateOrUpdate', {
-        method: 'POST', body: fd, headers: token ? {RequestVerificationToken: token} : {}
+        method: 'POST',
+        body: fd,
+        headers: token ? { RequestVerificationToken: token } : {}
     });
 
     const html = await resp.text();
-    const list = document.getElementById('segments-inner-list');
-    if (!list) return;
-
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html.trim();
     const newItem = tempDiv.firstElementChild;
-
     if (!newItem) return;
 
+    // 🛑 EARLY CHECK: If form has validation errors, stop here
+    if (newItem.querySelector('.segment-form-errors')) {
+        const wrapper = document.querySelector(`#segment-form-${segId}`)?.closest('.accordion-item');
+        if (wrapper) wrapper.replaceWith(newItem);
+        attachSegmentFormHandlers();
+        console.warn('⚠️ Validation errors shown for segment:', segId);
+        return;
+    }
 
-    const {removeLayer} = await import('./mapManager.js');
+    const list = document.getElementById('segments-inner-list');
+    if (!list) return;
+
+    const { removeLayer } = await import('./mapManager.js');
 
     // 🧹 Remove red editable line
     const redLine = drawnSegmentPolylines.get(segId);
@@ -257,12 +266,13 @@ const saveSegment = async (segId) => {
     // 🛑 Hide the editing toolbar
     document.getElementById('segment-route-toolbar')?.classList.add('d-none');
 
-    document.querySelector(`#segment-form-${segId}`)?.closest('.accordion-item')?.remove();
+    // 🧽 Remove old DOM items only now — we know it's a real success
+    document.getElementById(`segment-item-${segId}`)?.remove();
     document.querySelector(`.segment-list-item[data-segment-id="${segId}"]`)?.remove();
+
     list.appendChild(newItem);
 
     await renderStaticSegmentRoute(segId, newItem);
-
     bindSegmentActions();
     attachSegmentFormHandlers();
     await callInitOrdering();
@@ -426,7 +436,7 @@ const updateDistanceAndDuration = async (form, polyline) => {
     }
 };
 
-const renderAllSegmentsOnMap = async (segments) => {
+export const renderAllSegmentsOnMap = async (segments) => {
     for (const segment of segments) {
         const segId = segment.id;
         const routeJson = segment.routeJson;
@@ -1038,3 +1048,85 @@ store.subscribe(async ({type, payload}) => {
         }
     }
 });
+/**
+ * Extend a route
+ * @param placeId
+ * @param oldLat
+ * @param oldLon
+ * @param newLat
+ * @param newLon
+ * @returns {Promise<void>}
+ */
+export const extendSegmentRouteForMovedPlace = async (placeId, oldLat, oldLon, newLat, newLon) => {
+    if (!placeId || isNaN(oldLat) || isNaN(oldLon) || isNaN(newLat) || isNaN(newLon)) return;
+
+    const tripId = store.getState().tripId;
+    if (!tripId) return;
+
+    const resp = await fetch(`/User/Segments/GetSegments?tripId=${tripId}`);
+    if (!resp.ok) return;
+
+    const segments = await resp.json();
+    for (const segment of segments) {
+        const segId = segment.id;
+        const isFrom = segment.fromPlace?.id === placeId;
+        const isTo = segment.toPlace?.id === placeId;
+        if (!isFrom && !isTo) continue;
+
+        let coords = [];
+        if (segment.routeJson?.trim()) {
+            try {
+                coords = JSON.parse(segment.routeJson);
+            } catch (err) {
+                console.warn('⚠️ Failed to parse routeJson:', segment.routeJson, err);
+            }
+        }
+
+        const extension = [newLat, newLon];
+
+        // 🧠 Improved check to avoid duplicate extensions
+        const alreadyExtended =
+            (isTo && JSON.stringify(coords.at(-1)) === JSON.stringify(extension)) ||
+            (isFrom && JSON.stringify(coords.at(0)) === JSON.stringify(extension));
+
+        if (alreadyExtended) {
+            console.log('⏭️ Already extended to new location — skipping', segId);
+            continue;
+        }
+
+        console.debug('📈 Original coords:', coords);
+
+        if (coords.length >= 2) {
+            if (isTo) coords.push(extension);
+            if (isFrom) coords.unshift(extension);
+        } else {
+            // Fallback for initial straight line
+            coords = isTo
+                ? [[segment.fromPlace.location.latitude, segment.fromPlace.location.longitude], extension]
+                : [extension, [segment.toPlace.location.latitude, segment.toPlace.location.longitude]];
+        }
+
+        console.debug('📌 Extended coords:', coords);
+
+        const fd = new FormData();
+        fd.set('Id', segId);
+        fd.set('TripId', tripId); // from store.getState().tripId
+        fd.set('FromPlaceId', segment.fromPlace.id);
+        fd.set('ToPlaceId', segment.toPlace.id);
+        fd.set('Mode', segment.mode);
+        fd.set('EstimatedDistanceKm', segment.estimatedDistanceKm || '');
+        fd.set('EstimatedDurationMinutes', segment.estimatedDuration || '');
+        fd.set('Notes', segment.notes || '');
+        fd.set('RouteJson', JSON.stringify(coords));
+        fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+
+        await fetch('/User/Segments/CreateOrUpdate', {
+            method: 'POST',
+            body: fd,
+            headers: { 'RequestVerificationToken': fd.get('__RequestVerificationToken') }
+        });
+
+        console.log(`✅ Segment ${segId} route updated.`);
+    }
+};
+
