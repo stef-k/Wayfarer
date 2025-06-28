@@ -33,7 +33,6 @@ export const clearPreviewMarker = () => {
     }
 };
 
-
 const buildPngIconUrl = (iconName, bgClass) =>
     `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
 
@@ -196,7 +195,7 @@ export const initializeMap = (center = [20, 0], zoom = 3) => {
         zoomAnimation: true,
         editable: true
     }).setView(center, zoom);
-    
+
     L.tileLayer(`${location.origin}/Public/tiles/{z}/{x}/{y}.png`, {
         maxZoom: 19,
         attribution: '© OpenStreetMap contributors'
@@ -274,7 +273,7 @@ export const fitBounds = (bounds, options = {}) => {
     map.fitBounds(bounds, options);
 };
 
-store.subscribe(({ type, payload  }) => {
+store.subscribe(({ type, payload }) => {
     if (type === 'context-cleared') {
         Object.values(regionPreviewById).forEach(m => mapContainer?.removeLayer(m));
         Object.keys(regionPreviewById).forEach(k => delete regionPreviewById[k]);

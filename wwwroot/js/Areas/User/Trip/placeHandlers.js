@@ -1,11 +1,12 @@
 // placeHandlers.js – full file with robust “cancel new place” fix
+import { focusMapView } from './mapZoom.js'
 import {
     renderPlaceMarker, removePlaceMarker, getMapInstance, getPlaceMarkerById, clearSelectedMarker, selectMarker
 } from './mapManager.js';
 import {
     populateIconDropdown, populateColorDropdown, updateDropdownIconColors, clearDim, dimAll
 } from './uiCore.js';
-import {store} from './storeInstance.js';
+import { store } from './storeInstance.js';
 
 /**
  * Returns a clean place title from a list-item or form element.
@@ -28,7 +29,7 @@ export const enhancePlaceForm = async (formEl) => {
     const formSelector = `#place-form-${placeId}`;
 
     try {
-        const {setupQuill, waitForQuill} = await import('./quillNotes.js');
+        const { setupQuill, waitForQuill } = await import('./quillNotes.js');
         await waitForQuill(selector);
         await setupQuill(selector, inputSelector, formSelector);
     } catch (err) {
@@ -63,15 +64,15 @@ const attachPlaceFormHandlers = () => {
 
             // 2) Subscribe before region reload so we don't miss the event
             store.subscribeOnce(({
-                                     type, payload
-                                 }) => type === 'region-dom-reloaded' && payload.regionId === regionId, () => {
+                type, payload
+            }) => type === 'region-dom-reloaded' && payload.regionId === regionId, () => {
                 const item = document.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
                 if (!item) {
                     store.dispatch('clear-context');
                     return;
                 }
                 const name = getPlaceName(item);
-                const {placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color} = item.dataset;
+                const { placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color } = item.dataset;
                 if (lat && lon) {
                     renderPlaceMarker({
                         Id: placeId,
@@ -84,7 +85,7 @@ const attachPlaceFormHandlers = () => {
                     });
                 }
                 store.dispatch('set-context', {
-                    type: 'place', id: placeId, action: 'set-location', meta: {name, regionId}
+                    type: 'place', id: placeId, action: 'set-location', meta: { name, regionId }
                 });
             });
 
@@ -93,12 +94,12 @@ const attachPlaceFormHandlers = () => {
             if (regionEl) {
                 const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
                 regionEl.outerHTML = await resp.text();
-                store.dispatch('region-dom-reloaded', {regionId});
+                store.dispatch('region-dom-reloaded', { regionId });
             }
 
             // 4) Remove any temporary marker
             if (placeId) {
-                const {clearPreviewMarker} = await import("./mapManager.js");
+                const { clearPreviewMarker } = await import("./mapManager.js");
                 clearPreviewMarker();
             }
 
@@ -115,7 +116,7 @@ const attachPlaceFormHandlers = () => {
      * ─────────────────────────────────────────────────────────────── */
     document.querySelectorAll('.btn-edit-place').forEach(btn => {
         btn.onclick = async () => {
-            const {placeId, regionId} = btn.dataset;
+            const { placeId, regionId } = btn.dataset;
             if (!placeId || !regionId) return;
 
             store.dispatch('trip-cleanup-open-forms');
@@ -132,7 +133,7 @@ const attachPlaceFormHandlers = () => {
 
             const name = formEl.querySelector('input[name="Name"]')?.value || 'Unnamed';
             store.dispatch('set-context', {
-                type: 'place', id: placeId, action: 'edit', meta: {name, regionId}
+                type: 'place', id: placeId, action: 'edit', meta: { name, regionId }
             });
         };
     });
@@ -246,7 +247,7 @@ const attachPlaceFormHandlers = () => {
      * ─────────────────────────────────────────────────────────────── */
     document.querySelectorAll('.place-list-item').forEach(li => {
         li.onclick = () => {
-            const {placeId, regionId, placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color} = li.dataset;
+            const { placeId, regionId, placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color } = li.dataset;
             const name = getPlaceName(li);
             if (!placeId || !regionId) return;
 
@@ -255,7 +256,7 @@ const attachPlaceFormHandlers = () => {
             li.classList.remove('dimmed');
 
             store.dispatch('set-context', {
-                type: 'place', id: placeId, action: 'set-location', meta: {name, regionId}
+                type: 'place', id: placeId, action: 'set-location', meta: { name, regionId }
             });
 
             if (lat && lon) {
@@ -268,7 +269,8 @@ const attachPlaceFormHandlers = () => {
                     MarkerColor: color,
                     RegionId: regionId
                 });
-                getMapInstance()?.setView([lat, lon], 10);
+                const map = getMapInstance();
+                focusMapView('place', [lat, lon], map);
                 clearSelectedMarker();
                 const marker = getPlaceMarkerById(placeId);
                 if (marker) selectMarker(marker);
@@ -281,7 +283,7 @@ const attachPlaceFormHandlers = () => {
      * ─────────────────────────────────────────────────────────────── */
     document.querySelectorAll('.btn-delete-place').forEach(btn => {
         btn.onclick = () => {
-            const {placeId, regionId} = btn.dataset;
+            const { placeId, regionId } = btn.dataset;
             if (!placeId) return;
 
             wayfarer.showConfirmationModal({
@@ -295,18 +297,18 @@ const attachPlaceFormHandlers = () => {
                     const resp = await fetch(`/User/Places/Delete/${placeId}`, {
                         method: 'POST',
                         body: fd,
-                        headers: {RequestVerificationToken: fd.get('__RequestVerificationToken')}
+                        headers: { RequestVerificationToken: fd.get('__RequestVerificationToken') }
                     });
 
                     if (resp.ok) {
                         const html = await resp.text();
                         document.getElementById(`region-item-${regionId}`).outerHTML = html;
-                        store.dispatch('region-dom-reloaded', {regionId});
+                        store.dispatch('region-dom-reloaded', { regionId });
                         removePlaceMarker(placeId);
                         store.dispatch('clear-context');
                         const tripId = document.querySelector('#trip-form [name="Id"]')?.value;
                         if (tripId) {
-                            const {initSegmentHandlers} = await import('./segmentHandlers.js');
+                            const { initSegmentHandlers } = await import('./segmentHandlers.js');
                             await initSegmentHandlers(tripId);
                         }
                     } else {
@@ -321,7 +323,7 @@ const attachPlaceFormHandlers = () => {
 /* ─────────────────────────────────────────────────────────────── *
  *  Ensure any open form is torn down on clear-context
  * ─────────────────────────────────────────────────────────────── */
-store.subscribe(({type}) => {
+store.subscribe(({ type }) => {
     if (type === 'clear-context') {
         const openForm = document.querySelector('form[id^="place-form-"]');
         const placeId = openForm?.querySelector('[name="Id"]')?.value;
@@ -333,7 +335,7 @@ store.subscribe(({type}) => {
                 if (!regionEl) return;
                 const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
                 regionEl.outerHTML = await resp.text();
-                store.dispatch('region-dom-reloaded', {regionId});
+                store.dispatch('region-dom-reloaded', { regionId });
                 removePlaceMarker(placeId);
             })();
         }

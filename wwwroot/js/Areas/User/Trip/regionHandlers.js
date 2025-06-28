@@ -6,7 +6,7 @@
  * - Listeners for selecting region areas.
  * - Integrates with central store for context and events.
  */
-
+import { focusMapView } from './mapZoom.js'
 import { enhancePlaceForm, initPlaceHandlers } from './placeHandlers.js';
 import { getMapInstance, getRegionMarkerById, removeRegionMarker, selectMarker, clearSelectedMarker } from './mapManager.js';
 import { store } from './storeInstance.js';
@@ -96,7 +96,8 @@ export const initRegionHandlers = (tripId) => {
             const lat = parseFloat(wrapper?.dataset.centerLat);
             const lon = parseFloat(wrapper?.dataset.centerLon);
             if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
-                getMapInstance()?.setView([lat, lon], 8);
+                const map = getMapInstance();
+                focusMapView('region', [lat, lon], map);
             }
 
             const regionId = btn.dataset.regionId;
