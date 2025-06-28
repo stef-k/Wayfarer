@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.User.Controllers;
 
@@ -16,12 +17,14 @@ public class PlacesController : BaseController
 {
     private readonly ILogger<PlacesController> _logger;
     private readonly ApplicationDbContext _dbContext;
+    private readonly ReverseGeocodingService _reverseGeocodingService;
 
-    public PlacesController(ILogger<PlacesController> logger, ApplicationDbContext dbContext)
+    public PlacesController(ILogger<PlacesController> logger, ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocodingService)
         : base(logger, dbContext)
     {
         _logger = logger;
         _dbContext = dbContext;
+        _reverseGeocodingService = reverseGeocodingService;
     }
 
     // GET: /User/Places/CreateOrUpdate?regionId={regionId}
@@ -66,13 +69,12 @@ public class PlacesController : BaseController
 
         if (existing != null)
         {
-            // Update scalar fields
             existing.Name = model.Name;
             existing.Notes = model.Notes;
             existing.IconName = model.IconName;
             existing.MarkerColor = model.MarkerColor;
             existing.DisplayOrder = model.DisplayOrder;
-            existing.Address = model.Address;
+            existing.Address = model.Address; // may be overwritten below
 
             if (Request.Form.TryGetValue("RegionIdOverride", out var regionOverride) &&
                 Guid.TryParse(regionOverride, out var newRegionId))
@@ -90,6 +92,19 @@ public class PlacesController : BaseController
             {
                 existing.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };
                 _dbContext.Entry(existing).Property(p => p.Location).IsModified = true;
+
+                var user = await _dbContext.ApplicationUsers
+                    .Include(u => u.ApiTokens)
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+
+                var apiToken = user?.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                if (apiToken != null)
+                {
+                    var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
+                        lat.Value, lon.Value, apiToken.Token, apiToken.Name);
+
+                    existing.Address = locationInfo.FullAddress;
+                }
             }
         }
         else
@@ -97,6 +112,19 @@ public class PlacesController : BaseController
             if (lat.HasValue && lon.HasValue)
             {
                 model.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };
+
+                var user = await _dbContext.ApplicationUsers
+                    .Include(u => u.ApiTokens)
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+
+                var apiToken = user?.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                if (apiToken != null)
+                {
+                    var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
+                        lat.Value, lon.Value, apiToken.Token, apiToken.Name);
+
+                    model.Address = locationInfo.FullAddress;
+                }
             }
 
             _dbContext.Places.Add(model);
@@ -112,7 +140,7 @@ public class PlacesController : BaseController
             return NotFound();
 
         ViewData["AllRegions"] = await _dbContext.Regions
-            .Where(r => r.UserId == User.FindFirstValue(ClaimTypes.NameIdentifier))
+            .Where(r => r.UserId == userId)
             .OrderBy(r => r.DisplayOrder)
             .ToListAsync();
 
