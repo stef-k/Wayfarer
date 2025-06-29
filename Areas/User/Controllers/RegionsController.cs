@@ -46,7 +46,6 @@ namespace Wayfarer.Areas.User.Controllers
             return PartialView("~/Areas/User/Views/Trip/Partials/_RegionFormPartial.cshtml", model);
         }
 
-
         // POST: /User/Regions/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -65,7 +64,7 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 model.Center = new Point(lon, lat) { SRID = 4326 };
             }
-            
+
             if (!ModelState.IsValid)
                 return PartialView("~/Areas/User/Views/Trip/Partials/_RegionFormPartial.cshtml", model);
 
@@ -83,7 +82,7 @@ namespace Wayfarer.Areas.User.Controllers
 
                 _dbContext.Entry(existing).State = EntityState.Modified;
                 await _dbContext.SaveChangesAsync();
-                
+
                 var updated = await _dbContext.Regions
                     .Include(r => r.Places)
                     .FirstOrDefaultAsync(r => r.Id == existing.Id && r.UserId == userId);
@@ -92,6 +91,11 @@ namespace Wayfarer.Areas.User.Controllers
             }
             else
             {
+                var maxOrder = await _dbContext.Regions
+                    .Where(r => r.TripId == model.TripId && r.UserId == userId)
+                    .MaxAsync(r => (int?)r.DisplayOrder) ?? 0;
+
+                model.DisplayOrder = maxOrder + 1;
                 _dbContext.Regions.Add(model);
                 await _dbContext.SaveChangesAsync();
 
@@ -102,7 +106,6 @@ namespace Wayfarer.Areas.User.Controllers
                 return PartialView("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", newRegion);
             }
         }
-
 
         // GET: /User/Regions/GetItemPartial?regionId={regionId}
         public async Task<IActionResult> GetItemPartial(Guid regionId)
@@ -139,7 +142,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             return Ok(id);
         }
-        
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Reorder([FromBody] List<OrderDto> items)
@@ -157,6 +160,5 @@ namespace Wayfarer.Areas.User.Controllers
             await _dbContext.SaveChangesAsync();
             return NoContent();
         }
-
     }
 }

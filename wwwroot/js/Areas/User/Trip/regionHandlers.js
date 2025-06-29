@@ -12,6 +12,10 @@ import { getMapInstance, getRegionMarkerById, removeRegionMarker, selectMarker, 
 import { store } from './storeInstance.js';
 
 let cachedTripId = null;
+const isShadowRegion = (regionId) => {
+    const el = document.getElementById(`region-item-${regionId}`);
+    return el?.dataset.regionIsShadow === 'true';
+};
 
 /**
  * Initializes all region-related handlers for the given trip.
@@ -67,6 +71,12 @@ export const initRegionHandlers = (tripId) => {
     document.querySelectorAll('.btn-edit-region').forEach(btn => {
         if (btn.dataset.bound) return;
         btn.dataset.bound = '1';
+        const regionId = btn.dataset.regionId;
+        if (isShadowRegion(regionId)) {
+            btn.disabled = true;
+            btn.classList.add('disabled');
+            return;
+        }
         btn.onclick = () => handleEditRegion(btn.dataset.regionId, tripId);
     });
 
@@ -74,6 +84,12 @@ export const initRegionHandlers = (tripId) => {
     document.querySelectorAll('.btn-delete-region').forEach(btn => {
         if (btn.dataset.bound) return;
         btn.dataset.bound = '1';
+        const regionId = btn.dataset.regionId;
+        if (isShadowRegion(regionId)) {
+            btn.disabled = true;
+            btn.classList.add('disabled');
+            return;
+        }
         btn.onclick = () => handleDeleteRegion(btn.dataset.regionId);
     });
 
@@ -81,6 +97,12 @@ export const initRegionHandlers = (tripId) => {
     document.querySelectorAll('.btn-add-place').forEach(btn => {
         if (btn.dataset.bound) return;
         btn.dataset.bound = '1';
+        const regionId = btn.dataset.regionId;
+        if (isShadowRegion(regionId)) {
+            btn.disabled = true;
+            btn.classList.add('disabled');
+            return;
+        }
         btn.onclick = () => handleAddPlace(btn.dataset.regionId);
     });
 
@@ -106,7 +128,7 @@ export const initRegionHandlers = (tripId) => {
 
             document.querySelectorAll('.accordion-item').forEach(el => el.classList.add('dimmed'));
             wrapper.classList.remove('dimmed');
-
+            if (isShadowRegion(regionId)) return;
             store.dispatch('set-context', {
                 type: 'region',
                 id: regionId,
@@ -278,9 +300,14 @@ const attachRegionFormHandlers = () => {
             const wrapper = formEl.closest('.accordion-item, form');
 
             if (resp.ok) {
+                const regionIdFromForm = formEl.querySelector('[name="Id"]')?.value;
                 wrapper.outerHTML = html;
-                const newRegionId = wrapper.id.replace('region-item-', '');
-                if (newRegionId) store.dispatch('region-dom-reloaded', { regionId: newRegionId });
+
+                if (regionIdFromForm) {
+                    const freshEl = document.getElementById(`region-item-${regionIdFromForm}`);
+                    if (freshEl) store.dispatch('region-dom-reloaded', { regionId: regionIdFromForm });
+                }
+
                 store.dispatch('clear-context');
             } else {
                 wrapper.outerHTML = html;

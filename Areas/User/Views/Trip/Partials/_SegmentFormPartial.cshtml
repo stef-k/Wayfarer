@@ -18,8 +18,8 @@
         </ul>
     </div>
 }
-<div id="segment-item-@Model.Id"
-     class="accordion-item segment-list-item"
+<li id="segment-item-@Model.Id"
+     class="accordion-item segment-list-item list-group-item p-0"
      data-segment-id="@Model.Id"
      data-segment-name="@Model.Mode">
     
@@ -35,7 +35,7 @@
     <div class="accordion-collapse show">
         <div class="accordion-body">
 
-            <form class="p-3 border rounded mb-2 bg-light-subtle" id="segment-form-@Model.Id">
+            <form class="p-2 border rounded mb-2 bg-light-subtle" id="segment-form-@Model.Id">
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="Id" />
                 <input type="hidden" asp-for="TripId" />
@@ -158,4 +158,4 @@
 
         </div>
     </div>
-</div>
+</li>

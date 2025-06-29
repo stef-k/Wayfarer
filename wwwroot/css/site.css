@@ -794,4 +794,22 @@ thead th {
     75%  { border-color: var(--bs-primary); }
     100% { border-color: transparent; }
 }
-
+#place-search-results {
+    z-index: 2000 !important;
+    position: absolute;
+    background-color: white;
+    box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075); /* same as shadow-sm */
+    border-radius: 0.375rem; /* matches Bootstrap rounded */
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 250px;
+    overflow-y: auto;
+    display: none;
+}
+#place-search-results .list-group-item {
+    cursor: pointer;
+}
+#temp-place-banner {
+    z-index: 3000;
+}

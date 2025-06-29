@@ -77,6 +77,21 @@ namespace Wayfarer.Areas.User.Controllers
                     // Persist
                     _dbContext.Trips.Add(model);
                     await _dbContext.SaveChangesAsync();
+                    
+                    // ✅ Always create shadow region after trip insert
+                    var shadowRegion = new Region
+                    {
+                        Id = Guid.NewGuid(),
+                        TripId = model.Id,
+                        UserId = model.UserId,
+                        Name = "Unassigned Places",         // 🧭 Do not allow edit in UI
+                        DisplayOrder = 0,                   // 🥇 Always shown at top
+                        Notes = null,
+                        Center = null,
+                        CoverImageUrl = null
+                    };
+                    _dbContext.Regions.Add(shadowRegion);
+                    await _dbContext.SaveChangesAsync();    
 
                     SetAlert("Trip created successfully!");
 

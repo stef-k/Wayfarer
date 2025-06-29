@@ -17,21 +17,28 @@ import {
     renderRegionMarker
 } from './mapManager.js';
 
-import { initRegionHandlers }   from './regionHandlers.js';
-import { initPlaceHandlers }    from './placeHandlers.js';
-import { initSegmentHandlers,
-    loadSegmentCreateForm } from './segmentHandlers.js';
-import { setupQuill }           from './quillNotes.js';
-import { store }                from './storeInstance.js';
-import { initOrdering }         from './regionsOrder.js';
+import { initRegionHandlers } from './regionHandlers.js';
+import { initPlaceHandlers } from './placeHandlers.js';
+import {
+    initSegmentHandlers,
+    loadSegmentCreateForm
+} from './segmentHandlers.js';
+import { setupQuill } from './quillNotes.js';
+import { store } from './storeInstance.js';
+import { initOrdering } from './regionsOrder.js';
 
-let currentTripId        = null;
+
+let currentTripId = null;
 let activeDrawingRegionId = null;
+// search handling vars
+const SEARCH_DELAY_MS = 500;
+let debounceTimeout = null;
+const SHADOW_REGION_NAME = 'Unassigned Places';
 
 /* ------------------------------------------------------------------ *
  *  Helpers – banner
  * ------------------------------------------------------------------ */
-const bannerEl  = () => document.getElementById('mapping-context-banner');
+const bannerEl = () => document.getElementById('mapping-context-banner');
 const bannerLbl = () => document.getElementById('mapping-context-text');
 
 const replaceOuterHtmlAndWait = async (el, html) => {
@@ -47,11 +54,11 @@ const replaceOuterHtmlAndWait = async (el, html) => {
 
 const setBanner = (action, name) => {
     const banner = bannerEl();
-    const label  = bannerLbl();
+    const label = bannerLbl();
     if (!banner || !label) return;
 
-    const clean   = name?.replace(/^[^\w]+/, '').trim() || 'Unnamed';
-    const prefix  = action === 'edit' ? 'Editing' : 'Selected';
+    const clean = name?.replace(/^[^\w]+/, '').trim() || 'Unnamed';
+    const prefix = action === 'edit' ? 'Editing' : 'Selected';
     label.innerHTML = `<span class="me-1"></span>${prefix}: ${clean}`;
     banner.classList.add('active');
 };
@@ -74,9 +81,9 @@ const attachListeners = () => {
     /* ----- recenter map ----- */
     document.getElementById('btn-trip-recenter')
         ?.addEventListener('click', () => {
-            const lat  = parseFloat(form.querySelector('[name="CenterLat"]')?.dataset.default ?? '');
-            const lon  = parseFloat(form.querySelector('[name="CenterLon"]')?.dataset.default ?? '');
-            const zoom = parseInt( form.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10 );
+            const lat = parseFloat(form.querySelector('[name="CenterLat"]')?.dataset.default ?? '');
+            const lon = parseFloat(form.querySelector('[name="CenterLon"]')?.dataset.default ?? '');
+            const zoom = parseInt(form.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10);
 
             if (!Number.isNaN(lat) && !Number.isNaN(lon))
                 getMapInstance()?.setView([lat, lon], zoom || 3);
@@ -121,9 +128,9 @@ const attachListeners = () => {
 
             if (ctxType === 'region') {
                 /* Wrapper may be either the normal list item OR an open form */
-                const regionItem  = document.getElementById(`region-item-${id}`);
-                const regionForm  = document.getElementById(`region-form-${id}`);
-                const wrapper     = regionItem || regionForm;
+                const regionItem = document.getElementById(`region-item-${id}`);
+                const regionForm = document.getElementById(`region-form-${id}`);
+                const wrapper = regionItem || regionForm;
 
                 wrapper?.classList.remove('dimmed');
                 wrapper?.querySelector('.accordion-button')?.classList?.remove('dimmed');
@@ -178,6 +185,7 @@ const attachListeners = () => {
                 coordsEl.classList.add('d-none');
                 coordsEl.querySelector('code')?.replaceChildren();
             }
+            document.getElementById('add-to-trip-feedback')?.remove();
             clearDim();
             hideBanner();
             hideAllIndicators();
@@ -213,7 +221,7 @@ const attachListeners = () => {
 
             // Places: remove open form and reload from server if needed
             document.querySelectorAll('form[id^="place-form-"]').forEach(async (form) => {
-                const placeId  = form.querySelector('[name="Id"]')?.value;
+                const placeId = form.querySelector('[name="Id"]')?.value;
                 const regionId = form.querySelector('[name="RegionId"]')?.value;
 
                 if (!placeId || placeId.length !== 36) {
@@ -234,13 +242,13 @@ const attachListeners = () => {
                             const d = placeItem.dataset;
                             if (d.placeLat && d.placeLon) {
                                 renderPlaceMarker({
-                                    Id          : d.placeId,
-                                    Name        : d.placeName || '',
-                                    Latitude    : d.placeLat,
-                                    Longitude   : d.placeLon,
-                                    IconName    : d.placeIcon,
-                                    MarkerColor : d.placeColor,
-                                    RegionId    : d.regionId
+                                    Id: d.placeId,
+                                    Name: d.placeName || '',
+                                    Latitude: d.placeLat,
+                                    Longitude: d.placeLon,
+                                    IconName: d.placeIcon,
+                                    MarkerColor: d.placeColor,
+                                    RegionId: d.regionId
                                 });
                             }
                         }
@@ -265,7 +273,7 @@ const attachListeners = () => {
 
             store.dispatch('clear-context');
         }
-                
+
     });
 };
 
@@ -278,64 +286,290 @@ const loadPersistedMarkers = () => {
         const d = el.dataset;
         if (d.placeLat && d.placeLon) {
             renderPlaceMarker({
-                Id       : d.placeId,
-                Name     : (d.placeName ||
+                Id: d.placeId,
+                Name: (d.placeName ||
                     el.querySelector('.place-name')?.textContent ||
                     '').trim(),
-                Latitude    : d.placeLat,
-                Longitude   : d.placeLon,
-                IconName    : d.placeIcon,
-                MarkerColor : d.placeColor,
-                RegionId    : d.regionId
+                Latitude: d.placeLat,
+                Longitude: d.placeLon,
+                IconName: d.placeIcon,
+                MarkerColor: d.placeColor,
+                RegionId: d.regionId
             });
         }
     });
 
     /* regions */
     document.querySelectorAll('#regions-accordion .accordion-item').forEach(item => {
-        const lat  = item.dataset.centerLat;
-        const lon  = item.dataset.centerLon;
-        const id   = item.id?.replace('region-item-', '');
+        const lat = item.dataset.centerLat;
+        const lon = item.dataset.centerLon;
+        const id = item.id?.replace('region-item-', '');
         const name = item.dataset.regionName || 'Unnamed Region';
         if (id && lat && lon)
             renderRegionMarker({ Id: id, CenterLat: lat, CenterLon: lon, Name: name });
     });
 };
 
+/**
+ * Search handling
+ */
+
+/* ------------------------------------------------------------------ *
+ *  Search handlers – place search via Nominatim
+ * ------------------------------------------------------------------ */
+const initSearchHandlers = () => {
+    const input = document.getElementById('place-search');
+    if (!input) return;
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimeout);
+
+        const query = input.value.trim();
+        if (!query) return;
+
+        debounceTimeout = setTimeout(() => {
+            searchNominatim(query);
+        }, SEARCH_DELAY_MS);
+    });
+};
+
+const searchNominatim = async (query) => {
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.set('q', query);
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('limit', '6');
+    url.searchParams.set('addressdetails', '1');
+
+    try {
+        const resp = await fetch(url);
+        const results = await resp.json();
+        renderSuggestions(results);
+    } catch (err) {
+        console.error('❌ Error querying Nominatim:', err);
+        renderSuggestions([]);
+    }
+};
+
+const renderSuggestions = (results) => {
+    const list = document.getElementById('place-search-results');
+    if (!list) return;
+
+    list.innerHTML = '';
+    list.style.display = results.length ? 'block' : 'none';
+
+    results.forEach((r) => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-action';
+        li.title = 'Click to add this location as a temporary marker';
+        li.tabIndex = 0;
+        li.textContent = r.display_name;
+
+        li.addEventListener('click', () => handleSelectResult(r));
+        list.appendChild(li);
+    });
+};
+
+const handleSelectResult = async (result) => {
+    const lat = parseFloat(result.lat);
+    const lon = parseFloat(result.lon);
+    const name = result.display_name;
+
+    store.dispatch('set-context', {
+        type: 'search-temp',
+        id: `temp-${Date.now()}`,
+        action: 'preview',
+        meta: { name, lat, lon }
+    });
+
+    getMapInstance()?.setView([lat, lon], 14);
+    clearSuggestions();
+    showAddToTripUI(result);
+};
+
+const clearSuggestions = () => {
+    const list = document.getElementById('place-search-results');
+    if (list) {
+        list.innerHTML = '';
+        list.style.display = 'none';
+    }
+};
+
+/**
+ * Returns every region the user can drop a searched place into,
+ * always prepending the “Un-assigned” bucket even when its
+ * accordion panel is still hidden.
+ */
+const getRegionOptions = () => {
+    const opts = [];
+
+    /* 1️⃣ visible accordion items */
+    document.querySelectorAll('#regions-accordion .accordion-item')
+        .forEach(item => opts.push({
+            id       : item.id.replace(/^region-item-/, ''),
+            name     : item.dataset.regionName?.trim() || 'Unnamed region',
+            isShadow : item.dataset.shadowRegion === '1'   // ← detects “Un-assigned” if already rendered
+        }));
+
+    /* 2️⃣ hidden shadow region (from <input>) */
+    const shadowId = document.getElementById('shadow-region-id')?.value;
+    if (shadowId && !opts.some(o => o.id === shadowId))
+        opts.unshift({
+            id       : shadowId,
+            name     : SHADOW_REGION_NAME,
+            isShadow : true
+        });
+
+    return opts;
+};
+
+/**
+ * Shows a Bootstrap modal with the region picker instead of an inline alert.
+ * Keeps the page layout fixed – no jumpy shift.
+ */
+const showAddToTripUI = (result) => {
+    const regions = getRegionOptions();
+    if (!regions.length) return;
+
+    // 1️⃣ populate <select>
+    const sel = document.getElementById('add-place-region-select');
+    sel.replaceChildren();                       // clear previous options
+
+    // Shadow first (if present)
+    regions.filter(r => r.isShadow)
+        .forEach(r => sel.append(new Option(SHADOW_REGION_NAME, r.id)));
+
+    // Then normal regions
+    regions.filter(r => !r.isShadow)
+        .forEach(r => sel.append(new Option(r.name, r.id)));
+
+    // 2️⃣ wire the Add button (fresh each time)
+    const btn = document.getElementById('btn-confirm-add-place');
+    btn.onclick = () => {
+        addSearchedPlaceToTrip(result, sel.value);
+        bsModal.hide();
+    };
+
+    // 3️⃣ show modal (lazy-initialise once)
+    if (!window._addPlaceModal)
+        window._addPlaceModal = new bootstrap.Modal(document.getElementById('addPlaceModal'), {
+            backdrop: 'static'
+        });
+    const bsModal = window._addPlaceModal;
+    bsModal.show();
+};
+
+/**
+ * Turns a Nominatim result into a Place form, inserts it into the chosen
+ * region and pre-fills coordinates so the user only needs to press Save.
+ *
+ * @param {object} result  Raw JSON from Nominatim.
+ * @param {string} regionId Destination region Guid (may be the shadow id).
+ */
+const addSearchedPlaceToTrip = async (result, regionId) => {
+    if (!regionId) return;
+
+    try {
+        /* close any other open editors */
+        store.dispatch('trip-cleanup-open-forms');
+
+        /* 🅰 ensure the region DOM exists (shadow may still be hidden) */
+        let regionEl = document.getElementById(`region-item-${regionId}`);
+        if (!regionEl) {
+            const rResp  = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+            const rHtml  = await rResp.text();
+            document.getElementById('regions-accordion')
+                .insertAdjacentHTML('afterbegin', rHtml);
+            regionEl = document.getElementById(`region-item-${regionId}`);
+            store.dispatch('region-dom-reloaded', { regionId });
+        }
+
+        /* 🅱 fetch a blank place form */
+        const pResp = await fetch(`/User/Places/CreateOrUpdate?regionId=${regionId}`);
+        const pHtml = await pResp.text();
+
+        const container = regionEl.querySelector('[data-region-places]') || regionEl;
+        container.insertAdjacentHTML('afterbegin', pHtml);
+
+        /* locate the just-added form */
+        const formEl = container.querySelector('form[id^="place-form-"]');
+
+        /* pre-fill */
+        formEl.querySelector('[name="Name"]').value      = result.display_name;
+        formEl.querySelector('[name="Latitude"]').value  = (+result.lat).toFixed(6);
+        formEl.querySelector('[name="Longitude"]').value = (+result.lon).toFixed(6);
+        const addrInput = formEl.querySelector('[name="Address"]');
+        if (addrInput) addrInput.value = result.display_name;
+
+        /* enhance & wire handlers */
+        const { enhancePlaceForm, initPlaceHandlers } = await import('./placeHandlers.js');
+        await enhancePlaceForm(formEl);
+        initPlaceHandlers();
+
+        /* context, map, UI cleanup */
+        const placeId = formEl.id.replace('place-form-', '');
+        store.dispatch('set-context', {
+            type: 'place',
+            id: placeId,
+            action: 'set-location',
+            meta: { name: result.display_name, regionId }
+        });
+        document.getElementById('add-to-trip-feedback')?.remove();
+
+        /* 🔽 UX niceties */
+        formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('place-search').value = '';
+        clearSuggestions();
+    } catch (err) {
+        console.error('❌ addSearchedPlaceToTrip failed:', err);
+        wayfarer.showAlert('danger', 'Could not add place – please try again.');
+    }
+};
 /* ------------------------------------------------------------------ *
  *  Bootstrap
  * ------------------------------------------------------------------ */
 document.addEventListener('DOMContentLoaded', async () => {
 
     /* ----- map initial centre (URL has priority) ----- */
-    const urlParams  = new URLSearchParams(window.location.search);
-    const centerLat  = parseFloat(urlParams.get('lat'));
-    const centerLon  = parseFloat(urlParams.get('lng'));
-    const zoomParam  = parseInt(urlParams.get('zoom'), 10);
+    const urlParams = new URLSearchParams(window.location.search);
+    const centerLat = parseFloat(urlParams.get('lat'));
+    const centerLon = parseFloat(urlParams.get('lng'));
+    const zoomParam = parseInt(urlParams.get('zoom'), 10);
 
-    const form       = document.getElementById('trip-form');
-    const modelLat   = parseFloat(form?.querySelector('[name="CenterLat"]')?.dataset.default ?? '0');
-    const modelLon   = parseFloat(form?.querySelector('[name="CenterLon"]')?.dataset.default ?? '0');
-    const modelZoom  = parseInt(form?.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10);
+    const form = document.getElementById('trip-form');
+    const modelLat = parseFloat(form?.querySelector('[name="CenterLat"]')?.dataset.default ?? '0');
+    const modelLon = parseFloat(form?.querySelector('[name="CenterLon"]')?.dataset.default ?? '0');
+    const modelZoom = parseInt(form?.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10);
 
-    const lat  = !Number.isNaN(centerLat) ? centerLat : modelLat;
-    const lon  = !Number.isNaN(centerLon) ? centerLon : modelLon;
-    const zoom = !Number.isNaN(zoomParam) && zoomParam >= 0 ? zoomParam : modelZoom;
+    const validUrlLat = !Number.isNaN(centerLat);
+    const validUrlLon = !Number.isNaN(centerLon);
+    const validModelLat = !Number.isNaN(modelLat);
+    const validModelLon = !Number.isNaN(modelLon);
+    const validZoom = !Number.isNaN(zoomParam) && zoomParam >= 0;
+
+    const finalLat = validUrlLat ? centerLat : (validModelLat ? modelLat : 20);
+    const finalLon = validUrlLon ? centerLon : (validModelLon ? modelLon : 0);
+    const finalZoom = validZoom ? zoomParam : (!Number.isNaN(modelZoom) ? modelZoom : 3);
 
     /* ----- trip id ----- */
     currentTripId = form.querySelector('[name="Id"]')?.value;
     store.dispatch('set-trip-id', currentTripId);
 
+    store.subscribe(({ type }) => {
+        if (type === 'clear-context') {
+            store.dispatch('context-cleared');
+        }
+    });
+
     /* ----- map ----- */
     activeDrawingRegionId = null;
     disableDrawingTools();
-    const map = initializeMap([lat, lon], zoom);
+    const map = initializeMap([finalLat, finalLon], finalZoom);
 
     /* keep hidden inputs + URL in sync */
     if (form) {
-        form.querySelector('[name="CenterLat"]').value = lat.toFixed(6);
-        form.querySelector('[name="CenterLon"]').value = lon.toFixed(6);
-        form.querySelector('[name="Zoom"]').value      = zoom;
+        form.querySelector('[name="CenterLat"]').value = finalLat.toFixed(6);
+        form.querySelector('[name="CenterLon"]').value = finalLon.toFixed(6);
+        form.querySelector('[name="Zoom"]').value = finalZoom;
     }
 
     map.on('moveend zoomend', () => {
@@ -343,14 +577,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const z = map.getZoom();
 
         const params = new URLSearchParams(window.location.search);
-        params.set('lat',  c.lat.toFixed(6));
-        params.set('lng',  c.lng.toFixed(6));
+        params.set('lat', c.lat.toFixed(6));
+        params.set('lng', c.lng.toFixed(6));
         params.set('zoom', z);
         history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 
         form.querySelector('[name="CenterLat"]').value = c.lat.toFixed(6);
         form.querySelector('[name="CenterLon"]').value = c.lng.toFixed(6);
-        form.querySelector('[name="Zoom"]').value      = z;
+        form.querySelector('[name="Zoom"]').value = z;
     });
 
     map.on('click', ({ latlng }) =>
@@ -379,4 +613,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await setupQuill();
     attachListeners();
     loadPersistedMarkers();
+    initSearchHandlers();
 });

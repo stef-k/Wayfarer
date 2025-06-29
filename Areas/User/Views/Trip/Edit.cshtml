@@ -7,6 +7,11 @@
   Layout = "~/Views/Shared/_Layout.cshtml";
   var regions = Model.Regions ?? new List<Region>();
   ViewData["BodyClass"] = "container-fluid";
+  var visibleRegions = regions
+    .Where(r => r.Name != "Unassigned Places" || (r.Places != null && r.Places.Any()))
+    .ToList();
+  
+  var shadowRegion = regions.FirstOrDefault(r => r.Name == "Unassigned Places");
 }
 
 <div class="row">
@@ -43,10 +48,11 @@
           <form id="trip-form" class="row g-3 mb-4">
             @Html.AntiForgeryToken()
             <input type="hidden" asp-for="Id"/>
-            <input type="hidden" asp-for="Id" id="trip-id" />
-            <input type="hidden" asp-for="CenterLat" data-default="@Model.CenterLat?.ToString("F6")" />
-            <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")" />
-            <input type="hidden" asp-for="Zoom"      data-default="@Model.Zoom" />
+            <input type="hidden" asp-for="Id" id="trip-id"/>
+            <input type="hidden" asp-for="CenterLat" data-default="@Model.CenterLat?.ToString("F6")"/>
+            <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")"/>
+            <input type="hidden" asp-for="Zoom" data-default="@Model.Zoom"/>
+            <input type="hidden" id="shadow-region-id" value="@shadowRegion.Id" />
             <div class="col-md-12">
               <span class="text-muted small">Last updated at @Model.UpdatedAt.ToLongDateString()</span>
             </div>
@@ -65,7 +71,7 @@
             <div class="col-md-12">
               <label for="notes">Notes</label>
               <div id="notes" data-notes-content="@Model.Notes"></div>
-              <input type="hidden" asp-for="Notes" id="Notes" />
+              <input type="hidden" asp-for="Notes" id="Notes"/>
               <small class="text-muted">
                 You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
               </small>
@@ -80,23 +86,24 @@
                      title="Paste a URL of an image/photo for this Trip"
                      value="@Model.CoverImageUrl"
                      placeholder="https://...">
-  
+
               @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
               {
                 <div class="mt-2 text-center">
-                  <a href="@Model.CoverImageUrl" target="_blank" rel="noopener noreferrer" title="Open full image in new tab">
+                  <a href="@Model.CoverImageUrl" target="_blank" rel="noopener noreferrer"
+                     title="Open full image in new tab">
                     <img src="@Model.CoverImageUrl"
                          class="img-fluid rounded shadow-sm"
                          alt="Trip Cover Preview"
                          title="Trip Cover Preview click to open image in new tab"
-                         style="max-height: 150px;" />
+                         style="max-height: 150px;"/>
                   </a>
                 </div>
               }
             </div>
 
             <div class="col-md-12 d-flex gap-2">
-              <input type="hidden" name="submitAction" id="submitAction" value="save" />
+              <input type="hidden" name="submitAction" id="submitAction" value="save"/>
 
               <button id="btn-save-trip" type="button" class="btn btn-sm btn-primary">
                 <i class="bi bi-save"></i> Save & Exit
@@ -119,7 +126,7 @@
         </div>
 
         <hr/>
-        
+
         <!-- Region Area -->
 
         <h6>Regions &amp; Places</h6>
@@ -128,7 +135,7 @@
         </button>
 
         <div id="regions-accordion" class="accordion mb-4">
-          @if (!regions.Any())
+          @if (!visibleRegions.Any())
           {
             <div class="alert alert-info" role="alert">
               No regions created yet.
@@ -136,14 +143,14 @@
           }
           else
           {
-            @foreach (var region in regions.OrderBy(r => r.DisplayOrder))
+            @foreach (var region in regions
+                        .Where(r => r.Name != "Unassigned Places" || (r.Places != null && r.Places.Any()))
+                        .OrderBy(r => r.DisplayOrder))
             {
-              <!-- Place Area -->
               @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", region)
             }
           }
         </div>
-
 
         <hr/>
 
@@ -172,112 +179,115 @@
                            id="toggle-all-segments"
                            title="Show/Hide all segments on map"
                            checked
-                           aria-label="Toggle all segments visibility" />
+                           aria-label="Toggle all segments visibility"/>
                   </div>
                 </div>
               </div>
             </h2>
 
-            <div id="collapse-segments" class="accordion-collapse collapse show" aria-labelledby="heading-segments">
-              <div class="accordion-body">
+            <div id="collapse-segments" class="accordion-collapse collapse show" aria-labelledby="heading-segments"
+                 data-bs-parent="#segments-list">
+
+              <ul id="segments-inner-list" class="list-group list-group-flush small mb-0 ps-0">
+
                 @if (Model.Segments == null || !Model.Segments.Any())
                 {
-                  <div class="alert alert-info" role="alert">
-                    No travel segments added yet.
-                  </div>
+                  <li class="alert alert-info p-2 small mb-2">
+                    <i class="bi bi-info-circle me-1"></i> No travel segments added yet.
+                  </li>
                 }
                 else
                 {
-                  <ul class="list-group list-group-flush small" id="segments-inner-list">
-                    @foreach (var segment in Model.Segments.OrderBy(s => s.DisplayOrder))
-                    {
-                      @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment)
-                    }
-                  </ul>
+                  @foreach (var segment in Model.Segments.OrderBy(s => s.DisplayOrder))
+                  {
+                    @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment)
+                  }
                 }
-              </div>
+
+              </ul>
             </div>
+
           </div>
         </div>
 
-        
       </div>
     </div>
 
-    <div>
-
-    </div>
   </div>
 
-<div class="col-9">
-  <!-- 🔍 Search + 🧭 Coordinates -->
-  <div class="row g-2 align-items-end mb-2">
-    <div class="col-lg-6 col-md-12">
-      <label for="place-search" class="form-label visually-hidden">Search</label>
-      <div class="input-group flex-grow-1 bg-white shadow rounded p-2 trip-searchbar">
-        <input id="place-search" type="text" class="form-control" placeholder="Search for places…" />
-        <button id="btn-search" class="btn btn-outline-secondary" type="button">
-          <i class="bi bi-search"></i>
-        </button>
+  <div class="col-9">
+    <!-- 🔍 Search + 🧭 Coordinates -->
+    <div class="row g-2 align-items-end mb-2">
+
+      <!-- 🔍 Search -->
+      <div class="col-lg-6 col-md-12">
+        <label for="place-search" class="form-label visually-hidden">Search</label>
+        <div class="position-relative">
+          <div class="input-group flex-grow-1 bg-white shadow rounded p-2 trip-searchbar">
+            <input id="place-search" type="text" class="form-control" placeholder="Search for places…"
+                   title="Search any location. Click a result to preview it on the map."/>
+          </div>
+          <ul id="place-search-results" class="list-group zindex-tooltip">
+          </ul>
+        </div>
+      </div>
+
+      <!-- 🧭 Latitude -->
+      <div class="col-sm-3 col-6">
+        <label for="contextLat" class="form-label visually-hidden">Lat</label>
+        <div class="input-group bg-white shadow rounded p-2">
+          <input type="number"
+                 step="0.000001"
+                 class="form-control"
+                 id="contextLat"
+                 title="Insert latitude manually"
+                 placeholder="Latitude"
+                 autocomplete="off"/>
+        </div>
+      </div>
+
+      <!-- 🧭 Longitude -->
+      <div class="col-sm-3 col-6">
+        <label for="contextLon" class="form-label visually-hidden">Lon</label>
+        <div class="input-group bg-white shadow rounded p-2">
+          <input type="number"
+                 step="0.000001"
+                 class="form-control"
+                 id="contextLon"
+                 title="Insert longitude manually"
+                 placeholder="Longitude"
+                 autocomplete="off"/>
+        </div>
       </div>
     </div>
 
-    <!-- 🧭 Latitude -->
-    <div class="col-sm-3 col-6">
-      <label for="contextLat" class="form-label visually-hidden">Lat</label>
-      <div class="input-group bg-white shadow rounded p-2">
-        <input type="number"
-               step="0.000001"
-               class="form-control"
-               id="contextLat"
-               title="Insert latitude manually"
-               placeholder="Latitude"
-               autocomplete="off" />
+    <!-- 📌 Context Banner -->
+    <div class="row">
+      <div class="col-12">
+        <div id="mapping-context-banner"
+             class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-center"
+             role="alert">
+          <i class="bi bi-pencil me-1"></i>
+          <span id="mapping-context-text">Selected: —</span>
+          <span id="context-coords" class="ms-2 text-muted d-none">
+            <code class="user-select-all"></code>
+          </span>
+          <button id="btn-clear-context"
+                  type="button"
+                  class="btn-close btn-close-primary btn-sm ms-auto"
+                  aria-label="Clear mapping context"
+                  title="Clear selection"></button>
+        </div>
       </div>
     </div>
 
-    <!-- 🧭 Longitude -->
-    <div class="col-sm-3 col-6">
-      <label for="contextLon" class="form-label visually-hidden">Lon</label>
-      <div class="input-group bg-white shadow rounded p-2">
-        <input type="number"
-               step="0.000001"
-               class="form-control"
-               id="contextLon"
-               title="Insert longitude manually"
-               placeholder="Longitude"
-               autocomplete="off" />
+    <!-- 🗺️ Map -->
+    <div class="row">
+      <div class="col-12">
+        <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
       </div>
     </div>
   </div>
-
-  <!-- 📌 Context Banner -->
-  <div class="row">
-    <div class="col-12">
-      <div id="mapping-context-banner"
-           class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-center"
-           role="alert">
-        <i class="bi bi-pencil me-1"></i>
-        <span id="mapping-context-text">Selected: —</span>
-        <span id="context-coords" class="ms-2 text-muted d-none">
-          <code class="user-select-all"></code>
-        </span>
-        <button id="btn-clear-context"
-                type="button"
-                class="btn-close btn-close-primary btn-sm ms-auto"
-                aria-label="Clear mapping context"
-                title="Clear selection"></button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 🗺️ Map -->
-  <div class="row">
-    <div class="col-12">
-      <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
-    </div>
-  </div>
-</div>
 
 
   <!-- Modal for image URL input -->
@@ -296,6 +306,29 @@
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           <button type="button" id="insertImageBtn" class="btn btn-primary">Insert Image</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add-place modal (no markup clash with existing ones) -->
+<div class="modal fade" id="addPlaceModal" tabindex="-1" aria-labelledby="addPlaceModalLabel" aria-hidden="true">
+  <div class="modal-dialog mt-5" style="max-width:420px;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addPlaceModalLabel">Add place to trip</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body d-flex flex-column gap-3">
+        <select id="add-place-region-select" class="form-select"></select>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btn-confirm-add-place" class="btn btn-success">
+          <i class="bi bi-plus-circle me-1"></i>Add
+        </button>
       </div>
     </div>
   </div>

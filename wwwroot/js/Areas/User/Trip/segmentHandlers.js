@@ -2,7 +2,7 @@
 //-------------------------------------------------------------
 
 import { store } from './storeInstance.js';
-import { focusMapView } from './mapZoom.js'
+import { focusMapView, MAP_ZOOM } from './mapZoom.js'
 import { calculateLineDistanceKm } from '../../../map-utils.js';
 import { setupQuill, waitForQuill } from './quillNotes.js';
 
@@ -217,63 +217,74 @@ const renderEditableSegmentRoute = async (segId, formEl) => {
  * @param segId Segment ID
  * @returns {Promise<void>}
  */
-const saveSegment = async (segId) => {
+export const saveSegment = async (segId) => {
     const formEl = document.getElementById(`segment-form-${segId}`);
     if (!formEl) return;
-
     const fd = new FormData(formEl);
     const token = fd.get('__RequestVerificationToken');
-
     const resp = await fetch('/User/Segments/CreateOrUpdate', {
         method: 'POST',
         body: fd,
         headers: token ? { RequestVerificationToken: token } : {}
     });
-
     const html = await resp.text();
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html.trim();
-    const newItem = tempDiv.firstElementChild;
-    if (!newItem) return;
-
-    // 🛑 EARLY CHECK: If form has validation errors, stop here
-    if (newItem.querySelector('.segment-form-errors')) {
+    const newDisplayLi = tempDiv.querySelector('li.segment-list-item.list-group-item');
+    const formWrapper = tempDiv.querySelector('li.accordion-item.segment-list-item');
+    if (!newDisplayLi && !formWrapper) {
+        console.error('❌ No valid segment <li> found in returned HTML');
+        return;
+    }
+    const returnedId = (newDisplayLi || formWrapper).id?.replace('segment-item-', '');
+    if (!returnedId) return;
+    if (formWrapper && formWrapper.querySelector('.segment-form-errors')) {
         const wrapper = document.querySelector(`#segment-form-${segId}`)?.closest('.accordion-item');
-        if (wrapper) wrapper.replaceWith(newItem);
+        if (wrapper) wrapper.replaceWith(formWrapper);
         attachSegmentFormHandlers();
         console.warn('⚠️ Validation errors shown for segment:', segId);
         return;
     }
-
-    const list = document.getElementById('segments-inner-list');
-    if (!list) return;
-
+    const newItem = newDisplayLi;
     const { removeLayer } = await import('./mapManager.js');
-
-    // 🧹 Remove red editable line
     const redLine = drawnSegmentPolylines.get(segId);
     if (redLine) {
         removeLayer(redLine);
         drawnSegmentPolylines.delete(segId);
     }
-
-    // 🧹 Remove blue default polyline
     const blueLine = segmentPolylines.get(segId);
     if (blueLine) {
         removeLayer(blueLine);
         segmentPolylines.delete(segId);
     }
-
-    // 🛑 Hide the editing toolbar
     document.getElementById('segment-route-toolbar')?.classList.add('d-none');
+    const oldForm = document.getElementById(`segment-form-${segId}`);
+    const oldDisplay = document.getElementById(`segment-item-${segId}`);
+    const oldWrapper = oldDisplay || oldForm?.closest('li.segment-list-item');
 
-    // 🧽 Remove old DOM items only now — we know it's a real success
-    document.getElementById(`segment-item-${segId}`)?.remove();
-    document.querySelector(`.segment-list-item[data-segment-id="${segId}"]`)?.remove();
+    if (oldWrapper?.classList.contains('accordion-item')) {
+        if (formWrapper) {
+            oldWrapper.replaceWith(formWrapper);
+        } else {
+            console.warn('⚠️ Expected accordion-item wrapper not found. Using fallback display item.');
+            oldWrapper.replaceWith(newItem);
+        }
+    } else if (oldWrapper) {
+        oldWrapper.replaceWith(newItem);
+    } else {
+        const ul = document.getElementById('segments-inner-list');
+        if (ul?.tagName === 'UL') {
+            ul.querySelector('.alert-info')?.remove();
+            ul.appendChild(newItem);
+        } else {
+            console.warn('⚠️ Could not find UL to append new segment item');
+            console.error({ ul, context: document.querySelector('#segments-list') });
+        }
+    }
 
-    list.appendChild(newItem);
-
-    await renderStaticSegmentRoute(segId, newItem);
+    await new Promise(r => requestAnimationFrame(r));
+    scrollToSegment(returnedId);
+    await renderStaticSegmentRoute(returnedId, newItem);
     bindSegmentActions();
     attachSegmentFormHandlers();
     await callInitOrdering();
@@ -669,8 +680,7 @@ export const loadSegmentCreateForm = async (tripId) => {
 
     const resp = await fetch(`/User/Segments/CreateOrUpdate?tripId=${tripId}`);
     const html = await resp.text();
-
-    const list = document.getElementById('segments-list');
+    const list = document.getElementById('segments-inner-list');
     if (!list) return;
 
     // Remove any open forms

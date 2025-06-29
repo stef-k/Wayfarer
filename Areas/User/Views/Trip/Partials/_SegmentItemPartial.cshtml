@@ -35,7 +35,8 @@
 }
 
 <!-- ✅ Multi-line segment list item -->
-<li class="segment-list-item list-group-item px-3 py-2"
+<li class="segment-list-item list-group-item py-2"
+    id="segment-item-@Model.Id"
     data-segment-id="@segmentId"
     data-segment-name="@($"{Model.Mode}: {fromName} → {toName}")"
     data-segment-mode="@Model.Mode"

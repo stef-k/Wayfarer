@@ -4,7 +4,7 @@ import {
     latestLocationMarker
 } from '../../../map-utils.js';
 
-import { store } from './storeInstance.js';
+import {store} from './storeInstance.js';
 
 /* ------------------------------------------------------------------ *
  *  Private state
@@ -14,6 +14,7 @@ let drawControl = null;
 let drawnLayerGroup = null;
 let selectedMarker = null;
 let previewMarker = null;
+let previewMarkerType = null;
 
 const placeMarkersById = {};
 const regionMarkersById = {};
@@ -27,16 +28,27 @@ export const getRegionMarkerById = (id) => regionMarkersById[id] || null;
 export const getPlaceMarkerById = (id) => placeMarkersById[id] || null;
 
 export const clearPreviewMarker = () => {
-    if (previewMarker) {
-        mapContainer.removeLayer(previewMarker);
+    try {
+        const marker = previewMarker;
+
+        if (mapContainer && marker && typeof marker === 'object') {
+            // Only call hasLayer/removeLayer if marker is not null
+            if (mapContainer.hasLayer(marker)) {
+                mapContainer.removeLayer(marker);
+            }
+        }
+    } catch (err) {
+        console.warn('⚠️ Failed to remove previewMarker in clearPreviewMarker', err);
+    } finally {
         previewMarker = null;
+        previewMarkerType = null;
     }
 };
 
 const buildPngIconUrl = (iconName, bgClass) =>
     `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
 
-export const applyCoordinates = ({ lat, lon }) => {
+export const applyCoordinates = ({lat, lon}) => {
     const ctx = store.getState().context;
     if (!ctx?.type || !ctx?.action) return;
 
@@ -44,11 +56,13 @@ export const applyCoordinates = ({ lat, lon }) => {
     const lonNum = parseFloat(lon);
 
     const fill = (selector, fldLat, fldLon) => {
+
         const form = document.querySelector(selector);
         if (!form) return;
 
         const latInp = form.querySelector(`input[name="${fldLat}"]`);
         const latDisp = form.querySelector(`input[name="${fldLat}_display"]`);
+
         if (!isNaN(latNum)) {
             if (latInp) latInp.value = latNum;
             if (latDisp) latDisp.value = latNum;
@@ -90,11 +104,29 @@ export const applyCoordinates = ({ lat, lon }) => {
         }
 
         //  Region marker update
-        if (ctx.type === 'region') {
-            const regionMarker = regionMarkersById[ctx.id];
-            if (regionMarker && !isNaN(latNum) && !isNaN(lonNum)) {
-                regionMarker.setLatLng([latNum, lonNum]);
+        if (ctx.type === 'region' && !isNaN(latNum) && !isNaN(lonNum)) {
+            // 🔥 Remove existing region marker from DB
+            if (regionMarkersById[ctx.id]) {
+                mapContainer.removeLayer(regionMarkersById[ctx.id]);
+                delete regionMarkersById[ctx.id];
             }
+
+            if (previewMarker) {
+                previewMarker.setLatLng([latNum, lonNum]);
+            } else {
+                const iconUrl = buildPngIconUrl('map', 'bg-red');
+                previewMarker = L.marker([latNum, lonNum], {
+                    icon: L.icon({
+                        iconUrl,
+                        iconSize: [WF_WIDTH, WF_HEIGHT],
+                        iconAnchor: WF_ANCHOR,
+                        className: 'map-icon'
+                    })
+                }).addTo(mapContainer);
+            }
+
+            previewMarkerType = 'region';
+            selectMarker(previewMarker);
         }
     };
 
@@ -102,7 +134,7 @@ export const applyCoordinates = ({ lat, lon }) => {
         fill(`#place-form-${ctx.id}`, 'Latitude', 'Longitude');
     }
 
-    if (ctx.type === 'region' && ctx.action === 'set-center') {
+    if (ctx.type === 'region' && ['set-center', 'edit'].includes(ctx.action)) {
         fill(`#region-form-${ctx.id}`, 'CenterLat', 'CenterLon');
     }
 
@@ -122,23 +154,28 @@ export const applyCoordinates = ({ lat, lon }) => {
     }
 };
 
-export const renderRegionMarker = async ({ Id, CenterLat, CenterLon, Name }) => {
+export const renderRegionMarker = async ({Id, CenterLat, CenterLon, Name}) => {
     if (!CenterLat || !CenterLon) return;
     const lat = +CenterLat, lon = +CenterLon;
     if (isNaN(lat) || isNaN(lon)) return;
 
-    if (regionMarkersById[Id]) mapContainer.removeLayer(regionMarkersById[Id]);
+    if (regionMarkersById[Id]) {
+        console.debug('🔥 Removing stale region marker before redraw:', Id);
+        mapContainer.removeLayer(regionMarkersById[Id]);
+        delete regionMarkersById[Id];
+    }
 
     const iconUrl = buildPngIconUrl('map', 'bg-red');
+    console.debug('🧷 Adding region marker:', Id, lat, lon);
     const marker = L.marker([lat, lon], {
-        icon: L.icon({ iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon' })
+        icon: L.icon({iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'})
     }).addTo(mapContainer);
 
     marker.on('click', () => {
         clearSelectedMarker();
         selectMarker(marker);
         store.dispatch('set-context', {
-            type: 'region', id: Id, action: 'set-center', meta: { name: Name || 'Unnamed Region' }
+            type: 'region', id: Id, action: 'set-center', meta: {name: Name || 'Unnamed Region'}
         });
     });
 
@@ -161,14 +198,14 @@ export const renderPlaceMarker = async (p) => {
 
     const iconUrl = buildPngIconUrl(p.IconName || 'marker', p.MarkerColor || 'bg-blue');
     const marker = L.marker([lat, lon], {
-        icon: L.icon({ iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon' })
+        icon: L.icon({iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'})
     }).addTo(mapContainer);
 
     marker.on('click', () => {
         clearSelectedMarker();
         selectMarker(marker);
         store.dispatch('set-context', {
-            type: 'place', id: p.Id, action: 'set-location', meta: { name: p.Name, regionId: p.RegionId }
+            type: 'place', id: p.Id, action: 'set-location', meta: {name: p.Name, regionId: p.RegionId}
         });
     });
 
@@ -184,13 +221,19 @@ export const removePlaceMarker = (id) => {
 
 export const disableDrawingTools = () => {
     if (!mapContainer || !drawControl) return;
-    try { mapContainer.removeControl(drawControl); } catch { }
+    try {
+        mapContainer.removeControl(drawControl);
+    } catch {
+    }
     drawControl = null;
     drawnLayerGroup?.clearLayers();
 };
 
 export const initializeMap = (center = [20, 0], zoom = 3) => {
-    if (mapContainer) { mapContainer.off(); mapContainer.remove(); }
+    if (mapContainer) {
+        mapContainer.off();
+        mapContainer.remove();
+    }
     mapContainer = L.map('mapContainer', {
         zoomAnimation: true,
         editable: true
@@ -273,7 +316,30 @@ export const fitBounds = (bounds, options = {}) => {
     map.fitBounds(bounds, options);
 };
 
-store.subscribe(({ type, payload }) => {
+store.subscribe(({type, payload}) => {
+    if (type === 'set-context' && payload?.type === 'search-temp') {
+        const {lat, lon, name} = payload.meta || {};
+        console.debug('[mapManager] SET preview marker at', lat, lon);
+        if (!lat || !lon) return;
+
+        const iconUrl = '/icons/wayfarer-map-icons/dist/png/marker/bg-black/map.png';
+        clearPreviewMarker();
+
+        previewMarker = L.marker([lat, lon], {
+            icon: L.icon({
+                iconUrl,
+                iconSize: [24, 41],
+                iconAnchor: [12, 41],
+                className: 'map-icon'
+            }),
+            title: name || 'Temporary place'
+        }).addTo(mapContainer);
+        previewMarkerType = 'search-temp';
+        clearSelectedMarker();
+        selectMarker(previewMarker);
+        applyCoordinates({lat, lon});
+    }
+
     if (type === 'context-cleared') {
         Object.values(regionPreviewById).forEach(m => mapContainer?.removeLayer(m));
         Object.keys(regionPreviewById).forEach(k => delete regionPreviewById[k]);
@@ -285,10 +351,7 @@ store.subscribe(({ type, payload }) => {
         }
 
         try {
-            if (previewMarker) {
-                mapContainer?.removeLayer(previewMarker);
-                previewMarker = null;
-            }
+            clearPreviewMarker();
         } catch (err) {
             console.warn('⚠️ Failed to clear preview marker', err);
         }
@@ -307,7 +370,7 @@ store.subscribe(({ type, payload }) => {
         }
         const regionEl = document.getElementById(`region-item-${payload.regionId}`);
         if (!regionEl) return;
-
+        
         const placeEls = regionEl.querySelectorAll('.place-list-item');
         for (const markerId in placeMarkersById) {
             const el = document.querySelector(`.place-list-item[data-place-id="${markerId}"]`);
@@ -334,6 +397,19 @@ store.subscribe(({ type, payload }) => {
                     RegionId: payload.regionId
                 });
             }
+        }
+        const lat = parseFloat(regionEl.dataset.centerLat);
+        const lon = parseFloat(regionEl.dataset.centerLon);
+        const name = regionEl.dataset.regionName || 'Unnamed Region';
+        console.debug('[region reload] region center:', lat, lon, 'for', payload.regionId);
+        if (!isNaN(lat) && !isNaN(lon)) {
+            console.debug('📍 [region-dom-reloaded] Drawing region marker:', payload.regionId, lat, lon);
+            renderRegionMarker({
+                Id: payload.regionId,
+                CenterLat: lat,
+                CenterLon: lon,
+                Name: name
+            });
         }
     }
 });
