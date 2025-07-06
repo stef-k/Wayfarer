@@ -40,6 +40,31 @@ namespace Wayfarer.Areas.User.Controllers
                 return View(new List<Trip>()); // return empty list on error
             }
         }
+        
+        // GET: /User/Trips/View/{id}
+        [HttpGet]
+        public async Task<IActionResult> View(Guid id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Forbid(); 
+            
+            var trip = await _dbContext.Trips
+                .Include(t => t.Regions!).ThenInclude(r => r.Places!)
+                .Include(t => t.Segments!)
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+            if (trip == null) return NotFound(); 
+            
+            /* ---- layout flags ---- */
+            ViewData["LoadLeaflet"] = true;      // needs map
+            ViewData["LoadQuill"]   = false;     // no editor
+            ViewData["BodyClass"]   = "container-fluid";  // full-width
+
+            ViewBag.IsOwner = true;
+            ViewBag.IsEmbed = false;             // not an iframe here
+
+            return View("~/Views/Trip/Viewer.cshtml", trip);
+        }
 
         // GET: /User/Trip/Create
         public IActionResult Create()

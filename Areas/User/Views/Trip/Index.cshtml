@@ -29,6 +29,8 @@ else
                     <td>@Html.Raw(trip.Notes)</td>
                     <td>@(trip.IsPublic ? "Yes" : "No")</td>
                     <td>
+                        <a asp-area="User" asp-controller="Trip" asp-action="View" asp-route-id="@trip.Id"
+                           class="btn btn-sm btn-primary">View</a>
                         <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@trip.Id"
                            class="btn btn-sm btn-secondary">Edit</a>
                         <a asp-area="User" asp-controller="Trip" asp-action="Details" asp-route-id="@trip.Id"

@@ -659,7 +659,7 @@ thead th {
 .map-icon.selected-marker {
     filter:
             drop-shadow(0 0 3px var(--selected-shadow-color, #0d6efd))
-            drop-shadow(0 0 1px var(--selected-shadow-color, #0d6efd));
+            drop-shadow(0 0 3px var(--selected-shadow-color, #0d6efd)) !important;
     transition: filter 0.3s ease;
 }
 .place-list-item.dimmed {
@@ -813,3 +813,108 @@ thead th {
 #temp-place-banner {
     z-index: 3000;
 }
+
+/* ─── Trip Viewer  ─── */
+#trip-view, #mapContainer { height: 100%; }
+
+/***************************************************************************/
+/*sidebar's width variable, change here for more wide or narrow sidebar*/
+:root { --legend-w: 500px; }
+/***************************************************************************/
+#sidebar-primary{
+    position:absolute;
+    top:0; left:0;
+    width: var(--legend-w); height:100%;
+    overflow-y:auto; overflow-x:hidden;
+    background:#fff;
+    border-right:1px solid #dee2e6;
+    box-shadow:2px 0 6px rgba(0,0,0,.12);
+    transition:transform .6s ease;
+    z-index:1050;
+}
+
+/* slide completely off-canvas and remove shadow */
+#sidebar-primary[data-collapsed="true"]{
+    transform: translateX(calc(-1 * var(--legend-w)));
+    box-shadow: none;
+}
+
+#btn-collapse-sidebar.stick{
+    position:fixed;                    /* anchored to viewport          */
+    top:70px;                          /* ≈ 56-px navbar + 14-px gap    */
+    left:10px;
+    width:40px; height:40px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:.25rem;
+    z-index:1060;
+}
+
+/* #trip-view already sits between navbar (≈56 px) and footer (60 px)   */
+#trip-view {                       /* 56 + 60  ≅  116 → round to 120   */
+    height: calc(100vh - 120px);   /* reaches footer, no bottom gap     */
+}
+
+/* floating MAP-LEGEND handle (only visible when sidebar is collapsed) */
+#btn-show-sidebar{
+    position:fixed;
+    top: 80px;                 /* 56-px navbar + small gap            */
+    left:10px;
+    z-index:1060;
+    user-select:none;
+}
+
+/* make sure the handle never blocks map clicks when hidden */
+#btn-show-sidebar[style*="display: none"]{
+    pointer-events:none;
+}
+
+/* ─── Animated details sidebar ───────────────────────────── */
+#sidebar-secondary{
+    position:absolute;
+    top:0; left:0;
+    width: var(--legend-w); height:100%;
+    background:#fff;
+    border-right:1px solid #dee2e6;
+    overflow:auto;
+    z-index:1055;
+
+    /* hidden by default */
+    transform: translateX(calc(-1 * var(--legend-w)));
+    opacity:0.8;                    /* prevents click-through flashes   */
+    pointer-events:none;
+
+    transition:transform 0.55s ease, opacity 0.55s ease;
+}
+
+/* visible state */
+#sidebar-secondary.open{
+    transform:translateX(0);
+    opacity:1;
+    pointer-events:auto;
+}
+
+/* Trip-Viewer meta panel */
+.trip-meta,
+.trip-notes{
+    max-height:500px;            
+    overflow-y:auto;             
+    overflow-x:hidden;           
+    word-break:break-word;       /* force long words / URLs to wrap        */
+}
+
+/* optional nicer WebKit scrollbar */
+.trip-meta::-webkit-scrollbar,
+.trip-notes::-webkit-scrollbar{width:6px;}
+.trip-meta::-webkit-scrollbar-thumb,
+.trip-notes::-webkit-scrollbar-thumb{background:#bbb;border-radius:2px;}
+
+.pe-clickable {
+    cursor:pointer;
+}
+#sidebar-secondary img.trip-img-modal,
+#sidebar-secondary .trip-notes img,
+#sidebar-secondary img.img-fluid {
+    max-width: 100%;
+    height: auto;
+}
+#sidebar-secondary img { max-width:100%; height:auto; }

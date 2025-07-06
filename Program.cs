@@ -122,8 +122,10 @@ static async Task HandlePasswordResetCommand(string[] args)
         .AddDefaultTokenProviders();
 
     ServiceProvider services = builder.Services.BuildServiceProvider();
+    
     UserManager<ApplicationUser> userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
+    builder.Services.AddHttpContextAccessor();
     ApplicationUser? user = await userManager.FindByNameAsync(username);
     if (user == null)
     {
@@ -403,7 +405,12 @@ static void ConfigureServices(WebApplicationBuilder builder)
     
     // User location stats service
     builder.Services.AddScoped<ILocationStatsService, LocationStatsService>();
-
+    
+    // Trip export service (PDF, KML, Google MyMaps KML)
+    builder.Services.AddScoped<ITripExportService, TripExportService>();
+    
+    builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
+    builder.Services.AddSingleton<MapSnapshotService>();
 }
 
 // Method to configure middleware components such as error handling and performance monitoring

@@ -1,0 +1,85 @@
+@using Wayfarer.Util
+@model Wayfarer.Models.Trip
+
+
+@if (Model.Segments?.Any() == true)
+{
+    <div class="border-top pt-2 text-bg-light ">
+        <h6 class="text-muted fw-semibold px-2 mb-1">
+            <i class="bi bi-signpost-2 me-1"></i> Segments
+        </h6>
+
+        <ul class="list-group list-group-flush">
+
+@{
+    var emoji = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){
+        ["walk"]="🚶",["bicycle"]="🚴",["bike"]="🏍️",["car"]="🚗",["bus"]="🚌",
+        ["train"]="🚆",["ferry"]="⛴️",["boat"]="🚤",["flight"]="✈️",
+        ["helicopter"]="🚁",["drive"]="🚗",["taxi"]="🚕",["tram"]="🚊"
+    };
+}
+
+@foreach (var seg in Model.Segments.OrderBy(s => s.DisplayOrder))
+{
+    /* ─── data & helpers ─────────────────────────────────────────── */
+    var modeKey   = (seg.Mode ?? "").ToLowerInvariant();
+    var emojiIcon = emoji.TryGetValue(modeKey, out var e) ? e : "❓";
+
+    var fromName  = seg.FromPlace?.Name ?? "Start";
+    var toName    = seg.ToPlace  ?.Name ?? "End";
+    var label     = $"{fromName} → {toName}";
+
+    var durTxt    = seg.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
+    var distTxt   = seg.EstimatedDistanceKm?.ToString("0.##")   ?? "—";
+
+    /* preferred: RouteGeometry; fallback: From→To place coords */
+    var startLat  = seg.RouteGeometry?.StartPoint?.Y ?? seg.FromPlace?.Location?.Y;
+    var startLon  = seg.RouteGeometry?.StartPoint?.X ?? seg.FromPlace?.Location?.X;
+    var endLat    = seg.RouteGeometry?.EndPoint?.Y   ?? seg.ToPlace?.Location?.Y;
+    var endLon    = seg.RouteGeometry?.EndPoint?.X   ?? seg.ToPlace?.Location?.X;
+
+    var wkt       = seg.RouteGeometry?.AsText();
+<text>
+            <li class="list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2"
+                data-segment-id="@seg.Id"
+                data-from-place-name="@seg?.FromPlace?.Name"
+                data-from-placeregion-name="@seg?.FromPlace?.Region?.Name"
+                data-to-place-name="@seg?.ToPlace?.Name"
+                data-to-placeregion-name="@seg?.ToPlace?.Region?.Name"
+                data-segment-name="@($"{seg.Mode}: {label}")"
+                data-transport-mode="@seg?.Mode"
+                data-estimated-distance="@seg?.EstimatedDistanceKm"
+                data-estimated-duration="@seg?.EstimatedDuration.FormatDuration()"
+                @if (startLat is not null){<text> data-from-lat="@startLat"</text>}
+                @if (startLon is not null){<text> data-from-lon="@startLon"</text>}
+                @if (endLat   is not null){<text> data-to-lat="@endLat"</text>}
+                @if (endLon   is not null){<text> data-to-lon="@endLon"</text>}
+                @if (!string.IsNullOrEmpty(wkt)){<text> data-route-wkt="@wkt"</text>}>
+
+                <div class="d-flex align-items-start gap-2 small">
+                    <span class="fs-5" aria-hidden="true">@emojiIcon</span>
+                    <div>
+                        <div><strong>@seg.Mode</strong></div>
+                        <div>
+                            (<span title="Estimated time">⏱️ @durTxt&nbsp;min</span> / 
+                             <span title="Estimated distance">📏 @distTxt&nbsp;km</span>)
+                        </div>
+                        <div title="From: @fromName (@seg.FromPlace?.Region?.Name)">
+                            <strong>From:</strong> @fromName (@seg.FromPlace?.Region?.Name)
+                        </div>
+                        <div title="To: @toName (@seg.ToPlace?.Region?.Name)">
+                            <strong>To:</strong> @toName (@seg.ToPlace?.Region?.Name)
+                        </div>
+                    </div>
+                </div>
+
+                <input type="checkbox"
+                       class="form-check-input segment-toggle ms-2"
+                       checked
+                       title="Show/Hide this segment on map" />
+            </li>
+</text>
+}
+        </ul>
+    </div>
+}
