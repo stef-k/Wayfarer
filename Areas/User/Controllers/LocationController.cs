@@ -6,7 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
-using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers

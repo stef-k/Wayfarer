@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
-namespace Wayfarer.Services;
+namespace Wayfarer.Parsers;
 
 /// <summary>Renders an MVC/Razor view to an HTML string.</summary>
 public interface IRazorViewRenderer

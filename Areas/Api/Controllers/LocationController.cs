@@ -7,7 +7,7 @@ using System.Text.Json;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
-using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Wayfarer.Util;
 using Location = Wayfarer.Models.Location;
 

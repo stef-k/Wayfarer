@@ -97,9 +97,9 @@
                                     </a>
                                 </li>
                                 <li>
-                                    <a class="dropdown-item"
+                                    <a class="dropdown-item" id="btn-export-kml"
                                        asp-controller="TripExport"
-                                       asp-action="ExportKml"
+                                       asp-action="ExportWayfarerKml"
                                        asp-route-id="@Model.Id"
                                        title="Export Trip to Wayfarer KML format (can be imported back to Wayfarer again)">
                                         <i class="bi bi-filetype-xml me-1"></i>Wayfarer KML
@@ -108,7 +108,7 @@
                                 <li>
                                     <a class="dropdown-item"
                                        asp-controller="TripExport"
-                                       asp-action="ExportMyMapsKml"
+                                       asp-action="ExportGoogleMyMapsKml"
                                        title="Export Trip to Google MyMaps KML format (Can be imported into Google MyMaps)"
                                        asp-route-id="@Model.Id">
                                         <i class="bi bi-map me-1"></i>Google MyMaps KML

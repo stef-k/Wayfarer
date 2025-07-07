@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
-using Wayfarer.Services;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Controllers
 {
@@ -44,7 +44,7 @@ namespace Wayfarer.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ExportKml(Guid id)
+        public async Task<IActionResult> ExportWayfarerKml(Guid id)
         {
             try
             {
@@ -66,12 +66,12 @@ namespace Wayfarer.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ExportMyMapsKml(Guid id)
+        public async Task<IActionResult> ExportGoogleMyMapsKml(Guid id)
         {
             try
             {
                 var trip = await LoadAndAuthorizeAsync(id);
-                var kml = _exportSvc.GenerateMyMapsKml(trip.Id);
+                var kml = _exportSvc.GenerateGoogleMyMapsKml(trip.Id);
                 var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
                 return File(bytes,
                     "application/vnd.google-earth.kml+xml",

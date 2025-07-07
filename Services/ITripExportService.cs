@@ -1,4 +1,4 @@
-namespace Wayfarer.Services;
+namespace Wayfarer.Parsers;
 
 public interface ITripExportService
 {
@@ -10,7 +10,7 @@ public interface ITripExportService
     /// <summary>
     /// Builds a KML compatible with Google My Maps.
     /// </summary>
-    string GenerateMyMapsKml(Guid tripId);
+    string GenerateGoogleMyMapsKml(Guid tripId);
 
     /// <summary>
     /// Renders an A4 PDF guide for the trip.

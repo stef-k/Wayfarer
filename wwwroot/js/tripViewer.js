@@ -10,9 +10,14 @@
 
 import {
     initLeaflet,
-    addRegionMarker, addPlaceMarker, addSegment,
-    setRegionVisible, setSegmentVisible,
-    wktToCoords, getPlaceMarker
+    addRegionMarker,
+    addPlaceMarker,
+    addSegment,
+    setRegionVisible,
+    setSegmentVisible,
+    wktToCoords,
+    getPlaceMarker,
+    getSegmentPolyline
 } from './tripViewerHelpers.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -48,11 +53,7 @@ const resolveInitialView = () => {
     const urlLon = getUrlParam('lon');
     const urlZoom = getUrlParam('zoom');
 
-    return [
-        Number.isFinite(urlLat) ? urlLat : defLat,
-        Number.isFinite(urlLon) ? urlLon : defLon,
-        Number.isFinite(urlZoom) ? urlZoom : defZoom
-    ];
+    return [Number.isFinite(urlLat) ? urlLat : defLat, Number.isFinite(urlLon) ? urlLon : defLon, Number.isFinite(urlZoom) ? urlZoom : defZoom];
 };
 /**
  * Returns the stored Trip lat, lon and zoom
@@ -60,21 +61,15 @@ const resolveInitialView = () => {
  */
 const getDefaultView = () => {
     const root = document.getElementById('trip-view');
-    return [
-        Number(root.dataset.tripLat),
-        Number(root.dataset.tripLon),
-        Number(root.dataset.tripZoom) || 7
-    ];
+    return [Number(root.dataset.tripLat), Number(root.dataset.tripLon), Number(root.dataset.tripZoom) || 7];
 };
 /* ─── Google Maps + Wikipedia helpers ────────────────────── */
-const gmLink = addr =>
-    `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}"
+const gmLink = addr => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}"
       target="_blank" class="btn btn-outline-primary btn-sm"
       title="View in Google Maps">
       <i class="bi bi-globe-europe-africa"></i> Maps</a>`;
 
-const wikiLink = (lat, lon) =>
-    `<a href="#" class="btn btn-outline-primary btn-sm wikipedia-link"
+const wikiLink = (lat, lon) => `<a href="#" class="btn btn-outline-primary btn-sm wikipedia-link"
       data-lat="${lat}" data-lon="${lon}">
       <i class="bi bi-wikipedia"></i> Wiki</a>`;
 
@@ -95,8 +90,13 @@ const initWikiPopovers = root => {
 
                     /* 1) GeoSearch */
                     const geoURL = `https://en.wikipedia.org/w/api.php?` + new URLSearchParams({
-                        action: 'query', list: 'geosearch', gscoord: `${lat}|${lon}`,
-                        gsradius: 100, gslimit: 1, format: 'json', origin: '*'
+                        action: 'query',
+                        list: 'geosearch',
+                        gscoord: `${lat}|${lon}`,
+                        gsradius: 100,
+                        gslimit: 1,
+                        format: 'json',
+                        origin: '*'
                     });
                     const first = (await (await fetch(geoURL)).json()).query.geosearch[0];
                     if (!first) {
@@ -124,7 +124,7 @@ const initWikiPopovers = root => {
 const init = () => {
 
     const isPrint = location.search.includes('print=1');
-    
+
     /* ────────── map bootstrap ────────── */
     let [lat, lon, zoom] = resolveInitialView();
     const recenterMap = $('#btn-trip-center');
@@ -179,8 +179,7 @@ const init = () => {
     recenterMap.addEventListener('click', e => {
         [lat, lon, zoom] = getDefaultView();
         map.flyTo([lat, lon], zoom, {
-            animate: true,
-            duration: 1
+            animate: true, duration: 1
         })
         // offset based on sidebar
         map.once('moveend', () => {
@@ -203,23 +202,21 @@ const init = () => {
     };
 
     /* initial correction (legend starts visible but not in print) */
-   if (!isPrint) {
-       applyCentreOffset(+1, true);
-   }
+    if (!isPrint) {
+        applyCentreOffset(+1, true);
+    }
 
     /* ────────── regions & places ────────── */
     $$('.accordion-item').forEach(ai => {
         const {regionId, regionName, centerLat, centerLon} = ai.dataset;
-        if (centerLat && centerLon)
-            addRegionMarker(map, regionId, [+centerLat, +centerLon], regionName);
+        if (centerLat && centerLon) addRegionMarker(map, regionId, [+centerLat, +centerLon], regionName);
     });
 
     $$('.place-list-item').forEach(li => {
         const d = li.dataset;
-        if (d.placeLat && d.placeLon)
-            addPlaceMarker(map, d.placeId, [+d.placeLat, +d.placeLon], {
-                name: d.placeName, icon: d.placeIcon, color: d.placeColor, region: d.regionId
-            });
+        if (d.placeLat && d.placeLon) addPlaceMarker(map, d.placeId, [+d.placeLat, +d.placeLon], {
+            name: d.placeName, icon: d.placeIcon, color: d.placeColor, region: d.regionId
+        });
     });
 
     /* ────────── segments ────────── */
@@ -227,8 +224,7 @@ const init = () => {
         const d = li.dataset;
         let coords = [];
         if (d.routeWkt) coords = wktToCoords(d.routeWkt);
-        if (coords.length < 2 && d.fromLat && d.toLat)
-            coords = [[+d.fromLat, +d.fromLon], [+d.toLat, +d.toLon]];
+        if (coords.length < 2 && d.fromLat && d.toLat) coords = [[+d.fromLat, +d.fromLon], [+d.toLat, +d.toLon]];
         if (coords.length >= 2) {
             const label = `From ${d.fromPlaceName} to ${d.toPlaceName}, ${d.estimatedDistance} km by ${d.transportMode} in ${d.estimatedDuration}`;
             addSegment(map, d.segmentId, coords, label);
@@ -255,9 +251,7 @@ const init = () => {
     const hideBtn = $('#btn-collapse-sidebar');
 
     const showBtn = Object.assign(document.createElement('button'), {
-        id: 'btn-show-sidebar',
-        className: 'btn btn-light border fw-semibold shadow-lg',
-        textContent: 'MAP LEGEND'
+        id: 'btn-show-sidebar', className: 'btn btn-light border fw-semibold shadow-lg', textContent: 'MAP LEGEND'
     });
     document.body.appendChild(showBtn);
     showBtn.style.display = 'none';
@@ -337,6 +331,19 @@ const init = () => {
         pane.innerHTML = detailsHtml(li);
         pane.classList.add('open');
         highlightMarker(pid);
+        const m = getPlaceMarker(pid);
+        if (m) {
+            const tgt = m.getLatLng();
+            // pick a zoom level that is at least 12 or keeps the current one if closer
+            const z = Math.max(map.getZoom(), 12);
+            map.flyTo(tgt, z, {animate: true, duration: 1.2});
+
+            // once the movement ends, nudge the map horizontally so the marker
+            // stays centred when the legend is visible / hidden
+            map.once('moveend', () => {
+                applyCentreOffset(collapsed ? -1 : 1, true);
+            });
+        }
         initWikiPopovers(pane);
     };
 
@@ -355,6 +362,38 @@ const init = () => {
         });
 
     });
+
+    /* ADD – segment click centres map on the whole route */
+    $$('.segment-list-item').forEach(li => {
+        li.addEventListener('click', e => {
+            // ignore clicks coming from the visibility checkbox
+            if (e.target.closest('.segment-toggle')) return;
+
+            const sid = li.dataset.segmentId;
+            const pl = getSegmentPolyline(sid);
+            if (!pl) return;
+
+            const b = pl.getBounds();                 // route bounds
+            const padX = collapsed ? 60                 // legend hidden
+                : legendW() / 2 + 60; // space for legend + bonus
+            map.flyToBounds(b, {
+                animate: true, duration: 1.2, padding: [padX, 60]                    // neat margin
+            });
+
+            // after movement, nudge map for sidebar width (as for places)
+            map.once('moveend', () => {
+                applyCentreOffset(collapsed ? -1 : 1, true);
+            });
+        });
+    });
+
+    // Export to Wayfarer KML
+    document.getElementById('btn-export-kml')
+        ?.addEventListener('click', () => {
+            if (!currentTripId) return;
+            // simple GET triggers a file download
+            window.location.href = `/User/Trips/ExportKml/${currentTripId}`;
+        });
 };
 
 if (document.readyState === 'loading') {

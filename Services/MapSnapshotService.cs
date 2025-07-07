@@ -1,6 +1,6 @@
 using PuppeteerSharp;
 
-namespace Wayfarer.Services;
+namespace Wayfarer.Parsers;
 
 public sealed class MapSnapshotService
 {

@@ -918,3 +918,7 @@ thead th {
     height: auto;
 }
 #sidebar-secondary img { max-width:100%; height:auto; }
+
+.segment-list-item-view {
+    cursor:pointer;
+}

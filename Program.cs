@@ -411,6 +411,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
     
     builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
     builder.Services.AddSingleton<MapSnapshotService>();
+    
+    // Trip import service
+    builder.Services.AddScoped<ITripImportService, TripImportService>();
 }
 
 // Method to configure middleware components such as error handling and performance monitoring

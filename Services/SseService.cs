@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 
-namespace Wayfarer.Services;
+namespace Wayfarer.Parsers;
 
 /// <summary>
 /// Server Send Events Service to broadcast messages to clients.

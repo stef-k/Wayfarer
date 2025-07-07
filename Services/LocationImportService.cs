@@ -9,7 +9,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
 
-namespace Wayfarer.Services
+namespace Wayfarer.Parsers
 {
     public interface ILocationImportService
     {

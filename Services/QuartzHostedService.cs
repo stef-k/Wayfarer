@@ -1,6 +1,6 @@
 ﻿using Quartz;
 
-namespace Wayfarer.Services // Namespace
+namespace Wayfarer.Parsers // Namespace
 {
     public class QuartzHostedService : IHostedService
     {

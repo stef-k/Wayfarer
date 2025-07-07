@@ -3,7 +3,8 @@ using PuppeteerSharp;
 using PuppeteerSharp.Media;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
-namespace Wayfarer.Services
+
+namespace Wayfarer.Parsers
 {
     /// <summary>Generates PDF and KML exports for a Trip.</summary>
     public class TripExportService : ITripExportService
@@ -32,10 +33,19 @@ namespace Wayfarer.Services
 
         /* ---------------------------------------------------------------- KML stubs */
 
-        public string GenerateWayfarerKml(Guid tripId) =>
-            "<kml xmlns=\"http://www.opengis.net/kml/2.2\"></kml>";
+        public string GenerateWayfarerKml(Guid tripId)
+        {
+            var trip = _db.Trips
+                           .Include(t => t.Regions).ThenInclude(r => r.Places)
+                           .Include(t => t.Segments)
+                           .AsNoTracking()
+                           .FirstOrDefault(t => t.Id == tripId)
+                       ?? throw new ArgumentException($"Trip not found: {tripId}", nameof(tripId));
 
-        public string GenerateMyMapsKml(Guid tripId) =>
+            return TripWayfarerKmlExporter.BuildKml(trip);
+        }
+
+        public string GenerateGoogleMyMapsKml(Guid tripId) =>
             "<kml xmlns=\"http://www.opengis.net/kml/2.2\"></kml>";
 
         /* ---------------------------------------------------------------- PDF */
@@ -125,16 +135,16 @@ namespace Wayfarer.Services
                     600, 600, cookie);
             }
 
-/* 4 ── render PDF -------------------------------------------------- */
+            /* 4 ── render PDF -------------------------------------------------- */
 
-// ADD helper – inline for brevity
+            // ADD helper – inline for brevity
             string ToDataUri(byte[] png) =>
                 $"data:image/png;base64,{Convert.ToBase64String(png)}";
 
-// convert snapshots dictionary to data-URI strings
+            // convert snapshots dictionary to data-URI strings
             var snapUris = snap.ToDictionary(kvp => kvp.Key, kvp => ToDataUri(kvp.Value));
 
-// build view-model
+            // build view-model
             var vm = new TripPrintViewModel
             {
                 Trip = trip,
@@ -144,11 +154,11 @@ namespace Wayfarer.Services
                 Snap = snapUris
             };
 
-// Razor ➜ HTML
+            // Razor ➜ HTML
             var html = await _razor.RenderViewToStringAsync(
                 "~/Views/Trip/Print.cshtml", vm);
 
-// Puppeteer ➜ PDF
+            // Puppeteer ➜ PDF
             await _browserFetcher.DownloadAsync(); // once, then cached
             await using var browser = await Puppeteer.LaunchAsync(
                 new LaunchOptions { Headless = true });

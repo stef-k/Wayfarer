@@ -3,7 +3,21 @@
 
 <h2>@ViewData["Title"]</h2>
 
-<a asp-area="User" asp-controller="Trip" asp-action="Create" class="btn btn-primary mb-3">Create New Trip</a>
+<div class="d-flex gap-2 mb-3">
+    <a asp-area="User" asp-controller="Trip" asp-action="Create"
+       class="btn btn-primary" title="Create a new Trip">
+        <i class="bi bi-plus-lg me-1"></i> Create New Trip
+    </a>
+
+    <!-- ▼ NEW: Import button opens hidden file picker -->
+    <label class="btn btn-outline-secondary mb-0" title="Import a Trip from a Wayfarer extended KML file (*.kml)">
+        <i class="bi bi-upload me-1" ></i> Import Trip&nbsp; 
+        <input type="file"
+               id="importFile"
+               accept=".kml"
+               class="d-none">
+    </label>
+</div>
 
 @if (!Model.Any())
 {
@@ -29,12 +43,10 @@ else
                     <td>@Html.Raw(trip.Notes)</td>
                     <td>@(trip.IsPublic ? "Yes" : "No")</td>
                     <td>
-                        <a asp-area="User" asp-controller="Trip" asp-action="View" asp-route-id="@trip.Id"
+                        <a asp-area="User" asp-controller="Trip" asp-action="View" title="View/Export Trip" asp-route-id="@trip.Id"
                            class="btn btn-sm btn-primary">View</a>
-                        <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@trip.Id"
+                        <a asp-area="User" asp-controller="Trip" asp-action="Edit" title="Edit Trip"  asp-route-id="@trip.Id"
                            class="btn btn-sm btn-secondary">Edit</a>
-                        <a asp-area="User" asp-controller="Trip" asp-action="Details" asp-route-id="@trip.Id"
-                           class="btn btn-sm btn-info">View</a>
                         <form id="delete-form-@trip.Id"
                               asp-action="Delete"
                               method="post"
@@ -45,7 +57,7 @@ else
                         <button type="button"
                                 class="btn btn-sm btn-outline-danger btn-trip-delete"
                                 data-trip-id="@trip.Id"
-                                title="Delete trip">
+                                title="Delete Trip">
                             Delete
                         </button>
                     </td>
@@ -56,40 +68,31 @@ else
     </div>
 }
 
+<!-- ▼ NEW duplicate / upsert modal -->
+<div class="modal fade" id="dupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title">Trip already exists</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                A trip with the same ID is already in your account.
+                <br/>What would you like to do?
+            </div>
+            <div class="modal-footer">
+                <button id="btnUpdate" class="btn btn-primary">
+                    <i class="bi bi-arrow-repeat me-1"></i> Update existing
+                </button>
+                <button id="btnCopy" class="btn btn-outline-secondary">
+                    <i class="bi bi-files me-1"></i> Create copy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts
 {
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            document.querySelectorAll('.btn-trip-delete').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const tripId = btn.dataset.tripId;
-
-                    wayfarer.showConfirmationModal({
-                        title: "Delete Trip",
-                        message: "Are you sure you want to delete this trip?",
-                        confirmText: "Delete",
-                        onConfirm: async () => {
-                            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-                            const fd = new FormData();
-                            fd.set('__RequestVerificationToken', token);
-                            fd.set('id', tripId);
-
-                            const resp = await fetch('/User/Trip/Delete', {
-                                method: 'POST',
-                                body: fd
-                            });
-
-                            if (resp.ok) {
-                                document.querySelector(`tr button[data-trip-id="${tripId}"]`)?.closest('tr')?.remove();
-                                wayfarer.showAlert("success", "Trip deleted.");
-                            } else {
-                                wayfarer.showAlert("danger", "Failed to delete trip.");
-                            }
-                        }
-                    });
-                });
-            });
-        });
-    </script>
+    <script src="~/js/Areas/User/Trip/trips.js" asp-append-version="true"></script>
 }
-

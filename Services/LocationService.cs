@@ -6,7 +6,7 @@ using Wayfarer.Models.Dtos;
 using Wayfarer.Util;
 using Location = Wayfarer.Models.Location;
 
-namespace Wayfarer.Services
+namespace Wayfarer.Parsers
 {
     public class LocationService
     {
