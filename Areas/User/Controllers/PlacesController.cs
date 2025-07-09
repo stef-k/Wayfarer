@@ -1,6 +1,5 @@
-using System.Collections;
-using System.Security.Claims;
 using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -33,8 +32,7 @@ public class PlacesController : BaseController
         var model = new Place
         {
             Id = Guid.NewGuid(),
-            RegionId = regionId,
-            DisplayOrder = 0
+            RegionId = regionId
         };
 
         ViewData["AllRegions"] = await _dbContext.Regions
@@ -73,7 +71,6 @@ public class PlacesController : BaseController
             existing.Notes = model.Notes;
             existing.IconName = model.IconName;
             existing.MarkerColor = model.MarkerColor;
-            existing.DisplayOrder = model.DisplayOrder;
             existing.Address = model.Address; // may be overwritten below
 
             if (Request.Form.TryGetValue("RegionIdOverride", out var regionOverride) &&
@@ -86,6 +83,11 @@ public class PlacesController : BaseController
             {
                 existing.RegionId = model.RegionId;
                 _dbContext.Entry(existing).Property(p => p.RegionId).IsModified = true;
+                
+                var next = await _dbContext.Places
+                    .Where(p => p.RegionId == model.RegionId)
+                    .MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
+                existing.DisplayOrder = next + 1;
             }
 
             if (lat.HasValue && lon.HasValue)
@@ -109,6 +111,11 @@ public class PlacesController : BaseController
         }
         else
         {
+            var next = await _dbContext.Places
+                .Where(p => p.RegionId == model.RegionId)
+                .MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
+            model.DisplayOrder = next + 1;
+            
             if (lat.HasValue && lon.HasValue)
             {
                 model.Location = new Point(lon.Value, lat.Value) { SRID = 4326 };

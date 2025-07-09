@@ -1,7 +1,7 @@
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
-using System.Linq;
 
 namespace Wayfarer.Services;
 
@@ -21,10 +21,19 @@ public class TripImportService : ITripImportService
         string userId,
         TripImportMode mode = TripImportMode.Auto)
     {
-        /* 1 parse XML into detached entity graph */
-        var parsed = WayfarerKmlParser.Parse(kmlStream);
+        /* 1 ── detect which flavour of KML (Wayfarer or Google MyMaps ------------------------------ */
+        Trip parsed;
+        using var mem = new MemoryStream();
+        await kmlStream.CopyToAsync(mem);
+        var xmlText = Encoding.UTF8.GetString(mem.ToArray());
+        mem.Position = 0;
 
-        /* 2 — decide target trip ----------------------------------------- */
+        bool isWayfarer = xmlText.Contains("wf:TripId") || xmlText.Contains("wf:PlaceId");
+        parsed = isWayfarer
+            ? WayfarerKmlParser.Parse(mem)
+            : GoogleMyMapsKmlParser.Parse(mem, userId);
+
+        /* 2- decide target trip ----------------------------------------- */
         var dbTrip = await _dbContext.Trips
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
@@ -95,7 +104,6 @@ public class TripImportService : ITripImportService
     }
 
     /* ---------- helpers ------------------------------------------------- */
-/* ---------- helpers ------------------------------------------------- */
     static Trip CreateNewShell(Trip parsed, string userId)
     {
         /* 0 ── remap dictionaries ------------------------------------------ */

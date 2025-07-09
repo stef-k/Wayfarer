@@ -30,18 +30,21 @@
     };
 
     /* ------------------------------------------------ Import trip */
-    const importInput = document.getElementById('importFile');
+    const importInput      = document.getElementById('importFile');       // Wayfarer
+    const importInputMyMap = document.getElementById('importFileMyMaps'); // My Maps
     const dupModalEl = document.getElementById('dupModal');
     const dupModal = new bootstrap.Modal(dupModalEl);
     let pendingFile;           // holds the File until user picks Upsert / Copy
 
-    /* ------------------------------------------------ file-picker hook ----- */
-    if (importInput) {
-        importInput.addEventListener('change', e => {
+    /* ------------------------------------------------ file-picker hooks ----- */
+    [importInput, importInputMyMap].forEach(inp => {
+        if (!inp) return;
+        inp.addEventListener('change', e => {
             const file = e.target.files?.[0];
             if (file) upload(file);            // default mode = Auto
+            inp.value = '';
         });
-    }
+    });
     const upload = async (file, mode = 'Auto') => {
         const fd = new FormData();
         fd.append('file', file);
@@ -51,6 +54,7 @@
 
         /* 1 ── success: server replied 302 Location → browser-side redirect */
         if (resp.redirected) {
+            dupModal.hide();
             window.location.href = resp.url;
             return;
         }

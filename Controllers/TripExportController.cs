@@ -53,7 +53,7 @@ namespace Wayfarer.Controllers
                 var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
                 return File(bytes,
                     "application/vnd.google-earth.kml+xml",
-                    $"Trip-{trip.Id}.kml");
+                    $"{trip.Name}-Wayfarer.kml");
             }
             catch (ArgumentException)
             {
@@ -75,7 +75,7 @@ namespace Wayfarer.Controllers
                 var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
                 return File(bytes,
                     "application/vnd.google-earth.kml+xml",
-                    $"Trip-Google-{trip.Id}.kml");
+                    $"{trip.Name}-Google.kml");
             }
             catch (ArgumentException)
             {
@@ -96,7 +96,7 @@ namespace Wayfarer.Controllers
                 var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id);
                 return File(stream,
                     "application/pdf",
-                    $"Trip-{trip.Id}.pdf");
+                    $"{trip.Name}.pdf");
             }
             catch (ArgumentException)
             {

@@ -18,11 +18,13 @@
     @if (hideSidebar)
     {
         <style>
-        #sidebar-primary,
-        #sidebar-secondary { display:none !important; }
-    </style>
+            #sidebar-primary,
+            #sidebar-secondary {
+                display: none !important;
+            }
+        </style>
     }
-    
+
     <!-- MAP (always full width) -->
     <main class="h-100">
         <div id="mapContainer" class="h-100 w-100"></div>
@@ -87,31 +89,34 @@
                                     </li>
                                 }
                                 <li>
-                                    <a class="dropdown-item"
-                                       asp-controller="TripExport"
-                                       asp-action="ExportPdf"
-                                       asp-route-id="@Model.Id"
-                                       title="Export Trip to PDF guide book"
-                                       target="_blank">
-                                        <i class="bi bi-filetype-pdf me-1"></i>Export PDF
-                                    </a>
-                                </li>
                                 <li>
-                                    <a class="dropdown-item" id="btn-export-kml"
+                                    <a id="export-wayfarer"
+                                       class="dropdown-item"
                                        asp-controller="TripExport"
                                        asp-action="ExportWayfarerKml"
                                        asp-route-id="@Model.Id"
-                                       title="Export Trip to Wayfarer KML format (can be imported back to Wayfarer again)">
+                                       title="Export Trip to Wayfarer KML">
                                         <i class="bi bi-filetype-xml me-1"></i>Wayfarer KML
                                     </a>
                                 </li>
                                 <li>
-                                    <a class="dropdown-item"
+                                    <a id="export-mymaps"
+                                       class="dropdown-item"
                                        asp-controller="TripExport"
                                        asp-action="ExportGoogleMyMapsKml"
-                                       title="Export Trip to Google MyMaps KML format (Can be imported into Google MyMaps)"
-                                       asp-route-id="@Model.Id">
-                                        <i class="bi bi-map me-1"></i>Google MyMaps KML
+                                       asp-route-id="@Model.Id"
+                                       title="Export Trip to Google My Maps KML">
+                                        <i class="bi bi-map me-1"></i>Google My Maps KML
+                                    </a>
+                                </li>
+                                <li>
+                                    <a id="export-pdf"
+                                       class="dropdown-item"
+                                       asp-controller="TripExport"
+                                       asp-action="ExportPdf"
+                                       asp-route-id="@Model.Id"
+                                       title="Export Trip to PDF guide" target="_blank">
+                                        <i class="bi bi-filetype-pdf me-1"></i>Export PDF
                                     </a>
                                 </li>
                             </ul>
@@ -124,7 +129,7 @@
                                 title="Recenter the map">
                             <i class="bi bi-crosshair"></i>
                         </button>
-                        
+
                         <!-- 1) Collapse legend -->
                         <button id="btn-collapse-sidebar"
                                 type="button"
@@ -174,6 +179,20 @@
            class="position-absolute top-0 start-0 h-100 bg-white border-end overflow-auto"
            style="z-index:1055"></aside>
 </div>
+
+<!-- Generating-file overlay -->
+<div class="modal fade" id="exportWait" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-body d-flex align-items-center gap-2">
+                <span class="spinner-border text-primary"></span>
+                <strong>Generating file…</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<iframe id="exportFrame" style="display:none"></iframe>
 
 @section Scripts {
     <script type="module" src="~/js/tripViewer.js"></script>

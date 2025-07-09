@@ -8,14 +8,18 @@
        class="btn btn-primary" title="Create a new Trip">
         <i class="bi bi-plus-lg me-1"></i> Create New Trip
     </a>
-
-    <!-- ▼ NEW: Import button opens hidden file picker -->
+    
     <label class="btn btn-outline-secondary mb-0" title="Import a Trip from a Wayfarer extended KML file (*.kml)">
         <i class="bi bi-upload me-1" ></i> Import Trip&nbsp; 
         <input type="file"
                id="importFile"
                accept=".kml"
                class="d-none">
+    </label>
+    
+    <label class="btn btn-outline-secondary mb-0" title="Import a Google My Maps KML">
+        <i class="bi bi-upload me-1"></i> Import My Maps
+        <input type="file" id="importFileMyMaps" accept=".kml" class="d-none">
     </label>
 </div>
 

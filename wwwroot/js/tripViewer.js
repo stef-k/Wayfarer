@@ -387,13 +387,133 @@ const init = () => {
         });
     });
 
-    // Export to Wayfarer KML
-    document.getElementById('btn-export-kml')
-        ?.addEventListener('click', () => {
-            if (!currentTripId) return;
-            // simple GET triggers a file download
-            window.location.href = `/User/Trips/ExportKml/${currentTripId}`;
+    // --------------------------------------------------------------------
+    // Export Buttons – show spinner until navigation starts (cannot detect
+    // download completion reliably without a service-worker)
+    //
+    // Requires: Bootstrap modal (#exportWait) from Viewer.cshtml
+    // --------------------------------------------------------------------
+    // viewer -- export helpers
+    const MAX_SAFE_SIZE = 120 * 1024 * 1024;   // 120 MB  ➜ tweak to taste
+    const waitModal = new bootstrap.Modal('#exportWait', {backdrop: 'static'});
+    const spinnerTxt = document.querySelector('#exportWait strong');
+    const dlFrame = document.getElementById('exportFrame'); // keep the iframe
+
+    function showModal(modal) {
+        return new Promise(res => {
+            const el = modal._element;
+            const alreadyShown = el.classList.contains('show');
+
+            if (alreadyShown) return res();           // nothing to wait for
+            el.addEventListener('shown.bs.modal', res, { once:true });
+            modal.show();
         });
+    }
+
+    function hideModal(modal) {
+        return new Promise(res => {
+            const el = modal._element;
+            const alreadyHidden = !el.classList.contains('show');
+
+            if (alreadyHidden) return res();          // nothing to wait for
+            el.addEventListener('hidden.bs.modal', res, { once:true });
+            modal.hide();
+        });
+    }
+    //------------------------------------------------------------------
+    // (A) fast-path – fetch into memory → Blob → <a download>
+    //------------------------------------------------------------------
+    async function fetchAndSave(url, fallbackName = 'download') {
+        const resp = await fetch(url, {credentials: 'include'});
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const cd = resp.headers.get('Content-Disposition') ?? '';
+        const m  = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+        const fileName = m ? decodeURIComponent(m[1]) : fallbackName;
+        
+        const chunks = [];
+        const reader = resp.body.getReader();
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            chunks.push(value);
+        }
+        const blob = new Blob(chunks, {type: resp.headers.get('Content-Type') || 'application/octet-stream'});
+        const objUrl = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objUrl);
+    }
+
+    //------------------------------------------------------------------
+    // (B) fallback – let the browser stream via hidden iframe
+    //------------------------------------------------------------------
+    function iframeDownload(url) {
+        return new Promise(resolve => {
+            // 1️⃣ hard-timeout – gives up after 25 s
+            const failSafe = setTimeout(resolve, 25_000);
+
+            // 2️⃣ occasionally load *does* fire (e.g. 204 responses)
+            const onLoad = () => {
+                clearTimeout(failSafe);
+                dlFrame.removeEventListener('load', onLoad);
+                resolve();
+            };
+            dlFrame.addEventListener('load', onLoad);
+
+            // 3️⃣ kick-off download ( ⚠️ missing “+” fixed )
+            dlFrame.src = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
+        });
+    }
+
+    async function smartDownload(url) {
+        // HEAD request to know size (falls back to iframe if HEAD fails)
+        let isBig = false;
+        try {
+            const head = await fetch(url, {method: 'HEAD', credentials: 'include'});
+            const sz   = Number(head.headers.get('Content-Length')) || 0;
+            isBig      = sz > MAX_SAFE_SIZE;
+        } catch { /* HEAD failed – treat as unknown */ }
+
+        if (!isBig) {
+            try {           // fast path first
+                await fetchAndSave(url);
+                return;     // success → exit
+            } catch (e) {
+                console.warn('Blob download failed, switching to iframe:', e);
+            }
+        }
+        // large or fetch failed → iframe streaming
+        await iframeDownload(url);
+    }
+
+    ['export-wayfarer', 'export-mymaps', 'export-pdf'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+
+        btn.addEventListener('click', async e => {
+            e.preventDefault();
+
+            spinnerTxt.textContent = 'Generating file…';
+            await showModal(waitModal);                 // ① wait for fade-in
+
+            try {
+                await smartDownload(btn.href);            // ② download
+            } catch (err) {
+                wayfarer.showAlert('danger', 'Download failed.');
+                console.error(err);
+            } finally {
+                await hideModal(waitModal);               // ③ wait for fade-out
+            }
+        });
+    });
+
+
 };
 
 if (document.readyState === 'loading') {
