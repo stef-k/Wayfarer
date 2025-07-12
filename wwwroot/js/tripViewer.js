@@ -231,6 +231,24 @@ const init = () => {
         }
     });
 
+    const params = new URLSearchParams(window.location.search);
+    const onlySeg = params.get('seg');
+    if (onlySeg) {
+        // find the matching data (you may have serialized WKT into a data-attr)
+        const li = document.querySelector(`.segment-list-item[data-segment-id="${onlySeg}"]`);
+        let coords = [];
+        if (li?.dataset.routeWkt) {
+            coords = wktToCoords(li.dataset.routeWkt);
+        } else {
+            // fallback to from‐to lat/lon
+            const { fromLat, fromLon, toLat, toLon } = li.dataset;
+            coords = [[+fromLat, +fromLon], [+toLat, +toLon]];
+        }
+        if (coords.length >= 2) {
+            addSegment(map, onlySeg, coords, /* optional label */ '');
+        }
+    }
+
     /* ───── visibility toggles ───── */
     $$('.segment-toggle').forEach(cb => cb.addEventListener('change', e => {
         const sid = e.target.closest('.segment-list-item').dataset.segmentId;
@@ -329,6 +347,13 @@ const init = () => {
         const li = $(`.place-list-item[data-place-id="${pid}"]`);
         if (!li) return;
         pane.innerHTML = detailsHtml(li);
+        pane
+            .querySelectorAll('.trip-notes img')
+            .forEach(img => {
+                const orig = img.src;
+                img.setAttribute('data-original', orig);
+                img.src = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
+            });
         pane.classList.add('open');
         highlightMarker(pid);
         const m = getPlaceMarker(pid);
@@ -405,7 +430,7 @@ const init = () => {
             const alreadyShown = el.classList.contains('show');
 
             if (alreadyShown) return res();           // nothing to wait for
-            el.addEventListener('shown.bs.modal', res, { once:true });
+            el.addEventListener('shown.bs.modal', res, {once: true});
             modal.show();
         });
     }
@@ -416,10 +441,11 @@ const init = () => {
             const alreadyHidden = !el.classList.contains('show');
 
             if (alreadyHidden) return res();          // nothing to wait for
-            el.addEventListener('hidden.bs.modal', res, { once:true });
+            el.addEventListener('hidden.bs.modal', res, {once: true});
             modal.hide();
         });
     }
+
     //------------------------------------------------------------------
     // (A) fast-path – fetch into memory → Blob → <a download>
     //------------------------------------------------------------------
@@ -428,9 +454,9 @@ const init = () => {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
         const cd = resp.headers.get('Content-Disposition') ?? '';
-        const m  = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+        const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
         const fileName = m ? decodeURIComponent(m[1]) : fallbackName;
-        
+
         const chunks = [];
         const reader = resp.body.getReader();
         while (true) {
@@ -476,9 +502,10 @@ const init = () => {
         let isBig = false;
         try {
             const head = await fetch(url, {method: 'HEAD', credentials: 'include'});
-            const sz   = Number(head.headers.get('Content-Length')) || 0;
-            isBig      = sz > MAX_SAFE_SIZE;
-        } catch { /* HEAD failed – treat as unknown */ }
+            const sz = Number(head.headers.get('Content-Length')) || 0;
+            isBig = sz > MAX_SAFE_SIZE;
+        } catch { /* HEAD failed – treat as unknown */
+        }
 
         if (!isBig) {
             try {           // fast path first

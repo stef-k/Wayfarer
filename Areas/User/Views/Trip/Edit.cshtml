@@ -335,6 +335,24 @@
 </div>
 
 @section Scripts {
+  <script>
+    // whenever any Bootstrap modal is shown...
+    document.addEventListener('shown.bs.modal', e => {
+      // only care about your place-notes modals
+      if (!e.target.id.startsWith('placeNotesModal-')) return;
+
+      // find all images inside the modal body
+      e.target.querySelectorAll('.modal-body img').forEach(img => {
+        const orig = img.getAttribute('src');
+        // skip proxying data-uris or images already proxied
+        if (!orig || orig.startsWith('data:') || img.dataset.proxied) return;
+
+        img.dataset.proxied  = 'true';
+        img.dataset.original = orig;
+        img.src              = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
+      });
+    });
+  </script>
   <partial name="_ValidationScriptsPartial"/>
   <script type="module" src="~/js/Areas/User/Trip/trip.js" asp-append-version="true"></script>
 }

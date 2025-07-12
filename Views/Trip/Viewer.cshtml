@@ -1,5 +1,7 @@
+@using Wayfarer.Util
 @model Wayfarer.Models.Trip
 @{
+    ViewData["LoadLeaflet"] = true;
     Layout = "_Layout";
     bool owner = ViewBag.IsOwner as bool? ?? false;
     bool hideSidebar = ViewContext.HttpContext.Request.Query["print"] == "1";
@@ -155,14 +157,18 @@
             @if (!string.IsNullOrWhiteSpace(Model.Notes))
             {
                 <div class="trip-notes px-3 pb-2">
-                    @Html.Raw(Model.Notes)
+                    @Html.LinkifyHtml(Model.Notes)
                 </div>
             }
         </section>
 
         <!-- regions accordion -->
         <div id="regions-accordion" class="accordion accordion-flush ">
-            @foreach (var r in Model.Regions.OrderBy(r => r.DisplayOrder))
+            @if (@Model.Regions.Where(r => r.Name == "Unassigned Places").FirstOrDefault().Places.Any())
+            {
+                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", @Model.Regions.Where(r => r.Name == "Unassigned Places").FirstOrDefault())
+            }
+            @foreach (var r in Model.Regions.Where(r => r.Name != "Unassigned Places").OrderBy(r => r.DisplayOrder))
             {
                 @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r)
             }

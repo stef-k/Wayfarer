@@ -97,6 +97,31 @@ public class TripImportService : ITripImportService
             SyncCollection(pReg.Places ?? Enumerable.Empty<Place>(),
                 tReg.Places,
                 (p, d) => p.Id == d.Id);
+            
+            tReg.Places ??= new List<Place>();
+        }
+        
+        // --- ensure every trip has its “Unassigned Places” shadow region ---
+        const string ShadowName = "Unassigned Places";
+        if (!target.Regions.Any(r => r.Name == ShadowName))
+        {
+            // bump all existing display orders up by 1
+            foreach (var r in target.Regions)
+                r.DisplayOrder++;
+
+            var shadow = new Region
+            {
+                Id           = Guid.NewGuid(),
+                TripId       = target.Id,
+                UserId       = userId,
+                Name         = ShadowName,
+                DisplayOrder = 0,
+                Notes        = null,
+                Center       = null,
+                CoverImageUrl= null,
+                Places       = new List<Place>()
+            };
+            target.Regions.Add(shadow);
         }
 
         await _dbContext.SaveChangesAsync();
@@ -113,6 +138,8 @@ public class TripImportService : ITripImportService
         /* 1 ── trip --------------------------------------------------------- */
         parsed.Id = Guid.NewGuid();
         parsed.UserId = userId;
+        parsed.Regions ??= new List<Region>();      
+        parsed.Segments??= new List<Segment>();
 
         /* 2 ── regions ------------------------------------------------------ */
         foreach (var r in parsed.Regions ?? Enumerable.Empty<Region>())
@@ -125,6 +152,7 @@ public class TripImportService : ITripImportService
             r.UserId  = userId;
 
             /* 2a ── places --------------------------------------------------- */
+            r.Places ??= new List<Place>();
             foreach (var p in r.Places ?? Enumerable.Empty<Place>())
             {
                 var newPlaceId = Guid.NewGuid();

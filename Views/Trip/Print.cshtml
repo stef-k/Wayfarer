@@ -73,6 +73,10 @@ code, .fs-smaller { font-size: 0.95rem;}
     text-decoration: none !important;
     color: #000 !important;
 }
+.notes a:not(.unstyled-link), .notes a:not(.unstyled-link):visited {
+    text-decoration: underline;
+    color: #004080;
+}
 </style>
 </head>
 <body>
@@ -93,7 +97,7 @@ code, .fs-smaller { font-size: 0.95rem;}
     }
 </section>
 
-<!-- ░ Table of contents ░ -->
+<!--  Table of contents  -->
 <section class="avoid-break" style="page-break-after:always;">
     <h2>Contents</h2>
     <ol class="toc" style="padding-left:1.1rem;">
@@ -175,10 +179,9 @@ code, .fs-smaller { font-size: 0.95rem;}
         <ul style="list-style:none;padding:0;">
             @foreach (var p in Model.Places.Where(p => p.RegionId == r.Id).OrderBy(p => p.DisplayOrder))
             {
-                var nr = @p.DisplayOrder;
                          <li id="p@p.Id" class="avoid-break" style="margin-bottom:.7rem;">
                     <p class="mb-1">
-                        <a href="https://www.google.com/search?q=@p.Name" class="unstyled-link fs-bigger" title="Search place with Google" target="_blank">@nr <strong>@p.Name</strong> </a><br />
+                        <a href="https://www.google.com/search?q=@p.Name" class="unstyled-link fs-bigger" title="Search place with Google" target="_blank"><strong>@p.Name</strong> </a><br />
                         <a href="https://www.google.com/maps?q=@p.Location.Y,@p.Location.X" class="unstyled-link" title="Open in Google Maps" target="_blank"> Lat: <code class="selectable">@p.Location.Y</code>  Lon: <code class="selectable">@p.Location.X</code></a>
                     </p>
                     @if (!string.IsNullOrWhiteSpace(Snap($"place_{p.Id}")))
@@ -204,6 +207,5 @@ code, .fs-smaller { font-size: 0.95rem;}
         }
     </section>
 }
-
 </body>
 </html>

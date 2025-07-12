@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Web;
 using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
@@ -219,7 +221,7 @@ namespace Wayfarer.Parsers
             {
                 if (r.Center == null) continue;
                 snap[$"region_{r.Id}"] = await _snap.CaptureMapAsync(
-                    BuildMapUrl(r.Center.Y, r.Center.X, 11, isPub, trip.Id),
+                    BuildMapUrl(r.Center.Y, r.Center.X, 10, isPub, trip.Id),
                     600, 600, cookie);
             }
 
@@ -228,7 +230,7 @@ namespace Wayfarer.Parsers
             {
                 if (p.Location == null) continue;
                 snap[$"place_{p.Id}"] = await _snap.CaptureMapAsync(
-                    BuildMapUrl(p.Location.Y, p.Location.X, 16, isPub, trip.Id),
+                    BuildMapUrl(p.Location.Y, p.Location.X, 15, isPub, trip.Id),
                     600, 600, cookie);
             }
 
@@ -270,6 +272,19 @@ namespace Wayfarer.Parsers
             var html = await _razor.RenderViewToStringAsync(
                 "~/Views/Trip/Print.cshtml", vm);
 
+            var baseUrl = $"{req.Scheme}://{req.Host}";
+            html = Regex.Replace(html,
+                "<img([^>]+?)src=[\"'](?<url>https?://[^\"']+)[\"']",
+                m => {
+                    var encoded = HttpUtility.UrlEncode(m.Groups["url"].Value);
+                    return m.Value.Replace(
+                        m.Groups["url"].Value,
+                        $"{baseUrl}/Public/ProxyImage?url={encoded}"  // ← now absolute
+                    );
+                },
+                RegexOptions.IgnoreCase);
+
+            
             // Puppeteer ➜ PDF
             await _browserFetcher.DownloadAsync(); // once, then cached
             await using var browser = await Puppeteer.LaunchAsync(

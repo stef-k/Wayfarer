@@ -66,7 +66,7 @@
 
             <div class="row">
                 <div class="col-12 mt-2">
-                    @Html.Raw(Model.Notes)
+                    @Html.LinkifyHtml(Model.Notes)
                 </div>
             </div>
 
@@ -122,12 +122,7 @@
                                 <span class="text-truncate d-inline-block" style="max-width: 80%;" title="@place.Name">
                                     @place.Name
                                 </span>
-                                @* @if (place.Location != null) *@
-                                @* {    *@
-                                @*     <span class="badge bg-light text-secondary fw-normal small"> *@
-                                @*         @(place.Location.Y.ToString("F5", CultureInfo.InvariantCulture)), @(place.Location.X.ToString("F5", CultureInfo.InvariantCulture)) *@
-                                @*     </span> *@
-                                @* } *@
+
                                 <div class="btn-group btn-group-sm ms-auto">
                                     <button type="button" class="btn btn-outline-primary btn-edit-place"
                                         data-place-id="@place.Id" data-region-id="@Model.Id" title="Edit place">
@@ -162,7 +157,7 @@
                                                 @if (!string.IsNullOrWhiteSpace(place.Notes))
                                                 {
                                                     <h6>Notes:</h6>
-                                                    @Html.Raw(place.Notes)
+                                                    @Html.LinkifyHtml(place.Notes)
                                                 }
                                             </div>
                                             <div class="modal-footer">

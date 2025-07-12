@@ -1,3 +1,4 @@
+@using Wayfarer.Util
 @model Wayfarer.Models.Region
 @{
     double? lat = Model.Center?.Y; // Y = latitude
@@ -67,7 +68,7 @@
                             <span class="flex-grow-1">@p.Name</span>
                             
                             <div class="d-none place-notes">
-                                @Html.Raw(p.Notes)
+                                @Html.LinkifyHtml(p.Notes)
                             </div>
                         </li>
                     </text>

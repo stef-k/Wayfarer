@@ -47,20 +47,44 @@ export const setupQuill = async (selector = '#notes', inputSelector = '#Notes', 
         }
     });
 
+    const proxyImages = root => {
+        root.querySelectorAll('img').forEach(img => {
+            // skip data: URIs, and skip any <img> that we've already proxied
+            if (img.src.startsWith('data:') || img.dataset.original) return;
+
+            // mark original URL, then swap to proxy
+            img.dataset.original = img.src;
+            img.src = `/Public/ProxyImage?url=${encodeURIComponent(img.dataset.original)}`;
+        });
+    };
+
     const getCleanedHtml = () => {
         const html = quill.root.innerHTML.trim();
         return html === '<p><br></p>' ? '' : html;
     };
 
+    // 6) whenever text changes, remove stray data-uris *and* re-proxy
     quill.on('text-change', () => {
         const editor = container.querySelector('.ql-editor');
-        editor?.querySelectorAll('img').forEach(img => {
+
+        // remove any data-uri embeds
+        editor.querySelectorAll('img').forEach(img => {
             if (img.src.startsWith('data:image')) img.remove();
         });
 
-        const hiddenInput = document.querySelector(inputSelector);
-        if (hiddenInput) hiddenInput.value = getCleanedHtml();
+        // only proxy new external images
+        proxyImages(editor);
+
+        // sync hidden input
+        document.querySelector(inputSelector).value = getCleanedHtml();
     });
+
+    // 7) paste initial HTML + then proxy any images in it
+    if (container.dataset.notesContent) {
+        quill.root.innerHTML = container.dataset.notesContent;
+        proxyImages(quill.root);
+        document.querySelector(inputSelector).value = getCleanedHtml();
+    }
 
     const toolbar = quill.getModule('toolbar');
     const clearText = document.createElement('span');
@@ -132,13 +156,8 @@ export const setupQuill = async (selector = '#notes', inputSelector = '#Notes', 
         imageModal.dataset.bound = 'true';
     }
 
-    if (container.dataset.notesContent) {
-        quill.root.innerHTML = container.dataset.notesContent;
-    }
-
     document.querySelector(formSelector)?.addEventListener('submit', () => {
-        const hiddenInput = document.querySelector(inputSelector);
-        if (hiddenInput) hiddenInput.value = getCleanedHtml();
+        document.querySelector(inputSelector).value = getCleanedHtml();
     });
 };
 
