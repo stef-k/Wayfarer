@@ -7,6 +7,7 @@ using PuppeteerSharp;
 using PuppeteerSharp.Media;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using static Wayfarer.Parsers.KmlMappings;
 
 namespace Wayfarer.Parsers
 {
@@ -49,7 +50,11 @@ namespace Wayfarer.Parsers
             return TripWayfarerKmlExporter.BuildKml(trip);
         }
 
-        /* ---------- My Maps exporter ----------------------------------------- */
+        /// <summary>
+        /// My Maps exporter 
+        /// </summary>
+        /// <param name="tripId"></param>
+        /// <returns></returns>
         public string GenerateGoogleMyMapsKml(Guid tripId)
         {
             var trip = _db.Trips
@@ -67,20 +72,40 @@ namespace Wayfarer.Parsers
                 new XElement(k + "name", trip.Name));
 
             /* 1 ── basic icon + line styles ------------------------------------- */
-            doc.Add(
-                new XElement(k + "Style",
-                    new XAttribute("id", "wf-icon"),
-                    new XElement(k + "IconStyle",
-                        new XElement(k + "scale", 1.2),
-                        new XElement(k + "Icon",
-                            new XElement(k + "href",
-                                "http://maps.google.com/mapfiles/kml/paddle/red-circle.png")))),
-                new XElement(k + "Style",
-                    new XAttribute("id", "wf-line"),
-                    new XElement(k + "LineStyle",
-                        new XElement(k + "color", "ff0000ff"), // AABBGGRR
-                        new XElement(k + "width", 4)))
-            );
+            var iconStyles = trip.Regions
+                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+                .Select(p => (p.IconName, p.MarkerColor))
+                .Distinct()
+                .Select(ic =>
+                {
+                    IconMapping.TryGetValue(ic.IconName, out var shape);
+                    shape ??= "placemark_circle";
+
+                    ColorMapping.TryGetValue(ic.MarkerColor, out var clr);
+                    clr ??= "ff000000";
+
+                    var href = $"http://maps.google.com/mapfiles/kml/shapes/{shape}.png";
+                    return new XElement(k + "Style",
+                        new XAttribute("id", $"wf_{ic.IconName}_{ic.MarkerColor}"),
+                        new XElement(k + "IconStyle",
+                            new XElement(k +"color", clr),
+                            new XElement(k + "scale", 1.2),
+                            new XElement(k + "Icon",
+                                new XElement(k + "href", href)
+                            )
+                        )
+                    );
+                });
+
+            // one shared line-style
+            var lineStyle = new XElement(k + "Style",
+                new XAttribute("id", "wf-line"),
+                new XElement(k + "LineStyle",
+                    new XElement(k + "color", "ff0000ff"),
+                    new XElement(k + "width", 4)));
+
+            doc.Add(iconStyles);
+            doc.Add(lineStyle);
 
             /* 2 ── Regions → Folders ------------------------------------------- */
             foreach (var (reg, idx) in trip.Regions
@@ -163,7 +188,12 @@ namespace Wayfarer.Parsers
                 kml).ToString();
         }
 
-        /* ---------------------------------------------------------------- PDF */
+        /// <summary>
+        /// PDF Exporter
+        /// </summary>
+        /// <param name="tripId"></param>
+        /// <returns></returns>
+        /// <exception cref="KeyNotFoundException"></exception>
         public async Task<Stream> GeneratePdfGuideAsync(Guid tripId)
         {
             /* 1 ── load trip + related data ------------------------------------ */
@@ -275,16 +305,17 @@ namespace Wayfarer.Parsers
             var baseUrl = $"{req.Scheme}://{req.Host}";
             html = Regex.Replace(html,
                 "<img([^>]+?)src=[\"'](?<url>https?://[^\"']+)[\"']",
-                m => {
+                m =>
+                {
                     var encoded = HttpUtility.UrlEncode(m.Groups["url"].Value);
                     return m.Value.Replace(
                         m.Groups["url"].Value,
-                        $"{baseUrl}/Public/ProxyImage?url={encoded}"  // ← now absolute
+                        $"{baseUrl}/Public/ProxyImage?url={encoded}" // ← now absolute
                     );
                 },
                 RegexOptions.IgnoreCase);
 
-            
+
             // Puppeteer ➜ PDF
             await _browserFetcher.DownloadAsync(); // once, then cached
             await using var browser = await Puppeteer.LaunchAsync(
