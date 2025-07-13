@@ -1,0 +1,208 @@
+@using Wayfarer.Util
+@model Wayfarer.Models.Trip
+@{
+    ViewData["LoadLeaflet"] = true;
+    Layout = "_Layout";
+    bool owner = ViewBag.IsOwner as bool? ?? false;
+    bool hideSidebar = ViewContext.HttpContext.Request.Query["print"] == "1";
+    /* full-height flex container instead of .container */
+    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0";
+    ViewBag.Title = Model.Name;
+}
+
+<!-- wrapper that stretches between navbar & footer -->
+<div id="trip-view"
+     class="position-relative flex-grow-1"
+     data-trip-lat="@Model.CenterLat"
+     data-trip-lon="@Model.CenterLon"
+     data-trip-zoom="@Model.Zoom">
+
+    @if (hideSidebar)
+    {
+        <style>
+            #sidebar-primary,
+            #sidebar-secondary {
+                display: none !important;
+            }
+        </style>
+    }
+
+    <!-- MAP (always full width) -->
+    <main class="h-100">
+        <div id="mapContainer" class="h-100 w-100"></div>
+    </main>
+
+    <!-- SIDEBAR – trip legend -->
+    <aside id="sidebar-primary"
+           class="position-absolute top-0 start-0 h-100 border-end overflow-auto text-bg-light " data-collapsed="false">
+
+        <!-- fixed header with collapse-handle + trip title + optional Edit -->
+        <!-- ─── Trip legend header ─── -->
+        <header class="border-bottom text-bg-light  p-0">
+
+            @* Responsive cover (shows only when URL present) *@
+            @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
+            {
+                <div class="ratio ratio-21x9">        @* ultrawide banner *@
+                    <img src="@Model.CoverImageUrl"
+                         class="img-fluid object-fit-cover w-100 h-100"
+                         alt="Cover for @Model.Name"/>
+                </div>
+            }
+
+            @* Title + controls in one row *@
+            <div class="px-2 py-2">
+                <div class="d-flex align-items-center justify-content-between">
+
+                    <!-- Trip title -->
+                    <h5 class="mb-0 text-truncate" title="@Model.Name">
+                        @Model.Name
+                    </h5>
+
+                    <!-- Right-side buttons -->
+                    <div class="btn-group" role="group" aria-label="Map controls & actions">
+
+                        <!-- 3) “More” dropdown with Edit + exports -->
+                        <div class="btn-group" role="group">
+                            <button id="btn-more-actions"
+                                    type="button"
+                                    class="btn btn-outline-primary btn-sm dropdown-toggle"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    title="More actions">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btn-more-actions">
+                                @if ((bool)(ViewBag.IsOwner ?? false))
+                                {
+                                    <li>
+                                        <a class="dropdown-item"
+                                           asp-area="User"
+                                           asp-controller="Trip"
+                                           asp-action="Edit"
+                                           asp-route-id="@Model.Id"
+                                           title="Edit Trip"
+                                           target="_blank">
+                                            <i class="bi bi-pencil-square me-1"></i>Edit
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider"/>
+                                    </li>
+                                }
+                                <li>
+                                <li>
+                                    <a id="export-wayfarer"
+                                       class="dropdown-item"
+                                       asp-area=""
+                                       asp-controller="TripExport"
+                                       asp-action="ExportWayfarerKml"
+                                       asp-route-id="@Model.Id"
+                                       title="Export Trip to Wayfarer KML">
+                                        <i class="bi bi-filetype-xml me-1"></i>Wayfarer KML
+                                    </a>
+                                </li>
+                                <li>
+                                    <a id="export-mymaps"
+                                       class="dropdown-item"
+                                       asp-area=""
+                                       asp-controller="TripExport"
+                                       asp-action="ExportGoogleMyMapsKml"
+                                       asp-route-id="@Model.Id"
+                                       title="Export Trip to Google My Maps KML">
+                                        <i class="bi bi-map me-1"></i>Google My Maps KML
+                                    </a>
+                                </li>
+                                <li>
+                                    <a id="export-pdf"
+                                       class="dropdown-item"
+                                       asp-area=""
+                                       asp-controller="TripExport"
+                                       asp-action="ExportPdf"
+                                       asp-route-id="@Model.Id"
+                                       title="Export Trip to PDF guide" target="_blank">
+                                        <i class="bi bi-filetype-pdf me-1"></i>Export PDF
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- 2) Recenter map -->
+                        <button id="btn-trip-center"
+                                type="button"
+                                class="btn btn-outline-dark btn-sm"
+                                title="Recenter the map">
+                            <i class="bi bi-crosshair"></i>
+                        </button>
+
+                        <!-- 1) Collapse legend -->
+                        <button id="btn-collapse-sidebar"
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                title="Hide legend">
+                            <i class="bi bi-layout-sidebar-inset-reverse"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Trip meta: updated + notes (scroll-safe) -->
+        <section class="trip-meta border-bottom">
+
+            <dl class="row small px-3 pt-2 mb-1">
+                <dt class="col-5 text-muted">Last updated at:</dt>
+                <dd class="col-7">
+                    @Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")
+                </dd>
+            </dl>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Notes))
+            {
+                <div class="trip-notes px-3 pb-2">
+                    @Html.LinkifyHtml(Model.Notes)
+                </div>
+            }
+        </section>
+
+        <!-- regions accordion -->
+        <div id="regions-accordion" class="accordion accordion-flush ">
+            @if (@Model.Regions.Where(r => r.Name == "Unassigned Places").FirstOrDefault().Places.Any())
+            {
+                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", @Model.Regions.Where(r => r.Name == "Unassigned Places").FirstOrDefault())
+            }
+            @foreach (var r in Model.Regions.Where(r => r.Name != "Unassigned Places").OrderBy(r => r.DisplayOrder))
+            {
+                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r)
+            }
+        </div>
+
+
+        <!-- segments list -->
+        @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentReadonlyList.cshtml", Model)
+    </aside>
+
+
+    <!-- Details overlay (unchanged) -->
+    <aside id="sidebar-secondary"
+           class="position-absolute top-0 start-0 h-100 bg-white border-end overflow-auto"
+           style="z-index:1055"></aside>
+</div>
+
+<!-- Generating-file overlay -->
+<div class="modal fade" id="exportWait" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-body d-flex align-items-center gap-2">
+                <span class="spinner-border text-primary"></span>
+                <strong>Generating file…</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<iframe id="exportFrame" style="display:none"></iframe>
+
+@section Scripts {
+    <script type="module" src="~/js/tripViewer.js"></script>
+}

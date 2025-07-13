@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace Wayfarer.Services
+namespace Wayfarer.Parsers
 {
     using System.Collections.Generic;
     using System.Text.Json.Serialization;

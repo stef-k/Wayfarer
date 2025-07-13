@@ -1,0 +1,161 @@
+@model Wayfarer.Models.Segment
+
+@{
+    var places = ViewData["Places"] as List<Wayfarer.Models.Place> ?? new();
+    // Group places by region name, fallback to "Unknown"
+    var placesByRegion = places
+        .GroupBy(p => p.Region?.Name ?? "Unknown")
+        .OrderBy(g => g.Key);
+}
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="segment-form-errors alert alert-danger">
+        <ul class="mb-0">
+            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <li>@error.ErrorMessage</li>
+            }
+        </ul>
+    </div>
+}
+<li id="segment-item-@Model.Id"
+     class="accordion-item segment-list-item list-group-item p-0"
+     data-segment-id="@Model.Id"
+     data-segment-name="@Model.Mode">
+    
+    <div class="accordion-header">
+        <div class="d-flex justify-content-between align-items-center p-2">
+            <div>
+                <i class="bi bi-grip-vertical drag-handle me-2"></i>
+                <strong>@(Model.Mode ?? "New segment")</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-collapse show">
+        <div class="accordion-body">
+
+            <form class="p-2 border rounded mb-2 bg-light-subtle" id="segment-form-@Model.Id">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Id" />
+                <input type="hidden" asp-for="TripId" />
+                <input type="hidden" asp-for="DisplayOrder" />
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label for="FromPlaceId" class="form-label">From</label>
+                        <select name="FromPlaceId" id="FromPlaceId" class="form-select">
+                            <option value="">-- Choose --</option>
+                            @foreach (var region in placesByRegion) {
+                                <optgroup label="@region.Key">
+                                    @foreach (var place in region.OrderBy(p => p.Name)) {
+                                        var lat = place.Location?.Y ?? 0;
+                                        var lon = place.Location?.X ?? 0;
+                                        var selectedAttr = place.Id == Model.FromPlaceId ? "selected" : "";
+                                        @: <option value="@place.Id" data-lat="@lat" data-lon="@lon" @selectedAttr>@place.Name</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="ToPlaceId" class="form-label">To</label>
+                        <select name="ToPlaceId" id="ToPlaceId" class="form-select">
+                            <option value="">-- Choose --</option>
+                            @foreach (var region in placesByRegion) {
+                                <optgroup label="@region.Key">
+                                    @foreach (var place in region.OrderBy(p => p.Name)) {
+                                        var lat = place.Location?.Y ?? 0;
+                                        var lon = place.Location?.X ?? 0;
+                                        var selectedAttr = place.Id == Model.ToPlaceId ? "selected" : "";
+                                        @: <option value="@place.Id" data-lat="@lat" data-lon="@lon" @selectedAttr>@place.Name</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <select asp-for="Mode" class="form-select my-2" data-selected="@Model.Mode">
+                    <option value="">-- Select transport mode --</option>
+
+                    <optgroup label="Land">
+                        <option value="walk">🚶 Walk</option>
+                        <option value="bicycle">🚴 Bicycle</option>
+                        <option value="bike">🏍️ Bike (Motorbike)</option>
+                        <option value="car">🚗 Car</option>
+                        <option value="bus">🚌 Bus</option>
+                        <option value="train">🚆 Train</option>
+                    </optgroup>
+
+                    <optgroup label="Sea">
+                        <option value="ferry">⛴️ Ferry</option>
+                        <option value="boat">🚤 Boat</option>
+                    </optgroup>
+
+                    <optgroup label="Air">
+                        <option value="flight">✈️ Flight</option>
+                        <option value="helicopter">🚁 Helicopter</option>
+                    </optgroup>
+                </select>
+
+                <span class="invalid-feedback" asp-validation-for="Mode"></span>
+
+                <div class="row mt-2 g-2">
+                    <div class="col-md-6">
+                        <label asp-for="EstimatedDuration" class="form-label">Duration (minutes)</label>
+                        <input type="number" name="EstimatedDurationMinutes" min="0" step="1" class="form-control" value="@(Model.EstimatedDuration?.TotalMinutes.ToString("F0") ?? "")" />
+                        <span class="invalid-feedback" asp-validation-for="EstimatedDuration"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="EstimatedDistanceKm" class="form-label">Distance (km)</label>
+                        <input type="number" asp-for="EstimatedDistanceKm" min="0" step="0.1" class="form-control" />
+                        <span class="invalid-feedback" asp-validation-for="EstimatedDistanceKm"></span>
+                    </div>
+                </div>
+
+                <div class="mt-2">
+                    <label asp-for="Notes" class="form-label">Notes</label>
+                    <div id="segment-notes-@Model.Id" data-notes-content="@Model.Notes" class="quill-notes-box"></div>
+                    <input type="hidden" asp-for="Notes" id="Notes-@Model.Id" />
+                    <span class="invalid-feedback" asp-validation-for="Notes"></span>
+                </div>
+
+
+                <div class="mt-2 d-none">
+                    <input type="hidden"
+                           name="RouteJson"
+                           class="route-json"
+                           value='@((string?)ViewData["RouteJson"] ?? "")' />
+                    <label asp-for="RouteGeometry" class="form-label">Route (WKT)</label>
+                    <input asp-for="RouteGeometry" class="form-control"/>
+                    <span class="invalid-feedback" asp-validation-for="RouteGeometry"></span>
+                </div>
+                
+                <div class="mt-3 d-flex justify-content-end gap-1">
+                    <button type="button"
+                            class="btn btn-sm btn-secondary btn-segment-cancel"
+                            data-segment-id="@Model.Id"
+                            data-trip-id="@Model.TripId">
+                        Cancel
+                    </button>
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm btn-draw-route"
+                            title="Edit Route on Map"
+                            data-segment-id="@Model.Id">
+                        Edit Route on map
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm btn-primary btn-segment-save"
+                            data-segment-id="@Model.Id"
+                            title="Save Segment"
+                            data-trip-id="@Model.TripId">
+                        Save
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</li>

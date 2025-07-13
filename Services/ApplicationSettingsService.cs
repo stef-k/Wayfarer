@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Wayfarer.Models;
 
-namespace Wayfarer.Services
+namespace Wayfarer.Parsers
 {
     public interface IApplicationSettingsService
     {

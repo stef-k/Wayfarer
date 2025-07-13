@@ -1,0 +1,85 @@
+@model Wayfarer.Models.Region
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="region-form-errors" data-errors="true">
+        <ul class="text-danger small mb-2">
+            @foreach (var entry in ViewData.ModelState.Values)
+            {
+                foreach (var error in entry.Errors)
+                {
+                    <li>@error.ErrorMessage</li>
+                }
+            }
+        </ul>
+    </div>
+}
+
+<form id="region-form-@Model.Id"
+      data-region-name="@Model.Name"
+      class="accordion-item p-3 border rounded mb-2">
+    @Html.AntiForgeryToken()
+
+    <input type="hidden" asp-for="Id" />
+    <input type="hidden" asp-for="TripId" />
+    <input type="hidden" asp-for="UserId" />
+    <input type="hidden" name="CenterLat"  value="@Model.Center?.Y" />
+    <input type="hidden" name="CenterLon"  value="@Model.Center?.X" />
+    
+    <h5>Region</h5>
+
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+    <div class="mb-2">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    
+    <div class="row g-2 mb-2 small text-muted">
+        <div class="col">
+            <label class="form-label mb-0">Center Lat</label>
+            <input type="text" class="form-control-plaintext ps-0" readonly
+                   name="CenterLat_display"
+                   value="@Model.Center?.Y.ToString("F6")" />
+        </div>
+        <div class="col">
+            <label class="form-label mb-0">Center Lon</label>
+            <input type="text" class="form-control-plaintext ps-0" readonly
+                   name="CenterLon_display"
+                   value="@Model.Center?.X.ToString("F6")" />
+        </div>
+    </div>
+    
+    <div class="mb-2">
+        <label class="form-label" for="Notes">Notes</label>
+        <div id="region-notes-@Model.Id" data-notes-content="@Model.Notes" class="quill-notes-box"></div>
+        <input type="hidden" name="Notes" id="Notes-@Model.Id" value="@Model.Notes" />
+        <small class="text-muted">
+            You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
+        </small>
+    </div>
+    
+    <div class="mb-2">
+        <label class="form-label" for="CoverImageUrl">Region's Cover Image URL</label>
+        <input type="url" class="form-control form-control-sm" name="CoverImageUrl" id="CoverImageUrl"
+               placeholder="https://…" value="@Model.CoverImageUrl" title="Paste a URL of an image/photo for this Region" />
+        @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
+        {
+            <div class="mt-2">
+                <a href="@Model.CoverImageUrl" target="_blank" rel="noopener noreferrer" title="Open full image in new tab">
+                    <img src="@Model.CoverImageUrl"
+                         class="img-fluid rounded shadow-sm"
+                         alt="Region Cover Preview"
+                         style="max-height: 150px;" />
+                </a>
+            </div>
+        }
+    </div>
+    
+    <div class="d-flex justify-content-end mt-2 gap-2">
+        <button type="button" class="btn btn-sm btn-secondary btn-region-cancel" data-region-id="@Model.Id">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary btn-region-save" data-region-id="@Model.Id">Save Region</button>
+    </div>
+</form>

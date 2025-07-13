@@ -1,0 +1,132 @@
+@using System.Globalization
+@model Wayfarer.Models.Place
+
+<form id="place-form-@Model.Id"
+      data-place-id="@Model.Id"
+      data-old-lat="@Model.Location?.Y.ToString(CultureInfo.InvariantCulture)"
+      data-old-lon="@Model.Location?.X.ToString(CultureInfo.InvariantCulture)">
+    @Html.AntiForgeryToken()
+    <div class="px-2 py-1">
+        <input type="hidden" asp-for="Id"/>
+        <input type="hidden" asp-for="RegionId" data-original="@Model.RegionId" />
+        <input type="hidden" name="Latitude"
+               value="@Model.Location?.Y.ToString(CultureInfo.InvariantCulture)" />
+        <input type="hidden" name="Longitude"
+               value="@Model.Location?.X.ToString(CultureInfo.InvariantCulture)" />
+        
+
+
+        <h5>Place Details</h5>
+
+        @if (ViewData["AllRegions"] is List<Wayfarer.Models.Region> allRegions && allRegions.Count > 1)
+        {
+            <div class="mb-3">
+                <label class="form-label small">Region</label>
+                <select name="RegionIdOverride" class="form-select form-select-sm">
+                    @foreach (var r in allRegions)
+                    {
+                        <option value="@r.Id" selected="@(Model.RegionId == r.Id)">
+                            @r.Name
+                        </option>
+                    }
+                </select>
+                <small class="text-muted">Changing this will move the place to another region.</small>
+            </div>
+        }
+        
+        <div class="mb-3">
+            <label asp-for="Name" class="form-label">Place Name</label>
+            <input asp-for="Name" class="form-control"/>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="Notes" class="form-label">Description</label>
+            <div id="place-notes-@Model.Id" data-notes-content="@Model.Notes" class="quill-notes-box"></div>
+            <input type="hidden" name="Notes" id="Notes-@Model.Id" value="@Model.Notes" />
+            <small class="text-muted">
+                You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
+            </small>
+        </div>
+
+
+        <div class="row g-2">
+            <div class="col-6">
+                <label class="form-label">Marker Icon</label>
+                <div class="dropdown w-100">
+                    <button
+                        class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex align-items-center justify-content-between"
+                        type="button"
+                        id="iconDropdown-@Model.Id"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                        <span class="selected-icon-label">Select an icon</span>
+                    </button>
+                    <ul class="dropdown-menu icon-dropdown-menu w-100"
+                        data-target-input="icon-input-@Model.Id"
+                        aria-labelledby="iconDropdown-@Model.Id">
+                        <li><span class="dropdown-item disabled">Loading...</span></li>
+                    </ul>
+                    <input type="hidden" name="IconName" id="icon-input-@Model.Id" value="@Model.IconName"/>
+                </div>
+            </div>
+
+            <div class="col-6">
+                <label class="form-label">Marker Color</label>
+                <div class="dropdown w-100">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start color-selector"
+                            type="button"
+                            id="colorDropdown-@Model.Id"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <span class="color-preview bg-@Model.MarkerColor"></span>
+                        @Model.MarkerColor
+                    </button>
+                    <ul class="dropdown-menu w-100 color-dropdown-menu"
+                        data-target-input="color-input-@Model.Id"
+                        aria-labelledby="colorDropdown-@Model.Id">
+                        <li><span class="dropdown-item disabled">Loading…</span></li>
+                    </ul>
+                    <input type="hidden" name="MarkerColor" id="color-input-@Model.Id" value="@Model.MarkerColor"/>
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="row g-2 mb-2 small text-muted">
+            <div class="col">
+                <label class="form-label mb-0">Lat</label>
+                <input type="text" class="form-control-plaintext ps-0" readonly
+                       name="Latitude_display"
+                       title="Use the map, search bar or coordinates inputs to set the coordinates"
+                       value="@(Model.Location?.Y.ToString("F6", CultureInfo.InvariantCulture) ?? "")" />
+            </div>
+            <div class="col">
+                <label class="form-label mb-0">Lon</label>
+                <input type="text" class="form-control-plaintext ps-0" readonly
+                       name="Longitude_display"
+                       title="Use the map, search bar or coordinates inputs to set the coordinates"
+                       value="@(Model.Location?.X.ToString("F6", CultureInfo.InvariantCulture) ?? "")" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="Address" class="form-label">Address</label>
+            <input asp-for="Address" class="form-control form-control-sm"/>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm btn-place-cancel"
+                    data-place-id="@Model.Id"
+                    data-region-id="@Model.RegionId">
+                Cancel
+            </button>
+            <button type="button"
+                    class="btn btn-primary btn-sm btn-place-save"
+                    data-place-id="@Model.Id"
+                    data-region-id="@Model.RegionId">
+                Save Place
+            </button>
+        </div>
+    </div>
+</form>

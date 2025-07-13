@@ -2,8 +2,6 @@
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;
-let maxClusterRadius = 50;
-let markerClusterGroup = null;
 let markerLayer, clusterLayer;
 let stream;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;

@@ -1,0 +1,102 @@
+@model List<Wayfarer.Models.Trip>
+
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="d-flex gap-2 mb-3">
+    <a asp-area="User" asp-controller="Trip" asp-action="Create"
+       class="btn btn-primary" title="Create a new Trip">
+        <i class="bi bi-plus-lg me-1"></i> Create New Trip
+    </a>
+    
+    <label class="btn btn-outline-secondary mb-0" title="Import a Trip from a Wayfarer extended KML file (*.kml)">
+        <i class="bi bi-upload me-1" ></i> Import Trip&nbsp; 
+        <input type="file"
+               id="importFile"
+               accept=".kml"
+               class="d-none">
+    </label>
+    
+    <label class="btn btn-outline-secondary mb-0" title="Import a Google My Maps KML">
+        <i class="bi bi-upload me-1"></i> Import My Maps
+        <input type="file" id="importFileMyMaps" accept=".kml" class="d-none">
+    </label>
+</div>
+
+@if (!Model.Any())
+{
+    <p>You don't have any trips yet.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover">
+            <thead>
+            <tr>
+                <th class="w-auto">Name</th>
+                <th class="w-auto">Notes</th>
+                <th>Public</th>
+                <th class="w-25">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var trip in Model)
+            {
+                <tr>
+                    <td>@trip.Name</td>
+                    <td>@Html.Raw(trip.Notes)</td>
+                    <td>@(trip.IsPublic ? "Yes" : "No")</td>
+                    <td>
+                        <a asp-area="User" asp-controller="Trip" asp-action="View" title="View/Export Trip" asp-route-id="@trip.Id"
+                           class="btn btn-sm btn-primary">View</a>
+                        <a asp-area="User" asp-controller="Trip" asp-action="Edit" title="Edit Trip"  asp-route-id="@trip.Id"
+                           class="btn btn-sm btn-secondary">Edit</a>
+                        <form id="delete-form-@trip.Id"
+                              asp-action="Delete"
+                              method="post"
+                              class="d-none">
+                            <input type="hidden" name="id" value="@trip.Id"/>
+                        </form>
+
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger btn-trip-delete"
+                                data-trip-id="@trip.Id"
+                                title="Delete Trip">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- ▼ NEW duplicate / upsert modal -->
+<div class="modal fade" id="dupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title">Trip already exists</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                A trip with the same ID is already in your account.
+                <br/>What would you like to do?
+            </div>
+            <div class="modal-footer">
+                <button id="btnUpdate" class="btn btn-primary">
+                    <i class="bi bi-arrow-repeat me-1"></i> Update existing
+                </button>
+                <button id="btnCopy" class="btn btn-outline-secondary">
+                    <i class="bi bi-files me-1"></i> Create copy
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts
+{
+    <script src="~/js/Areas/User/Trip/trips.js" asp-append-version="true"></script>
+}

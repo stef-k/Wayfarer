@@ -35,7 +35,7 @@ namespace Wayfarer.Models.ViewModels
         public bool ClearNotes { get; set; }
 
         // The new HTML content from Quill
-        public string NotesHtml { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
 
         // Used to populate the dropdowns
         public List<SelectListItem> Countries { get; set; } = new();

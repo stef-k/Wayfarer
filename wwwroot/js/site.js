@@ -1,4 +1,5 @@
-﻿// Make sure the function is globally available
+﻿window.wayfarer = window.wayfarer || {};
+
 function hideAlert() {
     let alertBox = document.getElementById("alertBox");
     if (alertBox) {
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeIcon = document.getElementById('themeIcon');
     const body = document.body;
     const navbar = document.getElementById('mainNavbar');
+    const footer = document.querySelector('footer');
 
     // Function to set theme
     const setTheme = (theme) => {
@@ -72,12 +74,14 @@ document.addEventListener('DOMContentLoaded', () => {
             themeIcon.classList.add('bi-moon');
             navbar.classList.add('navbar-dark', 'bg-dark');
             navbar.classList.remove('navbar-light', 'bg-white');
+            footer.setAttribute('data-bs-theme', 'dark');
         } else {
             body.setAttribute('data-bs-theme', 'light');
             themeIcon.classList.remove('bi-moon');
             themeIcon.classList.add('bi-sun');
             navbar.classList.add('navbar-light', 'bg-white');
             navbar.classList.remove('navbar-dark', 'bg-dark');
+            footer.setAttribute('data-bs-theme', 'light');
         }
 
         // Persist theme in localStorage
@@ -111,3 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setTheme(currentTheme);
     });
 });
+
+window.showConfirmationModal = showConfirmationModal;
+wayfarer.showConfirmationModal = showConfirmationModal;
+window.showAlert = showAlert;
+wayfarer.showAlert = showAlert;
+window.hideAlert = hideAlert;
+wayfarer.hideAlert = hideAlert;

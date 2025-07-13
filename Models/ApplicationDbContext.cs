@@ -24,12 +24,21 @@ namespace Wayfarer.Models
         public DbSet<JobHistory> JobHistories { get; set; }
         public DbSet<ActivityType> ActivityTypes { get; set; }
         public DbSet<ApplicationSettings> ApplicationSettings { get; set; }
-        
+
         public DbSet<TileCacheMetadata> TileCacheMetadata { get; set; }
-        
+
         public DbSet<LocationImport> LocationImports { get; set; }
-        
+
         public DbSet<HiddenArea> HiddenAreas { get; set; }
+
+        // Trip-planning DbSets
+        public DbSet<Trip> Trips { get; set; }
+        public DbSet<Region> Regions { get; set; }
+        public DbSet<Place> Places { get; set; }
+        public DbSet<Segment> Segments { get; set; }
+
+        public DbSet<Area> Areas { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -37,21 +46,22 @@ namespace Wayfarer.Models
             // Configure the Location entity to use PostGIS Point type for Coordinates
             builder.Entity<Location>()
                 .Property(l => l.Coordinates)
-                .HasColumnType("geography(Point, 4326)");  // Define the column as PostGIS geography type (SRID 4326 is WGS84)
+                .HasColumnType(
+                    "geography(Point, 4326)"); // Define the column as PostGIS geography type (SRID 4326 is WGS84)
 
             // Set Cascade Delete for the optional relationship between Location and Vehicle
             builder.Entity<Location>()
-                .HasOne(l => l.Vehicle)  // Specify the related entity
-                .WithMany(v => v.Locations)  // Specify the navigation property on Vehicle
-                .HasForeignKey(l => l.VehicleId)  // Specify the foreign key in the Location table
-                .OnDelete(DeleteBehavior.Cascade);  // Cascade delete when a Vehicle is deleted
+                .HasOne(l => l.Vehicle) // Specify the related entity
+                .WithMany(v => v.Locations) // Specify the navigation property on Vehicle
+                .HasForeignKey(l => l.VehicleId) // Specify the foreign key in the Location table
+                .OnDelete(DeleteBehavior.Cascade); // Cascade delete when a Vehicle is deleted
 
             // Add index on Location Coordinates for faster spatial queries (if frequently queried)
             builder.Entity<Location>()
-                .HasIndex(l => l.Coordinates)  // Create an index on the Coordinates column
+                .HasIndex(l => l.Coordinates) // Create an index on the Coordinates column
                 .HasMethod("GIST") // 👈 this forces GiST for faster Gis spatial queries
                 .HasDatabaseName("IX_Location_Coordinates");
-            
+
             // Configure the Vehicle entity to use JSONB for Passengers field
             builder.Entity<Vehicle>()
                 .Property(v => v.Passengers)
@@ -81,10 +91,10 @@ namespace Wayfarer.Models
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)
                 .IsRequired();
-            
+
             builder.Entity<ApiToken>()
                 .Property(at => at.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");  // PostgreSQL will set the current timestamp by default
+                .HasDefaultValueSql("CURRENT_TIMESTAMP"); // PostgreSQL will set the current timestamp by default
 
             // Define a unique constraint on Name and UserId
             builder.Entity<ApiToken>()
@@ -96,7 +106,7 @@ namespace Wayfarer.Models
                 .HasMany(u => u.ApiTokens)
                 .WithOne(at => at.User)
                 .HasForeignKey(at => at.UserId)
-                .OnDelete(DeleteBehavior.Cascade);  // Cascade delete when a User is deleted
+                .OnDelete(DeleteBehavior.Cascade); // Cascade delete when a User is deleted
 
             builder.Entity<ApplicationUser>()
                 .HasIndex(u => u.UserName)
@@ -104,8 +114,8 @@ namespace Wayfarer.Models
 
             builder.Entity<ApplicationUser>()
                 .Property(u => u.IsActive)
-                .HasDefaultValue(true);  // Default value for IsActive is true
-            
+                .HasDefaultValue(true); // Default value for IsActive is true
+
             // ApplicationUser x Location setup
             builder.Entity<ApplicationUser>()
                 .HasMany(u => u.Locations)
@@ -116,22 +126,23 @@ namespace Wayfarer.Models
             // IsTimelinePublic defaults to false!
             builder.Entity<ApplicationUser>()
                 .Property(u => u.IsTimelinePublic)
-                .HasDefaultValue(false);  // Specify the default value here
-            
+                .HasDefaultValue(false); // Specify the default value here
+
             // Tile Cache Metadata
             // EF to use the RowVersion in order to handle race conditions in code
             builder.Entity<TileCacheMetadata>(b =>
             {
                 b.Property(e => e.RowVersion)
-                    .HasColumnName("xmin")              // hidden pg column
-                    .IsRowVersion()                     // EF’s “use for concurrency” flag
-                    .ValueGeneratedOnAddOrUpdate();     // reload it after every update
+                    .HasColumnName("xmin") // hidden pg column
+                    .IsRowVersion() // EF’s “use for concurrency” flag
+                    .ValueGeneratedOnAddOrUpdate(); // reload it after every update
             });
-            
+
             builder.Entity<TileCacheMetadata>()
                 .Property(t => t.LastAccessed)
                 .IsRequired()
-                .HasDefaultValueSql("CURRENT_TIMESTAMP"); // Default value for LastAccessed (can be overridden when accessed)
+                .HasDefaultValueSql(
+                    "CURRENT_TIMESTAMP"); // Default value for LastAccessed (can be overridden when accessed)
 
             builder.Entity<TileCacheMetadata>()
                 .Property(t => t.Size)
@@ -145,27 +156,27 @@ namespace Wayfarer.Models
             builder.Entity<TileCacheMetadata>()
                 .HasIndex(t => t.TileLocation)
                 .HasMethod("GIST"); // This creates a spatial index (if you're using PostGIS)
-            
+
             // Application Settings
             builder.Entity<ApplicationSettings>()
                 .Property(x => x.IsRegistrationOpen)
                 .HasDefaultValue(false);
-            
+
             // Location Imports
             builder.Entity<LocationImport>()
                 .HasOne(li => li.User)
                 .WithMany(u => u.LocationImports)
                 .HasForeignKey(li => li.UserId)
-                .OnDelete(DeleteBehavior.Cascade); 
-            
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Store status as strings, eg: Pending, InProgress, etc
             builder.Entity<LocationImport>()
                 .Property(e => e.Status)
                 .HasConversion(
-                    v => v.Value,     // Convert to string when saving to DB
-                    v => new ImportStatus(v)  // Convert back from string when reading from DB
+                    v => v.Value, // Convert to string when saving to DB
+                    v => new ImportStatus(v) // Convert back from string when reading from DB
                 );
-            
+
             // For CreatedAt, set a default value of CURRENT_TIMESTAMP on creation
             builder.Entity<LocationImport>()
                 .Property(li => li.CreatedAt)
@@ -175,15 +186,83 @@ namespace Wayfarer.Models
             builder.Entity<LocationImport>()
                 .Property(li => li.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
-            
+
             builder.Entity<HiddenArea>()
                 .HasOne(h => h.User)
                 .WithMany(u => u.HiddenAreas) // <- You'll need this nav property on ApplicationUser
                 .HasForeignKey(h => h.UserId)
-                .OnDelete(DeleteBehavior.Cascade); 
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Trip planning setup
+            // Trip ↔ ApplicationUser (cascade on delete)
+            builder.Entity<Trip>()
+                .HasOne(t => t.User)
+                .WithMany(u => u.Trips)
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<Trip>()
+                .Property(t => t.UpdatedAt)
+                .IsRequired()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // Trip ↔ Region (cascade on delete)
+            builder.Entity<Trip>()
+                .HasMany(t => t.Regions)
+                .WithOne(r => r.Trip)
+                .HasForeignKey(r => r.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Trip ↔ Segment (cascade on delete)
+            builder.Entity<Trip>()
+                .HasMany(t => t.Segments)
+                .WithOne(s => s.Trip)
+                .HasForeignKey(s => s.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Region ↔ Place (cascade on delete)
+            builder.Entity<Region>()
+                .HasMany(r => r.Places)
+                .WithOne(p => p.Region)
+                .HasForeignKey(p => p.RegionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ensure geometry columns use PostGIS types
+            builder.Entity<Region>()
+                .Property(r => r.Center)
+                .HasColumnType("geography(Point,4326)");
+
+            builder.Entity<Place>()
+                .Property(p => p.Location)
+                .HasColumnType("geography(Point,4326)");
+
+            builder.Entity<Segment>()
+                .Property(s => s.RouteGeometry)
+                .HasColumnType("geography(LineString,4326)");
+
+            // Segment → Place (origin)
+            builder.Entity<Segment>()
+                .HasOne(s => s.FromPlace)
+                .WithMany() // no back-reference needed
+                .HasForeignKey(s => s.FromPlaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Segment → Place (destination)
+            builder.Entity<Segment>()
+                .HasOne(s => s.ToPlace)
+                .WithMany()
+                .HasForeignKey(s => s.ToPlaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ensure when a Region is deleted, all its Areas go with it
+            builder.Entity<Area>()
+                .HasOne(a => a.Region)
+                .WithMany(r => r.Areas)
+                .HasForeignKey(a => a.RegionId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
-        
-        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             // Automatically set the UpdatedAt field before saving changes to the database
             foreach (var entry in ChangeTracker.Entries<LocationImport>())
@@ -200,7 +279,81 @@ namespace Wayfarer.Models
                 }
             }
 
-            return base.SaveChangesAsync(cancellationToken);
+            // Trip.UpdatedAt handling
+            var tripIdsToStamp = new HashSet<Guid>();
+
+            tripIdsToStamp.UnionWith(
+                ChangeTracker.Entries<Trip>()
+                    .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified)
+                    .Select(e => e.Entity.Id)
+            );
+
+            tripIdsToStamp.UnionWith(
+                ChangeTracker.Entries<Region>()
+                    .Where(e => e.State != EntityState.Unchanged)
+                    .Select(e => e.State == EntityState.Deleted
+                        ? e.OriginalValues.GetValue<Guid>(nameof(Region.TripId))
+                        : e.Entity.TripId)
+            );
+
+            tripIdsToStamp.UnionWith(
+                ChangeTracker.Entries<Place>()
+                    .Where(e => e.State != EntityState.Unchanged)
+                    .Select(e => e.State == EntityState.Deleted
+                        ? e.OriginalValues.GetValue<Guid>(nameof(Place.RegionId))
+                        : e.Entity.RegionId)
+                    .SelectMany(regionId => Regions
+                        .Where(r => r.Id == regionId)
+                        .Select(r => r.TripId))
+            );
+
+            tripIdsToStamp.UnionWith(
+                ChangeTracker.Entries<Segment>()
+                    .Where(e => e.State != EntityState.Unchanged)
+                    .Select(e => e.State == EntityState.Deleted
+                        ? e.OriginalValues.GetValue<Guid>(nameof(Segment.TripId))
+                        : e.Entity.TripId)
+            );
+
+            // added: include Areas in trip UpdatedAt stamping
+            tripIdsToStamp.UnionWith(
+                ChangeTracker.Entries<Area>() // track added/modified/deleted Areas
+                    .Where(e => e.State != EntityState.Unchanged)
+                    .Select(e => e.State == EntityState.Deleted
+                        // if deleted, get the old RegionId from the original values
+                        ? e.OriginalValues.GetValue<Guid>(nameof(Area.RegionId))
+                        // otherwise get the new RegionId
+                        : e.Entity.RegionId)
+                    // map each RegionId back to its TripId
+                    .SelectMany(regionId => Regions
+                        .Where(r => r.Id == regionId)
+                        .Select(r => r.TripId))
+            );
+
+            foreach (var tripId in tripIdsToStamp)
+            {
+                var entry = ChangeTracker.Entries<Trip>()
+                    .FirstOrDefault(e => e.Entity.Id == tripId);
+
+                if (entry != null)
+                {
+                    entry.Entity.UpdatedAt = DateTime.UtcNow;
+                    if (entry.State == EntityState.Unchanged)
+                        entry.State = EntityState.Modified;
+                }
+                else
+                {
+                    // unchanged – update trip timestamp anyway
+                    var trip = await Trips.FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken);
+                    if (trip != null)
+                    {
+                        trip.UpdatedAt = DateTime.UtcNow;
+                        Entry(trip).State = EntityState.Modified;
+                    }
+                }
+            }
+
+            return await base.SaveChangesAsync(cancellationToken);
         }
     }
 }

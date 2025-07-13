@@ -1,6 +1,6 @@
 using Wayfarer.Models;
 
-namespace Wayfarer.Services;
+namespace Wayfarer.Parsers;
 
 public interface IRegistrationService
 {

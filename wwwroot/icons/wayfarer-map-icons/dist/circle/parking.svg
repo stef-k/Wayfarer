@@ -1,0 +1,16 @@
+<svg xmlns='http://www.w3.org/2000/svg'
+             viewBox='-1 -1 26 35.5' class='map-icon' width='28' height='45'>
+  <g transform='translate(0,9.5)'>
+    <!-- coloured outer ring -->
+    <circle cx='12' cy='12' r='11'
+            class='map-icon-bg-outline' fill='none' stroke-width='3'/>
+    <!-- solid background disc -->
+    <circle cx='12' cy='12' r='11' class='map-icon-bg'/>
+    <!-- thin white keyline -->
+    <circle cx='12' cy='12' r='10'
+            fill='none' stroke='white' stroke-width='1.5'/>
+    <g class="map-icon-glyph" fill="currentColor" transform='translate(4.800000000000001 19.2) scale(0.015)'>
+    <path d="M240-120v-720h280q100 0 170 70t70 170q0 100-70 170t-170 70H400v240H240Zm160-400h128q33 0 56.5-23.5T608-600q0-33-23.5-56.5T528-680H400v160Z"/>
+  </g>
+  </g>
+</svg>

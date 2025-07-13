@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
@@ -122,8 +123,10 @@ static async Task HandlePasswordResetCommand(string[] args)
         .AddDefaultTokenProviders();
 
     ServiceProvider services = builder.Services.BuildServiceProvider();
+    
     UserManager<ApplicationUser> userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
+    builder.Services.AddHttpContextAccessor();
     ApplicationUser? user = await userManager.FindByNameAsync(username);
     if (user == null)
     {
@@ -341,8 +344,14 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Import Location Data service
     builder.Services.AddScoped<ILocationImportService, LocationImportService>();
 
-    // Add controllers with views for MVC routing
-    builder.Services.AddControllersWithViews();
+    // Add controllers with views for MVC routing & ingore JSON property-name case
+    builder.Services
+        .AddControllersWithViews()
+        .AddJsonOptions(o =>
+        {
+            o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
+        });
     
 
     // Add Swagger generation
@@ -401,7 +410,15 @@ static void ConfigureServices(WebApplicationBuilder builder)
     
     // User location stats service
     builder.Services.AddScoped<ILocationStatsService, LocationStatsService>();
-
+    
+    // Trip export service (PDF, KML, Google MyMaps KML)
+    builder.Services.AddScoped<ITripExportService, TripExportService>();
+    
+    builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
+    builder.Services.AddSingleton<MapSnapshotService>();
+    
+    // Trip import service
+    builder.Services.AddScoped<ITripImportService, TripImportService>();
 }
 
 // Method to configure middleware components such as error handling and performance monitoring

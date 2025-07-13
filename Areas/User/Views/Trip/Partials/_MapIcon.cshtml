@@ -1,0 +1,9 @@
+@model (string Icon, string Colour)
+
+@{
+    var icon = string.IsNullOrWhiteSpace(Model.Icon) ? "marker" : Model.Icon.Trim().ToLowerInvariant();
+    var colour = string.IsNullOrWhiteSpace(Model.Colour) ? "bg-blue" : Model.Colour.Trim();
+    var imgPath = $"/icons/wayfarer-map-icons/dist/png/marker/{colour}/{icon}.png";
+}
+
+<img src="@imgPath" class="map-icon me-1" width="24" height="41" alt="@icon" />

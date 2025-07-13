@@ -1,13 +1,16 @@
-﻿<!DOCTYPE html>
+﻿@{
+    bool embed = ViewBag.IsEmbed as bool? ?? false;
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="shortcut icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96"/>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+    <link rel="shortcut icon" href="/favicon.ico"/>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
+    <link rel="manifest" href="/site.webmanifest"/>
     <title>
         @if (ViewData["Title"] != null)
         {
@@ -19,29 +22,35 @@
         }
     </title>
     <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css"/>
     <link href="/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/icons/wayfarer-map-icons/dist/wayfarer-map-icons.css"
+          asp-append-version="true"/>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
+    <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true"/>
     @if (ViewData["LoadLeaflet"] as bool? == true)
     {
-        <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
-        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
-        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
-        <link rel="stylesheet" href="~/lib/leaflet/leaflet.draw.css" />
+        <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css"/>
+        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css"/>
+        <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css"/>
+        <link rel="stylesheet" href="~/lib/leaflet/leaflet.draw.css"/>
     }
     @if (ViewData["LoadQuill"] == null || (bool)ViewData["LoadQuill"])
     {
-        <link href="~/lib/quill/quill.snow-2.0.3.css" rel="stylesheet" />
+        <link href="~/lib/quill/quill.snow-2.0.3.css" rel="stylesheet"/>
     }
     @RenderSection("Styles", required: false)
 </head>
 <body data-bs-theme="light">
+@if (!embed)
+{
     <header>
         <nav id="mainNavbar" class="navbar navbar-expand-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container-fluid">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Wayfarer</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse"
+                        aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
@@ -54,36 +63,43 @@
                             <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
                         </li>
                     </ul>
-                    <partial name="_LoginPartial" />
+                    <partial name="_LoginPartial"/>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="@(ViewData["BodyClass"] as string ?? "container")">
-        @if (TempData["AlertMessage"] != null)
-        {
-            <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
-                @TempData["AlertMessage"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
-        <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
-            <span id="alertMessage">This is a placeholder message.</span>
-            <button type="button" class="btn-close" onclick="hideAlert()" aria-label="Close"></button>
+}
+<div class="@(ViewData["BodyClass"] as string ?? "container")">
+    @if (TempData["AlertMessage"] != null)
+    {
+        <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
+            @TempData["AlertMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-
-
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
+    }
+    <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
+        <span id="alertMessage">This is a placeholder message.</span>
+        <button type="button" class="btn-close" onclick="hideAlert()" aria-label="Close"></button>
     </div>
 
-    <footer class="border-top  " data-bs-theme="light">
+
+    <main role="main" class="flex-fill d-flex flex-column p-0">
+        @RenderBody()
+    </main>
+</div>
+
+@if (!embed)
+{
+    <footer data-bs-theme="light">
         <div class="container">
-            &copy; 2025 - Wayfarer by <a href="https://stefk.me" target="_blank" title="Hi, I am Stef check out my blog!">Stef</a> - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            &copy; 2025 - Wayfarer by <a href="https://stefk.me"
+                                         class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                                         target="_blank" title="Hi, I am Stef check out my blog!">Stef</a> -
+            <a asp-area="" asp-controller="Home" asp-action="Privacy"
+               class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a>
         </div>
     </footer>
-
+    
     <!-- Confirmation Modal -->
     <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel">
         <div class="modal-dialog">
@@ -102,33 +118,43 @@
             </div>
         </div>
     </div>
-
-
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/popperjs/popper.min.js"></script>
-    <script src="~/lib/tippy/tippy-bundle.umd.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+}
+<script src="~/lib/popperjs/popper.min.js"></script>
+<script src="~/lib/tippy/tippy-bundle.umd.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/lib/sortablejs/Sortable.min.js"></script>
 
-    @if (ViewData["LoadLeaflet"] == null || (bool)ViewData["LoadLeaflet"])
-    {
-        <script src="~/js/map-utils.js" type="module"></script>
-        <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>
-        <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
-        <script src="~/lib/leaflet/leaflet.draw.js"></script>
-    }
+@if (ViewData["LoadLeaflet"] == null || (bool)ViewData["LoadLeaflet"])
+{
+    <script src="~/js/map-utils.js" type="module"></script>
+    <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>
+    <script src="~/lib/leaflet-image/leaflet-image.js"></script>
+    <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
+    <script src="~/lib/leaflet/leaflet.draw.js"></script>
+    <script src="~/lib/turf/turf.min.js"></script>
+    <script src="~/lib/leaflet-drag/Path.Drag.js"></script>
+    <script src="~/lib/leaflet-editable/Leaflet.Editable.min.js"></script>
+}
 
-    @if (ViewData["LoadQuill"] == null || (bool)ViewData["LoadQuill"])
+@if (!embed)
+{
+    if (ViewData["LoadQuill"] as bool? ?? true)
     {
         <script src="~/lib/quill/quill-2.0.3.js" defer></script>
     }
+}
 
-    <script>
-        // Wayfarer cross-site object
-        window.Wayfarer = window.Wayfarer || {};
-    </script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+<script>
+    // Wayfarer cross-site object
+    window.wayfarer = window.wayfarer || {};
+</script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@if (!embed)
+{
     @Html.Partial("_ValidationScriptsPartial")
-    @await RenderSectionAsync("Scripts", required: false)
+}
+@await RenderSectionAsync("Scripts", required: false)
 
 </body>
 </html>

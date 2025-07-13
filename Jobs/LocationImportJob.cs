@@ -2,7 +2,7 @@ using Quartz;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Microsoft.Extensions.Logging;
 
 namespace Wayfarer.Jobs

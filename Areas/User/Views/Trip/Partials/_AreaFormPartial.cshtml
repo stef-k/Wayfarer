@@ -1,0 +1,54 @@
+@using NetTopologySuite.IO
+@model Wayfarer.Models.Area
+
+<form id="area-form-@Model.Id" class="area-form needs-validation" novalidate>
+    @Html.AntiForgeryToken()
+
+    <div asp-validation-summary="ModelOnly" class="text-danger area-form-errors"></div>
+    
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <input type="hidden" name="RegionId" value="@Model.RegionId" />
+    @{ 
+        // Use NTS GeoJsonWriter to avoid self‐referencing loops
+        var geomJson = Model.Geometry != null
+            ? new GeoJsonWriter().Write(Model.Geometry)
+            : "null";
+    }
+    <input type="hidden"
+           name="Geometry"
+           id="Geometry-@Model.Id"
+           value='@Html.Raw(geomJson)' />
+
+    <div class="mb-3">
+        <label for="Name-@Model.Id" class="form-label">Name</label>
+        <input type="text" class="form-control" id="Name-@Model.Id" name="Name" value="@Model.Name" required maxlength="200" />
+    </div>
+
+    <div class="mb-3">
+        <label for="FillHex-@Model.Id" class="form-label">Fill Color</label>
+        <input type="color" class="form-control form-control-color" id="FillHex-@Model.Id" name="FillHex" value="@Model.FillHex" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Draw Area</label>
+        <div id="map-area-@Model.Id" style="height: 300px;"></div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <div id="area-notes-@Model.Id" data-notes-content="@Model.Notes"
+             class="quill-notes-box"></div>
+        <input type="hidden" name="Notes" id="Notes-@Model.Id" value="@Model.Notes" />
+    </div>
+
+    <button type="button"
+            class="btn btn-outline-secondary btn-sm btn-area-cancel"
+            data-area-id="@Model.Id" data-region-id="@Model.RegionId">
+        Cancel
+    </button>
+    <button type="button"
+            class="btn btn-primary btn-sm btn-area-save"
+            data-area-id="@Model.Id" data-region-id="@Model.RegionId">
+        Save Area
+    </button>
+</form>

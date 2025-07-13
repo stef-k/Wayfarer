@@ -37,6 +37,7 @@ footer {
     height: 60px;
     text-align: center;
     margin-top: auto;
+    border-top: 1px solid rgba(33, 37, 41, 0.10);
 }
 
 .user-menu {
@@ -75,7 +76,7 @@ footer {
 [data-bs-theme="dark"] .dropdown-menu .dropdown-item:focus {
     background-color: #495057; /* Slightly lighter on hover */
     color: #ffffff!important;
-    }
+}
 /* Light Theme - Identity Nav Links */
 .navbar-light .navbar-nav .nav-link {
     color: #212529; /* Dark text for nav links in light theme */
@@ -105,8 +106,12 @@ footer {
 .navbar-light .navbar-nav .nav-link.active:hover {
     color: #0056b3; /* Same as hover color for active link */
 }
-[data-bs-theme="dark"] .footer > * {
+[data-bs-theme="dark"] footer > * {
     color: #f8f9fa!important;
+}
+
+[data-bs-theme="dark"] footer  {
+    border-top: 1px solid rgba(248, 249, 250, 0.25) !important;
 }
 /* Theme Toggle Button in Dark and Light Modes */
 #themeToggle {
@@ -348,4 +353,572 @@ thead th {
 [data-bs-theme="dark"] .landing-container {
     background: linear-gradient(to bottom right, #2c2f36, #1f2228);
     color: #f8f9fa;
+}
+
+
+#sidebar {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 120px); /* or your existing constraint */
+    background-color: var(--bs-light);
+    border-right: 1px solid var(--bs-border-color);
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+#sidebarHeader {
+    flex-shrink: 0; /* Prevents shrinking */
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background-color: var(--bs-light);
+    z-index: 1;
+}
+
+#sidebarContent {
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.trip-searchbar {
+    max-width: 600px;
+}
+
+/* Dark theme for Trip sidebar */
+[data-bs-theme="dark"] #sidebarHeader {
+    background-color: #343a40 !important; /* or another dark shade consistent with your theme */
+    border-bottom: 1px solid #495057 !important;
+    color: #f8f9fa !important;
+}
+
+[data-bs-theme="dark"] #sidebar {
+    background-color: #2b3035 !important; /* Dark background for sidebar */
+    color: #f8f9fa !important; /* Light text for sidebar content */
+    border-color: #495057 !important; /* Adjust border color for dark mode */
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.4); /* Darker shadow for contrast */
+}
+
+/* Adjust accordion items within sidebar for dark mode */
+[data-bs-theme="dark"] #sidebar .accordion-item {
+    background-color: #2b3035 !important;
+    border-color: #495057 !important;
+    color: #f8f9fa !important;
+}
+
+[data-bs-theme="dark"] #sidebar .accordion-button {
+    background-color: #343a40 !important; /* Slightly lighter header for accordion */
+    color: #f8f9fa !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] #sidebar .accordion-button:not(.collapsed) {
+    background-color: #3e444a !important; /* Even lighter when open */
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] #sidebar .accordion-button::after {
+    filter: invert(1) grayscale(100%) brightness(200%); /* Invert the SVG arrow color */
+}
+
+/* Adjust list group items within sidebar for dark mode */
+[data-bs-theme="dark"] #sidebar .list-group-item {
+    background-color: #2b3035 !important;
+    color: #f8f9fa !important;
+    border-color: #495057 !important;
+}
+
+/* Adjust form controls (input, textarea) within sidebar for dark mode */
+[data-bs-theme="dark"] #sidebar .form-control,
+[data-bs-theme="dark"] #sidebar .form-check-input {
+    background-color: #343a40 !important;
+    color: #f8f9fa !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] #sidebar .form-control:focus {
+    background-color: #3e444a !important;
+    border-color: #6c757d !important;
+    box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25) !important; /* Adjust focus shadow */
+}
+
+/* Adjust labels for dark mode */
+[data-bs-theme="dark"] #sidebar label.form-label {
+    color: #f8f9fa !important;
+}
+
+/* Ensure the hr divider is visible in dark mode */
+[data-bs-theme="dark"] #sidebar hr {
+    border-top: 1px solid rgba(248, 249, 250, 0.25) !important; /* Lighten the HR */
+}
+
+/*do not outline trip sidebar's collapse buttons*/
+/* Custom CSS to remove focus outline from SPECIFIC collapse buttons in the sidebar */
+
+#sidebar .btn[data-bs-toggle="collapse"]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#regions-accordion .accordion-button:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* ✅ Remove unwanted blue background when region is expanded but not selected */
+#regions-accordion .accordion-button:not(.collapsed) {
+    background-color: transparent !important;
+    box-shadow: none !important;
+}
+
+
+[data-bs-theme="dark"] .trip-searchbar {
+    background-color: #2b3035 !important; /* Dark background for the search bar */
+    color: #f8f9fa !important; /* Light text color for any direct text */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important; /* Darker shadow */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .form-control {
+    background-color: #343a40 !important; /* Darker background for the input */
+    color: #f8f9fa !important; /* Light text for input content */
+    border-color: #495057 !important; /* Darker border for input */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .form-control::placeholder {
+    color: #adb5bd !important; /* Lighter placeholder text */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .form-control:focus {
+    background-color: #3e444a !important; /* Slightly lighter on focus */
+    border-color: #6c757d !important; /* Focus border color */
+    box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25) !important; /* Focus shadow */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .btn-outline-secondary {
+    background-color: #343a40 !important; /* Dark background for outline buttons */
+    color: #f8f9fa !important; /* Light text/icon color */
+    border-color: #495057 !important; /* Dark border color */
+}
+
+[data-bs-theme="dark"] .trip-searchbar .btn-outline-secondary:hover {
+    background-color: #495057 !important; /* Slightly lighter on hover */
+    color: #ffffff !important;
+    border-color: #6c757d !important;
+}
+
+/* To ensure icons within buttons are also themed */
+[data-bs-theme="dark"] .trip-searchbar .btn .bi {
+    color: inherit !important; /* Inherit color from parent button */
+}
+
+/* dark theme for Quill.js */
+[data-bs-theme="dark"] .ql-container.ql-snow {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow {
+    background-color: var(--bs-dark);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-stroke {
+    stroke: var(--bs-light);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-fill {
+    fill: var(--bs-light);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label {
+    color: var(--bs-light);
+    background-color: transparent;
+    border: none;
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button:hover,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button.ql-active,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label:hover,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label.ql-active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button svg,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker svg {
+    fill: none;
+}
+
+[data-bs-theme="dark"] .ql-toolbar.ql-snow button:focus,
+[data-bs-theme="dark"] .ql-toolbar.ql-snow .ql-picker-label:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+[data-bs-theme="dark"] .ql-picker-options {
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+    border: 1px solid var(--bs-border-color);
+}
+
+.bg-info-soft {
+    background-color: rgba(255, 243, 205, 0.4) !important;
+}
+
+#mapping-context-banner {
+    min-height: 40px; 
+    transition: opacity 0.2s ease-in-out;
+    opacity: 0;
+    visibility: hidden;
+}
+
+#mapping-context-banner.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.bg-success-subtle {
+    background-color: rgba(25, 135, 84, 0.2) !important;
+}
+[data-bs-theme="dark"] #btn-clear-context {
+    filter: invert(1); /* make it white */
+}
+
+/* Preview icon inside place form dropdown toggle */
+.selected-icon-label img.map-icon {
+    height: 41px;
+    width: 24px;
+    vertical-align: middle;
+    margin-right: 0.5em;
+}
+
+/* Preview dot for MarkerColor dropdown */
+.color-selector .color-preview {
+    height: 24px;
+    width: 24px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.5em;
+}
+
+/* Optional: vertically center the button content */
+.color-selector,
+.selected-icon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+}
+.color-selector.btn-sm {
+    height: 51px;                   /* Match icon dropdown box height */
+    padding: 0.25rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    line-height: 1.2;
+    box-sizing: border-box;
+}
+
+.marker-circle {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 50%;
+    background-color: var(--map-icon-bg, #dee2e6); /* 👈 uses your bg-* color */
+    vertical-align: middle;
+}
+
+.color-preview {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 0.5em;
+}
+.drag-handle {
+    cursor: grab;
+    opacity: .7;          /* looks “touchable” */
+}
+.drag-handle:active { cursor: grabbing; }
+
+.sortable-chosen  { transition: background-color .2s; background-color: var(--bs-warning-bg-subtle, #fff3cd); }
+.sortable-ghost   { opacity: 0.4; }
+
+.map, #map, #mapContainer, .mapContainer {
+    cursor: default;
+}
+.wf-pin{
+    display:inline-block;
+    width:40px;height:40px;
+}
+
+/* TRIP PLANNING MARKER IN FOCUS, POSSIBLY TO BRAKE TIMELINE MARKERS */
+.map-icon {
+    --selected-shadow-color: #0d6efd; /* bootstrap blue fallback */
+}
+.map-icon.selected-marker {
+    filter:
+            drop-shadow(0 0 3px var(--selected-shadow-color, #0d6efd))
+            drop-shadow(0 0 3px var(--selected-shadow-color, #0d6efd)) !important;
+    transition: filter 0.3s ease;
+}
+.place-list-item.dimmed {
+    opacity: 0.3;
+    transition: opacity 0.3s ease;
+}
+.accordion-item.dimmed {
+    opacity: 0.4;
+    transition: opacity 0.2s ease-in-out;
+}
+.region-place-neutral {
+    background-color: var(--bs-body-bg) !important;
+}
+.quill-notes-box {
+    min-height: 200px;
+}
+
+.modal .modal-body img.trip-img-modal {
+    max-width: 100%;
+    max-height: 60vh;
+    height: auto;
+    width: auto;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    object-fit: contain;
+}
+
+/* Distance label marker shown at the end of the polyline */
+.distance-label .badge {
+    font-size: 0.85rem;
+    padding: 0.25em 0.5em;
+    opacity: 0.9;
+    background-color: #0d6efd; /* Wayfarer blue */
+    color: #fff;
+    border-radius: 4px;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Temporary help popup (bottom left) */
+.leaflet-bar.help-popup {
+    font-size: 0.75rem;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 4px 6px;
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.1);
+}
+
+/* Ruler button (active visual state) */
+.leaflet-control-custom button.active {
+    background-color: #0d6efd1a;
+    border-radius: 4px;
+    outline: 2px solid #0d6efd55;
+    box-shadow: 0 0 6px #0d6efd88;
+    transform: scale(1.1);
+}
+
+/*semgent route drawing toolbar*/
+.route-toolbar {
+    position: absolute;
+    bottom: 90px;
+    left: 16px;
+    z-index: 1001;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    padding: 6px;
+    display: flex;
+    gap: 6px;
+}
+
+.route-toolbar button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.3rem;
+    line-height: 1;
+}
+.leaflet-div-icon.leaflet-editing-icon {
+    width: 10px;
+    height: 10px;
+    background-color: #0d6efd; /* Bootstrap blue */
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.leaflet-middle-icon {
+    background-color: #0d6efd !important; /* Bootstrap blue */
+    border: 1px solid #fff !important;
+    border-radius: 50% !important;
+    opacity: 0.95 !important;
+    width: 12px !important;
+    height: 12px !important;
+    margin-left: -6px !important;
+    margin-top: -6px !important;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+}
+#segment-route-toolbar {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    z-index: 999;
+    display: flex;
+    gap: 0.25rem;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 0.375rem;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.2);
+}
+.leaflet-tooltip.segment-tooltip {
+    background-color: #0d6efd;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 4px 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.segment-highlight {
+    animation: flash-border 1s ease-in-out;
+    border: 2px solid var(--bs-primary);
+    border-radius: 0.5rem;
+}
+
+@keyframes flash-border {
+    0%   { border-color: transparent; }
+    25%  { border-color: var(--bs-primary); }
+    50%  { border-color: transparent; }
+    75%  { border-color: var(--bs-primary); }
+    100% { border-color: transparent; }
+}
+#place-search-results {
+    z-index: 2000 !important;
+    position: absolute;
+    background-color: white;
+    box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075); /* same as shadow-sm */
+    border-radius: 0.375rem; /* matches Bootstrap rounded */
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 250px;
+    overflow-y: auto;
+    display: none;
+}
+#place-search-results .list-group-item {
+    cursor: pointer;
+}
+#temp-place-banner {
+    z-index: 3000;
+}
+
+/* ─── Trip Viewer  ─── */
+#trip-view, #mapContainer { height: 100%; }
+
+/***************************************************************************/
+/*sidebar's width variable, change here for more wide or narrow sidebar*/
+:root { --legend-w: 500px; }
+/***************************************************************************/
+#sidebar-primary{
+    position:absolute;
+    top:0; left:0;
+    width: var(--legend-w); height:100%;
+    overflow-y:auto; overflow-x:hidden;
+    background:#fff;
+    border-right:1px solid #dee2e6;
+    box-shadow:2px 0 6px rgba(0,0,0,.12);
+    transition:transform .6s ease;
+    z-index:1050;
+}
+
+/* slide completely off-canvas and remove shadow */
+#sidebar-primary[data-collapsed="true"]{
+    transform: translateX(calc(-1 * var(--legend-w)));
+    box-shadow: none;
+}
+
+#btn-collapse-sidebar.stick{
+    position:fixed;                    /* anchored to viewport          */
+    top:70px;                          /* ≈ 56-px navbar + 14-px gap    */
+    left:10px;
+    width:40px; height:40px;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:.25rem;
+    z-index:1060;
+}
+
+/* #trip-view already sits between navbar (≈56 px) and footer (60 px)   */
+#trip-view {                       /* 56 + 60  ≅  116 → round to 120   */
+    height: calc(100vh - 120px);   /* reaches footer, no bottom gap     */
+}
+
+/* floating MAP-LEGEND handle (only visible when sidebar is collapsed) */
+#btn-show-sidebar{
+    position:fixed;
+    top: 80px;                 /* 56-px navbar + small gap            */
+    left:10px;
+    z-index:1060;
+    user-select:none;
+}
+
+/* make sure the handle never blocks map clicks when hidden */
+#btn-show-sidebar[style*="display: none"]{
+    pointer-events:none;
+}
+
+/* ─── Animated details sidebar ───────────────────────────── */
+#sidebar-secondary{
+    position:absolute;
+    top:0; left:0;
+    width: var(--legend-w); height:100%;
+    background:#fff;
+    border-right:1px solid #dee2e6;
+    overflow:auto;
+    z-index:1055;
+
+    /* hidden by default */
+    transform: translateX(calc(-1 * var(--legend-w)));
+    opacity:0.8;                    /* prevents click-through flashes   */
+    pointer-events:none;
+
+    transition:transform 0.55s ease, opacity 0.55s ease;
+}
+
+/* visible state */
+#sidebar-secondary.open{
+    transform:translateX(0);
+    opacity:1;
+    pointer-events:auto;
+}
+
+/* Trip-Viewer meta panel */
+.trip-meta,
+.trip-notes{
+    max-height:500px;            
+    overflow-y:auto;             
+    overflow-x:hidden;           
+    word-break:break-word;       /* force long words / URLs to wrap        */
+}
+
+/* optional nicer WebKit scrollbar */
+.trip-meta::-webkit-scrollbar,
+.trip-notes::-webkit-scrollbar{width:6px;}
+.trip-meta::-webkit-scrollbar-thumb,
+.trip-notes::-webkit-scrollbar-thumb{background:#bbb;border-radius:2px;}
+
+.pe-clickable {
+    cursor:pointer;
+}
+#sidebar-secondary img.trip-img-modal,
+#sidebar-secondary .trip-notes img,
+#sidebar-secondary img.img-fluid {
+    max-width: 100%;
+    height: auto;
+}
+#sidebar-secondary img { max-width:100%; height:auto; }
+
+.segment-list-item-view {
+    cursor:pointer;
 }

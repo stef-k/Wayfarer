@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
-using Wayfarer.Services;
+using Wayfarer.Parsers;
 
 public class TileCacheService
 {

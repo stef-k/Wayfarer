@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 
-namespace Wayfarer.Services;
+namespace Wayfarer.Parsers;
 
 public interface ILocationStatsService
 {

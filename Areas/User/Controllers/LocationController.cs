@@ -6,7 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
-using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers
@@ -478,14 +478,14 @@ namespace Wayfarer.Areas.User.Controllers
                 }
                 else if (model.Append)
                 {
-                    if (!string.IsNullOrWhiteSpace(model.NotesHtml))
-                        loc.Notes = (loc.Notes ?? "") + model.NotesHtml;
+                    if (!string.IsNullOrWhiteSpace(model.Notes))
+                        loc.Notes = (loc.Notes ?? "") + model.Notes;
                 }
                 else
                 {
-                    loc.Notes = string.IsNullOrWhiteSpace(model.NotesHtml)
+                    loc.Notes = string.IsNullOrWhiteSpace(model.Notes)
                         ? null
-                        : model.NotesHtml;
+                        : model.Notes;
                 }
             }
 

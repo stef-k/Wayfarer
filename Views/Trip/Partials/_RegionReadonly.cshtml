@@ -1,0 +1,123 @@
+@using NetTopologySuite.IO
+@using Wayfarer.Util
+@model Wayfarer.Models.Region
+@{
+    double? lat = Model.Center?.Y; // Y = latitude
+    double? lon = Model.Center?.X; // X = longitude
+
+    /* helpers for Wayfarer marker PNG */
+    string SafeIcon(string? icon) => string.IsNullOrWhiteSpace(icon) ? "marker" : icon.Trim();
+    string SafeBg(string? color) => string.IsNullOrWhiteSpace(color) ? "bg-blue" : color.Trim();
+    string Png(string ic, string bg) => $"/icons/wayfarer-map-icons/dist/png/marker/{bg}/{ic}.png";
+}
+
+<div class="accordion-item"
+     id="region-@Model.Id"
+     data-region-id="@Model.Id"
+     data-region-name="@Model.Name"
+     @(lat is not null ? $"data-center-lat=\"{lat}\"" : "")
+     @(lon is not null ? $"data-center-lon=\"{lon}\"" : "")>
+
+    <!-- header: button (expand/collapse) + separate checkbox -->
+    <h2 class="accordion-header d-flex align-items-center text-bg-light ">
+
+        <!-- collapsible button (100 % width) -->
+        <button class="accordion-button flex-grow-1 px-2"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#reg-body-@Model.Id">
+            <span class="fw-semibold">
+                @Model.Name
+            </span>
+        </button>
+
+        <!-- visibility toggle – OUTSIDE the button -->
+        <input type="checkbox"
+               class="form-check-input ms-2 region-toggle fs-6 mx-1"
+               checked
+               title="Show/Hide this region on map"/>
+    </h2>
+
+    <div id="reg-body-@Model.Id" class="accordion-collapse show">
+        <div class="accordion-body p-0">
+            <ul class="list-group list-group-flush">
+
+                @foreach (var p in Model.Places?.OrderBy(pl => pl.DisplayOrder)
+                                   ?? Enumerable.Empty<Wayfarer.Models.Place>())
+                {
+                    var iconName = SafeIcon(p.IconName);
+                    var bgClass = SafeBg(p.MarkerColor);
+                    var iconUrl = Png(iconName, bgClass);
+
+                    var pLat = p.Location?.Y;
+                    var pLon = p.Location?.X;
+                    <text>
+                        <li class="list-group-item place-list-item d-flex align-items-center gap-2 py-1 px-2 pe-clickable"
+                            data-place-id="@p.Id"
+                            data-place-name="@p.Name"
+                            data-place-address="@p.Address"
+                            data-place-icon="@iconName"
+                            data-place-color="@bgClass"
+                            data-region-id="@Model.Id"
+                            data-region-name="@Model.Name"
+                            @if (pLat is not null)
+                            {
+                            <text> data-place-lat="@pLat" </text>
+                            }
+                            @if (pLon is not null)
+                            {
+                            <text> data-place-lon="@pLon" </text>
+                            }
+                            title="Click to view details">
+
+                            @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml",
+                                (iconName, bgClass))
+                            <span class="flex-grow-1">@p.Name</span>
+
+                            <div class="d-none place-notes">
+                                @Html.LinkifyHtml(p.Notes)
+                            </div>
+                        </li>
+                    </text>
+                }
+            </ul>
+
+            @if (Model.Areas?.Any() == true)
+            {
+                <div class="mt-3">
+                    <h6>Areas</h6>
+                    <ul class="list-group list-group-flush">
+                        @foreach (var area in Model.Areas.OrderBy(a => a.DisplayOrder))
+                        {
+                            <li class="list-group-item d-flex align-items-center justify-content-between area-list-item"
+                                data-area-id="@area.Id"
+                                data-region-id="@Model.Id"
+                                data-area-geom='@(area.Geometry != null
+                                                    ? new GeoJsonWriter().Write(area.Geometry)
+                                                    : "null")'
+                                data-area-fill="@area.FillHex">
+
+                                <div class="d-flex align-items-center">
+                                    <strong class="area-name me-3">
+                                        @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_CircleIcon.cshtml", ("flag", "bg-green"))
+                                        @area.Name
+                                    </strong>
+                                    @if (!string.IsNullOrWhiteSpace(area.Notes))
+                                    {
+                                        <p class="mb-0 small text-muted">@area.Notes</p>
+                                    }
+                                </div>
+
+                                <input type="checkbox"
+                                       class="form-check-input area-toggle"
+                                       checked
+                                       data-area-id="@area.Id"
+                                       title="Show/Hide this area"/>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
+</div>

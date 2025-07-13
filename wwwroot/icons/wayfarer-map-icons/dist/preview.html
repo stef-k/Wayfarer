@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wayfarer Map Icons</title>
+  <style>
+    :root {
+      --bg:          #fdfdfd;
+      --text:        #333;
+      --card-bg:     #ffffff;
+      --border:      #dddddd;
+      --shadow:      rgba(0,0,0,0.05);
+    }
+    [data-theme="dark"] {
+      --bg:          #1e1e1e;
+      --text:        #e5e5e5;
+      --card-bg:     #272727;
+      --border:      #444;
+      --shadow:      rgba(0,0,0,0.35);
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      max-width: 1400px;
+      margin-inline: auto;
+      transition: background .2s ease, color .2s ease;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: .5rem;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      flex-wrap: wrap;
+    }
+    #theme-toggle {
+      cursor: pointer;
+      background: var(--card-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: .35rem .75rem;
+      font: inherit;
+      transition: background .2s ease, color .2s ease, border-color .2s ease;
+    }
+    #theme-toggle:hover {
+      background: var(--border);
+    }
+    h2 {
+      margin-top: 3rem;
+      font-size: 1.5rem;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: .25rem;
+    }
+    p {
+      max-width: 800px;
+      line-height: 1.6;
+    }
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+    .icon-cell {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px var(--shadow);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background .2s ease;
+    }
+    .icon-label {
+      margin-top: 1rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .icon-variants {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .icon-variants img {{
+      width: {EXPORT_WIDTH}px;
+      height: {EXPORT_HEIGHT}px;
+    }}
+  </style>
+</head>
+<body>
+
+  <h1>
+    Wayfarer Map Icons
+    <button id="theme-toggle" aria-label="Toggle dark / light">Toggle theme</button>
+  </h1>
+
+  <p>
+    These icons follow the design logic described in
+    <a href="https://stefk.me/about-shareable-maps" target="_blank">the shareable maps article</a>.
+    They’re previewed here in five colour / tint combinations.
+  </p>
+  <p>
+    Each icon is available in two shells: <strong>circle</strong> (like Google MyMaps)
+    and <strong>marker</strong> (Leaflet-style pin).
+  </p>
+<h2>Circle Icons</h2>
+<div class='icon-grid'>
+<div class='icon-cell'>
+  <div class='icon-label'>anchor</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/anchor.png" alt="anchor-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/anchor.png" alt="anchor-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/anchor.png" alt="anchor-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/anchor.png" alt="anchor-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/anchor.png" alt="anchor-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>atm</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/atm.png" alt="atm-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/atm.png" alt="atm-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/atm.png" alt="atm-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/atm.png" alt="atm-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/atm.png" alt="atm-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>barbecue</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/barbecue.png" alt="barbecue-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/barbecue.png" alt="barbecue-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/barbecue.png" alt="barbecue-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/barbecue.png" alt="barbecue-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/barbecue.png" alt="barbecue-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>beach</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/beach.png" alt="beach-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/beach.png" alt="beach-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/beach.png" alt="beach-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/beach.png" alt="beach-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/beach.png" alt="beach-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>bike</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/bike.png" alt="bike-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/bike.png" alt="bike-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/bike.png" alt="bike-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/bike.png" alt="bike-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/bike.png" alt="bike-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>boat</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/boat.png" alt="boat-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/boat.png" alt="boat-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/boat.png" alt="boat-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/boat.png" alt="boat-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/boat.png" alt="boat-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>camera</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/camera.png" alt="camera-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/camera.png" alt="camera-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/camera.png" alt="camera-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/camera.png" alt="camera-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/camera.png" alt="camera-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>camping</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/camping.png" alt="camping-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/camping.png" alt="camping-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/camping.png" alt="camping-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/camping.png" alt="camping-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/camping.png" alt="camping-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>car</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/car.png" alt="car-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/car.png" alt="car-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/car.png" alt="car-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/car.png" alt="car-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/car.png" alt="car-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>charging-point</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/charging-point.png" alt="charging-point-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/charging-point.png" alt="charging-point-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/charging-point.png" alt="charging-point-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/charging-point.png" alt="charging-point-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/charging-point.png" alt="charging-point-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>checkmark</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/checkmark.png" alt="checkmark-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/checkmark.png" alt="checkmark-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/checkmark.png" alt="checkmark-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/checkmark.png" alt="checkmark-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/checkmark.png" alt="checkmark-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>clouds</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/clouds.png" alt="clouds-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/clouds.png" alt="clouds-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/clouds.png" alt="clouds-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/clouds.png" alt="clouds-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/clouds.png" alt="clouds-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>construction</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/construction.png" alt="construction-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/construction.png" alt="construction-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/construction.png" alt="construction-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/construction.png" alt="construction-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/construction.png" alt="construction-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>danger</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/danger.png" alt="danger-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/danger.png" alt="danger-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/danger.png" alt="danger-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/danger.png" alt="danger-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/danger.png" alt="danger-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>drink</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/drink.png" alt="drink-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/drink.png" alt="drink-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/drink.png" alt="drink-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/drink.png" alt="drink-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/drink.png" alt="drink-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>eat</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/eat.png" alt="eat-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/eat.png" alt="eat-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/eat.png" alt="eat-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/eat.png" alt="eat-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/eat.png" alt="eat-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>ev-station</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/ev-station.png" alt="ev-station-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/ev-station.png" alt="ev-station-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/ev-station.png" alt="ev-station-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/ev-station.png" alt="ev-station-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/ev-station.png" alt="ev-station-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>fitness</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/fitness.png" alt="fitness-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/fitness.png" alt="fitness-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/fitness.png" alt="fitness-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/fitness.png" alt="fitness-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/fitness.png" alt="fitness-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>flag</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/flag.png" alt="flag-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/flag.png" alt="flag-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/flag.png" alt="flag-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/flag.png" alt="flag-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/flag.png" alt="flag-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>flight</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/flight.png" alt="flight-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/flight.png" alt="flight-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/flight.png" alt="flight-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/flight.png" alt="flight-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/flight.png" alt="flight-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>gas</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/gas.png" alt="gas-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/gas.png" alt="gas-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/gas.png" alt="gas-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/gas.png" alt="gas-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/gas.png" alt="gas-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>help</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/help.png" alt="help-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/help.png" alt="help-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/help.png" alt="help-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/help.png" alt="help-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/help.png" alt="help-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>hike</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/hike.png" alt="hike-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/hike.png" alt="hike-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/hike.png" alt="hike-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/hike.png" alt="hike-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/hike.png" alt="hike-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>hospital</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/hospital.png" alt="hospital-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/hospital.png" alt="hospital-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/hospital.png" alt="hospital-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/hospital.png" alt="hospital-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/hospital.png" alt="hospital-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>hotel</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/hotel.png" alt="hotel-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/hotel.png" alt="hotel-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/hotel.png" alt="hotel-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/hotel.png" alt="hotel-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/hotel.png" alt="hotel-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>info</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/info.png" alt="info-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/info.png" alt="info-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/info.png" alt="info-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/info.png" alt="info-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/info.png" alt="info-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>kayak</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/kayak.png" alt="kayak-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/kayak.png" alt="kayak-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/kayak.png" alt="kayak-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/kayak.png" alt="kayak-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/kayak.png" alt="kayak-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>latest</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/latest.png" alt="latest-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/latest.png" alt="latest-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/latest.png" alt="latest-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/latest.png" alt="latest-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/latest.png" alt="latest-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>luggage</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/luggage.png" alt="luggage-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/luggage.png" alt="luggage-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/luggage.png" alt="luggage-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/luggage.png" alt="luggage-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/luggage.png" alt="luggage-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>map</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/map.png" alt="map-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/map.png" alt="map-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/map.png" alt="map-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/map.png" alt="map-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/map.png" alt="map-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>museum</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/museum.png" alt="museum-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/museum.png" alt="museum-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/museum.png" alt="museum-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/museum.png" alt="museum-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/museum.png" alt="museum-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>no-wheelchair</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/no-wheelchair.png" alt="no-wheelchair-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/no-wheelchair.png" alt="no-wheelchair-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/no-wheelchair.png" alt="no-wheelchair-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/no-wheelchair.png" alt="no-wheelchair-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/no-wheelchair.png" alt="no-wheelchair-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>no-wifi</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/no-wifi.png" alt="no-wifi-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/no-wifi.png" alt="no-wifi-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/no-wifi.png" alt="no-wifi-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/no-wifi.png" alt="no-wifi-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/no-wifi.png" alt="no-wifi-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>park</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/park.png" alt="park-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/park.png" alt="park-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/park.png" alt="park-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/park.png" alt="park-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/park.png" alt="park-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>parking</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/parking.png" alt="parking-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/parking.png" alt="parking-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/parking.png" alt="parking-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/parking.png" alt="parking-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/parking.png" alt="parking-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>pet</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/pet.png" alt="pet-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/pet.png" alt="pet-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/pet.png" alt="pet-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/pet.png" alt="pet-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/pet.png" alt="pet-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>pharmacy</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/pharmacy.png" alt="pharmacy-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/pharmacy.png" alt="pharmacy-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/pharmacy.png" alt="pharmacy-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/pharmacy.png" alt="pharmacy-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/pharmacy.png" alt="pharmacy-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>phishing</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/phishing.png" alt="phishing-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/phishing.png" alt="phishing-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/phishing.png" alt="phishing-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/phishing.png" alt="phishing-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/phishing.png" alt="phishing-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>police</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/police.png" alt="police-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/police.png" alt="police-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/police.png" alt="police-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/police.png" alt="police-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/police.png" alt="police-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>run</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/run.png" alt="run-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/run.png" alt="run-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/run.png" alt="run-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/run.png" alt="run-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/run.png" alt="run-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>sail</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/sail.png" alt="sail-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/sail.png" alt="sail-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/sail.png" alt="sail-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/sail.png" alt="sail-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/sail.png" alt="sail-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>scuba-dive</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/scuba-dive.png" alt="scuba-dive-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/scuba-dive.png" alt="scuba-dive-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/scuba-dive.png" alt="scuba-dive-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/scuba-dive.png" alt="scuba-dive-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/scuba-dive.png" alt="scuba-dive-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>sea</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/sea.png" alt="sea-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/sea.png" alt="sea-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/sea.png" alt="sea-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/sea.png" alt="sea-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/sea.png" alt="sea-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>shopping</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/shopping.png" alt="shopping-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/shopping.png" alt="shopping-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/shopping.png" alt="shopping-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/shopping.png" alt="shopping-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/shopping.png" alt="shopping-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>ski</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/ski.png" alt="ski-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/ski.png" alt="ski-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/ski.png" alt="ski-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/ski.png" alt="ski-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/ski.png" alt="ski-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>smoke-free</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/smoke-free.png" alt="smoke-free-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/smoke-free.png" alt="smoke-free-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/smoke-free.png" alt="smoke-free-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/smoke-free.png" alt="smoke-free-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/smoke-free.png" alt="smoke-free-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>smoke</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/smoke.png" alt="smoke-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/smoke.png" alt="smoke-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/smoke.png" alt="smoke-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/smoke.png" alt="smoke-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/smoke.png" alt="smoke-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>sos</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/sos.png" alt="sos-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/sos.png" alt="sos-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/sos.png" alt="sos-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/sos.png" alt="sos-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/sos.png" alt="sos-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>star</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/star.png" alt="star-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/star.png" alt="star-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/star.png" alt="star-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/star.png" alt="star-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/star.png" alt="star-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>subway</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/subway.png" alt="subway-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/subway.png" alt="subway-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/subway.png" alt="subway-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/subway.png" alt="subway-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/subway.png" alt="subway-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>surf</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/surf.png" alt="surf-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/surf.png" alt="surf-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/surf.png" alt="surf-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/surf.png" alt="surf-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/surf.png" alt="surf-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>swim</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/swim.png" alt="swim-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/swim.png" alt="swim-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/swim.png" alt="swim-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/swim.png" alt="swim-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/swim.png" alt="swim-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>taxi</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/taxi.png" alt="taxi-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/taxi.png" alt="taxi-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/taxi.png" alt="taxi-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/taxi.png" alt="taxi-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/taxi.png" alt="taxi-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>telephone</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/telephone.png" alt="telephone-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/telephone.png" alt="telephone-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/telephone.png" alt="telephone-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/telephone.png" alt="telephone-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/telephone.png" alt="telephone-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>thunderstorm</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/thunderstorm.png" alt="thunderstorm-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/thunderstorm.png" alt="thunderstorm-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/thunderstorm.png" alt="thunderstorm-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/thunderstorm.png" alt="thunderstorm-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/thunderstorm.png" alt="thunderstorm-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>tool</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/tool.png" alt="tool-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/tool.png" alt="tool-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/tool.png" alt="tool-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/tool.png" alt="tool-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/tool.png" alt="tool-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>train</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/train.png" alt="train-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/train.png" alt="train-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/train.png" alt="train-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/train.png" alt="train-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/train.png" alt="train-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>walk</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/walk.png" alt="walk-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/walk.png" alt="walk-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/walk.png" alt="walk-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/walk.png" alt="walk-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/walk.png" alt="walk-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>water</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/water.png" alt="water-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/water.png" alt="water-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/water.png" alt="water-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/water.png" alt="water-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/water.png" alt="water-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>wc</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/wc.png" alt="wc-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/wc.png" alt="wc-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/wc.png" alt="wc-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/wc.png" alt="wc-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/wc.png" alt="wc-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>wheelchair</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/wheelchair.png" alt="wheelchair-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/wheelchair.png" alt="wheelchair-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/wheelchair.png" alt="wheelchair-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/wheelchair.png" alt="wheelchair-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/wheelchair.png" alt="wheelchair-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>wifi</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/wifi.png" alt="wifi-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/wifi.png" alt="wifi-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/wifi.png" alt="wifi-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/wifi.png" alt="wifi-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/wifi.png" alt="wifi-bg-red" loading="lazy"/>
+  </div>
+</div>
+</div>
+<h2>Marker Icons</h2>
+<div class='icon-grid'>
+<div class='icon-cell'>
+  <div class='icon-label'>anchor</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/anchor.png" alt="anchor-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/anchor.png" alt="anchor-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/anchor.png" alt="anchor-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/anchor.png" alt="anchor-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/anchor.png" alt="anchor-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>atm</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/atm.png" alt="atm-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/atm.png" alt="atm-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/atm.png" alt="atm-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/atm.png" alt="atm-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/atm.png" alt="atm-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>barbecue</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/barbecue.png" alt="barbecue-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/barbecue.png" alt="barbecue-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/barbecue.png" alt="barbecue-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/barbecue.png" alt="barbecue-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/barbecue.png" alt="barbecue-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>beach</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/beach.png" alt="beach-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/beach.png" alt="beach-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/beach.png" alt="beach-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/beach.png" alt="beach-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/beach.png" alt="beach-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>bike</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/bike.png" alt="bike-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/bike.png" alt="bike-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/bike.png" alt="bike-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/bike.png" alt="bike-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/bike.png" alt="bike-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>boat</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/boat.png" alt="boat-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/boat.png" alt="boat-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/boat.png" alt="boat-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/boat.png" alt="boat-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/boat.png" alt="boat-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>camera</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/camera.png" alt="camera-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/camera.png" alt="camera-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/camera.png" alt="camera-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/camera.png" alt="camera-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/camera.png" alt="camera-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>camping</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/camping.png" alt="camping-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/camping.png" alt="camping-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/camping.png" alt="camping-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/camping.png" alt="camping-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/camping.png" alt="camping-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>car</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/car.png" alt="car-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/car.png" alt="car-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/car.png" alt="car-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/car.png" alt="car-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/car.png" alt="car-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>charging-point</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/charging-point.png" alt="charging-point-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/charging-point.png" alt="charging-point-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/charging-point.png" alt="charging-point-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/charging-point.png" alt="charging-point-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/charging-point.png" alt="charging-point-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>checkmark</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/checkmark.png" alt="checkmark-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/checkmark.png" alt="checkmark-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/checkmark.png" alt="checkmark-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/checkmark.png" alt="checkmark-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/checkmark.png" alt="checkmark-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>clouds</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/clouds.png" alt="clouds-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/clouds.png" alt="clouds-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/clouds.png" alt="clouds-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/clouds.png" alt="clouds-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/clouds.png" alt="clouds-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>construction</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/construction.png" alt="construction-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/construction.png" alt="construction-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/construction.png" alt="construction-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/construction.png" alt="construction-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/construction.png" alt="construction-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>danger</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/danger.png" alt="danger-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/danger.png" alt="danger-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/danger.png" alt="danger-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/danger.png" alt="danger-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/danger.png" alt="danger-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>drink</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/drink.png" alt="drink-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/drink.png" alt="drink-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/drink.png" alt="drink-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/drink.png" alt="drink-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/drink.png" alt="drink-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>eat</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/eat.png" alt="eat-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/eat.png" alt="eat-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/eat.png" alt="eat-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/eat.png" alt="eat-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/eat.png" alt="eat-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>ev-station</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/ev-station.png" alt="ev-station-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/ev-station.png" alt="ev-station-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/ev-station.png" alt="ev-station-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/ev-station.png" alt="ev-station-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/ev-station.png" alt="ev-station-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>fitness</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/fitness.png" alt="fitness-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/fitness.png" alt="fitness-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/fitness.png" alt="fitness-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/fitness.png" alt="fitness-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/fitness.png" alt="fitness-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>flag</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/flag.png" alt="flag-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/flag.png" alt="flag-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/flag.png" alt="flag-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/flag.png" alt="flag-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/flag.png" alt="flag-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>flight</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/flight.png" alt="flight-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/flight.png" alt="flight-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/flight.png" alt="flight-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/flight.png" alt="flight-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/flight.png" alt="flight-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>gas</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/gas.png" alt="gas-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/gas.png" alt="gas-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/gas.png" alt="gas-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/gas.png" alt="gas-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/gas.png" alt="gas-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>help</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/help.png" alt="help-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/help.png" alt="help-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/help.png" alt="help-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/help.png" alt="help-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/help.png" alt="help-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>hike</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/hike.png" alt="hike-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/hike.png" alt="hike-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/hike.png" alt="hike-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/hike.png" alt="hike-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/hike.png" alt="hike-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>hospital</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/hospital.png" alt="hospital-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/hospital.png" alt="hospital-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/hospital.png" alt="hospital-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/hospital.png" alt="hospital-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/hospital.png" alt="hospital-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>hotel</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/hotel.png" alt="hotel-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/hotel.png" alt="hotel-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/hotel.png" alt="hotel-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/hotel.png" alt="hotel-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/hotel.png" alt="hotel-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>info</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/info.png" alt="info-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/info.png" alt="info-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/info.png" alt="info-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/info.png" alt="info-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/info.png" alt="info-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>kayak</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/kayak.png" alt="kayak-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/kayak.png" alt="kayak-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/kayak.png" alt="kayak-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/kayak.png" alt="kayak-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/kayak.png" alt="kayak-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>latest</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/latest.png" alt="latest-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/latest.png" alt="latest-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/latest.png" alt="latest-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/latest.png" alt="latest-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/latest.png" alt="latest-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>luggage</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/luggage.png" alt="luggage-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/luggage.png" alt="luggage-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/luggage.png" alt="luggage-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/luggage.png" alt="luggage-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/luggage.png" alt="luggage-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>map</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/map.png" alt="map-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/map.png" alt="map-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/map.png" alt="map-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/map.png" alt="map-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/map.png" alt="map-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>museum</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/museum.png" alt="museum-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/museum.png" alt="museum-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/museum.png" alt="museum-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/museum.png" alt="museum-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/museum.png" alt="museum-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>no-wheelchair</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/no-wheelchair.png" alt="no-wheelchair-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/no-wheelchair.png" alt="no-wheelchair-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/no-wheelchair.png" alt="no-wheelchair-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/no-wheelchair.png" alt="no-wheelchair-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/no-wheelchair.png" alt="no-wheelchair-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>no-wifi</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/no-wifi.png" alt="no-wifi-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/no-wifi.png" alt="no-wifi-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/no-wifi.png" alt="no-wifi-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/no-wifi.png" alt="no-wifi-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/no-wifi.png" alt="no-wifi-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>park</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/park.png" alt="park-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/park.png" alt="park-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/park.png" alt="park-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/park.png" alt="park-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/park.png" alt="park-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>parking</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/parking.png" alt="parking-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/parking.png" alt="parking-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/parking.png" alt="parking-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/parking.png" alt="parking-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/parking.png" alt="parking-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>pet</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/pet.png" alt="pet-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/pet.png" alt="pet-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/pet.png" alt="pet-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/pet.png" alt="pet-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/pet.png" alt="pet-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>pharmacy</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/pharmacy.png" alt="pharmacy-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/pharmacy.png" alt="pharmacy-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/pharmacy.png" alt="pharmacy-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/pharmacy.png" alt="pharmacy-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/pharmacy.png" alt="pharmacy-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>phishing</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/phishing.png" alt="phishing-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/phishing.png" alt="phishing-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/phishing.png" alt="phishing-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/phishing.png" alt="phishing-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/phishing.png" alt="phishing-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>police</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/police.png" alt="police-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/police.png" alt="police-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/police.png" alt="police-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/police.png" alt="police-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/police.png" alt="police-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>run</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/run.png" alt="run-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/run.png" alt="run-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/run.png" alt="run-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/run.png" alt="run-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/run.png" alt="run-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>sail</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/sail.png" alt="sail-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/sail.png" alt="sail-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/sail.png" alt="sail-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/sail.png" alt="sail-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/sail.png" alt="sail-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>scuba-dive</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/scuba-dive.png" alt="scuba-dive-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/scuba-dive.png" alt="scuba-dive-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/scuba-dive.png" alt="scuba-dive-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/scuba-dive.png" alt="scuba-dive-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/scuba-dive.png" alt="scuba-dive-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>sea</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/sea.png" alt="sea-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/sea.png" alt="sea-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/sea.png" alt="sea-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/sea.png" alt="sea-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/sea.png" alt="sea-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>shopping</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/shopping.png" alt="shopping-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/shopping.png" alt="shopping-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/shopping.png" alt="shopping-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/shopping.png" alt="shopping-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/shopping.png" alt="shopping-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>ski</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/ski.png" alt="ski-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/ski.png" alt="ski-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/ski.png" alt="ski-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/ski.png" alt="ski-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/ski.png" alt="ski-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>smoke-free</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/smoke-free.png" alt="smoke-free-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/smoke-free.png" alt="smoke-free-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/smoke-free.png" alt="smoke-free-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/smoke-free.png" alt="smoke-free-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/smoke-free.png" alt="smoke-free-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>smoke</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/smoke.png" alt="smoke-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/smoke.png" alt="smoke-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/smoke.png" alt="smoke-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/smoke.png" alt="smoke-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/smoke.png" alt="smoke-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>sos</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/sos.png" alt="sos-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/sos.png" alt="sos-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/sos.png" alt="sos-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/sos.png" alt="sos-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/sos.png" alt="sos-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>star</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/star.png" alt="star-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/star.png" alt="star-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/star.png" alt="star-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/star.png" alt="star-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/star.png" alt="star-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>subway</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/subway.png" alt="subway-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/subway.png" alt="subway-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/subway.png" alt="subway-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/subway.png" alt="subway-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/subway.png" alt="subway-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>surf</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/surf.png" alt="surf-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/surf.png" alt="surf-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/surf.png" alt="surf-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/surf.png" alt="surf-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/surf.png" alt="surf-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>swim</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/swim.png" alt="swim-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/swim.png" alt="swim-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/swim.png" alt="swim-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/swim.png" alt="swim-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/swim.png" alt="swim-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>taxi</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/taxi.png" alt="taxi-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/taxi.png" alt="taxi-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/taxi.png" alt="taxi-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/taxi.png" alt="taxi-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/taxi.png" alt="taxi-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>telephone</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/telephone.png" alt="telephone-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/telephone.png" alt="telephone-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/telephone.png" alt="telephone-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/telephone.png" alt="telephone-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/telephone.png" alt="telephone-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>thunderstorm</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/thunderstorm.png" alt="thunderstorm-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/thunderstorm.png" alt="thunderstorm-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/thunderstorm.png" alt="thunderstorm-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/thunderstorm.png" alt="thunderstorm-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/thunderstorm.png" alt="thunderstorm-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>tool</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/tool.png" alt="tool-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/tool.png" alt="tool-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/tool.png" alt="tool-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/tool.png" alt="tool-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/tool.png" alt="tool-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>train</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/train.png" alt="train-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/train.png" alt="train-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/train.png" alt="train-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/train.png" alt="train-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/train.png" alt="train-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>walk</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/walk.png" alt="walk-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/walk.png" alt="walk-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/walk.png" alt="walk-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/walk.png" alt="walk-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/walk.png" alt="walk-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>water</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/water.png" alt="water-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/water.png" alt="water-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/water.png" alt="water-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/water.png" alt="water-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/water.png" alt="water-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>wc</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/wc.png" alt="wc-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/wc.png" alt="wc-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/wc.png" alt="wc-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/wc.png" alt="wc-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/wc.png" alt="wc-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>wheelchair</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/wheelchair.png" alt="wheelchair-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/wheelchair.png" alt="wheelchair-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/wheelchair.png" alt="wheelchair-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/wheelchair.png" alt="wheelchair-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/wheelchair.png" alt="wheelchair-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>wifi</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/wifi.png" alt="wifi-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/wifi.png" alt="wifi-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/wifi.png" alt="wifi-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/wifi.png" alt="wifi-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/wifi.png" alt="wifi-bg-red" loading="lazy"/>
+  </div>
+</div>
+</div>
+<script>
+(() => {
+  const KEY  = 'wf-theme';
+  const root = document.documentElement;
+  const btn  = document.getElementById('theme-toggle');
+
+  function apply(dark) {
+    if (dark) {
+      root.setAttribute('data-theme', 'dark');
+    } else {
+      root.removeAttribute('data-theme');
+    }
+  }
+
+  const stored = localStorage.getItem(KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  apply(stored ? stored === 'dark' : prefersDark);
+
+  btn.addEventListener('click', () => {
+    const darkNow = root.getAttribute('data-theme') === 'dark';
+    apply(!darkNow);
+    localStorage.setItem(KEY, darkNow ? 'light' : 'dark');
+  });
+})();
+</script>
+
+</body>
+</html><h2>Shell Icons (Empty)</h2>
+<div class='icon-grid'>
+<div class='icon-cell'>
+  <div class='icon-label'>circle</div>
+  <div class='icon-variants'>
+    <img src="png/circle/bg-blue/circle.png" alt="circle-bg-blue" loading="lazy"/>
+    <img src="png/circle/bg-purple/circle.png" alt="circle-bg-purple" loading="lazy"/>
+    <img src="png/circle/bg-black/circle.png" alt="circle-bg-black" loading="lazy"/>
+    <img src="png/circle/bg-green/circle.png" alt="circle-bg-green" loading="lazy"/>
+    <img src="png/circle/bg-red/circle.png" alt="circle-bg-red" loading="lazy"/>
+  </div>
+</div>
+<div class='icon-cell'>
+  <div class='icon-label'>marker</div>
+  <div class='icon-variants'>
+    <img src="png/marker/bg-blue/marker.png" alt="marker-bg-blue" loading="lazy"/>
+    <img src="png/marker/bg-purple/marker.png" alt="marker-bg-purple" loading="lazy"/>
+    <img src="png/marker/bg-black/marker.png" alt="marker-bg-black" loading="lazy"/>
+    <img src="png/marker/bg-green/marker.png" alt="marker-bg-green" loading="lazy"/>
+    <img src="png/marker/bg-red/marker.png" alt="marker-bg-red" loading="lazy"/>
+  </div>
+</div>
+</div>

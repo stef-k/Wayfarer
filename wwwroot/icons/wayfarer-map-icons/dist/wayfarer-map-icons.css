@@ -1,0 +1,34 @@
+/* Core */
+.map-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+.map-icon-bg {
+  fill: var(--map-icon-bg, #cfe2ff);
+  opacity: 1;
+}
+.map-icon-bg-outline {
+  stroke: var(--map-icon-bg);
+}
+
+/* Glyph color */
+.color-white {
+  color: #ffffff;
+}
+
+/* Backgrounds */
+.bg-black {
+  --map-icon-bg: #000000;
+}
+.bg-purple {
+  --map-icon-bg: #6f42c1;
+}
+.bg-blue {
+  --map-icon-bg: #0d6efd;
+}
+.bg-green {
+  --map-icon-bg: #198754;
+}
+.bg-red {
+  --map-icon-bg: #dc3545;
+}
