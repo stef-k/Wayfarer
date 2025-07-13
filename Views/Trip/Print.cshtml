@@ -1,96 +1,102 @@
+@using System.Text.Json
+@using System.Text.Json.Serialization
 @using Wayfarer.Util
 @model Wayfarer.Models.ViewModels.TripPrintViewModel
 @{
     Layout = null;
     var trip   = Model.Trip;
-    var img    = Model.Snap;                       // id → data‑URI
+    var img    = Model.Snap;            // id → data-URI
     string Snap(string key) => img.TryGetValue(key, out var v) ? v : string.Empty;
 
     var orderedRegions = Model.Regions
         .OrderBy(r => r.Name == "Unassigned Places" ? 1 : 0)
         .ThenBy(r => r.DisplayOrder)
         .ToList();
-    ViewData["LoadLeaflet"] = true; 
+
+    ViewData["LoadLeaflet"] = true;
+    var areaHex = "#3388ff";
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>@trip.Name – Printable Guide</title>
-<style>
-/* ─── Page & Typography ─── */
-@@page { size:A4; margin:18mm 12mm; }
-body   { font-family:"Segoe UI",Arial,sans-serif; font-size:1.05rem; line-height:1.45; color: rgba(0,0,0,0.8);}
-h1     { font-size:2.6rem; margin:0 0 .6rem 0; color: #000;}
-h2     { font-size:1.7rem; margin:0 0 .45rem 0; color: #000;}
-h3     { font-size:1.3rem;  margin:.6rem 0 .3rem;  color: #000;}
-.notes h1{font-size:1.4rem; color: #000;} .notes h2{font-size:1.25rem; color: #000;} .notes h3{font-size:1.15rem;color: #000;} .notes h4{font-size:1.10rem; color: #000;}
-.fs-bigger {
-    font-size: 1.1rem;
-}
-.text-left {
-    text-align: start!important;
-}
-.text-center {
-    text-align: center!important;
-}
-/* ─── Utilities ─── */
-/* ─── Automatic page counter ─── */
-@@page  {
-    /* bottom-centre margin-box (Paged-Media spec) */
-    @@bottom-center {
-        font: 10pt/1 "Segoe UI", Arial, sans-serif;
-        color: #555;
-        content:"Page " counter(page) " of " counter(pages);
-    }
-}
+    <meta charset="utf-8"/>
+    <title>@trip.Name – Printable Guide</title>
 
-/* hide the footer on the cover (first printed page) */
-@@page:first {
-    @@bottom-center { content: none; }
-}
-.avoid-break   { break-inside:avoid; }
-.map,.notes img{ width:100%; height:auto; object-fit:contain; }
-.toc a         { color:#000; text-decoration:none; }
-.toc li        { margin:.15rem 0; }
-.mt-1 {
-    margin-top: 1rem;
-}
-.mb-1 {
-    margin-bottom: 1rem;
-}
-.mt-2 {
-    margin-top: 2rem;
-}
-.mb-2 {
-    margin-bottom: 2rem;
-}
-.selectable {
-    user-select: all;
-}
-code, .fs-smaller { font-size: 0.95rem;}
-.unstyled-link {
-    text-decoration: none !important;
-    color: #000 !important;
-}
-.notes a:not(.unstyled-link), .notes a:not(.unstyled-link):visited {
-    text-decoration: underline;
-    color: #004080;
-}
-</style>
+    <style>
+        /* ─── Page & Typography ─── */
+        body { font-family:"Segoe UI",Arial,sans-serif; font-size:1.05rem;
+               line-height:1.45; color:rgba(0,0,0,.8); }
+
+        h1{font-size:2.6rem;margin:0 0 .6rem 0;color:#000;}
+        h2{font-size:1.7rem;margin:0 0 .45rem 0;color:#000;}
+        h3{font-size:1.3rem;margin:.6rem 0 .3rem;color:#000;}
+
+        .notes h1{font-size:1.4rem;color:#000;}
+        .notes h2{font-size:1.25rem;color:#000;}
+        .notes h3{font-size:1.15rem;color:#000;}
+        .notes h4{font-size:1.10rem;color:#000;}
+
+        .fs-bigger{font-size:1.1rem;}
+
+        .text-left{ text-align:start!important; }
+        .text-center{ text-align:center!important; }
+        .text-right{ text-align:right!important; }
+
+        /* ─── Automatic page counter ─── */
+        .avoid-break{ break-inside:avoid; }
+
+        .map,.notes img{width:100%;height:auto;object-fit:contain;}
+
+        .toc a{color:#000;text-decoration:none;}
+        .toc li{margin:.15rem 0;}
+
+        .mt-1{margin-top:1rem;}  .mb-1{margin-bottom:1rem;}
+        .mt-2{margin-top:2rem;}  .mb-2{margin-bottom:2rem;}
+
+        .selectable{user-select:all;}
+
+        code,.fs-smaller{font-size:.95rem;}
+
+        .unstyled-link{text-decoration:none!important;color:#000!important;}
+        .notes a:not(.unstyled-link), .styled-link {text-decoration:underline;color:#004080;}
+
+        /* force each region / place to begin on a new page */
+        .region-heading{page-break-before:always;margin-top:0;}
+        .place-heading {page-break-before:always;margin-top:0;}
+
+        @@media print {
+            .back-link {
+                position: fixed;
+                bottom: 0;            /* anchor at the same baseline as Puppeteer’s Page X of Y */
+                right: 12mm;          /* inside your right margin */
+                font-size: 0.95rem;   /* same as your footer-link size */
+                line-height: 10pt;    /* match the footer’s line-height */
+                text-decoration: underline;
+                color: #004080;
+
+                /* now nudge it up by roughly half an em (adjust this) */
+                transform: translateY(-0.5em);
+            }
+        }
+    </style>
 </head>
+
 <body>
+<a href="#tocTarget" class="back-link">Back to contents</a>
 <!-- ░ Cover ░ -->
 <section class="avoid-break" style="page-break-after:always;text-align:center;">
     <h1>@trip.Name</h1>
     @if (!string.IsNullOrWhiteSpace(Snap("cover")))
     {
-        <img src="@Snap("cover")" class="map" />
+        <img src="@Snap("cover")" class="map"/>
     }
-    
-    <div class="notes fs-bigger">by <strong>@trip.User.DisplayName</strong> using <a class="unstyled-link" href="https://wayfarer.stefk.me"><code>Wayfarer</code></a> <br/>
-      <code><strong>Updated at: </strong> @trip.UpdatedAt</code>
+
+    <div class="notes fs-bigger">
+        by <strong>@trip.User.DisplayName</strong> using
+        <a class="unstyled-link" href="https://wayfarer.stefk.me"><code>Wayfarer</code></a><br/>
+        <code><strong>Updated at:</strong> @trip.UpdatedAt</code>
     </div>
+
     @if (!string.IsNullOrWhiteSpace(trip.Notes))
     {
         <div class="notes text-left">@Html.Raw(trip.Notes)</div>
@@ -99,20 +105,21 @@ code, .fs-smaller { font-size: 0.95rem;}
 
 <!--  Table of contents  -->
 <section class="avoid-break" style="page-break-after:always;">
-    <h2>Contents</h2>
+    <h2 id="tocTarget">Contents</h2>
     <ol class="toc" style="padding-left:1.1rem;">
         @if (Model.Segments.Any())
         {
             <li><a href="#segments_all">Trip Routes</a></li>
         }
+
         @foreach (var r in orderedRegions)
         {
             <li>
-                <a href="#r@r.Id">@r.Name</a>
+                <a href="#r@(r.Id)">@r.Name</a>
                 <ol style="padding-left:1rem; list-style-type: lower-alpha;">
                     @foreach (var p in Model.Places.Where(p => p.RegionId == r.Id).OrderBy(p => p.DisplayOrder))
                     {
-                        <li><a href="#p@p.Id">@p.Name</a></li>
+                        <li><a href="#p@(p.Id)">@p.Name</a></li>
                     }
                 </ol>
             </li>
@@ -120,17 +127,16 @@ code, .fs-smaller { font-size: 0.95rem;}
     </ol>
 </section>
 
-
 <!-- ░ Overview ░ -->
 <section class="avoid-break">
     <h2>Overview map</h2>
     @if (!string.IsNullOrWhiteSpace(Snap("trip")))
     {
-        <img src="@Snap("trip")" class="map" />
+        <img src="@Snap("trip")" class="map"/>
     }
 </section>
 
-<!-- Segments -->
+<!-- ░ Segments ░ -->
 @if (Model.Segments.Any())
 {
     <section id="segments_all" class="avoid-break" style="page-break-after:always;">
@@ -139,19 +145,23 @@ code, .fs-smaller { font-size: 0.95rem;}
             @foreach (var s in Model.Segments)
             {
                 var from = Model.Places.First(p => p.Id == s.FromPlaceId);
-                var to   = Model.Places.First(p => p.Id == s.ToPlaceId);
-                var dist = @s.EstimatedDistanceKm?.ToString("0.##")   ?? "—";
-                var dur = @s.EstimatedDuration.FormatDuration() ?? "—";
+                var to = Model.Places.First(p => p.Id == s.ToPlaceId);
+                var dist = s.EstimatedDistanceKm?.ToString("0.##") ?? "—";
+                var dur = s.EstimatedDuration.FormatDuration() ?? "—";
+
                 <li class="avoid-break" style="margin-bottom:.7rem;">
                     <p class="mb-1">
-                        <strong>@from.Name - @to.Name</strong><br />
-                        Estimated Distance:  @dist km | 
-                        Estimated Duration:  @dur | Transport Mode: @s.Mode <br/>
+                        <strong>@from.Name - @to.Name</strong><br/>
+                        Estimated Distance: @dist km |
+                        Estimated Duration: @dur |
+                        Transport Mode: @s.Mode
                     </p>
+
                     @if (!string.IsNullOrWhiteSpace(Snap($"segment_{s.Id}")))
                     {
                         <img src="@Snap($"segment_{s.Id}")" class="map"/>
                     }
+
                     @if (!string.IsNullOrWhiteSpace(s.Notes))
                     {
                         <div class="notes">@Html.Raw(s.Notes)</div>
@@ -162,46 +172,82 @@ code, .fs-smaller { font-size: 0.95rem;}
     </section>
 }
 
-<!-- ░ Regions ░ -->
+<!-- ░ Regions & Places ░ -->
 @foreach (var r in orderedRegions)
 {
-    <section id="r@r.Id" class="avoid-break" style="page-break-after:always;">
-        <h2>@r.Name</h2>
+    <!--  region block: give *one* element the destination id  -->
+    <section id="r@(r.Id)" class="avoid-break" style="page-break-after:always;">
+        <h2 class="region-heading">@r.Name</h2>
+
         @if (!string.IsNullOrWhiteSpace(Snap($"region_{r.Id}")))
         {
-            <img src="@Snap($"region_{r.Id}")" class="map" />
+            <img src="@Snap($"region_{r.Id}")" class="map"/>
         }
+
         @if (!string.IsNullOrWhiteSpace(r.Notes))
         {
             <div class="notes">@Html.Raw(r.Notes)</div>
         }
-        
+
+        <!-- places -->
+        @foreach (var p in Model.Places.Where(p => p.RegionId == r.Id).OrderBy(p => p.DisplayOrder))
+        {
+            <!--  place block with unique id  -->
+            <section id="p@(p.Id)" class="avoid-break" style="margin-bottom:.7rem;">
+                <h3 class="place-heading">@p.Name</h3>
+
+                <p class="mb-1">
+                    <a href="https://www.google.com/search?q=@p.Name"
+                       class="unstyled-link fs-bigger" target="_blank"
+                       title="Search place with Google"><strong>@p.Name</strong></a><br/>
+
+                    <a href="https://www.google.com/maps?q=@p.Location.Y,@p.Location.X"
+                       class="unstyled-link" target="_blank"
+                       title="Open in Google Maps">
+                        Lat: <code class="selectable">@p.Location.Y</code>
+                        Lon: <code class="selectable">@p.Location.X</code>
+                    </a>
+                </p>
+
+                @if (!string.IsNullOrWhiteSpace(Snap($"place_{p.Id}")))
+                {
+                    <img src="@Snap($"place_{p.Id}")" class="map"/>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(p.Notes))
+                {
+                    <div class="notes">@Html.Raw(p.Notes)</div>
+                }
+            </section>
+        }
+
+        <!-- areas list (unchanged) -->
         <ul style="list-style:none;padding:0;">
-            @foreach (var p in Model.Places.Where(p => p.RegionId == r.Id).OrderBy(p => p.DisplayOrder))
+            @foreach (var area in r.Areas?.OrderBy(a => a.DisplayOrder) ?? Enumerable.Empty<Area>())
             {
-                         <li id="p@p.Id" class="avoid-break" style="margin-bottom:.7rem;">
-                    <p class="mb-1">
-                        <a href="https://www.google.com/search?q=@p.Name" class="unstyled-link fs-bigger" title="Search place with Google" target="_blank"><strong>@p.Name</strong> </a><br />
-                        <a href="https://www.google.com/maps?q=@p.Location.Y,@p.Location.X" class="unstyled-link" title="Open in Google Maps" target="_blank"> Lat: <code class="selectable">@p.Location.Y</code>  Lon: <code class="selectable">@p.Location.X</code></a>
-                    </p>
-                    @if (!string.IsNullOrWhiteSpace(Snap($"place_{p.Id}")))
+                var coords = area.Geometry.Coordinates.Select(c => new[] { c.X, c.Y }).ToArray();
+                var coordsJson = JsonSerializer.Serialize(
+                    coords,
+                    new JsonSerializerOptions
                     {
-                        <img src="@Snap($"place_{p.Id}")" class="map" />
-                    }
-                    @if (!string.IsNullOrWhiteSpace(p.Notes))
-                    {
-                        <div class="notes">@Html.Raw(p.Notes)</div>
-                    }
+                        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
+                    });
+
+                <li class="area-list-item"
+                    data-area-id="@area.Id"
+                    data-area-geom='@coordsJson'
+                    data-area-fill="@(area.FillHex ?? areaHex)">
+                    <div class="area-name">@area.Name</div>
                 </li>
             }
         </ul>
 
         @{
-            // region‑specific segments: include any segment where either end lives in this region
+            // region-specific segments (kept exactly as before)
             var segs = Model.Segments.Where(s =>
             {
                 var fromReg = Model.Places.First(pl => pl.Id == s.FromPlaceId).RegionId;
-                var toReg   = Model.Places.First(pl => pl.Id == s.ToPlaceId).RegionId;
+                var toReg = Model.Places.First(pl => pl.Id == s.ToPlaceId).RegionId;
                 return fromReg == r.Id || toReg == r.Id;
             }).ToList();
         }

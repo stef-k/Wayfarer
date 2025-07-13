@@ -62,6 +62,7 @@ namespace Wayfarer.Parsers
         {
             var trip = _db.Trips
                 .Include(t => t.Regions).ThenInclude(r => r.Places)
+                .Include(t => t.Regions).ThenInclude(r => r.Areas)
                 .Include(t => t.Segments)
                 .AsNoTracking()
                 .First(t => t.Id == tripId);
@@ -91,7 +92,7 @@ namespace Wayfarer.Parsers
                     return new XElement(k + "Style",
                         new XAttribute("id", $"wf_{ic.IconName}_{ic.MarkerColor}"),
                         new XElement(k + "IconStyle",
-                            new XElement(k +"color", clr),
+                            new XElement(k + "color", clr),
                             new XElement(k + "scale", 1.2),
                             new XElement(k + "Icon",
                                 new XElement(k + "href", href)
@@ -107,6 +108,13 @@ namespace Wayfarer.Parsers
                     new XElement(k + "color", "ff0000ff"),
                     new XElement(k + "width", 4)));
 
+            var polyStyle = new XElement(k + "Style",
+                new XAttribute("id", "wf-area"),
+                new XElement(k + "PolyStyle",
+                    new XElement(k + "color", "7dff6600") // semi-transparent orange
+                )
+            );
+            doc.Add(polyStyle);
             doc.Add(iconStyles);
             doc.Add(lineStyle);
 
@@ -140,18 +148,24 @@ namespace Wayfarer.Parsers
                                     $"{p.Location.X},{p.Location.Y},0")))
                     );
                 }
-                
-                /* 2b ── Areas as Polygons -------------------------------------------- */
+
+
+                // 2b ── Areas as Polygons -----------------------------------------
                 foreach (var a in reg.Areas?.OrderBy(a => a.DisplayOrder) ?? Enumerable.Empty<Area>())
                 {
                     if (a.Geometry is not Polygon poly) continue;
 
+                    var coords = poly.Coordinates.ToList();
+                    if (!coords.First().Equals2D(coords.Last()))
+                        coords.Add(coords.First());
+
                     var coordsText = string.Join(" ",
-                        poly.Coordinates.Select(c =>
+                        coords.Select(c =>
                             $"{c.X.ToString(CI)},{c.Y.ToString(CI)},0"));
 
                     var placemark = new XElement(k + "Placemark",
                         new XElement(k + "name", a.Name),
+                        new XElement(k + "styleUrl", "#wf-area"),
                         string.IsNullOrWhiteSpace(a.Notes)
                             ? null
                             : new XElement(k + "description", new XCData(a.Notes)),
@@ -232,7 +246,7 @@ namespace Wayfarer.Parsers
                            .FirstOrDefaultAsync(t => t.Id == tripId)
                        ?? throw new KeyNotFoundException($"Trip not found: {tripId}");
 
-            var regions = await _db.Regions.Where(r => r.TripId == tripId).ToListAsync();
+            var regions = await _db.Regions.Include(r => r.Areas).Where(r => r.TripId == tripId).ToListAsync();
             var places = await _db.Places.Where(p => p.Region.TripId == tripId).ToListAsync();
             var segments = await _db.Segments.Where(s => s.TripId == tripId).ToListAsync();
 
@@ -359,8 +373,17 @@ namespace Wayfarer.Parsers
             {
                 Format = PaperFormat.A4,
                 MarginOptions = new MarginOptions
-                    { Top = "15mm", Bottom = "15mm", Left = "10mm", Right = "10mm" },
-                PrintBackground = true
+                    { Top = "30mm", Bottom = "15mm", Left = "12mm", Right = "12mm" },
+                PrintBackground = true,
+                DisplayHeaderFooter = true,
+                HeaderTemplate = "<span></span>",
+                FooterTemplate     = @"
+<div style=""width:100%;margin:0;padding:0;
+               font-family:'Segoe UI',Arial,sans-serif;
+               font-size:10pt;color:#555;
+               text-align:center;"">
+  Page <span class=""pageNumber""></span> of <span class=""totalPages""></span>
+</div>"
             });
 
             return new MemoryStream(pdfBytes);

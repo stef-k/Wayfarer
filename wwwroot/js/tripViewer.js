@@ -17,7 +17,8 @@ import {
     setSegmentVisible,
     wktToCoords,
     getPlaceMarker,
-    getSegmentPolyline
+    getSegmentPolyline,
+    canvasRenderer
 } from './tripViewerHelpers.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -234,7 +235,8 @@ const init = () => {
             fillColor: fill,
             weight: 1,
             opacity: 0.7,
-            fillOpacity: 0.2
+            fillOpacity: 0.1,
+            renderer: isPrint ? canvasRenderer : undefined
         }).addTo(map);
 
         const name = li.querySelector('.area-name')?.textContent.trim();

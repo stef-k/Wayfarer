@@ -16,7 +16,7 @@ const WF_HEIGHT = 45;
 const WF_ANCHOR = [14, 45];
 export const getPlaceMarker = pid => _places[pid]?.marker ?? null;
 export const getSegmentPolyline = sid => _segments[sid] ?? null;
-const canvasRenderer = L.canvas();
+export const canvasRenderer = L.canvas();
 
 /* ---------- map bootstrap ---------- */
 /* tripViewerHelpers.js

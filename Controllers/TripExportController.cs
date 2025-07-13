@@ -90,15 +90,12 @@ namespace Wayfarer.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportPdf(Guid id)
         {
+            Trip trip;
             try
             {
-                var trip = await LoadAndAuthorizeAsync(id);
-                var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id);
-                return File(stream,
-                    "application/pdf",
-                    $"{trip.Name}.pdf");
+                trip = await LoadAndAuthorizeAsync(id);
             }
-            catch (ArgumentException)
+            catch (ArgumentException)        // only catches _not found_
             {
                 return NotFound();
             }
@@ -106,6 +103,10 @@ namespace Wayfarer.Controllers
             {
                 return Forbid();
             }
+
+            // now call the exporter _outside_ of that try/catch
+            var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id);
+            return File(stream, "application/pdf", $"{trip.Name}.pdf");
         }
     }
 }

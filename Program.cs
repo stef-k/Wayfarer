@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
@@ -346,7 +347,11 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Add controllers with views for MVC routing & ingore JSON property-name case
     builder.Services
         .AddControllersWithViews()
-        .AddJsonOptions(o => o.JsonSerializerOptions.PropertyNameCaseInsensitive = true);;
+        .AddJsonOptions(o =>
+        {
+            o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+            o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
+        });
     
 
     // Add Swagger generation
