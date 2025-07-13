@@ -79,6 +79,40 @@ public class WayfarerKmlParser
                 place.Region = region;
                 placeDict[place.Id] = place;
             }
+
+            /* areas inside this region */
+            foreach (var pm in folder.Elements(X + "Placemark"))
+            {
+                var poly = pm.Element(X + "Polygon");
+                if (poly == null) continue;
+
+                var coords = poly.Element(X + "outerBoundaryIs")
+                    ?.Element(X + "LinearRing")
+                    ?.Element(X + "coordinates")?.Value;
+
+                if (string.IsNullOrWhiteSpace(coords)) continue;
+
+                var ring = new LinearRing(coords
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s =>
+                    {
+                        var (lon, lat) = ParseLonLat(s);
+                        return new Coordinate(lon, lat);
+                    }).ToArray());
+
+                var area = new Area
+                {
+                    Id = ReadGuid(pm, "AreaId") ?? Guid.NewGuid(),
+                    RegionId = region.Id,
+                    Name = pm.Element(X + "name")?.Value ?? "Area",
+                    DisplayOrder = ReadInt(pm, "DisplayOrder") ?? 0,
+                    FillHex = ReadString(pm, "FillHex"),
+                    Notes = ReadString(pm, "NotesHtml"),
+                    Geometry = new Polygon(ring) { SRID = 4326 }
+                };
+
+                (region.Areas ??= new List<Area>()).Add(area);
+            }
         }
 
         /* ---------- Segments folder ------------------------------------- */

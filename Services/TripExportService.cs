@@ -42,6 +42,7 @@ namespace Wayfarer.Parsers
         {
             var trip = _db.Trips
                            .Include(t => t.Regions).ThenInclude(r => r.Places)
+                           .Include(t => t.Regions).ThenInclude(r => r.Areas)
                            .Include(t => t.Segments)
                            .AsNoTracking()
                            .FirstOrDefault(t => t.Id == tripId)

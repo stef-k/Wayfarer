@@ -28,7 +28,7 @@ public class TripImportService : ITripImportService
         var xmlText = Encoding.UTF8.GetString(mem.ToArray());
         mem.Position = 0;
 
-        bool isWayfarer = xmlText.Contains("wf:TripId") || xmlText.Contains("wf:PlaceId");
+        bool isWayfarer = xmlText.Contains("<Data name=\"TripId\">");
         parsed = isWayfarer
             ? WayfarerKmlParser.Parse(mem)
             : GoogleMyMapsKmlParser.Parse(mem, userId);
@@ -99,6 +99,11 @@ public class TripImportService : ITripImportService
                 (p, d) => p.Id == d.Id);
             
             tReg.Places ??= new List<Place>();
+            
+            SyncCollection(pReg.Areas ?? Enumerable.Empty<Area>(),
+                tReg.Areas,
+                (p, d) => p.Id == d.Id);
+            tReg.Areas ??= new List<Area>();
         }
         
         // --- ensure every trip has its “Unassigned Places” shadow region ---
@@ -161,6 +166,14 @@ public class TripImportService : ITripImportService
                 p.Id = newPlaceId;
                 p.RegionId = newRegId;
                 p.UserId  = userId;
+            }
+            
+            /* 2b ── places --------------------------------------------------- */
+            r.Areas ??= new List<Area>();
+            foreach (var a in r.Areas)
+            {
+                a.Id = Guid.NewGuid();       
+                a.RegionId = newRegId;      
             }
         }
 
