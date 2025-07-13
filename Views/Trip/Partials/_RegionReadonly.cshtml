@@ -1,3 +1,4 @@
+@using NetTopologySuite.IO
 @using Wayfarer.Util
 @model Wayfarer.Models.Region
 @{
@@ -58,15 +59,21 @@
                             data-place-icon="@iconName"
                             data-place-color="@bgClass"
                             data-region-id="@Model.Id"
-                            data-region-name="@Model.Name"          @* NEW — for sidebar line 3 *@
-                            @if (pLat is not null){<text> data-place-lat="@pLat"</text>}
-                            @if (pLon is not null){<text> data-place-lon="@pLon"</text>}
+                            data-region-name="@Model.Name"
+                            @if (pLat is not null)
+                            {
+                            <text> data-place-lat="@pLat" </text>
+                            }
+                            @if (pLon is not null)
+                            {
+                            <text> data-place-lon="@pLon" </text>
+                            }
                             title="Click to view details">
 
                             @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml",
                                 (iconName, bgClass))
                             <span class="flex-grow-1">@p.Name</span>
-                            
+
                             <div class="d-none place-notes">
                                 @Html.LinkifyHtml(p.Notes)
                             </div>
@@ -74,6 +81,43 @@
                     </text>
                 }
             </ul>
+
+            @if (Model.Areas?.Any() == true)
+            {
+                <div class="mt-3">
+                    <h6>Areas</h6>
+                    <ul class="list-group list-group-flush">
+                        @foreach (var area in Model.Areas.OrderBy(a => a.DisplayOrder))
+                        {
+                            <li class="list-group-item d-flex align-items-center justify-content-between area-list-item"
+                                data-area-id="@area.Id"
+                                data-region-id="@Model.Id"
+                                data-area-geom='@(area.Geometry != null
+                                                    ? new GeoJsonWriter().Write(area.Geometry)
+                                                    : "null")'
+                                data-area-fill="@area.FillHex">
+
+                                <div class="d-flex align-items-center">
+                                    <strong class="area-name me-3">
+                                        @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_CircleIcon.cshtml", ("flag", "bg-green"))
+                                        @area.Name
+                                    </strong>
+                                    @if (!string.IsNullOrWhiteSpace(area.Notes))
+                                    {
+                                        <p class="mb-0 small text-muted">@area.Notes</p>
+                                    }
+                                </div>
+
+                                <input type="checkbox"
+                                       class="form-check-input area-toggle"
+                                       checked
+                                       data-area-id="@area.Id"
+                                       title="Show/Hide this area"/>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
         </div>
     </div>
 </div>

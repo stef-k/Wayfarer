@@ -23,6 +23,7 @@ import {
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 let currentMarker = null;
+const _areas = {};
 
 // --- Permalink Support --- 
 /**
@@ -219,6 +220,40 @@ const init = () => {
         });
     });
 
+    /* ────────── areas ────────── */
+    // 1) Draw & store all area polygons
+    document.querySelectorAll('.area-list-item').forEach(li => {
+        const areaId = li.dataset.areaId;
+        const geom = JSON.parse(li.dataset.areaGeom || 'null');
+        const fill = li.dataset.areaFill || '#3388ff';
+        if (!geom?.coordinates) return;
+
+        const coords = geom.coordinates[0].map(([lon, lat]) => [lat, lon]);
+        const poly = L.polygon(coords, {
+            color: fill,
+            fillColor: fill,
+            weight: 1,
+            opacity: 0.7,
+            fillOpacity: 0.2
+        }).addTo(map);
+
+        const name = li.querySelector('.area-name')?.textContent.trim();
+        if (name) poly.bindTooltip(name, {direction: 'right'});
+
+        _areas[areaId] = poly;
+    });
+
+    // 2) Wire each “.area-toggle” checkbox once
+    document.querySelectorAll('.area-toggle').forEach(cb => {
+        cb.addEventListener('change', e => {
+            const id = e.target.dataset.areaId;
+            const poly = _areas[id];
+            if (!poly) return;
+            if (e.target.checked) map.addLayer(poly);
+            else map.removeLayer(poly);
+        });
+    });
+
     /* ────────── segments ────────── */
     $$('.segment-list-item').forEach(li => {
         const d = li.dataset;
@@ -241,7 +276,7 @@ const init = () => {
             coords = wktToCoords(li.dataset.routeWkt);
         } else {
             // fallback to from‐to lat/lon
-            const { fromLat, fromLon, toLat, toLon } = li.dataset;
+            const {fromLat, fromLon, toLat, toLon} = li.dataset;
             coords = [[+fromLat, +fromLon], [+toLat, +toLon]];
         }
         if (coords.length >= 2) {
@@ -269,7 +304,9 @@ const init = () => {
     const hideBtn = $('#btn-collapse-sidebar');
 
     const showBtn = Object.assign(document.createElement('button'), {
-        id: 'btn-show-sidebar', className: 'btn btn-light border fw-semibold shadow-lg', textContent: 'MAP LEGEND'
+        id: 'btn-show-sidebar',
+        className: 'btn btn-light border fw-semibold shadow-lg',
+        textContent: 'MAP LEGEND'
     });
     document.body.appendChild(showBtn);
     showBtn.style.display = 'none';

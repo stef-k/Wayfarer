@@ -1,13 +1,14 @@
 using System.Globalization;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
+using System.Linq;
 using Wayfarer.Models;
 
 namespace Wayfarer.Parsers;
 
 /// <summary>
 /// Builds a “Wayfarer-Extended-KML” document that preserves every Trip,
-/// Region, Place and Segment field so the file can be re-imported 1-for-1.
+/// Region, Place, Area and Segment field so the file can be re-imported 1-for-1.
 /// </summary>
 public class TripWayfarerKmlExporter
 {
@@ -18,7 +19,7 @@ public class TripWayfarerKmlExporter
 
     public static string BuildKml(Trip trip)
     {
-        /* ---------- 1) <Style> elements (icons) --------------------------- */
+        /* 1) <Style> elements (icons) */
         var styles = (trip.Regions ?? Enumerable.Empty<Region>())
             .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
             .Select(p => new { p.IconName, p.MarkerColor })
@@ -30,7 +31,8 @@ public class TripWayfarerKmlExporter
                         new XElement(X + "href",
                             $"/icons/wayfarer-map-icons/dist/png/marker/{ic.MarkerColor}/{ic.IconName}.png")))));
 
-        /* ---------- 2) root <Document> ------------------------------------ */
+
+        /* 2) root <Document> */
         var doc = new XElement(X + "Document",
             new XElement(X + "name", trip.Name));
 
@@ -44,9 +46,10 @@ public class TripWayfarerKmlExporter
             Ext("CenterLon", trip.CenterLon),
             Ext("Zoom", trip.Zoom));
 
-        doc.Add(styles); // add IEnumerable<XElement> AFTER constructor to avoid ambiguity
+        doc.Add(styles);
 
-        /* ---------- 3) Regions and Places --------------------------------- */
+
+        /* 3) Regions → Places & Areas */
         foreach (var region in (trip.Regions ?? Enumerable.Empty<Region>())
                  .OrderBy(r => r.DisplayOrder))
         {
@@ -59,8 +62,10 @@ public class TripWayfarerKmlExporter
                 Ext("DisplayOrder", region.DisplayOrder),
                 Ext("NotesHtml", region.Notes ?? string.Empty),
                 Ext("CenterLat", region.Center?.Y),
-                Ext("CenterLon", region.Center?.X));
+                Ext("CenterLon", region.Center?.X)
+            );
 
+            // — Places —
             foreach (var place in (region.Places ?? Enumerable.Empty<Place>())
                      .OrderBy(p => p.DisplayOrder))
             {
@@ -68,8 +73,7 @@ public class TripWayfarerKmlExporter
 
                 var placemark = new XElement(X + "Placemark",
                     new XElement(X + "name", place.Name),
-                    new XElement(X + "styleUrl",
-                        $"#wf_{place.IconName}_{place.MarkerColor}"),
+                    new XElement(X + "styleUrl", $"#wf_{place.IconName}_{place.MarkerColor}"),
                     new XElement(X + "Point",
                         new XElement(X + "coordinates",
                             $"{place.Location.X.ToString(CI)},{place.Location.Y.ToString(CI)},0")));
@@ -81,15 +85,51 @@ public class TripWayfarerKmlExporter
                     Ext("NotesHtml", place.Notes ?? string.Empty),
                     Ext("IconName", place.IconName),
                     Ext("MarkerColor", place.MarkerColor),
-                    Ext("Address", place.Address ?? string.Empty));
+                    Ext("Address", place.Address ?? string.Empty)
+                );
 
                 folder.Add(placemark);
+            }
+
+            // — Areas —
+            foreach (var area in (region.Areas ?? Enumerable.Empty<Area>())
+                     .OrderBy(a => a.DisplayOrder))
+            {
+                if (area.Geometry is not Polygon poly) continue;
+
+                // build coordinate string: lon,lat,0 pairs space-delimited
+                var coordsText = string.Join(" ",
+                    poly.Coordinates.Select(c =>
+                        $"{c.X.ToString(CI)},{c.Y.ToString(CI)},0"));
+
+                var areaPm = new XElement(X + "Placemark",
+                    new XElement(X + "name", area.Name),
+                    new XElement(X + "Polygon",
+                        new XElement(X + "tessellate", 1),
+                        new XElement(X + "outerBoundaryIs",
+                            new XElement(X + "LinearRing",
+                                new XElement(X + "coordinates", coordsText)
+                            )
+                        )
+                    )
+                );
+
+                areaPm.Add(
+                    Ext("AreaId", area.Id),
+                    Ext("RegionId", region.Id),
+                    Ext("DisplayOrder", area.DisplayOrder),
+                    Ext("FillHex", area.FillHex),
+                    Ext("NotesHtml", area.Notes ?? string.Empty)
+                );
+
+                folder.Add(areaPm);
             }
 
             doc.Add(folder);
         }
 
-        /* ---------- 4) Segments ------------------------------------------ */
+
+        /* 4) Segments */
         if (trip.Segments?.Any() == true)
         {
             var segFolder = new XElement(X + "Folder",
@@ -117,7 +157,8 @@ public class TripWayfarerKmlExporter
                     Ext("DistanceKm", seg.EstimatedDistanceKm),
                     Ext("DurationMin", seg.EstimatedDuration?.TotalMinutes),
                     Ext("DisplayOrder", seg.DisplayOrder),
-                    Ext("NotesHtml", seg.Notes ?? string.Empty));
+                    Ext("NotesHtml", seg.Notes ?? string.Empty)
+                );
 
                 segFolder.Add(placemark);
             }
@@ -125,7 +166,8 @@ public class TripWayfarerKmlExporter
             doc.Add(segFolder);
         }
 
-        /* ---------- 5) Wrap in <kml> and return --------------------------- */
+
+        /* 5) Wrap in <kml> and return */
         var kml = new XDocument(
             new XDeclaration("1.0", "utf-8", "yes"),
             new XElement(X + "kml",
@@ -135,7 +177,7 @@ public class TripWayfarerKmlExporter
         return kml.ToString();
     }
 
-    /* helper: one <ExtendedData><Data …/></ExtendedData> */
+    // helper: one <ExtendedData><Data name=…><value>…</value></Data></ExtendedData>
     private static XElement Ext(string name, object? val) =>
         new XElement(X + "ExtendedData",
             new XElement(X + "Data", new XAttribute("name", name),
