@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Wayfarer.Models;
 namespace Wayfarer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250522150441_HiddenAreas")]
+    partial class HiddenAreas
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,7 +54,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ApplicationSettings", (string)null);
+                    b.ToTable("ApplicationSettings");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -207,7 +210,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ActivityTypes", (string)null);
+                    b.ToTable("ActivityTypes");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApiToken", b =>
@@ -243,7 +246,7 @@ namespace Wayfarer.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_ApiToken_Name_UserId");
 
-                    b.ToTable("ApiTokens", (string)null);
+                    b.ToTable("ApiTokens");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApplicationUser", b =>
@@ -358,7 +361,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.HiddenArea", b =>
@@ -388,7 +391,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("HiddenAreas", (string)null);
+                    b.ToTable("HiddenAreas");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.JobHistory", b =>
@@ -412,7 +415,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("JobHistories", (string)null);
+                    b.ToTable("JobHistories");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Location", b =>
@@ -499,7 +502,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("VehicleId");
 
-                    b.ToTable("Locations", (string)null);
+                    b.ToTable("Locations");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationImport", b =>
@@ -551,7 +554,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("LocationImports", (string)null);
+                    b.ToTable("LocationImports");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.TileCacheMetadata", b =>
@@ -598,7 +601,7 @@ namespace Wayfarer.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TileLocation"), "GIST");
 
-                    b.ToTable("TileCacheMetadata", (string)null);
+                    b.ToTable("TileCacheMetadata");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Vehicle", b =>
@@ -652,7 +655,7 @@ namespace Wayfarer.Migrations
                     b.HasIndex("PlateNumber")
                         .HasDatabaseName("IX_Vehicle_PlateNumber");
 
-                    b.ToTable("Vehicles", (string)null);
+                    b.ToTable("Vehicles");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
