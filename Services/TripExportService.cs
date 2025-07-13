@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml.Linq;
@@ -20,6 +21,7 @@ namespace Wayfarer.Parsers
         readonly LinkGenerator _link;
         readonly IRazorViewRenderer _razor;
         readonly BrowserFetcher _browserFetcher;
+        private static readonly CultureInfo CI = CultureInfo.InvariantCulture;
 
         public TripExportService(
             ApplicationDbContext dbContext,
@@ -137,6 +139,33 @@ namespace Wayfarer.Parsers
                                 new XElement(k + "coordinates",
                                     $"{p.Location.X},{p.Location.Y},0")))
                     );
+                }
+                
+                /* 2b ── Areas as Polygons -------------------------------------------- */
+                foreach (var a in reg.Areas?.OrderBy(a => a.DisplayOrder) ?? Enumerable.Empty<Area>())
+                {
+                    if (a.Geometry is not Polygon poly) continue;
+
+                    var coordsText = string.Join(" ",
+                        poly.Coordinates.Select(c =>
+                            $"{c.X.ToString(CI)},{c.Y.ToString(CI)},0"));
+
+                    var placemark = new XElement(k + "Placemark",
+                        new XElement(k + "name", a.Name),
+                        string.IsNullOrWhiteSpace(a.Notes)
+                            ? null
+                            : new XElement(k + "description", new XCData(a.Notes)),
+                        new XElement(k + "Polygon",
+                            new XElement(k + "tessellate", 1),
+                            new XElement(k + "outerBoundaryIs",
+                                new XElement(k + "LinearRing",
+                                    new XElement(k + "coordinates", coordsText)
+                                )
+                            )
+                        )
+                    );
+
+                    folder.Add(placemark);
                 }
 
                 doc.Add(folder);
