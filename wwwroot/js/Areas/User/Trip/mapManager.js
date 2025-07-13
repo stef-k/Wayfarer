@@ -1,9 +1,5 @@
 // mapManager.js – refactored to use store
-import {
-    addZoomLevelControl,
-    latestLocationMarker
-} from '../../../map-utils.js';
-
+import {addZoomLevelControl} from '../../../map-utils.js';
 import {store} from './storeInstance.js';
 
 /* ------------------------------------------------------------------ *
@@ -19,6 +15,7 @@ let previewMarkerType = null;
 const placeMarkersById = {};
 const regionMarkersById = {};
 const regionPreviewById = {};
+const areaPolygonsById = {};
 
 const WF_WIDTH = 28;
 const WF_HEIGHT = 45;
@@ -153,6 +150,142 @@ export const applyCoordinates = ({lat, lon}) => {
         lonInput.value = lonNum.toFixed(6);
     }
 };
+
+/**
+ * Initialize the mini-map for drawing/editing an Area,
+ * centering on its parent Region and showing existing Places.
+ *
+ * @param {string} areaId       The GUID of the Area form.
+ * @param {object|null} geometry  GeoJSON polygon or null.
+ * @param {string} fillColor     Hex color for the new area.
+ */
+export const initAreaMap = (areaId, geometry, fillColor) => {
+    // 1️⃣ Find the container
+    const container = document.getElementById(`map-area-${areaId}`);
+    if (!container) return;
+
+    // 2️⃣ Create the Leaflet map
+    const map = L.map(container, {zoomAnimation: true}).setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // 3️⃣ Draw existing Places for context
+    const contextGroup = new L.FeatureGroup().addTo(map);
+    const regionItem = container.closest('.accordion-item[id^="region-item-"]');
+    let usedRegionCenter = false;
+
+    if (regionItem) {
+        // 3a) Center on the Region if available
+        const lat = parseFloat(regionItem.dataset.centerLat);
+        const lon = parseFloat(regionItem.dataset.centerLon);
+        if (!isNaN(lat) && !isNaN(lon)) {
+            map.setView([lat, lon], 8);
+            usedRegionCenter = true;
+        }
+
+        // 3b) Render each Place marker in that region
+        regionItem.querySelectorAll('.place-list-item').forEach(el => {
+            const plat = parseFloat(el.dataset.placeLat);
+            const plon = parseFloat(el.dataset.placeLon);
+            if (isNaN(plat) || isNaN(plon)) return;
+
+            const iconName = el.dataset.placeIcon || 'marker';
+            const color = el.dataset.placeColor || 'bg-blue';
+            const iconUrl = buildPngIconUrl(iconName, color);
+
+            L.marker([plat, plon], {
+                icon: L.icon({
+                    iconUrl,
+                    iconSize: [WF_WIDTH, WF_HEIGHT],
+                    iconAnchor: WF_ANCHOR,
+                    className: 'map-icon'
+                })
+            }).addTo(contextGroup);
+        });
+    }
+
+    // 3c) If we didn’t center on the Region, but we *did* add Place markers,
+    //     auto-zoom to fit them.
+    if (!usedRegionCenter && contextGroup.getLayers().length > 0) {
+        map.fitBounds(contextGroup.getBounds(), {padding: [20, 20]});
+    }
+
+    // 4️⃣ Draw any existing Area polygon (for edit mode)
+    const drawnItems = new L.FeatureGroup().addTo(map);
+    if (geometry) {
+        // load GeoJSON, then take each polygon layer and add it directly
+        const geoLayer = L.geoJSON(geometry, {
+            style: () => ({ color: fillColor, fillColor, fillOpacity: 0.4 })
+        });
+
+        // move each real layer into our drawnItems group
+        geoLayer.eachLayer(layer => drawnItems.addLayer(layer));
+
+        // zoom to the bounds of the actual polygon(s)
+        const bounds = drawnItems.getBounds();
+        if (bounds.isValid()) {
+            map.fitBounds(bounds);
+        }
+    }
+
+    // 5️⃣ Add the polygon-only Draw toolbar
+    drawControl = new L.Control.Draw({
+        draw: {
+            polygon: {allowIntersection: false, showArea: true},
+            rectangle: false,
+            circle: false,
+            polyline: false,
+            marker: false,
+            circlemarker: false
+        },
+        edit: {featureGroup: drawnItems}
+    }).addTo(map);
+
+    // 6️⃣ Wire up Create/Edit events to write GeoJSON back to the form
+    map.on(L.Draw.Event.CREATED, e => {
+        drawnItems.clearLayers();
+        drawnItems.addLayer(e.layer);
+        document
+            .getElementById(`Geometry-${areaId}`)
+            .value = JSON.stringify(e.layer.toGeoJSON().geometry);
+
+        const saveBtn = document.querySelector(
+            `#area-form-${areaId} .btn-area-save`
+        );
+        if (saveBtn) saveBtn.click();
+    });
+    map.on(L.Draw.Event.EDITED, e => {
+        e.layers.eachLayer(layer => {
+            document
+                .getElementById(`Geometry-${areaId}`)
+                .value = JSON.stringify(layer.toGeoJSON().geometry);
+        });
+    });
+};
+
+
+// draw a polygon on the **main** map
+export const renderAreaPolygon = ({Id, Geometry, FillHex}) => {
+    if (!Geometry) return;
+    // Remove stale
+    if (areaPolygonsById[Id]) {
+        mapContainer.removeLayer(areaPolygonsById[Id]);
+        delete areaPolygonsById[Id];
+    }
+    const poly = L.geoJSON(Geometry, {
+        style: () => ({color: FillHex, fillColor: FillHex, fillOpacity: 0.3, weight: 2})
+    }).addTo(mapContainer);
+    areaPolygonsById[Id] = poly;
+};
+
+// remove from main map
+export const removeAreaPolygon = (id) => {
+    if (!areaPolygonsById[id]) return;
+    mapContainer.removeLayer(areaPolygonsById[id]);
+    delete areaPolygonsById[id];
+};
+
 
 export const renderRegionMarker = async ({Id, CenterLat, CenterLon, Name}) => {
     if (!CenterLat || !CenterLon) return;
@@ -370,7 +503,7 @@ store.subscribe(({type, payload}) => {
         }
         const regionEl = document.getElementById(`region-item-${payload.regionId}`);
         if (!regionEl) return;
-        
+
         const placeEls = regionEl.querySelectorAll('.place-list-item');
         for (const markerId in placeMarkersById) {
             const el = document.querySelector(`.place-list-item[data-place-id="${markerId}"]`);
@@ -401,9 +534,7 @@ store.subscribe(({type, payload}) => {
         const lat = parseFloat(regionEl.dataset.centerLat);
         const lon = parseFloat(regionEl.dataset.centerLon);
         const name = regionEl.dataset.regionName || 'Unnamed Region';
-        console.debug('[region reload] region center:', lat, lon, 'for', payload.regionId);
         if (!isNaN(lat) && !isNaN(lon)) {
-            console.debug('📍 [region-dom-reloaded] Drawing region marker:', payload.regionId, lat, lon);
             renderRegionMarker({
                 Id: payload.regionId,
                 CenterLat: lat,
@@ -411,6 +542,12 @@ store.subscribe(({type, payload}) => {
                 Name: name
             });
         }
+
+        regionEl.querySelectorAll('.area-list-item').forEach(el => {
+            const geom = JSON.parse(el.dataset.areaGeom || 'null');
+            const fill = el.dataset.areaFill;
+            renderAreaPolygon({Id: el.dataset.areaId, Geometry: geom, FillHex: fill});
+        });
     }
 });
 

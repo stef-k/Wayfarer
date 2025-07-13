@@ -1,31 +1,29 @@
 // trip.js – modular entry point for trip editing (pure-store, banner + new-region fix)
 
 import {
-    clearDim,
-    dimAll,
-    hideAllIndicators,
-    rebindMainButtons,
-    saveTrip
+    clearDim, dimAll, hideAllIndicators, rebindMainButtons, saveTrip
 } from './uiCore.js';
 
 import {
-    applyCoordinates, clearPreviewMarker,
+    applyCoordinates,
+    clearPreviewMarker,
     disableDrawingTools,
     getMapInstance,
     initializeMap,
+    renderAreaPolygon,
     renderPlaceMarker,
     renderRegionMarker
 } from './mapManager.js';
 
-import { initRegionHandlers } from './regionHandlers.js';
-import { initPlaceHandlers } from './placeHandlers.js';
+import {initRegionHandlers} from './regionHandlers.js';
+import {initPlaceHandlers} from './placeHandlers.js';
 import {
-    initSegmentHandlers,
-    loadSegmentCreateForm
+    initSegmentHandlers, loadSegmentCreateForm
 } from './segmentHandlers.js';
-import { setupQuill } from './quillNotes.js';
-import { store } from './storeInstance.js';
-import { initOrdering } from './regionsOrder.js';
+import {initAreaHandlers} from './areaHandlers.js';
+import {setupQuill} from './quillNotes.js';
+import {store} from './storeInstance.js';
+import {initOrdering} from './regionsOrder.js';
 
 
 let currentTripId = null;
@@ -85,10 +83,9 @@ const attachListeners = () => {
             const lon = parseFloat(form.querySelector('[name="CenterLon"]')?.dataset.default ?? '');
             const zoom = parseInt(form.querySelector('[name="Zoom"]')?.dataset.default ?? '3', 10);
 
-            if (!Number.isNaN(lat) && !Number.isNaN(lon))
-                getMapInstance()?.setView([lat, lon], zoom || 3);
+            if (!Number.isNaN(lat) && !Number.isNaN(lon)) getMapInstance()?.setView([lat, lon], zoom || 3);
 
-            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            form.scrollIntoView({behavior: 'smooth', block: 'start'});
             store.dispatch('clear-context');
         });
 
@@ -103,11 +100,11 @@ const attachListeners = () => {
     /* ------------------------------------------------------------------ *
      *  Store listener – react to context changes
      * ------------------------------------------------------------------ */
-    store.subscribe(({ type, payload }) => {
+    store.subscribe(({type, payload}) => {
 
         /* ========== CONTEXT SET ========== */
         if (type === 'set-context') {
-            const { id, type: ctxType, meta, action } = payload;
+            const {id, type: ctxType, meta, action} = payload;
             hideAllIndicators();
 
             if (ctxType === 'place') {
@@ -118,7 +115,9 @@ const attachListeners = () => {
                     if (regionItem) {
                         dimAll();
                         regionItem.querySelectorAll('.place-list-item')
-                            .forEach(el => { if (el !== placeItem) el.classList.add('dimmed'); });
+                            .forEach(el => {
+                                if (el !== placeItem) el.classList.add('dimmed');
+                            });
                         regionItem.classList.remove('dimmed');
                         regionItem.querySelector('.accordion-button')?.classList.remove('dimmed');
                     }
@@ -136,25 +135,19 @@ const attachListeners = () => {
                 wrapper?.querySelector('.accordion-button')?.classList?.remove('dimmed');
 
                 document.querySelectorAll('.accordion-item')
-                    .forEach(el => (el.id === `region-item-${id}` || el.id === `region-form-${id}`)
-                        ? el.classList.remove('dimmed')
-                        : el.classList.add('dimmed'));
+                    .forEach(el => (el.id === `region-item-${id}` || el.id === `region-form-${id}`) ? el.classList.remove('dimmed') : el.classList.add('dimmed'));
             }
 
             if (ctxType === 'segment') {
                 document.getElementById(`segment-item-${id}`)
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    ?.scrollIntoView({behavior: 'smooth', block: 'center'});
             }
 
             /* ----- banner ----- */
             (meta?.name && ctxType) ? setBanner(action, meta.name) : hideBanner();
 
             // 🧭 Sync lat/lon to inputs + form when context is set
-            const formSelector = ctxType === 'place'
-                ? `#place-form-${id}`
-                : ctxType === 'region'
-                    ? `#region-form-${id}`
-                    : null;
+            const formSelector = ctxType === 'place' ? `#place-form-${id}` : ctxType === 'region' ? `#region-form-${id}` : null;
 
             const latField = ctxType === 'place' ? 'Latitude' : 'CenterLat';
             const lonField = ctxType === 'place' ? 'Longitude' : 'CenterLon';
@@ -168,7 +161,7 @@ const attachListeners = () => {
                 const lon = parseFloat(lonRaw);
 
                 if (!isNaN(lat) && !isNaN(lon)) {
-                    applyCoordinates({ lat, lon });
+                    applyCoordinates({lat, lon});
                 }
             }
         }
@@ -189,19 +182,43 @@ const attachListeners = () => {
             clearDim();
             hideBanner();
             hideAllIndicators();
+
+            document.querySelectorAll('form[id^="area-form-"]').forEach(form => {
+                const regionId = form.querySelector('[name="RegionId"]')?.value;
+                if (!regionId) return;
+
+                fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`)
+                    .then(r => r.text())
+                    .then(html => {
+                        document.getElementById(`region-item-${regionId}`).outerHTML = html;
+                        store.dispatch('region-dom-reloaded', {regionId});
+                    });
+            });
+
         }
 
         /**
          * re attach handlers after reload
          */
-        store.subscribe(({ type, payload }) => {
-            if (type === 'region-dom-reloaded') {
-                initRegionHandlers(currentTripId);
-                initPlaceHandlers();
-                initSegmentHandlers(currentTripId);
-                initOrdering();
-            }
-        });
+        if (type === 'region-dom-reloaded') {
+            initRegionHandlers(currentTripId);
+            initPlaceHandlers();
+            initSegmentHandlers(currentTripId);
+            initOrdering();
+            // re-draw all Areas on the main map
+            document.querySelectorAll(`.area-list-item[data-region-id="${payload.regionId}"]`).forEach(el => {
+                const geom = JSON.parse(el.dataset.areaGeom || 'null');
+                const fill = el.dataset.areaFill;
+                if (geom) {
+                    renderAreaPolygon({
+                        Id: el.dataset.areaId, Geometry: geom, FillHex: fill
+                    });
+                }
+            });
+
+            // wire up area buttons & map drawing
+            initAreaHandlers(currentTripId);
+        }
 
         /**
          * ensure only one active form at all times
@@ -215,7 +232,7 @@ const attachListeners = () => {
                 } else {
                     const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
                     form.outerHTML = await resp.text();
-                    store.dispatch('region-dom-reloaded', { regionId });
+                    store.dispatch('region-dom-reloaded', {regionId});
                 }
             });
 
@@ -234,7 +251,7 @@ const attachListeners = () => {
                         const html = await resp.text();
 
                         const newRegionEl = await replaceOuterHtmlAndWait(regionEl, html);
-                        store.dispatch('region-dom-reloaded', { regionId });
+                        store.dispatch('region-dom-reloaded', {regionId});
 
                         // 🔁 Restore marker for the saved place
                         const placeItem = newRegionEl.querySelector(`.place-list-item[data-place-id="${placeId}"]`);
@@ -267,7 +284,29 @@ const attachListeners = () => {
                 } else {
                     const resp = await fetch(`/User/Segments/GetItemPartial?segmentId=${segmentId}`);
                     form.outerHTML = await resp.text();
-                    store.dispatch('segment-dom-reloaded', { segmentId });
+                    store.dispatch('segment-dom-reloaded', {segmentId});
+                }
+            });
+
+            // Areas: remove open form and reload from server if needed
+            document.querySelectorAll('form[id^="area-form-"]').forEach(async (form) => {
+                const areaId = form.querySelector('[name="Id"]')?.value;
+                const regionId = form.querySelector('[name="RegionId"]')?.value;
+
+                // 🆕 New Area form (not yet saved) → just remove the form
+                if (!areaId || areaId.length !== 36) {
+                    form.remove();
+                } else {
+                    // 📦 Existing Area → re-render its parent Region accordion item
+                    const regionEl = document.getElementById(`region-item-${regionId}`);
+                    if (regionEl) {
+                        const resp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+                        const html = await resp.text();
+
+                        // Use the same replaceOuterHtmlAndWait helper you use for Places
+                        const newRegionEl = await replaceOuterHtmlAndWait(regionEl, html);
+                        store.dispatch('region-dom-reloaded', {regionId});
+                    }
                 }
             });
 
@@ -287,9 +326,7 @@ const loadPersistedMarkers = () => {
         if (d.placeLat && d.placeLon) {
             renderPlaceMarker({
                 Id: d.placeId,
-                Name: (d.placeName ||
-                    el.querySelector('.place-name')?.textContent ||
-                    '').trim(),
+                Name: (d.placeName || el.querySelector('.place-name')?.textContent || '').trim(),
                 Latitude: d.placeLat,
                 Longitude: d.placeLon,
                 IconName: d.placeIcon,
@@ -305,8 +342,22 @@ const loadPersistedMarkers = () => {
         const lon = item.dataset.centerLon;
         const id = item.id?.replace('region-item-', '');
         const name = item.dataset.regionName || 'Unnamed Region';
-        if (id && lat && lon)
-            renderRegionMarker({ Id: id, CenterLat: lat, CenterLon: lon, Name: name });
+        if (id && lat && lon) renderRegionMarker({Id: id, CenterLat: lat, CenterLon: lon, Name: name});
+    });
+
+    /* areas */
+    document.querySelectorAll('.area-list-item').forEach(el => {
+        try {
+            const geom = JSON.parse(el.dataset.areaGeom || 'null');
+            const fill = el.dataset.areaFill;
+            if (geom) {
+                renderAreaPolygon({
+                    Id: el.dataset.areaId, Geometry: geom, FillHex: fill
+                });
+            }
+        } catch (err) {
+            console.warn('⚠️ Failed to render persisted area polygon', err);
+        }
     });
 };
 
@@ -375,10 +426,7 @@ const handleSelectResult = async (result) => {
     const name = result.display_name;
 
     store.dispatch('set-context', {
-        type: 'search-temp',
-        id: `temp-${Date.now()}`,
-        action: 'preview',
-        meta: { name, lat, lon }
+        type: 'search-temp', id: `temp-${Date.now()}`, action: 'preview', meta: {name, lat, lon}
     });
 
     getMapInstance()?.setView([lat, lon], 14);
@@ -405,19 +453,16 @@ const getRegionOptions = () => {
     /* 1️⃣ visible accordion items */
     document.querySelectorAll('#regions-accordion .accordion-item')
         .forEach(item => opts.push({
-            id       : item.id.replace(/^region-item-/, ''),
-            name     : item.dataset.regionName?.trim() || 'Unnamed region',
-            isShadow : item.dataset.shadowRegion === '1'   // ← detects “Un-assigned” if already rendered
+            id: item.id.replace(/^region-item-/, ''),
+            name: item.dataset.regionName?.trim() || 'Unnamed region',
+            isShadow: item.dataset.shadowRegion === '1'   // ← detects “Un-assigned” if already rendered
         }));
 
     /* 2️⃣ hidden shadow region (from <input>) */
     const shadowId = document.getElementById('shadow-region-id')?.value;
-    if (shadowId && !opts.some(o => o.id === shadowId))
-        opts.unshift({
-            id       : shadowId,
-            name     : SHADOW_REGION_NAME,
-            isShadow : true
-        });
+    if (shadowId && !opts.some(o => o.id === shadowId)) opts.unshift({
+        id: shadowId, name: SHADOW_REGION_NAME, isShadow: true
+    });
 
     return opts;
 };
@@ -450,10 +495,9 @@ const showAddToTripUI = (result) => {
     };
 
     // 3️⃣ show modal (lazy-initialise once)
-    if (!window._addPlaceModal)
-        window._addPlaceModal = new bootstrap.Modal(document.getElementById('addPlaceModal'), {
-            backdrop: 'static'
-        });
+    if (!window._addPlaceModal) window._addPlaceModal = new bootstrap.Modal(document.getElementById('addPlaceModal'), {
+        backdrop: 'static'
+    });
     const bsModal = window._addPlaceModal;
     bsModal.show();
 };
@@ -475,12 +519,12 @@ const addSearchedPlaceToTrip = async (result, regionId) => {
         /* 🅰 ensure the region DOM exists (shadow may still be hidden) */
         let regionEl = document.getElementById(`region-item-${regionId}`);
         if (!regionEl) {
-            const rResp  = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
-            const rHtml  = await rResp.text();
+            const rResp = await fetch(`/User/Regions/GetItemPartial?regionId=${regionId}`);
+            const rHtml = await rResp.text();
             document.getElementById('regions-accordion')
                 .insertAdjacentHTML('afterbegin', rHtml);
             regionEl = document.getElementById(`region-item-${regionId}`);
-            store.dispatch('region-dom-reloaded', { regionId });
+            store.dispatch('region-dom-reloaded', {regionId});
         }
 
         /* 🅱 fetch a blank place form */
@@ -494,29 +538,26 @@ const addSearchedPlaceToTrip = async (result, regionId) => {
         const formEl = container.querySelector('form[id^="place-form-"]');
 
         /* pre-fill */
-        formEl.querySelector('[name="Name"]').value      = result.display_name;
-        formEl.querySelector('[name="Latitude"]').value  = (+result.lat).toFixed(6);
+        formEl.querySelector('[name="Name"]').value = result.display_name;
+        formEl.querySelector('[name="Latitude"]').value = (+result.lat).toFixed(6);
         formEl.querySelector('[name="Longitude"]').value = (+result.lon).toFixed(6);
         const addrInput = formEl.querySelector('[name="Address"]');
         if (addrInput) addrInput.value = result.display_name;
 
         /* enhance & wire handlers */
-        const { enhancePlaceForm, initPlaceHandlers } = await import('./placeHandlers.js');
+        const {enhancePlaceForm, initPlaceHandlers} = await import('./placeHandlers.js');
         await enhancePlaceForm(formEl);
         initPlaceHandlers();
 
         /* context, map, UI cleanup */
         const placeId = formEl.id.replace('place-form-', '');
         store.dispatch('set-context', {
-            type: 'place',
-            id: placeId,
-            action: 'set-location',
-            meta: { name: result.display_name, regionId }
+            type: 'place', id: placeId, action: 'set-location', meta: {name: result.display_name, regionId}
         });
         document.getElementById('add-to-trip-feedback')?.remove();
 
         /* 🔽 UX niceties */
-        formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        formEl.scrollIntoView({behavior: 'smooth', block: 'center'});
         document.getElementById('place-search').value = '';
         clearSuggestions();
     } catch (err) {
@@ -554,7 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentTripId = form.querySelector('[name="Id"]')?.value;
     store.dispatch('set-trip-id', currentTripId);
 
-    store.subscribe(({ type }) => {
+    store.subscribe(({type}) => {
         if (type === 'clear-context') {
             store.dispatch('context-cleared');
         }
@@ -587,16 +628,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         form.querySelector('[name="Zoom"]').value = z;
     });
 
-    map.on('click', ({ latlng }) =>
-        applyCoordinates({ lat: latlng.lat.toFixed(6), lon: latlng.lng.toFixed(6) })
-    );
+    map.on('click', ({latlng}) => applyCoordinates({lat: latlng.lat.toFixed(6), lon: latlng.lng.toFixed(6)}));
     const syncToContext = () => {
         const latInput = document.getElementById('contextLat');
         const lonInput = document.getElementById('contextLon');
         const lat = parseFloat(latInput?.value);
         const lon = parseFloat(lonInput?.value);
         if (!isNaN(lat) && !isNaN(lon)) {
-            applyCoordinates({ lat, lon });
+            applyCoordinates({lat, lon});
         }
     };
 
@@ -609,6 +648,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initRegionHandlers(currentTripId);
     initPlaceHandlers();
     initSegmentHandlers(currentTripId);
+    initAreaHandlers(currentTripId);
 
     await setupQuill();
     attachListeners();

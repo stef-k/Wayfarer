@@ -37,6 +37,8 @@ namespace Wayfarer.Models
         public DbSet<Place> Places { get; set; }
         public DbSet<Segment> Segments { get; set; }
 
+        public DbSet<Area> Areas { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -237,11 +239,11 @@ namespace Wayfarer.Models
             builder.Entity<Segment>()
                 .Property(s => s.RouteGeometry)
                 .HasColumnType("geography(LineString,4326)");
-            
+
             // Segment → Place (origin)
             builder.Entity<Segment>()
                 .HasOne(s => s.FromPlace)
-                .WithMany()                     // no back-reference needed
+                .WithMany() // no back-reference needed
                 .HasForeignKey(s => s.FromPlaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
@@ -252,6 +254,12 @@ namespace Wayfarer.Models
                 .HasForeignKey(s => s.ToPlaceId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Ensure when a Region is deleted, all its Areas go with it
+            builder.Entity<Area>()
+                .HasOne(a => a.Region)
+                .WithMany(r => r.Areas)
+                .HasForeignKey(a => a.RegionId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -270,7 +278,7 @@ namespace Wayfarer.Models
                     entry.Property(x => x.UpdatedAt).CurrentValue = DateTime.UtcNow;
                 }
             }
-            
+
             // Trip.UpdatedAt handling
             var tripIdsToStamp = new HashSet<Guid>();
 
@@ -305,6 +313,21 @@ namespace Wayfarer.Models
                     .Select(e => e.State == EntityState.Deleted
                         ? e.OriginalValues.GetValue<Guid>(nameof(Segment.TripId))
                         : e.Entity.TripId)
+            );
+
+            // added: include Areas in trip UpdatedAt stamping
+            tripIdsToStamp.UnionWith(
+                ChangeTracker.Entries<Area>() // track added/modified/deleted Areas
+                    .Where(e => e.State != EntityState.Unchanged)
+                    .Select(e => e.State == EntityState.Deleted
+                        // if deleted, get the old RegionId from the original values
+                        ? e.OriginalValues.GetValue<Guid>(nameof(Area.RegionId))
+                        // otherwise get the new RegionId
+                        : e.Entity.RegionId)
+                    // map each RegionId back to its TripId
+                    .SelectMany(regionId => Regions
+                        .Where(r => r.Id == regionId)
+                        .Select(r => r.TripId))
             );
 
             foreach (var tripId in tripIdsToStamp)

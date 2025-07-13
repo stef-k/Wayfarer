@@ -113,7 +113,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             var region = await _dbContext.Regions
-                .Include(r => r.Places)
+                .Include(r => r.Places).Include(r => r.Areas) 
                 .FirstOrDefaultAsync(r => r.Id == regionId && r.UserId == userId);
 
             if (region == null)

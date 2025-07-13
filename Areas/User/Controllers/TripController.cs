@@ -50,6 +50,7 @@ namespace Wayfarer.Areas.User.Controllers
             
             var trip = await _dbContext.Trips
                 .Include(t => t.Regions!).ThenInclude(r => r.Places!)
+                .Include(t => t.Regions!).ThenInclude(a => a.Areas)
                 .Include(t => t.Segments!)
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
@@ -152,10 +153,11 @@ namespace Wayfarer.Areas.User.Controllers
             SetPageTitle("Edit Trip");
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // 1) Eager-load Regions → Places and Segments
+            // 1) Eager-load Regions → Places, Areas and Segments
             var trip = await _dbContext.Trips.Where(t => t.Id == id)
                 .Include(t => t.Regions)
                 .ThenInclude(r => r.Places)
+                .Include(t => t.Regions!).ThenInclude(a => a.Areas)
                 .Include(t => t.Segments)
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
