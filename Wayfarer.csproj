@@ -45,6 +45,7 @@
 
   <ItemGroup>
     <Folder Include="Exports\" />
+    <Folder Include="Migrations\" />
     <Folder Include="Scripts\" />
     <Folder Include="Uploads\Temp\" />
     <Folder Include="wwwroot\icons\" />
