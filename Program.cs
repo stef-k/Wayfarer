@@ -466,6 +466,9 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Map static assets (e.g., CSS, JS) to routes
     app.MapStaticAssets();
 
+    // Custom 404 handling
+    app.UseStatusCodePagesWithReExecute("/Error/{0}");
+    
     // Define the default route for controllers
     app.MapControllerRoute(
         name: "default",
