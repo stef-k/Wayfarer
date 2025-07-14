@@ -49,6 +49,7 @@ const isHtmlEmpty = html => {
     return text === '';
 };
 
+
 /**
  * Decide initial [lat, lon, zoom] by
  * preferring ?lat/?lon/?zoom over data-* defaults
@@ -134,6 +135,9 @@ const initWikiPopovers = root => {
 /* ========================================================= */
 const init = () => {
 
+    const root = document.getElementById('trip-view');
+    const isEmbed        = root.dataset.embed === 'true';
+    const fullscreenUrl  = root.dataset.fullscreenUrl;
     const isPrint = location.search.includes('print=1');
 
     /* ────────── map bootstrap ────────── */
@@ -204,18 +208,18 @@ const init = () => {
     const legend = $('#sidebar-primary');
     const legendW = () => legend.offsetWidth || 0;
 
-    /* centre correction: move map by ± legendW / 2 */
-    const applyCentreOffset = (dir, animate = false) => {
-        // not on print
+    /**
+     * Shift the map horizontally by ±½ legend width.
+     * @param {+1|-1} dir      +1 → legend *visible*, -1 → legend *hidden*
+     * @param {boolean} [animate=false]
+     * @param {number|null} [baseW=null]   width to use instead of live offsetWidth
+     */
+    const applyCentreOffset = (dir, animate = false, baseW = null) => {
         if (isPrint) return;
-        const dx = (legendW() / 2) * dir;
-        if (dx) map.panBy([-dx, 0], {animate, duration: 0.4});   //  ← negate
+        const w  = baseW ?? legendW();             // fall back to live width
+        const dx = (w / 2) * dir;
+        if (dx) map.panBy([-dx, 0], { animate, duration: 0.4 });
     };
-
-    /* initial correction (legend starts visible but not in print) */
-    if (!isPrint) {
-        applyCentreOffset(+1, true);
-    }
 
     /* ────────── regions & places ────────── */
     $$('.accordion-item').forEach(ai => {
@@ -321,13 +325,52 @@ const init = () => {
     });
     document.body.appendChild(showBtn);
     showBtn.style.display = 'none';
+    /* ----------  FULL-SCREEN button (embed only) ------------------------------ */
+    let fsBtn;
+    if (isEmbed) {
+        fsBtn               = document.createElement('button');
+        fsBtn.id            = 'btn-fullscreen';
+        fsBtn.className     = 'btn btn-primary btn-sm shadow-lg';
+        fsBtn.title         = 'Open full-screen view';
+        fsBtn.innerHTML     = '<i class="bi bi-arrows-fullscreen"></i>';
+        fsBtn.style.display = 'none';
+        fsBtn.addEventListener('click', () => window.open(fullscreenUrl,'_blank'));
+        document.body.appendChild(fsBtn);
+    }
+    const pane = $('#sidebar-secondary');
+    
+    /**
+     * Show the MAP LEGEND / fullscreen buttons only when:
+     *   – primary legend is collapsed, and
+     *   – details pane (#sidebar-secondary) is NOT open.
+     */
+    const updateButtonsVisibility = () => {
+        const detailsOpen = pane?.classList.contains('open');
+        const visible     = collapsed && !detailsOpen;
+        showBtn.style.display = visible ? 'block' : 'none';
+        if (isEmbed) {
+            fsBtn.style.display = visible ? 'block' : 'none';
+            if (visible) positionFsBtn();
+        }
+    };
 
+    const positionFsBtn = () => {
+        if (!fsBtn) return;                       // safety
+        const r = showBtn.getBoundingClientRect();
+        fsBtn.style.left = `${r.left + r.width + 8}px`;
+        fsBtn.style.top  = `${r.top}px`;          // just mirrors CSS in case of resize
+    };
+
+    positionFsBtn();                            // initial
+    window.addEventListener('resize', positionFsBtn);
     const DELAY = 600;
     let timer = null;
     let collapsed = false;
 
-    const setCollapsed = hide => {
+    const setCollapsed =  (hide, skipPan = false) => {
         if (collapsed === hide) return;      // no double-shifting
+        const prevW = legendW();       // cache width *before* we change CSS
+        
         collapsed = hide;
 
         if (timer) {
@@ -339,24 +382,23 @@ const init = () => {
 
         /* shift map *after* Leaflet recalculates size */
         setTimeout(() => {
-            applyCentreOffset(hide ? -1 : +1, true);
+            if (!skipPan) {                         // ⬅️ only when we already had an offset
+                applyCentreOffset(hide ? -1 : +1, true, prevW);
+            }
             map.invalidateSize();
         }, DELAY + 20);
 
-        if (hide) {
-            timer = setTimeout(() => showBtn.style.display = 'block', DELAY);
-        } else {
-            showBtn.style.display = 'none';
-        }
+        timer = setTimeout(updateButtonsVisibility, hide ? DELAY : 0);
     };
-
+    if (isEmbed) setCollapsed(true, true);
+    if (!isPrint && !isEmbed) {
+        applyCentreOffset(+1, false);
+    }
     hideBtn.addEventListener('click', () => setCollapsed(true));
     showBtn.addEventListener('click', () => setCollapsed(false));
 
     /* ────────── details pane ────────── */
-    const pane = $('#sidebar-secondary');
-
-    const detailsHtml = li => {
+        const detailsHtml = li => {
         const d = li.dataset;
         const firstImg = (d.placeNotes || '').match(/<img[^>]+src="([^"]+)"/i)?.[1] || '';
         const iconUrl = `/icons/wayfarer-map-icons/dist/png/marker/${d.placeColor}/${d.placeIcon}.png`;
@@ -403,6 +445,7 @@ const init = () => {
                 img.src = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
             });
         pane.classList.add('open');
+        updateButtonsVisibility();
         highlightMarker(pid);
         const m = getPlaceMarker(pid);
         if (m) {
@@ -424,6 +467,7 @@ const init = () => {
     document.addEventListener('click', e => {
         if (e.target.closest('.btn-back')) {
             pane.classList.remove('open');
+            updateButtonsVisibility();
             removeHighlightMarker();      // un-highlight only on close
         }
     });

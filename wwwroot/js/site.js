@@ -61,58 +61,59 @@ function showConfirmationModal(options) {
 // Now the rest of the code inside the DOMContentLoaded event listener
 document.addEventListener('DOMContentLoaded', () => {
     const toggleButton = document.getElementById('themeToggle');
-    const themeIcon = document.getElementById('themeIcon');
-    const body = document.body;
-    const navbar = document.getElementById('mainNavbar');
-    const footer = document.querySelector('footer');
+    const themeIcon    = document.getElementById('themeIcon');
+    const body         = document.body;
+    const navbar       = document.getElementById('mainNavbar');
+    const footer       = document.querySelector('footer');
+
+    // Only initialize if the toggle button is on this page
+    if (!toggleButton) return;
 
     // Function to set theme
     const setTheme = (theme) => {
-        if (theme === 'dark') {
-            body.setAttribute('data-bs-theme', 'dark');
-            themeIcon.classList.remove('bi-sun');
-            themeIcon.classList.add('bi-moon');
-            navbar.classList.add('navbar-dark', 'bg-dark');
-            navbar.classList.remove('navbar-light', 'bg-white');
-            footer.setAttribute('data-bs-theme', 'dark');
-        } else {
-            body.setAttribute('data-bs-theme', 'light');
-            themeIcon.classList.remove('bi-moon');
-            themeIcon.classList.add('bi-sun');
-            navbar.classList.add('navbar-light', 'bg-white');
-            navbar.classList.remove('navbar-dark', 'bg-dark');
-            footer.setAttribute('data-bs-theme', 'light');
+        // body always exists
+        body.setAttribute('data-bs-theme', theme);
+
+        // icon
+        if (themeIcon) {
+            themeIcon.classList.toggle('bi-sun',   theme === 'light');
+            themeIcon.classList.toggle('bi-moon',  theme === 'dark');
         }
 
-        // Persist theme in localStorage
-        localStorage.setItem('theme', theme);
+        // navbar
+        if (navbar) {
+            navbar.classList.toggle('navbar-dark', theme === 'dark');
+            navbar.classList.toggle('bg-dark',     theme === 'dark');
+            navbar.classList.toggle('navbar-light',theme === 'light');
+            navbar.classList.toggle('bg-white',    theme === 'light');
+        }
 
-        // Update text color for navbar items
+        // footer
+        if (footer) {
+            footer.setAttribute('data-bs-theme', theme);
+        }
+
+        // Persist and update link colors
+        localStorage.setItem('theme', theme);
         updateNavbarTextColor(theme);
     };
 
     // Function to update navbar link text color based on theme
     const updateNavbarTextColor = (theme) => {
-        const links = document.querySelectorAll('.theme-toggle');
-        links.forEach(link => {
-            if (theme === 'dark') {
-                link.classList.remove('text-dark');
-                link.classList.add('text-light');
-            } else {
-                link.classList.remove('text-light');
-                link.classList.add('text-dark');
-            }
+        document.querySelectorAll('.theme-toggle').forEach(link => {
+            link.classList.toggle('text-dark',  theme === 'light');
+            link.classList.toggle('text-light', theme === 'dark');
         });
     };
 
-    // Initialize theme based on localStorage
+    // Initialize theme
     const storedTheme = localStorage.getItem('theme') || 'light';
     setTheme(storedTheme);
 
-    // Toggle theme on button click
+    // Wire up the toggle
     toggleButton.addEventListener('click', () => {
-        const currentTheme = body.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-        setTheme(currentTheme);
+        const next = body.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        setTheme(next);
     });
 });
 

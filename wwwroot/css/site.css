@@ -867,6 +867,18 @@ thead th {
 #btn-show-sidebar[style*="display: none"]{
     pointer-events:none;
 }
+/*show fullscreen button in embed trip view*/
+#btn-fullscreen{
+    position:fixed;
+    top:85px!important;              /* same navbar offset as #btn-show-sidebar */
+    z-index:1060;
+    user-select:none;
+}
+
+/* becomes clickable when visible */
+#btn-fullscreen:not([style*="display: none"]){
+    pointer-events:auto;
+}
 
 /* ─── Animated details sidebar ───────────────────────────── */
 #sidebar-secondary{
