@@ -40,6 +40,15 @@ const getUrlParam = key => {
     return Number.isFinite(n) ? n : NaN;                 // non-numeric => fallback
 };
 
+// Helper to check if notesHtml is "visibly empty"
+const isHtmlEmpty = html => {
+    if (!html) return true;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const text = div.textContent?.trim() ?? '';
+    return text === '';
+};
+
 /**
  * Decide initial [lat, lon, zoom] by
  * preferring ?lat/?lon/?zoom over data-* defaults
@@ -370,7 +379,7 @@ const init = () => {
        &nbsp;<strong>Lon:</strong> ${(+d.placeLon).toFixed(5)}</p>
     ${d.placeAddress ? `<p class="mb-1"><strong>Address:</strong> ${d.placeAddress}</p>` : ''}
 
-    ${notesHtml ? `
+    ${!isHtmlEmpty(notesHtml) ? `
        <div class="border py-2 px-1 mt-3 rounded overflow-auto trip-notes" >
          ${notesHtml}</div>` : ''}
 
