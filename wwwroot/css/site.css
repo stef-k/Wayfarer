@@ -922,3 +922,21 @@ thead th {
 .segment-list-item-view {
     cursor:pointer;
 }
+
+body.embed-mode,
+html.embed-mode {
+    height: 100vh !important;
+}
+
+body.embed-mode .container-fluid,
+body.embed-mode main {
+    height: 100vh !important;
+    flex: 1 1 auto !important;
+}
+
+body.embed-mode #trip-view,
+body.embed-mode #mapContainer {
+    height: 100vh !important;
+    flex: 1 1 auto !important;
+    margin-bottom: 0 !important;
+}

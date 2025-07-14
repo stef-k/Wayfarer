@@ -8,15 +8,15 @@
        class="btn btn-primary" title="Create a new Trip">
         <i class="bi bi-plus-lg me-1"></i> Create New Trip
     </a>
-    
+
     <label class="btn btn-outline-secondary mb-0" title="Import a Trip from a Wayfarer extended KML file (*.kml)">
-        <i class="bi bi-upload me-1" ></i> Import Trip&nbsp; 
+        <i class="bi bi-upload me-1"></i> Import Trip&nbsp;
         <input type="file"
                id="importFile"
                accept=".kml"
                class="d-none">
     </label>
-    
+
     <label class="btn btn-outline-secondary mb-0" title="Import a Google My Maps KML">
         <i class="bi bi-upload me-1"></i> Import My Maps
         <input type="file" id="importFileMyMaps" accept=".kml" class="d-none">
@@ -29,47 +29,85 @@
 }
 else
 {
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped table-hover">
-            <thead>
+    <table class="table table-bordered table-striped table-hover">
+        <thead>
+        <tr>
+            <th class="w-auto">Name</th>
+            <th class="w-auto">Notes</th>
+            <th class="w-auto">Public</th>
+            <th class="w-25">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var trip in Model)
+        {
             <tr>
-                <th class="w-auto">Name</th>
-                <th class="w-auto">Notes</th>
-                <th>Public</th>
-                <th class="w-25">Actions</th>
-            </tr>
-            </thead>
-            <tbody>
-            @foreach (var trip in Model)
-            {
-                <tr>
-                    <td>@trip.Name</td>
-                    <td>@Html.Raw(trip.Notes)</td>
-                    <td>@(trip.IsPublic ? "Yes" : "No")</td>
-                    <td>
-                        <a asp-area="User" asp-controller="Trip" asp-action="View" title="View/Export Trip" asp-route-id="@trip.Id"
-                           class="btn btn-sm btn-primary">View</a>
-                        <a asp-area="User" asp-controller="Trip" asp-action="Edit" title="Edit Trip"  asp-route-id="@trip.Id"
-                           class="btn btn-sm btn-secondary">Edit</a>
-                        <form id="delete-form-@trip.Id"
-                              asp-action="Delete"
-                              method="post"
-                              class="d-none">
-                            <input type="hidden" name="id" value="@trip.Id"/>
-                        </form>
+                <td>@trip.Name</td>
+                <td>@Html.Raw(trip.Notes)</td>
+                <td>
+                    @if (trip.IsPublic)
+                    {
+                        <div class="dropdown text-center">
+                            <button class="btn btn-success dropdown-toggle"
+                                    type="button"
+                                    data-bs-display="static"
+                                    data-bs-toggle="dropdown"
+                                    title="Click to see public page or for copy URL options"
+                                    aria-expanded="false">
+                                Yes
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" 
+                                       href="/Public/Trips/@trip.Id"
+                                       target="_blank">Visit public trip page</a></li>
+                                <li>
+                                    <a class="dropdown-item copy-url" 
+                                       href="#"
+                                       data-url="/Public/Trips/@trip.Id"
+                                       title="Click to copy to clipboard">
+                                        Copy public trip page URL
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item copy-url"
+                                       href="#"
+                                       data-url="/Public/Trips/@trip.Id?embed=true"
+                                       title="Click to copy to clipboard">
+                                        Copy public trip page embed
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="badge rounded-pill text-bg-danger">No</span>
+                    }
+                </td>
+                <td>
+                    <a asp-area="User" asp-controller="Trip" asp-action="View" title="View/Export Trip"
+                       asp-route-id="@trip.Id"
+                       class="btn btn-sm btn-primary">View</a>
+                    <a asp-area="User" asp-controller="Trip" asp-action="Edit" title="Edit Trip" asp-route-id="@trip.Id"
+                       class="btn btn-sm btn-secondary">Edit</a>
+                    <form id="delete-form-@trip.Id"
+                          asp-action="Delete"
+                          method="post"
+                          class="d-none">
+                        <input type="hidden" name="id" value="@trip.Id"/>
+                    </form>
 
-                        <button type="button"
-                                class="btn btn-sm btn-outline-danger btn-trip-delete"
-                                data-trip-id="@trip.Id"
-                                title="Delete Trip">
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger btn-trip-delete"
+                            data-trip-id="@trip.Id"
+                            title="Delete Trip">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
 }
 
 <!-- ▼ NEW duplicate / upsert modal -->

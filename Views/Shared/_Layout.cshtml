@@ -42,7 +42,7 @@
     }
     @RenderSection("Styles", required: false)
 </head>
-<body data-bs-theme="light">
+<body data-bs-theme="light" class="@(embed ? "embed-mode" : "")">
 @if (!embed)
 {
     <header>

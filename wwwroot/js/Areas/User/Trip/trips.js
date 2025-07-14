@@ -93,6 +93,21 @@
 
     /* ------------------------------------------------ boot */
     document.addEventListener('DOMContentLoaded', () => {
+        // Clipboard copy handling
+        document.addEventListener('click', async (e) => {
+            const el = e.target.closest('a.copy-url');
+            if (!el) return;
+
+            e.preventDefault();
+
+            const url = el.dataset.url;
+            try {
+                await navigator.clipboard.writeText(`${window.location.origin}${url}`);
+                wayfarer.showAlert('success', 'URL copied to clipboard!');
+            } catch (err) {
+                wayfarer.showAlert('danger', 'Failed to copy URL.');
+            }
+        });
         document.querySelectorAll('.btn-trip-delete')
             .forEach(btn => btn.addEventListener('click', () => handleDeleteClick(btn)));
     });
