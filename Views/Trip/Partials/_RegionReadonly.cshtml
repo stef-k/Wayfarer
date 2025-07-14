@@ -97,14 +97,20 @@
                                                     : "null")'
                                 data-area-fill="@area.FillHex">
 
-                                <div class="d-flex align-items-center">
-                                    <strong class="area-name me-3">
-                                        @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_CircleIcon.cshtml", ("flag", "bg-green"))
-                                        @area.Name
-                                    </strong>
+                                <div class="d-flex flex-column align-items-start">
+                                    <!-- first row: icon + name -->
+                                    <div class="d-flex align-items-center">
+                                        @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_CircleIcon.cshtml",
+                                            ("flag", "bg-green"))
+                                        <strong class="area-name ms-2">@area.Name</strong>
+                                    </div>
+
+                                    <!-- second row: rich-text notes -->
                                     @if (!string.IsNullOrWhiteSpace(area.Notes))
                                     {
-                                        <p class="mb-0 small text-muted">@area.Notes</p>
+                                        <div class="small text-muted">
+                                            @Html.Raw(area.Notes)     <!-- renders stored HTML instead of &lt;p&gt; -->
+                                        </div>
                                     }
                                 </div>
 

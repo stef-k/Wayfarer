@@ -5,6 +5,7 @@ import {store} from './storeInstance.js';
 /* ------------------------------------------------------------------ *
  *  Private state
  * ------------------------------------------------------------------ */
+const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 let mapContainer = null;
 let drawControl = null;
 let drawnLayerGroup = null;
@@ -166,9 +167,11 @@ export const initAreaMap = (areaId, geometry, fillColor) => {
 
     // 2️⃣ Create the Leaflet map
     const map = L.map(container, {zoomAnimation: true}).setView([0, 0], 2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer(tilesUrl, {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+
+    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
 
     // 3️⃣ Draw existing Places for context
     const contextGroup = new L.FeatureGroup().addTo(map);
