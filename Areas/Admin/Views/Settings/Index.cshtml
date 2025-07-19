@@ -29,7 +29,7 @@
                     </p>
                     <form asp-action="Update" method="post">
                         @Html.AntiForgeryToken()
-                        
+
                         <div class="row">
 
                             <div class="col-md-6">
@@ -63,13 +63,16 @@
                             <h3 class="text-center fs-4">New User Registrations</h3>
                             <div class="col-md-12 mb-2">
                                 <div class="form-group">
-                                    <label for="IsRegistrationOpen" class="form-label">Allow New User Registrations?</label>
+                                    <label for="IsRegistrationOpen" class="form-label">Allow New User
+                                        Registrations?</label>
 
                                     <!-- Use Bootstrap's built-in large checkbox class -->
                                     <div class="form-check form-switch">
-                                        <input type="checkbox" class="form-check-input form-check-input-lg" id="IsRegistrationOpen" name="IsRegistrationOpen"
+                                        <input type="checkbox" class="form-check-input form-check-input-lg"
+                                               id="IsRegistrationOpen" name="IsRegistrationOpen"
                                                value="true" @(Model.IsRegistrationOpen ? "checked" : "")/>
-                                        <label class="form-check-label" for="IsRegistrationOpen">Enable new user registrations</label>
+                                        <label class="form-check-label" for="IsRegistrationOpen">Enable new user
+                                            registrations</label>
                                     </div>
 
                                     <small class="form-text text-muted">Check to allow new user registrations.</small>
@@ -81,11 +84,26 @@
                             <h3 class="text-center fs-4">User Uploads</h3>
                             <div class="col-md-8">
                                 <div class="col-12 mb-2">
-                                    <strong>Uploads Directory Path: </strong><code>Wayfarer/Uploads/Temp</code>
+                                    <strong>Uploads Directory Path: </strong><code>@ViewData["UploadsPath"]</code>
+                                </div>
+
+                                <div class="row mb-2">
+                                    <div class="col-4">
+                                        <strong>Upload File Count:</strong><br/>
+                                        <code>@ViewData["UploadsFileCount"]</code>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong>Total Upload Size:</strong><br/>
+                                        <code>@ViewData["UploadsSizeMB"] MB</code>
+                                    </div>
+                                    <div class="col-4">
+                                        <strong>Total Upload Size:</strong><br/>
+                                        <code>@ViewData["UploadsSizeGB"] GB</code>
+                                    </div>
                                 </div>
 
                                 <label for="UploadSizeLimitMB" class="form-label">
-                                    Maximum Size for Tile Uploads in Megabytes:
+                                    Maximum Upload Size (currently: <code>@Model.UploadSizeLimitMB</code> MB):
                                 </label>
 
                                 <div class="input-group">
@@ -93,18 +111,20 @@
                                            class="form-control"
                                            type="number"
                                            step="0.1"
-                                           min="0"/>
+                                           min="-1"/>
                                     <span class="input-group-text">MB</span>
                                 </div>
 
                                 <span asp-validation-for="UploadSizeLimitMB" class="text-danger"></span>
                             </div>
-                            
+
                             <div class="form-text">
-                                Use the to allow users upload data location files, such as exported Google Timeline JSON data files.
-                                Set it to 0 to disable this feature.
+                                • Used to allow users to upload location data files, such as exported Google Timeline
+                                JSON data.<br/>
+                                • Set to <code>-1</code> to disable uploads entirely.<br/>
+                                • Set to <code>0</code> to use the default:
+                                <code>@ApplicationSettings.DefaultUploadSizeLimitMB MB</code>.<br/>
                             </div>
-                            
                         </div>
                         <hr/>
                         <div class="row">
@@ -152,23 +172,24 @@
                                            class="form-control"
                                            type="number"
                                            step="0.01"
-                                           min="0"/>
+                                           min="-1"/>
                                     <span class="input-group-text">MB</span>
                                 </div>
 
                                 <span asp-validation-for="MaxCacheTileSizeInMB" class="text-danger"></span>
 
                                 <div class="form-text">
-                                    • Set the maximum size for the map tiles cache storage for zoom levels equal or
-                                    greater of 9.<br/>
-                                    • The default size is 1024 MB (which is equal to 1 GB).<br/>
-                                    • Zoom levels up to 8 are about 1.31 to 1.75 GB in size and stored without counting
-                                    towards this limit.<br/>
-                                    • So zoom levels >= 9 will add another 1 GB with the current settings. With this
-                                    setting you can
-                                    increase or decrease this additional cache size. Increasing it will decrease calls
-                                    to Open Street Map
-                                    servers.
+                                    • This setting controls the maximum cache size (in MB) for map tiles at zoom levels
+                                    ≥ 9.<br/>
+                                    • Set to <code>-1</code> to disable this cache entirely.<br/>
+                                    • Set to <code>0</code> to fallback to the default:
+                                    <code>@ApplicationSettings.DefaultMaxCacheTileSizeInMB MB</code>.<br/>
+                                    • Tiles are ~10–20 KB each. The default (1024 MB) holds roughly 100,000–200,000
+                                    tiles.<br/>
+                                    • Zoom levels 0–8 are cached permanently and do not count against this size. They
+                                    consume ~1.31 to 1.75 GB.<br/>
+                                    • Increasing this value reduces OSM server usage. If exceeded, least-recently-used
+                                    tiles are purged.<br/>
                                 </div>
                             </div>
 
@@ -187,9 +208,137 @@
                             </div>
 
                         </div>
+
                         <hr/>
+                        <div class="row">
+                            <h3 class="text-center fs-4">MBTiles (Mobile App) Cache</h3>
+
+                            <div class="col-6 mb-2">
+                                <strong>Total MBTiles Cache Size in Megabytes:</strong>
+                                <code>@ViewData["MbtilesCacheSizeMB"] MB</code>
+                            </div>
+
+                            <div class="col-6 mb-2">
+                                <strong>Total MBTiles Size in Gigabytes:</strong>
+                                <code>@ViewData["MbtilesCacheSizeGB"] GB</code>
+                            </div>
+
+                            <div class="col-12 mb-2">
+                                <strong>MBTiles Directory Path:</strong>
+                                <code>@ViewData["MbtilesPath"]</code>
+                            </div>
+
+                            <div class="col-12 mb-2">
+                                <strong>MBTiles File Count:</strong>
+                                <code>@ViewData["MbtilesFileCount"]</code>
+                            </div>
+
+
+                            <div class="col-md-8">
+                                <label for="MaxCacheMbtilesSizeInMB" class="form-label">
+                                    Maximum Size for MBTiles Cache (Mobile) in Megabytes:
+                                </label>
+
+                                <div class="input-group">
+                                    <input asp-for="MaxCacheMbtilesSizeInMB"
+                                           class="form-control"
+                                           type="number"
+                                           step="0.01"
+                                           min="-1"/>
+                                    <span class="input-group-text">MB</span>
+                                </div>
+
+                                <span asp-validation-for="MaxCacheMbtilesSizeInMB" class="text-danger"></span>
+
+                                <div class="form-text">
+                                    • This applies to `.mbtiles` files used for the mobile app (offline trip
+                                    viewer).<br/>
+                                    • Set to <code>-1</code> to disable MBTiles cache entirely.<br/>
+                                    • Set to <code>0</code> to fallback to the system default:
+                                    <code>@ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB MB</code>.<br/>
+                                    • If the size is exceeded, the least recently used files will be evicted.
+                                </div>
+                            </div>
+
+                            <h5 class="mt-4">Routing & PBF Storage</h5>
+                            <ul class="list-group mb-3">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Routing Files
+                                    <span
+                                        class="badge bg-secondary">@ViewData["RoutingFileCount"] files – @ViewData["RoutingSizeMB"] MB</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    PBF Files
+                                    <span
+                                        class="badge bg-secondary">@ViewData["PbfFileCount"] files – @ViewData["PbfSizeMB"] MB</span>
+                                </li>
+                                <li class="list-group-item text-muted small">
+                                    <i class="bi bi-folder2-open"></i> @ViewData["RoutingPath"]<br/>
+                                    <i class="bi bi-folder2-open"></i> @ViewData["PbfPath"]
+                                </li>
+                            </ul>
+
+                            <div class="col-md-4 mt-3">
+                                <form asp-action="ClearMbtilesCache" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" id="clearMbtilesCache" class="btn btn-danger w-100 mt-3"
+                                            title="Clear MBTiles Cache">
+                                        Clear All MBTiles Cache (Mobile)
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <hr/>
+                        <div class="row">
+                            <h3 class="text-center fs-2">Total Disk Usage</h3>
+
+                            <div class="col-4 mb-2 fs-5">
+                                <strong>Map Tiles Cache (zoom ≥ 9):</strong><br/>
+                                <code>@ViewData["TotalCacheSize"] MB</code> /
+                                <code>@ViewData["TotalCacheSizeGB"] GB</code>
+                            </div>
+
+                            <div class="col-4 mb-2 fs-5">
+                                <strong>Mobile MBTiles Cache:</strong><br/>
+                                <code>@ViewData["MbtilesCacheSizeMB"] MB</code> /
+                                <code>@ViewData["MbtilesCacheSizeGB"] GB</code>
+                            </div>
+
+                            <div class="col-4 mb-2 fs-5">
+                                <strong>Routing + PBF Files:</strong><br/>
+                                <code>@ViewData["RoutingPbfTotalMB"] MB</code> /
+                                <code>@ViewData["RoutingPbfTotalGB"] GB</code>
+                            </div>
+
+                            <div class="col-4 mb-2 fs-5">
+                                <strong>User Uploads (Temp):</strong><br/>
+                                <code>@ViewData["UploadsSizeMB"] MB</code> / <code>@ViewData["UploadsSizeGB"] GB</code>
+                            </div>
+                        </div>
+
+                        <!-- Separate row for combined total -->
+                        <div class="row mt-3">
+                            <div class="col-6 fs-5">
+                                <strong>Total Storage Used in Megabytes:</strong>
+                                <code class="text-primary">@ViewData["CombinedStorageMB"] MB</code>
+                            </div>
+                            <div class="col-6 fs-5">
+                                <strong>Total Storage Used in Gigabytes:</strong>
+                                <code class="text-primary">@ViewData["CombinedStorageGB"] GB</code>
+                            </div>
+                        </div>
+
+                        <div class="form-text fs-6 mt-2">
+                            • This includes storage used by: map tile cache (zoom ≥ 9), MBTiles packages (mobile), and
+                            uploaded files (e.g. Google Timeline JSON).<br/>
+                            • Zoom levels 0–8 are permanent and not included in soft limits.<br/>
+                            • Use this summary to estimate how much disk Wayfarer currently occupies on your server.
+                        </div>
+
+
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <button type="submit" class="btn btn-primary btn-lg mt-3">Save Changes</button>
                         </div>
                     </form>
                 </div>

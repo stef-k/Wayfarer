@@ -1,12 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('clearAllCache').addEventListener('click', (e) => {
+    document.getElementById('clearAllCache')?.addEventListener('click', (e) => {
         e.preventDefault();
         deleteAllMapTileCache();
     });
-    
-    document.getElementById('clearLruCache').addEventListener('click', (e) => {
+
+    document.getElementById('clearLruCache')?.addEventListener('click', (e) => {
         e.preventDefault();
         deleteLruCache();
+    });
+
+    document.getElementById('clearMbtilesCache')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        deleteMbtilesCache();
     });
 });
 
@@ -21,8 +26,7 @@ const deleteAllMapTileCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/DeleteAllMapTileCache", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                // body: JSON.stringify()
+                headers: { "Content-Type": "application/json" }
             })
                 .then(response => response.json())
                 .then(data => {
@@ -44,7 +48,7 @@ const deleteAllMapTileCache = () => {
                 });
         }
     });
-}
+};
 
 /**
  * Deletes Least Recently Used map tile cache (zoom levels >= 9) from file system and database.
@@ -57,8 +61,7 @@ const deleteLruCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/DeleteLruCache", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
-                // body: JSON.stringify()
+                headers: { "Content-Type": "application/json" }
             })
                 .then(response => response.json())
                 .then(data => {
@@ -80,4 +83,32 @@ const deleteLruCache = () => {
                 });
         }
     });
-}
+};
+
+/**
+ * Deletes all MBTiles cache used for mobile app.
+ */
+const deleteMbtilesCache = () => {
+    showConfirmationModal({
+        title: "Confirm MBTiles Deletion",
+        message: "Are you sure you want to delete all MBTiles files used for mobile app caching?",
+        confirmText: "Delete",
+        onConfirm: () => {
+            fetch("/Admin/Settings/ClearMbtilesCache", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            })
+                .then(response => {
+                    if (response.ok) {
+                        location.reload(); // simplest way to reflect updated MB/GB/file count
+                    } else {
+                        showAlert("danger", "Failed to delete MBTiles cache.");
+                    }
+                })
+                .catch(error => {
+                    console.error("error:", error);
+                    showAlert("danger", `Failed to delete MBTiles cache. ${error}`);
+                });
+        }
+    });
+};

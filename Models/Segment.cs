@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NetTopologySuite.Geometries;
 
 namespace Wayfarer.Models;
@@ -17,18 +18,21 @@ public class Segment
     public Guid TripId { get; set; }
 
     /// <summary>Navigation property to the parent trip.</summary>
+    [JsonIgnore] 
     public Trip Trip { get; set; }
 
     /// <summary>Optional foreign key to the starting place.</summary>
     public Guid? FromPlaceId { get; set; }
 
     /// <summary>Navigation property to the starting place.</summary>
+    [JsonIgnore]
     public Place? FromPlace { get; set; }
 
     /// <summary>Optional foreign key to the destination place.</summary>
     public Guid? ToPlaceId { get; set; }
 
     /// <summary>Navigation property to the destination place.</summary>
+    [JsonIgnore]
     public Place? ToPlace { get; set; }
 
     /// <summary>Mode of transport (e.g., "walk", "bike").</summary>

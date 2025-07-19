@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NetTopologySuite.Geometries;
@@ -18,6 +19,7 @@ public class Place
 
     /// <summary>Navigation property to the parent region.</summary>
     [ValidateNever] 
+    [JsonIgnore] 
     public Region Region { get; set; }
 
     /// <summary>Place name or title.</summary>

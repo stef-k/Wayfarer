@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NetTopologySuite.Geometries;
 
@@ -16,6 +17,7 @@ namespace Wayfarer.Models
         public Guid RegionId { get; set; }
 
         /// <summary>Navigation to parent Region.</summary>
+        [JsonIgnore]
         public Region Region { get; set; } = default!;
 
         /// <summary>Display name of this area.</summary>
@@ -36,6 +38,7 @@ namespace Wayfarer.Models
 
         /// <summary>Polygon geometry of this area.</summary>
         [Required(ErrorMessage="You must draw an area before saving.")]
+        [JsonIgnore]
         public Polygon Geometry { get; set; } = default!;
     }
 }

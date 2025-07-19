@@ -6,6 +6,7 @@ namespace Wayfarer.Parsers
     public interface IApplicationSettingsService
     {
         ApplicationSettings GetSettings();
+        string GetUploadsDirectoryPath();
         void RefreshSettings();
     }
 
@@ -48,11 +49,30 @@ namespace Wayfarer.Parsers
             var settings = _dbContext.ApplicationSettings.Find(1);
             if (settings == null)
             {
-                settings = new ApplicationSettings();
+                throw new InvalidOperationException("Application settings not found in the database.");
             }
-            return settings == null ? throw new InvalidOperationException("Application settings not found in the database.") : settings;
+
+            // Resolve unset settings (0 → default)
+            if (settings.MaxCacheTileSizeInMB == 0)
+            {
+                settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
+            }
+            if (settings.MaxCacheMbtilesSizeInMB == 0)
+            {
+                settings.MaxCacheMbtilesSizeInMB = ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB;
+            }
+            if (settings.UploadSizeLimitMB == 0)
+            {
+                settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
+            }
+
+            return settings;
         }
         
+        public string GetUploadsDirectoryPath()
+        {
+            return Path.Combine(AppContext.BaseDirectory, "Uploads", "Temp");
+        }
     }
 
 }

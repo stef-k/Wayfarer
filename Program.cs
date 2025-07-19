@@ -1,15 +1,16 @@
 using System.Collections.Specialized;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using NetTopologySuite.Geometries;
-using Microsoft.Extensions.DependencyInjection;  // for AddQuartz(), AddQuartzHostedService()
+using Microsoft.Extensions.DependencyInjection; // for AddQuartz(), AddQuartzHostedService()
 using Quartz;
 using Quartz.Impl; // for UseMicrosoftDependencyInjectionJobFactory(), UsePersistentStore(), etc.
-using Quartz.Spi;                               // for IJobFactory
-using Quartz.Serialization.Json;                // for UseNewtonsoftJsonSerializer()
+using Quartz.Spi; // for IJobFactory
+using Quartz.Serialization.Json; // for UseNewtonsoftJsonSerializer()
 using Serilog;
 using Wayfarer.Jobs;
 using Wayfarer.Middleware;
@@ -99,6 +100,7 @@ static async Task<long> LoadUploadSizeLimitFromDatabaseAsync()
     // Your logic to load the size limit from the database
     return 100 * 1024 * 1024; // example: 100MB
 }
+
 #region Methods
 
 // Method to handle the password reset command
@@ -116,14 +118,15 @@ static async Task HandlePasswordResetCommand(string[] args)
     // Rebuild services to handle the password reset
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), x => x.UseNetTopologySuite()));
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
+            x => x.UseNetTopologySuite()));
     builder.Services.AddDefaultIdentity<ApplicationUser>()
         .AddRoles<IdentityRole>()
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
 
     ServiceProvider services = builder.Services.BuildServiceProvider();
-    
+
     UserManager<ApplicationUser> userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
     builder.Services.AddHttpContextAccessor();
@@ -156,14 +159,15 @@ static void ConfigureConfiguration(WebApplicationBuilder builder)
 {
     // Adding JSON configuration files to the app's configuration pipeline
     builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                         .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
 
     // Retrieving the log file path from the configuration
     string? logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
 
     if (string.IsNullOrEmpty(logFilePath))
     {
-        throw new InvalidOperationException("Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
+        throw new InvalidOperationException(
+            "Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
     }
 
     // Ensuring that the directory for logs exists
@@ -193,8 +197,8 @@ static void ConfigureLogging(WebApplicationBuilder builder)
         .WriteTo.Console() // Logs to the console
         .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day) // Logs to a file with daily rotation
         .WriteTo.PostgreSQL(builder.Configuration.GetConnectionString("DefaultConnection"),
-                            "AuditLogs", // Table for storing logs
-                            needAutoCreateTable: true) // Auto-creates the table if it doesn't exist
+            "AuditLogs", // Table for storing logs
+            needAutoCreateTable: true) // Auto-creates the table if it doesn't exist
         .CreateLogger();
 
     // Add Serilog as the logging provider
@@ -209,12 +213,13 @@ static void ConfigureLogging(WebApplicationBuilder builder)
 static void ConfigureDatabase(WebApplicationBuilder builder)
 {
     // Retrieve the connection string from the configuration
-    string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
+                              throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
     // Add DbContext to the DI container, configure it with PostgreSQL and NetTopologySuite for spatial data
     // builder.Services.AddDbContext<ApplicationDbContext>(options =>
     //     options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()));
-    
+
     // use a pool of db connections instead of spawning a new per request
     builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
         options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()));
@@ -228,13 +233,13 @@ static void ConfigureIdentity(WebApplicationBuilder builder)
 {
     // Add default identity services for user authentication
     builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
-    {
-        options.SignIn.RequireConfirmedAccount = false; // Disables confirmed email requirement
-        options.User.RequireUniqueEmail = false; // Allows non-unique email addresses
-    })
-    .AddRoles<IdentityRole>() // Adds role-based authorization
-    .AddEntityFrameworkStores<ApplicationDbContext>() // Uses EF Core for user store
-    .AddDefaultTokenProviders(); // Adds support for token-based authentication
+        {
+            options.SignIn.RequireConfirmedAccount = false; // Disables confirmed email requirement
+            options.User.RequireUniqueEmail = false; // Allows non-unique email addresses
+        })
+        .AddRoles<IdentityRole>() // Adds role-based authorization
+        .AddEntityFrameworkStores<ApplicationDbContext>() // Uses EF Core for user store
+        .AddDefaultTokenProviders(); // Adds support for token-based authentication
 }
 
 // Method to configure Quartz for job scheduling
@@ -260,19 +265,19 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     {
         var props = new NameValueCollection
         {
-            ["quartz.scheduler.instanceName"]           = "QuartzScheduler",
-            ["quartz.scheduler.instanceId"]             = "AUTO",
-            ["quartz.jobStore.type"]                    = "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz",
-            ["quartz.jobStore.driverDelegateType"]      = "Quartz.Impl.AdoJobStore.PostgreSQLDelegate, Quartz",
-            ["quartz.jobStore.tablePrefix"]             = "qrtz_",
-            ["quartz.jobStore.useProperties"]           = "true",
-            ["quartz.jobStore.dataSource"]              = "default",
-            ["quartz.dataSource.default.provider"]      = "Npgsql",
+            ["quartz.scheduler.instanceName"] = "QuartzScheduler",
+            ["quartz.scheduler.instanceId"] = "AUTO",
+            ["quartz.jobStore.type"] = "Quartz.Impl.AdoJobStore.JobStoreTX, Quartz",
+            ["quartz.jobStore.driverDelegateType"] = "Quartz.Impl.AdoJobStore.PostgreSQLDelegate, Quartz",
+            ["quartz.jobStore.tablePrefix"] = "qrtz_",
+            ["quartz.jobStore.useProperties"] = "true",
+            ["quartz.jobStore.dataSource"] = "default",
+            ["quartz.dataSource.default.provider"] = "Npgsql",
             ["quartz.dataSource.default.connectionString"] = cs,
-            ["quartz.serializer.type"]                  = "Quartz.Simpl.JsonObjectSerializer, Quartz.Serialization.Json"
+            ["quartz.serializer.type"] = "Quartz.Simpl.JsonObjectSerializer, Quartz.Serialization.Json"
         };
 
-        var factory   = new StdSchedulerFactory(props);
+        var factory = new StdSchedulerFactory(props);
         var scheduler = factory.GetScheduler().Result;
 
         scheduler.JobFactory = sp.GetRequiredService<IJobFactory>();
@@ -282,22 +287,22 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         scheduler.Start().Wait();
 
         // Schedule maintenance jobs once if missing
-        var logJobKey   = new JobKey("LogCleanupJob", "Maintenance");
+        var logJobKey = new JobKey("LogCleanupJob", "Maintenance");
         var auditJobKey = new JobKey("AuditLogCleanupJob", "Maintenance");
 
         if (!scheduler.CheckExists(logJobKey).Result)
         {
             var job = JobBuilder.Create<LogCleanupJob>()
-                                .WithIdentity(logJobKey)
-                                .StoreDurably(true)
-                                .Build();
+                .WithIdentity(logJobKey)
+                .StoreDurably(true)
+                .Build();
 
             var trigger = TriggerBuilder.Create()
-                                        .ForJob(job)
-                                        .WithIdentity("LogCleanupTrigger", "Maintenance")
-                                        .StartNow()
-                                        .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
-                                        .Build();
+                .ForJob(job)
+                .WithIdentity("LogCleanupTrigger", "Maintenance")
+                .StartNow()
+                .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
+                .Build();
 
             scheduler.ScheduleJob(job, trigger).Wait();
         }
@@ -305,16 +310,16 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         if (!scheduler.CheckExists(auditJobKey).Result)
         {
             var job = JobBuilder.Create<AuditLogCleanupJob>()
-                                .WithIdentity(auditJobKey)
-                                .StoreDurably(true)
-                                .Build();
+                .WithIdentity(auditJobKey)
+                .StoreDurably(true)
+                .Build();
 
             var trigger = TriggerBuilder.Create()
-                                        .ForJob(job)
-                                        .WithIdentity("AuditLogCleanupTrigger", "Maintenance")
-                                        .StartNow()
-                                        .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
-                                        .Build();
+                .ForJob(job)
+                .WithIdentity("AuditLogCleanupTrigger", "Maintenance")
+                .StartNow()
+                .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
+                .Build();
 
             scheduler.ScheduleJob(job, trigger).Wait();
         }
@@ -332,15 +337,24 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Register application services with DI container
     builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
 
+    // MB tiles (mbtiles) service 
+    builder.Services.AddScoped<MbtileCacheService>();
+    
+    // Routing graph file service (for .routing files)
+    builder.Services.AddScoped<RoutingCacheService>();
+    
+    // Build .routing Itinero files
+    builder.Services.AddScoped<RoutingBuilderService>();
+    
     // Register ApiTokenService with DI container
     builder.Services.AddScoped<ApiTokenService>();
-    
+
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();
-    
+
     // Import location data parsing service
     builder.Services.AddSingleton<LocationDataParserFactory>();
-    
+
     // Import Location Data service
     builder.Services.AddScoped<ILocationImportService, LocationImportService>();
 
@@ -352,7 +366,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
             o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
             o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
         });
-    
+
 
     // Add Swagger generation
     builder.Services.AddSwaggerGen(c =>
@@ -364,10 +378,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
         c.MapType<Point>(() => new OpenApiSchema
         {
             Type = "string",
-            Format = "wkt",  // Optional: specify Well-Known Text format (WKT)
+            Format = "wkt", // Optional: specify Well-Known Text format (WKT)
             Description = "The coordinates in WKT format (Point)",
-            Example = new OpenApiString("48.8588443, 2.2943506"),  // Example of WKT format
-            Nullable = false  // Explicitly set 'Nullable' to false
+            Example = new OpenApiString("48.8588443, 2.2943506"), // Example of WKT format
+            Nullable = false // Explicitly set 'Nullable' to false
         });
 
 
@@ -383,40 +397,36 @@ static void ConfigureServices(WebApplicationBuilder builder)
             return actionDescriptor.RouteValues.ContainsKey("area") &&
                    actionDescriptor.RouteValues["area"] == "Api";
         });
-
     });
 
     // PostGIS POINT JSON converter for JSON serialization
     builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.Converters.Add(new PointJsonConverter());
-    });
+        .AddJsonOptions(options => { options.JsonSerializerOptions.Converters.Add(new PointJsonConverter()); });
 
     // Reverse geocoding Mapbox service
     builder.Services.AddHttpClient<ReverseGeocodingService>();
-    
+
     // Tile Cache service
     builder.Services.AddScoped<TileCacheService>();
-    
+
     // add the Http client to the Tile Cache service
     builder.Services.AddHttpClient<TileCacheService>();
-    
+
     // Location service, handles location results per zoom and bounds levels
     builder.Services.AddScoped<LocationService>();
-    
+
     // Server Send Events Service setup (SSE) used to broadcast messages to clients
     builder.Services.AddSingleton<SseService>();
-    
+
     // User location stats service
     builder.Services.AddScoped<ILocationStatsService, LocationStatsService>();
-    
+
     // Trip export service (PDF, KML, Google MyMaps KML)
     builder.Services.AddScoped<ITripExportService, TripExportService>();
-    
+
     builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
     builder.Services.AddSingleton<MapSnapshotService>();
-    
+
     // Trip import service
     builder.Services.AddScoped<ITripImportService, TripImportService>();
 }
@@ -451,7 +461,7 @@ static async Task ConfigureMiddleware(WebApplication app)
         var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         tileCacheService.Initialize();
     }
-    
+
     // Load upload size limit from settings
     var maxRequestSize = await LoadUploadSizeLimitFromDatabaseAsync();
     app.UseMiddleware<DynamicRequestSizeMiddleware>(maxRequestSize);
@@ -466,18 +476,89 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Map static assets (e.g., CSS, JS) to routes
     app.MapStaticAssets();
 
+    // /api/* specific error handling responses
+    app.Use(async (context, next) =>
+    {
+        var isApi = context.Request.Path.StartsWithSegments("/api");
+
+        try
+        {
+            await next();
+
+            if (isApi && !context.Response.HasStarted)
+            {
+                var statusCode = context.Response.StatusCode;
+
+                if (statusCode == 401 || statusCode == 403 || statusCode == 404)
+                {
+                    context.Response.Clear();
+                    context.Response.ContentType = "application/json";
+
+                    var result = new
+                    {
+                        status = statusCode,
+                        error = statusCode switch
+                        {
+                            401 => "Unauthorized",
+                            403 => "Forbidden",
+                            404 => "Not Found",
+                            _ => "Error"
+                        },
+                        message = statusCode switch
+                        {
+                            401 => "Authentication is required to access this endpoint.",
+                            403 => "You do not have permission to access this resource.",
+                            404 => "The requested API endpoint does not exist.",
+                            _ => "An error occurred."
+                        }
+                    };
+
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(result));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (isApi && !context.Response.HasStarted)
+            {
+                context.Response.Clear();
+                context.Response.StatusCode = 500;
+                context.Response.ContentType = "application/json";
+
+                var error = new
+                {
+                    status = 500,
+                    error = "Internal Server Error",
+                    message = "An unexpected error occurred.",
+                    details = ex.Message
+                };
+
+                await context.Response.WriteAsync(JsonSerializer.Serialize(error));
+            }
+            else
+            {
+                throw;
+            }
+        }
+    });
+
     // Custom 404 handling
-    app.UseStatusCodePagesWithReExecute("/Error/{0}");
-    
+    app.UseWhen(
+        context => !context.Request.Path.StartsWithSegments("/api"),
+        appBuilder =>
+        {
+            appBuilder.UseStatusCodePagesWithReExecute("/Error/{0}");
+        });
+
     // Define the default route for controllers
     app.MapControllerRoute(
-        name: "default",
-        pattern: "{controller=Home}/{action=Index}/{id?}")
+            name: "default",
+            pattern: "{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets on the controller route
 
     // Map Razor Pages
     app.MapRazorPages()
-       .WithStaticAssets();
+        .WithStaticAssets();
 }
 
 #region Area Configuration
@@ -486,23 +567,23 @@ static void ConfigureAreas(WebApplication app)
 {
     // Map Area Controller Route for Admin
     app.MapAreaControllerRoute(
-        name: "admin",
-        areaName: "Admin", // Area name
-        pattern: "Admin/{controller=Home}/{action=Index}/{id?}")
+            name: "admin",
+            areaName: "Admin", // Area name
+            pattern: "Admin/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 
     // Map Area Controller Route for Manager
     app.MapAreaControllerRoute(
-        name: "manager",
-        areaName: "Manager", // Area name
-        pattern: "Manager/{controller=Home}/{action=Index}/{id?}")
+            name: "manager",
+            areaName: "Manager", // Area name
+            pattern: "Manager/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 
     // Map Area Controller Route for User
     app.MapAreaControllerRoute(
-        name: "user",
-        areaName: "User", // Area name
-        pattern: "User/{controller=Home}/{action=Index}/{id?}")
+            name: "user",
+            areaName: "User", // Area name
+            pattern: "User/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 
     // Map Area Controller Route for API
@@ -513,10 +594,10 @@ static void ConfigureAreas(WebApplication app)
 
     // Map Area Controller Route for Public resources
     app.MapAreaControllerRoute(
-    name: "public",
-    areaName: "Public", // Area name
-    pattern: "Public/{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets(); // Enable static assets
+            name: "public",
+            areaName: "Public", // Area name
+            pattern: "Public/{controller=Home}/{action=Index}/{id?}")
+        .WithStaticAssets(); // Enable static assets
 }
 
 #endregion Area Configuration

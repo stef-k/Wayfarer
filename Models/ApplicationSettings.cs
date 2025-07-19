@@ -5,6 +5,11 @@
 /// </summary>
 public class ApplicationSettings
 {
+    public const int DefaultMaxCacheTileSizeInMB = 1024;
+    public const int DefaultMaxCacheMbtilesSizeInMB = 6144;
+    public const int DefaultUploadSizeLimitMB = 100;
+
+    
     [Key]
     public int Id { get; set; } = 1;
 
@@ -23,7 +28,17 @@ public class ApplicationSettings
     /// Default is 1024 MB = 1 GB.
     /// </summary>
     [Required]
+    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or a positive size up to 100 GB.")]
     public int MaxCacheTileSizeInMB { get; set; } = 1024;
+    
+    /// <summary>
+    /// The max MBTiles cache size (in MegaBytes [MB]) to store in file system under MbtileCacheDirectory.
+    /// Used for vector tile packages (.mbtiles or .pmtiles).
+    /// Default is 6144 MB = 6 GB.
+    /// </summary>
+    [Required]
+    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or a positive size up to 100 GB.")]
+    public int MaxCacheMbtilesSizeInMB { get; set; } = 6144;
     
     /// <summary>
     /// Flag to control whether user registration is open or closed.
@@ -33,5 +48,7 @@ public class ApplicationSettings
     
     // Application uploads file size limit in Megabytes, default is 100 MB
     [Required] 
+    [Range(-1, 102400)]
     public int UploadSizeLimitMB { get; set; } = 100;
+    
 }

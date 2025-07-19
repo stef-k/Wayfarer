@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using NetTopologySuite.Geometries;
 
@@ -18,6 +19,7 @@ public class Region
     public Guid TripId { get; set; }
 
     /// <summary>Navigation property to the parent trip.</summary>
+    [JsonIgnore] 
     public Trip Trip { get; set; }
 
     /// <summary>Region name or title.</summary>
