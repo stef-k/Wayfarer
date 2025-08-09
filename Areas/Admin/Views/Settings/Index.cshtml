@@ -211,55 +211,6 @@
 
                         <hr/>
                         <div class="row">
-                            <h3 class="text-center fs-4">MBTiles (Mobile App) Cache</h3>
-
-                            <div class="col-6 mb-2">
-                                <strong>Total MBTiles Cache Size in Megabytes:</strong>
-                                <code>@ViewData["MbtilesCacheSizeMB"] MB</code>
-                            </div>
-
-                            <div class="col-6 mb-2">
-                                <strong>Total MBTiles Size in Gigabytes:</strong>
-                                <code>@ViewData["MbtilesCacheSizeGB"] GB</code>
-                            </div>
-
-                            <div class="col-12 mb-2">
-                                <strong>MBTiles Directory Path:</strong>
-                                <code>@ViewData["MbtilesPath"]</code>
-                            </div>
-
-                            <div class="col-12 mb-2">
-                                <strong>MBTiles File Count:</strong>
-                                <code>@ViewData["MbtilesFileCount"]</code>
-                            </div>
-
-
-                            <div class="col-md-8">
-                                <label for="MaxCacheMbtilesSizeInMB" class="form-label">
-                                    Maximum Size for MBTiles Cache (Mobile) in Megabytes:
-                                </label>
-
-                                <div class="input-group">
-                                    <input asp-for="MaxCacheMbtilesSizeInMB"
-                                           class="form-control"
-                                           type="number"
-                                           step="0.01"
-                                           min="-1"/>
-                                    <span class="input-group-text">MB</span>
-                                </div>
-
-                                <span asp-validation-for="MaxCacheMbtilesSizeInMB" class="text-danger"></span>
-
-                                <div class="form-text">
-                                    • This applies to `.mbtiles` files used for the mobile app (offline trip
-                                    viewer).<br/>
-                                    • Set to <code>-1</code> to disable MBTiles cache entirely.<br/>
-                                    • Set to <code>0</code> to fallback to the system default:
-                                    <code>@ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB MB</code>.<br/>
-                                    • If the size is exceeded, the least recently used files will be evicted.
-                                </div>
-                            </div>
-
                             <h5 class="mt-4">Routing & PBF Storage</h5>
                             <ul class="list-group mb-3">
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -277,16 +228,7 @@
                                     <i class="bi bi-folder2-open"></i> @ViewData["PbfPath"]
                                 </li>
                             </ul>
-
-                            <div class="col-md-4 mt-3">
-                                <form asp-action="ClearMbtilesCache" method="post">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" id="clearMbtilesCache" class="btn btn-danger w-100 mt-3"
-                                            title="Clear MBTiles Cache">
-                                        Clear All MBTiles Cache (Mobile)
-                                    </button>
-                                </form>
-                            </div>
+                            
                         </div>
 
                         <hr/>
@@ -297,12 +239,6 @@
                                 <strong>Map Tiles Cache (zoom ≥ 9):</strong><br/>
                                 <code>@ViewData["TotalCacheSize"] MB</code> /
                                 <code>@ViewData["TotalCacheSizeGB"] GB</code>
-                            </div>
-
-                            <div class="col-4 mb-2 fs-5">
-                                <strong>Mobile MBTiles Cache:</strong><br/>
-                                <code>@ViewData["MbtilesCacheSizeMB"] MB</code> /
-                                <code>@ViewData["MbtilesCacheSizeGB"] GB</code>
                             </div>
 
                             <div class="col-4 mb-2 fs-5">
@@ -330,7 +266,7 @@
                         </div>
 
                         <div class="form-text fs-6 mt-2">
-                            • This includes storage used by: map tile cache (zoom ≥ 9), MBTiles packages (mobile), and
+                            • This includes storage used by: map tile cache (zoom ≥ 9),PBF used for mobile routing and routing files, and
                             uploaded files (e.g. Google Timeline JSON).<br/>
                             • Zoom levels 0–8 are permanent and not included in soft limits.<br/>
                             • Use this summary to estimate how much disk Wayfarer currently occupies on your server.

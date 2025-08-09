@@ -12,7 +12,6 @@ namespace Wayfarer.Areas.Admin.Controllers
     {
         private readonly IApplicationSettingsService _settingsService;
         private readonly TileCacheService _tileCacheService;
-        private readonly MbtileCacheService _mbtileService;
         private readonly IWebHostEnvironment _env;
 
         public SettingsController(
@@ -20,12 +19,11 @@ namespace Wayfarer.Areas.Admin.Controllers
             ApplicationDbContext dbContext,
             IApplicationSettingsService settingsService,
             TileCacheService tileCacheService,
-            MbtileCacheService mbtileService, IWebHostEnvironment env)
+            IWebHostEnvironment env)
             : base(logger, dbContext)
         {
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _tileCacheService = tileCacheService ?? throw new ArgumentNullException(nameof(tileCacheService));
-            _mbtileService = mbtileService ?? throw new ArgumentNullException(nameof(mbtileService));
             _env = env ?? throw new ArgumentNullException(nameof(env));
         }
 
@@ -51,32 +49,11 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
             }
-
-            if (settings.MaxCacheMbtilesSizeInMB == 0)
-            {
-                settings.MaxCacheMbtilesSizeInMB = ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB;
-            }
-
+            
             if (settings.UploadSizeLimitMB == 0)
             {
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
             }
-
-            // MBTiles
-            string mbtilesPath = _mbtileService.GetCacheDirectory();
-            ViewData["MbtilesPath"] = mbtilesPath;
-
-            long totalMbtilesBytes = 0;
-            int mbtilesFileCount = 0;
-
-            if (Directory.Exists(mbtilesPath))
-            {
-                var mbtilesFiles = new DirectoryInfo(mbtilesPath).GetFiles("*.mbtiles", SearchOption.AllDirectories);
-                totalMbtilesBytes = mbtilesFiles.Sum(f => f.Length);
-                mbtilesFileCount = mbtilesFiles.Length;
-            }
-
-            ViewData["MbtilesFileCount"] = mbtilesFileCount;
             
             // Routing and PBF files
             // Routing + PBF cache paths
@@ -122,12 +99,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             ViewData["TotalCacheSizeGB"] = Math.Round(tileCacheSizeMB / 1024, 3);
             ViewData["TotalLru"] = Math.Round(lruCacheSizeMB, 2);
             ViewData["TotalLruGB"] = Math.Round(lruCacheSizeMB / 1024, 3);
-
-            double mbtilesSizeMB = _mbtileService.GetCurrentCacheSizeMB();
-            double mbtilesSizeGB = mbtilesSizeMB / 1024.0;
-            ViewData["MbtilesCacheSizeMB"] = Math.Round(mbtilesSizeMB, 2);
-            ViewData["MbtilesCacheSizeGB"] = Math.Round(mbtilesSizeGB, 2);
-
+            
             double uploadsSizeMB = totalUploadBytes / (1024.0 * 1024.0);
             double uploadsSizeGB = uploadsSizeMB / 1024.0;
             ViewData["UploadsSizeMB"] = Math.Round(uploadsSizeMB, 2);
@@ -135,7 +107,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             ViewData["UploadsFileCount"] = uploadFileCount;
 
             // Combined
-            double combinedTotalMB = tileCacheSizeMB + mbtilesSizeMB + uploadsSizeMB + routingPbfTotalMB;
+            double combinedTotalMB = tileCacheSizeMB  + uploadsSizeMB + routingPbfTotalMB;
             double combinedTotalGB = combinedTotalMB / 1024.0;
             ViewData["CombinedStorageMB"] = Math.Round(combinedTotalMB, 2);
             ViewData["CombinedStorageGB"] = Math.Round(combinedTotalGB, 3);
@@ -163,7 +135,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
-                    currentSettings.MaxCacheMbtilesSizeInMB = updatedSettings.MaxCacheMbtilesSizeInMB;
                     await _dbContext.SaveChangesAsync();
                 }
 
@@ -257,7 +228,6 @@ namespace Wayfarer.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult ClearMbtilesCache()
         {
-            _mbtileService.ClearCache();
             TempData["Message"] = "All MBTiles for mobile map cache cleared.";
             return RedirectToAction("Index");
         }

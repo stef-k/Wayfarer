@@ -58,6 +58,7 @@
     <Folder Include="Uploads\Temp\" />
     <Folder Include="wwwroot\icons\" />
     <Folder Include="wwwroot\lib\sortablejs\" />
+    <None Include="Tools\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -70,5 +71,9 @@
   <ItemGroup>
     <None Remove="Scripts\tables_postgres.sql" />
     <EmbeddedResource Include="Scripts\tables_postgres.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="MbtileCache\tiles.json" />
   </ItemGroup>
 </Project>

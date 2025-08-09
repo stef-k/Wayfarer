@@ -91,7 +91,6 @@ public class ApplicationDbContextSeed
                 LocationTimeThresholdMinutes = 5,
                 LocationDistanceThresholdMeters = 15,
                 MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB,
-                MaxCacheMbtilesSizeInMB = ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB,
                 UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB,
                 IsRegistrationOpen = false
             });
@@ -119,13 +118,6 @@ public class ApplicationDbContextSeed
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
                 changed = true;
             }
-
-            if (settings.MaxCacheMbtilesSizeInMB == 0)
-            {
-                settings.MaxCacheMbtilesSizeInMB = ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB;
-                changed = true;
-            }
-
             if (settings.UploadSizeLimitMB == 0)
             {
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;

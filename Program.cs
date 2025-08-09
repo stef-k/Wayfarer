@@ -17,6 +17,7 @@ using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.Helpers;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 
@@ -92,6 +93,13 @@ ConfigureMiddleware(app).GetAwaiter().GetResult();
 await SeedDatabase(app);
 
 #endregion Database Seeding
+
+// Force re-index geofabrik index
+using (var scope = app.Services.CreateScope())
+{
+    var idx = scope.ServiceProvider.GetRequiredService<GeofabrikCountryIndexService>();
+    idx.ForceUpdate();                    // downloads + reparses with new Traverse()
+}
 
 app.Run();
 
@@ -337,8 +345,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Register application services with DI container
     builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
 
-    // MB tiles (mbtiles) service 
-    builder.Services.AddScoped<MbtileCacheService>();
+    // Country index (used by RoutingCacheService + MbtileCacheService)
+    builder.Services.AddSingleton<GeofabrikCountryIndexService>();
     
     // Routing graph file service (for .routing files)
     builder.Services.AddScoped<RoutingCacheService>();

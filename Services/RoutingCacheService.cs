@@ -6,87 +6,83 @@ public class RoutingCacheService
     private readonly string _routingCacheDirectory;
     private readonly string _osmPbfDirectory;
     private readonly RoutingBuilderService _builder;
+    private readonly GeofabrikCountryIndexService _indexService;
 
-    public RoutingCacheService(ILogger<RoutingCacheService> logger, IConfiguration configuration,
-        RoutingBuilderService builder)
+    public RoutingCacheService(
+        ILogger<RoutingCacheService> logger,
+        IConfiguration configuration,
+        RoutingBuilderService builder,
+        GeofabrikCountryIndexService indexService)
     {
         _logger = logger;
         _builder = builder;
+        _indexService = indexService;
 
-        _routingCacheDirectory = configuration.GetSection("CacheSettings:RoutingCacheDirectory").Value ?? "RoutingCache";
-        _osmPbfDirectory = configuration.GetSection("CacheSettings:OsmPbfCacheDirectory").Value ?? "OsmPbfCache";
+        // ⬇ read the right keys and provide fallbacks
+        _routingCacheDirectory = configuration["CacheSettings:RoutingCacheDirectory"]
+                                 ?? configuration["CacheSettings:RoutingCache"]
+                                 ?? "RoutingCache";
+
+        _osmPbfDirectory = configuration["CacheSettings:OsmPbfCacheDirectory"]
+                           ?? configuration["CacheSettings:OsmPbfCache"]
+                           ?? "OsmPbfCache";
 
         if (!Path.IsPathRooted(_routingCacheDirectory))
-        {
             _routingCacheDirectory = Path.Combine(Directory.GetCurrentDirectory(), _routingCacheDirectory);
-        }
 
         if (!Path.IsPathRooted(_osmPbfDirectory))
-        {
             _osmPbfDirectory = Path.Combine(Directory.GetCurrentDirectory(), _osmPbfDirectory);
-        }
 
-        if (!Directory.Exists(_routingCacheDirectory))
-        {
-            Directory.CreateDirectory(_routingCacheDirectory);
-        }
-
-        if (!Directory.Exists(_osmPbfDirectory))
-        {
-            Directory.CreateDirectory(_osmPbfDirectory);
-        }
+        Directory.CreateDirectory(_routingCacheDirectory);
+        Directory.CreateDirectory(_osmPbfDirectory);
     }
 
-    public string GetRoutingFilePath(string region)
+    public string GetRoutingFilePath(string countryCode)
     {
-        return Path.Combine(_routingCacheDirectory, region + ".routing");
+        return Path.Combine(_routingCacheDirectory, countryCode + ".routing");
     }
 
-    public string GetPbfFilePath(string region)
+    public string GetPbfFilePath(string countryCode)
     {
-        return Path.Combine(_osmPbfDirectory, region + ".osm.pbf");
+        return Path.Combine(_osmPbfDirectory, countryCode + ".osm.pbf");
     }
 
-    public bool HasRoutingFile(string region)
+    public bool HasRoutingFile(string countryCode)
     {
-        return File.Exists(GetRoutingFilePath(region));
+        return File.Exists(GetRoutingFilePath(countryCode));
     }
 
-    public void DeleteRoutingFile(string region)
+    public void DeleteRoutingFile(string countryCode)
     {
-        var path = GetRoutingFilePath(region);
+        var path = GetRoutingFilePath(countryCode);
         if (File.Exists(path))
         {
             File.Delete(path);
-            _logger.LogInformation("Deleted routing file for region: {Region}", region);
+            _logger.LogInformation("Deleted routing file for country: {Country}", countryCode);
         }
     }
 
-    public void DeletePbfFile(string region)
+    public void DeletePbfFile(string countryCode)
     {
-        var path = GetPbfFilePath(region);
+        var path = GetPbfFilePath(countryCode);
         if (File.Exists(path))
         {
             File.Delete(path);
-            _logger.LogInformation("Deleted OSM PBF file for region: {Region}", region);
+            _logger.LogInformation("Deleted OSM PBF file for country: {Country}", countryCode);
         }
     }
 
-    /// <summary>
-    /// Generates a .routing file from a .osm.pbf for a given region.
-    /// If the PBF file is missing, it will be downloaded first.
-    /// </summary>
-    public void GenerateRoutingFile(string region)
+    public void GenerateRoutingFile(string countryCode)
     {
-        var pbfPath = GetPbfFilePath(region);
-        var routingPath = GetRoutingFilePath(region);
+        var pbfPath = GetPbfFilePath(countryCode);
+        var routingPath = GetRoutingFilePath(countryCode);
 
         if (!File.Exists(pbfPath))
         {
             try
             {
-                var url = RegionSourceResolver.GetPbfUrl(region);
-                _logger.LogInformation("Downloading OSM PBF for region {Region} from {Url}", region, url);
+                var url = _indexService.GetPbfUrl(countryCode);
+                _logger.LogInformation("Downloading OSM PBF for country {Country} from {Url}", countryCode, url);
                 using var client = new HttpClient();
                 var bytes = client.GetByteArrayAsync(url).Result;
                 File.WriteAllBytes(pbfPath, bytes);
@@ -94,7 +90,7 @@ public class RoutingCacheService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to download OSM PBF for region: {Region}", region);
+                _logger.LogError(ex, "Failed to download OSM PBF for country: {Country}", countryCode);
                 return;
             }
         }
@@ -105,7 +101,7 @@ public class RoutingCacheService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to build routing file for region: {Region}", region);
+            _logger.LogError(ex, "Failed to build routing file for country: {Country}", countryCode);
         }
     }
 

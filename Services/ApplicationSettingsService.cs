@@ -57,10 +57,7 @@ namespace Wayfarer.Parsers
             {
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
             }
-            if (settings.MaxCacheMbtilesSizeInMB == 0)
-            {
-                settings.MaxCacheMbtilesSizeInMB = ApplicationSettings.DefaultMaxCacheMbtilesSizeInMB;
-            }
+
             if (settings.UploadSizeLimitMB == 0)
             {
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;

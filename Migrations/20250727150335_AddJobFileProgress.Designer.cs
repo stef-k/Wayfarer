@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Wayfarer.Models;
 namespace Wayfarer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250727150335_AddJobFileProgress")]
+    partial class AddJobFileProgress
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -41,6 +44,9 @@ namespace Wayfarer.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("LocationTimeThresholdMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxCacheMbtilesSizeInMB")
                         .HasColumnType("integer");
 
                     b.Property<int>("MaxCacheTileSizeInMB")
@@ -419,6 +425,22 @@ namespace Wayfarer.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("HiddenAreas");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.JobFileProgress", b =>
+                {
+                    b.Property<string>("JobKey")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileUrl")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Ready")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("JobKey", "FileUrl");
+
+                    b.ToTable("JobFileProgress");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.JobHistory", b =>
