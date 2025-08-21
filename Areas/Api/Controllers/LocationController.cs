@@ -29,6 +29,10 @@ namespace Wayfarer.Areas.Api.Controllers
         private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
         private const double DefaultLocationDistanceThresholdMeters = 15; // Default to 15 meters
 
+        // Constants for check-in rate limiting
+        private const int CheckInMinIntervalSeconds = 30; // Minimum 30 seconds between check-ins
+        private const int CheckInMaxPerHour = 60; // Maximum 60 check-ins per hour per user
+
         public LocationController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger,
             IMemoryCache cache, IApplicationSettingsService settingsService,
             ReverseGeocodingService reverseGeocodingService, LocationService locationService, SseService sse,
@@ -41,6 +45,238 @@ namespace Wayfarer.Areas.Api.Controllers
             _locationService = locationService;
             _sse = sse;
             _statsService = statsService;
+        }
+
+        /// <summary>
+        /// Manual check-in endpoint for user-initiated location logging.
+        /// This endpoint bypasses time/distance thresholds but includes rate limiting
+        /// to prevent spam and abuse from rapid-fire button pressing or duplicate requests.
+        /// </summary>
+        /// <param name="dto">Location data for the check-in</param>
+        /// <returns>Check-in result with success status and optional message</returns>
+        [HttpPost]
+        [Route("/api/location/check-in")]
+        public async Task<IActionResult> CheckIn([FromBody] GpsLoggerLocationDto dto)
+        {
+            var requestId = Guid.NewGuid();
+            _logger.LogInformation(
+                $"CHECK-IN: Lat: {dto.Latitude}, Long: {dto.Longitude}, Accuracy: {dto.Accuracy}, Speed: {dto.Speed}, Altitude: {dto.Altitude}");
+
+            ApplicationUser? user = GetUserFromToken();
+            if (user == null)
+                return Unauthorized("Invalid or missing API token.");
+
+            if (!user.IsActive)
+                return Forbid("User is not active.");
+
+            using (_logger.BeginScope(
+                       new Dictionary<string, object>
+                           { ["RequestId"] = requestId, ["UserId"] = user.Id, ["RequestType"] = "CHECK_IN" }))
+            {
+                _logger.LogInformation("Received check-in request.");
+
+                // Basic validation (same as log-location)
+                if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
+                {
+                    _logger.LogWarning("Invalid check-in location data received.");
+                    return BadRequest("Check-in location data is invalid.");
+                }
+
+                if (dto.Latitude < -90 || dto.Latitude > 90 || dto.Longitude < -180 || dto.Longitude > 180)
+                {
+                    _logger.LogWarning("Out-of-range coordinates in check-in: {Latitude}, {Longitude}", dto.Latitude,
+                        dto.Longitude);
+                    return BadRequest("Latitude or Longitude is out of range.");
+                }
+
+                // Rate limiting for check-ins to prevent spam/abuse
+                var rateLimitResult = await ValidateCheckInRateLimit(user.Id);
+                if (!rateLimitResult.IsAllowed)
+                {
+                    _logger.LogWarning("Check-in rate limit exceeded for user {UserId}: {Reason}", user.Id,
+                        rateLimitResult.Reason);
+                    return TooManyRequests(rateLimitResult.Reason);
+                }
+
+                // Process timestamp and timezone (same as log-location)
+                DateTime utcTimestamp;
+                string timeZoneId;
+                try
+                {
+                    timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
+                        dto.Latitude, dto.Longitude);
+
+                    // Convert to UTC if not already
+                    if (dto.Timestamp.Kind == DateTimeKind.Utc)
+                    {
+                        utcTimestamp = dto.Timestamp;
+                    }
+                    else
+                    {
+                        utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(
+                            dto.Latitude, dto.Longitude, dto.Timestamp);
+                    }
+
+                    // Ensure UTC marking for EF/SQL
+                    utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Failed to convert local time to UTC for check-in coordinates {Lat}, {Lon}",
+                        dto.Latitude, dto.Longitude);
+                    return StatusCode(500, "Failed to process timestamp and timezone for check-in.");
+                }
+
+                // Create coordinates (same as log-location)
+                Point coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+
+                // Create location record (same structure as log-location)
+                var location = new Location
+                {
+                    UserId = user.Id,
+                    Timestamp = DateTime.UtcNow, // Server timestamp (same as log-location)
+                    LocalTimestamp = utcTimestamp, // Client timestamp converted to UTC (same as log-location)
+                    TimeZoneId = timeZoneId,
+                    Coordinates = coordinates,
+                    Accuracy = dto.Accuracy,
+                    Altitude = dto.Altitude,
+                    Speed = dto.Speed,
+                    LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
+                    Notes = dto.Notes,
+                    ActivityTypeId = dto.ActivityTypeId,
+                    VehicleId = dto.VehicleId
+                };
+
+                try
+                {
+                    // Reverse geocoding (exactly like log-location)
+                    var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                    if (apiToken != null)
+                    {
+                        var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
+                            dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
+
+                        _logger.LogInformation(
+                            $"Check-in, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");
+
+                        location.FullAddress = locationInfo.FullAddress;
+                        location.Address = locationInfo.Address;
+                        location.AddressNumber = locationInfo.AddressNumber;
+                        location.StreetName = locationInfo.StreetName;
+                        location.PostCode = locationInfo.PostCode;
+                        location.Place = locationInfo.Place;
+                        location.Region = locationInfo.Region;
+                        location.Country = locationInfo.Country;
+                    }
+
+                    // Save location (same as log-location)
+                    _dbContext.Locations.Add(location);
+                    await _dbContext.SaveChangesAsync();
+
+                    _logger.LogInformation("Check-in location saved with ID {LocationId} at {Timestamp}", location.Id,
+                        location.Timestamp);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to save check-in location for user.");
+                    return StatusCode(500, "Internal server error while saving check-in location.");
+                }
+
+                // Update cache with latest location (same as log-location)
+                string cacheKey = $"lastLocation_{user.Id}";
+                _cache.Set(cacheKey, location, TimeSpan.FromMinutes(30));
+
+                // Update rate limiting tracking
+                await UpdateCheckInRateTracking(user.Id);
+
+                // SSE broadcast (same pattern as log-location and User/LocationController)
+                await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
+                {
+                    LocationId = location.Id,
+                    TimeStamp = location.Timestamp,
+                    Type = "check-in"
+                }));
+
+                // Note: Statistics are computed on-demand via GetStatsForUserAsync when needed
+
+                // Return same format as log-location
+                return Ok(new { Message = "Check-in logged successfully", Location = location });
+            }
+        }
+
+        /// <summary>
+        /// Validates rate limiting for check-in requests to prevent spam and abuse.
+        /// Implements both time-based interval checking and hourly limits.
+        /// </summary>
+        /// <param name="userId">User ID to check rate limits for</param>
+        /// <returns>Rate limit validation result</returns>
+        private async Task<CheckInRateLimitResult> ValidateCheckInRateLimit(string userId)
+        {
+            // Check minimum interval between check-ins
+            string lastCheckInCacheKey = $"lastCheckIn_{userId}";
+            if (_cache.TryGetValue(lastCheckInCacheKey, out DateTime lastCheckInTime))
+            {
+                var timeSinceLastCheckIn = DateTime.UtcNow - lastCheckInTime;
+                if (timeSinceLastCheckIn.TotalSeconds < CheckInMinIntervalSeconds)
+                {
+                    var remainingSeconds = CheckInMinIntervalSeconds - (int)timeSinceLastCheckIn.TotalSeconds;
+                    return new CheckInRateLimitResult
+                    {
+                        IsAllowed = false,
+                        Reason = $"Please wait {remainingSeconds} seconds between check-ins."
+                    };
+                }
+            }
+
+            // Check hourly limit
+            string hourlyCacheKey = $"checkInCount_{userId}_{DateTime.UtcNow:yyyyMMddHH}";
+            if (_cache.TryGetValue(hourlyCacheKey, out int currentHourlyCount))
+            {
+                if (currentHourlyCount >= CheckInMaxPerHour)
+                {
+                    return new CheckInRateLimitResult
+                    {
+                        IsAllowed = false,
+                        Reason = $"Maximum {CheckInMaxPerHour} check-ins per hour exceeded. Please try again later."
+                    };
+                }
+            }
+
+            return new CheckInRateLimitResult { IsAllowed = true };
+        }
+
+        /// <summary>
+        /// Updates rate limiting tracking after a successful check-in.
+        /// </summary>
+        /// <param name="userId">User ID to update tracking for</param>
+        private async Task UpdateCheckInRateTracking(string userId)
+        {
+            // Update last check-in time
+            string lastCheckInCacheKey = $"lastCheckIn_{userId}";
+            _cache.Set(lastCheckInCacheKey, DateTime.UtcNow, TimeSpan.FromMinutes(5));
+
+            // Update hourly count
+            string hourlyCacheKey = $"checkInCount_{userId}_{DateTime.UtcNow:yyyyMMddHH}";
+            if (_cache.TryGetValue(hourlyCacheKey, out int currentCount))
+            {
+                _cache.Set(hourlyCacheKey, currentCount + 1, TimeSpan.FromHours(1));
+            }
+            else
+            {
+                _cache.Set(hourlyCacheKey, 1, TimeSpan.FromHours(1));
+            }
+        }
+
+        /// <summary>
+        /// Returns a 429 Too Many Requests response with appropriate headers.
+        /// </summary>
+        /// <param name="message">Rate limit message to return</param>
+        /// <returns>429 status code response</returns>
+        private IActionResult TooManyRequests(string message)
+        {
+            Response.Headers["Retry-After"] = CheckInMinIntervalSeconds.ToString();
+            return StatusCode(429, new { Message = message });
         }
 
         [HttpPost]
@@ -375,7 +611,7 @@ namespace Wayfarer.Areas.Api.Controllers
                 // Delete the locations
                 _dbContext.Locations.RemoveRange(locationsToDelete);
                 await _dbContext.SaveChangesAsync();
-                
+
                 return Ok(new
                     { success = true, message = $"{locationsToDelete.Count} locations deleted successfully." });
             }
@@ -519,7 +755,8 @@ namespace Wayfarer.Areas.Api.Controllers
                                 Latitude = l.Coordinates?.Y
                             },
                             LocalTimestamp =
-                                DateTimeUtils.ConvertUtcToLocalTime(CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X,
+                                DateTimeUtils.ConvertUtcToLocalTime(CoordinateTimeZoneConverter.ConvertUtcToLocal(
+                                    l.Coordinates.Y, l.Coordinates.X,
                                     DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)), l.TimeZoneId),
                             l.TimeZoneId,
                             Activity = l.ActivityType?.Name,
@@ -554,5 +791,21 @@ namespace Wayfarer.Areas.Api.Controllers
             var stats = await _statsService.GetStatsForUserAsync(userId);
             return Ok(stats);
         }
+    }
+
+    /// <summary>
+    /// Result class for check-in rate limit validation.
+    /// </summary>
+    public class CheckInRateLimitResult
+    {
+        /// <summary>
+        /// Whether the check-in request is allowed based on rate limits.
+        /// </summary>
+        public bool IsAllowed { get; set; }
+
+        /// <summary>
+        /// Reason message if the request is not allowed.
+        /// </summary>
+        public string? Reason { get; set; }
     }
 }
