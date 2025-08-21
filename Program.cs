@@ -1,6 +1,8 @@
 using System.Collections.Specialized;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
@@ -61,12 +63,69 @@ ConfigureIdentity(builder);
 
 #endregion Identity Configuration
 
+#region Forwarded Headers Configuration
+
+// Simple forwarded headers configuration for nginx reverse proxy
+static void ConfigureForwardedHeaders(WebApplicationBuilder builder)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        // Configure headers to forward from nginx
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | 
+                                 ForwardedHeaders.XForwardedProto | 
+                                 ForwardedHeaders.XForwardedHost;
+        
+        // Clear defaults for explicit configuration
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+        
+        // Trust nginx running on localhost (your setup)
+        options.KnownProxies.Add(IPAddress.Parse("127.0.0.1"));
+        options.KnownProxies.Add(IPAddress.IPv6Loopback);
+        
+        // For nginx on same machine, trust loopback networks
+        // Using string-based network definition to avoid IPNetwork ambiguity
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+            IPAddress.Parse("127.0.0.0"), 8));
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+            IPAddress.Parse("::1"), 128));
+        
+        // Optional: Trust local network ranges if needed
+        if (builder.Environment.IsDevelopment())
+        {
+            // In development, also trust local networks
+            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+                IPAddress.Parse("192.168.0.0"), 16));
+            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+                IPAddress.Parse("10.0.0.0"), 8));
+        }
+        
+        // Security settings
+        options.ForwardLimit = 1; // Only expect one proxy (nginx)
+        
+        // For your wayfarer.stefk.me setup, this is sufficient
+        if (!builder.Environment.IsDevelopment())
+        {
+            options.RequireHeaderSymmetry = false; // Allow flexible header presence
+        }
+    });
+}
+
+#endregion Forwarded Headers Configuration
+
 #region Quartz Configuration
 
 // Configuring Quartz for job scheduling
 ConfigureQuartz(builder);
 
 #endregion Quartz Configuration
+
+#region Forwarded Headers Configuration
+
+// NEW: Configure forwarded headers for nginx proxy support
+ConfigureForwardedHeaders(builder);
+
+#endregion Forwarded Headers Configuration
 
 #region Configure other services
 
@@ -442,6 +501,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
 // Method to configure middleware components such as error handling and performance monitoring
 static async Task ConfigureMiddleware(WebApplication app)
 {
+    // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
+    app.UseForwardedHeaders();
+    
     app.UseMiddleware<PerformanceMonitoringMiddleware>(); // Custom middleware for monitoring performance
 
     // Use specific middlewares based on the environment

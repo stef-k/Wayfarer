@@ -1,8 +1,123 @@
 ﻿@model Wayfarer.Models.ViewModels.ApiTokenViewModel
 
 @{
-var fullurl = $"https://{Context.Request.Host}/api/location/log-location";
-var serverBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
+    // ZERO CONFIGURATION: Universal URL generation for any self-hosted Wayfarer instance
+    // No appsettings.json entries needed - pure automatic detection
+    
+    string scheme = DetermineScheme(Context);
+    string host = Context.Request.Host.ToString();
+    
+    var serverBaseUrl = $"{scheme}://{host}";
+    var fullurl = $"{serverBaseUrl}/api/location/log-location";
+    
+    // Automatic scheme detection - no configuration required
+    string DetermineScheme(HttpContext context)
+    {
+        // 1. If already HTTPS (direct HTTPS connection), use HTTPS
+        if (context.Request.IsHttps)
+        {
+            return "https";
+        }
+        
+        // 2. Check reverse proxy headers (nginx, Apache, etc.)
+        string forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? "";
+        if (forwardedProto.Equals("https", StringComparison.OrdinalIgnoreCase))
+        {
+            return "https";
+        }
+        
+        // 3. Check alternative proxy headers
+        string forwardedSsl = context.Request.Headers["X-Forwarded-Ssl"].FirstOrDefault() ?? "";
+        if (forwardedSsl.Equals("on", StringComparison.OrdinalIgnoreCase))
+        {
+            return "https";
+        }
+        
+        // 4. Automatic environment detection (no config needed)
+        string hostName = context.Request.Host.Host.ToLower();
+        
+        // LOCAL DEVELOPMENT: Use HTTP
+        if (IsLocalDevelopment(hostName))
+        {
+            return "http";
+        }
+        
+        // PRODUCTION INDICATORS: Use HTTPS
+        if (HasProductionIndicators(context, hostName))
+        {
+            return "https";
+        }
+        
+        // FALLBACK: Use original scheme
+        return context.Request.Scheme;
+    }
+    
+    // Detect local development - no configuration needed
+    bool IsLocalDevelopment(string hostName)
+    {
+        return hostName.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+               hostName.Equals("127.0.0.1") ||
+               hostName.Equals("0.0.0.0") ||
+               hostName.Equals("::1") ||
+               hostName.StartsWith("192.168.") ||    // Private network
+               hostName.StartsWith("10.") ||         // Private network
+               hostName.StartsWith("172.") ||        // Private network/Docker
+               hostName.EndsWith(".local") ||        // .local TLD
+               hostName.EndsWith(".localhost") ||    // .localhost TLD
+               IsPrivateIpAddress(hostName);
+    }
+    
+    // Detect production environment - no configuration needed
+    bool HasProductionIndicators(HttpContext context, string hostName)
+    {
+        // INDICATOR 1: Environment variable
+        string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "";
+        if (environment.Equals("Production", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        
+        // INDICATOR 2: Standard HTTP/HTTPS ports
+        int port = context.Request.Host.Port ?? 0;
+        if (port == 443 || port == 80)
+        {
+            return true; // Standard web ports suggest production
+        }
+        
+        // INDICATOR 3: Real domain name (not localhost/IP)
+        if (hostName.Contains(".") && 
+            !hostName.StartsWith("192.168.") && 
+            !hostName.StartsWith("10.") && 
+            !hostName.StartsWith("172.") &&
+            !hostName.Equals("127.0.0.1"))
+        {
+            return true; // Real domain suggests production
+        }
+        
+        // INDICATOR 4: HTTPS configuration detected
+        string httpsPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORT");
+        if (!string.IsNullOrEmpty(httpsPort))
+        {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Check if hostname is a private IP - no configuration needed
+    bool IsPrivateIpAddress(string hostName)
+    {
+        if (!System.Net.IPAddress.TryParse(hostName, out System.Net.IPAddress ip))
+        {
+            return false;
+        }
+        
+        byte[] bytes = ip.GetAddressBytes();
+        return (bytes[0] == 10) ||                                      // 10.0.0.0/8
+               (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) || // 172.16.0.0/12
+               (bytes[0] == 192 && bytes[1] == 168) ||                  // 192.168.0.0/16
+               (bytes[0] == 127);                                       // 127.0.0.0/8
+    }
 }
 
 <!-- Include QR Code JavaScript Library -->
@@ -21,79 +136,129 @@ var serverBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
                 <div class="card-body">
                     @if (Model.Tokens != null && Model.Tokens.Any())
                     {
-                    @foreach (var token in Model.Tokens)
-                    {
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <p class="mb-1"><strong>Token Name:</strong> @token.Name</p>
-                            <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
-                            <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
-                        </div>
-                        <div>
-                            <a href="@Url.Action("Regenerate", new { name = token.Name })" class="btn btn-primary me-2">Regenerate</a>
-                            @if (!token.Name.Equals("Wayfarer Incoming Location Data API Token"))
-                            {
-                            <a href="@Url.Action("Delete", new { tokenId = token.Id })" class="btn btn-danger">Delete</a>
-                            }
-                        </div>
-                    </div>
-
-                    @if (token.Name.Equals("Wayfarer Incoming Location Data API Token"))
-                    {
-                    <!-- Wayfarer Mobile App Integration Section -->
-                    <div class="mt-4 mb-4">
-                        <h5><strong>🔗 Wayfarer Mobile App Integration</strong></h5>
-                        <p class="mb-3">Use the QR code below to quickly configure your Wayfarer Mobile app. The QR code contains the complete server configuration including URL and API token.</p>
-
-                        <!-- Single QR Code -->
-                        <div class="row justify-content-center">
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-header text-center">
-                                        <h6 class="mb-0">📱 Wayfarer Mobile Configuration</h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div id="qr-mobile-config" class="mb-3"></div>
-                                        <div class="small text-muted">
-                                            <p><strong>Server:</strong> <code class="border p-2 rounded bg-light user-select-all">@serverBaseUrl</code></p>
-                                            <p> <strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code> </p>
-                                        </div>
-                                    </div>
+                        @foreach (var token in Model.Tokens)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <p class="mb-1"><strong>Token Name:</strong> @token.Name</p>
+                                    <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
+                                    <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
+                                </div>
+                                <div>
+                                    <a href="@Url.Action("Regenerate", new { name = token.Name })" class="btn btn-primary me-2">Regenerate</a>
+                                    @if (!token.Name.Equals("Wayfarer Incoming Location Data API Token"))
+                                    {
+                                        <a href="@Url.Action("Delete", new { tokenId = token.Id })" class="btn btn-danger">Delete</a>
+                                    }
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Instructions -->
-                        <div class="alert alert-info">
-                            <h6 class="alert-heading">
-                                <i class="fas fa-lightbulb me-2"></i>
-                                Quick Setup Instructions
-                            </h6>
-                            <ol class="mb-0">
-                                <li>Open the <strong>Wayfarer Mobile</strong> app on your device</li>
-                                <li>Navigate to <strong>Settings</strong></li>
-                                <li>Tap the <strong>📷 QR</strong> button next to either the Server URL or API Token field</li>
-                                <li>Scan the QR code above</li>
-                                <li>The app will automatically configure <strong>both</strong> the server URL and API token</li>
-                                <li>Tap <strong>"Refresh from Server"</strong> to test the connection</li>
-                            </ol>
-                        </div>
-                    </div>
+                            @if (token.Name.Equals("Wayfarer Incoming Location Data API Token"))
+                            {
+                                <!-- Wayfarer Mobile App Integration Section -->
+                                <div class="mt-4 mb-4">
+                                    <h5><strong>🔗 Wayfarer Mobile App Integration</strong></h5>
+                                    <p class="mb-3">Use the QR code below to quickly configure your Wayfarer Mobile app. The QR code contains the complete server configuration including URL and API token.</p>
 
-                    <p class="mt-3"><strong>Use it with third party mobile apps to log your location at:</strong><br/>
-                        <code>@fullurl</code><br/>
-                        <strong>Required parameters:</strong> <code>latitude, longitude, timestamp</code><br/>
-                        Note: <code>timestamp</code> should be the device's <strong>local time</strong>(not UTC).<br/>
-                        Ensure <code>%TIME</code> is in <strong>ISO 8601</strong> format (e.g., `"2025-05-23T14:30:00"`).<br/><br/>
-                        <strong> <a href="https://gpslogger.app/" title="Read about GPSLogger" target="_blank"> GPSLogger</a> example:</strong><br/>
-                    <ol>
-                        <li>Set HTTP Method to POST</li>
-                        <li>Add the following headers:</li>
-                        <ul>
-                            <li><code>Content-Type: application/json</code></li>
-                            <li> <code>Authorization: Bearer @token.Token</code></li>
-                        </ul>
-                        <li>Use the following JSON Template</li></ol><pre>
+                                    <!-- Single QR Code -->
+                                    <div class="row justify-content-center">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card">
+                                                <div class="card-header text-center">
+                                                    <h6 class="mb-0">📱 Wayfarer Mobile Configuration</h6>
+                                                </div>
+                                                <div class="card-body">
+                                                    <div id="qr-mobile-config" class="mb-3"></div>
+                                                    <div class="small text-muted">
+                                                        <p><strong>Server:</strong> <code class="border p-2 rounded bg-light user-select-all">@serverBaseUrl</code></p>
+                                                        <p><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Instructions -->
+                                    <div class="alert alert-info">
+                                        <h6 class="alert-heading">
+                                            <i class="fas fa-lightbulb me-2"></i>
+                                            Quick Setup Instructions
+                                        </h6>
+                                        <ol class="mb-0">
+                                            <li>Open the <strong>Wayfarer Mobile</strong> app on your device</li>
+                                            <li>Navigate to <strong>Settings</strong></li>
+                                            <li>Tap the <strong>📷 QR</strong> button next to either the Server URL or API Token field</li>
+                                            <li>Scan the QR code above</li>
+                                            <li>The app will automatically configure <strong>both</strong> the server URL and API token</li>
+                                            <li>Tap <strong>"Refresh from Server"</strong> to test the connection</li>
+                                        </ol>
+                                    </div>
+                                </div>
+
+                                <!-- GPS Logger Integration Section -->
+                                <div class="mt-4">
+                                    <h5><strong>📍 Third-Party GPS Logger Integration</strong></h5>
+                                    <p class="mb-3">Use with third-party mobile apps to log your location automatically.</p>
+                                    
+                                    <!-- Simple HTTP Endpoint -->
+                                    <div class="card bg-light mb-3">
+                                        <div class="card-body">
+                                            <h6 class="card-title">📡 Simple HTTP GET/POST Endpoint</h6>
+                                            <p class="mb-2"><strong>URL:</strong></p>
+                                            <code class="border p-2 rounded bg-white d-block mb-3 user-select-all">@fullurl</code>
+                                            
+                                            <p class="mb-2"><strong>Required Parameters:</strong></p>
+                                            <ul class="mb-2">
+                                                <li><code>lat</code> - Latitude (decimal degrees)</li>
+                                                <li><code>lon</code> - Longitude (decimal degrees)</li>
+                                                <li><code>token</code> - Your API token (above)</li>
+                                            </ul>
+                                            
+                                            <p class="mb-2"><strong>Optional Parameters:</strong></p>
+                                            <ul class="mb-3">
+                                                <li><code>speed</code> - Speed in m/s</li>
+                                                <li><code>accuracy</code> - GPS accuracy in meters</li>
+                                                <li><code>altitude</code> - Altitude in meters</li>
+                                                <li><code>timestamp</code> - ISO 8601 timestamp</li>
+                                                <li><code>notes</code> - Custom notes/description</li>
+                                            </ul>
+                                            
+                                            <div class="alert alert-info mb-0">
+                                                <small>
+                                                    <strong>💡 Compatible Apps:</strong> 
+                                                    GPS Logger for Android, Owntracks, GPSies, and other apps that support custom HTTP endpoints.
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Advanced JSON API -->
+                                    <div class="card bg-light">
+                                        <div class="card-body">
+                                            <h6 class="card-title">🔗 Advanced JSON API (Bearer Token)</h6>
+                                            <p class="mb-2"><strong>Endpoint:</strong> <code>@fullurl</code></p>
+                                            <p class="mb-2"><strong>Method:</strong> POST</p>
+                                            <p class="mb-2"><strong>Content-Type:</strong> <code>application/json</code></p>
+                                            <p class="mb-3"><strong>Authorization:</strong> <code>Bearer @token.Token</code></p>
+                                            
+                                            <p class="mb-2">
+                                                <strong>Required parameters:</strong> <code>latitude, longitude, timestamp</code><br/>
+                                                Note: <code>timestamp</code> should be the device's <strong>local time</strong> (not UTC).<br/>
+                                                Ensure <code>%TIME</code> is in <strong>ISO 8601</strong> format (e.g., "2025-05-23T14:30:00").
+                                            </p>
+                                            
+                                            <p class="mb-2"><strong><a href="https://gpslogger.app/" title="Read about GPSLogger" target="_blank">GPSLogger</a> example:</strong></p>
+                                            <ol class="mb-2">
+                                                <li>Set HTTP Method to POST</li>
+                                                <li>Add the following headers:</li>
+                                                <ul>
+                                                    <li><code>Content-Type: application/json</code></li>
+                                                    <li><code>Authorization: Bearer @token.Token</code></li>
+                                                </ul>
+                                                <li>Use the following JSON Template:</li>
+                                            </ol>
+                                            
+<pre class="bg-dark text-light p-3 rounded mb-0">
 {
   "latitude": %LAT,
   "longitude": %LON,
@@ -103,19 +268,115 @@ var serverBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
   "speed": %SPD
 }
 </pre>
-                    </p>
-                    }
-                    <hr class="my-3"/>
-                    }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
                     }
                     else
                     {
-                    <p>No tokens available. Please create one.</p>
+                        <p>No API tokens found. Please create one.</p>
                     }
                 </div>
             </div>
 
-            <!-- Create New Token Section -->
+            <!-- Third Party Tokens Section (if any exist) -->
+            @{
+                var thirdPartyTokens = Model.Tokens?.Where(t => !t.Name.Equals("Wayfarer Incoming Location Data API Token")).ToList();
+            }
+            @if (thirdPartyTokens != null && thirdPartyTokens.Any())
+            {
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header text-bg-primary">
+                        <h2>🌐 Third Party API Tokens</h2>
+                    </div>
+                    <div class="card-body">
+                        @foreach (var token in thirdPartyTokens)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <p class="mb-1"><strong>Service:</strong> @token.Name</p>
+                                    <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
+                                    <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
+                                </div>
+                                <div class="text-end">
+                                    <!-- NO REGENERATE BUTTON - only delete -->
+                                    <a href="@Url.Action("Delete", new { tokenId = token.Id })" class="btn btn-danger btn-sm">Delete</a>
+                                    <small class="text-muted d-block mt-1">Regenerate via @token.Name</small>
+                                </div>
+                            </div>
+                            
+                            @if (token.Name.Equals("Mapbox", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <div class="alert alert-info mt-2 mb-3">
+                                    <small>
+                                        <strong>Purpose:</strong> Reverse geocoding (convert coordinates to addresses)<br/>
+                                        <strong>Manage:</strong> <a href="https://account.mapbox.com/access-tokens/" target="_blank">Mapbox Dashboard</a>
+                                    </small>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-info mt-2 mb-3">
+                                    <small>
+                                        <strong>Purpose:</strong> Third-party mapping and geocoding services<br/>
+                                        <strong>Manage:</strong> Update tokens in your @token.Name dashboard
+                                    </small>
+                                </div>
+                            }
+                            
+                            @if (!thirdPartyTokens.Last().Equals(token))
+                            {
+                                <hr class="my-3"/>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Store Third Party Token Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-primary mb-3">
+                    <h2>Store Third Party API Token</h2>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Store API token from a third-party service.
+                        For example, here you should store your Mapbox API token in order for reverse geocoding (get addresses from coordinates) to work.
+                    </p>
+                    <p>Select a service from the dropdown, and then paste the corresponding token.</p>
+                    <p>
+                        <strong>Third Party Charges:</strong> You should have in mind that you may be charged if you exceed usage limits from the service providers you use.
+                        For example, Mapbox provides 100,000 free API calls per month. If Wayfarer logs your location every 5 minutes, this will result in 8,640 API calls for reverse geocoding per month.
+                    </p>
+                    <form method="post" asp-action="StoreThirdPartyToken" asp-controller="ApiToken" asp-area="User">
+                        <input type="hidden" name="id" value="@Model.UserId" />
+
+                        <div class="mb-3">
+                            <label for="thirdPartyServiceName" class="form-label">Third Party Service Name:</label>
+                            <select class="form-select" id="thirdPartyServiceName" name="thirdPartyServiceName" required>
+                                <option value="">-- Select a Service --</option>
+                                <option value="Mapbox">Mapbox</option>
+                                @* <option value="GoogleMaps">Google Maps</option> *@
+                                @* <option value="OpenCage">OpenCage</option> *@
+                                @* <option value="HereMaps">HERE Maps</option> *@
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="thirdPartyToken" class="form-label">Token:</label>
+                            <input type="text" class="form-control" id="thirdPartyToken" name="thirdPartyToken" required />
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Store Third Party Token</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            @* <!-- Create New Token Section -->
             <div class="card shadow-sm">
                 <div class="card-header text-bg-secondary">
                     <h3>Create New API Token</h3>
@@ -129,7 +390,7 @@ var serverBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
                         <button type="submit" class="btn btn-success">Create Token</button>
                     </form>
                 </div>
-            </div>
+            </div> *@
         </div>
     </div>
 </div>
@@ -139,34 +400,55 @@ var serverBaseUrl = $"{Context.Request.Scheme}://{Context.Request.Host}";
     document.addEventListener('DOMContentLoaded', function() {
         @if (Model.Tokens != null && Model.Tokens.Any())
         {
-        var token = Model.Tokens.FirstOrDefault(t => t.Name.Equals("Wayfarer Incoming Location Data API Token"));
-        if (token != null)
-        {
-        <text>
-        // Generate single Mobile Configuration QR Code
-        try {
-            var mobileConfig = {
-                serverUrl: '@serverBaseUrl',
-                apiToken: '</text>@token.Token<text>',
-                userName: '@Model.UserName',
-                serverName: '@Context.Request.Host.Host',
-                version: '1.0'
-            };
+            var token = Model.Tokens.FirstOrDefault(t => t.Name.Equals("Wayfarer Incoming Location Data API Token"));
+            if (token != null)
+            {
+                <text>
+                // Generate single Mobile Configuration QR Code with automatic URL detection
+                try {
+                    var mobileConfig = {
+                        serverUrl: '@serverBaseUrl',
+                        apiToken: '</text>@token.Token<text>',
+                        userName: '@Model.UserName',
+                        serverName: '@Context.Request.Host.Host',
+                        version: '1.0'
+                    };
 
-            new QRCode(document.getElementById('qr-mobile-config'), {
-                text: JSON.stringify(mobileConfig),
-                width: 150,
-                height: 150,
-                colorDark: "#000000",
-                colorLight: "#ffffff",
-                correctLevel: QRCode.CorrectLevel.M
-            });
-        } catch (error) {
-            document.getElementById('qr-mobile-config').innerHTML = '<div class="text-danger small">Error generating QR code</div>';
-            console.error('Error generating mobile configuration QR code:', error);
-        }
-        </text>
-        }
+                    // Debug logging for QR generation
+                    console.log('🔍 Auto-detected server URL for QR code:', '@serverBaseUrl');
+                    console.log('📱 Generating QR code with config:', mobileConfig);
+
+                    new QRCode(document.getElementById('qr-mobile-config'), {
+                        text: JSON.stringify(mobileConfig),
+                        width: 150,
+                        height: 150,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    
+                    console.log('✅ QR code generated successfully');
+                } catch (error) {
+                    document.getElementById('qr-mobile-config').innerHTML = '<div class="text-danger small">❌ Error generating QR code</div>';
+                    console.error('❌ Error generating mobile configuration QR code:', error);
+                }
+                </text>
+            }
         }
     });
 </script>
+
+@* 
+ZERO CONFIGURATION FEATURES:
+
+✅ localhost:5000 → http://localhost:5000
+✅ 192.168.1.100:5000 → http://192.168.1.100:5000  
+✅ wayfarer.example.com → https://wayfarer.example.com
+✅ wayfarer.stefk.me → https://wayfarer.stefk.me (your case)
+✅ Behind nginx with X-Forwarded-Proto → https://domain.com
+✅ Production environment → https://domain.com
+✅ Docker containers → http://container-ip:port
+
+Self-hosters don't need to configure anything!
+The system automatically detects the correct protocol for QR codes.
+*@
