@@ -16,7 +16,7 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "https://localhost:7149;http://localhost:5012"
+      "applicationUrl": "https://localhost:7149;http://localhost:5012;https://0.0.0.0:7149;http://0.0.0.0:5012"
     },
     "httpsWatch": {
       "commandName": "Executable",
