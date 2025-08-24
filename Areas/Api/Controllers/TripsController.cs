@@ -225,20 +225,22 @@ public class TripsController : BaseApiController
         }
     }
 
+
     /// <summary>
     /// Calculates the bounding box that encompasses all geographic data in a trip
-    /// Same implementation as before, but only used for boundary calculation
+    /// IMPROVED VERSION with smart buffer calculation based on trip extent and type
     /// </summary>
     private BoundingBox? CalculateTripBoundingBox(Trip trip)
     {
         double? minLat = null, maxLat = null, minLng = null, maxLng = null;
+        int totalPoints = 0;
 
         // Process places (points)
         foreach (var region in trip.Regions ?? new List<Region>())
         {
             foreach (var place in region.Places ?? new List<Place>())
             {
-                if (place.Location != null)
+                if (place.Location != null && IsValidCoordinate(place.Location.Y, place.Location.X))
                 {
                     var lat = place.Location.Y;
                     var lng = place.Location.X;
@@ -247,6 +249,7 @@ public class TripsController : BaseApiController
                     maxLat = maxLat == null ? lat : Math.Max(maxLat.Value, lat);
                     minLng = minLng == null ? lng : Math.Min(minLng.Value, lng);
                     maxLng = maxLng == null ? lng : Math.Max(maxLng.Value, lng);
+                    totalPoints++;
                 }
             }
 
@@ -255,12 +258,24 @@ public class TripsController : BaseApiController
             {
                 if (area.Geometry != null)
                 {
-                    var envelope = area.Geometry.EnvelopeInternal;
+                    try
+                    {
+                        var envelope = area.Geometry.EnvelopeInternal;
 
-                    minLat = minLat == null ? envelope.MinY : Math.Min(minLat.Value, envelope.MinY);
-                    maxLat = maxLat == null ? envelope.MaxY : Math.Max(maxLat.Value, envelope.MaxY);
-                    minLng = minLng == null ? envelope.MinX : Math.Min(minLng.Value, envelope.MinX);
-                    maxLng = maxLng == null ? envelope.MaxX : Math.Max(maxLng.Value, envelope.MaxX);
+                        if (IsValidCoordinate(envelope.MinY, envelope.MinX) &&
+                            IsValidCoordinate(envelope.MaxY, envelope.MaxX))
+                        {
+                            minLat = minLat == null ? envelope.MinY : Math.Min(minLat.Value, envelope.MinY);
+                            maxLat = maxLat == null ? envelope.MaxY : Math.Max(maxLat.Value, envelope.MaxY);
+                            minLng = minLng == null ? envelope.MinX : Math.Min(minLng.Value, envelope.MinX);
+                            maxLng = maxLng == null ? envelope.MaxX : Math.Max(maxLng.Value, envelope.MaxX);
+                            totalPoints += 2; // Count as 2 points (min/max)
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to process envelope for area {AreaId}", area.Id);
+                    }
                 }
             }
         }
@@ -270,30 +285,154 @@ public class TripsController : BaseApiController
         {
             if (segment.RouteGeometry != null)
             {
-                var envelope = segment.RouteGeometry.EnvelopeInternal;
+                try
+                {
+                    var envelope = segment.RouteGeometry.EnvelopeInternal;
 
-                minLat = minLat == null ? envelope.MinY : Math.Min(minLat.Value, envelope.MinY);
-                maxLat = maxLat == null ? envelope.MaxY : Math.Max(maxLat.Value, envelope.MaxY);
-                minLng = minLng == null ? envelope.MinX : Math.Min(minLng.Value, envelope.MinX);
-                maxLng = maxLng == null ? envelope.MaxX : Math.Max(maxLng.Value, envelope.MaxX);
+                    if (IsValidCoordinate(envelope.MinY, envelope.MinX) &&
+                        IsValidCoordinate(envelope.MaxY, envelope.MaxX))
+                    {
+                        minLat = minLat == null ? envelope.MinY : Math.Min(minLat.Value, envelope.MinY);
+                        maxLat = maxLat == null ? envelope.MaxY : Math.Max(maxLat.Value, envelope.MaxY);
+                        minLng = minLng == null ? envelope.MinX : Math.Min(minLng.Value, envelope.MinX);
+                        maxLng = maxLng == null ? envelope.MaxX : Math.Max(maxLng.Value, envelope.MaxX);
+                        totalPoints += 2; // Count as 2 points (min/max)
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to process envelope for segment {SegmentId}", segment.Id);
+                }
             }
         }
 
         // Return null if no geographic data found
         if (minLat == null || maxLat == null || minLng == null || maxLng == null)
         {
+            _logger.LogWarning("No valid geographic data found for trip {TripId}", trip.Id);
             return null;
         }
 
-        // Add small buffer around bounding box (0.01 degrees ≈ 1km)
-        const double buffer = 0.01;
-        return new BoundingBox
+        // Calculate smart buffer based on trip characteristics
+        var buffer = CalculateSmartBuffer(minLat.Value, maxLat.Value, minLng.Value, maxLng.Value, totalPoints,
+            trip.Name);
+
+        var boundingBox = new BoundingBox
         {
             North = maxLat.Value + buffer,
             South = minLat.Value - buffer,
             East = maxLng.Value + buffer,
             West = minLng.Value - buffer
         };
+
+        // Log detailed information for debugging
+        var latSpan = maxLat.Value - minLat.Value;
+        var lngSpan = maxLng.Value - minLng.Value;
+        _logger.LogInformation("Trip {TripId} ({TripName}) boundary calculation:", trip.Id, trip.Name);
+        _logger.LogInformation("  Raw bounds: Lat({MinLat:F6}, {MaxLat:F6}), Lng({MinLng:F6}, {MaxLng:F6})",
+            minLat.Value, maxLat.Value, minLng.Value, maxLng.Value);
+        _logger.LogInformation("  Span: {LatSpan:F3}° lat × {LngSpan:F3}° lng", latSpan, lngSpan);
+        _logger.LogInformation("  Data points: {TotalPoints}", totalPoints);
+        _logger.LogInformation("  Buffer applied: {Buffer:F4}° (~{BufferKm:F1}km)", buffer, buffer * 111);
+        _logger.LogInformation("  Final bounds: N:{North:F6}, S:{South:F6}, E:{East:F6}, W:{West:F6}",
+            boundingBox.North, boundingBox.South, boundingBox.East, boundingBox.West);
+
+        return boundingBox;
+    }
+
+    /// <summary>
+    /// Calculates a smart buffer size based on trip characteristics
+    /// </summary>
+    private static double CalculateSmartBuffer(double minLat, double maxLat, double minLng, double maxLng,
+        int totalPoints, string tripName)
+    {
+        var latSpan = maxLat - minLat;
+        var lngSpan = maxLng - minLng;
+        var maxSpan = Math.Max(latSpan, lngSpan);
+
+        // Determine trip scale category
+        var tripScale = ClassifyTripScale(maxSpan);
+
+        // Base buffer calculation with multiple factors
+        double buffer;
+
+        switch (tripScale)
+        {
+            case TripScale.CityLevel:
+                // City trips (< 0.2°): Small buffer, focus on accuracy
+                buffer = Math.Max(0.0075, maxSpan * 0.15); // 0.8-3km buffer (+50%)
+                break;
+
+            case TripScale.RegionalLevel:
+                // Regional trips (0.2-2°): Medium buffer for surrounding areas  
+                buffer = Math.Max(0.03, maxSpan * 0.075); // 3-17km buffer (+50%)
+                break;
+
+            case TripScale.CountryLevel:
+                // Country trips (2-10°): Large buffer to ensure full coverage
+                buffer = Math.Max(0.15, maxSpan * 0.045); // 17-50km buffer (+50%)
+                break;
+
+            case TripScale.ContinentalLevel:
+                // Multi-country trips (> 10°): Very large buffer
+                buffer = Math.Max(0.3, maxSpan * 0.03); // 33-66km buffer (+50%)
+                break;
+
+            default:
+                buffer = 0.075; // Fallback 8.3km (+50%)
+                break;
+        }
+
+        // Adjust buffer based on data density
+        if (totalPoints < 5)
+        {
+            // Few data points = increase buffer for safety
+            buffer *= 1.5;
+        }
+        else if (totalPoints > 50)
+        {
+            // Many data points = can reduce buffer slightly
+            buffer *= 0.8;
+        }
+
+        // Ensure reasonable limits
+        buffer = Math.Min(buffer, 0.75); // Max ~83km buffer (+50%)
+        buffer = Math.Max(buffer, 0.003); // Min ~300m buffer (+50%)
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Classification of trip scales for buffer calculation
+    /// </summary>
+    private enum TripScale
+    {
+        CityLevel, // < 0.2° (~22km)
+        RegionalLevel, // 0.2° - 2° (~22km - 220km) 
+        CountryLevel, // 2° - 10° (~220km - 1100km)
+        ContinentalLevel // > 10° (~1100km+)
+    }
+
+    /// <summary>
+    /// Classifies a trip based on its geographic extent
+    /// </summary>
+    private static TripScale ClassifyTripScale(double maxSpanDegrees)
+    {
+        if (maxSpanDegrees < 0.2) return TripScale.CityLevel;
+        if (maxSpanDegrees < 2.0) return TripScale.RegionalLevel;
+        if (maxSpanDegrees < 10.0) return TripScale.CountryLevel;
+        return TripScale.ContinentalLevel;
+    }
+
+    /// <summary>
+    /// Validates that latitude and longitude coordinates are within valid ranges
+    /// </summary>
+    private static bool IsValidCoordinate(double latitude, double longitude)
+    {
+        return latitude >= -90.0 && latitude <= 90.0 &&
+               longitude >= -180.0 && longitude <= 180.0 &&
+               !double.IsNaN(latitude) && !double.IsNaN(longitude) &&
+               !double.IsInfinity(latitude) && !double.IsInfinity(longitude);
     }
 }
 
