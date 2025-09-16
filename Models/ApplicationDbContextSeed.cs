@@ -152,6 +152,8 @@ public class ApplicationDbContextSeed
                 {
                     Name = "Commuting", Description = "Traveling to and from regular destinations like work or home."
                 },
+                new ActivityType { Name = "Eating Out", Description = "Having a meal or a bite out." },
+                new ActivityType { Name = "Drinking Out", Description = "Having a drink out." },
                 new ActivityType { Name = "Flight", Description = "Traveling by airplane to a destination." },
                 new ActivityType
                     { Name = "Train Journey", Description = "Traveling by train between cities or locations." },
