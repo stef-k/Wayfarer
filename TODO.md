@@ -2,6 +2,21 @@
 
 Each subtitle has a priority number with 1 being the first one to be implemented.
 
+## Chronologically Navigated Timeline, priority 1
+
+Will show user's location date by specified date with default today's date.
+The view will show data on map as with other timeline views, it will also contain controls 
+that allow the user to pick a date, month or year. For selected periods of month or year, since they
+will contain many locations ~8500 to ~21500, the frontend Leaflet map should be able to handle accordingly
+by grouping locations.
+
+In contrast with current private and public timeline implementations where we use sophisticated 
+approach to filter locations on globe, this feature especially for one day selection,
+will provide unfiltered locations based only on selected date.
+
+This feature will be provided only as private view in user's area and as API endpoint in Api area so the mobile app
+can access it by using user's API token.
+
 ## Trusted Managers Mechanism, priority 2
 
 Implement a trusted user/manager mechanism to allow managers see user location data.

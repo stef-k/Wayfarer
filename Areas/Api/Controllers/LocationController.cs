@@ -24,6 +24,7 @@ namespace Wayfarer.Areas.Api.Controllers
         private readonly LocationService _locationService;
         private readonly SseService _sse;
         private readonly ILocationStatsService _statsService;
+        private readonly Parsers.LocationService _chronologicalLocationService;
 
         // Constants for default threshold settings
         private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
@@ -36,7 +37,7 @@ namespace Wayfarer.Areas.Api.Controllers
         public LocationController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger,
             IMemoryCache cache, IApplicationSettingsService settingsService,
             ReverseGeocodingService reverseGeocodingService, LocationService locationService, SseService sse,
-            ILocationStatsService statsService)
+            ILocationStatsService statsService, Parsers.LocationService chronologicalLocationService)
             : base(dbContext, logger)
         {
             _cache = cache;
@@ -45,6 +46,7 @@ namespace Wayfarer.Areas.Api.Controllers
             _locationService = locationService;
             _sse = sse;
             _statsService = statsService;
+            _chronologicalLocationService = chronologicalLocationService;
         }
 
         /// <summary>
@@ -790,6 +792,95 @@ namespace Wayfarer.Areas.Api.Controllers
 
             var stats = await _statsService.GetStatsForUserAsync(userId);
             return Ok(stats);
+        }
+
+        /// <summary>
+        /// Get chronological location data for the authenticated user.
+        /// Supports day, month, and year filtering.
+        /// This endpoint is available for mobile app access using API tokens.
+        /// </summary>
+        /// <param name="dateType">Type of period: "day", "month", or "year"</param>
+        /// <param name="year">Year to filter</param>
+        /// <param name="month">Month to filter (1-12)</param>
+        /// <param name="day">Day to filter (1-31)</param>
+        [HttpGet("chronological")]
+        public async Task<IActionResult> GetChronological(string dateType, int year, int? month = null, int? day = null)
+        {
+            try
+            {
+                ApplicationUser? user = GetUserFromToken();
+                if (user == null)
+                {
+                    return Unauthorized(new { success = false, message = "Invalid or missing API token." });
+                }
+
+                if (!user.IsActive)
+                {
+                    return Forbid("User is not active.");
+                }
+
+                var (locations, totalItems) = await _chronologicalLocationService.GetLocationsByDateAsync(
+                    user.Id, dateType, year, month, day, CancellationToken.None);
+
+                return Ok(new
+                {
+                    success = true,
+                    data = locations,
+                    totalItems = totalItems,
+                    dateType = dateType,
+                    year = year,
+                    month = month,
+                    day = day
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogError(ex, "Invalid arguments for chronological data request");
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting chronological data");
+                return StatusCode(500, new { success = false, message = "An error occurred while fetching data." });
+            }
+        }
+
+        /// <summary>
+        /// Check if user has data for a specific date.
+        /// Used for conditional prev/next date navigation in mobile app.
+        /// </summary>
+        /// <param name="date">Date to check (ISO format)</param>
+        [HttpGet("has-data-for-date")]
+        public async Task<IActionResult> HasDataForDate(string date)
+        {
+            try
+            {
+                ApplicationUser? user = GetUserFromToken();
+                if (user == null)
+                {
+                    return Unauthorized(new { hasData = false, message = "Invalid or missing API token." });
+                }
+
+                if (!user.IsActive)
+                {
+                    return Forbid("User is not active.");
+                }
+
+                if (!DateTime.TryParse(date, out DateTime parsedDate))
+                {
+                    return BadRequest(new { hasData = false, message = "Invalid date format." });
+                }
+
+                bool hasData = await _chronologicalLocationService.HasDataForDateAsync(
+                    user.Id, parsedDate, CancellationToken.None);
+
+                return Ok(new { hasData = hasData });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking data availability for date");
+                return StatusCode(500, new { hasData = false });
+            }
         }
     }
 
