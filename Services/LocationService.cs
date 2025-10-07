@@ -468,10 +468,11 @@ namespace Wayfarer.Parsers
             }
 
             // For month/year, use sampling to avoid overwhelming frontend
+            // Leaflet marker clustering handles up to 3000 locations well
             List<Location> locations;
 
-            // If small dataset, return all
-            if (totalItems <= 500)
+            // For smaller datasets, return all locations
+            if (totalItems <= 3000)
             {
                 locations = await _dbContext.Locations
                     .Where(l => l.UserId == userId
@@ -483,42 +484,14 @@ namespace Wayfarer.Parsers
             }
             else
             {
-                // Use country-based sampling for large datasets
-                var countrySql = @"
-                    WITH ranked AS (
-                      SELECT *,
-                             ROW_NUMBER() OVER (
-                               PARTITION BY ""Country""
-                               ORDER BY ""LocalTimestamp"" DESC
-                             ) AS rn
-                        FROM ""public"".""Locations""
-                       WHERE ""UserId"" = @userId
-                         AND ""LocalTimestamp"" >= @startDate
-                         AND ""LocalTimestamp"" <= @endDate
-                         AND ""Country"" IS NOT NULL
-                    )
-                    SELECT * FROM ranked WHERE rn <= 5
-                ";
-
-                var countryParams = new[]
-                {
-                    new NpgsqlParameter("userId", userId),
-                    new NpgsqlParameter("startDate", startDate),
-                    new NpgsqlParameter("endDate", endDate)
-                };
-
-                var countryBatch = await _dbContext.Locations
-                    .FromSqlRaw(countrySql, countryParams)
-                    .Include(l => l.ActivityType)
-                    .ToListAsync(cancellationToken);
-
-                // Get additional sampled locations using geohash
+                // For very large datasets (>3000), use geohash sampling with better coverage
+                // Use precision 5 geohash (cells ~4.9km × 4.9km) and take multiple points per cell
                 var geohashSql = @"
                     WITH ranked AS (
                       SELECT
                         ""Id"",
                         ROW_NUMBER() OVER (
-                          PARTITION BY ST_GeoHash((""Coordinates""::geometry), 4)
+                          PARTITION BY ST_GeoHash((""Coordinates""::geometry), 5)
                           ORDER BY ""LocalTimestamp"" DESC
                         ) AS rn
                       FROM ""public"".""Locations""
@@ -529,8 +502,8 @@ namespace Wayfarer.Parsers
                     SELECT l.*
                       FROM ranked r
                       JOIN ""public"".""Locations"" l ON l.""Id"" = r.""Id""
-                     WHERE r.rn = 1
-                     LIMIT 1000
+                     WHERE r.rn <= 5
+                     LIMIT 3000
                 ";
 
                 var geohashParams = new[]
@@ -540,16 +513,10 @@ namespace Wayfarer.Parsers
                     new NpgsqlParameter("endDate", endDate)
                 };
 
-                var sampledLocations = await _dbContext.Locations
+                locations = await _dbContext.Locations
                     .FromSqlRaw(geohashSql, geohashParams)
                     .Include(l => l.ActivityType)
                     .ToListAsync(cancellationToken);
-
-                // Merge and deduplicate
-                var pickedIds = countryBatch.Select(l => l.Id).ToHashSet();
-                locations = countryBatch
-                    .Concat(sampledLocations.Where(l => !pickedIds.Contains(l.Id)))
-                    .ToList();
             }
 
             var resultDtos = locations.Select(l => new PublicLocationDto

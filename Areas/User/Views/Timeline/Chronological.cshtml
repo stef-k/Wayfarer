@@ -9,51 +9,57 @@
 <!-- Timeline Controls Bar -->
 <div class="row mb-2">
     <div class="col-12">
-        <div class="d-flex flex-wrap align-items-center gap-2 p-2 bg-light border rounded">
-            <!-- Navigation buttons -->
-            <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="Previous Year">
-                <i class="bi bi-chevron-double-left"></i> Year
-            </button>
-            <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="Previous Month">
-                <i class="bi bi-chevron-left"></i> Month
-            </button>
-            <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="Previous Day">
-                <i class="bi bi-arrow-left"></i> Day
-            </button>
+        <div class="bg-light border rounded p-2">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <!-- Navigation buttons -->
+                <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="Previous Year">
+                    <i class="bi bi-chevron-double-left"></i> Year
+                </button>
+                <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="Previous Month">
+                    <i class="bi bi-chevron-left"></i> Month
+                </button>
+                <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="Previous Day">
+                    <i class="bi bi-arrow-left"></i> Day
+                </button>
 
-            <!-- Date display and picker -->
-            <div class="d-flex align-items-center gap-2 mx-3">
-                <button id="btnYesterday" class="btn btn-sm btn-primary" title="Yesterday">Yesterday</button>
-                <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
-                <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;" title="Select Date">
-                <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;" title="Select Month">
-                <input type="number" id="yearPicker" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="YYYY" min="1900" max="2100" title="Select Year">
-            </div>
+                <!-- Date display and picker -->
+                <div class="d-flex align-items-center gap-2 mx-3">
+                    <button id="btnYesterday" class="btn btn-sm btn-primary" title="Yesterday">Yesterday</button>
+                    <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
+                    <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;" title="Select Date">
+                    <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;" title="Select Month">
+                    <input type="number" id="yearPicker" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="YYYY" min="1900" max="2100" title="Select Year">
+                </div>
 
-            <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="Next Day">
-                Day <i class="bi bi-arrow-right"></i>
-            </button>
-            <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="Next Month">
-                Month <i class="bi bi-chevron-right"></i>
-            </button>
-            <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="Next Year">
-                Year <i class="bi bi-chevron-double-right"></i>
-            </button>
+                <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="Next Day">
+                    Day <i class="bi bi-arrow-right"></i>
+                </button>
+                <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="Next Month">
+                    Month <i class="bi bi-chevron-right"></i>
+                </button>
+                <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="Next Year">
+                    Year <i class="bi bi-chevron-double-right"></i>
+                </button>
 
-            <!-- View type selector -->
-            <div class="ms-auto d-flex gap-2">
-                <label class="form-label mb-0 align-self-center">View:</label>
-                <div class="btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
-                    <label class="btn btn-outline-primary" for="viewDay">Day</label>
+                <!-- View type selector -->
+                <div class="ms-auto d-flex gap-2">
+                    <label class="form-label mb-0 align-self-center">View:</label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
+                        <label class="btn btn-outline-primary" for="viewDay">Day</label>
 
-                    <input type="radio" class="btn-check" name="viewType" id="viewMonth" value="month">
-                    <label class="btn btn-outline-primary" for="viewMonth">Month</label>
+                        <input type="radio" class="btn-check" name="viewType" id="viewMonth" value="month">
+                        <label class="btn btn-outline-primary" for="viewMonth">Month</label>
 
-                    <input type="radio" class="btn-check" name="viewType" id="viewYear" value="year">
-                    <label class="btn btn-outline-primary" for="viewYear">Year</label>
+                        <input type="radio" class="btn-check" name="viewType" id="viewYear" value="year">
+                        <label class="btn btn-outline-primary" for="viewYear">Year</label>
+                    </div>
                 </div>
             </div>
+            <!-- Help text on separate line -->
+            <small class="text-muted fst-italic d-block">
+                <i class="bi bi-info-circle"></i> Day view shows all locations. Month/Year may be sampled for large datasets.
+            </small>
         </div>
     </div>
 </div>

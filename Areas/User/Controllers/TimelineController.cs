@@ -276,8 +276,8 @@ namespace Wayfarer.Controllers
 
         /// <summary>
         /// Check navigation availability for chronological timeline.
-        /// Returns whether prev/next navigation is available for day/month/year based on data and current date.
-        /// Handles contextual navigation (e.g., year navigation in month view maintains the month).
+        /// Returns whether prev/next navigation is available based ONLY on future date restrictions.
+        /// Always allows navigation to past dates to prevent users from getting trapped in dates with no data.
         /// </summary>
         /// <param name="dateType">Type of period: "day", "month", or "year"</param>
         /// <param name="year">Current year</param>
@@ -296,102 +296,61 @@ namespace Wayfarer.Controllers
 
                 var now = DateTime.Now;
 
-                // Initialize all navigation flags
-                bool canNavigatePrevDay = false, canNavigateNextDay = false;
-                bool canNavigatePrevMonth = false, canNavigateNextMonth = false;
-                bool canNavigatePrevYear = false, canNavigateNextYear = false;
+                // Initialize all navigation flags - default to true (allow navigation)
+                bool canNavigatePrevDay = true, canNavigateNextDay = false;
+                bool canNavigatePrevMonth = true, canNavigateNextMonth = false;
+                bool canNavigatePrevYear = true, canNavigateNextYear = false;
 
                 // Check day navigation (only relevant in day view)
                 if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
                 {
                     var currentDate = new DateTime(year, month.Value, day.Value);
-                    var prevDate = currentDate.AddDays(-1);
                     var nextDate = currentDate.AddDays(1);
 
-                    canNavigatePrevDay = await _locationService.HasDataForDateAsync(currentUser.Id, prevDate, CancellationToken.None);
-
                     // Can't navigate to future dates
-                    if (nextDate.Date <= now.Date)
-                    {
-                        canNavigateNextDay = await _locationService.HasDataForDateAsync(currentUser.Id, nextDate, CancellationToken.None);
-                    }
+                    canNavigateNextDay = nextDate.Date <= now.Date;
                 }
 
                 // Check month navigation (relevant in day and month views)
                 if ((dateType.ToLower() == "day" || dateType.ToLower() == "month") && month.HasValue)
                 {
-                    // For day view, preserve day when navigating months
-                    int currentDay = day ?? 1;
-
-                    int prevMonth = month.Value == 1 ? 12 : month.Value - 1;
-                    int prevMonthYear = month.Value == 1 ? year - 1 : year;
                     int nextMonth = month.Value == 12 ? 1 : month.Value + 1;
                     int nextMonthYear = month.Value == 12 ? year + 1 : year;
 
-                    if (dateType.ToLower() == "day")
+                    if (dateType.ToLower() == "day" && day.HasValue)
                     {
-                        // Check if specific day exists in prev/next month
-                        var prevMonthDate = new DateTime(prevMonthYear, prevMonth, Math.Min(currentDay, DateTime.DaysInMonth(prevMonthYear, prevMonth)));
+                        // Check if next month would be in the future
+                        int currentDay = day.Value;
                         var nextMonthDate = new DateTime(nextMonthYear, nextMonth, Math.Min(currentDay, DateTime.DaysInMonth(nextMonthYear, nextMonth)));
-
-                        canNavigatePrevMonth = await _locationService.HasDataForDateAsync(currentUser.Id, prevMonthDate, CancellationToken.None);
-
-                        if (nextMonthDate.Date <= now.Date)
-                        {
-                            canNavigateNextMonth = await _locationService.HasDataForDateAsync(currentUser.Id, nextMonthDate, CancellationToken.None);
-                        }
+                        canNavigateNextMonth = nextMonthDate.Date <= now.Date;
                     }
                     else // month view
                     {
-                        canNavigatePrevMonth = await _locationService.HasDataForMonthAsync(currentUser.Id, prevMonthYear, prevMonth, CancellationToken.None);
-
                         // Can't navigate to future months
-                        if (nextMonthYear < now.Year || (nextMonthYear == now.Year && nextMonth <= now.Month))
-                        {
-                            canNavigateNextMonth = await _locationService.HasDataForMonthAsync(currentUser.Id, nextMonthYear, nextMonth, CancellationToken.None);
-                        }
+                        canNavigateNextMonth = (nextMonthYear < now.Year) || (nextMonthYear == now.Year && nextMonth <= now.Month);
                     }
                 }
 
                 // Check year navigation (always relevant, maintains month/day context)
                 {
-                    int prevYearVal = year - 1;
                     int nextYearVal = year + 1;
 
                     if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
                     {
-                        // Check if specific day exists in prev/next year
+                        // Check if next year would be in the future
                         int currentDay = day.Value;
-                        var prevYearDate = new DateTime(prevYearVal, month.Value, Math.Min(currentDay, DateTime.DaysInMonth(prevYearVal, month.Value)));
                         var nextYearDate = new DateTime(nextYearVal, month.Value, Math.Min(currentDay, DateTime.DaysInMonth(nextYearVal, month.Value)));
-
-                        canNavigatePrevYear = await _locationService.HasDataForDateAsync(currentUser.Id, prevYearDate, CancellationToken.None);
-
-                        if (nextYearDate.Date <= now.Date)
-                        {
-                            canNavigateNextYear = await _locationService.HasDataForDateAsync(currentUser.Id, nextYearDate, CancellationToken.None);
-                        }
+                        canNavigateNextYear = nextYearDate.Date <= now.Date;
                     }
                     else if (dateType.ToLower() == "month" && month.HasValue)
                     {
-                        // Check if same month exists in prev/next year
-                        canNavigatePrevYear = await _locationService.HasDataForMonthAsync(currentUser.Id, prevYearVal, month.Value, CancellationToken.None);
-
                         // Can't navigate to future years
-                        if (nextYearVal < now.Year || (nextYearVal == now.Year && month.Value <= now.Month))
-                        {
-                            canNavigateNextYear = await _locationService.HasDataForMonthAsync(currentUser.Id, nextYearVal, month.Value, CancellationToken.None);
-                        }
+                        canNavigateNextYear = (nextYearVal < now.Year) || (nextYearVal == now.Year && month.Value <= now.Month);
                     }
                     else // year view
                     {
-                        canNavigatePrevYear = await _locationService.HasDataForYearAsync(currentUser.Id, prevYearVal, CancellationToken.None);
-
                         // Can't navigate to future years
-                        if (nextYearVal <= now.Year)
-                        {
-                            canNavigateNextYear = await _locationService.HasDataForYearAsync(currentUser.Id, nextYearVal, CancellationToken.None);
-                        }
+                        canNavigateNextYear = nextYearVal <= now.Year;
                     }
                 }
 

@@ -141,6 +141,7 @@ const setupEventListeners = () => {
  * Navigation is contextual - maintains current view context:
  * - In month view: year navigation maintains the month (e.g., Oct 2025 → Oct 2024)
  * - In day view: month/year navigation maintains the day if possible
+ * Always allows navigation even if target date has no data to prevent users from getting trapped.
  */
 const navigateDate = (direction, unit) => {
     const newDate = new Date(currentDate);
@@ -219,6 +220,21 @@ const updateViewTypeUI = () => {
     document.getElementById('btnPrevMonth').style.display = showMonthNav ? 'inline-block' : 'none';
     document.getElementById('btnNextMonth').style.display = showMonthNav ? 'inline-block' : 'none';
     document.getElementById('btnYesterday').style.display = showYesterday ? 'inline-block' : 'none';
+
+    // Update Yesterday button state - only enabled when viewing today
+    updateYesterdayButton();
+};
+
+/**
+ * Update Yesterday button state - only enabled when viewing today's date
+ */
+const updateYesterdayButton = () => {
+    const today = new Date();
+    const isToday = currentDate.getFullYear() === today.getFullYear() &&
+                    currentDate.getMonth() === today.getMonth() &&
+                    currentDate.getDate() === today.getDate();
+
+    document.getElementById('btnYesterday').disabled = !isToday;
 };
 
 /**
