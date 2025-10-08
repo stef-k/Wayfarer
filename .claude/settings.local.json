@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/stef/source/repos/Wayfarer.Mobile/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

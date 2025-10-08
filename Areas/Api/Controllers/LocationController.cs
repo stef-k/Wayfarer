@@ -882,6 +882,175 @@ namespace Wayfarer.Areas.Api.Controllers
                 return StatusCode(500, new { hasData = false });
             }
         }
+
+        /// <summary>
+        /// Get chronological statistics for a specific period.
+        /// Returns location counts and unique countries/regions/cities visited.
+        /// </summary>
+        /// <param name="dateType">Type of period: "day", "month", or "year"</param>
+        /// <param name="year">Year to filter</param>
+        /// <param name="month">Month to filter (1-12)</param>
+        /// <param name="day">Day to filter (1-31)</param>
+        [HttpGet("chronological-stats")]
+        public async Task<IActionResult> GetChronologicalStats(string dateType, int year, int? month = null, int? day = null)
+        {
+            try
+            {
+                ApplicationUser? user = GetUserFromToken();
+                if (user == null)
+                {
+                    return Unauthorized(new { success = false, message = "Invalid or missing API token." });
+                }
+
+                if (!user.IsActive)
+                {
+                    return Forbid("User is not active.");
+                }
+
+                // Build date range based on dateType
+                DateTime startDate, endDate;
+                switch (dateType.ToLower())
+                {
+                    case "day":
+                        if (!month.HasValue || !day.HasValue)
+                            return BadRequest(new { success = false, message = "Month and day are required for day filter" });
+                        startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
+                        endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+                        break;
+
+                    case "month":
+                        if (!month.HasValue)
+                            return BadRequest(new { success = false, message = "Month is required for month filter" });
+                        startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
+                        endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
+                        break;
+
+                    case "year":
+                        startDate = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                        endDate = DateTime.SpecifyKind(new DateTime(year, 12, 31, 23, 59, 59, DateTimeKind.Utc).AddTicks(9999999), DateTimeKind.Utc);
+                        break;
+
+                    default:
+                        return BadRequest(new { success = false, message = $"Invalid dateType: {dateType}" });
+                }
+
+                var stats = await _statsService.GetStatsForDateRangeAsync(user.Id, startDate, endDate);
+
+                return Ok(new
+                {
+                    success = true,
+                    stats = stats
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting chronological stats");
+                return StatusCode(500, new { success = false, message = "An error occurred while fetching stats." });
+            }
+        }
+
+        /// <summary>
+        /// Check navigation availability for chronological timeline.
+        /// Returns whether prev/next navigation is available based ONLY on future date restrictions.
+        /// Always allows navigation to past dates to prevent users from getting trapped in dates with no data.
+        /// </summary>
+        /// <param name="dateType">Type of period: "day", "month", or "year"</param>
+        /// <param name="year">Current year</param>
+        /// <param name="month">Current month (1-12)</param>
+        /// <param name="day">Current day (1-31)</param>
+        [HttpGet("check-navigation-availability")]
+        public async Task<IActionResult> CheckNavigationAvailability(string dateType, int year, int? month = null, int? day = null)
+        {
+            try
+            {
+                ApplicationUser? user = GetUserFromToken();
+                if (user == null)
+                {
+                    return Unauthorized(new { success = false });
+                }
+
+                if (!user.IsActive)
+                {
+                    return Forbid("User is not active.");
+                }
+
+                var now = DateTime.Now;
+
+                // Initialize all navigation flags - default to true (allow navigation)
+                bool canNavigatePrevDay = true, canNavigateNextDay = false;
+                bool canNavigatePrevMonth = true, canNavigateNextMonth = false;
+                bool canNavigatePrevYear = true, canNavigateNextYear = false;
+
+                // Check day navigation (only relevant in day view)
+                if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
+                {
+                    var currentDate = new DateTime(year, month.Value, day.Value);
+                    var nextDate = currentDate.AddDays(1);
+
+                    // Can't navigate to future dates
+                    canNavigateNextDay = nextDate.Date <= now.Date;
+                }
+
+                // Check month navigation (relevant in day and month views)
+                if ((dateType.ToLower() == "day" || dateType.ToLower() == "month") && month.HasValue)
+                {
+                    int nextMonth = month.Value == 12 ? 1 : month.Value + 1;
+                    int nextMonthYear = month.Value == 12 ? year + 1 : year;
+
+                    if (dateType.ToLower() == "day" && day.HasValue)
+                    {
+                        // Check if next month would be in the future
+                        int currentDay = day.Value;
+                        var nextMonthDate = new DateTime(nextMonthYear, nextMonth, Math.Min(currentDay, DateTime.DaysInMonth(nextMonthYear, nextMonth)));
+                        canNavigateNextMonth = nextMonthDate.Date <= now.Date;
+                    }
+                    else // month view
+                    {
+                        // Can't navigate to future months
+                        canNavigateNextMonth = (nextMonthYear < now.Year) || (nextMonthYear == now.Year && nextMonth <= now.Month);
+                    }
+                }
+
+                // Check year navigation (always relevant, maintains month/day context)
+                {
+                    int nextYearVal = year + 1;
+
+                    if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
+                    {
+                        // Check if next year would be in the future
+                        int currentDay = day.Value;
+                        var nextYearDate = new DateTime(nextYearVal, month.Value, Math.Min(currentDay, DateTime.DaysInMonth(nextYearVal, month.Value)));
+                        canNavigateNextYear = nextYearDate.Date <= now.Date;
+                    }
+                    else if (dateType.ToLower() == "month" && month.HasValue)
+                    {
+                        // Can't navigate to future years
+                        canNavigateNextYear = (nextYearVal < now.Year) || (nextYearVal == now.Year && month.Value <= now.Month);
+                    }
+                    else // year view
+                    {
+                        // Can't navigate to future years
+                        canNavigateNextYear = nextYearVal <= now.Year;
+                    }
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    canNavigatePrevDay,
+                    canNavigateNextDay,
+                    canNavigatePrevMonth,
+                    canNavigateNextMonth,
+                    canNavigatePrevYear,
+                    canNavigateNextYear
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking navigation availability");
+                return StatusCode(500, new { success = false });
+            }
+        }
     }
 
     /// <summary>
