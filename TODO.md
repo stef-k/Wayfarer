@@ -2,10 +2,6 @@
 
 Each subtitle has a priority number with 1 being the first one to be implemented.
 
-## Trip Edit view, priority 1
-
-The dropdown controls where user select the icon should have a search field to be able for user to search them by name.
-
 ## Timeline API CRUD endpoints, priority 1
 
 Mobile clients need to be able to edit/delete saved locations on server. So we need at least 2 endpoints:
