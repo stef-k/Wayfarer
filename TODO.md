@@ -2,22 +2,44 @@
 
 Each subtitle has a priority number with 1 being the first one to be implemented.
 
-## Chronologically Navigated Timeline, priority 1
+## Trip Edit view, priority 1
 
-Will show user's location date by specified date with default today's date.
-The view will show data on map as with other timeline views, it will also contain controls 
-that allow the user to pick a date, month or year. For selected periods of month or year, since they
-will contain many locations ~8500 to ~21500, the frontend Leaflet map should be able to handle accordingly
-by grouping locations.
+The dropdown controls where user select the icon should have a search field to be able for user to search them by name.
 
-In contrast with current private and public timeline implementations where we use sophisticated 
-approach to filter locations on globe, this feature especially for one day selection,
-will provide unfiltered locations based only on selected date.
+## Timeline API CRUD endpoints, priority 1
 
-This feature will be provided only as private view in user's area and as API endpoint in Api area so the mobile app
-can access it by using user's API token.
+Mobile clients need to be able to edit/delete saved locations on server. So we need at least 2 endpoints:
 
-## Trusted Managers Mechanism, priority 2
+a. Delete
+
+b. Update where it can accept and update some or all of the following values: Coordinates, Notes, Activity and Local
+Date Time.
+
+## Trip API CRUD endpoints, priority 2
+
+Mobile clients need to be able to add/edit/delete saved places to trips on server. So we need at least 3 endpoints:
+
+a. Delete
+
+b. Create a new place & Update an existing place some or all of the following values
+
+b.1 Parent Region, if null then the Place will be added on the "Unassigned Places" region.
+
+b.2 Name
+
+b.3 Location
+
+b.4 Notes
+
+b.5 DisplayOrder
+
+b.6 IconName
+
+b.7 IconColor
+
+The same should be also implement for the Regions (Parent Trip, Name, Center, Notes Cover Image Url).
+
+## Trusted Managers Mechanism, priority 3
 
 Implement a trusted user/manager mechanism to allow managers see user location data.
 
