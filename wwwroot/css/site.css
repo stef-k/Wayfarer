@@ -885,7 +885,7 @@ thead th {
 /* floating MAP-LEGEND handle (only visible when sidebar is collapsed) */
 #btn-show-sidebar{
     position:fixed;
-    top: 80px;                 /* 56-px navbar + small gap            */
+    top: 80px;                 /* default when navbar is present */
     left:10px;
     z-index:1060;
     user-select:none;
@@ -898,7 +898,7 @@ thead th {
 /*show fullscreen button in embed trip view*/
 #btn-fullscreen{
     position:fixed;
-    top:85px!important;              /* same navbar offset as #btn-show-sidebar */
+    top:85px!important;              /* default when navbar is present */
     z-index:1060;
     user-select:none;
 }
@@ -967,6 +967,11 @@ body.embed-mode,
 html.embed-mode {
     height: 100vh !important;
 }
+
+/* Embed view: no site navbar, align buttons with Leaflet controls near top */
+body.embed-mode #btn-show-sidebar { top: 14px; }
+body.embed-mode #btn-fullscreen  { top: 14px !important; }
+body.embed-mode #btn-collapse-sidebar.stick { top: 14px; }
 
 body.embed-mode .container-fluid,
 body.embed-mode main {
