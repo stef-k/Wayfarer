@@ -402,6 +402,73 @@ const initSearchHandlers = () => {
     });
 };
 
+/* ------------------------------------------------------------------ *
+ *  Sidebar Trip-Items Search (regions, places, areas, segments)
+ * ------------------------------------------------------------------ */
+const initSidebarTripItemSearch = () => {
+    const input = document.getElementById('sidebar-search');
+    if (!input) return;
+
+    const norm = (s) => (s || '')
+        .toString()
+        .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+        .toLowerCase();
+
+    const collect = () => {
+        const items = [];
+        // regions
+        document.querySelectorAll('#regions-accordion .accordion-item[id^="region-item-"]').forEach(r => {
+            const id = r.id.replace('region-item-', '');
+            const name = r.dataset.regionName || r.querySelector('.accordion-button')?.textContent || '';
+            items.push({ type: 'region', id, label: name, el: r, collapseId: `collapse-${id}` });
+            // places within region
+            r.querySelectorAll('.place-list-item').forEach(p => {
+                items.push({ type: 'place', id: p.dataset.placeId, regionId: id, label: p.dataset.placeName || p.textContent || '', el: p, collapseId: `collapse-${id}` });
+            });
+            // areas within region
+            r.querySelectorAll('.area-list-item').forEach(a => {
+                const nm = a.querySelector('.area-name')?.textContent || '';
+                items.push({ type: 'area', id: a.dataset.areaId, regionId: id, label: nm, el: a, collapseId: `collapse-${id}` });
+            });
+        });
+        // segments (outside accordion)
+        document.querySelectorAll('.segment-list-item').forEach(s => {
+            items.push({ type: 'segment', id: s.dataset.segmentId, label: s.dataset.segmentName || s.textContent || '', el: s });
+        });
+        items.forEach(it => it.normal = norm(it.label));
+        return items;
+    };
+
+    let index = collect();
+    const refreshIndex = () => { index = collect(); };
+
+    const clearHighlights = () => document.querySelectorAll('.search-hit').forEach(e => e.classList.remove('search-hit'));
+
+    const ensureExpanded = (collapseId) => {
+        if (!collapseId) return;
+        const el = document.getElementById(collapseId);
+        if (el && !el.classList.contains('show')) {
+            try { bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show(); } catch {}
+        }
+    };
+
+    const doSearch = (q) => {
+        clearHighlights();
+        if (!q) return;
+        refreshIndex();
+        const tokens = norm(q).split(/\s+/).filter(Boolean);
+        const matches = index.filter(it => tokens.every(t => it.normal.includes(t)));
+        matches.forEach(m => m.el.classList.add('search-hit'));
+        if (matches.length) {
+            const first = matches[0];
+            ensureExpanded(first.collapseId);
+            requestAnimationFrame(() => first.el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' }));
+        }
+    };
+
+    input.addEventListener('input', () => doSearch(input.value));
+};
+
 const searchNominatim = async (query) => {
     const url = new URL('https://nominatim.openstreetmap.org/search');
     url.searchParams.set('q', query);
@@ -672,4 +739,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     attachListeners();
     loadPersistedMarkers();
     initSearchHandlers();
+    initSidebarTripItemSearch();
 });

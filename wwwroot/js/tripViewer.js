@@ -1,4 +1,4 @@
-/* -----------------------------------------------------------
+/* ----------------------\n    initLegendSearch();\n-------------------------------------
  *  Trip Viewer – read-only
  * -----------------------------------------------------------
  *  • region / place PNG markers
@@ -26,7 +26,44 @@ const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 let currentMarker = null;
 const _areas = {};
 
-// --- Permalink Support --- 
+// Sidebar legend search (regions, places, areas, segments)
+const initLegendSearch = () => {
+  const input = document.getElementById('legend-search');
+  if (!input) return;
+  const norm = s => (s||'').toString().normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
+  const collect = () => {
+    const items = [];
+    // regions
+    $$('#regions-accordion .accordion-item').forEach(r => {
+      const id = r.id?.replace(/^region-/, '') || r.dataset.regionId;
+      const name = r.dataset.regionName || r.querySelector('.accordion-button')?.textContent || '';
+      items.push({ type:'region', id, label:name, el:r, collapseId:`reg-body-${id}` });
+      // places
+      $$('.place-list-item', r).forEach(p => items.push({ type:'place', id:p.dataset.placeId, regionId:id, label:p.dataset.placeName || p.textContent || '', el:p, collapseId:`reg-body-${id}` }));
+      // areas
+      $$('.area-list-item', r).forEach(a => items.push({ type:'area', id:a.dataset.areaId, regionId:id, label:$('.area-name', a)?.textContent || a.textContent || '', el:a, collapseId:`reg-body-${id}` }));
+    });
+    // segments
+    $$('.segment-list-item').forEach(s => items.push({ type:'segment', id:s.dataset.segmentId, label:s.dataset.segmentName || s.textContent || '', el:s }));
+    items.forEach(it => it.normal = norm(it.label));
+    return items;
+  };
+  let index = collect();
+  const refreshIndex = () => { index = collect(); };
+  const clearHighlights = () => $$('.search-hit').forEach(e => e.classList.remove('search-hit'));
+  const ensureExpanded = id => {
+    if (!id) return; const el = document.getElementById(id);
+    if (el && !el.classList.contains('show')) { try { bootstrap.Collapse.getOrCreateInstance(el, {toggle:false}).show(); } catch {} }
+  };
+  const doSearch = q => {
+    clearHighlights(); if (!q) return; refreshIndex();
+    const tokens = norm(q).split(/\s+/).filter(Boolean);
+    const matches = index.filter(it => tokens.every(t => it.normal.includes(t)));
+    matches.forEach(m => m.el.classList.add('search-hit'));
+    if (matches.length) { const first = matches[0]; ensureExpanded(first.collapseId); requestAnimationFrame(()=> first.el.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'})); }
+  };
+  input.addEventListener('input', () => doSearch(input.value));
+};// --- Permalink Support --- 
 /**
  * Read a numeric query-param or return NaN if missing
  * @param {string} key  e.g. "lat", "lon", "zoom"
@@ -134,6 +171,7 @@ const initWikiPopovers = root => {
 
 /* ========================================================= */
 const init = () => {
+    initLegendSearch();
 
     const root = document.getElementById('trip-view');
     const isEmbed        = root.dataset.embed === 'true';
@@ -640,3 +678,5 @@ if (document.readyState === 'loading') {
 } else {                       // DOMContentLoaded has already fired
     init();                    // run immediately (print mode / Puppeteer)
 }
+
+

@@ -40,15 +40,13 @@
 
         <!-- fixed header with collapse-handle + trip title + optional Edit -->
         <!-- ─── Trip legend header ─── -->
-        <header class="border-bottom text-bg-light  p-0">
+        <header class="border-bottom p-0 sticky-top bg-body" style="z-index: 2;">
 
             @* Responsive cover (shows only when URL present) *@
             @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
             {
-                <div class="ratio ratio-21x9">        @* ultrawide banner *@
-                    <img src="@Model.CoverImageUrl"
-                         class="img-fluid object-fit-cover w-100 h-100"
-                         alt="Cover for @Model.Name"/>
+                <div class="ratio ratio-21x9">
+                    <img src="@Model.CoverImageUrl" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
                 </div>
             }
 
@@ -147,17 +145,18 @@
                     </div>
                 </div>
             </div>
+            <dl class="row small px-2 pt-1 mb-2">
+                <dt class="col-5 text-muted">Last updated at:</dt>
+                <dd class="col-7">@Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")</dd>
+            </dl>
+            <div class="px-2 pb-2">
+                <input id="legend-search" type="search" class="form-control form-control-sm"
+                       placeholder="Search regions, places, areas, segments" autocomplete="off" />
+            </div>
         </header>
 
-        <!-- Trip meta: updated + notes (scroll-safe) -->
+        <!-- Trip meta: notes (scroll-safe) -->
         <section class="trip-meta border-bottom">
-
-            <dl class="row small px-3 pt-2 mb-1">
-                <dt class="col-5 text-muted">Last updated at:</dt>
-                <dd class="col-7">
-                    @Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")
-                </dd>
-            </dl>
 
             @if (!string.IsNullOrWhiteSpace(Model.Notes))
             {
@@ -208,3 +207,5 @@
 @section Scripts {
     <script type="module" src="~/js/tripViewer.js"></script>
 }
+
+

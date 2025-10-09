@@ -41,6 +41,13 @@
         </div>
       </div>
 
+      <!-- Sticky: Last updated + Search -->
+      <div id="sidebarTop" class="p-2 border-bottom position-sticky top-0 bg-body" style="z-index: 2;">
+        <div class="small text-muted">Last updated at @Model.UpdatedAt.ToLongDateString()</div>
+        <input id="sidebar-search" type="search" class="form-control form-control-sm mt-2"
+               placeholder="Search regions, places, areas, segments" autocomplete="off" />
+      </div>
+
 
       <!-- Sidebar Content -->
       <div id="sidebarContent" class="flex-grow-1 overflow-y-auto p-3">
@@ -53,9 +60,7 @@
             <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")"/>
             <input type="hidden" asp-for="Zoom" data-default="@Model.Zoom"/>
             <input type="hidden" id="shadow-region-id" value="@shadowRegion.Id" />
-            <div class="col-md-12">
-              <span class="text-muted small">Last updated at @Model.UpdatedAt.ToLongDateString()</span>
-            </div>
+            
             <div class="col-md-12">
               <label asp-for="Name" class="form-label"></label>
               <input asp-for="Name" class="form-control"/>
