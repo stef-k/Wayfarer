@@ -112,11 +112,46 @@ export const populateIconDropdown = async (menuEl) => {
 
         menuEl.innerHTML = '';
 
+        // Add a lightweight search box at the top of the dropdown
+        const searchLi = document.createElement('li');
+        const searchWrap = document.createElement('div');
+        searchWrap.className = 'px-2 py-2 sticky-top bg-body';
+        const searchInput = document.createElement('input');
+        searchInput.type = 'search';
+        searchInput.className = 'form-control form-control-sm';
+        searchInput.placeholder = 'Search icons…';
+        searchWrap.appendChild(searchInput);
+        searchLi.appendChild(searchWrap);
+        menuEl.appendChild(searchLi);
+
         const defaultIcon = icons.includes('marker') ? 'marker' : icons[0];
         const currentIcon = hiddenInput.value || defaultIcon;
         form?.querySelectorAll('input[name="IconName"]').forEach(inp => {
             if (!inp.value) inp.value = currentIcon;
         });
+
+        const filterIcons = (term) => {
+            const q = (term || '').toLowerCase().trim();
+            menuEl.querySelectorAll('a.dropdown-item').forEach(a => {
+                const name = (a.dataset.icon || a.textContent || '').toLowerCase();
+                const show = !q || name.includes(q);
+                const li = a.closest('li');
+                if (li) li.style.display = show ? '' : 'none';
+            });
+        };
+
+        searchInput.addEventListener('input', e => filterIcons(e.target.value));
+        searchInput.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                searchInput.value = '';
+                filterIcons('');
+            }
+        });
+
+        // Focus the search input when the dropdown opens
+        try {
+            dropdown.addEventListener('shown.bs.dropdown', () => setTimeout(() => searchInput.focus(), 0));
+        } catch {}
 
         for (const icon of icons) {
             const li  = document.createElement('li');

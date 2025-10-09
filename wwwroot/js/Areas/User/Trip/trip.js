@@ -109,9 +109,15 @@ const attachListeners = () => {
 
             if (ctxType === 'place') {
                 const placeItem = document.querySelector(`.place-list-item[data-place-id="${id}"]`);
+                const placeForm = document.getElementById(`place-form-${id}`);
+                const isEdit = action === 'edit';
 
                 if (meta?.regionId) {
                     const regionItem = document.getElementById(`region-item-${meta.regionId}`);
+                    const collapseEl = document.getElementById(`collapse-${meta.regionId}`);
+                    if (collapseEl && !collapseEl.classList.contains('show')) {
+                        try { bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show(); } catch {}
+                    }
                     if (regionItem) {
                         dimAll();
                         regionItem.querySelectorAll('.place-list-item')
@@ -122,7 +128,19 @@ const attachListeners = () => {
                         regionItem.querySelector('.accordion-button')?.classList.remove('dimmed');
                     }
                 }
-                placeItem?.classList.remove('dimmed');
+
+                // Remove dim effect from the selected item/form
+                (placeItem || placeForm)?.classList.remove('dimmed');
+
+                // Smooth-scroll the sidebar to the selected place
+                const sidebar = document.getElementById('sidebarContent');
+                const target = placeForm || placeItem;
+                if (target && sidebar) {
+                    // Use requestAnimationFrame to ensure collapse state is applied before scrolling
+                    requestAnimationFrame(() => {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    });
+                }
             }
 
             if (ctxType === 'region') {

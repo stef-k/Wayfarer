@@ -259,6 +259,27 @@ thead th {
         opacity: 1;
     }
 }
+
+/* Icon dropdown: make list scrollable and keep search visible */
+.icon-dropdown-menu {
+    max-height: 320px;
+    overflow-y: auto;
+    width: 150% !important; /* ~50% wider than trigger */
+    left: 0; /* align to the button's left edge */
+}
+.icon-dropdown-menu .sticky-top {
+    top: 0; /* ensure stickiness inside scroll container */
+    z-index: 2;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+[data-bs-theme="dark"] .icon-dropdown-menu .sticky-top {
+    border-bottom-color: rgba(255,255,255,0.12);
+}
+@media (max-width: 576px) {
+    .icon-dropdown-menu {
+        width: 100% !important; /* avoid overflow on small screens */
+    }
+}
 .pagination-container {
     margin-left: auto;
     margin-right: auto;
