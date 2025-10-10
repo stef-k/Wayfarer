@@ -112,11 +112,33 @@ const getDefaultView = () => {
     const root = document.getElementById('trip-view');
     return [Number(root.dataset.tripLat), Number(root.dataset.tripLon), Number(root.dataset.tripZoom) || 7];
 };
-/* ─── Google Maps + Wikipedia helpers ────────────────────── */
-const gmLink = addr => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}"
+/**
+ * Build a Google Maps search query combining address and coordinates
+ * for better disambiguation of short/common street names.
+ *
+ * - If address and coords exist: "<address> (<lat>,<lon>)"
+ * - Else if coords exist:        "<lat>,<lon>"
+ * - Else:                        "<address>"
+ */
+const gmQuery = (addr, lat, lon) => {
+    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
+    if (addr && hasCoords) return `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`;
+    if (hasCoords) return `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`;
+    return addr || '';
+};
+
+/**
+ * Create an <a> element that opens Google Maps with the constructed query.
+ * @param {string} addr
+ * @param {number|string} lat
+ * @param {number|string} lon
+ */
+const gmLinkWithCoords = (addr, lat, lon) => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(gmQuery(addr, lat, lon))}"
       target="_blank" class="btn btn-outline-primary btn-sm"
       title="View in Google Maps">
       <i class="bi bi-globe-europe-africa"></i> Maps</a>`;
+/* ─── Google Maps + Wikipedia helpers ────────────────────── */
+// Deprecated: use gmLinkWithCoords(addr, lat, lon) instead for better precision.
 
 const wikiLink = (lat, lon) => `<a href="#" class="btn btn-outline-primary btn-sm wikipedia-link"
       data-lat="${lat}" data-lon="${lon}">
@@ -464,7 +486,7 @@ const init = () => {
          ${notesHtml}</div>` : ''}
 
     <div class="mt-3 d-flex flex-wrap gap-2">
-      ${gmLink(d.placeAddress || `${d.placeLat},${d.placeLon}`)}
+      ${gmLinkWithCoords(d.placeAddress, d.placeLat, d.placeLon)}
       ${wikiLink(d.placeLat, d.placeLon)}
     </div>
   </div>`;

@@ -558,7 +558,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
         </div>
         <div class="row mb-2">
             <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span><br/>
-            ${generateGoogleMapsLink(location.fullAddress)}
+            ${generateGoogleMapsLink(location)}
             ${generateWikipediaLink(location)}
             </div>
         </div>
@@ -584,8 +584,21 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
 /**
  * Generates a link query for Google Maps and opens in new tab
  */
-export const generateGoogleMapsLink = address => {
-    const q = encodeURIComponent(address || '');
+/**
+ * Generates a Google Maps link combining address and coordinates for precision.
+ * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
+ */
+export const generateGoogleMapsLink = location => {
+    const addr = location?.fullAddress || '';
+    const lat  = location?.coordinates?.latitude;
+    const lon  = location?.coordinates?.longitude;
+    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
+    const query = addr && hasCoords
+        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
+        : hasCoords
+            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
+            : addr;
+    const q = encodeURIComponent(query || '');
     return `
     <a
       href="https://www.google.com/maps/search/?api=1&query=${q}"

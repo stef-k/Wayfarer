@@ -1,4 +1,4 @@
-﻿@model Wayfarer.Models.ViewModels.ApiTokenViewModel
+@model Wayfarer.Models.ViewModels.ApiTokenViewModel
 
 @{
     // ZERO CONFIGURATION: Universal URL generation for any self-hosted Wayfarer instance
@@ -138,20 +138,7 @@
                     {
                         @foreach (var token in Model.Tokens)
                         {
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <p class="mb-1"><strong>Token Name:</strong> @token.Name</p>
-                                    <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
-                                    <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
-                                </div>
-                                <div>
-                                    <a href="@Url.Action("Regenerate", new { name = token.Name })" class="btn btn-primary me-2">Regenerate</a>
-                                    @if (!token.Name.Equals("Wayfarer Incoming Location Data API Token"))
-                                    {
-                                        <a href="@Url.Action("Delete", new { tokenId = token.Id })" class="btn btn-danger">Delete</a>
-                                    }
-                                </div>
-                            </div>
+                            @* Do not render token summary/actions in this panel; only render the integration sections for the main incoming token below. *@
 
                             @if (token.Name.Equals("Wayfarer Incoming Location Data API Token"))
                             {

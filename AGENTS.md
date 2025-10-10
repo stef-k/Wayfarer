@@ -31,7 +31,7 @@
 
 ## Coding Style & Naming Conventions
 
-- Always present simple and conhise action plan for aproval before generating or updating files and code.
+- Always present simple and conhise action plan for aproval before generating or updating files and code. I need to approve plan before proceeding.
 - Document all code you touch or add (XML docs C#, comments Razor/JS).
 - Never create files unless absolutely necessary; prefer editing existing ones.
 - Prefer minimal services/classes/methods/variables; keep scope tight.

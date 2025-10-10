@@ -345,7 +345,7 @@ const generateLocationModalContent = (location) => {
       <div class="row mb-2">
         <div class="col-12">
             <strong>Address:</strong> ${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'} <br>
-                ${location.fullAddress ? generateGoogleMapsLink(location.fullAddress) : '' }
+                ${generateGoogleMapsLink(location)}
             ${generateWikipediaLink(location)}
         </div>
       </div>
@@ -366,8 +366,21 @@ const generateLocationModalContent = (location) => {
   `;
 }
 
-const generateGoogleMapsLink = (address) => {
-    const q = encodeURIComponent(address || '');
+/**
+ * Generates a Google Maps link combining address and coordinates for precision.
+ * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
+ */
+const generateGoogleMapsLink = (location) => {
+    const addr = location?.fullAddress || '';
+    const lat  = location?.coordinates?.latitude;
+    const lon  = location?.coordinates?.longitude;
+    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
+    const query = addr && hasCoords
+        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
+        : hasCoords
+            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
+            : addr;
+    const q = encodeURIComponent(query || '');
     return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps">
     <i class="bi bi-globe-europe-africa"></i> Maps
 </a>`;
