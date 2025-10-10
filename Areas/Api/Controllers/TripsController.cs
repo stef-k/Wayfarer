@@ -127,7 +127,24 @@ public class TripsController : BaseApiController
         }
 
         var dto = trip.ToApiDto();
-        return Ok(dto);
+
+// Ensure area FillHex default when missing (matches web default #3388FF)
+if (dto.Regions != null)
+{
+    foreach (var r in dto.Regions)
+    {
+        if (r?.Areas == null) continue;
+        foreach (var a in r.Areas)
+        {
+            if (string.IsNullOrWhiteSpace(a.FillHex))
+            {
+                a.FillHex = "#3388FF";
+            }
+        }
+    }
+}
+
+return Ok(dto);
     }
 
     /// <summary>
