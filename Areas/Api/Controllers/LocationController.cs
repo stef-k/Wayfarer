@@ -627,6 +627,265 @@ namespace Wayfarer.Areas.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Request body for updating a location. All fields are optional and only provided values are updated.
+        /// Supports explicit clearing via boolean flags for notes and activity.
+        /// </summary>
+        public class UpdateLocationRequest
+        {
+            /// <summary>
+            /// New latitude in degrees. Must be provided together with <see cref="Longitude"/> if present.
+            /// </summary>
+            public double? Latitude { get; set; }
+
+            /// <summary>
+            /// New longitude in degrees. Must be provided together with <see cref="Latitude"/> if present.
+            /// </summary>
+            public double? Longitude { get; set; }
+
+            /// <summary>
+            /// Optional new notes value. Set <see cref="ClearNotes"/> to true to clear existing notes.
+            /// </summary>
+            public string? Notes { get; set; }
+
+            /// <summary>
+            /// Optional new local timestamp. If not UTC, it will be converted to UTC using the provided
+            /// coordinates (or the existing location coordinates when coordinates are not provided).
+            /// </summary>
+            public DateTime? LocalTimestamp { get; set; }
+
+            /// <summary>
+            /// Optional new activity type ID. If not found, server will try to resolve by <see cref="ActivityName"/>.
+            /// If neither resolves, activity will be set to null if an activity update was requested.
+            /// </summary>
+            public int? ActivityTypeId { get; set; }
+
+            /// <summary>
+            /// Optional activity name for resolving activity when <see cref="ActivityTypeId"/> is not valid.
+            /// </summary>
+            public string? ActivityName { get; set; }
+
+            /// <summary>
+            /// When true, clears notes (sets to null) regardless of the value of <see cref="Notes"/>.
+            /// </summary>
+            public bool? ClearNotes { get; set; }
+
+            /// <summary>
+            /// When true, clears activity (sets ActivityTypeId to null) regardless of other activity fields.
+            /// </summary>
+            public bool? ClearActivity { get; set; }
+        }
+
+        /// <summary>
+        /// Deletes a single location by ID for the authenticated API token user.
+        /// </summary>
+        /// <param name="id">Location ID</param>
+        /// <returns>200 with result on success, 404 if not found, 401 if token invalid</returns>
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            ApplicationUser? user = GetUserFromToken();
+            if (user == null)
+                return Unauthorized("Invalid or missing API token.");
+
+            try
+            {
+                var location = await _dbContext.Locations
+                    .FirstOrDefaultAsync(l => l.Id == id && l.UserId == user.Id);
+
+                if (location == null)
+                {
+                    return NotFound(new { success = false, message = "Location not found." });
+                }
+
+                _dbContext.Locations.Remove(location);
+                await _dbContext.SaveChangesAsync();
+
+                _logger.LogInformation("Deleted location {LocationId} for user {UserId}", id, user.Id);
+                return Ok(new { success = true, message = "Location deleted.", id });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting location {LocationId} for user {UserId}", id, user.Id);
+                return StatusCode(500, new { success = false, message = "Failed to delete location." });
+            }
+        }
+
+        /// <summary>
+        /// Partially updates fields of a location: coordinates, notes, activity and local timestamp.
+        /// Notes and activity support explicit clearing via boolean flags.
+        /// </summary>
+        /// <param name="id">Location ID</param>
+        /// <param name="request">Update payload</param>
+        /// <returns>200 with updated location on success</returns>
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateLocationRequest request)
+        {
+            ApplicationUser? user = GetUserFromToken();
+            if (user == null)
+                return Unauthorized("Invalid or missing API token.");
+
+            if (request == null)
+                return BadRequest(new { success = false, message = "Invalid request payload." });
+
+            try
+            {
+                var location = await _dbContext.Locations.FirstOrDefaultAsync(l => l.Id == id && l.UserId == user.Id);
+                if (location == null)
+                {
+                    return NotFound(new { success = false, message = "Location not found." });
+                }
+
+                bool anyChange = false;
+                bool coordsUpdated = false;
+
+                // Coordinates update (must have both lat and lon together)
+                if (request.Latitude.HasValue || request.Longitude.HasValue)
+                {
+                    if (!(request.Latitude.HasValue && request.Longitude.HasValue))
+                        return BadRequest(new { success = false, message = "Both latitude and longitude must be provided together." });
+
+                    double lat = request.Latitude.Value;
+                    double lon = request.Longitude.Value;
+
+                    if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                        return BadRequest(new { success = false, message = "Latitude or Longitude is out of range." });
+
+                    location.Coordinates = new Point(lon, lat) { SRID = 4326 };
+                    anyChange = true;
+                    coordsUpdated = true;
+                }
+
+                // Notes update and clearing
+                if (request.ClearNotes == true)
+                {
+                    location.Notes = null;
+                    anyChange = true;
+                }
+                else if (request.Notes != null)
+                {
+                    location.Notes = request.Notes;
+                    anyChange = true;
+                }
+
+                // Activity update and clearing
+                if (request.ClearActivity == true)
+                {
+                    location.ActivityTypeId = null;
+                    anyChange = true;
+                }
+                else if (request.ActivityTypeId.HasValue || !string.IsNullOrWhiteSpace(request.ActivityName))
+                {
+                    int? resolvedId = null;
+
+                    if (request.ActivityTypeId.HasValue)
+                    {
+                        var act = await _dbContext.Set<ActivityType>().FirstOrDefaultAsync(a => a.Id == request.ActivityTypeId.Value);
+                        if (act != null)
+                            resolvedId = act.Id;
+                    }
+
+                    if (resolvedId == null && !string.IsNullOrWhiteSpace(request.ActivityName))
+                    {
+                        string name = request.ActivityName!.Trim();
+                        var actByName = await _dbContext.Set<ActivityType>()
+                            .FirstOrDefaultAsync(a => a.Name.ToLower() == name.ToLower());
+                        if (actByName != null)
+                            resolvedId = actByName.Id;
+                    }
+
+                    // If still null after trying both, set to null (explicit update semantics)
+                    location.ActivityTypeId = resolvedId;
+                    anyChange = true;
+                }
+
+                // Local timestamp update (convert to UTC and refresh timezone id)
+                if (request.LocalTimestamp.HasValue)
+                {
+                    // Use new coordinates if provided, otherwise existing ones
+                    double baseLat = request.Latitude ?? location.Coordinates.Y;
+                    double baseLon = request.Longitude ?? location.Coordinates.X;
+
+                    try
+                    {
+                        string tzId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(baseLat, baseLon);
+                        DateTime utcTimestamp;
+
+                        DateTime provided = request.LocalTimestamp.Value;
+                        if (provided.Kind == DateTimeKind.Utc)
+                        {
+                            utcTimestamp = provided;
+                        }
+                        else
+                        {
+                            utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(baseLat, baseLon, provided);
+                        }
+
+                        utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
+
+                        location.LocalTimestamp = utcTimestamp;
+                        location.TimeZoneId = tzId;
+                        anyChange = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed processing LocalTimestamp for update on location {LocationId}", id);
+                        return StatusCode(500, new { success = false, message = "Failed to process timestamp and timezone." });
+                    }
+                }
+
+                // Reverse geocode if coordinates were updated and user has a 3rd party token (e.g., Mapbox)
+                if (coordsUpdated)
+                {
+                    try
+                    {
+                        var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                        if (apiToken != null)
+                        {
+                            double lat = location.Coordinates.Y;
+                            double lon = location.Coordinates.X;
+
+                            var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
+                                lat, lon, apiToken.Token, apiToken.Name);
+
+                            _logger.LogInformation(
+                                "Update: reverse geocoding refreshed for location {LocationId}: {Address}",
+                                id, locationInfo.FullAddress);
+
+                            location.FullAddress = locationInfo.FullAddress;
+                            location.Address = locationInfo.Address;
+                            location.AddressNumber = locationInfo.AddressNumber;
+                            location.StreetName = locationInfo.StreetName;
+                            location.PostCode = locationInfo.PostCode;
+                            location.Place = locationInfo.Place;
+                            location.Region = locationInfo.Region;
+                            location.Country = locationInfo.Country;
+                            anyChange = true; // Addresses updated
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Reverse geocoding failed during update for location {LocationId}", id);
+                        // Non-fatal: keep other changes
+                    }
+                }
+
+                if (!anyChange)
+                {
+                    return Ok(new { success = true, message = "No changes applied.", location });
+                }
+
+                await _dbContext.SaveChangesAsync();
+                _logger.LogInformation("Updated location {LocationId} for user {UserId}", id, user.Id);
+                return Ok(new { success = true, message = "Location updated.", location });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating location {LocationId} for user {UserId}", id, user.Id);
+                return StatusCode(500, new { success = false, message = "Failed to update location." });
+            }
+        }
+
         [HttpGet("search")]
         public async Task<IActionResult> Search(
             string? userId,

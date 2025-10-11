@@ -382,6 +382,77 @@
     </div>
 </div>
 
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header text-bg-secondary">
+            <h3>Mobile API JSON Examples</h3>
+        </div>
+        <div class="card-body">
+            <p class="mb-3">Use the following JSON bodies with your <code>Authorization: Bearer &lt;token&gt;</code> header against the API endpoints.</p>
+
+            <h5 class="mt-3">1) Log Location</h5>
+            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+{
+  "latitude": 37.9838,
+  "longitude": 23.7275,
+  "accuracy": 12.5,
+  "altitude": 95.0,
+  "speed": 1.2,
+  "locationType": "GPS",
+  "notes": "Walking in the center",
+  "activityTypeId": 3,
+  "timestamp": "2025-07-30T09:15:00" // local device time
+}
+            </code>
+            <small class="text-muted">POST @serverBaseUrl/api/location/log-location</small>
+
+            <h5 class="mt-4">2) Check-in</h5>
+            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+{
+  "latitude": 37.9838,
+  "longitude": 23.7275,
+  "accuracy": 10,
+  "locationType": "Manual",
+  "notes": "Arrived",
+  "timestamp": "2025-07-30T09:20:00"
+}
+            </code>
+            <small class="text-muted">POST @serverBaseUrl/api/location/check-in</small>
+
+            <h5 class="mt-4">3) Update Location (partial)</h5>
+            <p class="mb-1">Only included fields change. Use clear flags to remove notes/activity.</p>
+            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+{
+  "latitude": 37.9755,
+  "longitude": 23.7348,
+  "localTimestamp": "2025-07-30T09:45:00",
+  "notes": "At venue entrance",
+  "activityTypeId": 5,
+  "activityName": "Running",
+  "clearNotes": false,
+  "clearActivity": false
+}
+            </code>
+            <small class="text-muted">PUT @serverBaseUrl/api/location/{id}</small>
+
+            <h6 class="mt-2">Clear examples</h6>
+            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+{ "clearNotes": true }
+            </code>
+            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+{ "clearActivity": true }
+            </code>
+
+            <h5 class="mt-4">4) Delete Location</h5>
+            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+// No body required
+            </code>
+            <small class="text-muted">DELETE @serverBaseUrl/api/location/{id}</small>
+        </div>
+    </div>
+    
+</div>
+
 <!-- JavaScript for QR Code Generation -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
