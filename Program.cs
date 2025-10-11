@@ -1,37 +1,36 @@
 using System.Collections.Specialized;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
-using System.Net;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using NetTopologySuite.Geometries;
-using Microsoft.Extensions.DependencyInjection; // for AddQuartz(), AddQuartzHostedService()
 using Quartz;
-using Quartz.Impl; // for UseMicrosoftDependencyInjectionJobFactory(), UsePersistentStore(), etc.
-using Quartz.Spi; // for IJobFactory
-using Quartz.Serialization.Json; // for UseNewtonsoftJsonSerializer()
+using Quartz.Impl;
+using Quartz.Spi;
 using Serilog;
 using Wayfarer.Jobs;
 using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
-using Wayfarer.Services.Helpers;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
+using IPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
+// for AddQuartz(), AddQuartzHostedService()
+// for UseMicrosoftDependencyInjectionJobFactory(), UsePersistentStore(), etc.
+// for IJobFactory
+// for UseNewtonsoftJsonSerializer()
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 #region CLI Command Handling
 
 // Handling the "reset-password" command from the CLI
-if (args.Length > 0 && args[0] == "reset-password")
-{
-    await HandlePasswordResetCommand(args);
-}
+if (args.Length > 0 && args[0] == "reset-password") await HandlePasswordResetCommand(args);
 
 #endregion CLI Command Handling
 
@@ -71,43 +70,41 @@ static void ConfigureForwardedHeaders(WebApplicationBuilder builder)
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         // Configure headers to forward from nginx
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | 
-                                 ForwardedHeaders.XForwardedProto | 
-                                 ForwardedHeaders.XForwardedHost;
-        
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                                   ForwardedHeaders.XForwardedProto |
+                                   ForwardedHeaders.XForwardedHost;
+
         // Clear defaults for explicit configuration
         options.KnownNetworks.Clear();
         options.KnownProxies.Clear();
-        
+
         // Trust nginx running on localhost (your setup)
         options.KnownProxies.Add(IPAddress.Parse("127.0.0.1"));
         options.KnownProxies.Add(IPAddress.IPv6Loopback);
-        
+
         // For nginx on same machine, trust loopback networks
         // Using string-based network definition to avoid IPNetwork ambiguity
-        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+        options.KnownNetworks.Add(new IPNetwork(
             IPAddress.Parse("127.0.0.0"), 8));
-        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+        options.KnownNetworks.Add(new IPNetwork(
             IPAddress.Parse("::1"), 128));
-        
+
         // Optional: Trust local network ranges if needed
         if (builder.Environment.IsDevelopment())
         {
             // In development, also trust local networks
-            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+            options.KnownNetworks.Add(new IPNetwork(
                 IPAddress.Parse("192.168.0.0"), 16));
-            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+            options.KnownNetworks.Add(new IPNetwork(
                 IPAddress.Parse("10.0.0.0"), 8));
         }
-        
+
         // Security settings
         options.ForwardLimit = 1; // Only expect one proxy (nginx)
-        
+
         // For your wayfarer.stefk.me setup, this is sufficient
         if (!builder.Environment.IsDevelopment())
-        {
             options.RequireHeaderSymmetry = false; // Allow flexible header presence
-        }
     });
 }
 
@@ -133,7 +130,7 @@ ConfigureServices(builder);
 
 #endregion Configure other services
 
-WebApplication app = builder.Build();
+var app = builder.Build();
 
 // Check and set if needed for Quartz database setup for job persistence 
 await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
@@ -151,16 +148,7 @@ ConfigureMiddleware(app).GetAwaiter().GetResult();
 // Seed the database with roles and the admin user if necessary
 await SeedDatabase(app);
 
-#endregion Database Seeding
-
-// Force re-index geofabrik index
-using (var scope = app.Services.CreateScope())
-{
-    var idx = scope.ServiceProvider.GetRequiredService<GeofabrikCountryIndexService>();
-    idx.ForceUpdate();                    // downloads + reparses with new Traverse()
-}
-
-app.Run();
+#endregion Database Seeding\napp.Run();
 
 static async Task<long> LoadUploadSizeLimitFromDatabaseAsync()
 {
@@ -179,11 +167,11 @@ static async Task HandlePasswordResetCommand(string[] args)
         return;
     }
 
-    string username = args[1];
-    string newPassword = args[2];
+    var username = args[1];
+    var newPassword = args[2];
 
     // Rebuild services to handle the password reset
-    WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+    var builder = WebApplication.CreateBuilder(args);
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
             x => x.UseNetTopologySuite()));
@@ -192,20 +180,20 @@ static async Task HandlePasswordResetCommand(string[] args)
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
 
-    ServiceProvider services = builder.Services.BuildServiceProvider();
+    var services = builder.Services.BuildServiceProvider();
 
-    UserManager<ApplicationUser> userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
     builder.Services.AddHttpContextAccessor();
-    ApplicationUser? user = await userManager.FindByNameAsync(username);
+    var user = await userManager.FindByNameAsync(username);
     if (user == null)
     {
         Console.WriteLine($"User '{username}' not found.");
         return;
     }
 
-    string token = await userManager.GeneratePasswordResetTokenAsync(user);
-    IdentityResult result = await userManager.ResetPasswordAsync(user, token, newPassword);
+    var token = await userManager.GeneratePasswordResetTokenAsync(user);
+    var result = await userManager.ResetPasswordAsync(user, token, newPassword);
 
     if (result.Succeeded)
     {
@@ -214,10 +202,7 @@ static async Task HandlePasswordResetCommand(string[] args)
     else
     {
         Console.WriteLine("Failed to reset password. Errors:");
-        foreach (IdentityError error in result.Errors)
-        {
-            Console.WriteLine($" - {error.Description}");
-        }
+        foreach (var error in result.Errors) Console.WriteLine($" - {error.Description}");
     }
 }
 
@@ -225,22 +210,19 @@ static async Task HandlePasswordResetCommand(string[] args)
 static void ConfigureConfiguration(WebApplicationBuilder builder)
 {
     // Adding JSON configuration files to the app's configuration pipeline
-    builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+    builder.Configuration.AddJsonFile("appsettings.json", false, true)
+        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true, true);
 
     // Retrieving the log file path from the configuration
-    string? logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
+    var logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
 
     if (string.IsNullOrEmpty(logFilePath))
-    {
         throw new InvalidOperationException(
             "Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
-    }
 
     // Ensuring that the directory for logs exists
-    string? logDirectory = Path.GetDirectoryName(logFilePath);
+    var logDirectory = Path.GetDirectoryName(logFilePath);
     if (!Directory.Exists(logDirectory))
-    {
         try
         {
             Directory.CreateDirectory(logDirectory);
@@ -250,14 +232,13 @@ static void ConfigureConfiguration(WebApplicationBuilder builder)
             Console.WriteLine($"Failed to create log directory: {ex.Message}");
             throw;
         }
-    }
 }
 
 // Method to configure logging with Serilog
 static void ConfigureLogging(WebApplicationBuilder builder)
 {
     // Retrieve the log file path from configuration
-    string? logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
+    var logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
 
     // Configure Serilog for logging to console, file, and PostgreSQL
     Log.Logger = new LoggerConfiguration()
@@ -280,8 +261,8 @@ static void ConfigureLogging(WebApplicationBuilder builder)
 static void ConfigureDatabase(WebApplicationBuilder builder)
 {
     // Retrieve the connection string from the configuration
-    string connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
-                              throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ??
+                           throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
     // Add DbContext to the DI container, configure it with PostgreSQL and NetTopologySuite for spatial data
     // builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -361,7 +342,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         {
             var job = JobBuilder.Create<LogCleanupJob>()
                 .WithIdentity(logJobKey)
-                .StoreDurably(true)
+                .StoreDurably()
                 .Build();
 
             var trigger = TriggerBuilder.Create()
@@ -378,7 +359,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         {
             var job = JobBuilder.Create<AuditLogCleanupJob>()
                 .WithIdentity(auditJobKey)
-                .StoreDurably(true)
+                .StoreDurably()
                 .Build();
 
             var trigger = TriggerBuilder.Create()
@@ -404,15 +385,6 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Register application services with DI container
     builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
 
-    // Country index (used by RoutingCacheService + MbtileCacheService)
-    builder.Services.AddSingleton<GeofabrikCountryIndexService>();
-    
-    // Routing graph file service (for .routing files)
-    builder.Services.AddScoped<RoutingCacheService>();
-    
-    // Build .routing Itinero files
-    builder.Services.AddScoped<RoutingBuilderService>();
-    
     // Register ApiTokenService with DI container
     builder.Services.AddScoped<ApiTokenService>();
 
@@ -458,7 +430,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         // Use a predicate to include only actions within the "Api" area
         c.DocInclusionPredicate((docName, apiDesc) =>
         {
-            Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor actionDescriptor = apiDesc.ActionDescriptor;
+            var actionDescriptor = apiDesc.ActionDescriptor;
 
             // Check if the action descriptor has the "area" route value set to "Api"
             return actionDescriptor.RouteValues.ContainsKey("area") &&
@@ -503,7 +475,7 @@ static async Task ConfigureMiddleware(WebApplication app)
 {
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
     app.UseForwardedHeaders();
-    
+
     app.UseMiddleware<PerformanceMonitoringMiddleware>(); // Custom middleware for monitoring performance
 
     // Use specific middlewares based on the environment
@@ -615,15 +587,12 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Custom 404 handling
     app.UseWhen(
         context => !context.Request.Path.StartsWithSegments("/api"),
-        appBuilder =>
-        {
-            appBuilder.UseStatusCodePagesWithReExecute("/Error/{0}");
-        });
+        appBuilder => { appBuilder.UseStatusCodePagesWithReExecute("/Error/{0}"); });
 
     // Define the default route for controllers
     app.MapControllerRoute(
-            name: "default",
-            pattern: "{controller=Home}/{action=Index}/{id?}")
+            "default",
+            "{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets on the controller route
 
     // Map Razor Pages
@@ -637,36 +606,36 @@ static void ConfigureAreas(WebApplication app)
 {
     // Map Area Controller Route for Admin
     app.MapAreaControllerRoute(
-            name: "admin",
-            areaName: "Admin", // Area name
-            pattern: "Admin/{controller=Home}/{action=Index}/{id?}")
+            "admin",
+            "Admin", // Area name
+            "Admin/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 
     // Map Area Controller Route for Manager
     app.MapAreaControllerRoute(
-            name: "manager",
-            areaName: "Manager", // Area name
-            pattern: "Manager/{controller=Home}/{action=Index}/{id?}")
+            "manager",
+            "Manager", // Area name
+            "Manager/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 
     // Map Area Controller Route for User
     app.MapAreaControllerRoute(
-            name: "user",
-            areaName: "User", // Area name
-            pattern: "User/{controller=Home}/{action=Index}/{id?}")
+            "user",
+            "User", // Area name
+            "User/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 
     // Map Area Controller Route for API
     app.MapAreaControllerRoute(
-        name: "api",
-        areaName: "Api", // Area name
-        pattern: "Api/{controller=Home}/{action=Index}/{id?}");
+        "api",
+        "Api", // Area name
+        "Api/{controller=Home}/{action=Index}/{id?}");
 
     // Map Area Controller Route for Public resources
     app.MapAreaControllerRoute(
-            name: "public",
-            areaName: "Public", // Area name
-            pattern: "Public/{controller=Home}/{action=Index}/{id?}")
+            "public",
+            "Public", // Area name
+            "Public/{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets
 }
 
@@ -676,10 +645,10 @@ static void ConfigureAreas(WebApplication app)
 static async Task SeedDatabase(WebApplication app)
 {
     // Create a scope for accessing services
-    using IServiceScope scope = app.Services.CreateScope();
-    IServiceProvider services = scope.ServiceProvider;
-    UserManager<ApplicationUser> userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-    RoleManager<IdentityRole> roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+    var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
 
     // Seed roles and admin user
     await ApplicationDbContextSeed.SeedAsync(userManager, roleManager, services);

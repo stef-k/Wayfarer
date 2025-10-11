@@ -55,38 +55,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
             }
             
-            // Routing and PBF files
-            // Routing + PBF cache paths
-            string routingPath = Path.Combine(Directory.GetCurrentDirectory(), "RoutingCache");
-            string pbfPath     = Path.Combine(Directory.GetCurrentDirectory(), "OsmPbfCache");
-
-            // Safe helpers
-            double GetFolderSizeMB(string path, string searchPattern) =>
-                Directory.Exists(path)
-                    ? new DirectoryInfo(path).GetFiles(searchPattern, SearchOption.TopDirectoryOnly).Sum(f => f.Length) / 1024.0 / 1024.0
-                    : 0;
-
-            int GetFileCount(string path, string searchPattern) =>
-                Directory.Exists(path)
-                    ? new DirectoryInfo(path).GetFiles(searchPattern, SearchOption.TopDirectoryOnly).Length
-                    : 0;
-
-            // Stats
-            ViewData["RoutingPath"]     = routingPath;
-            ViewData["RoutingSizeMB"]   = Math.Round(GetFolderSizeMB(routingPath, "*.routing"), 2);
-            ViewData["RoutingFileCount"] = GetFileCount(routingPath, "*.routing");
-
-            ViewData["PbfPath"]         = pbfPath;
-            ViewData["PbfSizeMB"]       = Math.Round(GetFolderSizeMB(pbfPath, "*.osm.pbf"), 2);
-            ViewData["PbfFileCount"]    = GetFileCount(pbfPath, "*.osm.pbf");
-            
-            double routingSize = Convert.ToDouble(ViewData["RoutingSizeMB"]);
-            double pbfSize = Convert.ToDouble(ViewData["PbfSizeMB"]);
-            double routingPbfTotalMB = routingSize + pbfSize;
-            double routingPbfTotalGB = routingPbfTotalMB / 1024.0;
-
-            ViewData["RoutingPbfTotalMB"] = Math.Round(routingPbfTotalMB, 2);
-            ViewData["RoutingPbfTotalGB"] = Math.Round(routingPbfTotalGB, 3);
+            // Removed Routing/PBF stats (Itinero cleanup)
 
             // Tile Cache
             ViewData["CachePath"] = _tileCacheService.GetCacheDirectory();
@@ -107,7 +76,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             ViewData["UploadsFileCount"] = uploadFileCount;
 
             // Combined
-            double combinedTotalMB = tileCacheSizeMB  + uploadsSizeMB + routingPbfTotalMB;
+            double combinedTotalMB = tileCacheSizeMB  + uploadsSizeMB;
             double combinedTotalGB = combinedTotalMB / 1024.0;
             ViewData["CombinedStorageMB"] = Math.Round(combinedTotalMB, 2);
             ViewData["CombinedStorageGB"] = Math.Round(combinedTotalGB, 3);
