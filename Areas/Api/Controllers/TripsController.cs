@@ -16,6 +16,8 @@ public class TripsController : BaseApiController
     {
     }
 
+    private const string ShadowRegionName = "Unassigned Places";
+
     /// <summary>
     /// Returns a list of trips owned by the authenticated user.
     /// </summary>
@@ -450,6 +452,346 @@ return Ok(dto);
                longitude >= -180.0 && longitude <= 180.0 &&
                !double.IsNaN(latitude) && !double.IsNaN(longitude) &&
                !double.IsInfinity(latitude) && !double.IsInfinity(longitude);
+    }
+
+    /// <summary>
+    /// Creates a new Place within the given trip. If regionId is omitted, the place is created under
+    /// the trip's "Unassigned Places" region.
+    /// </summary>
+    /// <param name="tripId">Trip ID (must belong to the token user)</param>
+    /// <param name="request">Place creation payload</param>
+    [HttpPost("{tripId}/places")]
+    public async Task<IActionResult> CreatePlace(Guid tripId, [FromBody] PlaceCreateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+
+        var trip = await _dbContext.Trips
+            .Include(t => t.Regions)
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id);
+        if (trip == null) return NotFound("Trip not found.");
+
+        if (request == null) return BadRequest("Invalid request.");
+        if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest("Name is required.");
+
+        // Resolve destination region
+        Region destRegion;
+        if (request.RegionId.HasValue)
+        {
+            destRegion = await _dbContext.Regions.FirstOrDefaultAsync(r => r.Id == request.RegionId.Value);
+            if (destRegion == null || destRegion.TripId != tripId || destRegion.UserId != user.Id)
+                return BadRequest("Invalid regionId.");
+        }
+        else
+        {
+            destRegion = await GetOrCreateUnassignedRegion(trip, user.Id);
+        }
+
+        // Coordinates validation
+        NetTopologySuite.Geometries.Point? location = null;
+        if (request.Latitude.HasValue || request.Longitude.HasValue)
+        {
+            if (!(request.Latitude.HasValue && request.Longitude.HasValue))
+                return BadRequest("Both latitude and longitude must be provided together.");
+            double lat = request.Latitude.Value; double lon = request.Longitude.Value;
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                return BadRequest("Latitude or Longitude is out of range.");
+            location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+        }
+
+        // Defaults for icon and color
+        string iconName = string.IsNullOrWhiteSpace(request.IconName) ? "marker" : request.IconName!;
+        string markerColor = string.IsNullOrWhiteSpace(request.MarkerColor) ? "bg-blue" : request.MarkerColor!;
+
+        // Display order
+        int displayOrder = request.DisplayOrder ?? await GetNextPlaceOrder(destRegion.Id);
+
+        var place = new Place
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            RegionId = destRegion.Id,
+            Name = request.Name!,
+            Notes = request.Notes,
+            Location = location,
+            DisplayOrder = displayOrder,
+            IconName = iconName,
+            MarkerColor = markerColor,
+        };
+
+        _dbContext.Places.Add(place);
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, place });
+    }
+
+    /// <summary>
+    /// Partially updates an existing Place by ID. Allows moving across regions that belong to trips
+    /// owned by the same user.
+    /// </summary>
+    /// <param name="placeId">Place ID</param>
+    /// <param name="request">Partial update payload</param>
+    [HttpPut("places/{placeId}")]
+    public async Task<IActionResult> UpdatePlace(Guid placeId, [FromBody] PlaceUpdateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+        if (request == null) return BadRequest("Invalid request.");
+
+        var place = await _dbContext.Places
+            .Include(p => p.Region)
+            .ThenInclude(r => r.Trip)
+            .FirstOrDefaultAsync(p => p.Id == placeId);
+        if (place == null) return NotFound("Place not found.");
+        if (place.Region.Trip.UserId != user.Id) return Unauthorized("Not your place.");
+
+        bool anyChange = false;
+
+        // Region move
+        if (request.RegionId.HasValue && request.RegionId.Value != place.RegionId)
+        {
+            var newRegion = await _dbContext.Regions
+                .Include(r => r.Trip)
+                .FirstOrDefaultAsync(r => r.Id == request.RegionId.Value);
+            if (newRegion == null || newRegion.Trip.UserId != user.Id)
+                return BadRequest("Invalid regionId.");
+
+            place.RegionId = newRegion.Id;
+            // Default order at end if not explicitly given
+            if (!request.DisplayOrder.HasValue)
+                place.DisplayOrder = await GetNextPlaceOrder(newRegion.Id);
+            anyChange = true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+        {
+            place.Name = request.Name!;
+            anyChange = true;
+        }
+
+        // Coordinates
+        if (request.Latitude.HasValue || request.Longitude.HasValue)
+        {
+            if (!(request.Latitude.HasValue && request.Longitude.HasValue))
+                return BadRequest("Both latitude and longitude must be provided together.");
+            double lat = request.Latitude.Value; double lon = request.Longitude.Value;
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                return BadRequest("Latitude or Longitude is out of range.");
+            place.Location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+            anyChange = true;
+        }
+
+        if (request.Notes != null)
+        {
+            place.Notes = request.Notes;
+            anyChange = true;
+        }
+
+        if (request.DisplayOrder.HasValue)
+        {
+            place.DisplayOrder = request.DisplayOrder.Value;
+            anyChange = true;
+        }
+
+        // Icon resets/updates
+        if (request.ClearIcon == true || (request.IconName != null && string.IsNullOrWhiteSpace(request.IconName)))
+        {
+            place.IconName = "marker";
+            anyChange = true;
+        }
+        else if (request.IconName != null)
+        {
+            place.IconName = request.IconName;
+            anyChange = true;
+        }
+
+        if (request.ClearMarkerColor == true || (request.MarkerColor != null && string.IsNullOrWhiteSpace(request.MarkerColor)))
+        {
+            place.MarkerColor = "bg-blue";
+            anyChange = true;
+        }
+        else if (request.MarkerColor != null)
+        {
+            place.MarkerColor = request.MarkerColor;
+            anyChange = true;
+        }
+
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", place });
+
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, place });
+    }
+
+    /// <summary>
+    /// Deletes a place by ID.
+    /// </summary>
+    [HttpDelete("places/{placeId}")]
+    public async Task<IActionResult> DeletePlace(Guid placeId)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+
+        var place = await _dbContext.Places
+            .Include(p => p.Region).ThenInclude(r => r.Trip)
+            .FirstOrDefaultAsync(p => p.Id == placeId);
+        if (place == null) return NotFound("Place not found.");
+        if (place.Region.Trip.UserId != user.Id) return Unauthorized("Not your place.");
+
+        _dbContext.Places.Remove(place);
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, message = "Place deleted.", placeId });
+    }
+
+    /// <summary>
+    /// Creates a new region inside the trip.
+    /// </summary>
+    [HttpPost("{tripId}/regions")]
+    public async Task<IActionResult> CreateRegion(Guid tripId, [FromBody] RegionCreateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+        if (request == null) return BadRequest("Invalid request.");
+        if (string.Equals(request.Name?.Trim(), ShadowRegionName, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Region name is reserved.");
+
+        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id);
+        if (trip == null) return NotFound("Trip not found.");
+
+        // Center point
+        NetTopologySuite.Geometries.Point? center = null;
+        if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
+        {
+            if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
+                return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
+            double lat = request.CenterLatitude.Value; double lon = request.CenterLongitude.Value;
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                return BadRequest("Center latitude or longitude is out of range.");
+            center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+        }
+
+        // Display order (exclude Unassigned at 0)
+        int displayOrder = request.DisplayOrder ?? await GetNextRegionOrder(tripId);
+
+        var region = new Region
+        {
+            Id = Guid.NewGuid(),
+            TripId = tripId,
+            UserId = user.Id,
+            Name = request.Name!.Trim(),
+            Notes = request.Notes,
+            CoverImageUrl = request.CoverImageUrl,
+            Center = center,
+            DisplayOrder = displayOrder
+        };
+
+        _dbContext.Regions.Add(region);
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, region });
+    }
+
+    /// <summary>
+    /// Updates an existing region by ID. Trip association cannot change.
+    /// </summary>
+    [HttpPut("regions/{regionId}")]
+    public async Task<IActionResult> UpdateRegion(Guid regionId, [FromBody] RegionUpdateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+        if (request == null) return BadRequest("Invalid request.");
+
+        var region = await _dbContext.Regions.Include(r => r.Trip).FirstOrDefaultAsync(r => r.Id == regionId);
+        if (region == null) return NotFound("Region not found.");
+        if (region.Trip.UserId != user.Id) return Unauthorized("Not your region.");
+
+        bool anyChange = false;
+
+        if (request.Name != null)
+        {
+            if (string.Equals(request.Name.Trim(), ShadowRegionName, StringComparison.OrdinalIgnoreCase))
+                return BadRequest("Region name is reserved.");
+            region.Name = request.Name.Trim();
+            anyChange = true;
+        }
+
+        if (request.Notes != null) { region.Notes = request.Notes; anyChange = true; }
+        if (request.CoverImageUrl != null) { region.CoverImageUrl = request.CoverImageUrl; anyChange = true; }
+
+        if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
+        {
+            if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
+                return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
+            double lat = request.CenterLatitude.Value; double lon = request.CenterLongitude.Value;
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                return BadRequest("Center latitude or longitude is out of range.");
+            region.Center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+            anyChange = true;
+        }
+
+        if (request.DisplayOrder.HasValue)
+        {
+            region.DisplayOrder = request.DisplayOrder.Value;
+            anyChange = true;
+        }
+
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", region });
+
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, region });
+    }
+
+    /// <summary>
+    /// Deletes a region by ID and all its children (places, areas). The reserved
+    /// "Unassigned Places" region cannot be deleted.
+    /// </summary>
+    [HttpDelete("regions/{regionId}")]
+    public async Task<IActionResult> DeleteRegion(Guid regionId)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+
+        var region = await _dbContext.Regions.FirstOrDefaultAsync(r => r.Id == regionId);
+        if (region == null) return NotFound("Region not found.");
+
+        // Verify ownership
+        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == region.TripId);
+        if (trip == null || trip.UserId != user.Id) return Unauthorized("Not your region.");
+
+        if (string.Equals(region.Name, ShadowRegionName, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Cannot delete the Unassigned Places region.");
+
+        _dbContext.Regions.Remove(region);
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, message = "Region deleted.", regionId });
+    }
+
+    private async Task<Region> GetOrCreateUnassignedRegion(Trip trip, string userId)
+    {
+        var region = await _dbContext.Regions.FirstOrDefaultAsync(r => r.TripId == trip.Id && r.Name == ShadowRegionName);
+        if (region != null) return region;
+        region = new Region
+        {
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            UserId = userId,
+            Name = ShadowRegionName,
+            DisplayOrder = 0
+        };
+        _dbContext.Regions.Add(region);
+        await _dbContext.SaveChangesAsync();
+        return region;
+    }
+
+    private async Task<int> GetNextPlaceOrder(Guid regionId)
+    {
+        var max = await _dbContext.Places.Where(p => p.RegionId == regionId).MaxAsync(p => (int?)p.DisplayOrder) ?? 0;
+        return max + 1;
+    }
+
+    private async Task<int> GetNextRegionOrder(Guid tripId)
+    {
+        var max = await _dbContext.Regions
+            .Where(r => r.TripId == tripId && r.Name != ShadowRegionName)
+            .MaxAsync(r => (int?)r.DisplayOrder) ?? 0;
+        return Math.Max(max + 1, 1);
     }
 }
 

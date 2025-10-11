@@ -1,15 +1,16 @@
+@using System.Net
 @model Wayfarer.Models.ViewModels.ApiTokenViewModel
 
 @{
     // ZERO CONFIGURATION: Universal URL generation for any self-hosted Wayfarer instance
     // No appsettings.json entries needed - pure automatic detection
-    
-    string scheme = DetermineScheme(Context);
-    string host = Context.Request.Host.ToString();
-    
+
+    var scheme = DetermineScheme(Context);
+    var host = Context.Request.Host.ToString();
+
     var serverBaseUrl = $"{scheme}://{host}";
     var fullurl = $"{serverBaseUrl}/api/location/log-location";
-    
+
     // Automatic scheme detection - no configuration required
     string DetermineScheme(HttpContext context)
     {
@@ -18,40 +19,40 @@
         {
             return "https";
         }
-        
+
         // 2. Check reverse proxy headers (nginx, Apache, etc.)
-        string forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? "";
+        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? "";
         if (forwardedProto.Equals("https", StringComparison.OrdinalIgnoreCase))
         {
             return "https";
         }
-        
+
         // 3. Check alternative proxy headers
-        string forwardedSsl = context.Request.Headers["X-Forwarded-Ssl"].FirstOrDefault() ?? "";
+        var forwardedSsl = context.Request.Headers["X-Forwarded-Ssl"].FirstOrDefault() ?? "";
         if (forwardedSsl.Equals("on", StringComparison.OrdinalIgnoreCase))
         {
             return "https";
         }
-        
+
         // 4. Automatic environment detection (no config needed)
-        string hostName = context.Request.Host.Host.ToLower();
-        
+        var hostName = context.Request.Host.Host.ToLower();
+
         // LOCAL DEVELOPMENT: Use HTTP
         if (IsLocalDevelopment(hostName))
         {
             return "http";
         }
-        
+
         // PRODUCTION INDICATORS: Use HTTPS
         if (HasProductionIndicators(context, hostName))
         {
             return "https";
         }
-        
+
         // FALLBACK: Use original scheme
         return context.Request.Scheme;
     }
-    
+
     // Detect local development - no configuration needed
     bool IsLocalDevelopment(string hostName)
     {
@@ -59,64 +60,64 @@
                hostName.Equals("127.0.0.1") ||
                hostName.Equals("0.0.0.0") ||
                hostName.Equals("::1") ||
-               hostName.StartsWith("192.168.") ||    // Private network
-               hostName.StartsWith("10.") ||         // Private network
-               hostName.StartsWith("172.") ||        // Private network/Docker
-               hostName.EndsWith(".local") ||        // .local TLD
-               hostName.EndsWith(".localhost") ||    // .localhost TLD
+               hostName.StartsWith("192.168.") || // Private network
+               hostName.StartsWith("10.") || // Private network
+               hostName.StartsWith("172.") || // Private network/Docker
+               hostName.EndsWith(".local") || // .local TLD
+               hostName.EndsWith(".localhost") || // .localhost TLD
                IsPrivateIpAddress(hostName);
     }
-    
+
     // Detect production environment - no configuration needed
     bool HasProductionIndicators(HttpContext context, string hostName)
     {
         // INDICATOR 1: Environment variable
-        string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "";
+        var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "";
         if (environment.Equals("Production", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
-        
+
         // INDICATOR 2: Standard HTTP/HTTPS ports
-        int port = context.Request.Host.Port ?? 0;
+        var port = context.Request.Host.Port ?? 0;
         if (port == 443 || port == 80)
         {
             return true; // Standard web ports suggest production
         }
-        
+
         // INDICATOR 3: Real domain name (not localhost/IP)
-        if (hostName.Contains(".") && 
-            !hostName.StartsWith("192.168.") && 
-            !hostName.StartsWith("10.") && 
+        if (hostName.Contains(".") &&
+            !hostName.StartsWith("192.168.") &&
+            !hostName.StartsWith("10.") &&
             !hostName.StartsWith("172.") &&
             !hostName.Equals("127.0.0.1"))
         {
             return true; // Real domain suggests production
         }
-        
+
         // INDICATOR 4: HTTPS configuration detected
-        string httpsPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORT");
+        var httpsPort = Environment.GetEnvironmentVariable("ASPNETCORE_HTTPS_PORT");
         if (!string.IsNullOrEmpty(httpsPort))
         {
             return true;
         }
-        
+
         return false;
     }
-    
+
     // Check if hostname is a private IP - no configuration needed
     bool IsPrivateIpAddress(string hostName)
     {
-        if (!System.Net.IPAddress.TryParse(hostName, out System.Net.IPAddress ip))
+        if (!IPAddress.TryParse(hostName, out var ip))
         {
             return false;
         }
-        
-        byte[] bytes = ip.GetAddressBytes();
-        return (bytes[0] == 10) ||                                      // 10.0.0.0/8
+
+        var bytes = ip.GetAddressBytes();
+        return bytes[0] == 10 || // 10.0.0.0/8
                (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) || // 172.16.0.0/12
-               (bytes[0] == 192 && bytes[1] == 168) ||                  // 192.168.0.0/16
-               (bytes[0] == 127);                                       // 127.0.0.0/8
+               (bytes[0] == 192 && bytes[1] == 168) || // 192.168.0.0/16
+               bytes[0] == 127; // 127.0.0.0/8
     }
 }
 
@@ -145,20 +146,26 @@
                                 <!-- Wayfarer Mobile App Integration Section -->
                                 <div class="mt-4 mb-4">
                                     <h5><strong>🔗 Wayfarer Mobile App Integration</strong></h5>
-                                    <p class="mb-3">Use the QR code below to quickly configure your Wayfarer Mobile app. The QR code contains the complete server configuration including URL and API token.</p>
+                                    <p class="mb-3">Use the QR code below to quickly configure your Wayfarer Mobile app.
+                                        The QR code contains the complete server configuration including URL and API
+                                        token.</p>
 
                                     <!-- Single QR Code -->
                                     <div class="row justify-content-center">
                                         <div class="col-md-6 mb-3">
-                                            <div class="card">
-                                                <div class="card-header text-center">
+                                            <div class="">
+                                                <div class="d-none">
                                                     <h6 class="mb-0">📱 Wayfarer Mobile Configuration</h6>
                                                 </div>
-                                                <div class="card-body">
-                                                    <div id="qr-mobile-config" class="mb-3"></div>
+                                                <div>
+                                                    <div id="qr-mobile-config" class="my-5"></div>
                                                     <div class="small text-muted">
-                                                        <p><strong>Server:</strong> <code class="border p-2 rounded bg-light user-select-all">@serverBaseUrl</code></p>
-                                                        <p><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
+                                                        <p><strong>Server:</strong> <code
+                                                                class="border p-2 rounded bg-light user-select-all">@serverBaseUrl</code>
+                                                        </p>
+                                                        <p><strong>Token:</strong> <code
+                                                                class="border p-2 rounded bg-light user-select-all">@token.Token</code>
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -174,9 +181,13 @@
                                         <ol class="mb-0">
                                             <li>Open the <strong>Wayfarer Mobile</strong> app on your device</li>
                                             <li>Navigate to <strong>Settings</strong></li>
-                                            <li>Tap the <strong>📷 QR</strong> button next to either the Server URL or API Token field</li>
+                                            <li>Tap the <strong>📷 QR</strong> button next to either the Server URL or
+                                                API Token field
+                                            </li>
                                             <li>Scan the QR code above</li>
-                                            <li>The app will automatically configure <strong>both</strong> the server URL and API token</li>
+                                            <li>The app will automatically configure <strong>both</strong> the server
+                                                URL and API token
+                                            </li>
                                             <li>Tap <strong>"Refresh from Server"</strong> to test the connection</li>
                                         </ol>
                                     </div>
@@ -185,22 +196,24 @@
                                 <!-- GPS Logger Integration Section -->
                                 <div class="mt-4">
                                     <h5><strong>📍 Third-Party GPS Logger Integration</strong></h5>
-                                    <p class="mb-3">Use with third-party mobile apps to log your location automatically.</p>
-                                    
+                                    <p class="mb-3">Use with third-party mobile apps to log your location
+                                        automatically.</p>
+
                                     <!-- Simple HTTP Endpoint -->
                                     <div class="card bg-light mb-3">
                                         <div class="card-body">
                                             <h6 class="card-title">📡 Simple HTTP GET/POST Endpoint</h6>
                                             <p class="mb-2"><strong>URL:</strong></p>
-                                            <code class="border p-2 rounded bg-white d-block mb-3 user-select-all">@fullurl</code>
-                                            
+                                            <code
+                                                class="border p-2 rounded bg-white d-block mb-3 user-select-all">@fullurl</code>
+
                                             <p class="mb-2"><strong>Required Parameters:</strong></p>
                                             <ul class="mb-2">
                                                 <li><code>lat</code> - Latitude (decimal degrees)</li>
                                                 <li><code>lon</code> - Longitude (decimal degrees)</li>
                                                 <li><code>token</code> - Your API token (above)</li>
                                             </ul>
-                                            
+
                                             <p class="mb-2"><strong>Optional Parameters:</strong></p>
                                             <ul class="mb-3">
                                                 <li><code>speed</code> - Speed in m/s</li>
@@ -209,32 +222,40 @@
                                                 <li><code>timestamp</code> - ISO 8601 timestamp</li>
                                                 <li><code>notes</code> - Custom notes/description</li>
                                             </ul>
-                                            
+
                                             <div class="alert alert-info mb-0">
                                                 <small>
-                                                    <strong>💡 Compatible Apps:</strong> 
-                                                    GPS Logger for Android, Owntracks, GPSies, and other apps that support custom HTTP endpoints.
+                                                    <strong>💡 Compatible Apps:</strong>
+                                                    GPS Logger for Android, Owntracks, GPSies, and other apps that
+                                                    support custom HTTP endpoints.
                                                 </small>
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Advanced JSON API -->
                                     <div class="card bg-light">
                                         <div class="card-body">
                                             <h6 class="card-title">🔗 Advanced JSON API (Bearer Token)</h6>
                                             <p class="mb-2"><strong>Endpoint:</strong> <code>@fullurl</code></p>
                                             <p class="mb-2"><strong>Method:</strong> POST</p>
-                                            <p class="mb-2"><strong>Content-Type:</strong> <code>application/json</code></p>
-                                            <p class="mb-3"><strong>Authorization:</strong> <code>Bearer @token.Token</code></p>
-                                            
-                                            <p class="mb-2">
-                                                <strong>Required parameters:</strong> <code>latitude, longitude, timestamp</code><br/>
-                                                Note: <code>timestamp</code> should be the device's <strong>local time</strong> (not UTC).<br/>
-                                                Ensure <code>%TIME</code> is in <strong>ISO 8601</strong> format (e.g., "2025-05-23T14:30:00").
+                                            <p class="mb-2"><strong>Content-Type:</strong> <code>application/json</code>
                                             </p>
-                                            
-                                            <p class="mb-2"><strong><a href="https://gpslogger.app/" title="Read about GPSLogger" target="_blank">GPSLogger</a> example:</strong></p>
+                                            <p class="mb-3"><strong>Authorization:</strong>
+                                                <code>Bearer @token.Token</code></p>
+
+                                            <p class="mb-2">
+                                                <strong>Required parameters:</strong> <code>latitude, longitude,
+                                                    timestamp</code><br/>
+                                                Note: <code>timestamp</code> should be the device's <strong>local
+                                                    time</strong> (not UTC).<br/>
+                                                Ensure <code>%TIME</code> is in <strong>ISO 8601</strong> format (e.g.,
+                                                "2025-05-23T14:30:00").
+                                            </p>
+
+                                            <p class="mb-2"><strong><a href="https://gpslogger.app/"
+                                                                       title="Read about GPSLogger" target="_blank">GPSLogger</a>
+                                                    example:</strong></p>
                                             <ol class="mb-2">
                                                 <li>Set HTTP Method to POST</li>
                                                 <li>Add the following headers:</li>
@@ -244,8 +265,8 @@
                                                 </ul>
                                                 <li>Use the following JSON Template:</li>
                                             </ol>
-                                            
-<pre class="bg-dark text-light p-3 rounded mb-0">
+
+                                            <pre class="bg-dark text-light p-3 rounded mb-0">
 {
   "latitude": %LAT,
   "longitude": %LON,
@@ -285,21 +306,25 @@
                                 <div>
                                     <p class="mb-1"><strong>Service:</strong> @token.Name</p>
                                     <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
-                                    <p class="mb-0"><strong>Token:</strong> <code class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
+                                    <p class="mb-0"><strong>Token:</strong> <code
+                                            class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
                                 </div>
                                 <div class="text-end">
                                     <!-- NO REGENERATE BUTTON - only delete -->
-                                    <a href="@Url.Action("Delete", new { tokenId = token.Id })" class="btn btn-danger btn-sm">Delete</a>
+                                    <a href="@Url.Action("Delete", new { tokenId = token.Id })"
+                                       class="btn btn-danger btn-sm">Delete</a>
                                     <small class="text-muted d-block mt-1">Regenerate via @token.Name</small>
                                 </div>
                             </div>
-                            
+
                             @if (token.Name.Equals("Mapbox", StringComparison.OrdinalIgnoreCase))
                             {
                                 <div class="alert alert-info mt-2 mb-3">
                                     <small>
-                                        <strong>Purpose:</strong> Reverse geocoding (convert coordinates to addresses)<br/>
-                                        <strong>Manage:</strong> <a href="https://account.mapbox.com/access-tokens/" target="_blank">Mapbox Dashboard</a>
+                                        <strong>Purpose:</strong> Reverse geocoding (convert coordinates to
+                                        addresses)<br/>
+                                        <strong>Manage:</strong> <a href="https://account.mapbox.com/access-tokens/"
+                                                                    target="_blank">Mapbox Dashboard</a>
                                     </small>
                                 </div>
                             }
@@ -312,7 +337,7 @@
                                     </small>
                                 </div>
                             }
-                            
+
                             @if (!thirdPartyTokens.Last().Equals(token))
                             {
                                 <hr class="my-3"/>
@@ -330,19 +355,23 @@
                 <div class="card-body">
                     <p>
                         Store API token from a third-party service.
-                        For example, here you should store your Mapbox API token in order for reverse geocoding (get addresses from coordinates) to work.
+                        For example, here you should store your Mapbox API token in order for reverse geocoding (get
+                        addresses from coordinates) to work.
                     </p>
                     <p>Select a service from the dropdown, and then paste the corresponding token.</p>
                     <p>
-                        <strong>Third Party Charges:</strong> You should have in mind that you may be charged if you exceed usage limits from the service providers you use.
-                        For example, Mapbox provides 100,000 free API calls per month. If Wayfarer logs your location every 5 minutes, this will result in 8,640 API calls for reverse geocoding per month.
+                        <strong>Third Party Charges:</strong> You should have in mind that you may be charged if you
+                        exceed usage limits from the service providers you use.
+                        For example, Mapbox provides 100,000 free API calls per month. If Wayfarer logs your location
+                        every 5 minutes, this will result in 8,640 API calls for reverse geocoding per month.
                     </p>
                     <form method="post" asp-action="StoreThirdPartyToken" asp-controller="ApiToken" asp-area="User">
-                        <input type="hidden" name="id" value="@Model.UserId" />
+                        <input type="hidden" name="id" value="@Model.UserId"/>
 
                         <div class="mb-3">
                             <label for="thirdPartyServiceName" class="form-label">Third Party Service Name:</label>
-                            <select class="form-select" id="thirdPartyServiceName" name="thirdPartyServiceName" required>
+                            <select class="form-select" id="thirdPartyServiceName" name="thirdPartyServiceName"
+                                    required>
                                 <option value="">-- Select a Service --</option>
                                 <option value="Mapbox">Mapbox</option>
                                 @* <option value="GoogleMaps">Google Maps</option> *@
@@ -353,7 +382,8 @@
 
                         <div class="mb-3">
                             <label for="thirdPartyToken" class="form-label">Token:</label>
-                            <input type="text" class="form-control" id="thirdPartyToken" name="thirdPartyToken" required />
+                            <input type="text" class="form-control" id="thirdPartyToken" name="thirdPartyToken"
+                                   required/>
                         </div>
 
                         <div class="d-grid">
@@ -364,7 +394,7 @@
             </div>
 
             @* <!-- Create New Token Section -->
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mt-5">
                 <div class="card-header text-bg-secondary">
                     <h3>Create New API Token</h3>
                 </div>
@@ -382,115 +412,192 @@
     </div>
 </div>
 
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header text-bg-secondary">
-            <h3>Mobile API JSON Examples</h3>
-        </div>
-        <div class="card-body">
-            <p class="mb-3">Use the following JSON bodies with your <code>Authorization: Bearer &lt;token&gt;</code> header against the API endpoints.</p>
+<div class="container">
+    <div class="row">
+        <div class="col-md-10 offset-1">
+            <div class="card shadow-sm mt-5">
+                <div class="card-header text-bg-secondary">
+                    <h3>Mobile API JSON Examples</h3>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Use the following JSON bodies with your <code>Authorization: Bearer
+                            &lt;token&gt;</code> header against the API endpoints.</p>
 
-            <h5 class="mt-3">1) Log Location</h5>
-            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
-{
-  "latitude": 37.9838,
-  "longitude": 23.7275,
-  "accuracy": 12.5,
-  "altitude": 95.0,
-  "speed": 1.2,
-  "locationType": "GPS",
-  "notes": "Walking in the center",
-  "activityTypeId": 3,
-  "timestamp": "2025-07-30T09:15:00" // local device time
-}
-            </code>
-            <small class="text-muted">POST @serverBaseUrl/api/location/log-location</small>
+                    <h5 class="mt-3">1) Log Location</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "latitude": 37.9838,
+                        "longitude": 23.7275,
+                        "accuracy": 12.5,
+                        "altitude": 95.0,
+                        "speed": 1.2,
+                        "locationType": "GPS",
+                        "notes": "Walking in the center",
+                        "activityTypeId": 3,
+                        "timestamp": "2025-07-30T09:15:00" // local device time
+                        }
+                    </code>
+                    <small class="text-muted">POST @serverBaseUrl/api/location/log-location</small>
 
-            <h5 class="mt-4">2) Check-in</h5>
-            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
-{
-  "latitude": 37.9838,
-  "longitude": 23.7275,
-  "accuracy": 10,
-  "locationType": "Manual",
-  "notes": "Arrived",
-  "timestamp": "2025-07-30T09:20:00"
-}
-            </code>
-            <small class="text-muted">POST @serverBaseUrl/api/location/check-in</small>
+                    <h5 class="mt-4">2) Check-in</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "latitude": 37.9838,
+                        "longitude": 23.7275,
+                        "accuracy": 10,
+                        "locationType": "Manual",
+                        "notes": "Arrived",
+                        "timestamp": "2025-07-30T09:20:00"
+                        }
+                    </code>
+                    <small class="text-muted">POST @serverBaseUrl/api/location/check-in</small>
 
-            <h5 class="mt-4">3) Update Location (partial)</h5>
-            <p class="mb-1">Only included fields change. Use clear flags to remove notes/activity.</p>
-            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
-{
-  "latitude": 37.9755,
-  "longitude": 23.7348,
-  "localTimestamp": "2025-07-30T09:45:00",
-  "notes": "At venue entrance",
-  "activityTypeId": 5,
-  "activityName": "Running",
-  "clearNotes": false,
-  "clearActivity": false
-}
-            </code>
-            <small class="text-muted">PUT @serverBaseUrl/api/location/{id}</small>
+                    <h5 class="mt-4">3) Update Location (partial)</h5>
+                    <p class="mb-1">Only included fields change. Use clear flags to remove notes/activity.</p>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "latitude": 37.9755,
+                        "longitude": 23.7348,
+                        "localTimestamp": "2025-07-30T09:45:00",
+                        "notes": "At venue entrance",
+                        "activityTypeId": 5,
+                        "activityName": "Running",
+                        "clearNotes": false,
+                        "clearActivity": false
+                        }
+                    </code>
+                    <small class="text-muted">PUT @serverBaseUrl/api/location/{id}</small>
 
-            <h6 class="mt-2">Clear examples</h6>
-            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
-{ "clearNotes": true }
-            </code>
-            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
-{ "clearActivity": true }
-            </code>
+                    <h6 class="mt-2">Clear examples</h6>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        { "clearNotes": true }
+                    </code>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        { "clearActivity": true }
+                    </code>
 
-            <h5 class="mt-4">4) Delete Location</h5>
-            <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
-// No body required
-            </code>
-            <small class="text-muted">DELETE @serverBaseUrl/api/location/{id}</small>
+                    <h5 class="mt-4">4) Delete Location</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        // No body required
+                    </code>
+                    <small class="text-muted">DELETE @serverBaseUrl/api/location/{id}</small>
+                </div>
+            </div>
         </div>
     </div>
-    
 </div>
+<div class="container">
+    <div class="row">
+        <div class="col-md-10 offset-1">
+            <div class="card shadow-sm mt-5">
+                <div class="card-header text-bg-secondary">
+                    <h3>Trip API JSON Examples</h3>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Examples for creating, updating, and deleting regions and places. Include <code>Authorization:
+                            Bearer &lt;token&gt;</code>.</p>
 
+                    <h5 class="mt-3">1) Create Region</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "name": "Athens",
+                        "notes": "City center",
+                        "coverImageUrl": "https://example.com/cover.jpg",
+                        "centerLatitude": 37.9838,
+                        "centerLongitude": 23.7275
+                        }
+                    </code>
+                    <small class="text-muted">POST @serverBaseUrl/api/trips/{tripId}/regions</small>
+
+                    <h5 class="mt-4">2) Update Region</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "name": "Athens Downtown",
+                        "displayOrder": 2
+                        }
+                    </code>
+                    <small class="text-muted">PUT @serverBaseUrl/api/trips/regions/{regionId}</small>
+
+                    <h5 class="mt-4">3) Delete Region</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        // No body required
+                    </code>
+                    <small class="text-muted">DELETE @serverBaseUrl/api/trips/regions/{regionId}</small>
+
+                    <h5 class="mt-4">4) Create Place</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "regionId": "{regionId}",
+                        "name": "Acropolis Museum",
+                        "latitude": 37.9680,
+                        "longitude": 23.7286,
+                        "notes": "Must visit",
+                        "iconName": "marker",
+                        "markerColor": "bg-blue"
+                        }
+                    </code>
+                    <small class="text-muted">POST @serverBaseUrl/api/trips/{tripId}/places</small>
+
+                    <h5 class="mt-4">5) Update Place</h5>
+                    <p class="mb-1">Icon name defaults to "marker" and color to "bg-blue" when cleared.</p>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        {
+                        "name": "Acropolis Museum Entrance",
+                        "clearIcon": true,
+                        "clearMarkerColor": true
+                        }
+                    </code>
+                    <small class="text-muted">PUT @serverBaseUrl/api/trips/places/{placeId}</small>
+
+                    <h5 class="mt-4">6) Delete Place</h5>
+                    <code class="d-block p-3 bg-light border rounded" style="white-space: pre; display:block;">
+                        // No body required
+                    </code>
+                    <small class="text-muted">DELETE @serverBaseUrl/api/trips/places/{placeId}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- JavaScript for QR Code Generation -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         @if (Model.Tokens != null && Model.Tokens.Any())
         {
             var token = Model.Tokens.FirstOrDefault(t => t.Name.Equals("Wayfarer Incoming Location Data API Token"));
             if (token != null)
             {
                 <text>
-                // Generate single Mobile Configuration QR Code with automatic URL detection
-                try {
-                    var mobileConfig = {
-                        serverUrl: '@serverBaseUrl',
-                        apiToken: '</text>@token.Token<text>',
-                        userName: '@Model.UserName',
-                        serverName: '@Context.Request.Host.Host',
-                        version: '1.0'
-                    };
+                    // Generate single Mobile Configuration QR Code with automatic URL detection
+                    try {
+                        var mobileConfig = {
+                            serverUrl: '@serverBaseUrl',
+                        apiToken: '</text>
+                @token.Token<text>',
+                                    userName: '@Model.UserName',
+                                    serverName: '@Context.Request.Host.Host',
+                                    version: '1.0'
+                                };
 
-                    // Debug logging for QR generation
-                    console.log('🔍 Auto-detected server URL for QR code:', '@serverBaseUrl');
-                    console.log('📱 Generating QR code with config:', mobileConfig);
+                                    // Debug logging for QR generation
+                                    console.log('🔍 Auto-detected server URL for QR code:', '@serverBaseUrl');
+                                    console.log('📱 Generating QR code with config:', mobileConfig);
 
-                    new QRCode(document.getElementById('qr-mobile-config'), {
-                        text: JSON.stringify(mobileConfig),
-                        width: 150,
-                        height: 150,
-                        colorDark: "#000000",
-                        colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.M
-                    });
-                    
-                    console.log('✅ QR code generated successfully');
-                } catch (error) {
-                    document.getElementById('qr-mobile-config').innerHTML = '<div class="text-danger small">❌ Error generating QR code</div>';
-                    console.error('❌ Error generating mobile configuration QR code:', error);
-                }
-                </text>
+                                    new QRCode(document.getElementById('qr-mobile-config'), {
+                                        text: JSON.stringify(mobileConfig),
+                                        width: 150,
+                                        height: 150,
+                                        colorDark: "#000000",
+                                        colorLight: "#ffffff",
+                                        correctLevel: QRCode.CorrectLevel.M
+                                    });
+
+                                    console.log('✅ QR code generated successfully');
+                                } catch (error) {
+                                    document.getElementById('qr-mobile-config').innerHTML = '<div class="text-danger small">❌ Error generating QR code</div>';
+                                    console.error('❌ Error generating mobile configuration QR code:', error);
+                                }
+                            </text>
             }
         }
     });
@@ -510,3 +617,4 @@ ZERO CONFIGURATION FEATURES:
 Self-hosters don't need to configure anything!
 The system automatically detects the correct protocol for QR codes.
 *@
+
