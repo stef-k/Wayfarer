@@ -11,6 +11,8 @@ a. Delete
 b. Update where it can accept and update some or all of the following values: Coordinates, Notes, Activity and Local
 Date Time.
 
+These actions will be protected by user's API token base api controller has GetUserFromToken
+
 ## Trip API CRUD endpoints, priority 2
 
 Mobile clients need to be able to add/edit/delete saved places to trips on server. So we need at least 3 endpoints:
