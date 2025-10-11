@@ -74,5 +74,6 @@
 
   <ItemGroup>
     <_ContentIncludedByDefault Remove="MbtileCache\tiles.json" />
+    <_ContentIncludedByDefault Remove="OsmPbfCache\geofabrik-index.json" />
   </ItemGroup>
 </Project>

@@ -21,10 +21,5 @@ namespace Wayfarer.Models.Dtos
         /// Mobile app uses this to calculate tile coordinates
         /// </summary>
         public BoundingBoxDto BoundingBox { get; set; } = new();
-
-        /// <summary>
-        /// Reference to routing file for offline navigation (future implementation)
-        /// </summary>
-        public string? RoutingFile { get; set; }
     }
 }

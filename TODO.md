@@ -30,7 +30,7 @@ Scope And Impact Analysis
     2) Guard with feature flag and hide if directories not present
   - Tile cache stats remain: do not remove TileCacheService usage
 - Trip DTOs/Controllers
-  - TripBoundaryDto has RoutingFile placeholder: keep property for now (null) to avoid breaking mobile docs; can deprecate later
+  - TripBoundaryDto previously had a RoutingFile placeholder; removed as part of cleanup
   - Segment.RouteGeometry (LineString) is unrelated to Itinero and must remain; user-drawn/edited routes still supported
 
 Step-by-step Plan
