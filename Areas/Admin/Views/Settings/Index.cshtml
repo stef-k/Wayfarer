@@ -1,4 +1,4 @@
-﻿@model ApplicationSettings
+@model ApplicationSettings
 @{
     var isRegistrationOpen = ViewData["IsRegistrationOpen"] != null ? (bool)ViewData["IsRegistrationOpen"] : false;
 }
@@ -210,28 +210,7 @@
                         </div>
 
                         <hr/>
-                        <div class="row">
-                            <h5 class="mt-4">Routing & PBF Storage</h5>
-                            <ul class="list-group mb-3">
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    Routing Files
-                                    <span
-                                        class="badge bg-secondary">@ViewData["RoutingFileCount"] files – @ViewData["RoutingSizeMB"] MB</span>
-                                </li>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    PBF Files
-                                    <span
-                                        class="badge bg-secondary">@ViewData["PbfFileCount"] files – @ViewData["PbfSizeMB"] MB</span>
-                                </li>
-                                <li class="list-group-item text-muted small">
-                                    <i class="bi bi-folder2-open"></i> @ViewData["RoutingPath"]<br/>
-                                    <i class="bi bi-folder2-open"></i> @ViewData["PbfPath"]
-                                </li>
-                            </ul>
-                            
-                        </div>
-
-                        <hr/>
+                        
                         <div class="row">
                             <h3 class="text-center fs-2">Total Disk Usage</h3>
 
@@ -239,12 +218,6 @@
                                 <strong>Map Tiles Cache (zoom ≥ 9):</strong><br/>
                                 <code>@ViewData["TotalCacheSize"] MB</code> /
                                 <code>@ViewData["TotalCacheSizeGB"] GB</code>
-                            </div>
-
-                            <div class="col-4 mb-2 fs-5">
-                                <strong>Routing + PBF Files:</strong><br/>
-                                <code>@ViewData["RoutingPbfTotalMB"] MB</code> /
-                                <code>@ViewData["RoutingPbfTotalGB"] GB</code>
                             </div>
 
                             <div class="col-4 mb-2 fs-5">
@@ -293,3 +266,4 @@
 @section Scripts {
     <script src="~/js/Areas/Admin/Settings/Index.js" type="module"></script>
 }
+

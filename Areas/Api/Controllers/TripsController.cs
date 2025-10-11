@@ -228,8 +228,7 @@ return Ok(dto);
                     South = boundingBox.South,
                     East = boundingBox.East,
                     West = boundingBox.West
-                },
-                RoutingFile = null // Phase 6 feature
+                }
             };
 
             _logger.LogInformation(
