@@ -148,7 +148,9 @@ ConfigureMiddleware(app).GetAwaiter().GetResult();
 // Seed the database with roles and the admin user if necessary
 await SeedDatabase(app);
 
-#endregion Database Seeding\napp.Run();
+#endregion Database Seeding
+
+app.Run();
 
 static async Task<long> LoadUploadSizeLimitFromDatabaseAsync()
 {
