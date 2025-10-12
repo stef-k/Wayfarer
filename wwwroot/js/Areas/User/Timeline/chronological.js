@@ -421,16 +421,21 @@ const showDetailedStats = async (statType) => {
         // Show the modal
         new bootstrap.Modal(document.getElementById('statsModal')).show();
 
-        // Add click handlers for country coordinates
+        // Add click handlers for country/region/city coordinates
         document.querySelectorAll('.country-coords-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const lat = parseFloat(link.getAttribute('data-lat'));
                 const lng = parseFloat(link.getAttribute('data-lng'));
 
+                // Extract zoom from href URL
+                const href = link.getAttribute('href');
+                const urlParams = new URLSearchParams(href.substring(1)); // Remove leading '?'
+                const zoom = parseInt(urlParams.get('zoom')) || 8;
+
                 // Close modal and navigate to location on map
                 bootstrap.Modal.getInstance(document.getElementById('statsModal')).hide();
-                mapContainer.setView([lat, lng], 8);
+                mapContainer.setView([lat, lng], zoom);
             });
         });
 
