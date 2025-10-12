@@ -70,7 +70,7 @@
 <!-- Map container -->
 <div id="mapContainer" style="height: calc(100vh - 220px);"></div>
 
-<!-- Modal HTML -->
+<!-- Location Details Modal -->
 <div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -80,6 +80,21 @@
             </div>
             <div class="modal-body">
                 <div id="modalContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Details Modal -->
+<div class="modal fade" id="statsModal" tabindex="-1" aria-labelledby="statsModalLabel" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header text-bg-primary">
+                <h5 class="modal-title" id="statsModalLabel">Location Statistics</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="statsModalContent"></div>
             </div>
         </div>
     </div>

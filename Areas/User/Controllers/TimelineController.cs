@@ -371,5 +371,66 @@ namespace Wayfarer.Controllers
                 return StatusCode(500, new { success = false });
             }
         }
+
+        /// <summary>
+        /// Get detailed statistics for a specific chronological period (day, month, or year).
+        /// Returns location count and detailed arrays of countries, regions, cities for the selected period.
+        /// </summary>
+        /// <param name="dateType">Type of period: "day", "month", or "year"</param>
+        /// <param name="year">Year</param>
+        /// <param name="month">Month (1-12)</param>
+        /// <param name="day">Day (1-31)</param>
+        [HttpGet]
+        public async Task<IActionResult> GetChronologicalStatsDetailed(string dateType, int year, int? month = null, int? day = null)
+        {
+            try
+            {
+                ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
+                if (currentUser == null)
+                {
+                    return Unauthorized(new { success = false, message = "User not found." });
+                }
+
+                // Build date range based on dateType
+                DateTime startDate, endDate;
+                switch (dateType.ToLower())
+                {
+                    case "day":
+                        if (!month.HasValue || !day.HasValue)
+                            return BadRequest(new { success = false, message = "Month and day are required for day filter" });
+                        startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
+                        endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+                        break;
+
+                    case "month":
+                        if (!month.HasValue)
+                            return BadRequest(new { success = false, message = "Month is required for month filter" });
+                        startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
+                        endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
+                        break;
+
+                    case "year":
+                        startDate = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                        endDate = DateTime.SpecifyKind(new DateTime(year, 12, 31, 23, 59, 59, DateTimeKind.Utc).AddTicks(9999999), DateTimeKind.Utc);
+                        break;
+
+                    default:
+                        return BadRequest(new { success = false, message = $"Invalid dateType: {dateType}" });
+                }
+
+                var detailedStats = await _statsService.GetDetailedStatsForDateRangeAsync(currentUser.Id, startDate, endDate);
+
+                return Ok(new
+                {
+                    success = true,
+                    stats = detailedStats
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting detailed chronological stats");
+                return StatusCode(500, new { success = false, message = "An error occurred while fetching detailed stats." });
+            }
+        }
     }
 }

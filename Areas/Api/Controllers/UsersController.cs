@@ -76,4 +76,23 @@ public class UsersController : ControllerBase
 
         return Ok(statsDto);
     }
+
+    /// <summary>
+    /// Calculates detailed User x Location stats including arrays of countries, regions, and cities
+    /// </summary>
+    /// GET /api/users/stats/detailed
+    [HttpGet("stats/detailed")]
+    public async Task<IActionResult> GetDetailedStats()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (userId == null)
+        {
+            return NotFound("User not found or timeline is not public.");
+        }
+
+        var detailedStatsDto = await _statsService.GetDetailedStatsForUserAsync(userId);
+
+        return Ok(detailedStatsDto);
+    }
 }

@@ -362,18 +362,187 @@ const updateEnhancedStats = async () => {
             if (stats.totalLocations != null)
                 summaryParts.push(`<strong>Locations:</strong> ${stats.totalLocations}`);
             if (stats.countriesVisited != null)
-                summaryParts.push(`<strong>Countries:</strong> ${stats.countriesVisited}`);
+                summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="countries">Countries:</a></strong> ${stats.countriesVisited}`);
             if (stats.regionsVisited != null)
-                summaryParts.push(`<strong>Regions:</strong> ${stats.regionsVisited}`);
+                summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="regions">Regions:</a></strong> ${stats.regionsVisited}`);
             if (stats.citiesVisited != null)
-                summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
+                summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="cities">Cities:</a></strong> ${stats.citiesVisited}`);
 
             const summary = summaryParts.join(" | ");
             document.getElementById('timeline-summary').innerHTML = summary;
+
+            // Add click handlers for stat links
+            document.querySelectorAll('.stat-link').forEach(link => {
+                link.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    const statType = e.currentTarget.getAttribute('data-stat-type');
+                    await showDetailedStats(statType);
+                });
+            });
         }
     } catch (error) {
         console.error('Error fetching stats:', error);
     }
+};
+
+/**
+ * Fetch and display detailed stats in a modal for chronological view
+ * @param {string} statType - Type of stat to highlight (countries, regions, cities)
+ */
+const showDetailedStats = async (statType) => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    const day = currentDate.getDate();
+
+    let url = `/User/Timeline/GetChronologicalStatsDetailed?dateType=${currentViewType}&year=${year}`;
+
+    if (currentViewType === 'month' || currentViewType === 'day') {
+        url += `&month=${month}`;
+    }
+
+    if (currentViewType === 'day') {
+        url += `&day=${day}`;
+    }
+
+    try {
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to fetch detailed stats');
+        }
+
+        const detailedStats = result.stats;
+
+        // Generate modal content
+        const modalContent = generateStatsModalContent(detailedStats, statType);
+        document.getElementById('statsModalContent').innerHTML = modalContent;
+
+        // Show the modal
+        new bootstrap.Modal(document.getElementById('statsModal')).show();
+
+        // Add click handlers for country coordinates
+        document.querySelectorAll('.country-coords-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const lat = parseFloat(link.getAttribute('data-lat'));
+                const lng = parseFloat(link.getAttribute('data-lng'));
+
+                // Close modal and navigate to location on map
+                bootstrap.Modal.getInstance(document.getElementById('statsModal')).hide();
+                mapContainer.setView([lat, lng], 8);
+            });
+        });
+
+    } catch (error) {
+        console.error('Error fetching detailed stats:', error);
+        alert('Failed to load detailed statistics');
+    }
+};
+
+/**
+ * Generate HTML content for the stats modal
+ * @param {object} stats - Detailed stats object
+ * @param {string} highlightType - Which section to highlight
+ * @returns {string} HTML content
+ */
+const generateStatsModalContent = (stats, highlightType) => {
+    let html = '<div class="container-fluid">';
+
+    // Summary section
+    html += '<div class="row mb-3">';
+    html += '<div class="col-12">';
+    html += `<h6>Overview</h6>`;
+    html += `<p><strong>Total Locations:</strong> ${stats.totalLocations}</p>`;
+    html += `<p><strong>Period:</strong> ${formatDateDisplay(currentDate, currentViewType)}</p>`;
+    if (stats.fromDate && stats.toDate) {
+        html += `<p><strong>Date Range:</strong> ${new Date(stats.fromDate).toISOString().split('T')[0]} to ${new Date(stats.toDate).toISOString().split('T')[0]}</p>`;
+    }
+    html += '</div>';
+    html += '</div>';
+
+    // Countries section
+    const countriesHighlight = highlightType === 'countries' ? 'bg-light border' : '';
+    html += `<div class="row mb-3 ${countriesHighlight} p-2">`;
+    html += '<div class="col-12">';
+    html += `<h6>Countries (${stats.countries.length})</h6>`;
+
+    if (stats.countries.length > 0) {
+        html += '<div class="table-responsive">';
+        html += '<table class="table table-sm table-hover">';
+        html += '<thead><tr><th>Country</th><th>First Visit</th><th>Last Visit</th><th>Records</th><th>Map</th></tr></thead>';
+        html += '<tbody>';
+
+        stats.countries.forEach(country => {
+            const homeLabel = country.isHomeCountry ? ' <span class="badge bg-info">Home</span>' : '';
+            const firstVisit = new Date(country.firstVisit).toISOString().split('T')[0];
+            const lastVisit = new Date(country.lastVisit).toISOString().split('T')[0];
+            const dateRange = firstVisit === lastVisit ? firstVisit : `${firstVisit} - ${lastVisit}`;
+
+            // Extract coordinates from PostGIS Point
+            const lat = country.coordinates?.coordinates?.[1] || 0;
+            const lng = country.coordinates?.coordinates?.[0] || 0;
+
+            html += '<tr>';
+            html += `<td>${country.name}${homeLabel}</td>`;
+            html += `<td>${dateRange.split(' - ')[0]}</td>`;
+            html += `<td>${dateRange.split(' - ')[1] || dateRange}</td>`;
+            html += `<td>${country.visitCount}</td>`;
+            html += `<td><a href="#" class="country-coords-link btn btn-sm btn-outline-primary" data-lat="${lat}" data-lng="${lng}" title="View on map"><i class="bi bi-geo-alt"></i></a></td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody>';
+        html += '</table>';
+        html += '</div>';
+    } else {
+        html += '<p class="text-muted">No country data available</p>';
+    }
+
+    html += '</div>';
+    html += '</div>';
+
+    // Regions section
+    const regionsHighlight = highlightType === 'regions' ? 'bg-light border' : '';
+    html += `<div class="row mb-3 ${regionsHighlight} p-2">`;
+    html += '<div class="col-12">';
+    html += `<h6>Regions (${stats.regions.length})</h6>`;
+
+    if (stats.regions.length > 0) {
+        html += '<ul class="list-unstyled column-count-2">';
+        stats.regions.forEach(region => {
+            html += `<li>• ${region}</li>`;
+        });
+        html += '</ul>';
+    } else {
+        html += '<p class="text-muted">No region data available</p>';
+    }
+
+    html += '</div>';
+    html += '</div>';
+
+    // Cities section
+    const citiesHighlight = highlightType === 'cities' ? 'bg-light border' : '';
+    html += `<div class="row mb-3 ${citiesHighlight} p-2">`;
+    html += '<div class="col-12">';
+    html += `<h6>Cities (${stats.cities.length})</h6>`;
+
+    if (stats.cities.length > 0) {
+        html += '<ul class="list-unstyled column-count-3">';
+        stats.cities.forEach(city => {
+            html += `<li>• ${city}</li>`;
+        });
+        html += '</ul>';
+    } else {
+        html += '<p class="text-muted">No city data available</p>';
+    }
+
+    html += '</div>';
+    html += '</div>';
+
+    html += '</div>';
+
+    return html;
 };
 
 /**
