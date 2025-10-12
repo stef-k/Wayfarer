@@ -478,6 +478,7 @@ const generateStatsModalContent = (stats, highlightType) => {
             // Extract coordinates from PostGIS Point (GeoJSON format: [lng, lat])
             const lat = country.coordinates?.coordinates?.[1] || 0;
             const lng = country.coordinates?.coordinates?.[0] || 0;
+            const countryMapUrl = `?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&zoom=8`;
 
             // Get regions for this country
             const countryRegions = stats.regions.filter(r => r.countryName === country.name);
@@ -488,7 +489,7 @@ const generateStatsModalContent = (stats, highlightType) => {
             html += `<button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse" data-bs-target="#country-${countryIdx}">`;
             html += `${country.name}${homeLabel} <small class="ms-2 text-muted">(${country.visitCount} records, ${firstVisit} - ${lastVisit})</small>`;
             html += `</button>`;
-            html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${lat}" data-lng="${lng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
+            html += `<a href="${countryMapUrl}" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${lat}" data-lng="${lng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
             html += `</div>`;
             html += `</h2>`;
             html += `<div id="country-${countryIdx}" class="accordion-collapse collapse" data-bs-parent="#countriesAccordion">`;
@@ -503,6 +504,7 @@ const generateStatsModalContent = (stats, highlightType) => {
                     const regLastVisit = new Date(region.lastVisit).toISOString().split('T')[0];
                     const regLat = region.coordinates?.coordinates?.[1] || 0;
                     const regLng = region.coordinates?.coordinates?.[0] || 0;
+                    const regionMapUrl = `?lat=${regLat.toFixed(6)}&lng=${regLng.toFixed(6)}&zoom=10`;
 
                     // Get cities for this region
                     const regionCities = stats.cities.filter(c => c.regionName === region.name && c.countryName === country.name);
@@ -513,7 +515,7 @@ const generateStatsModalContent = (stats, highlightType) => {
                     html += `<button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse" data-bs-target="#region-${countryIdx}-${regionIdx}">`;
                     html += `${region.name} <small class="ms-2 text-muted">(${region.visitCount} records, ${regFirstVisit} - ${regLastVisit})</small>`;
                     html += `</button>`;
-                    html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${regLat}" data-lng="${regLng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
+                    html += `<a href="${regionMapUrl}" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${regLat}" data-lng="${regLng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
                     html += `</div>`;
                     html += `</h2>`;
                     html += `<div id="region-${countryIdx}-${regionIdx}" class="accordion-collapse collapse" data-bs-parent="#regionsAccordion-${countryIdx}">`;
@@ -528,10 +530,11 @@ const generateStatsModalContent = (stats, highlightType) => {
                             const cityLastVisit = new Date(city.lastVisit).toISOString().split('T')[0];
                             const cityLat = city.coordinates?.coordinates?.[1] || 0;
                             const cityLng = city.coordinates?.coordinates?.[0] || 0;
+                            const cityMapUrl = `?lat=${cityLat.toFixed(6)}&lng=${cityLng.toFixed(6)}&zoom=13`;
 
                             html += `<div class="list-group-item d-flex justify-content-between align-items-center">`;
                             html += `<div><strong>${city.name}</strong> <small class="text-muted">(${city.visitCount} records, ${cityFirstVisit} - ${cityLastVisit})</small></div>`;
-                            html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link" data-lat="${cityLat}" data-lng="${cityLng}" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
+                            html += `<a href="${cityMapUrl}" class="btn btn-sm btn-outline-primary country-coords-link" data-lat="${cityLat}" data-lng="${cityLng}" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
                             html += `</div>`;
                         });
 
