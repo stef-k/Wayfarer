@@ -16,14 +16,14 @@ public class UserLocationStatsDetailedDto
     public List<CountryVisitDetail> Countries { get; set; } = new();
 
     /// <summary>
-    /// List of unique region names visited
+    /// Detailed list of regions visited with visit information
     /// </summary>
-    public List<string> Regions { get; set; } = new();
+    public List<RegionVisitDetail> Regions { get; set; } = new();
 
     /// <summary>
-    /// List of unique city names visited
+    /// Detailed list of cities visited with visit information
     /// </summary>
-    public List<string> Cities { get; set; } = new();
+    public List<CityVisitDetail> Cities { get; set; } = new();
 
     /// <summary>
     /// Earliest location date

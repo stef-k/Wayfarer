@@ -380,7 +380,7 @@ export const initializeMap = (center = [20, 0], zoom = 3) => {
         attribution: '© OpenStreetMap contributors'
     }).addTo(mapContainer);
 
-    mapContainer.attributionControl.setPrefix('&copy; <a href="https://leafletjs.com/">Leaflet</a>');
+    mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
     addZoomLevelControl(mapContainer);
 
     window.addEventListener('resize', () => mapContainer.invalidateSize());

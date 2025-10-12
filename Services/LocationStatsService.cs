@@ -143,21 +143,89 @@ public class LocationStatsService : ILocationStatsService
             .ThenByDescending(c => c.VisitCount)
             .ToList();
 
-        // Get distinct regions
-        var regions = await userLocations
+        // Get region details with visit counts and date ranges
+        var regionGroups = await userLocations
             .Where(l => !string.IsNullOrEmpty(l.Region))
-            .Select(l => l.Region!)
-            .Distinct()
-            .OrderBy(r => r)
+            .GroupBy(l => new { l.Region, l.Country })
+            .Select(g => new
+            {
+                Region = g.Key.Region,
+                Country = g.Key.Country,
+                FirstVisit = g.Min(l => l.Timestamp),
+                LastVisit = g.Max(l => l.Timestamp),
+                VisitCount = g.Count(),
+                Locations = g.Select(l => l.Coordinates).ToList()
+            })
             .ToListAsync();
 
-        // Get distinct cities
-        var cities = await userLocations
+        var regionGroupsWithCoords = regionGroups.Select(r => new
+        {
+            r.Region,
+            r.Country,
+            r.FirstVisit,
+            r.LastVisit,
+            r.VisitCount,
+            AvgLongitude = r.Locations.Average(coord => coord.X),
+            AvgLatitude = r.Locations.Average(coord => coord.Y)
+        }).ToList();
+
+        var regions = regionGroupsWithCoords
+            .Select(r => new RegionVisitDetail
+            {
+                Name = r.Region ?? string.Empty,
+                CountryName = r.Country ?? string.Empty,
+                FirstVisit = r.FirstVisit,
+                LastVisit = r.LastVisit,
+                VisitCount = r.VisitCount,
+                Coordinates = new NetTopologySuite.Geometries.Point(r.AvgLongitude, r.AvgLatitude) { SRID = 4326 }
+            })
+            .OrderBy(r => r.CountryName)
+            .ThenBy(r => r.Name)
+            .ToList();
+
+        // Get city details with visit counts and date ranges
+        var cityGroups = await userLocations
             .Where(l => !string.IsNullOrEmpty(l.Place))
-            .Select(l => l.Place!)
-            .Distinct()
-            .OrderBy(c => c)
+            .GroupBy(l => new { l.Place, l.Region, l.Country })
+            .Select(g => new
+            {
+                City = g.Key.Place,
+                Region = g.Key.Region,
+                Country = g.Key.Country,
+                FirstVisit = g.Min(l => l.Timestamp),
+                LastVisit = g.Max(l => l.Timestamp),
+                VisitCount = g.Count(),
+                Locations = g.Select(l => l.Coordinates).ToList()
+            })
             .ToListAsync();
+
+        var cityGroupsWithCoords = cityGroups.Select(c => new
+        {
+            c.City,
+            c.Region,
+            c.Country,
+            c.FirstVisit,
+            c.LastVisit,
+            c.VisitCount,
+            AvgLongitude = c.Locations.Average(coord => coord.X),
+            AvgLatitude = c.Locations.Average(coord => coord.Y)
+        }).ToList();
+
+        var cities = cityGroupsWithCoords
+            .Select(c => new CityVisitDetail
+            {
+                Name = c.City ?? string.Empty,
+                RegionName = c.Region ?? string.Empty,
+                CountryName = c.Country ?? string.Empty,
+                FirstVisit = c.FirstVisit,
+                LastVisit = c.LastVisit,
+                VisitCount = c.VisitCount,
+                Coordinates = new NetTopologySuite.Geometries.Point(c.AvgLongitude, c.AvgLatitude) { SRID = 4326 }
+            })
+            .OrderBy(c => c.CountryName)
+            .ThenBy(c => c.RegionName)
+            .ThenBy(c => c.Name)
+            .ToList();
 
         var fromDate = await userLocations.MinAsync(l => (DateTime?)l.Timestamp);
         var toDate = await userLocations.MaxAsync(l => (DateTime?)l.Timestamp);
@@ -231,21 +299,89 @@ public class LocationStatsService : ILocationStatsService
             .ThenByDescending(c => c.VisitCount)
             .ToList();
 
-        // Get distinct regions
-        var regions = await userLocations
+        // Get region details with visit counts and date ranges
+        var regionGroups = await userLocations
             .Where(l => !string.IsNullOrEmpty(l.Region))
-            .Select(l => l.Region!)
-            .Distinct()
-            .OrderBy(r => r)
+            .GroupBy(l => new { l.Region, l.Country })
+            .Select(g => new
+            {
+                Region = g.Key.Region,
+                Country = g.Key.Country,
+                FirstVisit = g.Min(l => l.Timestamp),
+                LastVisit = g.Max(l => l.Timestamp),
+                VisitCount = g.Count(),
+                Locations = g.Select(l => l.Coordinates).ToList()
+            })
             .ToListAsync();
 
-        // Get distinct cities
-        var cities = await userLocations
+        var regionGroupsWithCoords = regionGroups.Select(r => new
+        {
+            r.Region,
+            r.Country,
+            r.FirstVisit,
+            r.LastVisit,
+            r.VisitCount,
+            AvgLongitude = r.Locations.Average(coord => coord.X),
+            AvgLatitude = r.Locations.Average(coord => coord.Y)
+        }).ToList();
+
+        var regions = regionGroupsWithCoords
+            .Select(r => new RegionVisitDetail
+            {
+                Name = r.Region ?? string.Empty,
+                CountryName = r.Country ?? string.Empty,
+                FirstVisit = r.FirstVisit,
+                LastVisit = r.LastVisit,
+                VisitCount = r.VisitCount,
+                Coordinates = new NetTopologySuite.Geometries.Point(r.AvgLongitude, r.AvgLatitude) { SRID = 4326 }
+            })
+            .OrderBy(r => r.CountryName)
+            .ThenBy(r => r.Name)
+            .ToList();
+
+        // Get city details with visit counts and date ranges
+        var cityGroups = await userLocations
             .Where(l => !string.IsNullOrEmpty(l.Place))
-            .Select(l => l.Place!)
-            .Distinct()
-            .OrderBy(c => c)
+            .GroupBy(l => new { l.Place, l.Region, l.Country })
+            .Select(g => new
+            {
+                City = g.Key.Place,
+                Region = g.Key.Region,
+                Country = g.Key.Country,
+                FirstVisit = g.Min(l => l.Timestamp),
+                LastVisit = g.Max(l => l.Timestamp),
+                VisitCount = g.Count(),
+                Locations = g.Select(l => l.Coordinates).ToList()
+            })
             .ToListAsync();
+
+        var cityGroupsWithCoords = cityGroups.Select(c => new
+        {
+            c.City,
+            c.Region,
+            c.Country,
+            c.FirstVisit,
+            c.LastVisit,
+            c.VisitCount,
+            AvgLongitude = c.Locations.Average(coord => coord.X),
+            AvgLatitude = c.Locations.Average(coord => coord.Y)
+        }).ToList();
+
+        var cities = cityGroupsWithCoords
+            .Select(c => new CityVisitDetail
+            {
+                Name = c.City ?? string.Empty,
+                RegionName = c.Region ?? string.Empty,
+                CountryName = c.Country ?? string.Empty,
+                FirstVisit = c.FirstVisit,
+                LastVisit = c.LastVisit,
+                VisitCount = c.VisitCount,
+                Coordinates = new NetTopologySuite.Geometries.Point(c.AvgLongitude, c.AvgLatitude) { SRID = 4326 }
+            })
+            .OrderBy(c => c.CountryName)
+            .ThenBy(c => c.RegionName)
+            .ThenBy(c => c.Name)
+            .ToList();
 
         var fromDate = await userLocations.MinAsync(l => (DateTime?)l.LocalTimestamp);
         var toDate = await userLocations.MaxAsync(l => (DateTime?)l.LocalTimestamp);

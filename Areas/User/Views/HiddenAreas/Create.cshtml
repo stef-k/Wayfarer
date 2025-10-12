@@ -46,6 +46,8 @@ ViewData["LoadLeaflet"] = true;  // Make sure your _Layout includes leaflet and 
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+
     // Layer to hold drawn polygons
     const drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
