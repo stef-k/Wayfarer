@@ -30,14 +30,17 @@ public class LocationStatsService : ILocationStatsService
 
         var totalLocations = await userLocations.CountAsync();
         var distinctCountries = await userLocations
+            .Where(l => !string.IsNullOrEmpty(l.Country))
             .Select(l => l.Country).Distinct().CountAsync();
         var distinctCities = await userLocations
+            .Where(l => !string.IsNullOrEmpty(l.Place))
             .Select(l => l.Place).Distinct().CountAsync();
         var distinctRegions = await userLocations
+            .Where(l => !string.IsNullOrEmpty(l.Region))
             .Select(l => l.Region).Distinct().CountAsync();
 
         var fromDate = await userLocations.MinAsync(l => (DateTime?)l.Timestamp);
-        
+
         var toDate = await userLocations.MaxAsync(l => (DateTime?)l.Timestamp);
 
         return new UserLocationStatsDto
