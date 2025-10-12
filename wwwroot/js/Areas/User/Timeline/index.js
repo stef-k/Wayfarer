@@ -627,10 +627,12 @@ const generateStatsModalContent = (stats, highlightType) => {
 
             html += `<div class="accordion-item">`;
             html += `<h2 class="accordion-header" id="country-heading-${countryIdx}">`;
-            html += `<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#country-${countryIdx}">`;
+            html += `<div class="d-flex w-100 align-items-center">`;
+            html += `<button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse" data-bs-target="#country-${countryIdx}">`;
             html += `${country.name}${homeLabel} <small class="ms-2 text-muted">(${country.visitCount} records, ${firstVisit} - ${lastVisit})</small>`;
-            html += `<a href="#" class="ms-auto me-2 btn btn-sm btn-outline-primary country-coords-link" data-lat="${lat}" data-lng="${lng}" onclick="event.stopPropagation();" title="View on map"><i class="bi bi-geo-alt"></i> Map</a>`;
             html += `</button>`;
+            html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${lat}" data-lng="${lng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
+            html += `</div>`;
             html += `</h2>`;
             html += `<div id="country-${countryIdx}" class="accordion-collapse collapse" data-bs-parent="#countriesAccordion">`;
             html += `<div class="accordion-body">`;
@@ -650,10 +652,12 @@ const generateStatsModalContent = (stats, highlightType) => {
 
                     html += `<div class="accordion-item">`;
                     html += `<h2 class="accordion-header" id="region-heading-${countryIdx}-${regionIdx}">`;
-                    html += `<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#region-${countryIdx}-${regionIdx}">`;
+                    html += `<div class="d-flex w-100 align-items-center">`;
+                    html += `<button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse" data-bs-target="#region-${countryIdx}-${regionIdx}">`;
                     html += `${region.name} <small class="ms-2 text-muted">(${region.visitCount} records, ${regFirstVisit} - ${regLastVisit})</small>`;
-                    html += `<a href="#" class="ms-auto me-2 btn btn-sm btn-outline-primary country-coords-link" data-lat="${regLat}" data-lng="${regLng}" onclick="event.stopPropagation();" title="View on map"><i class="bi bi-geo-alt"></i> Map</a>`;
                     html += `</button>`;
+                    html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${regLat}" data-lng="${regLng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
+                    html += `</div>`;
                     html += `</h2>`;
                     html += `<div id="region-${countryIdx}-${regionIdx}" class="accordion-collapse collapse" data-bs-parent="#regionsAccordion-${countryIdx}">`;
                     html += `<div class="accordion-body">`;
@@ -670,7 +674,7 @@ const generateStatsModalContent = (stats, highlightType) => {
 
                             html += `<div class="list-group-item d-flex justify-content-between align-items-center">`;
                             html += `<div><strong>${city.name}</strong> <small class="text-muted">(${city.visitCount} records, ${cityFirstVisit} - ${cityLastVisit})</small></div>`;
-                            html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link" data-lat="${cityLat}" data-lng="${cityLng}" title="View on map"><i class="bi bi-geo-alt"></i> Map</a>`;
+                            html += `<a href="#" class="btn btn-sm btn-outline-primary country-coords-link" data-lat="${cityLat}" data-lng="${cityLng}" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
                             html += `</div>`;
                         });
 

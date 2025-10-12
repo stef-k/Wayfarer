@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Read(//c/Users/stef/source/repos/Wayfarer.Mobile/**)"
+      "Read(//c/Users/stef/source/repos/Wayfarer.Mobile/**)",
+      "Bash(dotnet ef migrations add:*)",
+      "Bash(dotnet build:*)"
     ],
     "deny": [],
     "ask": []
