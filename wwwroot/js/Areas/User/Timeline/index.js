@@ -618,9 +618,9 @@ const generateStatsModalContent = (stats, highlightType) => {
             const firstVisit = new Date(country.firstVisit).toISOString().split('T')[0];
             const lastVisit = new Date(country.lastVisit).toISOString().split('T')[0];
 
-            // Extract coordinates from PostGIS Point (GeoJSON format: [lng, lat])
-            const lat = country.coordinates?.coordinates?.[1] || 0;
-            const lng = country.coordinates?.coordinates?.[0] || 0;
+            // Extract coordinates from PostGIS Point
+            const lat = country.coordinates?.latitude || 0;
+            const lng = country.coordinates?.longitude || 0;
             const countryMapUrl = `?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&zoom=8`;
 
             // Get regions for this country
@@ -645,8 +645,8 @@ const generateStatsModalContent = (stats, highlightType) => {
                 countryRegions.forEach((region, regionIdx) => {
                     const regFirstVisit = new Date(region.firstVisit).toISOString().split('T')[0];
                     const regLastVisit = new Date(region.lastVisit).toISOString().split('T')[0];
-                    const regLat = region.coordinates?.coordinates?.[1] || 0;
-                    const regLng = region.coordinates?.coordinates?.[0] || 0;
+                    const regLat = region.coordinates?.latitude || 0;
+                    const regLng = region.coordinates?.longitude || 0;
                     const regionMapUrl = `?lat=${regLat.toFixed(6)}&lng=${regLng.toFixed(6)}&zoom=10`;
 
                     // Get cities for this region
@@ -671,8 +671,8 @@ const generateStatsModalContent = (stats, highlightType) => {
                         regionCities.forEach(city => {
                             const cityFirstVisit = new Date(city.firstVisit).toISOString().split('T')[0];
                             const cityLastVisit = new Date(city.lastVisit).toISOString().split('T')[0];
-                            const cityLat = city.coordinates?.coordinates?.[1] || 0;
-                            const cityLng = city.coordinates?.coordinates?.[0] || 0;
+                            const cityLat = city.coordinates?.latitude || 0;
+                            const cityLng = city.coordinates?.longitude || 0;
                             const cityMapUrl = `?lat=${cityLat.toFixed(6)}&lng=${cityLng.toFixed(6)}&zoom=13`;
 
                             html += `<div class="list-group-item d-flex justify-content-between align-items-center">`;
