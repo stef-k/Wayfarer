@@ -38,8 +38,8 @@ public class InvitationsControllerTests
     public async Task List_Returns_Pending()
     {
         using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o" };
-        var user = new ApplicationUser { Id = "u", UserName = "u" };
+        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
+        var user = new ApplicationUser { Id = "u", UserName = "u", DisplayName = "u" };
         db.Users.AddRange(owner, user);
         await db.SaveChangesAsync();
         var gs = new GroupService(db);
@@ -57,8 +57,8 @@ public class InvitationsControllerTests
     public async Task Accept_By_Id_Works()
     {
         using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o" };
-        var user = new ApplicationUser { Id = "u", UserName = "u" };
+        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
+        var user = new ApplicationUser { Id = "u", UserName = "u", DisplayName = "u" };
         db.Users.AddRange(owner, user);
         await db.SaveChangesAsync();
         var gs = new GroupService(db);
@@ -72,4 +72,3 @@ public class InvitationsControllerTests
         Assert.True(await db.GroupMembers.AnyAsync(m => m.GroupId == g.Id && m.UserId == user.Id));
     }
 }
-
