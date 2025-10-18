@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
@@ -24,7 +25,7 @@ public class GroupsControllerTests
     private static GroupsController MakeController(ApplicationDbContext db, string userId)
     {
         var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>());
-        var claims = new List<Claim> { new Claim(ClaimTypes.NameIdentifier, userId) };
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
         var identity = new ClaimsIdentity(claims, "Test");
         var principal = new ClaimsPrincipal(identity);
         controller.ControllerContext = new ControllerContext
@@ -38,7 +39,7 @@ public class GroupsControllerTests
     public async Task Create_Returns_Created()
     {
         using var db = MakeDb();
-        db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1" });
+        db.Users.Add(new ApplicationUser { Id = "u1", UserName = "u1", DisplayName = "u1" });
         await db.SaveChangesAsync();
         var ctrl = MakeController(db, "u1");
         var resp = await ctrl.Create(new GroupCreateRequest { Name = "G1" }, CancellationToken.None);
@@ -50,7 +51,7 @@ public class GroupsControllerTests
     public async Task Leave_Updates_Status()
     {
         using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "owner", UserName = "owner" };
+        var owner = new ApplicationUser { Id = "owner", UserName = "owner", DisplayName = "owner" };
         db.Users.Add(owner);
         await db.SaveChangesAsync();
         var svc = new GroupService(db);
@@ -59,7 +60,7 @@ public class GroupsControllerTests
         var ctrl = MakeController(db, owner.Id);
         var resp = await ctrl.Leave(g.Id, CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(resp);
-        Assert.True(await db.GroupMembers.AnyAsync(m => m.GroupId == g.Id && m.UserId == owner.Id && m.Status == GroupMember.MembershipStatuses.Left));
+        Assert.True(await db.GroupMembers.AnyAsync(m =>
+            m.GroupId == g.Id && m.UserId == owner.Id && m.Status == GroupMember.MembershipStatuses.Left));
     }
 }
-
