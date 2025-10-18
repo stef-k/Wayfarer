@@ -34,6 +34,21 @@
     searchBtn.addEventListener('click', function() { searchUsers(searchInput.value); });
   }
 
+  // Debounced live search when typing (min 2 chars)
+  function debounce(fn, delay) {
+    let t;
+    return function() {
+      const ctx = this, args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function() { fn.apply(ctx, args); }, delay);
+    };
+  }
+
+  if (searchInput && results) {
+    const debounced = debounce(function() { searchUsers(searchInput.value); }, 300);
+    searchInput.addEventListener('input', debounced);
+  }
+
   if (results && form) {
     results.addEventListener('change', function() {
       const hidden = form.querySelector('#inviteeUserId');
