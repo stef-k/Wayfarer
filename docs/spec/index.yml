@@ -22,7 +22,7 @@ tasks:
 - id: TM-004
   title: API - Invitations
   labels: ['api', 'backend']
-  status: doing
+  status: done
   deps: ['TM-002']
   file: spec/tasks/TM-004.md
 - id: TM-005
