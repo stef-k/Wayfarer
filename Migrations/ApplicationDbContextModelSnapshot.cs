@@ -406,6 +406,10 @@ namespace Wayfarer.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("GroupType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<bool>("IsArchived")
                         .HasColumnType("boolean");
 
@@ -413,6 +417,11 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("OrgPeerVisibilityEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("OwnerUserId")
                         .IsRequired()
@@ -502,6 +511,11 @@ namespace Wayfarer.Migrations
 
                     b.Property<DateTime?>("LeftAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("OrgPeerVisibilityAccessDisabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Role")
                         .IsRequired()
