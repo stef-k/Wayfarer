@@ -8,6 +8,7 @@ using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Xunit;
 
 namespace Wayfarer.Tests;
@@ -24,7 +25,7 @@ public class GroupsControllerTests
 
     private static GroupsController MakeController(ApplicationDbContext db, string userId)
     {
-        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>());
+        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
         var identity = new ClaimsIdentity(claims, "Test");
         var principal = new ClaimsPrincipal(identity);

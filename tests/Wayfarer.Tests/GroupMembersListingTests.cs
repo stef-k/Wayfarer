@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Xunit;
 
 namespace Wayfarer.Tests;
@@ -23,7 +24,7 @@ public class GroupMembersListingTests
 
     private static GroupsController MakeController(ApplicationDbContext db, string userId)
     {
-        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>());
+        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
         var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, userId) }, "Test");
         controller.ControllerContext = new ControllerContext
         {
