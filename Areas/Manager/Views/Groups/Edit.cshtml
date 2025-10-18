@@ -19,7 +19,6 @@
     <div class="mb-3">
         <label class="form-label" for="groupType">Type</label>
         <select class="form-select" id="groupType" name="groupType" value="@Model.GroupType">
-            <option value="" selected="@(string.IsNullOrEmpty(Model.GroupType) ? "selected" : null)">General</option>
             <option value="Organization" selected="@(Model.GroupType == "Organization" ? "selected" : null)">Organization</option>
             <option value="Family" selected="@(Model.GroupType == "Family" ? "selected" : null)">Family</option>
             <option value="Friends" selected="@(Model.GroupType == "Friends" ? "selected" : null)">Friends</option>
