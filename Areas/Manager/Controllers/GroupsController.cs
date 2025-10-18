@@ -15,6 +15,10 @@ namespace Wayfarer.Areas.Manager.Controllers;
 public class GroupsController : BaseController
 {
     private readonly IGroupService _groupService;
+    private static readonly HashSet<string> AllowedGroupTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Organization", "Family", "Friends"
+    };
 
     public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService)
         : base(logger, dbContext)
@@ -122,11 +126,21 @@ public class GroupsController : BaseController
             ModelState.AddModelError("groupType", "Group type is required.");
             return View();
         }
+        if (!AllowedGroupTypes.Contains(groupType))
+        {
+            ModelState.AddModelError("groupType", "Invalid group type.");
+            return View();
+        }
 
         try
         {
             var group = await _groupService.CreateGroupAsync(userId, name.Trim(), description);
-            group.GroupType = groupType;
+            // canonicalize value
+            group.GroupType = groupType.Equals("organization", StringComparison.OrdinalIgnoreCase)
+                ? "Organization"
+                : groupType.Equals("family", StringComparison.OrdinalIgnoreCase)
+                    ? "Family"
+                    : "Friends";
             await _dbContext.SaveChangesAsync();
 
             LogAudit("GroupCreate", $"Created group {name}", "Manager UI");
@@ -179,11 +193,22 @@ public class GroupsController : BaseController
             var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
             return View(fallback);
         }
+        if (!AllowedGroupTypes.Contains(groupType))
+        {
+            ModelState.AddModelError("groupType", "Invalid group type.");
+            var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
+            return View(fallback);
+        }
 
         var group = await _groupService.UpdateGroupAsync(id, userId, name.Trim(), description ?? string.Empty);
         if (group != null)
         {
-            group.GroupType = groupType;
+            // canonicalize value
+            group.GroupType = groupType.Equals("organization", StringComparison.OrdinalIgnoreCase)
+                ? "Organization"
+                : groupType.Equals("family", StringComparison.OrdinalIgnoreCase)
+                    ? "Family"
+                    : "Friends";
             await _dbContext.SaveChangesAsync();
             LogAudit("GroupUpdate", $"Updated group {group.Name}", "Manager UI");
         }
