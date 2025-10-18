@@ -83,6 +83,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         ViewBag.Group = group;
         ViewBag.Members = members;
         ViewBag.Invites = invites;
+        ViewBag.CurrentUserId = userId;
 
         SetPageTitle($"Members - {group.Name}");
         return View();
@@ -129,6 +130,10 @@ namespace Wayfarer.Areas.Manager.Controllers;
         catch (UnauthorizedAccessException)
         {
             return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            SetAlert(ex.Message, "danger");
         }
         catch (Exception ex)
         {

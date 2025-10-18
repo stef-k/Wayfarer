@@ -13,6 +13,12 @@
 <div class="row">
   <div class="col-md-7">
     <h4>Roster</h4>
+    @{
+        var isOrg = string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase);
+        var currentUserId = (string)ViewBag.CurrentUserId;
+        var mgrRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Wayfarer.Models.GroupMember.Roles.Owner, Wayfarer.Models.GroupMember.Roles.Manager };
+        var managerCount = members.Count(x => mgrRoles.Contains((string)x.m.Role) && string.Equals((string)x.m.Status, Wayfarer.Models.GroupMember.MembershipStatuses.Active, StringComparison.OrdinalIgnoreCase));
+    }
     <table class="table table-striped">
       <thead>
       <tr>
@@ -32,11 +38,15 @@
             <td>@x.m.Role</td>
             <td>@x.m.Status</td>
             <td>
-              <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline">
+              @{ bool isManagerRole = mgrRoles.Contains((string)x.m.Role); bool wouldHaveManagerAfterRemoval = !isOrg || !isManagerRole || (managerCount - 1) >= 1; bool canShowRemove = wouldHaveManagerAfterRemoval; }
+              @if (canShowRemove)
+              {
+                  <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline">
                 <input type="hidden" name="groupId" value="@group.Id" />
                 <input type="hidden" name="userId" value="@x.u.Id" />
                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
               </form>
+              }
             </td>
           </tr>
       }
@@ -89,6 +99,7 @@
                 <input type="hidden" name="inviteId" value="@inv.Id" />
                 <button type="submit" class="btn btn-sm btn-outline-secondary">Revoke</button>
               </form>
+              }
             </td>
           </tr>
       }

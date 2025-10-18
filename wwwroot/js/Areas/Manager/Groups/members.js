@@ -10,6 +10,10 @@
       return;
     }
     try {
+      const spinner = document.getElementById('userSearchSpinner');
+      if (spinner) spinner.classList.remove('d-none');
+      if (searchBtn) searchBtn.setAttribute('disabled', 'disabled');
+      if (searchInput) searchInput.setAttribute('disabled', 'disabled');
       const groupIdInput = form ? form.querySelector('input[name="groupId"]') : null;
       const gid = groupIdInput ? groupIdInput.value : '';
       const url = '/api/users/search?query=' + encodeURIComponent(q) + (gid ? ('&groupId=' + encodeURIComponent(gid)) : '');
@@ -27,6 +31,11 @@
       });
     } catch (e) {
       // no-op
+    } finally {
+      const spinner = document.getElementById('userSearchSpinner');
+      if (spinner) spinner.classList.add('d-none');
+      if (searchBtn) searchBtn.removeAttribute('disabled');
+      if (searchInput) searchInput.removeAttribute('disabled');
     }
   }
 

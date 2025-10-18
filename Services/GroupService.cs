@@ -118,6 +118,22 @@ public class GroupService : IGroupService
         var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == targetUserId, ct)
                      ?? throw new KeyNotFoundException("Membership not found");
 
+        // Guard: Organization groups must always retain at least one manager/owner
+        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == groupId, ct);
+        if (group != null && string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
+        {
+            var isManagerRole = member.Role == GroupMember.Roles.Owner || member.Role == GroupMember.Roles.Manager;
+            if (isManagerRole)
+            {
+                var activeManagerCount = await _db.GroupMembers
+                    .CountAsync(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active && (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager), ct);
+                if (activeManagerCount <= 1)
+                {
+                    throw new InvalidOperationException("Cannot remove the last manager from an Organization group.");
+                }
+            }
+        }
+
         member.Status = GroupMember.MembershipStatuses.Removed;
         member.LeftAt = DateTime.UtcNow;
         await AddAuditAsync(actorUserId, "MemberRemove", $"Removed {targetUserId} from group {groupId}", ct);
@@ -128,6 +144,22 @@ public class GroupService : IGroupService
     {
         var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId, ct)
                      ?? throw new KeyNotFoundException("Membership not found");
+
+        // Guard: Organization groups must always retain at least one manager/owner
+        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == groupId, ct);
+        if (group != null && string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
+        {
+            var isManagerRole = member.Role == GroupMember.Roles.Owner || member.Role == GroupMember.Roles.Manager;
+            if (isManagerRole)
+            {
+                var activeManagerCount = await _db.GroupMembers
+                    .CountAsync(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active && (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager), ct);
+                if (activeManagerCount <= 1)
+                {
+                    throw new InvalidOperationException("You are the last manager of this Organization group. Transfer or add another manager before leaving.");
+                }
+            }
+        }
 
         member.Status = GroupMember.MembershipStatuses.Left;
         member.LeftAt = DateTime.UtcNow;
@@ -167,4 +199,3 @@ public class GroupService : IGroupService
         await _db.AuditLogs.AddAsync(audit, ct);
     }
 }
-
