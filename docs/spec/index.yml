@@ -34,7 +34,7 @@ tasks:
 - id: TM-006
   title: API - Group Locations (Latest, Query)
   labels: ['api', 'sse']
-  status: doing
+  status: done
   deps: ['TM-002', 'TM-005']
   file: spec/tasks/TM-006.md
 - id: TM-007
