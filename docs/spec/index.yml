@@ -28,7 +28,7 @@ tasks:
 - id: TM-005
   title: API - Group Members Listing
   labels: ['api']
-  status: todo
+  status: doing
   deps: ['TM-002']
   file: spec/tasks/TM-005.md
 - id: TM-006

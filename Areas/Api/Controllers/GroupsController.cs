@@ -45,6 +45,36 @@ public class GroupsController : ControllerBase
         }
     }
 
+    // GET /api/groups/{groupId}/members
+    [HttpGet("{groupId}/members")]
+    public async Task<IActionResult> Members([FromRoute] Guid groupId, CancellationToken ct)
+    {
+        if (CurrentUserId is null) return Unauthorized();
+
+        // must be a member to view list
+        var isMember = await _db.GroupMembers
+            .AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        if (!isMember) return StatusCode(403);
+
+        var roster = await (from m in _db.GroupMembers
+                            where m.GroupId == groupId
+                            join u in _db.Users on m.UserId equals u.Id
+                            select new { m, u })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var payload = roster.Select(x => new Wayfarer.Models.Dtos.GroupMemberDto
+        {
+            UserId = x.u.Id,
+            UserName = x.u.UserName ?? string.Empty,
+            DisplayName = x.u.DisplayName,
+            GroupRole = x.m.Role,
+            Status = x.m.Status
+        }).ToList();
+
+        return Ok(payload);
+    }
+
     // GET /api/groups?scope=managed|joined
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? scope, CancellationToken ct)
