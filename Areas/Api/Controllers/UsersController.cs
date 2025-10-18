@@ -118,7 +118,10 @@ public class UsersController : ControllerBase
             var pendingInviteUserIds = _dbContext.GroupInvitations
                 .Where(i => i.GroupId == gid && i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId != null)
                 .Select(i => i.InviteeUserId!);
-            users = users.Where(u => !pendingInviteUserIds.Contains(u.Id));
+            var activeMemberUserIds = _dbContext.GroupMembers
+                .Where(m => m.GroupId == gid && m.Status == GroupMember.MembershipStatuses.Active)
+                .Select(m => m.UserId);
+            users = users.Where(u => !pendingInviteUserIds.Contains(u.Id) && !activeMemberUserIds.Contains(u.Id));
         }
 
         var results = await users
