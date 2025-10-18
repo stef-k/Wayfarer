@@ -10,7 +10,9 @@
       return;
     }
     try {
-      const url = '/api/users/search?query=' + encodeURIComponent(q);
+      const groupIdInput = form ? form.querySelector('input[name="groupId"]') : null;
+      const gid = groupIdInput ? groupIdInput.value : '';
+      const url = '/api/users/search?query=' + encodeURIComponent(q) + (gid ? ('&groupId=' + encodeURIComponent(gid)) : '');
       const resp = await fetch(url);
       if (!resp.ok) return;
       const data = await resp.json();

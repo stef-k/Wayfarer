@@ -103,14 +103,25 @@ public class UsersController : ControllerBase
     /// <param name="query">Search term (min 2 chars).</param>
     [HttpGet("search")]
     [Authorize(Roles = "Manager")]
-    public async Task<IActionResult> Search([FromQuery] string? query, CancellationToken ct)
+    public async Task<IActionResult> Search([FromQuery] string? query, [FromQuery] Guid? groupId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
             return Ok(Array.Empty<object>());
 
         query = query.Trim();
-        var results = await _dbContext.Users
-            .Where(u => EF.Functions.ILike(u.UserName, $"%{query}%") || EF.Functions.ILike(u.DisplayName, $"%{query}%"))
+        var users = _dbContext.Users
+            .Where(u => EF.Functions.ILike(u.UserName, $"%{query}%") || EF.Functions.ILike(u.DisplayName, $"%{query}%"));
+
+        if (groupId.HasValue)
+        {
+            var gid = groupId.Value;
+            var pendingInviteUserIds = _dbContext.GroupInvitations
+                .Where(i => i.GroupId == gid && i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId != null)
+                .Select(i => i.InviteeUserId!);
+            users = users.Where(u => !pendingInviteUserIds.Contains(u.Id));
+        }
+
+        var results = await users
             .OrderBy(u => u.UserName)
             .Select(u => new { id = u.Id, userName = u.UserName, displayName = u.DisplayName })
             .Take(10)
