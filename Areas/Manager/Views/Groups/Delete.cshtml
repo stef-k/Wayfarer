@@ -1,0 +1,25 @@
+@model Wayfarer.Models.Group
+@{
+    ViewData["Title"] = "Delete Group";
+}
+
+<h2>Delete Group</h2>
+<div class="alert alert-warning">
+    <strong>Warning:</strong> This will permanently delete the group <strong>@Model.Name</strong> and its memberships.
+</div>
+
+<dl class="row">
+    <dt class="col-sm-2">Name</dt>
+    <dd class="col-sm-10">@Model.Name</dd>
+    <dt class="col-sm-2">Description</dt>
+    <dd class="col-sm-10">@Model.Description</dd>
+    <dt class="col-sm-2">Type</dt>
+    <dd class="col-sm-10">@Model.GroupType</dd>
+  </dl>
+
+<form asp-area="Manager" asp-controller="Groups" asp-action="ConfirmDelete" method="post">
+    <input type="hidden" name="id" value="@Model.Id" />
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">Cancel</a>
+  </form>
+

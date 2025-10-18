@@ -24,8 +24,9 @@
             <td>@g.Name</td>
             <td>@g.Description</td>
             <td>@g.GroupType</td>
-            <td>
+            <td class="text-nowrap">
                 <a class="btn btn-sm btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Edit" asp-route-id="@g.Id">Edit</a>
+                <a class="btn btn-sm btn-outline-danger" asp-area="Manager" asp-controller="Groups" asp-action="Delete" asp-route-id="@g.Id">Delete</a>
             </td>
         </tr>
     }
@@ -33,4 +34,3 @@
   </table>
 
 <script src="~/js/Areas/Manager/Groups/index.js"></script>
-

@@ -37,7 +37,13 @@ public class GroupsController : BaseController
                              select g).AsNoTracking().ToListAsync();
 
         var owned = await _dbContext.Groups.Where(g => g.OwnerUserId == userId).AsNoTracking().ToListAsync();
-        var model = managed.Union(owned).Distinct().OrderBy(g => g.Name).ToList();
+        // Distinct by Id to avoid duplicates when the owner is also listed as manager/owner membership
+        var model = managed
+            .Concat(owned)
+            .GroupBy(g => g.Id)
+            .Select(g => g.First())
+            .OrderBy(g => g.Name)
+            .ToList();
 
         SetPageTitle("Groups");
         return View(model);
@@ -51,6 +57,50 @@ public class GroupsController : BaseController
     {
         SetPageTitle("Create Group");
         return View();
+    }
+
+    /// <summary>
+    /// Delete confirmation view (owner-only).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
+        if (group == null) return NotFound();
+
+        var isOwner = await _dbContext.GroupMembers.AnyAsync(m => m.GroupId == id && m.UserId == userId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active)
+                      || group.OwnerUserId == userId;
+        if (!isOwner) return Forbid();
+
+        SetPageTitle($"Delete {group.Name}");
+        return View(group);
+    }
+
+    /// <summary>
+    /// Deletes a group (owner-only).
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConfirmDelete(Guid id)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        try
+        {
+            await _groupService.DeleteGroupAsync(id, userId);
+            LogAudit("GroupDelete", $"Deleted group {id}", "Manager UI");
+            return RedirectWithAlert("Index", "Groups", "Group deleted", "success", area: "Manager");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     /// <summary>
@@ -136,4 +186,3 @@ public class GroupsController : BaseController
         return RedirectWithAlert("Index", "Groups", "Group updated", "success", area: "Manager");
     }
 }
-
