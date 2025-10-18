@@ -1,0 +1,31 @@
+@model Wayfarer.Models.Group
+@{
+    ViewData["Title"] = "Edit Group";
+}
+
+<h2>Edit Group</h2>
+
+<form asp-area="Manager" asp-controller="Groups" asp-action="Edit" method="post" id="groupEditForm" novalidate>
+    <input type="hidden" name="id" value="@Model.Id" />
+    <div class="mb-3">
+        <label class="form-label" for="name">Name</label>
+        <input class="form-control" id="name" name="name" value="@Model.Name" required maxlength="200" />
+        <div class="invalid-feedback">Please provide a group name.</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="description">Description</label>
+        <textarea class="form-control" id="description" name="description" rows="3">@Model.Description</textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="groupType">Type</label>
+        <select class="form-select" id="groupType" name="groupType" value="@Model.GroupType">
+            <option value="" selected="@(string.IsNullOrEmpty(Model.GroupType) ? "selected" : null)">General</option>
+            <option value="Organisation" selected="@(Model.GroupType == "Organisation" ? "selected" : null)">Organisation</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">Cancel</a>
+  </form>
+
+<script src="~/js/Areas/Manager/Groups/index.js"></script>
+

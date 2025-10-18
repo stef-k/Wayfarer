@@ -46,7 +46,7 @@ tasks:
 - id: TM-008
   title: Manager UI - Groups
   labels: ['ui']
-  status: todo
+  status: doing
   deps: ['TM-003']
   file: spec/tasks/TM-008.md
 - id: TM-009

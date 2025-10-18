@@ -1,0 +1,29 @@
+@{
+    ViewData["Title"] = "Create Group";
+}
+
+<h2>Create Group</h2>
+
+<form asp-area="Manager" asp-controller="Groups" asp-action="Create" method="post" id="groupCreateForm" novalidate>
+    <div class="mb-3">
+        <label class="form-label" for="name">Name</label>
+        <input class="form-control" id="name" name="name" required maxlength="200" />
+        <div class="invalid-feedback">Please provide a group name.</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="description">Description</label>
+        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="groupType">Type</label>
+        <select class="form-select" id="groupType" name="groupType">
+            <option value="">General</option>
+            <option value="Organisation">Organisation</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">Cancel</a>
+  </form>
+
+<script src="~/js/Areas/Manager/Groups/index.js"></script>
+
