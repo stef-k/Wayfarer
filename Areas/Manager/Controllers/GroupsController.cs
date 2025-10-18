@@ -117,15 +117,17 @@ public class GroupsController : BaseController
             ModelState.AddModelError("name", "Name is required.");
             return View();
         }
+        if (string.IsNullOrWhiteSpace(groupType))
+        {
+            ModelState.AddModelError("groupType", "Group type is required.");
+            return View();
+        }
 
         try
         {
             var group = await _groupService.CreateGroupAsync(userId, name.Trim(), description);
-            if (!string.IsNullOrWhiteSpace(groupType))
-            {
-                group.GroupType = groupType;
-                await _dbContext.SaveChangesAsync();
-            }
+            group.GroupType = groupType;
+            await _dbContext.SaveChangesAsync();
 
             LogAudit("GroupCreate", $"Created group {name}", "Manager UI");
             return RedirectWithAlert("Index", "Groups", "Group created", "success", area: "Manager");
@@ -171,15 +173,18 @@ public class GroupsController : BaseController
             var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
             return View(fallback);
         }
+        if (string.IsNullOrWhiteSpace(groupType))
+        {
+            ModelState.AddModelError("groupType", "Group type is required.");
+            var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
+            return View(fallback);
+        }
 
         var group = await _groupService.UpdateGroupAsync(id, userId, name.Trim(), description ?? string.Empty);
         if (group != null)
         {
-            if (!string.IsNullOrWhiteSpace(groupType))
-            {
-                group.GroupType = groupType;
-                await _dbContext.SaveChangesAsync();
-            }
+            group.GroupType = groupType;
+            await _dbContext.SaveChangesAsync();
             LogAudit("GroupUpdate", $"Updated group {group.Name}", "Manager UI");
         }
 
