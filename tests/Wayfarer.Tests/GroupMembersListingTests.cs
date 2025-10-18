@@ -46,8 +46,21 @@ public class GroupMembersListingTests
 
         var ctrl = MakeController(db, outsider.Id);
         var resp = await ctrl.Members(g.Id, CancellationToken.None);
-        var s = Assert.IsType<ObjectResult>(resp);
-        Assert.Equal(403, s.StatusCode);
+        switch (resp)
+        {
+            case ObjectResult o:
+                Assert.Equal(403, o.StatusCode);
+                break;
+            case StatusCodeResult sc:
+                Assert.Equal(403, sc.StatusCode);
+                break;
+            case ForbidResult:
+                // acceptable representation of 403
+                break;
+            default:
+                Assert.True(false, $"Unexpected result type: {resp.GetType().Name}");
+                break;
+        }
     }
 
     [Fact]
@@ -69,4 +82,3 @@ public class GroupMembersListingTests
         Assert.NotNull(ok.Value);
     }
 }
-
