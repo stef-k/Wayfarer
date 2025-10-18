@@ -16,7 +16,7 @@ tasks:
 - id: TM-003
   title: API - Groups CRUD and Membership
   labels: ['api', 'backend']
-  status: todo
+  status: doing
   deps: ['TM-002']
   file: spec/tasks/TM-003.md
 - id: TM-004
