@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Xunit;
@@ -19,8 +20,8 @@ public class InvitationServiceTests
     public async Task Invite_Accept_Flows()
     {
         using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o" };
-        var user = new ApplicationUser { Id = "u", UserName = "u" };
+        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
+        var user = new ApplicationUser { Id = "u", UserName = "u", DisplayName = "u" };
         db.Users.AddRange(owner, user);
         await db.SaveChangesAsync();
 
@@ -42,8 +43,8 @@ public class InvitationServiceTests
     public async Task Decline_Sets_Status_And_Audit()
     {
         using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o" };
-        var user = new ApplicationUser { Id = "u", UserName = "u" };
+        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
+        var user = new ApplicationUser { Id = "u", UserName = "u", DisplayName = "u" };
         db.Users.AddRange(owner, user);
         await db.SaveChangesAsync();
 
@@ -59,4 +60,3 @@ public class InvitationServiceTests
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "InviteDecline"));
     }
 }
-

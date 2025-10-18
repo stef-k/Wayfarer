@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Xunit;
@@ -19,7 +20,7 @@ public class GroupServiceTests
     public async Task CreateGroup_CreatesOwnerMembership()
     {
         using var db = MakeDb();
-        db.Users.Add(new ApplicationUser { Id = "owner1", UserName = "owner1" });
+        db.Users.Add(new ApplicationUser { Id = "owner1", UserName = "owner1", DisplayName = "owner1" });
         await db.SaveChangesAsync();
 
         var svc = new GroupService(db);
@@ -27,7 +28,8 @@ public class GroupServiceTests
 
         Assert.NotEqual(Guid.Empty, g.Id);
         Assert.Equal("owner1", g.OwnerUserId);
-        Assert.True(await db.GroupMembers.AnyAsync(m => m.GroupId == g.Id && m.UserId == "owner1" && m.Role == GroupMember.Roles.Owner));
+        Assert.True(await db.GroupMembers.AnyAsync(m =>
+            m.GroupId == g.Id && m.UserId == "owner1" && m.Role == GroupMember.Roles.Owner));
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "GroupCreate"));
     }
 
@@ -35,9 +37,9 @@ public class GroupServiceTests
     public async Task AddMember_RequiresManagerOrOwner()
     {
         using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o" };
-        var other = new ApplicationUser { Id = "u2", UserName = "u2" };
-        var actor = new ApplicationUser { Id = "actor", UserName = "actor" };
+        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
+        var other = new ApplicationUser { Id = "u2", UserName = "u2", DisplayName = "u2" };
+        var actor = new ApplicationUser { Id = "actor", UserName = "actor", DisplayName = "actor" };
         db.Users.AddRange(owner, other, actor);
         await db.SaveChangesAsync();
 
@@ -45,7 +47,8 @@ public class GroupServiceTests
         var g = await svc.CreateGroupAsync(owner.Id, "G", null);
 
         // actor is not member -> should fail
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => svc.AddMemberAsync(g.Id, actor.Id, other.Id, GroupMember.Roles.Member));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            svc.AddMemberAsync(g.Id, actor.Id, other.Id, GroupMember.Roles.Member));
 
         // make actor manager and retry
         db.GroupMembers.Add(new GroupMember
@@ -60,4 +63,3 @@ public class GroupServiceTests
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "MemberAdd"));
     }
 }
-
