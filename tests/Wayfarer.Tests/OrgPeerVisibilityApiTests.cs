@@ -71,7 +71,21 @@ public class OrgPeerVisibilityApiTests
 
         var ctrl = MakeController(db, m1.Id);
         var resp = await ctrl.ToggleOrgPeerVisibility(g.Id, new OrgPeerVisibilityToggleRequest { Enabled = true }, default);
-        Assert.IsType<ObjectResult>(resp); // 403
+        switch (resp)
+        {
+            case ObjectResult o:
+                Assert.Equal(403, o.StatusCode);
+                break;
+            case StatusCodeResult sc:
+                Assert.Equal(403, sc.StatusCode);
+                break;
+            case ForbidResult:
+                // acceptable representation of 403
+                break;
+            default:
+                Assert.True(false, $"Unexpected result type: {resp.GetType().Name}");
+                break;
+        }
     }
 
     [Fact]
@@ -95,4 +109,3 @@ public class OrgPeerVisibilityApiTests
         Assert.True(db.GroupMembers.First(x => x.GroupId == g.Id && x.UserId == m1.Id).OrgPeerVisibilityAccessDisabled);
     }
 }
-
