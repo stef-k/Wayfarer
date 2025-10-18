@@ -40,7 +40,7 @@ tasks:
 - id: TM-007
   title: Org Peer Visibility Settings APIs
   labels: ['api']
-  status: todo
+  status: done
   deps: ['TM-002']
   file: spec/tasks/TM-007.md
 - id: TM-008

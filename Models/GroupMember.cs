@@ -51,6 +51,11 @@ public class GroupMember
     public DateTime? LeftAt { get; set; }
 
     /// <summary>
+    /// For Organisation groups, a member can opt out of peer visibility.
+    /// </summary>
+    public bool OrgPeerVisibilityAccessDisabled { get; set; } = false;
+
+    /// <summary>
     /// Navigation: Group.
     /// </summary>
     [ForeignKey(nameof(GroupId))]
@@ -82,4 +87,3 @@ public class GroupMember
         public const string Removed = "Removed";
     }
 }
-

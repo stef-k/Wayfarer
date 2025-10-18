@@ -283,6 +283,10 @@ namespace Wayfarer.Models
                 .HasForeignKey(g => g.OwnerUserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            builder.Entity<Group>()
+                .Property(g => g.OrgPeerVisibilityEnabled)
+                .HasDefaultValue(false);
+
             // GroupMember
             builder.Entity<GroupMember>()
                 .HasIndex(m => new { m.GroupId, m.UserId })
@@ -303,6 +307,10 @@ namespace Wayfarer.Models
                 .WithMany(u => u.GroupMemberships)
                 .HasForeignKey(m => m.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<GroupMember>()
+                .Property(m => m.OrgPeerVisibilityAccessDisabled)
+                .HasDefaultValue(false);
 
             // GroupInvitation
             builder.Entity<GroupInvitation>()

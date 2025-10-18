@@ -168,6 +168,47 @@ public class GroupsController : ControllerBase
         return Ok(new { totalItems = total, results = combined });
     }
 
+
+    // POST /api/groups/{id}/settings/org-peer-visibility
+    [HttpPost("{id}/settings/org-peer-visibility")]
+    public async Task<IActionResult> ToggleOrgPeerVisibility([FromRoute] Guid id, [FromBody] OrgPeerVisibilityToggleRequest req, CancellationToken ct)
+    {
+        if (CurrentUserId is null) return Unauthorized();
+        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
+        if (group == null) return NotFound();
+        if (!string.Equals(group.GroupType, "Organisation", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Not an Organisation group" });
+
+        var membership = await _db.GroupMembers.AsNoTracking().FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
+        if (!isOwnerOrManager) return StatusCode(403);
+
+        group.OrgPeerVisibilityEnabled = req.Enabled;
+        group.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(ct);
+        return Ok(new { enabled = group.OrgPeerVisibilityEnabled });
+    }
+
+    // POST /api/groups/{id}/members/{userId}/org-peer-visibility-access
+    [HttpPost("{id}/members/{userId}/org-peer-visibility-access")]
+    public async Task<IActionResult> SetMemberOrgPeerVisibilityAccess([FromRoute] Guid id, [FromRoute] string userId, [FromBody] OrgPeerVisibilityAccessRequest req, CancellationToken ct)
+    {
+        if (CurrentUserId is null) return Unauthorized();
+        if (!string.Equals(CurrentUserId, userId, StringComparison.Ordinal)) return StatusCode(403);
+
+        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
+        if (group == null) return NotFound();
+        if (!string.Equals(group.GroupType, "Organisation", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Not an Organisation group" });
+
+        var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        if (member == null) return StatusCode(403);
+
+        member.OrgPeerVisibilityAccessDisabled = req.Disabled;
+        await _db.SaveChangesAsync(ct);
+        return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
+    }
+
     // GET /api/groups?scope=managed|joined
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? scope, CancellationToken ct)
@@ -245,4 +286,3 @@ public class GroupsController : ControllerBase
         }
     }
 }
-
