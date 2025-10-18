@@ -11,6 +11,7 @@ using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
+using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Tests;
 
@@ -26,7 +27,8 @@ public class GroupLocationsApiTests
 
     private static GroupsController MakeController(ApplicationDbContext db, string userId)
     {
-        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
+        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(),
+            new LocationService(db));
         var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, userId) }, "Test");
         controller.ControllerContext = new ControllerContext
         {
@@ -52,9 +54,21 @@ public class GroupLocationsApiTests
         var p1 = new Point(10, 10) { SRID = 4326 };
         var p2 = new Point(11, 11) { SRID = 4326 };
         db.Locations.AddRange(
-            new Location { UserId = owner.Id, TimeZoneId = "UTC", Coordinates = p1, Timestamp = DateTime.UtcNow.AddMinutes(-10), LocalTimestamp = DateTime.UtcNow.AddMinutes(-10) },
-            new Location { UserId = owner.Id, TimeZoneId = "UTC", Coordinates = p2, Timestamp = DateTime.UtcNow.AddMinutes(-5), LocalTimestamp = DateTime.UtcNow.AddMinutes(-5) },
-            new Location { UserId = u1.Id, TimeZoneId = "UTC", Coordinates = p1, Timestamp = DateTime.UtcNow.AddMinutes(-8), LocalTimestamp = DateTime.UtcNow.AddMinutes(-8) }
+            new Location
+            {
+                UserId = owner.Id, TimeZoneId = "UTC", Coordinates = p1, Timestamp = DateTime.UtcNow.AddMinutes(-10),
+                LocalTimestamp = DateTime.UtcNow.AddMinutes(-10)
+            },
+            new Location
+            {
+                UserId = owner.Id, TimeZoneId = "UTC", Coordinates = p2, Timestamp = DateTime.UtcNow.AddMinutes(-5),
+                LocalTimestamp = DateTime.UtcNow.AddMinutes(-5)
+            },
+            new Location
+            {
+                UserId = u1.Id, TimeZoneId = "UTC", Coordinates = p1, Timestamp = DateTime.UtcNow.AddMinutes(-8),
+                LocalTimestamp = DateTime.UtcNow.AddMinutes(-8)
+            }
         );
         await db.SaveChangesAsync();
 
@@ -66,4 +80,3 @@ public class GroupLocationsApiTests
         Assert.Equal(2, list.Count());
     }
 }
-
