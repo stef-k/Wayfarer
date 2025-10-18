@@ -5,6 +5,9 @@ using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
+using NetTopologySuite.Geometries;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -16,13 +19,15 @@ public class GroupsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IGroupService _groups;
+    private readonly LocationService _locationService;
     private readonly ILogger<GroupsController> _logger;
 
-    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger)
+    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService)
     {
         _db = db;
         _groups = groups;
         _logger = logger;
+        _locationService = locationService;
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -73,6 +78,90 @@ public class GroupsController : ControllerBase
         }).ToList();
 
         return Ok(payload);
+    }
+
+    // POST /api/groups/{groupId}/locations/latest
+    [HttpPost("{groupId}/locations/latest")]
+    public async Task<IActionResult> Latest([FromRoute] Guid groupId, [FromBody] GroupLocationsLatestRequest req, CancellationToken ct)
+    {
+        if (CurrentUserId is null) return Unauthorized();
+        // must be active member
+        var isMember = await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        if (!isMember) return StatusCode(403);
+
+        // determine allowed userIds (default: all active members)
+        var activeMemberIds = await _db.GroupMembers.Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
+            .Select(m => m.UserId).ToListAsync(ct);
+        var userIds = (req?.IncludeUserIds != null && req.IncludeUserIds.Count > 0)
+            ? req.IncludeUserIds.Intersect(activeMemberIds).Distinct().ToList()
+            : activeMemberIds;
+
+        // query latest per user
+        var latestPerUser = await _db.Locations
+            .Where(l => userIds.Contains(l.UserId))
+            .GroupBy(l => l.UserId)
+            .Select(g => g.OrderByDescending(x => x.LocalTimestamp).First())
+            .Include(l => l.ActivityType)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        // settings for threshold
+        var settings = await _db.ApplicationSettings.FirstOrDefaultAsync(ct);
+        int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
+
+        var result = latestPerUser.Select(l => new PublicLocationDto
+        {
+            Id = l.Id,
+            Timestamp = l.Timestamp,
+            LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X, DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
+            Coordinates = l.Coordinates,
+            Timezone = l.TimeZoneId,
+            Accuracy = l.Accuracy,
+            Altitude = l.Altitude,
+            Speed = l.Speed,
+            LocationType = l.LocationType,
+            ActivityType = l.ActivityType?.Name,
+            Address = l.Address,
+            FullAddress = l.FullAddress,
+            StreetName = l.StreetName,
+            PostCode = l.PostCode,
+            Place = l.Place,
+            Region = l.Region,
+            Country = l.Country,
+            Notes = l.Notes,
+            VehicleId = l.VehicleId,
+            IsLatestLocation = true,
+            LocationTimeThresholdMinutes = locationTimeThreshold
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    // POST /api/groups/{groupId}/locations/query
+    [HttpPost("{groupId}/locations/query")]
+    public async Task<IActionResult> Query([FromRoute] Guid groupId, [FromBody] GroupLocationsQueryRequest req, CancellationToken ct)
+    {
+        if (CurrentUserId is null) return Unauthorized();
+        var isMember = await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        if (!isMember) return StatusCode(403);
+
+        var activeMemberIds = await _db.GroupMembers.Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
+            .Select(m => m.UserId).ToListAsync(ct);
+        var userIds = (req?.UserIds != null && req.UserIds.Count > 0)
+            ? req.UserIds.Intersect(activeMemberIds).Distinct().ToList()
+            : activeMemberIds;
+
+        var combined = new List<PublicLocationDto>();
+        int total = 0;
+        foreach (var uid in userIds)
+        {
+            var (locations, userTotal) = await _locationService.GetLocationsAsync(
+                req.MinLng, req.MinLat, req.MaxLng, req.MaxLat, req.ZoomLevel, uid, ct);
+            combined.AddRange(locations);
+            total += userTotal;
+        }
+
+        return Ok(new { totalItems = total, results = combined });
     }
 
     // GET /api/groups?scope=managed|joined
