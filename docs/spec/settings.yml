@@ -1,0 +1,10 @@
+# Minimal execution settings for agents
+settings:
+  auto_execute_after_planning: false   # if true, start implementation immediately after planning
+  next_task_loop: manual               # "manual" or "auto"
+  require_owner_for_doing: false       # if true, must set 'owner' before switching a task to 'doing'
+  branch_naming: "feat/{id}-{slug}"    # hint/pattern for branch names
+  enforce_branching: true              # if true, agent must refuse to commit on protected branches
+  protected_branches: ["main", "master", "develop"]
+  commit_message_template: "{id}: {title}"
+  pr_title_template: "{id}: {title}"

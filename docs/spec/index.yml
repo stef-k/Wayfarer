@@ -1,0 +1,87 @@
+# Task ledger for agent + human
+designs: []
+tasks:
+- id: TM-001
+  title: Data Model and Migration
+  labels: ['db', 'backend']
+  status: done
+  deps: []
+  file: spec/tasks/TM-001.md
+- id: TM-002
+  title: Group and Invitation Services
+  labels: ['backend']
+  status: todo
+  deps: ['TM-001']
+  file: spec/tasks/TM-002.md
+- id: TM-003
+  title: API - Groups CRUD and Membership
+  labels: ['api', 'backend']
+  status: todo
+  deps: ['TM-002']
+  file: spec/tasks/TM-003.md
+- id: TM-004
+  title: API - Invitations
+  labels: ['api', 'backend']
+  status: todo
+  deps: ['TM-002']
+  file: spec/tasks/TM-004.md
+- id: TM-005
+  title: API - Group Members Listing
+  labels: ['api']
+  status: todo
+  deps: ['TM-002']
+  file: spec/tasks/TM-005.md
+- id: TM-006
+  title: API - Group Locations (Latest, Query)
+  labels: ['api', 'sse']
+  status: todo
+  deps: ['TM-002', 'TM-005']
+  file: spec/tasks/TM-006.md
+- id: TM-007
+  title: Org Peer Visibility Settings APIs
+  labels: ['api']
+  status: todo
+  deps: ['TM-002']
+  file: spec/tasks/TM-007.md
+- id: TM-008
+  title: Manager UI - Groups
+  labels: ['ui']
+  status: todo
+  deps: ['TM-003']
+  file: spec/tasks/TM-008.md
+- id: TM-009
+  title: Manager UI - Members and Invites
+  labels: ['ui']
+  status: todo
+  deps: ['TM-003', 'TM-004', 'TM-005']
+  file: spec/tasks/TM-009.md
+- id: TM-010
+  title: Manager UI - Map and SSE
+  labels: ['ui', 'sse']
+  status: todo
+  deps: ['TM-006']
+  file: spec/tasks/TM-010.md
+- id: TM-011
+  title: User UI - Invitations
+  labels: ['ui']
+  status: todo
+  deps: ['TM-004']
+  file: spec/tasks/TM-011.md
+- id: TM-012
+  title: User UI - Groups and Map
+  labels: ['ui']
+  status: todo
+  deps: ['TM-005', 'TM-006', 'TM-007']
+  file: spec/tasks/TM-012.md
+- id: TM-013
+  title: Auto-Delete Empty Groups
+  labels: ['backend']
+  status: todo
+  deps: ['TM-002', 'TM-003']
+  file: spec/tasks/TM-013.md
+- id: TM-014
+  title: Auditing Verification and Docs
+  labels: ['auditing', 'docs']
+  status: todo
+  deps: ['TM-003', 'TM-004', 'TM-006']
+  file: spec/tasks/TM-014.md
