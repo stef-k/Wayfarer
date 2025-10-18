@@ -10,7 +10,7 @@ tasks:
 - id: TM-002
   title: Group and Invitation Services
   labels: ['backend']
-  status: todo
+  status: doing
   deps: ['TM-001']
   file: spec/tasks/TM-002.md
 - id: TM-003

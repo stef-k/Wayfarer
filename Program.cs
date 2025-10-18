@@ -470,6 +470,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Trip import service
     builder.Services.AddScoped<ITripImportService, TripImportService>();
+
+    // Groups and invitations
+    builder.Services.AddScoped<IGroupService, GroupService>();
+    builder.Services.AddScoped<IInvitationService, InvitationService>();
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
