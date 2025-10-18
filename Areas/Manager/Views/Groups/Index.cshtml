@@ -26,6 +26,7 @@
             <td>@g.GroupType</td>
             <td class="text-nowrap">
                 <a class="btn btn-sm btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Edit" asp-route-id="@g.Id">Edit</a>
+                <a class="btn btn-sm btn-info" asp-area="Manager" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">Members</a>
                 <a class="btn btn-sm btn-outline-danger" asp-area="Manager" asp-controller="Groups" asp-action="Delete" asp-route-id="@g.Id">Delete</a>
             </td>
         </tr>

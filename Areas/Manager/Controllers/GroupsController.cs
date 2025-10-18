@@ -12,18 +12,20 @@ namespace Wayfarer.Areas.Manager.Controllers;
 /// </summary>
 [Area("Manager")]
 [Authorize(Roles = "Manager")]
-public class GroupsController : BaseController
-{
-    private readonly IGroupService _groupService;
+    public class GroupsController : BaseController
+    {
+        private readonly IGroupService _groupService;
+        private readonly IInvitationService _invitationService;
     private static readonly HashSet<string> AllowedGroupTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "Organization", "Family", "Friends"
     };
 
-    public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService)
+    public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService, IInvitationService invitationService)
         : base(logger, dbContext)
     {
         _groupService = groupService;
+        _invitationService = invitationService;
     }
 
     /// <summary>
@@ -53,6 +55,104 @@ public class GroupsController : BaseController
         return View(model);
     }
 
+    /// <summary>
+    /// Roster and invitations management for a group (owner/manager only).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> Members(Guid groupId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        if (group == null) return NotFound();
+
+        var membership = await _dbContext.GroupMembers.AsNoTracking().FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
+        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
+        if (!isOwnerOrManager && group.OwnerUserId != userId) return Forbid();
+
+        var members = await (from m in _dbContext.GroupMembers
+                             where m.GroupId == groupId
+                             join u in _dbContext.Users on m.UserId equals u.Id
+                             select new { m, u }).AsNoTracking().ToListAsync();
+
+        var invites = await _dbContext.GroupInvitations
+            .Where(i => i.GroupId == groupId && i.Status == GroupInvitation.InvitationStatuses.Pending)
+            .AsNoTracking().ToListAsync();
+
+        ViewBag.Group = group;
+        ViewBag.Members = members;
+        ViewBag.Invites = invites;
+
+        SetPageTitle($"Members - {group.Name}");
+        return View();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Invite(Guid groupId, string? inviteeUserId, string? inviteeEmail)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+        try
+        {
+            await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, inviteeEmail, null);
+            SetAlert("Invitation sent.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            SetAlert(ex.Message, "danger");
+        }
+        return RedirectToAction(nameof(Members), new { groupId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveMember(Guid groupId, string userId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (actorId == null) return Unauthorized();
+        try
+        {
+            await _groupService.RemoveMemberAsync(groupId, actorId, userId);
+            SetAlert("Member removed.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            SetAlert(ex.Message, "danger");
+        }
+        return RedirectToAction(nameof(Members), new { groupId });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RevokeInvite(Guid groupId, Guid inviteId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (actorId == null) return Unauthorized();
+        try
+        {
+            await _invitationService.RevokeAsync(inviteId, actorId);
+            SetAlert("Invitation revoked.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            SetAlert(ex.Message, "danger");
+        }
+        return RedirectToAction(nameof(Members), new { groupId });
+    }
     /// <summary>
     /// Form to create a new group.
     /// </summary>

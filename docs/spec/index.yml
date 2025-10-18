@@ -52,7 +52,7 @@ tasks:
 - id: TM-009
   title: Manager UI - Members and Invites
   labels: ['ui']
-  status: todo
+  status: doing
   deps: ['TM-003', 'TM-004', 'TM-005']
   file: spec/tasks/TM-009.md
 - id: TM-010
