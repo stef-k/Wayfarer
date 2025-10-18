@@ -96,11 +96,15 @@ public class GroupsController : ControllerBase
             ? req.IncludeUserIds.Intersect(activeMemberIds).Distinct().ToList()
             : activeMemberIds;
 
-        // query latest per user
-        var latestPerUser = await _db.Locations
+        // query latest per user (two-step to allow Include on the entity set)
+        var latestIds = await _db.Locations
             .Where(l => userIds.Contains(l.UserId))
             .GroupBy(l => l.UserId)
-            .Select(g => g.OrderByDescending(x => x.LocalTimestamp).First())
+            .Select(g => g.OrderByDescending(x => x.LocalTimestamp).Select(x => x.Id).First())
+            .ToListAsync(ct);
+
+        var latestPerUser = await _db.Locations
+            .Where(l => latestIds.Contains(l.Id))
             .Include(l => l.ActivityType)
             .AsNoTracking()
             .ToListAsync(ct);
