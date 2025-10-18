@@ -176,7 +176,7 @@ public class GroupsController : ControllerBase
         if (CurrentUserId is null) return Unauthorized();
         var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return NotFound();
-        if (!string.Equals(group.GroupType, "Organisation", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Not an Organisation group" });
 
         var membership = await _db.GroupMembers.AsNoTracking().FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
@@ -198,7 +198,7 @@ public class GroupsController : ControllerBase
 
         var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return NotFound();
-        if (!string.Equals(group.GroupType, "Organisation", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Not an Organisation group" });
 
         var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);

@@ -44,7 +44,7 @@ public class OrgPeerVisibilityApiTests
 
         var gs = new GroupService(db);
         var g = await gs.CreateGroupAsync(owner.Id, "Org Group", null);
-        g.GroupType = "Organisation";
+        g.GroupType = "Organization";
         await db.SaveChangesAsync();
         await gs.AddMemberAsync(g.Id, owner.Id, m1.Id, GroupMember.Roles.Member);
 
@@ -65,7 +65,7 @@ public class OrgPeerVisibilityApiTests
 
         var gs = new GroupService(db);
         var g = await gs.CreateGroupAsync(owner.Id, "Org Group", null);
-        g.GroupType = "Organisation";
+        g.GroupType = "Organization";
         await db.SaveChangesAsync();
         await gs.AddMemberAsync(g.Id, owner.Id, m1.Id, GroupMember.Roles.Member);
 
@@ -99,7 +99,7 @@ public class OrgPeerVisibilityApiTests
 
         var gs = new GroupService(db);
         var g = await gs.CreateGroupAsync(owner.Id, "Org Group", null);
-        g.GroupType = "Organisation";
+        g.GroupType = "Organization";
         await db.SaveChangesAsync();
         await gs.AddMemberAsync(g.Id, owner.Id, m1.Id, GroupMember.Roles.Member);
 
