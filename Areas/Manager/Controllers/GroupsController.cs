@@ -90,13 +90,18 @@ namespace Wayfarer.Areas.Manager.Controllers;
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Invite(Guid groupId, string? inviteeUserId, string? inviteeEmail)
+    public async Task<IActionResult> Invite(Guid groupId, string? inviteeUserId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
         try
         {
-            await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, inviteeEmail, null);
+            if (string.IsNullOrWhiteSpace(inviteeUserId))
+            {
+                SetAlert("Please select a user to invite.", "danger");
+                return RedirectToAction(nameof(Members), new { groupId });
+            }
+            await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null, null);
             SetAlert("Invitation sent.");
         }
         catch (UnauthorizedAccessException)

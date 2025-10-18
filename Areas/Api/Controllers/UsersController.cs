@@ -95,4 +95,28 @@ public class UsersController : ControllerBase
 
         return Ok(detailedStatsDto);
     }
+
+    /// <summary>
+    /// Search users by username or display name (case-insensitive). Returns up to 10 results.
+    /// Managers only.
+    /// </summary>
+    /// <param name="query">Search term (min 2 chars).</param>
+    [HttpGet("search")]
+    [Authorize(Roles = "Manager")]
+    public async Task<IActionResult> Search([FromQuery] string? query, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
+            return Ok(Array.Empty<object>());
+
+        query = query.Trim();
+        var results = await _dbContext.Users
+            .Where(u => EF.Functions.ILike(u.UserName, $"%{query}%") || EF.Functions.ILike(u.DisplayName, $"%{query}%"))
+            .OrderBy(u => u.UserName)
+            .Select(u => new { id = u.Id, userName = u.UserName, displayName = u.DisplayName })
+            .Take(10)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return Ok(results);
+    }
 }

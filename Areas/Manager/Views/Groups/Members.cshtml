@@ -48,15 +48,23 @@
     <h4>Invite</h4>
     <form id="inviteForm" asp-area="Manager" asp-controller="Groups" asp-action="Invite" method="post">
       <input type="hidden" name="groupId" value="@group.Id" />
+      <input type="hidden" id="inviteeUserId" name="inviteeUserId" />
+
       <div class="mb-2">
-        <label class="form-label" for="inviteeUserId">User Id</label>
-        <input class="form-control" id="inviteeUserId" name="inviteeUserId" />
+        <label class="form-label" for="userSearch">Search User</label>
+        <div class="input-group">
+          <input class="form-control" id="userSearch" placeholder="Type username or display name" />
+          <button type="button" id="userSearchBtn" class="btn btn-outline-secondary">Search</button>
+        </div>
+        <div class="form-text">Start typing and click Search to load matches.</div>
       </div>
-      <div class="mb-2">
-        <label class="form-label" for="inviteeEmail">or Email</label>
-        <input class="form-control" id="inviteeEmail" name="inviteeEmail" />
-        <div class="form-text">Provide either a User Id or an Email.</div>
+
+      <div class="mb-3">
+        <label class="form-label" for="userResults">Results</label>
+        <select class="form-select" id="userResults"></select>
+        <div class="form-text">Select a user and click Send Invite.</div>
       </div>
+
       <button type="submit" class="btn btn-primary">Send Invite</button>
     </form>
 
@@ -90,4 +98,3 @@
 </div>
 
 <script src="~/js/Areas/Manager/Groups/members.js"></script>
-
