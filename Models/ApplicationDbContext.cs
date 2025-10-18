@@ -38,6 +38,9 @@ namespace Wayfarer.Models
         public DbSet<Segment> Segments { get; set; }
 
         public DbSet<Area> Areas { get; set; }
+        public DbSet<Group> Groups { get; set; }
+        public DbSet<GroupMember> GroupMembers { get; set; }
+        public DbSet<GroupInvitation> GroupInvitations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -260,6 +263,73 @@ namespace Wayfarer.Models
                 .WithMany(r => r.Areas)
                 .HasForeignKey(a => a.RegionId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Groups
+            builder.Entity<Group>()
+                .HasIndex(g => new { g.OwnerUserId, g.Name })
+                .IsUnique();
+
+            builder.Entity<Group>()
+                .Property(g => g.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            builder.Entity<Group>()
+                .Property(g => g.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            builder.Entity<Group>()
+                .HasOne(g => g.Owner)
+                .WithMany(u => u.GroupsOwned)
+                .HasForeignKey(g => g.OwnerUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // GroupMember
+            builder.Entity<GroupMember>()
+                .HasIndex(m => new { m.GroupId, m.UserId })
+                .IsUnique();
+
+            builder.Entity<GroupMember>()
+                .Property(m => m.JoinedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            builder.Entity<GroupMember>()
+                .HasOne(m => m.Group)
+                .WithMany(g => g.Members)
+                .HasForeignKey(m => m.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<GroupMember>()
+                .HasOne(m => m.User)
+                .WithMany(u => u.GroupMemberships)
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // GroupInvitation
+            builder.Entity<GroupInvitation>()
+                .HasIndex(i => i.Token)
+                .IsUnique();
+
+            builder.Entity<GroupInvitation>()
+                .Property(i => i.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            builder.Entity<GroupInvitation>()
+                .HasOne(i => i.Group)
+                .WithMany(g => g.Invitations)
+                .HasForeignKey(i => i.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<GroupInvitation>()
+                .HasOne(i => i.Inviter)
+                .WithMany(u => u.GroupInvitationsSent)
+                .HasForeignKey(i => i.InviterUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<GroupInvitation>()
+                .HasOne(i => i.Invitee)
+                .WithMany(u => u.GroupInvitationsReceived)
+                .HasForeignKey(i => i.InviteeUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

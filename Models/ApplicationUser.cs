@@ -38,6 +38,26 @@ namespace Wayfarer.Models
         /// Navigation property for the user's trips.
         /// </summary>
         public ICollection<Trip> Trips { get; set; }
+
+        /// <summary>
+        /// Groups owned by this user.
+        /// </summary>
+        public ICollection<Group> GroupsOwned { get; set; } = new List<Group>();
+
+        /// <summary>
+        /// Group memberships for this user.
+        /// </summary>
+        public ICollection<GroupMember> GroupMemberships { get; set; } = new List<GroupMember>();
+
+        /// <summary>
+        /// Group invitations sent by this user.
+        /// </summary>
+        public ICollection<GroupInvitation> GroupInvitationsSent { get; set; } = new List<GroupInvitation>();
+
+        /// <summary>
+        /// Group invitations received by this user.
+        /// </summary>
+        public ICollection<GroupInvitation> GroupInvitationsReceived { get; set; } = new List<GroupInvitation>();
     }
 
 }
