@@ -1,0 +1,43 @@
+@{
+    ViewData["Title"] = "My Groups";
+    ViewData["BodyClass"] = "container";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>@ViewData["Title"]</h2>
+</div>
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Type</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody id="groupsBody">
+    @{
+        // Server-provided fallback rendering; JS will enhance/handle actions.
+        var joined = ViewBag.Joined as IEnumerable<dynamic>;
+        if (joined != null)
+        {
+            foreach (var g in joined)
+            {
+                <tr data-group-id="@g.Id">
+                    <td>@g.Name</td>
+                    <td>@g.Description</td>
+                    <td>@g.GroupType</td>
+                    <td class="text-nowrap">
+                        <a class="btn btn-sm btn-primary" asp-area="User" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">Map</a>
+                        <button type="button" class="btn btn-sm btn-outline-danger js-leave" data-group-id="@g.Id">Leave</button>
+                    </td>
+                </tr>
+            }
+        }
+    }
+    </tbody>
+</table>
+
+<script type="module" src="~/js/Areas/User/Groups/index.js"></script>
+

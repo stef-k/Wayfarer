@@ -70,7 +70,7 @@ tasks:
 - id: TM-012
   title: User UI - Groups and Map
   labels: ['ui']
-  status: todo
+  status: done
   deps: ['TM-005', 'TM-006', 'TM-007']
   file: spec/tasks/TM-012.md
 - id: TM-013

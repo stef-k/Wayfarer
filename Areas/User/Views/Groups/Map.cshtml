@@ -1,0 +1,140 @@
+@{
+    var groupId = (Guid)ViewBag.GroupId;
+    var group = (Wayfarer.Models.Group)ViewBag.Group;
+    ViewData["Title"] = $"Map - {group.Name}";
+    ViewData["LoadLeaflet"] = true;
+    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill px-3 overflow-hidden";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2>@ViewData["Title"]</h2>
+  <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Back</a>
+  <input type="hidden" id="groupId" value="@groupId" />
+  <input type="hidden" id="currentUserId" value="@ViewBag.CurrentUserId" />
+  <input type="hidden" id="currentUserName" value="@ViewBag.CurrentUserName" />
+</div>
+
+<!-- Chronological Controls Bar (match manager view) -->
+<div class="row mb-2">
+  <div class="col-12">
+    <div class="bg-light border rounded p-2">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="Previous Year">
+          <i class="bi bi-chevron-double-left"></i> Year
+        </button>
+        <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="Previous Month">
+          <i class="bi bi-chevron-left"></i> Month
+        </button>
+        <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="Previous Day">
+          <i class="bi bi-arrow-left"></i> Day
+        </button>
+
+        <div class="d-flex align-items-center gap-2 mx-3">
+          <button id="btnYesterday" class="btn btn-sm btn-primary" title="Yesterday">Yesterday</button>
+          <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
+          <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;">
+          <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;">
+          <input type="number" id="yearPicker" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="YYYY" min="1900" max="2100">
+        </div>
+
+        <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="Next Day">
+          Day <i class="bi bi-arrow-right"></i>
+        </button>
+        <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="Next Month">
+          Month <i class="bi bi-chevron-right"></i>
+        </button>
+        <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="Next Year">
+          Year <i class="bi bi-chevron-double-right"></i>
+        </button>
+
+        <div class="ms-auto d-flex gap-2">
+          <label class="form-label mb-0 align-self-center">View:</label>
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
+            <label class="btn btn-outline-primary" for="viewDay">Day</label>
+
+            <input type="radio" class="btn-check" name="viewType" id="viewMonth" value="month">
+            <label class="btn btn-outline-primary" for="viewMonth">Month</label>
+
+            <input type="radio" class="btn-check" name="viewType" id="viewYear" value="year">
+            <label class="btn btn-outline-primary" for="viewYear">Year</label>
+          </div>
+        </div>
+      </div>
+      <small class="text-muted fst-italic d-block">
+        <i class="bi bi-info-circle"></i> Day view shows all locations. Month/Year may be sampled for large datasets.
+      </small>
+    </div>
+  </div>
+  
+</div>
+
+<div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden" style="min-height:0;">
+  <aside class="flex-shrink-0 border-end overflow-auto" style="width:460px;">
+    <h5>Members</h5>
+
+    @using (Html.BeginForm())
+    {
+        @Html.AntiForgeryToken()
+    }
+
+    @{
+      var group = (Wayfarer.Models.Group)ViewBag.Group;
+    }
+
+    @if (string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
+    {
+      <div class="alert alert-info py-2">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="peerVisibilityToggle">
+          <label class="form-check-label" for="peerVisibilityToggle">Allow peers to see my location in this Organization</label>
+        </div>
+      </div>
+    }
+
+    <div class="mb-2">
+      <input id="userSearch" type="search" class="form-control form-control-sm" placeholder="Search users..." autocomplete="off" />
+    </div>
+    <div id="userSidebar" class="list-group" style="max-height:70vh; overflow:auto">
+      @{
+          var members = (IEnumerable<dynamic>)ViewBag.Members;
+          var ownerId = ((Wayfarer.Models.Group)ViewBag.Group).OwnerUserId;
+      }
+      <div class="list-group-item d-flex align-items-center justify-content-between">
+        <label class="mb-0">
+          <input type="checkbox" id="selectAllUsers" class="form-check-input me-1" checked />
+          Select All
+        </label>
+        <div class="btn-group btn-group-sm">
+          <button type="button" id="showAllUsers" class="btn btn-outline-secondary">Show All</button>
+          <button type="button" id="hideAllUsers" class="btn btn-outline-secondary">Hide All</button>
+        </div>
+      </div>
+      @foreach (var u in members)
+      {
+          <div class="list-group-item d-flex justify-content-between align-items-center user-item" data-filter="@u.UserName @u.DisplayName">
+            <label class="mb-0 flex-grow-1">
+              <span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>
+              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" data-display="@u.DisplayName" data-role="@u.Role" data-owner="@(u.Id == ownerId)" />
+              @u.UserName (@u.DisplayName)
+            </label>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.Id">Only</button>
+            </div>
+          </div>
+      }
+    </div>
+  </aside>
+  <main class="flex-grow-1 overflow-hidden" style="min-height:0;">
+    <div id="groupMap" class="w-100" style="height: calc(100vh - 220px); min-height: calc(100vh - 220px);"></div>
+  </main>
+</div>
+
+<input type="hidden" id="groupType" value="@group.GroupType" />
+
+<script src="~/lib/leaflet/leaflet-src.js"></script>
+<link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
+<link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
+<script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
+<script type="module" src="~/js/Areas/User/Groups/map.js"></script>
