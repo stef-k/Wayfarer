@@ -8,6 +8,7 @@ using Wayfarer.Services;
 using Wayfarer.Parsers;
 using NetTopologySuite.Geometries;
 using Wayfarer.Util;
+using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -96,18 +97,19 @@ public class GroupsController : ControllerBase
             ? req.IncludeUserIds.Intersect(activeMemberIds).Distinct().ToList()
             : activeMemberIds;
 
-        // query latest per user (two-step to allow Include on the entity set)
-        var latestIds = await _db.Locations
-            .Where(l => userIds.Contains(l.UserId))
-            .GroupBy(l => l.UserId)
-            .Select(g => g.OrderByDescending(x => x.LocalTimestamp).Select(x => x.Id).First())
-            .ToListAsync(ct);
-
-        var latestPerUser = await _db.Locations
-            .Where(l => latestIds.Contains(l.Id))
-            .Include(l => l.ActivityType)
-            .AsNoTracking()
-            .ToListAsync(ct);
+        // query latest per user in the same order as userIds for stable client mapping
+        var latestPerUser = new List<Location>();
+        foreach (var uid in userIds)
+        {
+            var latest = await _db.Locations
+                .Where(l => l.UserId == uid)
+                .OrderByDescending(l => l.LocalTimestamp)
+                .Include(l => l.ActivityType)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ct);
+            if (latest != null)
+                latestPerUser.Add(latest);
+        }
 
         // settings for threshold
         var settings = await _db.ApplicationSettings.FirstOrDefaultAsync(ct);

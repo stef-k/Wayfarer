@@ -2,6 +2,7 @@
     var groupId = (Guid)ViewBag.GroupId;
     var group = (Wayfarer.Models.Group)ViewBag.Group;
     ViewData["Title"] = $"Map - {group.Name}";
+    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -13,6 +14,9 @@
 <div class="row">
   <div class="col-md-3">
     <h5>Members</h5>
+    <div class="mb-2">
+      <input id="userSearch" type="search" class="form-control form-control-sm" placeholder="Search users..." autocomplete="off" />
+    </div>
     <div id="userSidebar" class="list-group" style="max-height:70vh; overflow:auto">
       @{
           var members = (IEnumerable<dynamic>)ViewBag.Members;
@@ -23,7 +27,7 @@
       </label>
       @foreach (var u in members)
       {
-          <label class="list-group-item">
+          <label class="list-group-item user-item" data-filter="@u.UserName @u.DisplayName">
             <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" />
             @u.UserName (@u.DisplayName)
           </label>
