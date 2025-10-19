@@ -153,10 +153,10 @@ public class UsersController : ControllerBase
 
         return Ok(new
         {
-            invites = pendingInvites.Select(x => new { x.Id, x.GroupId, x.GroupName }).ToList(),
-            joined = joined.Select(x => x.GroupName).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList(),
-            removed,
-            left
+            invites = pendingInvites.Select(x => new { x.Id, x.GroupId, x.GroupName, createdAt = x.CreatedAt }).ToList(),
+            joined = joined.Select(x => new { groupName = x.GroupName, joinedAt = x.JoinedAt }).ToList(),
+            removed = leftRemoved.Where(x => x.Status == GroupMember.MembershipStatuses.Removed).Select(x => new { groupName = x.GroupName, at = x.LeftAt }).ToList(),
+            left = leftRemoved.Where(x => x.Status == GroupMember.MembershipStatuses.Left).Select(x => new { groupName = x.GroupName, at = x.LeftAt }).ToList()
         });
     }
 

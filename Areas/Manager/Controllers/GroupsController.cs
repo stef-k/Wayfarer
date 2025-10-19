@@ -61,6 +61,14 @@ namespace Wayfarer.Areas.Manager.Controllers;
             .OrderBy(g => g.Name)
             .ToList();
 
+        // Member counts (Active only)
+        var counts = await _dbContext.GroupMembers
+            .Where(m => m.Status == GroupMember.MembershipStatuses.Active)
+            .GroupBy(m => m.GroupId)
+            .Select(g => new { GroupId = g.Key, Count = g.Count() })
+            .ToListAsync();
+        ViewBag.MemberCounts = counts.ToDictionary(x => x.GroupId, x => x.Count);
+
         SetPageTitle("Groups");
         return View(model);
     }

@@ -153,6 +153,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await refresh();
     el.tbody?.addEventListener('click', onClick);
+    // Live refresh via SSE when invites change
+    try {
+      if (window.__currentUserId && typeof EventSource !== 'undefined') {
+        const es = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
+        es.onmessage = async () => { await refresh(); };
+      }
+    } catch { /* ignore */ }
   } catch (e) {
     if (typeof showAlert === 'function') showAlert('danger', e.message || 'Failed to load invitations.');
   }

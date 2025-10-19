@@ -14,16 +14,24 @@
         <th>Name</th>
         <th>Description</th>
         <th>Type</th>
+        <th>Members</th>
         <th></th>
     </tr>
     </thead>
     <tbody>
     @foreach (var g in Model)
     {
-        <tr>
+        <tr data-group-id="@g.Id">
             <td>@g.Name</td>
             <td>@g.Description</td>
             <td>@g.GroupType</td>
+            <td>
+                @{
+                    var counts = ViewBag.MemberCounts as IDictionary<Guid,int>;
+                    var cnt = counts != null && counts.ContainsKey(g.Id) ? counts[g.Id] : 0;
+                }
+                <span class="badge bg-secondary js-member-count" data-group-id="@g.Id">@cnt</span>
+            </td>
             <td class="text-nowrap">
                 <a class="btn btn-sm btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Edit" asp-route-id="@g.Id">Edit</a>
                 <a class="btn btn-sm btn-info" asp-area="Manager" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">Members</a>

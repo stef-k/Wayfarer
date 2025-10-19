@@ -304,6 +304,12 @@ public class GroupsController : ControllerBase
             .AsNoTracking()
             .ToListAsync(ct);
 
+        // Map groupId -> name for convenience
+        var gidNames = await _db.Groups.Where(g => managedGroupIds.Contains(g.Id))
+            .Select(g => new { g.Id, g.Name })
+            .AsNoTracking().ToListAsync(ct);
+        var nameMap = gidNames.ToDictionary(x => x.Id, x => x.Name);
+
         var items = new List<object>();
         foreach (var log in logs)
         {
@@ -317,7 +323,8 @@ public class GroupsController : ControllerBase
             }
             if (gid.HasValue)
             {
-                items.Add(new { log.Timestamp, log.Action, log.Details, GroupId = gid.Value });
+                var gname = nameMap.ContainsKey(gid.Value) ? nameMap[gid.Value] : null;
+                items.Add(new { log.Timestamp, log.Action, log.Details, GroupId = gid.Value, GroupName = gname });
             }
         }
 

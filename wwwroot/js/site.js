@@ -1,4 +1,4 @@
-﻿window.wayfarer = window.wayfarer || {};
+window.wayfarer = window.wayfarer || {};
 
 function hideAlert() {
     let alertBox = document.getElementById("alertBox");
@@ -119,7 +119,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/groups/managed/activity?sinceHours=24');
             if (!res.ok) return; // not a manager or not authorized
             const data = await res.json();
-            const cnt = data && typeof data.count === 'number' ? data.count : 0;
+            const items = (data && Array.isArray(data.items)) ? data.items : [];
+            const lastSeenRaw = localStorage.getItem('manager.activity.lastSeenAt');
+            const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
+            const recent = lastSeen ? items.filter(i => new Date(i.timestamp) > lastSeen) : items;
+            const cnt = recent.length;
             mgrBadge.textContent = cnt;
             mgrBadge.classList.toggle('d-none', cnt === 0);
             if (cnt > 0 && !sessionStorage.getItem('mgr.activity.notified')) {
@@ -166,25 +170,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // User offline check: server-driven activity digest
     const checkUserActivityDigest = async () => {
-        if (sessionStorage.getItem('user.activity.digest.notified') === '1') return;
         try {
+            const lastSeenRaw = localStorage.getItem('user.activity.lastSeenAt');
+            const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
             const res = await fetch('/api/users/activity?sinceHours=24');
             if (!res.ok) return;
             const data = await res.json();
             if (data) {
-                const invites = Array.isArray(data.invites) ? data.invites : [];
-                const joined  = Array.isArray(data.joined) ? data.joined : [];
-                const removed = Array.isArray(data.removed) ? data.removed : [];
-                const left    = Array.isArray(data.left) ? data.left : [];
+                let invites = Array.isArray(data.invites) ? data.invites : [];
+                let joined  = Array.isArray(data.joined) ? data.joined : [];
+                let removed = Array.isArray(data.removed) ? data.removed : [];
+                let left    = Array.isArray(data.left) ? data.left : [];
+                if (lastSeen) {
+                    invites = invites.filter(x => x.createdAt && new Date(x.createdAt) > lastSeen);
+                    joined  = joined.filter(x => x.joinedAt && new Date(x.joinedAt) > lastSeen);
+                    removed = removed.filter(x => x.at && new Date(x.at) > lastSeen);
+                    left    = left.filter(x => x.at && new Date(x.at) > lastSeen);
+                }
                 if (invites.length) {
                     const names = invites.map(x => x.groupName).filter(Boolean);
                     if (names.length && typeof showAlert === 'function') showAlert('info', `New invitation(s) for: ${names.join(', ')}. Open User → Invitations.`);
                 }
-                if (joined.length && typeof showAlert === 'function') showAlert('success', `You joined: ${joined.join(', ')}`);
-                if (removed.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removed.join(', ')}`);
-                if (left.length && typeof showAlert === 'function') showAlert('secondary', `You left: ${left.join(', ')}`);
-                if (invites.length || joined.length || removed.length || left.length)
-                    sessionStorage.setItem('user.activity.digest.notified', '1');
+                const joinedNames = joined.map(x => x.groupName).filter(Boolean);
+                const removedNames = removed.map(x => x.groupName).filter(Boolean);
+                const leftNames = left.map(x => x.groupName).filter(Boolean);
+                if (joinedNames.length && typeof showAlert === 'function') showAlert('success', `You joined: ${joinedNames.join(', ')}`);
+                if (removedNames.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removedNames.join(', ')}`);
+                if (leftNames.length && typeof showAlert === 'function') showAlert('secondary', `You left: ${leftNames.join(', ')}`);
+                if (invites.length || joinedNames.length || removedNames.length || leftNames.length)
+                    localStorage.setItem('user.activity.lastSeenAt', new Date().toISOString());
             }
         } catch { /* ignore */ }
     };
@@ -274,3 +288,13 @@ window.showAlert = showAlert;
 wayfarer.showAlert = showAlert;
 window.hideAlert = hideAlert;
 wayfarer.hideAlert = hideAlert;
+
+    try {
+        document.querySelectorAll('div.dropdown > button.btn.dropdown-toggle').forEach(btn => {
+            btn.addEventListener('show.bs.dropdown', () => {
+                localStorage.setItem('manager.activity.lastSeenAt', new Date().toISOString());
+                if (mgrBadge) { mgrBadge.textContent = '0'; mgrBadge.classList.add('d-none'); }
+            });
+        });
+    } catch { /* ignore */ }
+
