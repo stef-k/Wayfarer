@@ -165,6 +165,33 @@
     if (cb && chip) { const color = colorFromString(cb.getAttribute('data-username')||'user'); chip.style.backgroundColor = color; }
   });
 
+  // Disable remove buttons for owner and last manager (org)
+  function updateRemoveButtons(){
+    const groupType = (document.getElementById('groupType')?.value || '').toLowerCase();
+    const isOrg = groupType === 'organization';
+    // count managers
+    let managerCount = 0;
+    document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{
+      const role = (cb.getAttribute('data-role')||'').toLowerCase();
+      const statusManager = role === 'owner' || role === 'manager';
+      if (statusManager) managerCount++;
+    });
+    document.querySelectorAll('#userSidebar .user-item').forEach(li=>{
+      const cb = li.querySelector('input.user-select');
+      const btn = li.querySelector('.remove-user');
+      if (!cb || !btn) return;
+      const isOwner = cb.getAttribute('data-owner') === 'True' || cb.getAttribute('data-owner') === 'true';
+      const role = (cb.getAttribute('data-role')||'').toLowerCase();
+      const isManagerRole = role === 'owner' || role === 'manager';
+      let disabled = false;
+      let title = '';
+      if (isOwner) { disabled = true; title = 'Owner cannot be removed'; }
+      else if (isOrg && isManagerRole && managerCount <= 1) { disabled = true; title = 'Cannot remove the last manager from an Organization group'; }
+      btn.disabled = disabled; if (title) btn.title = title; else btn.removeAttribute('title');
+    });
+  }
+  updateRemoveButtons();
+
   // Only this button handling
   document.querySelectorAll('#userSidebar .only-this').forEach(btn => {
     btn.addEventListener('click', function(){

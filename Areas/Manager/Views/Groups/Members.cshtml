@@ -59,7 +59,7 @@
             <td>@x.m.Role</td>
             <td>@x.m.Status</td>
             <td>
-              @{ bool isManagerRole = mgrRoles.Contains((string)x.m.Role); bool wouldHaveManagerAfterRemoval = !isOrg || !isManagerRole || (managerCount - 1) >= 1; bool canShowRemove = wouldHaveManagerAfterRemoval; }
+              @{ bool isManagerRole = mgrRoles.Contains((string)x.m.Role); bool isOwnerUser = string.Equals((string)x.u.Id, (string)group.OwnerUserId, StringComparison.OrdinalIgnoreCase); bool wouldHaveManagerAfterRemoval = !isOrg || !isManagerRole || (managerCount - 1) >= 1; bool canShowRemove = !isOwnerUser && wouldHaveManagerAfterRemoval; }
               @if (canShowRemove)
               {
                   <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">

@@ -3,7 +3,7 @@
     var group = (Wayfarer.Models.Group)ViewBag.Group;
     ViewData["Title"] = $"Map - {group.Name}";
     ViewData["LoadLeaflet"] = true;
-    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0 overflow-hidden";
+    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill px-3 overflow-hidden";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -68,7 +68,7 @@
 </div>
 
 <div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden">
-  <aside class="flex-shrink-0 border-end overflow-auto" style="width:420px;">
+  <aside class="flex-shrink-0 border-end overflow-auto" style="width:460px;">
     <h5>Members</h5>
     
     @using (Html.BeginForm())
@@ -97,7 +97,7 @@
           <div class="list-group-item d-flex justify-content-between align-items-center user-item" data-filter="@u.UserName @u.DisplayName">
             <label class="mb-0 flex-grow-1">
               <span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>
-              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" data-display="@u.DisplayName" />
+              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" data-display="@u.DisplayName" data-role="@u.Role" data-owner="@(u.Id == group.OwnerUserId)" />
               @u.UserName (@u.DisplayName)
             </label>
             <div class="btn-group btn-group-sm">
@@ -112,6 +112,8 @@
     <div id="groupMap" class="w-100 h-100"></div>
   </main>
 </div>
+
+<input type="hidden" id="groupType" value="@group.GroupType" />
 
 <script src="~/lib/leaflet/leaflet-src.js"></script>
 <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
