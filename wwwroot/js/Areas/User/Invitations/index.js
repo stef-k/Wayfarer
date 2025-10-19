@@ -11,9 +11,6 @@ const el = {
   emptyRow: document.getElementById('invitesEmptyRow')
 };
 
-// Cache of groupId -> name
-const groupNames = new Map();
-
 const fmt = {
   date: (iso) => {
     if (!iso) return '';
@@ -36,34 +33,22 @@ const fetchJson = async (url, options = {}) => {
   return data;
 };
 
-const loadGroups = async () => {
-  try {
-    const groups = await fetchJson(config.groupsUrl);
-    if (Array.isArray(groups)) {
-      for (const g of groups) {
-        if (g && g.id) groupNames.set(g.id, g.name || g.id);
-      }
-    }
-  } catch (e) {
-    // Not critical for function; continue without names
-    console.warn('Could not load groups', e);
-  }
-};
-
-const groupNameFor = (groupId) => groupNames.get(groupId) || groupId;
-
 const setEmptyVisibility = () => {
   const hasRows = el.tbody && el.tbody.querySelectorAll('tr[data-invite-id]').length > 0;
   if (el.emptyRow) el.emptyRow.classList.toggle('d-none', hasRows);
 };
 
 const rowHtml = (inv) => {
-  const gname = groupNameFor(inv.groupId);
+  const gname = inv.groupName || inv.groupId || '';
+  const gdesc = inv.groupDescription || '';
+  const inviter = (inv.inviterUserName || '') + (inv.inviterDisplayName ? ` (${inv.inviterDisplayName})` : '');
+  const expires = inv.expiresAt ? fmt.date(inv.expiresAt) : 'Does not expire';
   return `
     <tr data-invite-id="${inv.id}">
-      <td>${gname ?? ''}</td>
-      <td>${fmt.date(inv.createdAt)}</td>
-      <td>${fmt.date(inv.expiresAt)}</td>
+      <td>${gname}</td>
+      <td>${gdesc}</td>
+      <td>${inviter}</td>
+      <td>${expires}</td>
       <td class="text-end">
         <div class="btn-group btn-group-sm" role="group">
           <button type="button" class="btn btn-success js-accept" data-id="${inv.id}">Accept</button>
@@ -166,11 +151,9 @@ const onClick = (ev) => {
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    await loadGroups();
     await refresh();
     el.tbody?.addEventListener('click', onClick);
   } catch (e) {
     if (typeof showAlert === 'function') showAlert('danger', e.message || 'Failed to load invitations.');
   }
 });
-

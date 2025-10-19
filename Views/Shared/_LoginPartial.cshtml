@@ -10,6 +10,9 @@
 
     @if (SignInManager.IsSignedIn(User))
     {
+        <script>
+            window.__currentUserId = '@UserManager.GetUserId(User)';
+        </script>
         @if (User.IsInRole("Admin"))
         {
             <partial name="_AdminNav" />

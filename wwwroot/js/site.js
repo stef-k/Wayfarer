@@ -66,7 +66,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const navbar       = document.getElementById('mainNavbar');
     const footer       = document.querySelector('footer');
 
-    // Only initialize if the toggle button is on this page
+    // Pending invitations badge updater
+    const invitesBadge = document.getElementById('userInvitesBadge');
+    const updateInvitesBadge = async () => {
+        if (!invitesBadge) return;
+        try {
+            const res = await fetch('/api/invitations');
+            const list = res.ok ? await res.json() : [];
+            const count = Array.isArray(list) ? list.length : 0;
+            invitesBadge.textContent = count;
+            invitesBadge.classList.toggle('d-none', count === 0);
+        } catch { /* ignore */ }
+    };
+    updateInvitesBadge();
+    setInterval(updateInvitesBadge, 60000);
+
+    // Optional SSE to refresh badge in real-time
+    try {
+        if (window.__currentUserId && invitesBadge && typeof EventSource !== 'undefined') {
+            const es = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
+            es.onmessage = () => updateInvitesBadge();
+        }
+    } catch { /* ignore SSE errors */ }
+
+    // Only initialize theme toggle if the toggle button is on this page
     if (!toggleButton) return;
 
     // Function to set theme

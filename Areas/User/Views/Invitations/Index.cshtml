@@ -13,14 +13,15 @@
                 <thead>
                 <tr>
                     <th>Group</th>
-                    <th>Invited</th>
+                    <th>Description</th>
+                    <th>Invited By</th>
                     <th>Expires</th>
                     <th class="text-end">Actions</th>
                 </tr>
                 </thead>
                 <tbody id="invitesTbody">
                 <tr id="invitesEmptyRow" class="d-none">
-                    <td colspan="4" class="text-center text-muted">No pending invitations.</td>
+                    <td colspan="5" class="text-center text-muted">No pending invitations.</td>
                 </tr>
                 </tbody>
             </table>
@@ -43,8 +44,7 @@
         window.__userInvitationsConfig = {
             listUrl: '/api/invitations',
             acceptUrl: function(id){ return `/api/invitations/${id}/accept`; },
-            declineUrl: function(id){ return `/api/invitations/${id}/decline`; },
-            groupsUrl: '/api/groups' // used to map groupId -> name for display
+            declineUrl: function(id){ return `/api/invitations/${id}/decline`; }
         };
     </script>
     
@@ -54,4 +54,3 @@
 @section Scripts {
     <script src="~/js/Areas/User/Invitations/index.js" type="module" asp-append-version="true"></script>
 }
-

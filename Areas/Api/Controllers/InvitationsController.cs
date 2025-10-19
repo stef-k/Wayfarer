@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -17,12 +19,20 @@ public class InvitationsController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IInvitationService _invites;
     private readonly ILogger<InvitationsController> _logger;
+    private readonly SseService _sse;
 
-    public InvitationsController(ApplicationDbContext db, IInvitationService invites, ILogger<InvitationsController> logger)
+    public InvitationsController(ApplicationDbContext db, IInvitationService invites, ILogger<InvitationsController> logger, SseService sse)
     {
         _db = db;
         _invites = invites;
         _logger = logger;
+        _sse = sse;
+    }
+
+    // Backward-compatible ctor for existing tests
+    public InvitationsController(ApplicationDbContext db, IInvitationService invites, ILogger<InvitationsController> logger)
+        : this(db, invites, logger, new SseService())
+    {
     }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -32,19 +42,27 @@ public class InvitationsController : ControllerBase
     public async Task<IActionResult> ListForCurrentUser(CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
-        var list = await _db.GroupInvitations
-            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null))
-            .Select(i => new
-            {
-                i.Id,
-                i.GroupId,
-                i.InviterUserId,
-                i.InviteeUserId,
-                i.InviteeEmail,
-                i.ExpiresAt,
-                i.CreatedAt,
-                i.Status
-            })
+        var list = await (from i in _db.GroupInvitations
+                          where i.Status == GroupInvitation.InvitationStatuses.Pending
+                                && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null)
+                          join g in _db.Groups on i.GroupId equals g.Id
+                          join u in _db.Users on i.InviterUserId equals u.Id into inviterJoin
+                          from inviter in inviterJoin.DefaultIfEmpty()
+                          select new
+                          {
+                              i.Id,
+                              i.GroupId,
+                              GroupName = g.Name,
+                              GroupDescription = g.Description,
+                              i.InviterUserId,
+                              InviterUserName = inviter != null ? inviter.UserName : null,
+                              InviterDisplayName = inviter != null ? inviter.DisplayName : null,
+                              i.InviteeUserId,
+                              i.InviteeEmail,
+                              i.ExpiresAt,
+                              i.CreatedAt,
+                              i.Status
+                          })
             .AsNoTracking()
             .ToListAsync(ct);
         return Ok(list);
@@ -62,6 +80,11 @@ public class InvitationsController : ControllerBase
         try
         {
             var inv = await _invites.InviteUserAsync(req.GroupId, CurrentUserId, req.InviteeUserId, req.InviteeEmail, req.ExpiresAt, ct);
+            // Notify invitee if known
+            if (!string.IsNullOrEmpty(inv.InviteeUserId))
+            {
+                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", JsonSerializer.Serialize(new { action = "created", id = inv.Id }));
+            }
             return Ok(new { inv.Id, inv.GroupId, inv.Status, inv.InviteeUserId, inv.InviteeEmail });
         }
         catch (UnauthorizedAccessException)
@@ -85,6 +108,7 @@ public class InvitationsController : ControllerBase
         try
         {
             await _invites.AcceptAsync(inv.Token, CurrentUserId, ct);
+            await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "accepted", id }));
             return Ok(new { message = "Accepted" });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("expired") || ex.Message.Contains("not pending"))
@@ -102,7 +126,7 @@ public class InvitationsController : ControllerBase
         if (inv == null) return NotFound();
 
         await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
+        await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "declined", id }));
         return Ok(new { message = "Declined" });
     }
 }
-
