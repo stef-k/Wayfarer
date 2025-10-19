@@ -162,11 +162,11 @@ public class UsersController : ControllerBase
 
     /// <summary>
     /// Search users by username or display name (case-insensitive). Returns up to 10 results.
-    /// Managers only.
+    /// Available to Managers and Users (for inviting to Family/Friends groups).
     /// </summary>
     /// <param name="query">Search term (min 2 chars).</param>
     [HttpGet("search")]
-    [Authorize(Roles = "Manager")]
+    [Authorize(Roles = "Manager,User")]
     public async Task<IActionResult> Search([FromQuery] string? query, [FromQuery] Guid? groupId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)

@@ -88,6 +88,6 @@ tasks:
 - id: TM-015
   title: User UI – Family/Friends Groups
   labels: ['ui']
-  status: todo
+  status: done
   deps: ['TM-003', 'TM-004', 'TM-005', 'TM-006']
   file: spec/tasks/TM-015.md
