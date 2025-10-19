@@ -1,3 +1,5 @@
+import { addZoomLevelControl } from '/js/map-utils.js';
+
 (() => {
   const mapEl = document.getElementById('groupMap');
   const groupId = document.getElementById('groupId')?.value;
@@ -8,7 +10,7 @@
   if (map.attributionControl && typeof map.attributionControl.setPrefix === 'function') {
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
   }
-  if (window.addZoomLevelControl) { try { window.addZoomLevelControl(map); } catch(e){} }
+  try { addZoomLevelControl(map); } catch(e){}
 
   const latestMarkers = new Map();
   let restClusters = new Map(); // userId -> MarkerClusterGroup

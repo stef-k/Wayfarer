@@ -67,7 +67,7 @@
   
 </div>
 
-<div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden">
+<div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden" style="min-height:0;">
   <aside class="flex-shrink-0 border-end overflow-auto" style="width:460px;">
     <h5>Members</h5>
     
@@ -108,7 +108,7 @@
       }
     </div>
   </aside>
-  <main class="flex-grow-1 overflow-hidden">
+  <main class="flex-grow-1 overflow-hidden" style="min-height:0;">
     <div id="groupMap" class="w-100 h-100"></div>
   </main>
 </div>
@@ -120,5 +120,4 @@
 <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
 <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
-<script type="module" src="~/js/Areas/Manager/Groups/map-util-bridge.js"></script>
-<script src="~/js/Areas/Manager/Groups/map.js"></script>
+<script type="module" src="~/js/Areas/Manager/Groups/map.js"></script>
