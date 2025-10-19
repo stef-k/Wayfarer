@@ -174,25 +174,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
     }
 
     /// <summary>
-    /// Delete confirmation view (owner-only).
-    /// </summary>
-    [HttpGet]
-    public async Task<IActionResult> Delete(Guid id)
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null) return Unauthorized();
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
-        if (group == null) return NotFound();
-
-        var isOwner = await _dbContext.GroupMembers.AnyAsync(m => m.GroupId == id && m.UserId == userId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active)
-                      || group.OwnerUserId == userId;
-        if (!isOwner) return Forbid();
-
-        SetPageTitle($"Delete {group.Name}");
-        return View(group);
-    }
-
-    /// <summary>
     /// Deletes a group (owner-only).
     /// </summary>
     [HttpPost]
@@ -214,6 +195,71 @@ namespace Wayfarer.Areas.Manager.Controllers;
         catch (KeyNotFoundException)
         {
             return NotFound();
+        }
+    }
+
+    // AJAX variants for members/invites
+    [HttpPost]
+    public async Task<IActionResult> InviteAjax(Guid groupId, string inviteeUserId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (actorId == null) return Unauthorized();
+        try
+        {
+            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
+            return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { success = false, message = "Forbidden" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RemoveMemberAjax(Guid groupId, string userId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (actorId == null) return Unauthorized();
+        try
+        {
+            await _groupService.RemoveMemberAsync(groupId, actorId, userId);
+            return Ok(new { success = true, userId });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { success = false, message = "Forbidden" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> RevokeInviteAjax(Guid groupId, Guid inviteId)
+    {
+        var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (actorId == null) return Unauthorized();
+        try
+        {
+            await _invitationService.RevokeAsync(inviteId, actorId);
+            return Ok(new { success = true, inviteId });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { success = false, message = "Forbidden" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 

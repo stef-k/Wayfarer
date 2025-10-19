@@ -19,7 +19,7 @@
         var mgrRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Wayfarer.Models.GroupMember.Roles.Owner, Wayfarer.Models.GroupMember.Roles.Manager };
         var managerCount = members.Count(x => mgrRoles.Contains((string)x.m.Role) && string.Equals((string)x.m.Status, Wayfarer.Models.GroupMember.MembershipStatuses.Active, StringComparison.OrdinalIgnoreCase));
     }
-    <table class="table table-striped">
+    <table id="rosterTable" class="table table-striped">
       <thead>
       <tr>
         <th>User</th>
@@ -32,7 +32,7 @@
       <tbody>
       @foreach (var x in members)
       {
-          <tr>
+          <tr data-user-id="@x.u.Id">
             <td>@x.u.UserName</td>
             <td>@x.u.DisplayName</td>
             <td>@x.m.Role</td>
@@ -41,11 +41,11 @@
               @{ bool isManagerRole = mgrRoles.Contains((string)x.m.Role); bool wouldHaveManagerAfterRemoval = !isOrg || !isManagerRole || (managerCount - 1) >= 1; bool canShowRemove = wouldHaveManagerAfterRemoval; }
               @if (canShowRemove)
               {
-                  <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline">
-                <input type="hidden" name="groupId" value="@group.Id" />
-                <input type="hidden" name="userId" value="@x.u.Id" />
-                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
-              </form>
+                  <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">
+                      <input type="hidden" name="groupId" value="@group.Id" />
+                      <input type="hidden" name="userId" value="@x.u.Id" />
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                  </form>
               }
             </td>
           </tr>
@@ -79,7 +79,7 @@
     </form>
 
     <h4 class="mt-4">Pending Invites</h4>
-    <table class="table">
+    <table id="invitesTable" class="table">
       <thead>
       <tr>
         <th>Invitee</th>
@@ -90,11 +90,11 @@
       <tbody>
       @foreach (var inv in invites)
       {
-          <tr>
+          <tr data-invite-id="@inv.Id">
             <td>@(inv.InviteeUserId ?? inv.InviteeEmail)</td>
             <td>@inv.CreatedAt.ToLocalTime()</td>
             <td>
-              <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline">
+              <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm" data-confirm-title="Revoke Invitation" data-confirm-message="Revoke this pending invite?">
                 <input type="hidden" name="groupId" value="@group.Id" />
                 <input type="hidden" name="inviteId" value="@inv.Id" />
                 <button type="submit" class="btn btn-sm btn-outline-secondary">Revoke</button>
