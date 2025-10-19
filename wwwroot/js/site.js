@@ -90,6 +90,26 @@ document.addEventListener('DOMContentLoaded', () => {
     updateInvitesBadge();
     setInterval(updateInvitesBadge, 60000);
 
+    // Manager: show recent activity digest + badge if present
+    const mgrBadge = document.getElementById('managerGroupsBadge');
+    const updateManagerActivity = async () => {
+        if (!mgrBadge) return; // only on pages where Manager menu is present
+        try {
+            const res = await fetch('/api/groups/managed/activity?sinceHours=24');
+            if (!res.ok) return; // not a manager or not authorized
+            const data = await res.json();
+            const cnt = data && typeof data.count === 'number' ? data.count : 0;
+            mgrBadge.textContent = cnt;
+            mgrBadge.classList.toggle('d-none', cnt === 0);
+            if (cnt > 0 && !sessionStorage.getItem('mgr.activity.notified')) {
+                if (typeof showAlert === 'function') showAlert('info', `You have ${cnt} recent group updates. Open Manager → Groups.`);
+                sessionStorage.setItem('mgr.activity.notified', '1');
+            }
+        } catch { /* ignore */ }
+    };
+    updateManagerActivity();
+    setInterval(updateManagerActivity, 60000);
+
     // Optional SSE to refresh badge in real-time
     try {
         if (window.__currentUserId && invitesBadge && typeof EventSource !== 'undefined') {

@@ -219,7 +219,50 @@
     document.querySelectorAll('form.js-confirm').forEach(function(f) { attachConfirmHandler(f); });
   });
 
-  // SSE: refresh roster/invites when membership changes
+  // Helpers to update DOM in-place without reload
+  function getAntiForgeryToken() {
+    return document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+  }
+  function removeRosterRow(userId) {
+    const tr = document.querySelector('tr[data-user-id="' + userId + '"]');
+    if (tr) tr.remove();
+  }
+  function removeInviteRow(inviteId) {
+    const tr = document.querySelector('tr[data-invite-id="' + inviteId + '"]');
+    if (tr) tr.remove();
+  }
+  async function addRosterRow(userId) {
+    const tbody = document.querySelector('#rosterTable tbody');
+    if (!tbody) return;
+    if (document.querySelector('tr[data-user-id="' + userId + '"]')) return; // already exists
+    try {
+      const resp = await fetch('/api/users/' + encodeURIComponent(userId) + '/basic');
+      if (!resp.ok) return;
+      const u = await resp.json();
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-user-id', userId);
+      const tokenVal = getAntiForgeryToken();
+      const groupId = document.querySelector('#inviteForm input[name="groupId"]').value;
+      const removeAction = '/Manager/Groups/RemoveMember';
+      // default role/status for new joined user
+      tr.innerHTML = '<td>' + (u.userName || '') + '</td>' +
+                     '<td>' + (u.displayName || '') + '</td>' +
+                     '<td>Member</td>' +
+                     '<td>Active</td>' +
+                     '<td>' +
+                       '<form class="d-inline js-confirm js-ajax" method="post" action="' + removeAction + '" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">' +
+                         '<input type="hidden" name="groupId" value="' + groupId + '" />' +
+                         '<input type="hidden" name="userId" value="' + userId + '" />' +
+                         (tokenVal ? ('<input type="hidden" name="__RequestVerificationToken" value="' + tokenVal + '" />') : '') +
+                         '<button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>' +
+                       '</form>' +
+                     '</td>';
+      tbody.appendChild(tr);
+      attachConfirmHandler(tr.querySelector('form.js-confirm'));
+    } catch { /* ignore */ }
+  }
+
+  // SSE: react to membership changes without full reload
   document.addEventListener('DOMContentLoaded', function() {
     try {
       const gidInput = document.querySelector('#inviteForm input[name="groupId"]');
@@ -228,18 +271,27 @@
       const es = new EventSource('/api/sse/stream/group-membership-update/' + gid);
       es.onmessage = function(evt) {
         try {
-          const data = evt && evt.data ? JSON.parse(evt.data) : null;
-          const action = data && data.action;
-          if (typeof showAlert === 'function') {
-            if (action === 'member-joined') showAlert('success', 'A user joined the group.');
-            else if (action === 'member-left') showAlert('warning', 'A user left the group.');
-            else if (action === 'member-removed') showAlert('info', 'A user was removed from the group.');
-            else if (action === 'invite-created') showAlert('info', 'New invite created.');
-            else if (action === 'invite-declined') showAlert('secondary', 'An invite was declined.');
+          const d = evt && evt.data ? JSON.parse(evt.data) : null;
+          if (!d || !d.action) return;
+          if (d.action === 'member-joined' && d.userId) {
+            if (typeof showAlert === 'function') showAlert('success', 'A user joined the group.');
+            addRosterRow(d.userId);
+            if (d.invitationId) removeInviteRow(d.invitationId);
+          } else if (d.action === 'member-left' && d.userId) {
+            if (typeof showAlert === 'function') showAlert('warning', 'A user left the group.');
+            removeRosterRow(d.userId);
+          } else if (d.action === 'member-removed' && d.userId) {
+            if (typeof showAlert === 'function') showAlert('info', 'A user was removed from the group.');
+            removeRosterRow(d.userId);
+          } else if (d.action === 'invite-declined' && d.invitationId) {
+            if (typeof showAlert === 'function') showAlert('secondary', 'An invite was declined.');
+            removeInviteRow(d.invitationId);
+          } else if (d.action === 'invite-revoked' && d.inviteId) {
+            removeInviteRow(d.inviteId);
+          } else if (d.action === 'invite-created') {
+            if (typeof showAlert === 'function') showAlert('info', 'New invite created.');
           }
         } catch { /* ignore parse errors */ }
-        // Simple approach: reload to sync roster/invites
-        setTimeout(function(){ window.location.reload(); }, 800);
       };
     } catch { /* ignore SSE errors */ }
   });

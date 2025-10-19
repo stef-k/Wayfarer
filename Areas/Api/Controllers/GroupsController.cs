@@ -274,6 +274,56 @@ public class GroupsController : ControllerBase
         return Ok(payload);
     }
 
+    /// <summary>
+    /// Returns recent activity for groups the current user manages (owner/manager roles).
+    /// Used for offline notification badge for managers.
+    /// </summary>
+    [HttpGet("managed/activity")]
+    [Authorize(Roles = "Manager")]
+    public async Task<IActionResult> ManagedActivity([FromQuery] int sinceHours = 24, CancellationToken ct = default)
+    {
+        if (CurrentUserId is null) return Unauthorized();
+        if (sinceHours <= 0 || sinceHours > 168) sinceHours = 24; // clamp to [1..168]
+
+        var managedGroupIds = await (from m in _db.GroupMembers
+                                     where m.UserId == CurrentUserId
+                                           && m.Status == GroupMember.MembershipStatuses.Active
+                                           && (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
+                                     select m.GroupId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (managedGroupIds.Count == 0) return Ok(new { count = 0, items = Array.Empty<object>() });
+
+        var since = DateTime.UtcNow.AddHours(-sinceHours);
+        // Fetch recent logs and filter by group id occurrence in details
+        var logs = await _db.AuditLogs
+            .Where(a => a.Timestamp >= since)
+            .OrderByDescending(a => a.Timestamp)
+            .Take(500)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var items = new List<object>();
+        foreach (var log in logs)
+        {
+            Guid? gid = null;
+            foreach (var mgid in managedGroupIds)
+            {
+                if (log.Details?.Contains(mgid.ToString(), StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    gid = mgid; break;
+                }
+            }
+            if (gid.HasValue)
+            {
+                items.Add(new { log.Timestamp, log.Action, log.Details, GroupId = gid.Value });
+            }
+        }
+
+        return Ok(new { count = items.Count, items });
+    }
+
     // POST /api/groups/{groupId}/leave
     [HttpPost("{groupId}/leave")]
     public async Task<IActionResult> Leave([FromRoute] Guid groupId, CancellationToken ct)

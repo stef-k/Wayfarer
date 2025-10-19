@@ -24,6 +24,21 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Returns basic user info (id, userName, displayName) for manager use.
+    /// </summary>
+    [HttpGet("{id}/basic")]
+    [Authorize(Roles = "Manager")]
+    public async Task<IActionResult> GetBasic([FromRoute] string id, CancellationToken ct)
+    {
+        var u = await _dbContext.Users.AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new { id = x.Id, userName = x.UserName, displayName = x.DisplayName })
+            .FirstOrDefaultAsync(ct);
+        if (u == null) return NotFound();
+        return Ok(u);
+    }
+
+    /// <summary>
     /// Deletes all locations for the given user.
     /// </summary>
     /// <param name="userId">The ID of the user.</param>
