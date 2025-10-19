@@ -1,0 +1,18 @@
+@{
+    var groupId = (Guid)ViewBag.GroupId;
+    var group = (Wayfarer.Models.Group)ViewBag.Group;
+    ViewData["Title"] = $"Map - {group.Name}";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2>@ViewData["Title"]</h2>
+  <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">Back</a>
+  <input type="hidden" id="groupId" value="@groupId" />
+</div>
+
+<div id="groupMap" style="height:70vh; width:100%"></div>
+
+<script src="~/lib/leaflet/leaflet-src.js"></script>
+<link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
+<script src="~/js/Areas/Manager/Groups/map.js"></script>
+

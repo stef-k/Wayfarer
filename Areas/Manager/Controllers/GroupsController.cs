@@ -386,4 +386,24 @@ namespace Wayfarer.Areas.Manager.Controllers;
 
         return RedirectWithAlert("Index", "Groups", "Group updated", "success", area: "Manager");
     }
+
+    [HttpGet]
+    public async Task<IActionResult> Map(Guid groupId)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
+
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        if (group == null) return NotFound();
+
+        var membership = await _dbContext.GroupMembers.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
+        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
+        if (!isOwnerOrManager && group.OwnerUserId != userId) return Forbid();
+
+        ViewBag.Group = group;
+        ViewBag.GroupId = groupId;
+        SetPageTitle($"Map - {group.Name}");
+        return View();
+    }
 }

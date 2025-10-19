@@ -58,7 +58,7 @@ tasks:
 - id: TM-010
   title: Manager UI - Map and SSE
   labels: ['ui', 'sse']
-  status: todo
+  status: done
   deps: ['TM-006']
   file: spec/tasks/TM-010.md
 - id: TM-011

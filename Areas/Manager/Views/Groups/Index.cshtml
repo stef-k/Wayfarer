@@ -27,6 +27,7 @@
             <td class="text-nowrap">
                 <a class="btn btn-sm btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Edit" asp-route-id="@g.Id">Edit</a>
                 <a class="btn btn-sm btn-info" asp-area="Manager" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">Members</a>
+                <a class="btn btn-sm btn-primary" asp-area="Manager" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">Map</a>
                 <form asp-area="Manager" asp-controller="Groups" asp-action="ConfirmDelete" method="post" class="d-inline js-confirm" data-confirm-title="Delete Group" data-confirm-message="Are you sure you want to delete this group? This action cannot be undone.">
                     <input type="hidden" name="id" value="@g.Id" />
                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
