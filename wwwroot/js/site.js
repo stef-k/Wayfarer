@@ -78,7 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
             invitesBadge.classList.toggle('d-none', count === 0);
             // One-time session notification after login
             if (count > 0 && !sessionStorage.getItem('invites.notified')) {
-                if (typeof showAlert === 'function') showAlert('info', `You have ${count} pending invitation${count === 1 ? '' : 's'}.`);
+                if (typeof showAlert === 'function') {
+                    const plural = count === 1 ? '' : 's';
+                    // Provide instruction to visit Invitations page
+                    showAlert('info', `You have ${count} pending invitation${plural}. Open User → Invitations to review.`);
+                }
                 sessionStorage.setItem('invites.notified', '1');
             }
         } catch { /* ignore */ }
