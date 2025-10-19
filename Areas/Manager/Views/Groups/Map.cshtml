@@ -25,15 +25,22 @@
       @{
           var members = (IEnumerable<dynamic>)ViewBag.Members;
       }
-      <label class="list-group-item">
-        <input type="checkbox" id="selectAllUsers" class="form-check-input me-1" checked />
-        Select All
-      </label>
+      <div class="list-group-item d-flex align-items-center justify-content-between">
+        <label class="mb-0">
+          <input type="checkbox" id="selectAllUsers" class="form-check-input me-1" checked />
+          Select All
+        </label>
+        <div class="btn-group btn-group-sm">
+          <button type="button" id="showAllUsers" class="btn btn-outline-secondary">Show All</button>
+          <button type="button" id="hideAllUsers" class="btn btn-outline-secondary">Hide All</button>
+        </div>
+      </div>
       @foreach (var u in members)
       {
           <div class="list-group-item d-flex justify-content-between align-items-center user-item" data-filter="@u.UserName @u.DisplayName">
             <label class="mb-0 flex-grow-1">
-              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" />
+              <span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>
+              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" data-display="@u.DisplayName" />
               @u.UserName (@u.DisplayName)
             </label>
             <div class="btn-group btn-group-sm">

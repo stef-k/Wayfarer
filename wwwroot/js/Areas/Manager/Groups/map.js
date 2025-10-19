@@ -19,6 +19,11 @@
     document.querySelectorAll('#userSidebar input.user-select').forEach(b => m.set(b.getAttribute('data-user-id'), b.getAttribute('data-username')));
     return m;
   }
+  function idToInfoMap() {
+    const m = new Map();
+    document.querySelectorAll('#userSidebar input.user-select').forEach(b => m.set(b.getAttribute('data-user-id'), { username: b.getAttribute('data-username'), display: b.getAttribute('data-display') }));
+    return m;
+  }
   function toBBox() {
     const b = map.getBounds(); const sw = b.getSouthWest(), ne = b.getNorthEast();
     return { MinLng: sw.lng, MinLat: sw.lat, MaxLng: ne.lng, MaxLat: ne.lat, ZoomLevel: map.getZoom(), UserIds: [] };
@@ -37,9 +42,10 @@
   }
   function upsertLatestForUser(userId, loc) {
     const latlng=[loc.Coordinates.y, loc.Coordinates.x];
-    const uname=idToUsernameMap().get(userId)||'';
-    const style=styleForLatest(loc, uname);
-    const popup=new Date(loc.LocalTimestamp).toLocaleString() + '<br/>' + (loc.Place||'');
+    const info=idToInfoMap().get(userId)||{ username:'', display:''};
+    const style=styleForLatest(loc, info.username);
+    const label = info.username + (info.display ? (' (' + info.display + ')') : '');
+    const popup= label + '<br/>' + new Date(loc.LocalTimestamp).toLocaleString() + '<br/>' + (loc.Place||'');
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setStyle(style); m.setPopupContent(popup); }
     else { const m=L.circleMarker(latlng, style).bindPopup(popup); m.addTo(map); latestMarkers.set(userId, m); }
   }
@@ -58,10 +64,11 @@
     (res.results||[]).forEach(loc=>{ 
       if (!loc.IsLatestLocation) { 
         const uid = loc.UserId || '';
-        const uname = idToUsernameMap().get(uid) || uid || 'user';
-        const base = colorFromString(uname);
+        const info = idToInfoMap().get(uid) || { username: uid, display: '' };
+        const base = colorFromString(info.username || uid || 'user');
         const dot=L.circleMarker([loc.Coordinates.y, loc.Coordinates.x], { radius:3, color:base, weight:1, fillColor: base, fillOpacity: 0.5 });
-        dot.bindTooltip(uname, { direction: 'top' });
+        const tlabel = (info.username || uid) + (info.display ? (' (' + info.display + ')') : '');
+        dot.bindTooltip(tlabel, { direction: 'top' });
         dot.on('mouseover', ()=> { dot.setStyle({ radius: 5, weight: 2 }); });
         dot.on('mouseout', ()=> { dot.setStyle({ radius: 3, weight: 1 }); });
         restLayer.addLayer(dot);
@@ -87,6 +94,11 @@
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{ cb.addEventListener('change', ()=>{ subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); });
 
   const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
+  // Color chips
+  document.querySelectorAll('#userSidebar .user-item').forEach(li => {
+    const cb = li.querySelector('input.user-select'); const chip = li.querySelector('.user-color');
+    if (cb && chip) { const color = colorFromString(cb.getAttribute('data-username')||'user'); chip.style.backgroundColor = color; }
+  });
 
   // Only this button handling
   document.querySelectorAll('#userSidebar .only-this').forEach(btn => {
