@@ -29,6 +29,13 @@
         opt.textContent = u.userName + display;
         results.appendChild(opt);
       });
+      // auto-select when single result returned, sync hidden field
+      if (results.options.length > 0) {
+        if (results.selectedIndex < 0) results.selectedIndex = 0;
+        const hidden = form ? form.querySelector('#inviteeUserId') : null;
+        if (hidden) hidden.value = results.value || '';
+        results.classList.remove('is-invalid');
+      }
     } catch (e) {
       // no-op
     } finally {
@@ -72,9 +79,14 @@
   if (form) {
     form.addEventListener('submit', function(e) {
       const uid = form.querySelector('#inviteeUserId');
+      // ensure hidden sync with current selection
+      if (uid && (!uid.value || !uid.value.trim()) && results && results.value) {
+        uid.value = results.value;
+      }
       if (!uid || !uid.value || !uid.value.trim()) {
         e.preventDefault();
         if (results) results.classList.add('is-invalid');
+        if (typeof showAlert === 'function') showAlert('danger', 'Please select a user to invite.');
       } else {
         if (results) results.classList.remove('is-invalid');
         // AJAX submit invite with anti-forgery header
@@ -93,7 +105,13 @@
               if (invitesTable && data.invite) {
                 const row = document.createElement('tr');
                 row.setAttribute('data-invite-id', data.invite.id);
-                row.innerHTML = '<td>' + (fd.get('inviteeUserId') || '') + '</td>' +
+                var inviteeLabel = '';
+                if (results && results.selectedOptions && results.selectedOptions.length) {
+                  inviteeLabel = results.selectedOptions[0].textContent;
+                } else {
+                  inviteeLabel = (fd.get('inviteeUserId') || '');
+                }
+                row.innerHTML = '<td>' + inviteeLabel + '</td>' +
                                 '<td>' + new Date().toLocaleString() + '</td>' +
                                 '<td></td>';
                 invitesTable.appendChild(row);

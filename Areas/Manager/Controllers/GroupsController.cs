@@ -76,9 +76,21 @@ namespace Wayfarer.Areas.Manager.Controllers;
                              join u in _dbContext.Users on m.UserId equals u.Id
                              select new { m, u }).AsNoTracking().ToListAsync();
 
-        var invites = await _dbContext.GroupInvitations
-            .Where(i => i.GroupId == groupId && i.Status == GroupInvitation.InvitationStatuses.Pending)
-            .AsNoTracking().ToListAsync();
+        var invites = await (from i in _dbContext.GroupInvitations
+                             where i.GroupId == groupId && i.Status == GroupInvitation.InvitationStatuses.Pending
+                             join u in _dbContext.Users on i.InviteeUserId equals u.Id into iu
+                             from u in iu.DefaultIfEmpty()
+                             select new
+                             {
+                                 i.Id,
+                                 i.InviteeUserId,
+                                 i.InviteeEmail,
+                                 i.CreatedAt,
+                                 UserName = u != null ? u.UserName : null,
+                                 DisplayName = u != null ? u.DisplayName : null
+                             })
+            .AsNoTracking()
+            .ToListAsync();
 
         ViewBag.Group = group;
         ViewBag.Members = members;

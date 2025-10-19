@@ -1,7 +1,7 @@
 @{
     var group = (Wayfarer.Models.Group)ViewBag.Group;
     var members = (IEnumerable<dynamic>)ViewBag.Members;
-    var invites = (IEnumerable<Wayfarer.Models.GroupInvitation>)ViewBag.Invites;
+    var invites = (IEnumerable<dynamic>)ViewBag.Invites;
     ViewData["Title"] = $"Members - {group.Name}";
 }
 
@@ -75,6 +75,7 @@
       <div class="mb-3">
         <label class="form-label" for="userResults">Results</label>
         <select class="form-select" id="userResults"></select>
+        <div class="invalid-feedback">Please select a user to invite.</div>
         <div class="form-text">Select a user and click Send Invite.</div>
       </div>
 
@@ -94,7 +95,16 @@
       @foreach (var inv in invites)
       {
           <tr data-invite-id="@inv.Id">
-            <td>@(inv.InviteeUserId ?? inv.InviteeEmail)</td>
+            <td>
+                @if (!string.IsNullOrEmpty((string)inv.InviteeUserId) && !string.IsNullOrEmpty((string?)inv.UserName))
+                {
+                    @:@inv.UserName (@inv.DisplayName)
+                }
+                else
+                {
+                    @:@inv.InviteeEmail
+                }
+            </td>
             <td>@inv.CreatedAt.ToLocalTime()</td>
             <td>
               <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Revoke Invitation" data-confirm-message="Revoke this pending invite?">
