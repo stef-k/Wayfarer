@@ -10,7 +10,7 @@
   }
 
   const latestMarkers = new Map();
-  let restLayer = L.layerGroup().addTo(map);
+  let restClusters = new Map(); // userId -> MarkerClusterGroup
   let subscriptions = new Map();
 
   function selectedUsers() {
@@ -74,21 +74,37 @@
       if (d && d.value) body.Day = parseInt(d.value, 10);
     }
     const res=await postJson(url, body);
-    map.removeLayer(restLayer); restLayer=L.layerGroup();
-    (res.results||[]).forEach(loc=>{ 
-      if (!loc.IsLatestLocation) { 
+    // clear existing clusters
+    restClusters.forEach(g => map.removeLayer(g));
+    restClusters.clear();
+    // build clusters per user for consistent color coding
+    (res.results||[]).forEach(loc=>{
+      if (!loc.IsLatestLocation) {
         const uid = loc.UserId || '';
         const info = idToInfoMap().get(uid) || { username: uid, display: '' };
         const base = colorFromString(info.username || uid || 'user');
-        const dot=L.circleMarker([loc.Coordinates.y, loc.Coordinates.x], { radius:3, color:base, weight:1, fillColor: base, fillOpacity: 0.5 });
+        let group = restClusters.get(uid);
+        if (!group) {
+          group = L.markerClusterGroup({
+            iconCreateFunction: function (cluster) {
+              const count = cluster.getChildCount();
+              return L.divIcon({
+                html: '<div style="background:' + base + ';color:#fff;border:2px solid ' + base + ';border-radius:20px; padding:2px 6px;">' + count + '</div>',
+                className: 'user-cluster-icon',
+                iconSize: L.point(30, 30)
+              });
+            }
+          });
+          map.addLayer(group);
+          restClusters.set(uid, group);
+        }
         const tlabel = (info.username || uid) + (info.display ? (' (' + info.display + ')') : '');
-        dot.bindTooltip(tlabel, { direction: 'top' });
-        dot.on('mouseover', ()=> { dot.setStyle({ radius: 5, weight: 2 }); });
-        dot.on('mouseout', ()=> { dot.setStyle({ radius: 3, weight: 1 }); });
-        restLayer.addLayer(dot);
+        const marker = L.marker([loc.Coordinates.y, loc.Coordinates.x], {
+          icon: L.divIcon({html:'<div style="background:'+base+';width:8px;height:8px;border-radius:50%;border:1px solid #333"></div>', className:'rest-dot', iconSize:[10,10]})
+        }).bindTooltip(tlabel, {direction:'top'});
+        group.addLayer(marker);
       }
     });
-    restLayer.addTo(map);
   }
 
   // initial
