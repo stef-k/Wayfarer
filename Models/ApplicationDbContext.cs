@@ -165,6 +165,10 @@ namespace Wayfarer.Models
                 .Property(x => x.IsRegistrationOpen)
                 .HasDefaultValue(false);
 
+            builder.Entity<ApplicationSettings>()
+                .Property(x => x.AutoDeleteEmptyGroups)
+                .HasDefaultValue(true);
+
             // Location Imports
             builder.Entity<LocationImport>()
                 .HasOne(li => li.User)

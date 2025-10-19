@@ -47,6 +47,6 @@ public class ApplicationSettings
     /// or is removed. Defaults to false (feature disabled).
     /// </summary>
     [Required]
-    public bool AutoDeleteEmptyGroups { get; set; } = false;
+    public bool AutoDeleteEmptyGroups { get; set; } = true;
     
 }

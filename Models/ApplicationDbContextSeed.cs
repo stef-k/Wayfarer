@@ -92,7 +92,9 @@ public class ApplicationDbContextSeed
                 LocationDistanceThresholdMeters = 15,
                 MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB,
                 UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB,
-                IsRegistrationOpen = false
+                IsRegistrationOpen = false,
+                // Default: enabled per product decision
+                AutoDeleteEmptyGroups = true
             });
         }
         else
@@ -123,6 +125,9 @@ public class ApplicationDbContextSeed
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
                 changed = true;
             }
+
+            // Do not override if explicitly set; this is only for missing/legacy rows that didn't have the column populated
+            // If your deployment wants to enforce enablement, toggle in Admin Settings.
 
             if (changed)
             {
