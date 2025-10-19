@@ -1,0 +1,57 @@
+@{
+    ViewData["BodyClass"] = "container";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Invitations</h2>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0" id="invitationsTable">
+                <thead>
+                <tr>
+                    <th>Group</th>
+                    <th>Invited</th>
+                    <th>Expires</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+                </thead>
+                <tbody id="invitesTbody">
+                <tr id="invitesEmptyRow" class="d-none">
+                    <td colspan="4" class="text-center text-muted">No pending invitations.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+ </div>
+
+@* Hidden antiforgery token for AJAX *@
+<div style="display:none;">
+    @Html.AntiForgeryToken()
+    <span id="antiForgeryTokenHolder"></span>
+    <script>
+        // expose token value early for module script usage
+        (function(){
+            var t = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (t) { window.__antiForgeryToken = t.value; }
+        })();
+    </script>
+    <script>
+        window.__userInvitationsConfig = {
+            listUrl: '/api/invitations',
+            acceptUrl: function(id){ return `/api/invitations/${id}/accept`; },
+            declineUrl: function(id){ return `/api/invitations/${id}/decline`; },
+            groupsUrl: '/api/groups' // used to map groupId -> name for display
+        };
+    </script>
+    
+    @* Preload username/display name helper note: not required here as we show group, not users *@
+</div>
+
+@section Scripts {
+    <script src="~/js/Areas/User/Invitations/index.js" type="module" asp-append-version="true"></script>
+}
+

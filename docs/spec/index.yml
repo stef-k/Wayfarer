@@ -64,7 +64,7 @@ tasks:
 - id: TM-011
   title: User UI - Invitations
   labels: ['ui']
-  status: todo
+  status: done
   deps: ['TM-004']
   file: spec/tasks/TM-011.md
 - id: TM-012
