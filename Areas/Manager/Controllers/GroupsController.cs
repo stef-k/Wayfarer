@@ -82,7 +82,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (!isOwnerOrManager && group.OwnerUserId != userId) return Forbid();
 
         var members = await (from m in _dbContext.GroupMembers
-                             where m.GroupId == groupId
+                             where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
                              join u in _dbContext.Users on m.UserId equals u.Id
                              select new { m, u }).AsNoTracking().ToListAsync();
 
