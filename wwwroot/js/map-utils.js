@@ -31,6 +31,7 @@ const ZoomLevelControl = L.Control.extend({
                 currentTool = null;
                 measureActive = false;
                 measureBtn.classList.remove('active');
+                try { map._container.style.cursor = ''; } catch (_) {}
                 return;
             }
 
@@ -45,8 +46,10 @@ const ZoomLevelControl = L.Control.extend({
                     measureActive = false;
                     measureBtn.classList.remove('active');
                     currentTool = null;
+                    try { map._container.style.cursor = ''; } catch (_) {}
                 }
             });
+            try { map._container.style.cursor = 'pointer'; } catch (_) {}
         });
         
         // Create copy button using Bootstrap Icon
