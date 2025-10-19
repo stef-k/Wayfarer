@@ -100,10 +100,13 @@ public class InvitationsController : ControllerBase
         try
         {
             var inv = await _invites.InviteUserAsync(req.GroupId, CurrentUserId, req.InviteeUserId, req.InviteeEmail, req.ExpiresAt, ct);
+            // get group name for richer payloads
+            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == inv.GroupId, ct);
+            var gname = group?.Name;
             // Notify invitee if known
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
-                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", JsonSerializer.Serialize(new { action = "created", id = inv.Id }));
+                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", JsonSerializer.Serialize(new { action = "created", id = inv.Id, groupId = inv.GroupId, groupName = gname }));
             }
             // Inform managers of new pending invite
             await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-created", id = inv.Id }));
@@ -130,7 +133,10 @@ public class InvitationsController : ControllerBase
         try
         {
             await _invites.AcceptAsync(inv.Token, CurrentUserId, ct);
-            await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "accepted", id }));
+            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == inv.GroupId, ct);
+            var gname = group?.Name;
+            await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "accepted", id, groupId = inv.GroupId, groupName = gname }));
+            await _sse.BroadcastAsync($"membership-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "joined", groupId = inv.GroupId, groupName = gname }));
             // Inform managers watching the group
             await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "member-joined", userId = CurrentUserId, invitationId = id }));
             return Ok(new { message = "Accepted" });

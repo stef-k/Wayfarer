@@ -54,10 +54,10 @@ public class InvitationService : IInvitationService
         inv.RespondedAt = DateTime.UtcNow;
         inv.InviteeUserId ??= acceptorUserId;
 
-        // Ensure membership exists
-        var exists = await _db.GroupMembers.AnyAsync(m => m.GroupId == inv.GroupId && m.UserId == acceptorUserId, ct);
-        GroupMember? member = null;
-        if (!exists)
+        // Ensure membership exists and is Active (revive if previously Left/Removed)
+        var existing = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == inv.GroupId && m.UserId == acceptorUserId, ct);
+        GroupMember? member = existing;
+        if (existing == null)
         {
             member = new GroupMember
             {
@@ -69,6 +69,13 @@ public class InvitationService : IInvitationService
                 JoinedAt = DateTime.UtcNow
             };
             await _db.GroupMembers.AddAsync(member, ct);
+        }
+        else if (!string.Equals(existing.Status, GroupMember.MembershipStatuses.Active, StringComparison.Ordinal))
+        {
+            existing.Status = GroupMember.MembershipStatuses.Active;
+            existing.JoinedAt = existing.JoinedAt == default ? DateTime.UtcNow : existing.JoinedAt;
+            existing.LeftAt = null;
+            if (string.IsNullOrWhiteSpace(existing.Role)) existing.Role = GroupMember.Roles.Member;
         }
 
         await AddAuditAsync(acceptorUserId, "InviteAccept", $"Accepted invite for group {inv.GroupId}", ct);
@@ -118,4 +125,3 @@ public class InvitationService : IInvitationService
         await _db.AuditLogs.AddAsync(audit, ct);
     }
 }
-

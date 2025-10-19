@@ -258,6 +258,9 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
             await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId }));
+            var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
+            var gname = group?.Name;
+            await _sse.BroadcastAsync($"membership-update-{userId}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
             return Ok(new { success = true, userId });
         }
         catch (UnauthorizedAccessException)

@@ -90,6 +90,27 @@ document.addEventListener('DOMContentLoaded', () => {
     updateInvitesBadge();
     setInterval(updateInvitesBadge, 60000);
 
+    // User offline check for pending invitations: compare with last stored list
+    const checkPendingInvitesDiff = async () => {
+        try {
+            const res = await fetch('/api/invitations');
+            if (!res.ok) return;
+            const cur = await res.json();
+            const invites = Array.isArray(cur) ? cur.map(x => ({ id: x.id, groupName: x.groupName || '' })) : [];
+            const prevRaw = localStorage.getItem('user.pending.invites');
+            const prev = prevRaw ? JSON.parse(prevRaw) : [];
+            const prevIds = new Set(prev.map(x => x.id));
+            const newInvs = invites.filter(x => !prevIds.has(x.id)).map(x => x.groupName).filter(Boolean);
+            const notified = sessionStorage.getItem('user.invites.diff.notified') === '1';
+            if (!notified && newInvs.length) {
+                if (typeof showAlert === 'function') showAlert('info', `New invitation(s) for: ${newInvs.join(', ')}. Open User → Invitations.`);
+                sessionStorage.setItem('user.invites.diff.notified', '1');
+            }
+            localStorage.setItem('user.pending.invites', JSON.stringify(invites));
+        } catch { /* ignore */ }
+    };
+    checkPendingInvitesDiff();
+
     // Manager: show recent activity digest + badge if present
     const mgrBadge = document.getElementById('managerGroupsBadge');
     const updateManagerActivity = async () => {
@@ -112,11 +133,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Optional SSE to refresh badge in real-time
     try {
-        if (window.__currentUserId && invitesBadge && typeof EventSource !== 'undefined') {
-            const es = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
-            es.onmessage = () => updateInvitesBadge();
+        if (window.__currentUserId && typeof EventSource !== 'undefined') {
+            // Invitations channel: alert on every new invite
+            const esInv = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
+            esInv.onmessage = (evt) => {
+                updateInvitesBadge();
+                let g = '';
+                try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (d && d.groupName) g = ` for ${d.groupName}`; } catch {}
+                if (typeof showAlert === 'function') showAlert('info', `You received a new invitation${g}. Open User → Invitations.`);
+            };
+
+            // Membership channel: removal/left/joined alerts
+            const esMem = new EventSource(`/api/sse/stream/membership-update/${window.__currentUserId}`);
+            esMem.onmessage = (evt) => {
+                try {
+                    const data = evt && evt.data ? JSON.parse(evt.data) : null;
+                    if (!data || !data.action) return;
+                    if (data.action === 'removed') {
+                        const g = data.groupName ? ` ${data.groupName}` : '';
+                        if (typeof showAlert === 'function') showAlert('warning', `You were removed from group${g}.`);
+                    } else if (data.action === 'left') {
+                        const g = data.groupName ? ` ${data.groupName}` : '';
+                        if (typeof showAlert === 'function') showAlert('secondary', `You left group${g}.`);
+                    } else if (data.action === 'joined') {
+                        const g = data.groupName ? ` ${data.groupName}` : '';
+                        if (typeof showAlert === 'function') showAlert('success', `You joined group${g}.`);
+                    }
+                } catch { /* ignore parse errors */ }
+            };
         }
     } catch { /* ignore SSE errors */ }
+
+    // User offline check for membership changes: compare joined count on session start
+    const checkJoinedGroups = async () => {
+        try {
+            const res = await fetch('/api/groups?scope=joined');
+            if (!res.ok) return;
+            const list = await res.json();
+            const joined = Array.isArray(list) ? list.map(x => ({ id: x.id, name: x.name })) : [];
+            const prevRaw = localStorage.getItem('user.joined.groups');
+            const prev = prevRaw ? JSON.parse(prevRaw) : [];
+            const prevMap = new Map(prev.map(x => [x.id, x.name]));
+            const curMap = new Map(joined.map(x => [x.id, x.name]));
+            const removed = prev.filter(x => !curMap.has(x.id)).map(x => x.name).filter(Boolean);
+            const added = joined.filter(x => !prevMap.has(x.id)).map(x => x.name).filter(Boolean);
+            const notifiedThisSession = sessionStorage.getItem('user.joined.diff.notified') === '1';
+            if (!notifiedThisSession) {
+                if (removed.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removed.join(', ')}`);
+                if (added.length && typeof showAlert === 'function') showAlert('success', `You joined: ${added.join(', ')}`);
+                if (removed.length || added.length) sessionStorage.setItem('user.joined.diff.notified', '1');
+            }
+            localStorage.setItem('user.joined.groups', JSON.stringify(joined));
+        } catch { /* ignore */ }
+    };
+    checkJoinedGroups();
 
     // Only initialize theme toggle if the toggle button is on this page
     if (!toggleButton) return;

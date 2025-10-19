@@ -333,6 +333,9 @@ public class GroupsController : ControllerBase
         {
             await _groups.LeaveGroupAsync(groupId, CurrentUserId, ct);
             await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-left", userId = CurrentUserId }));
+            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
+            var gname = group?.Name;
+            await _sse.BroadcastAsync($"membership-update-{CurrentUserId}", System.Text.Json.JsonSerializer.Serialize(new { action = "left", groupId, groupName = gname }));
             return Ok(new { message = "Left group" });
         }
         catch (KeyNotFoundException)
@@ -354,6 +357,9 @@ public class GroupsController : ControllerBase
         {
             await _groups.RemoveMemberAsync(groupId, CurrentUserId, userId, ct);
             await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId }));
+            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
+            var gname = group?.Name;
+            await _sse.BroadcastAsync($"membership-update-{userId}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
             return Ok(new { message = "Member removed" });
         }
         catch (KeyNotFoundException)

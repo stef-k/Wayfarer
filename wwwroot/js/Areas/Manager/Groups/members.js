@@ -237,7 +237,7 @@
     if (document.querySelector('tr[data-user-id="' + userId + '"]')) return; // already exists
     try {
       const resp = await fetch('/api/users/' + encodeURIComponent(userId) + '/basic');
-      if (!resp.ok) return;
+      if (!resp.ok) throw new Error('basic user fetch failed');
       const u = await resp.json();
       const tr = document.createElement('tr');
       tr.setAttribute('data-user-id', userId);
@@ -259,7 +259,10 @@
                      '</td>';
       tbody.appendChild(tr);
       attachConfirmHandler(tr.querySelector('form.js-confirm'));
-    } catch { /* ignore */ }
+    } catch (e) {
+      // fallback: schedule a reload if we couldn't add row
+      setTimeout(function(){ window.location.reload(); }, 800);
+    }
   }
 
   // SSE: react to membership changes without full reload
