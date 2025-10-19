@@ -138,6 +138,9 @@ public class GroupService : IGroupService
         member.LeftAt = DateTime.UtcNow;
         await AddAuditAsync(actorUserId, "MemberRemove", $"Removed {targetUserId} from group {groupId}", ct);
         await _db.SaveChangesAsync(ct);
+
+        // If enabled, delete the group when no active members remain
+        await DeleteGroupIfEmptyAsync(groupId, actorUserId, ct);
     }
 
     public async Task LeaveGroupAsync(Guid groupId, string userId, CancellationToken ct = default)
@@ -165,6 +168,9 @@ public class GroupService : IGroupService
         member.LeftAt = DateTime.UtcNow;
         await AddAuditAsync(userId, "MemberLeave", $"User {userId} left group {groupId}", ct);
         await _db.SaveChangesAsync(ct);
+
+        // If enabled, delete the group when no active members remain
+        await DeleteGroupIfEmptyAsync(groupId, userId, ct);
     }
 
     private async Task EnsureOwnerOrManagerAsync(Guid groupId, string actorUserId, bool requireOwner, CancellationToken ct)
@@ -197,5 +203,29 @@ public class GroupService : IGroupService
             Timestamp = DateTime.UtcNow
         };
         await _db.AuditLogs.AddAsync(audit, ct);
+    }
+
+    /// <summary>
+    /// Deletes the group if there are no remaining active members and the feature flag is enabled.
+    /// Records an audit log entry when deletion occurs.
+    /// </summary>
+    private async Task DeleteGroupIfEmptyAsync(Guid groupId, string actorUserId, CancellationToken ct)
+    {
+        // Read global toggle from ApplicationSettings (defaults to false if no row)
+        var settings = await _db.ApplicationSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var enabled = settings?.AutoDeleteEmptyGroups == true;
+        if (!enabled) return;
+
+        var activeCount = await _db.GroupMembers
+            .CountAsync(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        if (activeCount > 0) return;
+
+        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == groupId, ct);
+        if (group == null) return;
+
+        var gname = group.Name;
+        _db.Groups.Remove(group);
+        await AddAuditAsync(actorUserId, "GroupDelete", $"Auto-deleted empty group '{gname}'", ct);
+        await _db.SaveChangesAsync(ct);
     }
 }

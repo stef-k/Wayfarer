@@ -41,5 +41,12 @@ public class ApplicationSettings
     [Required] 
     [Range(-1, 102400)]
     public int UploadSizeLimitMB { get; set; } = 100;
+
+    /// <summary>
+    /// When enabled, automatically delete a group when its last active member leaves
+    /// or is removed. Defaults to false (feature disabled).
+    /// </summary>
+    [Required]
+    public bool AutoDeleteEmptyGroups { get; set; } = false;
     
 }
