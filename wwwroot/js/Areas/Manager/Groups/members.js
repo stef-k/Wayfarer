@@ -160,13 +160,19 @@
                       } else if (f.action.endsWith('RevokeInvite')) {
                         const tr = document.querySelector('tr[data-invite-id="' + fd.get('inviteId') + '"]');
                         if (tr) tr.remove();
-                        if (typeof showAlert === 'function') showAlert('success', 'Invitation revoked.');
+                        if (typeof showAlert === 'function') showAlert('success', 'Invitation canceled.');
                       } else if (f.action.endsWith('Invite')) {
                         const invitesTable = document.getElementById('invitesTable').querySelector('tbody');
                         if (invitesTable && data.invite) {
                           const row = document.createElement('tr');
                           row.setAttribute('data-invite-id', data.invite.id);
-                          row.innerHTML = '<td>' + (fd.get('inviteeUserId') || '') + '</td>' +
+                          var inviteeLabel = '';
+                          if (results && results.selectedOptions && results.selectedOptions.length) {
+                            inviteeLabel = results.selectedOptions[0].textContent;
+                          } else {
+                            inviteeLabel = (fd.get('inviteeUserId') || '');
+                          }
+                          row.innerHTML = '<td>' + inviteeLabel + '</td>' +
                                           '<td>' + new Date().toLocaleString() + '</td>' +
                                           '<td></td>';
                           invitesTable.appendChild(row);

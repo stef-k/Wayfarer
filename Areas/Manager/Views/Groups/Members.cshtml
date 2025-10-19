@@ -96,21 +96,21 @@
       {
           <tr data-invite-id="@inv.Id">
             <td>
-                @if (!string.IsNullOrEmpty((string)inv.InviteeUserId) && !string.IsNullOrEmpty((string?)inv.UserName))
+                @if (!string.IsNullOrEmpty((string)inv.UserName))
                 {
                     @:@inv.UserName (@inv.DisplayName)
                 }
                 else
                 {
-                    @:@inv.InviteeEmail
+                    @:@inv.InviteeUserId
                 }
             </td>
             <td>@inv.CreatedAt.ToLocalTime()</td>
             <td>
-              <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Revoke Invitation" data-confirm-message="Revoke this pending invite?">
+              <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
                 <input type="hidden" name="groupId" value="@group.Id" />
                 <input type="hidden" name="inviteId" value="@inv.Id" />
-                <button type="submit" class="btn btn-sm btn-outline-secondary">Revoke</button>
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>
               </form>
             </td>
           </tr>
