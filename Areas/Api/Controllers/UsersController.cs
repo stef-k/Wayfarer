@@ -24,10 +24,11 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Returns basic user info (id, userName, displayName) for manager use.
+    /// Returns basic user info (id, userName, displayName).
+    /// Available to Managers and Users for roster rendering.
     /// </summary>
     [HttpGet("{id}/basic")]
-    [Authorize(Roles = "Manager")]
+    [Authorize(Roles = "Manager,User")]
     public async Task<IActionResult> GetBasic([FromRoute] string id, CancellationToken ct)
     {
         var u = await _dbContext.Users.AsNoTracking()

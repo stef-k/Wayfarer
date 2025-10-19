@@ -78,10 +78,37 @@
 
   function attachConfirmHandler(f){ if (!f) return; f.addEventListener('submit', function(e){ e.preventDefault(); const title=f.dataset.confirmTitle||'Confirm', message=f.dataset.confirmMessage||'Confirm?'; if (typeof showConfirmationModal==='function'){ showConfirmationModal({ title, message, confirmText:'Continue', onConfirm: ()=> submitAjax(f)});} else { if (confirm(message)) submitAjax(f); } }); }
   function submitAjax(f){ const fd=new FormData(f); fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/, '$1Ajax'), { method:'POST', body: fd }).then(r => r.json()).then(data => { if (data?.success){ if (f.action.endsWith('RemoveMember')) removeRosterRow(fd.get('userId')); if (f.action.endsWith('RevokeInvite')) removeInviteRow(fd.get('inviteId')); } else { if (typeof showAlert==='function') showAlert('danger', data?.message || 'Failed'); } }); }
+  async function addRosterRow(userId){
+    const tbody = document.querySelector('#rosterTable tbody'); if (!tbody) return;
+    if (document.querySelector('tr[data-user-id="' + userId + '"]')) return;
+    try {
+      const resp = await fetch('/api/users/' + encodeURIComponent(userId) + '/basic');
+      if (!resp.ok) throw new Error('basic user fetch failed');
+      const u = await resp.json();
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-user-id', userId);
+      const tokenVal = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+      const groupId = document.querySelector('#inviteForm input[name="groupId"]').value;
+      const removeAction = '/User/Groups/RemoveMember';
+      tr.innerHTML = '<td>' + (u.userName || '') + '</td>' +
+                     '<td>' + (u.displayName || '') + '</td>' +
+                     '<td>Member</td>' +
+                     '<td>Active</td>' +
+                     '<td>' +
+                       '<form class="d-inline js-confirm js-ajax" method="post" action="' + removeAction + '" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">' +
+                         '<input type="hidden" name="groupId" value="' + groupId + '" />' +
+                         '<input type="hidden" name="userId" value="' + userId + '" />' +
+                         (tokenVal ? ('<input type="hidden" name="__RequestVerificationToken" value="' + tokenVal + '" />') : '') +
+                         '<button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>' +
+                       '</form>' +
+                     '</td>';
+      tbody.appendChild(tr);
+      attachConfirmHandler(tr.querySelector('form.js-confirm'));
+    } catch (e) { setTimeout(function(){ window.location.reload(); }, 800); }
+  }
   function removeRosterRow(userId){ const tr=document.querySelector('tr[data-user-id="'+userId+'"]'); if (tr) tr.remove(); }
   function removeInviteRow(inviteId){ const tr=document.querySelector('tr[data-invite-id="'+inviteId+'"]'); if (tr) tr.remove(); }
 
   // SSE live updates
-  document.addEventListener('DOMContentLoaded', function(){ try { const gid = document.querySelector('#inviteForm input[name="groupId"]').value; if (!gid || typeof EventSource==='undefined') return; const es=new EventSource('/api/sse/stream/group-membership-update/' + gid); es.onmessage=function(evt){ try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (!d||!d.action) return; if (d.action==='member-joined' && d.userId){ if (typeof showAlert==='function') showAlert('success','A user joined the group.'); } else if (d.action==='member-left' && d.userId){ if (typeof showAlert==='function') showAlert('warning','A user left the group.'); removeRosterRow(d.userId); } else if (d.action==='member-removed' && d.userId){ if (typeof showAlert==='function') showAlert('info','A user was removed from the group.'); removeRosterRow(d.userId); } else if (d.action==='invite-declined' && d.invitationId){ if (typeof showAlert==='function') showAlert('secondary','An invite was declined.'); removeInviteRow(d.invitationId); } else if (d.action==='invite-revoked' && d.inviteId){ removeInviteRow(d.inviteId); } } catch {} }; } catch {} });
+  document.addEventListener('DOMContentLoaded', function(){ try { const gid = document.querySelector('#inviteForm input[name="groupId"]').value; if (!gid || typeof EventSource==='undefined') return; const es=new EventSource('/api/sse/stream/group-membership-update/' + gid); es.onmessage=function(evt){ try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (!d||!d.action) return; if (d.action==='member-joined' && d.userId){ if (typeof showAlert==='function') showAlert('success','A user joined the group.'); addRosterRow(d.userId); if (d.invitationId) removeInviteRow(d.invitationId); } else if (d.action==='member-left' && d.userId){ if (typeof showAlert==='function') showAlert('warning','A user left the group.'); removeRosterRow(d.userId); } else if (d.action==='member-removed' && d.userId){ if (typeof showAlert==='function') showAlert('info','A user was removed from the group.'); removeRosterRow(d.userId); } else if (d.action==='invite-declined' && d.invitationId){ if (typeof showAlert==='function') showAlert('secondary','An invite was declined.'); removeInviteRow(d.invitationId); } else if (d.action==='invite-revoked' && d.inviteId){ removeInviteRow(d.inviteId); } } catch {} }; } catch {} });
 })();
-
