@@ -76,6 +76,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const count = Array.isArray(list) ? list.length : 0;
             invitesBadge.textContent = count;
             invitesBadge.classList.toggle('d-none', count === 0);
+            // One-time session notification after login
+            if (count > 0 && !sessionStorage.getItem('invites.notified')) {
+                if (typeof showAlert === 'function') showAlert('info', `You have ${count} pending invitation${count === 1 ? '' : 's'}.`);
+                sessionStorage.setItem('invites.notified', '1');
+            }
         } catch { /* ignore */ }
     };
     updateInvitesBadge();

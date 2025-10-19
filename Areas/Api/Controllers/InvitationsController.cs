@@ -85,6 +85,8 @@ public class InvitationsController : ControllerBase
             {
                 await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", JsonSerializer.Serialize(new { action = "created", id = inv.Id }));
             }
+            // Inform managers of new pending invite
+            await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-created", id = inv.Id }));
             return Ok(new { inv.Id, inv.GroupId, inv.Status, inv.InviteeUserId, inv.InviteeEmail });
         }
         catch (UnauthorizedAccessException)
@@ -109,6 +111,8 @@ public class InvitationsController : ControllerBase
         {
             await _invites.AcceptAsync(inv.Token, CurrentUserId, ct);
             await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "accepted", id }));
+            // Inform managers watching the group
+            await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "member-joined", userId = CurrentUserId, invitationId = id }));
             return Ok(new { message = "Accepted" });
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("expired") || ex.Message.Contains("not pending"))
@@ -127,6 +131,8 @@ public class InvitationsController : ControllerBase
 
         await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
         await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "declined", id }));
+        // Inform managers watching the group
+        await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-declined", userId = CurrentUserId, invitationId = id }));
         return Ok(new { message = "Declined" });
     }
 }

@@ -21,15 +21,22 @@ public class GroupsController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IGroupService _groups;
     private readonly LocationService _locationService;
+    private readonly SseService _sse;
     private readonly ILogger<GroupsController> _logger;
 
-    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService)
+    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService, SseService sse)
     {
         _db = db;
         _groups = groups;
         _logger = logger;
         _locationService = locationService;
+        _sse = sse;
     }
+
+    // Backward-compatible ctor for tests
+    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService)
+        : this(db, groups, logger, locationService, new SseService())
+    {}
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -273,6 +280,7 @@ public class GroupsController : ControllerBase
         try
         {
             await _groups.LeaveGroupAsync(groupId, CurrentUserId, ct);
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-left", userId = CurrentUserId }));
             return Ok(new { message = "Left group" });
         }
         catch (KeyNotFoundException)
@@ -293,6 +301,7 @@ public class GroupsController : ControllerBase
         try
         {
             await _groups.RemoveMemberAsync(groupId, CurrentUserId, userId, ct);
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId }));
             return Ok(new { message = "Member removed" });
         }
         catch (KeyNotFoundException)

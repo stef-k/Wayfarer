@@ -203,4 +203,29 @@
       });
     });
   });
+
+  // SSE: refresh roster/invites when membership changes
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      const gidInput = document.querySelector('#inviteForm input[name="groupId"]');
+      const gid = gidInput ? gidInput.value : '';
+      if (!gid || typeof EventSource === 'undefined') return;
+      const es = new EventSource('/api/sse/stream/group-membership-update/' + gid);
+      es.onmessage = function(evt) {
+        try {
+          const data = evt && evt.data ? JSON.parse(evt.data) : null;
+          const action = data && data.action;
+          if (typeof showAlert === 'function') {
+            if (action === 'member-joined') showAlert('success', 'A user joined the group.');
+            else if (action === 'member-left') showAlert('warning', 'A user left the group.');
+            else if (action === 'member-removed') showAlert('info', 'A user was removed from the group.');
+            else if (action === 'invite-created') showAlert('info', 'New invite created.');
+            else if (action === 'invite-declined') showAlert('secondary', 'An invite was declined.');
+          }
+        } catch { /* ignore parse errors */ }
+        // Simple approach: reload to sync roster/invites
+        setTimeout(function(){ window.location.reload(); }, 800);
+      };
+    } catch { /* ignore SSE errors */ }
+  });
 })();
