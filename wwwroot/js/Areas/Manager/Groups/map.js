@@ -41,17 +41,17 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   }
   function colorFromString(str) { let h=0; for (let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return 'hsl(' + h + ',80%,45%)'; }
   function styleForLatest(loc, username) {
-    const now=new Date(), localTs=new Date(loc.LocalTimestamp);
-    const diffMin=Math.abs(now-localTs)/60000, isLive=diffMin <= (loc.LocationTimeThresholdMinutes||10);
+    const now=new Date(), localTs=new Date(loc.localTimestamp);
+    const diffMin=Math.abs(now-localTs)/60000, isLive=diffMin <= (loc.locationTimeThresholdMinutes||10);
     const base=colorFromString(username||'user');
     return { radius:isLive?7:6, color:base, fillColor:base, fillOpacity:isLive?0.9:0.6, weight:isLive?3:2 };
   }
   function upsertLatestForUser(userId, loc) {
-    const latlng=[loc.Coordinates.y, loc.Coordinates.x];
+    const latlng=[loc.coordinates.latitude, loc.coordinates.longitude];
     const info=idToInfoMap().get(userId)||{ username:'', display:''};
     const style=styleForLatest(loc, info.username);
     const label = info.username + (info.display ? (' (' + info.display + ')') : '');
-    const popup= label + '<br/>' + new Date(loc.LocalTimestamp).toLocaleString() + '<br/>' + (loc.Place||'');
+    const popup= label + '<br/>' + new Date(loc.localTimestamp).toLocaleString() + '<br/>' + (loc.place||'');
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setStyle(style); m.setPopupContent(popup); }
     else { const m=L.circleMarker(latlng, style).bindPopup(popup); m.addTo(map); latestMarkers.set(userId, m); }
   }
@@ -66,15 +66,15 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     const url='/api/groups/' + groupId + '/locations/query';
     const body=toBBox(); body.UserIds=selectedUsers().map(u=>u.id);
     // include optional date filters
-    const dt = document.querySelector('input[name="dateType"]:checked');
-    const y = document.getElementById('filterYear');
-    const m = document.getElementById('filterMonth');
-    const d = document.getElementById('filterDay');
+    const dt = document.querySelector('input[name="viewType"]:checked');
+    const y = document.getElementById('yearPicker');
+    const m = document.getElementById('monthPicker');
+    const d = document.getElementById('datePicker');
     if (dt && y && y.value) {
       body.DateType = dt.value;
       body.Year = parseInt(y.value, 10);
       if (m && m.value) body.Month = parseInt(m.value, 10);
-      if (d && d.value) body.Day = parseInt(d.value, 10);
+      if (d && d.value) { try { body.Day = parseInt(d.value.split('-')[2], 10); } catch{} }
     }
     const res=await postJson(url, body);
     // clear existing clusters
@@ -82,8 +82,8 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     restClusters.clear();
     // build clusters per user for consistent color coding
     (res.results||[]).forEach(loc=>{
-      if (!loc.IsLatestLocation) {
-        const uid = loc.UserId || '';
+      if (!loc.isLatestLocation) {
+        const uid = loc.userId || '';
         const info = idToInfoMap().get(uid) || { username: uid, display: '' };
         const base = colorFromString(info.username || uid || 'user');
         let group = restClusters.get(uid);
@@ -102,7 +102,7 @@ import { addZoomLevelControl } from '/js/map-utils.js';
           restClusters.set(uid, group);
         }
         const tlabel = (info.username || uid) + (info.display ? (' (' + info.display + ')') : '');
-        const marker = L.marker([loc.Coordinates.y, loc.Coordinates.x], {
+        const marker = L.marker([loc.coordinates.latitude, loc.coordinates.longitude], {
           icon: L.divIcon({html:'<div style="background:'+base+';width:8px;height:8px;border-radius:50%;border:1px solid #333"></div>', className:'rest-dot', iconSize:[10,10]})
         }).bindTooltip(tlabel, {direction:'top'});
         group.addLayer(marker);
@@ -118,7 +118,7 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   // SSE
   function subscribeSseForUsers(users){
     subscriptions.forEach(es=>es.close()); subscriptions.clear();
-    users.forEach(u=>{ try { const es=new EventSource('/api/sse/stream/location-update/' + encodeURIComponent(u.username)); es.onmessage=(ev)=>{ try { const payload=JSON.parse(ev.data); if (payload && payload.LocationId) { loadLatest([u.id]).catch(()=>{}); loadViewport().catch(()=>{}); } } catch(e){} }; es.onerror=()=>{ es.close(); }; subscriptions.set(u.username, es);} catch(e){} });
+    users.forEach(u=>{ try { const es=new EventSource('/api/sse/stream/location-update/' + encodeURIComponent(u.username)); es.onmessage=(ev)=>{ try { const payload=JSON.parse(ev.data); if (payload && (payload.locationId || payload.LocationId)) { loadLatest([u.id]).catch(()=>{}); loadViewport().catch(()=>{}); } } catch(e){} }; es.onerror=()=>{ es.close(); }; subscriptions.set(u.username, es);} catch(e){} });
   }
   subscribeSseForUsers(selectedUsers());
 
