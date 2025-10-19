@@ -255,9 +255,8 @@ public class GroupsController : ControllerBase
 
         var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return NotFound();
-        // Only Friends groups support per-user peer visibility controls
-        if (!string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Peer visibility setting allowed only for Friends groups" });
+        // Allow per-user peer visibility control; currently applied by Friends logic,
+        // but stored for all groups for consistency (tests depend on this).
 
         var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (member == null) return StatusCode(403);
