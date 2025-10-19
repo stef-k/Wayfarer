@@ -13,6 +13,27 @@
 <div class="row">
   <div class="col-md-7">
     <h4>Roster</h4>
+    <div class="mb-2">
+      <div class="btn-group" role="group">
+        <input type="radio" class="btn-check" name="membersDateType" id="mdtDay" value="day" autocomplete="off">
+        <label class="btn btn-outline-secondary btn-sm" for="mdtDay">Day</label>
+        <input type="radio" class="btn-check" name="membersDateType" id="mdtMonth" value="month" autocomplete="off">
+        <label class="btn btn-outline-secondary btn-sm" for="mdtMonth">Month</label>
+        <input type="radio" class="btn-check" name="membersDateType" id="mdtYear" value="year" autocomplete="off">
+        <label class="btn btn-outline-secondary btn-sm" for="mdtYear">Year</label>
+      </div>
+      <div class="row g-1 mt-1">
+        <div class="col-6">
+          <input type="number" class="form-control form-control-sm" placeholder="Year" />
+        </div>
+        <div class="col-3">
+          <input type="number" class="form-control form-control-sm" placeholder="Mon" />
+        </div>
+        <div class="col-3">
+          <input type="number" class="form-control form-control-sm" placeholder="Day" />
+        </div>
+      </div>
+    </div>
     @{
         var isOrg = string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase);
         var currentUserId = (string)ViewBag.CurrentUserId;

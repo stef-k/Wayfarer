@@ -86,4 +86,10 @@
 <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
 <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
+<script type="module">
+  import { addZoomLevelControl } from '/js/map-utils.js';
+  window.__addZoomLevelControl = addZoomLevelControl;
+  // If we later need the distance tool directly, we can also export it similarly.
+  // import { initDistanceMeasureTool } from '/js/map-utils.js'; window.__initDistanceMeasureTool = initDistanceMeasureTool;
+</script>
 <script src="~/js/Areas/Manager/Groups/map.js"></script>
