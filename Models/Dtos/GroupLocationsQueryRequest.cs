@@ -11,5 +11,10 @@ public class GroupLocationsQueryRequest
     public double MaxLat { get; set; }
     public double ZoomLevel { get; set; }
     public List<string>? UserIds { get; set; }
+    // Optional chronological filters
+    public string? DateType { get; set; } // "day" | "month" | "year"
+    public int? Year { get; set; }
+    public int? Month { get; set; }
+    public int? Day { get; set; }
 }
 

@@ -5,6 +5,9 @@
 
   const map = L.map('groupMap').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  if (map.attributionControl && typeof map.attributionControl.setPrefix === 'function') {
+    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+  }
 
   const latestMarkers = new Map();
   let restLayer = L.layerGroup().addTo(map);
@@ -59,6 +62,17 @@
   async function loadViewport() {
     const url='/api/groups/' + groupId + '/locations/query';
     const body=toBBox(); body.UserIds=selectedUsers().map(u=>u.id);
+    // include optional date filters
+    const dt = document.querySelector('input[name="dateType"]:checked');
+    const y = document.getElementById('filterYear');
+    const m = document.getElementById('filterMonth');
+    const d = document.getElementById('filterDay');
+    if (dt && y && y.value) {
+      body.DateType = dt.value;
+      body.Year = parseInt(y.value, 10);
+      if (m && m.value) body.Month = parseInt(m.value, 10);
+      if (d && d.value) body.Day = parseInt(d.value, 10);
+    }
     const res=await postJson(url, body);
     map.removeLayer(restLayer); restLayer=L.layerGroup();
     (res.results||[]).forEach(loc=>{ 
@@ -94,6 +108,10 @@
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{ cb.addEventListener('change', ()=>{ subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); });
 
   const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
+  // Date filter apply
+  const applyBtn = document.getElementById('applyDateFilter'); if (applyBtn) { applyBtn.addEventListener('click', ()=>{ loadViewport().catch(()=>{}); }); }
+  const showAllBtn = document.getElementById('showAllUsers'); if (showAllBtn) { showAllBtn.addEventListener('click', ()=>{ document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true); const all = document.getElementById('selectAllUsers'); if (all) all.checked = true; subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); }
+  const hideAllBtn = document.getElementById('hideAllUsers'); if (hideAllBtn) { hideAllBtn.addEventListener('click', ()=>{ document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = false); const all = document.getElementById('selectAllUsers'); if (all) all.checked = false; subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); }
   // Color chips
   document.querySelectorAll('#userSidebar .user-item').forEach(li => {
     const cb = li.querySelector('input.user-select'); const chip = li.querySelector('.user-color');

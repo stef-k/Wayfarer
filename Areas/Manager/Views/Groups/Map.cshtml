@@ -2,7 +2,8 @@
     var groupId = (Guid)ViewBag.GroupId;
     var group = (Wayfarer.Models.Group)ViewBag.Group;
     ViewData["Title"] = $"Map - {group.Name}";
-    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0";
+    ViewData["LoadLeaflet"] = true;
+    ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0 overflow-hidden";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -11,9 +12,33 @@
   <input type="hidden" id="groupId" value="@groupId" />
 </div>
 
-<div class="row">
-  <div class="col-md-3">
+<div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden">
+  <aside class="flex-shrink-0 border-end overflow-auto" style="width:320px;">
     <h5>Members</h5>
+    <div class="mb-2">
+      <div class="btn-group w-100" role="group">
+        <input type="radio" class="btn-check" name="dateType" id="dtDay" value="day" autocomplete="off">
+        <label class="btn btn-outline-secondary btn-sm" for="dtDay">Day</label>
+        <input type="radio" class="btn-check" name="dateType" id="dtMonth" value="month" autocomplete="off">
+        <label class="btn btn-outline-secondary btn-sm" for="dtMonth">Month</label>
+        <input type="radio" class="btn-check" name="dateType" id="dtYear" value="year" autocomplete="off">
+        <label class="btn btn-outline-secondary btn-sm" for="dtYear">Year</label>
+      </div>
+      <div class="row g-1 mt-1">
+        <div class="col-6">
+          <input id="filterYear" type="number" class="form-control form-control-sm" placeholder="Year" />
+        </div>
+        <div class="col-3">
+          <input id="filterMonth" type="number" class="form-control form-control-sm" placeholder="Mon" />
+        </div>
+        <div class="col-3">
+          <input id="filterDay" type="number" class="form-control form-control-sm" placeholder="Day" />
+        </div>
+      </div>
+      <div class="d-grid mt-1">
+        <button id="applyDateFilter" class="btn btn-sm btn-outline-primary">Apply</button>
+      </div>
+    </div>
     @using (Html.BeginForm())
     {
         @Html.AntiForgeryToken()
@@ -50,10 +75,10 @@
           </div>
       }
     </div>
-  </div>
-  <div class="col-md-9">
-    <div id="groupMap" style="height:70vh; width:100%"></div>
-  </div>
+  </aside>
+  <main class="flex-grow-1 overflow-hidden">
+    <div id="groupMap" class="w-100 h-100"></div>
+  </main>
 </div>
 
 <script src="~/lib/leaflet/leaflet-src.js"></script>

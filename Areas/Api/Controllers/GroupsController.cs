@@ -162,11 +162,26 @@ public class GroupsController : ControllerBase
         int total = 0;
         foreach (var uid in userIds)
         {
-            var (locations, userTotal) = await _locationService.GetLocationsAsync(
-                req.MinLng, req.MinLat, req.MaxLng, req.MaxLat, req.ZoomLevel, uid, ct);
-            foreach (var d in locations) d.UserId = uid;
-            combined.AddRange(locations);
-            total += userTotal;
+            if (!string.IsNullOrWhiteSpace(req.DateType) && req.Year.HasValue)
+            {
+                var (locs, userTotal) = await _locationService.GetLocationsByDateAsync(
+                    uid, req.DateType!, req.Year!.Value, req.Month, req.Day, ct);
+                // filter by bbox
+                var filtered = locs.Where(l =>
+                    l.Coordinates.X >= req.MinLng && l.Coordinates.X <= req.MaxLng &&
+                    l.Coordinates.Y >= req.MinLat && l.Coordinates.Y <= req.MaxLat).ToList();
+                foreach (var d in filtered) d.UserId = uid;
+                combined.AddRange(filtered);
+                total += filtered.Count; // for date-filtered path, count filtered
+            }
+            else
+            {
+                var (locations, userTotal) = await _locationService.GetLocationsAsync(
+                    req.MinLng, req.MinLat, req.MaxLng, req.MaxLat, req.ZoomLevel, uid, ct);
+                foreach (var d in locations) d.UserId = uid;
+                combined.AddRange(locations);
+                total += userTotal;
+            }
         }
 
         return Ok(new { totalItems = total, results = combined });
