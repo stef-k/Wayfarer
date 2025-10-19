@@ -41,7 +41,7 @@
               @{ bool isManagerRole = mgrRoles.Contains((string)x.m.Role); bool wouldHaveManagerAfterRemoval = !isOrg || !isManagerRole || (managerCount - 1) >= 1; bool canShowRemove = wouldHaveManagerAfterRemoval; }
               @if (canShowRemove)
               {
-                  <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">
+                  <form asp-area="Manager" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">
                       <input type="hidden" name="groupId" value="@group.Id" />
                       <input type="hidden" name="userId" value="@x.u.Id" />
                       <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
@@ -65,6 +65,9 @@
         <div class="input-group">
           <input class="form-control" id="userSearch" placeholder="Type username or display name" />
           <button type="button" id="userSearchBtn" class="btn btn-outline-secondary">Search</button>
+          <span id="userSearchSpinner" class="ms-2 align-self-center d-none">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          </span>
         </div>
         <div class="form-text">Type at least 2 characters; results update automatically (or click Search).</div>
       </div>
@@ -94,12 +97,11 @@
             <td>@(inv.InviteeUserId ?? inv.InviteeEmail)</td>
             <td>@inv.CreatedAt.ToLocalTime()</td>
             <td>
-              <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm" data-confirm-title="Revoke Invitation" data-confirm-message="Revoke this pending invite?">
+              <form asp-area="Manager" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Revoke Invitation" data-confirm-message="Revoke this pending invite?">
                 <input type="hidden" name="groupId" value="@group.Id" />
                 <input type="hidden" name="inviteId" value="@inv.Id" />
                 <button type="submit" class="btn btn-sm btn-outline-secondary">Revoke</button>
               </form>
-              }
             </td>
           </tr>
       }

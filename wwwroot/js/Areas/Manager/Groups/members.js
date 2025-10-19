@@ -56,6 +56,10 @@
   if (searchInput && results) {
     const debounced = debounce(function() { searchUsers(searchInput.value); }, 300);
     searchInput.addEventListener('input', debounced);
+    searchInput.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter') { ev.preventDefault(); searchUsers(searchInput.value); }
+      if (ev.key === 'Escape') { searchInput.value=''; results.innerHTML=''; }
+    });
   }
 
   if (results && form) {
@@ -73,6 +77,37 @@
         if (results) results.classList.add('is-invalid');
       } else {
         if (results) results.classList.remove('is-invalid');
+        // AJAX submit invite with anti-forgery header
+        e.preventDefault();
+        const fd = new FormData(form);
+        const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
+        const url = form.action.replace(/Invite$/, 'InviteAjax');
+        fetch(url, {
+          method: 'POST',
+          body: fd,
+          headers: tokenEl ? { 'RequestVerificationToken': tokenEl.value } : {}
+        }).then(function(resp){ return resp.json(); })
+          .then(function(data){
+            if (data && data.success) {
+              const invitesTable = document.getElementById('invitesTable').querySelector('tbody');
+              if (invitesTable && data.invite) {
+                const row = document.createElement('tr');
+                row.setAttribute('data-invite-id', data.invite.id);
+                row.innerHTML = '<td>' + (fd.get('inviteeUserId') || '') + '</td>' +
+                                '<td>' + new Date().toLocaleString() + '</td>' +
+                                '<td></td>';
+                invitesTable.appendChild(row);
+              }
+              if (typeof showAlert === 'function') showAlert('success', 'Invitation sent.');
+              // clear search fields
+              if (searchInput) searchInput.value = '';
+              results.innerHTML = '';
+              uid.value = '';
+            } else {
+              if (typeof showAlert === 'function') showAlert('danger', (data && data.message) || 'Failed to send invite.');
+            }
+          })
+          .catch(function(err){ if (typeof showAlert === 'function') showAlert('danger', 'Failed to send invite: ' + err); });
       }
     });
   }
@@ -92,9 +127,11 @@
             onConfirm: function() {
               if (f.classList.contains('js-ajax')) {
                 const fd = new FormData(f);
+                const tokenEl = f.querySelector('input[name="__RequestVerificationToken"]');
                 fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/,'$1Ajax'), {
                   method: 'POST',
-                  body: fd
+                  body: fd,
+                  headers: tokenEl ? { 'RequestVerificationToken': tokenEl.value } : {}
                 }).then(function(resp){ return resp.json(); })
                   .then(function(data){
                     if (data && data.success) {

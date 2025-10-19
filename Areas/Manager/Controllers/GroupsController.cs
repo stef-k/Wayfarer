@@ -200,6 +200,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
 
     // AJAX variants for members/invites
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> InviteAjax(Guid groupId, string inviteeUserId)
     {
         var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -220,6 +221,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveMemberAjax(Guid groupId, string userId)
     {
         var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -244,6 +246,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> RevokeInviteAjax(Guid groupId, Guid inviteId)
     {
         var actorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
