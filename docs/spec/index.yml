@@ -76,7 +76,7 @@ tasks:
 - id: TM-013
   title: Auto-Delete Empty Groups
   labels: ['backend']
-  status: todo
+  status: done
   deps: ['TM-002', 'TM-003']
   file: spec/tasks/TM-013.md
 - id: TM-014
