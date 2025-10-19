@@ -143,3 +143,25 @@ ST_DWithin         Distance + compare                 where p.Coordinates.Distan
 ST_Intersects         Intersects                         where p.Coordinates.Intersects(myAreaPolygon)
 ST_Contains         Contains                         where myAreaPolygon.Contains(p.Coordinates)
 ```
+
+### Auditing
+
+The application writes audit events to the `AuditLogs` table and to Serilog sinks (console/file). Typical events:
+
+- GroupCreate, GroupUpdate, GroupDelete, MemberAdd, MemberRemove, MemberLeave
+- InviteCreate, InviteAccept, InviteDecline, InviteRevoke
+- SettingsUpdate (Admin → Settings)
+- OrgPeerVisibilityToggle (Organization group setting)
+- OrgPeerVisibilityAccessSet (per-user toggle in Friends/Organization contexts)
+- GroupDelete (auto) when empty and auto-delete is enabled
+
+Each entry contains:
+- Action: event name
+- Details: short context (actor/target/group/outcome)
+- Timestamp: UTC
+- UserId: actor identifier
+
+Verification
+- File sink: see `Logging:LogFilePath:Default` in `appsettings*.json` for daily rolling logs.
+- DB: query `AuditLogs` table to inspect events.
+- Manual flow: create a group, invite a user, accept/decline, remove/leave, toggle settings. Confirm events are appended.

@@ -99,6 +99,21 @@ namespace Wayfarer.Areas.Admin.Controllers
                 ApplicationSettings? currentSettings = _dbContext.ApplicationSettings.Find(1);
                 if (currentSettings != null)
                 {
+                    // Track changes for auditing
+                    var changes = new List<string>();
+                    void Track<T>(string name, T oldVal, T newVal)
+                    {
+                        if (!EqualityComparer<T>.Default.Equals(oldVal, newVal))
+                            changes.Add($"{name}: {oldVal} -> {newVal}");
+                    }
+
+                    Track("IsRegistrationOpen", currentSettings.IsRegistrationOpen, updatedSettings.IsRegistrationOpen);
+                    Track("LocationTimeThresholdMinutes", currentSettings.LocationTimeThresholdMinutes, updatedSettings.LocationTimeThresholdMinutes);
+                    Track("LocationDistanceThresholdMeters", currentSettings.LocationDistanceThresholdMeters, updatedSettings.LocationDistanceThresholdMeters);
+                    Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
+                    Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
+                    Track("AutoDeleteEmptyGroups", currentSettings.AutoDeleteEmptyGroups, updatedSettings.AutoDeleteEmptyGroups);
+
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
@@ -107,6 +122,12 @@ namespace Wayfarer.Areas.Admin.Controllers
                     // Groups: auto-delete when empty toggle
                     currentSettings.AutoDeleteEmptyGroups = updatedSettings.AutoDeleteEmptyGroups;
                     await _dbContext.SaveChangesAsync();
+
+                    // Audit settings update with changed fields summary
+                    if (changes.Count > 0)
+                    {
+                        LogAudit("SettingsUpdate", "Application settings updated", string.Join(", ", changes));
+                    }
                 }
 
                 _settingsService.RefreshSettings();

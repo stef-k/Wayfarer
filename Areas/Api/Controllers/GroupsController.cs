@@ -242,6 +242,7 @@ public class GroupsController : ControllerBase
         group.OrgPeerVisibilityEnabled = req.Enabled;
         group.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityToggle", $"Group {group.Id} set Enabled={group.OrgPeerVisibilityEnabled}", ct);
         return Ok(new { enabled = group.OrgPeerVisibilityEnabled });
     }
 
@@ -263,6 +264,7 @@ public class GroupsController : ControllerBase
 
         member.OrgPeerVisibilityAccessDisabled = req.Disabled;
         await _db.SaveChangesAsync(ct);
+        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityAccessSet", $"Group {group.Id}, User {userId}, Disabled={member.OrgPeerVisibilityAccessDisabled}", ct);
         return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
     }
 
@@ -406,5 +408,21 @@ public class GroupsController : ControllerBase
         {
             return StatusCode(403);
         }
+    }
+}
+
+// Local audit helper (mirrors service pattern)
+partial class GroupsController
+{
+    private async Task AddAuditAsync(string userId, string action, string details, CancellationToken ct)
+    {
+        var audit = new AuditLog
+        {
+            UserId = userId,
+            Action = action,
+            Details = details,
+            Timestamp = DateTime.UtcNow
+        };
+        await _db.AuditLogs.AddAsync(audit, ct);
     }
 }
