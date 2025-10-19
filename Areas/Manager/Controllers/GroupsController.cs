@@ -403,6 +403,11 @@ namespace Wayfarer.Areas.Manager.Controllers;
 
         ViewBag.Group = group;
         ViewBag.GroupId = groupId;
+        var members = await (from m in _dbContext.GroupMembers
+                             where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
+                             join u in _dbContext.Users on m.UserId equals u.Id
+                             select new { u.Id, u.UserName, u.DisplayName, m.Role }).AsNoTracking().ToListAsync();
+        ViewBag.Members = members;
         SetPageTitle($"Map - {group.Name}");
         return View();
     }

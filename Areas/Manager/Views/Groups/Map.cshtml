@@ -10,9 +10,31 @@
   <input type="hidden" id="groupId" value="@groupId" />
 </div>
 
-<div id="groupMap" style="height:70vh; width:100%"></div>
+<div class="row">
+  <div class="col-md-3">
+    <h5>Members</h5>
+    <div id="userSidebar" class="list-group" style="max-height:70vh; overflow:auto">
+      @{
+          var members = (IEnumerable<dynamic>)ViewBag.Members;
+      }
+      <label class="list-group-item">
+        <input type="checkbox" id="selectAllUsers" class="form-check-input me-1" checked />
+        Select All
+      </label>
+      @foreach (var u in members)
+      {
+          <label class="list-group-item">
+            <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" />
+            @u.UserName (@u.DisplayName)
+          </label>
+      }
+    </div>
+  </div>
+  <div class="col-md-9">
+    <div id="groupMap" style="height:70vh; width:100%"></div>
+  </div>
+</div>
 
 <script src="~/lib/leaflet/leaflet-src.js"></script>
 <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
 <script src="~/js/Areas/Manager/Groups/map.js"></script>
-

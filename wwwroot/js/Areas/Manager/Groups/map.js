@@ -9,7 +9,14 @@
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  const markers = new Map(); // userId -> marker
+  const latestMarkers = new Map(); // userId -> marker (live or last)
+  let restLayer = L.layerGroup().addTo(map); // non-latest viewport points
+  let subscriptions = new Map(); // userName -> EventSource
+
+  function selectedUsers() {
+    const boxes = document.querySelectorAll('#userSidebar input.user-select:checked');
+    return Array.from(boxes).map(b => ({ id: b.getAttribute('data-user-id'), username: b.getAttribute('data-username') }));
+  }
 
   function toBBox() {
     const b = map.getBounds();
@@ -35,36 +42,64 @@
     return await resp.json();
   }
 
-  function upsertMarker(loc) {
-    // Note: API doesn’t include userId on dto; for now, just add markers without user binding.
-    const key = loc.Id;
-    if (markers.has(key)) {
-      markers.get(key).setLatLng([loc.Coordinates.y, loc.Coordinates.x]);
+  function styleForLatest(loc) {
+    const now = new Date();
+    const localTs = new Date(loc.LocalTimestamp);
+    const diffMin = Math.abs(now - localTs) / 60000;
+    const isLive = diffMin <= (loc.LocationTimeThresholdMinutes || 10);
+    return {
+      radius: isLive ? 7 : 6,
+      color: isLive ? '#28a745' : '#007bff',
+      weight: isLive ? 3 : 2
+    };
+  }
+
+  function upsertLatestForUser(userId, loc) {
+    const latlng = [loc.Coordinates.y, loc.Coordinates.x];
+    const style = styleForLatest(loc);
+    const popup = `${new Date(loc.LocalTimestamp).toLocaleString()}<br/>${loc.Place || ''}`;
+    if (latestMarkers.has(userId)) {
+      const m = latestMarkers.get(userId);
+      m.setLatLng(latlng);
+      m.setStyle(style);
+      m.setPopupContent(popup);
     } else {
-      const m = L.circleMarker([loc.Coordinates.y, loc.Coordinates.x], {
-        radius: loc.IsLatestLocation ? 6 : 4,
-        color: loc.IsLatestLocation ? '#007bff' : '#666',
-        weight: 2
-      }).bindPopup(`${new Date(loc.LocalTimestamp).toLocaleString()}<br/>${loc.Place || ''}`);
+      const m = L.circleMarker(latlng, style).bindPopup(popup);
       m.addTo(map);
-      markers.set(key, m);
+      latestMarkers.set(userId, m);
     }
   }
 
-  async function loadLatest() {
+  async function loadLatest(userIds) {
     const url = `/api/groups/${groupId}/locations/latest`;
-    const data = await postJson(url, { includeUserIds: [] });
-    (Array.isArray(data) ? data : []).forEach(upsertMarker);
+    const include = userIds && userIds.length ? userIds : selectedUsers().map(u => u.id);
+    const data = await postJson(url, { includeUserIds: include });
+    (Array.isArray(data) ? data : []).forEach((loc, idx) => {
+      const uid = include[idx] || include[0]; // approximate mapping for batch; per-user refresh uses single id
+      upsertLatestForUser(uid, loc);
+    });
     // fit bounds if we have points
-    const latlngs = Array.from(markers.values()).map(m => m.getLatLng());
+    const latlngs = Array.from(latestMarkers.values()).map(m => m.getLatLng());
     if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding: [20, 20] });
   }
 
   async function loadViewport() {
     const url = `/api/groups/${groupId}/locations/query`;
     const body = toBBox();
+    const sel = selectedUsers().map(u => u.id);
+    body.UserIds = sel;
     const res = await postJson(url, body);
-    (res.results || []).forEach(upsertMarker);
+    // redraw rest points layer
+    map.removeLayer(restLayer);
+    restLayer = L.layerGroup();
+    (res.results || []).forEach(function(loc){
+      const isLatest = !!loc.IsLatestLocation;
+      if (!isLatest) {
+        const dot = L.circleMarker([loc.Coordinates.y, loc.Coordinates.x], { radius: 3, color: '#666', weight: 1 });
+        restLayer.addLayer(dot);
+      }
+    });
+    restLayer.addTo(map);
   }
 
   // initial
@@ -78,21 +113,26 @@
   });
 
   // SSE subscribe, fallback to polling
-  function subscribeSse() {
-    try {
-      const es = new EventSource(`/api/sse/stream/group/${groupId}`);
-      es.onmessage = (ev) => {
-        try {
-          const payload = JSON.parse(ev.data);
-          if (payload && payload.type === 'location') {
-            upsertMarker(payload.location);
-          }
-        } catch (_) { }
-      };
-      es.onerror = () => { es.close(); startPolling(); };
-    } catch (_) {
-      startPolling();
-    }
+  function subscribeSseForUsers(users) {
+    // close existing
+    subscriptions.forEach(es => es.close());
+    subscriptions.clear();
+    users.forEach(function(u){
+      try {
+        const es = new EventSource(`/api/sse/stream/location-update/${encodeURIComponent(u.username)}`);
+        es.onmessage = (ev) => {
+          try {
+            const payload = JSON.parse(ev.data);
+            if (payload && payload.LocationId) {
+              // refresh latest for this user
+              loadLatest([u.id]).catch(() => {});
+            }
+          } catch (_) { }
+        };
+        es.onerror = () => { es.close(); };
+        subscriptions.set(u.username, es);
+      } catch (_) { /* ignore */ }
+    });
   }
 
   let pollTimer;
@@ -101,6 +141,21 @@
     pollTimer = setInterval(() => loadLatest().catch(() => {}), 15000);
   }
 
-  subscribeSse();
-})();
+  subscribeSseForUsers(selectedUsers());
 
+  // handle sidebar selection changes
+  document.getElementById('selectAllUsers')?.addEventListener('change', function(){
+    const checked = this.checked;
+    document.querySelectorAll('#userSidebar input.user-select').forEach(el => { el.checked = checked; });
+    subscribeSseForUsers(selectedUsers());
+    loadLatest().catch(()=>{});
+    loadViewport().catch(()=>{});
+  });
+  document.querySelectorAll('#userSidebar input.user-select').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      subscribeSseForUsers(selectedUsers());
+      loadLatest().catch(()=>{});
+      loadViewport().catch(()=>{});
+    });
+  });
+})();
