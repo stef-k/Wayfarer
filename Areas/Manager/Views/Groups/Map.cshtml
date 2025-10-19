@@ -12,33 +12,65 @@
   <input type="hidden" id="groupId" value="@groupId" />
 </div>
 
-<div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden">
-  <aside class="flex-shrink-0 border-end overflow-auto" style="width:320px;">
-    <h5>Members</h5>
-    <div class="mb-2">
-      <div class="btn-group w-100" role="group">
-        <input type="radio" class="btn-check" name="dateType" id="dtDay" value="day" autocomplete="off">
-        <label class="btn btn-outline-secondary btn-sm" for="dtDay">Day</label>
-        <input type="radio" class="btn-check" name="dateType" id="dtMonth" value="month" autocomplete="off">
-        <label class="btn btn-outline-secondary btn-sm" for="dtMonth">Month</label>
-        <input type="radio" class="btn-check" name="dateType" id="dtYear" value="year" autocomplete="off">
-        <label class="btn btn-outline-secondary btn-sm" for="dtYear">Year</label>
-      </div>
-      <div class="row g-1 mt-1">
-        <div class="col-6">
-          <input id="filterYear" type="number" class="form-control form-control-sm" placeholder="Year" />
+<!-- Chronological Controls Bar (matching timeline view) -->
+<div class="row mb-2">
+  <div class="col-12">
+    <div class="bg-light border rounded p-2">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="Previous Year">
+          <i class="bi bi-chevron-double-left"></i> Year
+        </button>
+        <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="Previous Month">
+          <i class="bi bi-chevron-left"></i> Month
+        </button>
+        <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="Previous Day">
+          <i class="bi bi-arrow-left"></i> Day
+        </button>
+
+        <div class="d-flex align-items-center gap-2 mx-3">
+          <button id="btnYesterday" class="btn btn-sm btn-primary" title="Yesterday">Yesterday</button>
+          <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
+          <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;">
+          <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;">
+          <input type="number" id="yearPicker" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="YYYY" min="1900" max="2100">
         </div>
-        <div class="col-3">
-          <input id="filterMonth" type="number" class="form-control form-control-sm" placeholder="Mon" />
-        </div>
-        <div class="col-3">
-          <input id="filterDay" type="number" class="form-control form-control-sm" placeholder="Day" />
+
+        <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="Next Day">
+          Day <i class="bi bi-arrow-right"></i>
+        </button>
+        <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="Next Month">
+          Month <i class="bi bi-chevron-right"></i>
+        </button>
+        <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="Next Year">
+          Year <i class="bi bi-chevron-double-right"></i>
+        </button>
+
+        <div class="ms-auto d-flex gap-2">
+          <label class="form-label mb-0 align-self-center">View:</label>
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
+            <label class="btn btn-outline-primary" for="viewDay">Day</label>
+
+            <input type="radio" class="btn-check" name="viewType" id="viewMonth" value="month">
+            <label class="btn btn-outline-primary" for="viewMonth">Month</label>
+
+            <input type="radio" class="btn-check" name="viewType" id="viewYear" value="year">
+            <label class="btn btn-outline-primary" for="viewYear">Year</label>
+          </div>
         </div>
       </div>
-      <div class="d-grid mt-1">
-        <button id="applyDateFilter" class="btn btn-sm btn-outline-primary">Apply</button>
-      </div>
+      <small class="text-muted fst-italic d-block">
+        <i class="bi bi-info-circle"></i> Day view shows all locations. Month/Year may be sampled for large datasets.
+      </small>
     </div>
+  </div>
+  
+</div>
+
+<div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden">
+  <aside class="flex-shrink-0 border-end overflow-auto" style="width:420px;">
+    <h5>Members</h5>
+    
     @using (Html.BeginForm())
     {
         @Html.AntiForgeryToken()

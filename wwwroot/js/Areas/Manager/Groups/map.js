@@ -125,6 +125,36 @@
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{ cb.addEventListener('change', ()=>{ subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); });
 
   const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
+
+  // Chronological controls wiring
+  const datePicker2 = document.getElementById('datePicker');
+  const monthPicker2 = document.getElementById('monthPicker');
+  const yearPicker2 = document.getElementById('yearPicker');
+  const viewDay2 = document.getElementById('viewDay');
+  const viewMonth2 = document.getElementById('viewMonth');
+  const viewYear2 = document.getElementById('viewYear');
+  function updatePickerVisibility(){
+    if (viewDay2 && viewDay2.checked) { if (datePicker2) datePicker2.style.display=''; if (monthPicker2) monthPicker2.style.display='none'; if (yearPicker2) yearPicker2.style.display='none'; }
+    else if (viewMonth2 && viewMonth2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display=''; if (yearPicker2) yearPicker2.style.display='none'; }
+    else if (viewYear2 && viewYear2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display='none'; if (yearPicker2) yearPicker2.style.display=''; }
+  }
+  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); loadViewport().catch(()=>{}); }); });
+  if (datePicker2) datePicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
+  if (monthPicker2) monthPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
+  if (yearPicker2) yearPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
+  const btnToday = document.getElementById('btnToday'); if (btnToday && datePicker2 && viewDay2) btnToday.addEventListener('click', ()=>{ const now = new Date(); datePicker2.valueAsDate = now; viewDay2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); });
+  const btnYesterday = document.getElementById('btnYesterday'); if (btnYesterday && datePicker2 && viewDay2) btnYesterday.addEventListener('click', ()=>{ const d=new Date(); d.setDate(d.getDate()-1); datePicker2.valueAsDate=d; viewDay2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); });
+  function shiftDay(delta){ if (!datePicker2) return; const d = datePicker2.value ? new Date(datePicker2.value) : new Date(); d.setDate(d.getDate()+delta); datePicker2.valueAsDate=d; if (viewDay2) viewDay2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
+  function shiftMonth(delta){ if (!monthPicker2) return; let base = monthPicker2.value || new Date().toISOString().slice(0,7); let parts = base.split('-'); let y=parseInt(parts[0]||new Date().getFullYear(),10); let m=parseInt(parts[1]||1,10); m=m+delta; if (m<1){m=12;y--;} if (m>12){m=1;y++;} monthPicker2.value = y.toString().padStart(4,'0') + '-' + m.toString().padStart(2,'0'); if (viewMonth2) viewMonth2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
+  function shiftYear(delta){ if (!yearPicker2) return; const y = parseInt(yearPicker2.value || (new Date().getFullYear()),10)+delta; yearPicker2.value = y; if (viewYear2) viewYear2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
+  const btnPrevDay=document.getElementById('btnPrevDay'); if (btnPrevDay) btnPrevDay.addEventListener('click', ()=> shiftDay(-1));
+  const btnNextDay=document.getElementById('btnNextDay'); if (btnNextDay) btnNextDay.addEventListener('click', ()=> shiftDay(1));
+  const btnPrevMonth=document.getElementById('btnPrevMonth'); if (btnPrevMonth) btnPrevMonth.addEventListener('click', ()=> shiftMonth(-1));
+  const btnNextMonth=document.getElementById('btnNextMonth'); if (btnNextMonth) btnNextMonth.addEventListener('click', ()=> shiftMonth(1));
+  const btnPrevYear=document.getElementById('btnPrevYear'); if (btnPrevYear) btnPrevYear.addEventListener('click', ()=> shiftYear(-1));
+  const btnNextYear=document.getElementById('btnNextYear'); if (btnNextYear) btnNextYear.addEventListener('click', ()=> shiftYear(1));
+  updatePickerVisibility();
+
   // Date filter apply
   const applyBtn = document.getElementById('applyDateFilter'); if (applyBtn) { applyBtn.addEventListener('click', ()=>{ loadViewport().catch(()=>{}); }); }
   const showAllBtn = document.getElementById('showAllUsers'); if (showAllBtn) { showAllBtn.addEventListener('click', ()=>{ document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true); const all = document.getElementById('selectAllUsers'); if (all) all.checked = true; subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); }
