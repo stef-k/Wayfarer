@@ -104,6 +104,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
+                    // Groups: auto-delete when empty toggle
+                    currentSettings.AutoDeleteEmptyGroups = updatedSettings.AutoDeleteEmptyGroups;
                     await _dbContext.SaveChangesAsync();
                 }
 

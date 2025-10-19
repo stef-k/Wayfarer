@@ -60,6 +60,23 @@
                         </div>
                         <hr/>
                         <div class="row">
+                            <!-- Groups settings section: controls for group-related behaviors -->
+                            <h3 class="text-center fs-4">Groups</h3>
+                            <div class="col-md-12 mb-2">
+                                <div class="form-group">
+                                    <label for="AutoDeleteEmptyGroups" class="form-label">Auto-delete Empty Groups</label>
+                                    <div class="form-check form-switch">
+                                        <input asp-for="AutoDeleteEmptyGroups" class="form-check-input" type="checkbox" id="AutoDeleteEmptyGroups" />
+                                        <label class="form-check-label" for="AutoDeleteEmptyGroups">Delete group when the last member leaves or is removed</label>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        When enabled, a group is automatically deleted once no active members remain. Disable to keep empty groups for archival or later reuse.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <hr/>
+                        <div class="row">
                             <h3 class="text-center fs-4">New User Registrations</h3>
                             <div class="col-md-12 mb-2">
                                 <div class="form-group">
@@ -266,4 +283,3 @@
 @section Scripts {
     <script src="~/js/Areas/Admin/Settings/Index.js" type="module"></script>
 }
-
