@@ -8,6 +8,7 @@ using Wayfarer.Services;
 using Wayfarer.Parsers;
 using NetTopologySuite.Geometries;
 using Wayfarer.Util;
+using Microsoft.Extensions.DependencyInjection;
 using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -24,6 +25,7 @@ public class GroupsController : ControllerBase
     private readonly SseService _sse;
     private readonly ILogger<GroupsController> _logger;
 
+    [ActivatorUtilitiesConstructor]
     public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService, SseService sse)
     {
         _db = db;

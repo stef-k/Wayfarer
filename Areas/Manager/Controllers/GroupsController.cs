@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Manager.Controllers;
@@ -22,6 +23,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         "Organization", "Family", "Friends"
     };
 
+    [ActivatorUtilitiesConstructor]
     public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService, IInvitationService invitationService, Wayfarer.Parsers.SseService sse)
         : base(logger, dbContext)
     {

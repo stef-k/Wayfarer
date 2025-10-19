@@ -6,6 +6,7 @@ using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Parsers;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -21,6 +22,7 @@ public class InvitationsController : ControllerBase
     private readonly ILogger<InvitationsController> _logger;
     private readonly SseService _sse;
 
+    [ActivatorUtilitiesConstructor]
     public InvitationsController(ApplicationDbContext db, IInvitationService invites, ILogger<InvitationsController> logger, SseService sse)
     {
         _db = db;
@@ -42,28 +44,48 @@ public class InvitationsController : ControllerBase
     public async Task<IActionResult> ListForCurrentUser(CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
-        var list = await _db.GroupInvitations
-            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null))
-            .Include(i => i.Group)
-            .Include(i => i.Inviter)
-            .Select(i => new
+        try
+        {
+            var invites = await _db.GroupInvitations
+                .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null))
+                .AsNoTracking()
+                .ToListAsync(ct);
+
+            var groupIds = invites.Select(i => i.GroupId).Distinct().ToList();
+            var groups = await _db.Groups.Where(g => groupIds.Contains(g.Id))
+                .Select(g => new { g.Id, g.Name, g.Description })
+                .AsNoTracking().ToListAsync(ct);
+            var groupMap = groups.ToDictionary(g => g.Id, g => g);
+
+            var inviterIds = invites.Select(i => i.InviterUserId).Distinct().ToList();
+            var inviters = await _db.ApplicationUsers.Where(u => inviterIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.UserName, u.DisplayName })
+                .AsNoTracking().ToListAsync(ct);
+            var inviterMap = inviters.ToDictionary(u => u.Id, u => u);
+
+            var payload = invites.Select(i => new
             {
                 i.Id,
                 i.GroupId,
-                GroupName = i.Group != null ? i.Group.Name : null,
-                GroupDescription = i.Group != null ? i.Group.Description : null,
+                GroupName = groupMap.TryGetValue(i.GroupId, out var g) ? g.Name : null,
+                GroupDescription = groupMap.TryGetValue(i.GroupId, out var g2) ? g2.Description : null,
                 i.InviterUserId,
-                InviterUserName = i.Inviter != null ? i.Inviter.UserName : null,
-                InviterDisplayName = i.Inviter != null ? i.Inviter.DisplayName : null,
+                InviterUserName = inviterMap.TryGetValue(i.InviterUserId, out var inv) ? inv.UserName : null,
+                InviterDisplayName = inviterMap.TryGetValue(i.InviterUserId, out var inv2) ? inv2.DisplayName : null,
                 i.InviteeUserId,
                 i.InviteeEmail,
                 i.ExpiresAt,
                 i.CreatedAt,
                 i.Status
-            })
-            .AsNoTracking()
-            .ToListAsync(ct);
-        return Ok(list);
+            }).ToList();
+
+            return Ok(payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to list invitations for current user");
+            return BadRequest(new { message = "Failed to load invitations." });
+        }
     }
 
     // POST /api/invitations -> create by manager/owner
