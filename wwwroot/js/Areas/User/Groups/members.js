@@ -1,0 +1,87 @@
+(() => {
+  const form = document.getElementById('inviteForm');
+  const searchBtn = document.getElementById('userSearchBtn');
+  const searchInput = document.getElementById('userSearch');
+  const results = document.getElementById('userResults');
+
+  async function searchUsers(q) {
+    if (!q || q.trim().length < 2) { if (results) results.innerHTML = ''; return; }
+    try {
+      const spinner = document.getElementById('userSearchSpinner');
+      spinner?.classList.remove('d-none');
+      searchBtn?.setAttribute('disabled','disabled');
+      searchInput?.setAttribute('disabled','disabled');
+      const gid = form?.querySelector('input[name="groupId"]').value || '';
+      const url = '/api/users/search?query=' + encodeURIComponent(q) + (gid ? ('&groupId=' + encodeURIComponent(gid)) : '');
+      const resp = await fetch(url);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!results) return;
+      results.innerHTML = '';
+      data.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id; const display = u.displayName ? (' ('+u.displayName+')') : '';
+        opt.textContent = u.userName + display; results.appendChild(opt);
+      });
+      if (results.options.length > 0) {
+        if (results.selectedIndex < 0) results.selectedIndex = 0;
+        const hidden = form?.querySelector('#inviteeUserId'); if (hidden) hidden.value = results.value || '';
+        results.classList.remove('is-invalid');
+      }
+    } finally { document.getElementById('userSearchSpinner')?.classList.add('d-none'); searchBtn?.removeAttribute('disabled'); searchInput?.removeAttribute('disabled'); }
+  }
+
+  searchBtn?.addEventListener('click', () => searchUsers(searchInput.value));
+  if (searchInput && results) {
+    const debounce = (fn, d) => { let t; return function(){ clearTimeout(t); t=setTimeout(()=>fn.apply(this, arguments), d); } };
+    const debounced = debounce(()=> searchUsers(searchInput.value), 300);
+    searchInput.addEventListener('input', debounced);
+    searchInput.addEventListener('keydown', ev => { if (ev.key==='Enter'){ ev.preventDefault(); searchUsers(searchInput.value); } if (ev.key==='Escape'){ searchInput.value=''; results.innerHTML=''; }});
+    results.addEventListener('change', () => { const hidden = form?.querySelector('#inviteeUserId'); if (hidden) hidden.value = results.value || ''; });
+  }
+
+  if (form) {
+    form.addEventListener('submit', function(e){
+      const uid = form.querySelector('#inviteeUserId');
+      if (uid && (!uid.value || !uid.value.trim()) && results && results.value) uid.value = results.value;
+      if (!uid || !uid.value || !uid.value.trim()) { e.preventDefault(); results?.classList.add('is-invalid'); if (typeof showAlert==='function') showAlert('danger','Please select a user to invite.'); return; }
+      e.preventDefault();
+      const fd = new FormData(form);
+      const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
+      const url = form.action.replace(/Invite$/, 'InviteAjax');
+      fetch(url, { method: 'POST', body: fd, headers: tokenEl ? { 'RequestVerificationToken': tokenEl.value } : {} })
+        .then(r => r.json())
+        .then(data => { if (data?.success){ if (typeof showAlert==='function') showAlert('success','Invitation sent'); addInviteRow(data.invite?.id, results); } else { if (typeof showAlert==='function') showAlert('danger', data?.message || 'Failed'); } });
+    });
+  }
+
+  function addInviteRow(invitationId, resultsSelect){
+    const tbody = document.querySelector('#invitesTable tbody'); if (!tbody) return;
+    const row = document.createElement('tr'); row.setAttribute('data-invite-id', invitationId);
+    const selectedText = resultsSelect?.selectedOptions?.length ? resultsSelect.selectedOptions[0].textContent : '';
+    const groupId = document.querySelector('#inviteForm input[name="groupId"]').value;
+    const tokenVal = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const revokeAction = '/User/Groups/RevokeInvite';
+    row.innerHTML = '<td>' + (selectedText||'') + '</td>' +
+      '<td>' + (new Date()).toLocaleString() + '</td>' +
+      '<td>' +
+      '<form class="d-inline js-confirm js-ajax" method="post" action="' + revokeAction + '" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">' +
+      '<input type="hidden" name="groupId" value="' + groupId + '" />' +
+      '<input type="hidden" name="inviteId" value="' + invitationId + '" />' +
+      (tokenVal ? ('<input type="hidden" name="__RequestVerificationToken" value="' + tokenVal + '" />') : '') +
+      '<button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>' +
+      '</form>' +
+      '</td>';
+    tbody.appendChild(row);
+    attachConfirmHandler(row.querySelector('form.js-confirm'));
+  }
+
+  function attachConfirmHandler(f){ if (!f) return; f.addEventListener('submit', function(e){ e.preventDefault(); const title=f.dataset.confirmTitle||'Confirm', message=f.dataset.confirmMessage||'Confirm?'; if (typeof showConfirmationModal==='function'){ showConfirmationModal({ title, message, confirmText:'Continue', onConfirm: ()=> submitAjax(f)});} else { if (confirm(message)) submitAjax(f); } }); }
+  function submitAjax(f){ const fd=new FormData(f); fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/, '$1Ajax'), { method:'POST', body: fd }).then(r => r.json()).then(data => { if (data?.success){ if (f.action.endsWith('RemoveMember')) removeRosterRow(fd.get('userId')); if (f.action.endsWith('RevokeInvite')) removeInviteRow(fd.get('inviteId')); } else { if (typeof showAlert==='function') showAlert('danger', data?.message || 'Failed'); } }); }
+  function removeRosterRow(userId){ const tr=document.querySelector('tr[data-user-id="'+userId+'"]'); if (tr) tr.remove(); }
+  function removeInviteRow(inviteId){ const tr=document.querySelector('tr[data-invite-id="'+inviteId+'"]'); if (tr) tr.remove(); }
+
+  // SSE live updates
+  document.addEventListener('DOMContentLoaded', function(){ try { const gid = document.querySelector('#inviteForm input[name="groupId"]').value; if (!gid || typeof EventSource==='undefined') return; const es=new EventSource('/api/sse/stream/group-membership-update/' + gid); es.onmessage=function(evt){ try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (!d||!d.action) return; if (d.action==='member-joined' && d.userId){ if (typeof showAlert==='function') showAlert('success','A user joined the group.'); } else if (d.action==='member-left' && d.userId){ if (typeof showAlert==='function') showAlert('warning','A user left the group.'); removeRosterRow(d.userId); } else if (d.action==='member-removed' && d.userId){ if (typeof showAlert==='function') showAlert('info','A user was removed from the group.'); removeRosterRow(d.userId); } else if (d.action==='invite-declined' && d.invitationId){ if (typeof showAlert==='function') showAlert('secondary','An invite was declined.'); removeInviteRow(d.invitationId); } else if (d.action==='invite-revoked' && d.inviteId){ removeInviteRow(d.inviteId); } } catch {} }; } catch {} });
+})();
+

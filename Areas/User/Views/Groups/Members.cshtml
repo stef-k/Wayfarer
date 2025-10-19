@@ -1,0 +1,121 @@
+@{
+    var group = (Wayfarer.Models.Group)ViewBag.Group;
+    var members = (IEnumerable<dynamic>)ViewBag.Members;
+    var invites = (IEnumerable<dynamic>)ViewBag.Invites;
+    ViewData["Title"] = $"Members - {group.Name}";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>@ViewData["Title"]</h2>
+  <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Back</a>
+  </div>
+
+<div class="row">
+  <div class="col-md-7">
+    <h4>Roster</h4>
+    <table id="rosterTable" class="table table-striped">
+      <thead>
+      <tr>
+        <th>User</th>
+        <th>Display Name</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      @foreach (var x in members)
+      {
+          <tr data-user-id="@x.u.Id">
+            <td>@x.u.UserName</td>
+            <td>@x.u.DisplayName</td>
+            <td>@x.m.Role</td>
+            <td>@x.m.Status</td>
+            <td>
+              @{
+                  bool isOwnerUser = string.Equals((string)x.u.Id, (string)group.OwnerUserId, StringComparison.OrdinalIgnoreCase);
+              }
+              @if (!isOwnerUser)
+              {
+                  <form asp-area="User" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">
+                      <input type="hidden" name="groupId" value="@group.Id" />
+                      <input type="hidden" name="userId" value="@x.u.Id" />
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                  </form>
+              }
+            </td>
+          </tr>
+      }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col-md-5">
+    <h4>Invite</h4>
+    <form id="inviteForm" asp-area="User" asp-controller="Groups" asp-action="Invite" method="post">
+      @Html.AntiForgeryToken()
+      <input type="hidden" name="groupId" value="@group.Id" />
+      <input type="hidden" id="inviteeUserId" name="inviteeUserId" />
+
+      <div class="mb-2">
+        <label class="form-label" for="userSearch">Search User</label>
+        <div class="input-group">
+          <input class="form-control" id="userSearch" placeholder="Type username or display name" />
+          <button type="button" id="userSearchBtn" class="btn btn-outline-secondary">Search</button>
+          <span id="userSearchSpinner" class="ms-2 align-self-center d-none">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          </span>
+        </div>
+        <div class="form-text">Type at least 2 characters; results update automatically (or click Search).</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="userResults">Results</label>
+        <select class="form-select" id="userResults"></select>
+        <div class="invalid-feedback">Please select a user to invite.</div>
+        <div class="form-text">Select a user and click Send Invite.</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Send Invite</button>
+    </form>
+
+    <h4 class="mt-4">Pending Invites</h4>
+    <table id="invitesTable" class="table">
+      <thead>
+      <tr>
+        <th>Invitee</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+      </thead>
+      <tbody>
+      @foreach (var inv in invites)
+      {
+          <tr data-invite-id="@inv.Id">
+            <td>
+                @if (!string.IsNullOrEmpty((string)inv.UserName))
+                {
+                    @:@inv.UserName (@inv.DisplayName)
+                }
+                else
+                {
+                    @:@inv.InviteeUserId
+                }
+            </td>
+            <td>@inv.CreatedAt.ToLocalTime()</td>
+            <td>
+              <form asp-area="User" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
+                <input type="hidden" name="groupId" value="@group.Id" />
+                <input type="hidden" name="inviteId" value="@inv.Id" />
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>
+              </form>
+            </td>
+          </tr>
+      }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script type="module" src="~/js/Areas/User/Groups/members.js"></script>
+

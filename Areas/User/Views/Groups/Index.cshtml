@@ -5,6 +5,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>@ViewData["Title"]</h2>
+    <a class="btn btn-primary" asp-area="User" asp-controller="Groups" asp-action="Create">New Group</a>
 </div>
 
 <table class="table table-striped">
@@ -30,6 +31,10 @@
                     <td>@g.GroupType</td>
                     <td class="text-nowrap">
                         <a class="btn btn-sm btn-primary" asp-area="User" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">Map</a>
+                        @if (string.Equals((string)g.GroupType, "Family", StringComparison.OrdinalIgnoreCase) || string.Equals((string)g.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <a class="btn btn-sm btn-info" asp-area="User" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">Members</a>
+                        }
                         <button type="button" class="btn btn-sm btn-outline-danger js-leave" data-group-id="@g.Id">Leave</button>
                     </td>
                 </tr>

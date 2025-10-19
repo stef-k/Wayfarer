@@ -1,0 +1,45 @@
+@{
+    ViewData["Title"] = "Create Group";
+}
+
+<h2>Create Group</h2>
+
+<form asp-area="User" asp-controller="Groups" asp-action="Create" method="post" id="userGroupCreateForm" novalidate>
+    @Html.AntiForgeryToken()
+    <div class="mb-3">
+        <label class="form-label" for="name">Name</label>
+        <input class="form-control" id="name" name="name" required maxlength="200" />
+        <div class="invalid-feedback">Please provide a group name.</div>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="description">Description</label>
+        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="groupType">Type</label>
+        <select class="form-select" id="groupType" name="groupType" required>
+            <option value="Family">Family</option>
+            <option value="Friends">Friends</option>
+        </select>
+        <div class="invalid-feedback">Please select a group type.</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Create</button>
+    <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Cancel</a>
+  </form>
+
+<script>
+  (function(){
+    const form = document.getElementById('userGroupCreateForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e){
+      const n = form.querySelector('#name');
+      const t = form.querySelector('#groupType');
+      let ok = true;
+      if (!n || !n.value || !n.value.trim()) { n?.classList.add('is-invalid'); ok=false; }
+      else n.classList.remove('is-invalid');
+      if (!t || !t.value) { t?.classList.add('is-invalid'); ok=false; } else t.classList.remove('is-invalid');
+      if (!ok) e.preventDefault();
+    });
+  })();
+</script>
+
