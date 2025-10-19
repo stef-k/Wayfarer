@@ -5,6 +5,7 @@ namespace Wayfarer.Models.Dtos;
 public class PublicLocationDto
 {
     public int Id { get; set; }
+    public string? UserId { get; set; }
     
     public int? ClusterId { get; set; }
     public DateTime Timestamp { get; set; }

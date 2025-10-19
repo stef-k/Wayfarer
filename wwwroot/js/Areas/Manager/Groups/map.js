@@ -55,7 +55,18 @@
     const body=toBBox(); body.UserIds=selectedUsers().map(u=>u.id);
     const res=await postJson(url, body);
     map.removeLayer(restLayer); restLayer=L.layerGroup();
-    (res.results||[]).forEach(loc=>{ if (!loc.IsLatestLocation) { const dot=L.circleMarker([loc.Coordinates.y, loc.Coordinates.x], { radius:3, color:'#666', weight:1 }); restLayer.addLayer(dot);} });
+    (res.results||[]).forEach(loc=>{ 
+      if (!loc.IsLatestLocation) { 
+        const uid = loc.UserId || '';
+        const uname = idToUsernameMap().get(uid) || uid || 'user';
+        const base = colorFromString(uname);
+        const dot=L.circleMarker([loc.Coordinates.y, loc.Coordinates.x], { radius:3, color:base, weight:1, fillColor: base, fillOpacity: 0.5 });
+        dot.bindTooltip(uname, { direction: 'top' });
+        dot.on('mouseover', ()=> { dot.setStyle({ radius: 5, weight: 2 }); });
+        dot.on('mouseout', ()=> { dot.setStyle({ radius: 3, weight: 1 }); });
+        restLayer.addLayer(dot);
+      }
+    });
     restLayer.addTo(map);
   }
 
@@ -76,4 +87,38 @@
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{ cb.addEventListener('change', ()=>{ subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); });
 
   const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
+
+  // Only this button handling
+  document.querySelectorAll('#userSidebar .only-this').forEach(btn => {
+    btn.addEventListener('click', function(){
+      const targetId = this.getAttribute('data-user-id');
+      document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{ el.checked = (el.getAttribute('data-user-id') === targetId); });
+      const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
+      subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+    });
+  });
+
+  // Remove user inline (AJAX)
+  document.querySelectorAll('#userSidebar .remove-user').forEach(btn => {
+    btn.addEventListener('click', function(){
+      const uid = this.getAttribute('data-user-id');
+      const tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
+      const doRemove = () => {
+        const fd = new FormData(); fd.append('groupId', groupId); fd.append('userId', uid);
+        fetch('/Manager/Groups/RemoveMemberAjax', { method: 'POST', body: fd, headers: tokenEl ? { 'RequestVerificationToken': tokenEl.value } : {} })
+          .then(r=>r.json()).then(data => {
+            if (data && data.success) {
+              const item = this.closest('.user-item'); if (item) item.remove();
+              if (latestMarkers.has(uid)) { map.removeLayer(latestMarkers.get(uid)); latestMarkers.delete(uid); }
+              loadViewport().catch(()=>{});
+              if (typeof showAlert === 'function') showAlert('success', 'Member removed.');
+            } else {
+              if (typeof showAlert === 'function') showAlert('danger', (data && data.message) || 'Remove failed.');
+            }
+          });
+      };
+      if (typeof showConfirmationModal === 'function') showConfirmationModal({ title: 'Remove Member', message: 'Remove this member from the group?', confirmText: 'Remove', onConfirm: doRemove });
+      else if (confirm('Remove this member from the group?')) doRemove();
+    });
+  });
 })();

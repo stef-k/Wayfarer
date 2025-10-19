@@ -14,6 +14,10 @@
 <div class="row">
   <div class="col-md-3">
     <h5>Members</h5>
+    @using (Html.BeginForm())
+    {
+        @Html.AntiForgeryToken()
+    }
     <div class="mb-2">
       <input id="userSearch" type="search" class="form-control form-control-sm" placeholder="Search users..." autocomplete="off" />
     </div>
@@ -27,10 +31,16 @@
       </label>
       @foreach (var u in members)
       {
-          <label class="list-group-item user-item" data-filter="@u.UserName @u.DisplayName">
-            <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" />
-            @u.UserName (@u.DisplayName)
-          </label>
+          <div class="list-group-item d-flex justify-content-between align-items-center user-item" data-filter="@u.UserName @u.DisplayName">
+            <label class="mb-0 flex-grow-1">
+              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" />
+              @u.UserName (@u.DisplayName)
+            </label>
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.Id">Only</button>
+              <button type="button" class="btn btn-outline-danger remove-user" data-user-id="@u.Id">Remove</button>
+            </div>
+          </div>
       }
     </div>
   </div>

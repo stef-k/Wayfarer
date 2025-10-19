@@ -98,7 +98,7 @@ public class GroupsController : ControllerBase
             : activeMemberIds;
 
         // query latest per user in the same order as userIds for stable client mapping
-        var latestPerUser = new List<Location>();
+        var latestPerUser = new List<(string UserId, Location Loc)>();
         foreach (var uid in userIds)
         {
             var latest = await _db.Locations
@@ -108,34 +108,35 @@ public class GroupsController : ControllerBase
                 .AsNoTracking()
                 .FirstOrDefaultAsync(ct);
             if (latest != null)
-                latestPerUser.Add(latest);
+                latestPerUser.Add((uid, latest));
         }
 
         // settings for threshold
         var settings = await _db.ApplicationSettings.FirstOrDefaultAsync(ct);
         int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
 
-        var result = latestPerUser.Select(l => new PublicLocationDto
+        var result = latestPerUser.Select(t => new PublicLocationDto
         {
-            Id = l.Id,
-            Timestamp = l.Timestamp,
-            LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(l.Coordinates.Y, l.Coordinates.X, DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-            Coordinates = l.Coordinates,
-            Timezone = l.TimeZoneId,
-            Accuracy = l.Accuracy,
-            Altitude = l.Altitude,
-            Speed = l.Speed,
-            LocationType = l.LocationType,
-            ActivityType = l.ActivityType?.Name,
-            Address = l.Address,
-            FullAddress = l.FullAddress,
-            StreetName = l.StreetName,
-            PostCode = l.PostCode,
-            Place = l.Place,
-            Region = l.Region,
-            Country = l.Country,
-            Notes = l.Notes,
-            VehicleId = l.VehicleId,
+            Id = t.Loc.Id,
+            UserId = t.UserId,
+            Timestamp = t.Loc.Timestamp,
+            LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(t.Loc.Coordinates.Y, t.Loc.Coordinates.X, DateTime.SpecifyKind(t.Loc.LocalTimestamp, DateTimeKind.Utc)),
+            Coordinates = t.Loc.Coordinates,
+            Timezone = t.Loc.TimeZoneId,
+            Accuracy = t.Loc.Accuracy,
+            Altitude = t.Loc.Altitude,
+            Speed = t.Loc.Speed,
+            LocationType = t.Loc.LocationType,
+            ActivityType = t.Loc.ActivityType?.Name,
+            Address = t.Loc.Address,
+            FullAddress = t.Loc.FullAddress,
+            StreetName = t.Loc.StreetName,
+            PostCode = t.Loc.PostCode,
+            Place = t.Loc.Place,
+            Region = t.Loc.Region,
+            Country = t.Loc.Country,
+            Notes = t.Loc.Notes,
+            VehicleId = t.Loc.VehicleId,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = locationTimeThreshold
         }).ToList();
@@ -163,6 +164,7 @@ public class GroupsController : ControllerBase
         {
             var (locations, userTotal) = await _locationService.GetLocationsAsync(
                 req.MinLng, req.MinLat, req.MaxLng, req.MaxLat, req.ZoomLevel, uid, ct);
+            foreach (var d in locations) d.UserId = uid;
             combined.AddRange(locations);
             total += userTotal;
         }
