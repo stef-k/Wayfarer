@@ -82,7 +82,7 @@ tasks:
 - id: TM-014
   title: Auditing Verification and Docs
   labels: ['auditing', 'docs']
-  status: todo
+  status: done
   deps: ['TM-003', 'TM-004', 'TM-006']
   file: spec/tasks/TM-014.md
 - id: TM-015

@@ -409,11 +409,6 @@ public class GroupsController : ControllerBase
             return StatusCode(403);
         }
     }
-}
-
-// Local audit helper (mirrors service pattern)
-partial class GroupsController
-{
     private async Task AddAuditAsync(string userId, string action, string details, CancellationToken ct)
     {
         var audit = new AuditLog
