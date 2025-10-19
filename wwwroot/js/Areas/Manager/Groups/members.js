@@ -113,7 +113,7 @@
                 }
                 const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
                 const tokenVal = tokenEl ? tokenEl.value : '';
-                const revokeAction = form.action.replace(/InviteAjax$/, 'RevokeInviteAjax');
+                const revokeAction = form.action.replace(/Invite(?:Ajax)?$/, 'RevokeInviteAjax');
                 row.innerHTML = '<td>' + inviteeLabel + '</td>' +
                                 '<td>' + new Date().toLocaleString() + '</td>' +
                                 '<td>' +
