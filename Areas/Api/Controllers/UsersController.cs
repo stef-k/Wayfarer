@@ -112,6 +112,55 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Returns recent user activity for invites and membership changes.
+    /// Used to notify users after logging in (offline period).
+    /// </summary>
+    [HttpGet("activity")]
+    [Authorize]
+    public async Task<IActionResult> GetUserActivity([FromQuery] int sinceHours = 24, CancellationToken ct = default)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        if (sinceHours <= 0 || sinceHours > 168) sinceHours = 24;
+
+        var since = DateTime.UtcNow.AddHours(-sinceHours);
+
+        // Pending invites for this user (recent first)
+        var pendingInvites = await _dbContext.GroupInvitations
+            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == userId || i.InviteeUserId == null))
+            .OrderByDescending(i => i.CreatedAt)
+            .Take(50)
+            .Join(_dbContext.Groups, i => i.GroupId, g => g.Id, (i, g) => new { i.Id, i.GroupId, GroupName = g.Name, i.CreatedAt })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        // Joined in the last window
+        var joined = await _dbContext.GroupMembers
+            .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active && m.JoinedAt != null && m.JoinedAt >= since)
+            .Join(_dbContext.Groups, m => m.GroupId, g => g.Id, (m, g) => new { m.GroupId, GroupName = g.Name, m.JoinedAt })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        // Left/Removed in the last window
+        var leftRemoved = await _dbContext.GroupMembers
+            .Where(m => m.UserId == userId && m.LeftAt != null && m.LeftAt >= since)
+            .Join(_dbContext.Groups, m => m.GroupId, g => g.Id, (m, g) => new { m.GroupId, GroupName = g.Name, m.Status, m.LeftAt })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var removed = leftRemoved.Where(x => x.Status == GroupMember.MembershipStatuses.Removed).Select(x => x.GroupName).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList();
+        var left = leftRemoved.Where(x => x.Status == GroupMember.MembershipStatuses.Left).Select(x => x.GroupName).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList();
+
+        return Ok(new
+        {
+            invites = pendingInvites.Select(x => new { x.Id, x.GroupId, x.GroupName }).ToList(),
+            joined = joined.Select(x => x.GroupName).Where(n => !string.IsNullOrEmpty(n)).Distinct().ToList(),
+            removed,
+            left
+        });
+    }
+
+    /// <summary>
     /// Search users by username or display name (case-insensitive). Returns up to 10 results.
     /// Managers only.
     /// </summary>

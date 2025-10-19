@@ -164,7 +164,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch { /* ignore SSE errors */ }
 
-    // User offline check for membership changes: compare joined count on session start
+    // User offline check: server-driven activity digest
+    const checkUserActivityDigest = async () => {
+        if (sessionStorage.getItem('user.activity.digest.notified') === '1') return;
+        try {
+            const res = await fetch('/api/users/activity?sinceHours=24');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data) {
+                const invites = Array.isArray(data.invites) ? data.invites : [];
+                const joined  = Array.isArray(data.joined) ? data.joined : [];
+                const removed = Array.isArray(data.removed) ? data.removed : [];
+                const left    = Array.isArray(data.left) ? data.left : [];
+                if (invites.length) {
+                    const names = invites.map(x => x.groupName).filter(Boolean);
+                    if (names.length && typeof showAlert === 'function') showAlert('info', `New invitation(s) for: ${names.join(', ')}. Open User → Invitations.`);
+                }
+                if (joined.length && typeof showAlert === 'function') showAlert('success', `You joined: ${joined.join(', ')}`);
+                if (removed.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removed.join(', ')}`);
+                if (left.length && typeof showAlert === 'function') showAlert('secondary', `You left: ${left.join(', ')}`);
+                if (invites.length || joined.length || removed.length || left.length)
+                    sessionStorage.setItem('user.activity.digest.notified', '1');
+            }
+        } catch { /* ignore */ }
+    };
+    checkUserActivityDigest();
+
+    // Client-side fallback: compare joined count on session start
     const checkJoinedGroups = async () => {
         try {
             const res = await fetch('/api/groups?scope=joined');
@@ -187,6 +213,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch { /* ignore */ }
     };
     checkJoinedGroups();
+
+    // Client-side fallback: pending invites diff
+    checkPendingInvitesDiff();
 
     // Only initialize theme toggle if the toggle button is on this page
     if (!toggleButton) return;
