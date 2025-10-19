@@ -42,27 +42,25 @@ public class InvitationsController : ControllerBase
     public async Task<IActionResult> ListForCurrentUser(CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
-        var list = await (from i in _db.GroupInvitations
-                          where i.Status == GroupInvitation.InvitationStatuses.Pending
-                                && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null)
-                          join g in _db.Groups on i.GroupId equals g.Id
-                          join u in _db.Users on i.InviterUserId equals u.Id into inviterJoin
-                          from inviter in inviterJoin.DefaultIfEmpty()
-                          select new
-                          {
-                              i.Id,
-                              i.GroupId,
-                              GroupName = g.Name,
-                              GroupDescription = g.Description,
-                              i.InviterUserId,
-                              InviterUserName = inviter != null ? inviter.UserName : null,
-                              InviterDisplayName = inviter != null ? inviter.DisplayName : null,
-                              i.InviteeUserId,
-                              i.InviteeEmail,
-                              i.ExpiresAt,
-                              i.CreatedAt,
-                              i.Status
-                          })
+        var list = await _db.GroupInvitations
+            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null))
+            .Include(i => i.Group)
+            .Include(i => i.Inviter)
+            .Select(i => new
+            {
+                i.Id,
+                i.GroupId,
+                GroupName = i.Group != null ? i.Group.Name : null,
+                GroupDescription = i.Group != null ? i.Group.Description : null,
+                i.InviterUserId,
+                InviterUserName = i.Inviter != null ? i.Inviter.UserName : null,
+                InviterDisplayName = i.Inviter != null ? i.Inviter.DisplayName : null,
+                i.InviteeUserId,
+                i.InviteeEmail,
+                i.ExpiresAt,
+                i.CreatedAt,
+                i.Status
+            })
             .AsNoTracking()
             .ToListAsync(ct);
         return Ok(list);

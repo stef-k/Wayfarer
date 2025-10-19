@@ -111,10 +111,22 @@
                 } else {
                   inviteeLabel = (fd.get('inviteeUserId') || '');
                 }
+                const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
+                const tokenVal = tokenEl ? tokenEl.value : '';
+                const revokeAction = form.action.replace(/InviteAjax$/, 'RevokeInviteAjax');
                 row.innerHTML = '<td>' + inviteeLabel + '</td>' +
                                 '<td>' + new Date().toLocaleString() + '</td>' +
-                                '<td></td>';
+                                '<td>' +
+                                  '<form class="d-inline js-confirm js-ajax" method="post" action="' + revokeAction + '" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">' +
+                                    '<input type="hidden" name="groupId" value="' + (fd.get('groupId') || '') + '" />' +
+                                    '<input type="hidden" name="inviteId" value="' + data.invite.id + '" />' +
+                                    (tokenVal ? ('<input type="hidden" name="__RequestVerificationToken" value="' + tokenVal + '" />') : '') +
+                                    '<button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>' +
+                                  '</form>' +
+                                '</td>';
                 invitesTable.appendChild(row);
+                // Attach confirm handler to the new form
+                attachConfirmHandler(row.querySelector('form.js-confirm'));
               }
               if (typeof showAlert === 'function') showAlert('success', 'Invitation sent.');
               // clear search fields
@@ -131,9 +143,9 @@
   }
 
   // Confirmation modal for destructive actions (remove member / revoke invite)
-  document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('form.js-confirm').forEach(function(f) {
-      f.addEventListener('submit', function(ev) {
+  function attachConfirmHandler(f) {
+    if (!f) return;
+    f.addEventListener('submit', function(ev) {
         ev.preventDefault();
         const title = f.dataset.confirmTitle || 'Confirm';
         const message = f.dataset.confirmMessage || 'Are you sure?';
@@ -201,7 +213,10 @@
           }
         }
       });
-    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form.js-confirm').forEach(function(f) { attachConfirmHandler(f); });
   });
 
   // SSE: refresh roster/invites when membership changes

@@ -16,16 +16,24 @@ namespace Wayfarer.Areas.Manager.Controllers;
     {
         private readonly IGroupService _groupService;
         private readonly IInvitationService _invitationService;
+        private readonly Wayfarer.Parsers.SseService _sse;
     private static readonly HashSet<string> AllowedGroupTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "Organization", "Family", "Friends"
     };
 
-    public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService, IInvitationService invitationService)
+    public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService, IInvitationService invitationService, Wayfarer.Parsers.SseService sse)
         : base(logger, dbContext)
     {
         _groupService = groupService;
         _invitationService = invitationService;
+        _sse = sse;
+    }
+
+    // Backward-compatible ctor for tests
+    public GroupsController(ILogger<BaseController> logger, ApplicationDbContext dbContext, IGroupService groupService, IInvitationService invitationService)
+        : this(logger, dbContext, groupService, invitationService, new Wayfarer.Parsers.SseService())
+    {
     }
 
     /// <summary>
@@ -220,6 +228,12 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
+            // SSE: notify invitee (if known) and managers
+            if (!string.IsNullOrEmpty(inv.InviteeUserId))
+            {
+                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", System.Text.Json.JsonSerializer.Serialize(new { action = "created", id = inv.Id }));
+            }
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "invite-created", id = inv.Id }));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
         }
         catch (UnauthorizedAccessException)
@@ -241,6 +255,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId }));
             return Ok(new { success = true, userId });
         }
         catch (UnauthorizedAccessException)
@@ -266,6 +281,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             await _invitationService.RevokeAsync(inviteId, actorId);
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "invite-revoked", inviteId }));
             return Ok(new { success = true, inviteId });
         }
         catch (UnauthorizedAccessException)
