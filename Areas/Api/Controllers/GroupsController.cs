@@ -99,12 +99,27 @@ public class GroupsController : ControllerBase
         var isMember = await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (!isMember) return StatusCode(403);
 
+        var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
+        var isFriends = string.Equals(group?.GroupType, "Friends", StringComparison.OrdinalIgnoreCase);
+
         // determine allowed userIds (default: all active members)
-        var activeMemberIds = await _db.GroupMembers.Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
-            .Select(m => m.UserId).ToListAsync(ct);
-        var userIds = (req?.IncludeUserIds != null && req.IncludeUserIds.Count > 0)
-            ? req.IncludeUserIds.Intersect(activeMemberIds).Distinct().ToList()
+        var activeMembers = await _db.GroupMembers
+            .Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
+            .Select(m => new { m.UserId, m.OrgPeerVisibilityAccessDisabled })
+            .ToListAsync(ct);
+        var activeMemberIds = activeMembers.Select(x => x.UserId).ToList();
+        var requested = (req?.IncludeUserIds != null && req.IncludeUserIds.Count > 0)
+            ? req.IncludeUserIds.Distinct().ToList()
             : activeMemberIds;
+        // enforce visibility for Friends: others only if not disabled; always include self
+        var allowed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var m in activeMembers)
+        {
+            if (m.UserId == CurrentUserId) { allowed.Add(m.UserId); continue; }
+            if (!isFriends) { allowed.Add(m.UserId); continue; }
+            if (!m.OrgPeerVisibilityAccessDisabled) allowed.Add(m.UserId);
+        }
+        var userIds = requested.Intersect(activeMemberIds).Where(uid => allowed.Contains(uid)).ToList();
 
         // query latest per user in the same order as userIds for stable client mapping
         var latestPerUser = new List<(string UserId, Location Loc)>();
@@ -161,11 +176,24 @@ public class GroupsController : ControllerBase
         var isMember = await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (!isMember) return StatusCode(403);
 
-        var activeMemberIds = await _db.GroupMembers.Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
-            .Select(m => m.UserId).ToListAsync(ct);
-        var userIds = (req?.UserIds != null && req.UserIds.Count > 0)
-            ? req.UserIds.Intersect(activeMemberIds).Distinct().ToList()
+        var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
+        var isFriends = string.Equals(group?.GroupType, "Friends", StringComparison.OrdinalIgnoreCase);
+        var activeMembers = await _db.GroupMembers
+            .Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
+            .Select(m => new { m.UserId, m.OrgPeerVisibilityAccessDisabled })
+            .ToListAsync(ct);
+        var activeMemberIds = activeMembers.Select(x => x.UserId).ToList();
+        var requested = (req?.UserIds != null && req.UserIds.Count > 0)
+            ? req.UserIds.Distinct().ToList()
             : activeMemberIds;
+        var allowed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var m in activeMembers)
+        {
+            if (m.UserId == CurrentUserId) { allowed.Add(m.UserId); continue; }
+            if (!isFriends) { allowed.Add(m.UserId); continue; }
+            if (!m.OrgPeerVisibilityAccessDisabled) allowed.Add(m.UserId);
+        }
+        var userIds = requested.Intersect(activeMemberIds).Where(uid => allowed.Contains(uid)).ToList();
 
         var combined = new List<PublicLocationDto>();
         int total = 0;
@@ -226,8 +254,9 @@ public class GroupsController : ControllerBase
 
         var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
         if (group == null) return NotFound();
-        if (!string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Not an Organisation group" });
+        // Only Friends groups support per-user peer visibility controls
+        if (!string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Peer visibility setting allowed only for Friends groups" });
 
         var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (member == null) return StatusCode(403);

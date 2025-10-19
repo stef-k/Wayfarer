@@ -65,6 +65,10 @@ public class GroupsController : BaseController
         ViewBag.CurrentUserId = userId;
         var me = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
         ViewBag.CurrentUserName = me?.UserName;
+        // current user's peer-visibility flag (reuse existing field)
+        var myMembership = await _dbContext.GroupMembers.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
+        ViewBag.MyPeerVisibilityDisabled = myMembership?.OrgPeerVisibilityAccessDisabled ?? false;
         SetPageTitle($"Map - {group.Name}");
         return View();
     }

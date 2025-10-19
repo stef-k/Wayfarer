@@ -112,6 +112,24 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   document.getElementById('selectAllUsers')?.addEventListener('change', function(){ const checked=this.checked; document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{el.checked=checked;}); subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); });
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{ cb.addEventListener('change', ()=>{ subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); });
 
+  // Show All / Hide All buttons
+  const showAllBtn = document.getElementById('showAllUsers'); if (showAllBtn) {
+    showAllBtn.addEventListener('click', ()=>{
+      document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true);
+      const all = document.getElementById('selectAllUsers'); if (all) all.checked = true;
+      subscribeSseForUsers(selectedUsers());
+      loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+    });
+  }
+  const hideAllBtn = document.getElementById('hideAllUsers'); if (hideAllBtn) {
+    hideAllBtn.addEventListener('click', ()=>{
+      document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = false);
+      const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
+      subscribeSseForUsers(selectedUsers());
+      loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+    });
+  }
+
   const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
 
   // Chronological controls wiring
@@ -160,10 +178,13 @@ import { addZoomLevelControl } from '/js/map-utils.js';
 
   // Organisation peer visibility toggle (per-user)
   const groupType = (document.getElementById('groupType')?.value || '').toLowerCase();
-  if (groupType === 'organization'){
+  if (groupType === 'friends'){
     const toggle = document.getElementById('peerVisibilityToggle');
-    // We cannot know current user flag here without an extra API; default unchecked means disabled=false (allowed)
+    // initialize from hidden field (disabled=false => checked)
     if (toggle){
+      const disabledStr = document.getElementById('peerVisibilityDisabled')?.value || 'false';
+      const isDisabled = disabledStr === 'true';
+      toggle.checked = !isDisabled;
       toggle.addEventListener('change', async ()=>{
         try{
           const myId = document.getElementById('currentUserId')?.value;

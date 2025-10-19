@@ -7,14 +7,6 @@
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Timeline" asp-action="Chronological" title="Navigate your timeline by date, month, or year">Timeline</a>
         </li>
-        <li class="nav-item d-flex align-items-center">
-            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Invitations" asp-action="Index" title="View and manage your invitations">
-                Invitations
-            </a>
-            <span id="userInvitesBadge" class="badge bg-danger rounded-pill ms-2 d-none" style="min-width:1.25rem;">
-                0
-            </span>
-        </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Timeline" asp-action="Index" title="See your private timeline">My Private Timeline</a>
         </li>
@@ -34,10 +26,21 @@
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="HiddenAreas" asp-action="Index" title="Set hidden areas from public timelines">Hidden Areas</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Trip" asp-action="Index" title="View-edit-delete your planned trips or create new ones">Trips</a>
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Settings" asp-action="Index" title="Timeline, profile and API settings management">Settings</a>
         </li>
         <li class="nav-item">
-            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Settings" asp-action="Index" title="Timeline, profile and API settings management">Settings</a>
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Groups" asp-action="Index" title="View and manage your group memberships">My Groups</a>
+        </li>
+        <li class="nav-item d-flex align-items-center">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Invitations" asp-action="Index" title="View and manage your invitations">
+                Invitations
+            </a>
+            <span id="userInvitesBadge" class="badge bg-danger rounded-pill ms-2 d-none" style="min-width:1.25rem;">
+                0
+            </span>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link theme-toggle" asp-area="User" asp-controller="Trip" asp-action="Index" title="View-edit-delete your planned trips or create new ones">Trips</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="Identity" asp-page="/Account/Manage/Index" title="Manage your account">My Account</a>
