@@ -14,6 +14,7 @@
         <th>Name</th>
         <th>Description</th>
         <th>Type</th>
+        <th>Members</th>
         <th></th>
     </tr>
     </thead>
@@ -29,6 +30,14 @@
                     <td>@g.Name</td>
                     <td>@g.Description</td>
                     <td>@g.GroupType</td>
+                    <td>
+                        @{
+                            var counts = ViewBag.MemberCounts as IDictionary<Guid,int>;
+                            var gid = (Guid)g.Id;
+                            var cnt = counts != null && counts.ContainsKey(gid) ? counts[gid] : 0;
+                        }
+                        <span class="badge bg-secondary js-member-count" data-group-id="@g.Id">@cnt</span>
+                    </td>
                     <td class="text-nowrap">
                         <a class="btn btn-sm btn-primary" asp-area="User" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">Map</a>
                         @if (string.Equals((string)g.GroupType, "Family", StringComparison.OrdinalIgnoreCase) || string.Equals((string)g.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))

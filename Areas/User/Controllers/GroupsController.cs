@@ -48,6 +48,15 @@ public class GroupsController : BaseController
                             join g in _dbContext.Groups on m.GroupId equals g.Id
                             select new { g.Id, g.Name, g.Description, g.GroupType }).AsNoTracking().ToListAsync();
 
+        // Active member counts per group (same approach as Manager UI)
+        var joinedIds = joined.Select(x => (Guid)x.Id).ToList();
+        var counts = await _dbContext.GroupMembers
+            .Where(m => joinedIds.Contains(m.GroupId) && m.Status == GroupMember.MembershipStatuses.Active)
+            .GroupBy(m => m.GroupId)
+            .Select(g => new { GroupId = g.Key, Count = g.Count() })
+            .ToListAsync();
+        ViewBag.MemberCounts = counts.ToDictionary(x => x.GroupId, x => x.Count);
+
         ViewBag.Joined = joined;
         SetPageTitle("My Groups");
         return View();
