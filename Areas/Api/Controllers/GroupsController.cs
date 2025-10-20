@@ -200,11 +200,14 @@ public class GroupsController : ControllerBase
         if (userIds.Count > 1)
         {
             req.DateType = "day";
-            // If day values not provided, default to today's UTC date
-            var today = DateTime.UtcNow;
-            req.Year = today.Year;
-            req.Month = today.Month;
-            req.Day = today.Day;
+            // If specific day not provided, default to today's UTC date
+            if (!req.Year.HasValue || !req.Month.HasValue || !req.Day.HasValue)
+            {
+                var today = DateTime.UtcNow;
+                req.Year ??= today.Year;
+                req.Month ??= today.Month;
+                req.Day ??= today.Day;
+            }
         }
 
         var combined = new List<PublicLocationDto>();

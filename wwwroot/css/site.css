@@ -284,6 +284,7 @@ thead th {
     width: 18px; height: 18px;
     border-radius: 50%;
     border: 3px solid #198754; /* Bootstrap success green */
+    box-shadow: 0 0 10px rgba(25,135,84,0.55);
 }
 .wf-marker--live::after {
     content: "";
@@ -293,7 +294,8 @@ thead th {
     width: 18px; height: 18px;
     border-radius: 50%;
     border: 3px solid #dc3545; /* Bootstrap danger red */
-    animation: pulse 1.75s infinite;
+    animation: pulse 1.6s infinite;
+    box-shadow: 0 0 10px rgba(220,53,69,0.6);
 }
 
 /* Icon dropdown: make list scrollable and keep search visible */

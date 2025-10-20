@@ -45,9 +45,10 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     const base=colorFromString(info.username||'user');
     const live=isLiveLocation(loc);
     const icon=L.divIcon({ html: latestIconHtml(base, live), className:'', iconSize:[20,20], iconAnchor:[10,10] });
-    const tooltip = buildTooltipHtml(info, loc);
-    if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); }
-    else { const m=L.marker(latlng, { icon }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
+    const statusHtml = live ? ' <span style="color:#0d6efd">Current Location</span>' : ' <span style="color:#198754">Latest Location</span>';
+    const tooltip = buildTooltipHtml(info, loc) + statusHtml;
+    if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
+    else { const m=L.marker(latlng, { icon, zIndexOffset: (live?10000:9000) }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
   }
   async function loadLatest(userIds) {
     const url='/api/groups/' + groupId + '/locations/latest';
@@ -64,11 +65,15 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     const y = document.getElementById('yearPicker');
     const m = document.getElementById('monthPicker');
     const d = document.getElementById('datePicker');
-    if (dt && y && y.value) {
-      body.DateType = dt.value;
-      body.Year = parseInt(y.value, 10);
-      if (m && m.value) { try { body.Month = parseInt(m.value.split('-')[1], 10); } catch{} }
-      if (d && d.value) { try { body.Day = parseInt(d.value.split('-')[2], 10); } catch{} }
+    if (dt) {
+      const view = dt.value;
+      if (view === 'day' && d && d.value) {
+        try { const parts = d.value.split('-'); body.DateType='day'; body.Year=parseInt(parts[0],10); body.Month=parseInt(parts[1],10); body.Day=parseInt(parts[2],10); } catch {}
+      } else if (view === 'month' && m && m.value) {
+        try { const parts = m.value.split('-'); body.DateType='month'; body.Year=parseInt(parts[0],10); body.Month=parseInt(parts[1],10); } catch {}
+      } else if (view === 'year' && y && y.value) {
+        body.DateType='year'; body.Year=parseInt(y.value,10);
+      }
     }
     const res=await postJson(url, body);
     // clear existing clusters
