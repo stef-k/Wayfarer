@@ -209,6 +209,15 @@ public class GroupsController : ControllerBase
                 req.Day ??= today.Day;
             }
         }
+        // Fallback: if client sent no DateType at all, default to today's day view to avoid huge history loads
+        if (string.IsNullOrWhiteSpace(req.DateType))
+        {
+            var today = DateTime.UtcNow;
+            req.DateType = "day";
+            req.Year = today.Year;
+            req.Month = today.Month;
+            req.Day = today.Day;
+        }
 
         var combined = new List<PublicLocationDto>();
         int total = 0;

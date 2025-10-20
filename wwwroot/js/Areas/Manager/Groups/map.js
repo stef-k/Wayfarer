@@ -11,6 +11,16 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
   }
   try { addZoomLevelControl(map); } catch(e){}
+  // Initialize default pickers to today/current if empty
+  (function initDefaultPickers(){
+    const today = new Date();
+    const datePicker = document.getElementById('datePicker');
+    const monthPicker = document.getElementById('monthPicker');
+    const yearPicker = document.getElementById('yearPicker');
+    if (datePicker && !datePicker.value) datePicker.valueAsDate = today;
+    if (monthPicker && !monthPicker.value) monthPicker.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+    if (yearPicker && !yearPicker.value) yearPicker.value = String(today.getFullYear());
+  })();
 
   const latestMarkers = new Map();
   let restClusters = new Map(); // userId -> MarkerClusterGroup
@@ -50,7 +60,7 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     const base=colorFromString(info.username||'user');
     const live=isLiveLocation(loc);
     const icon=L.divIcon({ html: latestIconHtml(base, live), className:'', iconSize:[20,20], iconAnchor:[10,10] });
-    const statusHtml = live ? ' <span style="color:#0d6efd">Current Location</span>' : ' <span style="color:#198754">Latest Location</span>';
+    const statusHtml = live ? ' <span style="color:#dc3545">Live Location</span>' : ' <span style="color:#198754">Latest Location</span>';
     const tooltip = buildTooltipHtml(info, loc) + statusHtml;
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
     else { const m=L.marker(latlng, { icon, zIndexOffset:(live?10000:9000) }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
@@ -107,7 +117,31 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   }
 
   // initial
+  function enforceMultiUserDayOnly(){
+    const boxes = document.querySelectorAll('#userSidebar input.user-select:checked');
+    const multi = boxes.length > 1;
+    const viewDay = document.getElementById('viewDay');
+    const viewMonth = document.getElementById('viewMonth');
+    const viewYear = document.getElementById('viewYear');
+    const datePicker = document.getElementById('datePicker');
+    const monthPicker = document.getElementById('monthPicker');
+    const yearPicker = document.getElementById('yearPicker');
+    if (multi){
+      if (viewDay) viewDay.checked = true;
+      if (viewMonth) viewMonth.disabled = true;
+      if (viewYear) viewYear.disabled = true;
+      if (datePicker && !datePicker.value) { const t=new Date(); datePicker.valueAsDate=t; }
+      if (datePicker) datePicker.style.display = '';
+      if (monthPicker) monthPicker.style.display = 'none';
+      if (yearPicker) yearPicker.style.display = 'none';
+    } else {
+      if (viewMonth) viewMonth.disabled = false;
+      if (viewYear) viewYear.disabled = false;
+    }
+  }
+  enforceMultiUserDayOnly();
   loadLatest().catch(()=>{});
+  loadViewport().catch(()=>{});
   // move refresh
   let pending; map.on('moveend', ()=>{ clearTimeout(pending); pending=setTimeout(()=> loadViewport().catch(()=>{}), 200); });
 
@@ -225,28 +259,6 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   });
 
   // Enforce performance rule: if multiple users selected, force Day-only view
-  function enforceMultiUserDayOnly(){
-    const boxes = document.querySelectorAll('#userSidebar input.user-select:checked');
-    const multi = boxes.length > 1;
-    const viewDay = document.getElementById('viewDay');
-    const viewMonth = document.getElementById('viewMonth');
-    const viewYear = document.getElementById('viewYear');
-    const datePicker = document.getElementById('datePicker');
-    const monthPicker = document.getElementById('monthPicker');
-    const yearPicker = document.getElementById('yearPicker');
-    if (multi){
-      if (viewDay) viewDay.checked = true;
-      if (viewMonth) viewMonth.disabled = true;
-      if (viewYear) viewYear.disabled = true;
-      if (datePicker) datePicker.style.display = '';
-      if (monthPicker) monthPicker.style.display = 'none';
-      if (yearPicker) yearPicker.style.display = 'none';
-      if (datePicker && !datePicker.value){ const today=new Date(); datePicker.value=today.toISOString().slice(0,10); }
-    } else {
-      if (viewMonth) viewMonth.disabled = false;
-      if (viewYear) viewYear.disabled = false;
-    }
-  }
   document.getElementById('selectAllUsers')?.addEventListener('change', ()=>{ enforceMultiUserDayOnly(); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); });
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=> cb.addEventListener('change', ()=>{ enforceMultiUserDayOnly(); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }));
   enforceMultiUserDayOnly();
