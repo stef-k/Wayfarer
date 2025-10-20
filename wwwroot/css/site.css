@@ -260,6 +260,42 @@ thead th {
     }
 }
 
+/* Wayfarer map markers (group maps) */
+.wf-marker {
+    position: relative;
+    width: 20px;
+    height: 20px;
+}
+.wf-marker::before {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--wf-color, #0d6efd);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+}
+.wf-marker--latest::after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 3px solid #198754; /* Bootstrap success green */
+}
+.wf-marker--live::after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 3px solid #dc3545; /* Bootstrap danger red */
+    animation: pulse 1.75s infinite;
+}
+
 /* Icon dropdown: make list scrollable and keep search visible */
 .icon-dropdown-menu {
     max-height: 320px;

@@ -195,6 +195,18 @@ public class GroupsController : ControllerBase
         }
         var userIds = requested.Intersect(activeMemberIds).Where(uid => allowed.Contains(uid)).ToList();
 
+        // Performance guard: if multiple users are requested, enforce day-only queries
+        // This limits the result size and keeps UI responsive even for large datasets.
+        if (userIds.Count > 1)
+        {
+            req.DateType = "day";
+            // If day values not provided, default to today's UTC date
+            var today = DateTime.UtcNow;
+            req.Year = today.Year;
+            req.Month = today.Month;
+            req.Day = today.Day;
+        }
+
         var combined = new List<PublicLocationDto>();
         int total = 0;
         foreach (var uid in userIds)

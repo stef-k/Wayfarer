@@ -35,20 +35,19 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     return await resp.json();
   }
   function colorFromString(str) { let h=0; for (let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return 'hsl(' + h + ',80%,45%)'; }
-  function styleForLatest(loc, username) {
-    const now=new Date(), localTs=new Date(loc.localTimestamp);
-    const diffMin=Math.abs(now-localTs)/60000, isLive=diffMin <= (loc.locationTimeThresholdMinutes||10);
-    const base=colorFromString(username||'user');
-    return { radius:isLive?7:6, color:base, fillColor:base, fillOpacity:isLive?0.9:0.6, weight:isLive?3:2 };
-  }
+  function isLiveLocation(loc){ const now=new Date(), localTs=new Date(loc.localTimestamp); const diffMin=Math.abs(now-localTs)/60000; return diffMin <= (loc.locationTimeThresholdMinutes||10); }
+  function latestIconHtml(baseColor, isLive){ const cls = isLive ? 'wf-marker wf-marker--live' : 'wf-marker wf-marker--latest'; return `<div class="${cls}" style="--wf-color:${baseColor}"></div>`; }
+  function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
+  function buildTooltipHtml(info, loc){ const u=(info.username||'') + (info.display? (' ('+info.display+')') : ''); const dt=new Date(loc.localTimestamp).toLocaleString(); const addr=loc.fullAddress||loc.address||loc.place||''; return `${u}<br/>${dt}<br/>${addr}`; }
   function upsertLatestForUser(userId, loc) {
     const latlng=[loc.coordinates.latitude, loc.coordinates.longitude];
     const info=idToInfoMap().get(userId)||{ username:'', display:''};
-    const style=styleForLatest(loc, info.username);
-    const label = info.username + (info.display ? (' (' + info.display + ')') : '');
-    const popup= label + '<br/>' + new Date(loc.localTimestamp).toLocaleString() + '<br/>' + (loc.place||'');
-    if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setStyle(style); m.setPopupContent(popup); }
-    else { const m=L.circleMarker(latlng, style).bindPopup(popup); m.addTo(map); latestMarkers.set(userId, m); }
+    const base=colorFromString(info.username||'user');
+    const live=isLiveLocation(loc);
+    const icon=L.divIcon({ html: latestIconHtml(base, live), className:'', iconSize:[20,20], iconAnchor:[10,10] });
+    const tooltip = buildTooltipHtml(info, loc);
+    if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); }
+    else { const m=L.marker(latlng, { icon }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
   }
   async function loadLatest(userIds) {
     const url='/api/groups/' + groupId + '/locations/latest';
@@ -68,7 +67,7 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     if (dt && y && y.value) {
       body.DateType = dt.value;
       body.Year = parseInt(y.value, 10);
-      if (m && m.value) body.Month = parseInt(m.value, 10);
+      if (m && m.value) { try { body.Month = parseInt(m.value.split('-')[1], 10); } catch{} }
       if (d && d.value) { try { body.Day = parseInt(d.value.split('-')[2], 10); } catch{} }
     }
     const res=await postJson(url, body);
@@ -83,14 +82,15 @@ import { addZoomLevelControl } from '/js/map-utils.js';
         const base = colorFromString(info.username || uid || 'user');
         let group = restClusters.get(uid);
         if (!group) {
-          group = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 17, spiderfyOnMaxZoom: true });
+          group = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 17, spiderfyOnMaxZoom: true, chunkedLoading: true });
           map.addLayer(group);
           restClusters.set(uid, group);
         }
-        const tlabel = (info.username || uid) + (info.display ? (' (' + info.display + ')') : '');
+        const tooltip = buildTooltipHtml(info, loc);
         const marker = L.marker([loc.coordinates.latitude, loc.coordinates.longitude], {
-          icon: L.divIcon({html:'<div style="background:'+base+';width:8px;height:8px;border-radius:50%;border:1px solid #333"></div>', className:'rest-dot', iconSize:[10,10]})
-        }).bindTooltip(tlabel, {direction:'top'});
+          icon: L.divIcon({ html: restIconHtml(base), className:'', iconSize:[20,20], iconAnchor:[10,10] })
+        }).bindTooltip(tooltip, {direction:'top'});
+        marker.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} });
         group.addLayer(marker);
       }
     });
@@ -149,11 +149,11 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   if (monthPicker2) monthPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
   if (yearPicker2) yearPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
   // prev/next helpers
-  function shiftDay(delta){ const d=new Date(datePicker2.value||new Date()); d.setDate(d.getDate()+delta); datePicker2.value = d.toISOString().slice(0,10); loadViewport().catch(()=>{}); }
-  function shiftMonth(delta){ const m=(monthPicker2.value||new Date().toISOString().slice(0,7)); const dt=new Date(m+'-01T00:00:00Z'); dt.setUTCMonth(dt.getUTCMonth()+delta); monthPicker2.value = dt.toISOString().slice(0,7); loadViewport().catch(()=>{}); }
-  function shiftYear(delta){ const y=parseInt(yearPicker2.value||String(new Date().getUTCFullYear()),10); yearPicker2.value=String(y+delta); loadViewport().catch(()=>{}); }
+  function shiftDay(delta){ if (!datePicker2) return; const d = datePicker2.value ? new Date(datePicker2.value) : new Date(); d.setDate(d.getDate()+delta); datePicker2.valueAsDate = d; if (viewDay2) viewDay2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
+  function shiftMonth(delta){ if (!monthPicker2) return; const base=(monthPicker2.value||new Date().toISOString().slice(0,7)); const dt=new Date(base+'-01T00:00:00'); dt.setMonth(dt.getMonth()+delta); const y = dt.getFullYear(); const m = (dt.getMonth()+1).toString().padStart(2,'0'); monthPicker2.value = `${y}-${m}`; if (viewMonth2) viewMonth2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
+  function shiftYear(delta){ if (!yearPicker2) return; const y=parseInt(yearPicker2.value||String(new Date().getFullYear()),10)+delta; yearPicker2.value=String(y); if (viewYear2) viewYear2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
   document.getElementById('btnYesterday')?.addEventListener('click', ()=> shiftDay(-1));
-  document.getElementById('btnToday')?.addEventListener('click', ()=> { const today=new Date(); datePicker2.value=today.toISOString().slice(0,10); loadViewport().catch(()=>{}); });
+  document.getElementById('btnToday')?.addEventListener('click', ()=> { if (!datePicker2) return; const today=new Date(); datePicker2.valueAsDate=today; if (viewDay2) viewDay2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); });
   document.getElementById('btnPrevDay')?.addEventListener('click', ()=> shiftDay(-1));
   document.getElementById('btnNextDay')?.addEventListener('click', ()=> shiftDay(1));
   document.getElementById('btnPrevMonth')?.addEventListener('click', ()=> shiftMonth(-1));
@@ -175,6 +175,70 @@ import { addZoomLevelControl } from '/js/map-utils.js';
       subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
   });
+
+  // Enforce performance rule: if multiple users selected, force Day-only view
+  function enforceMultiUserDayOnly(){
+    const users = selectedUsers();
+    const multi = users.length > 1;
+    const viewDay = document.getElementById('viewDay');
+    const viewMonth = document.getElementById('viewMonth');
+    const viewYear = document.getElementById('viewYear');
+    const datePicker = document.getElementById('datePicker');
+    const monthPicker = document.getElementById('monthPicker');
+    const yearPicker = document.getElementById('yearPicker');
+    if (multi){
+      if (viewDay) viewDay.checked = true;
+      if (viewMonth) viewMonth.disabled = true;
+      if (viewYear) viewYear.disabled = true;
+      if (datePicker) datePicker.style.display = '';
+      if (monthPicker) monthPicker.style.display = 'none';
+      if (yearPicker) yearPicker.style.display = 'none';
+      if (datePicker && !datePicker.value){ const today=new Date(); datePicker.value=today.toISOString().slice(0,10); }
+    } else {
+      if (viewMonth) viewMonth.disabled = false;
+      if (viewYear) viewYear.disabled = false;
+    }
+  }
+  // Wire user selection changes
+  document.getElementById('selectAllUsers')?.addEventListener('change', ()=>{ enforceMultiUserDayOnly(); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); });
+  document.querySelectorAll('#userSidebar input.user-select').forEach(cb=> cb.addEventListener('change', ()=>{ enforceMultiUserDayOnly(); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }));
+  enforceMultiUserDayOnly();
+
+  // Modal generator aligned with public timeline
+  function googleMapsLink(location){
+    const addr=location?.fullAddress||''; const lat=location?.coordinates?.latitude; const lon=location?.coordinates?.longitude;
+    const has=Number.isFinite(+lat)&&Number.isFinite(+lon);
+    const query = addr && has ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})` : has ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}` : addr;
+    const q=encodeURIComponent(query||'');
+    return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps"><i class="bi bi-globe-europe-africa"></i> Maps</a>`;
+  }
+  function openLocationModal(location){
+    const nowMin = Math.floor(Date.now()/60000);
+    const locMin = Math.floor(new Date(location.localTimestamp).getTime()/60000);
+    const isLive = (nowMin - locMin) <= (location.locationTimeThresholdMinutes||10);
+    const isLatest = !!location.isLatestLocation;
+    const badge = isLive ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>' : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');
+    const notes = location.notes || '';
+    const hasNotes = !!notes && notes.length>0;
+    const html = `<div class=\"container-fluid\">`
+      + `<div class=\"row mb-2\"><div class=\"col-12\">${badge}</div></div>`
+      + `<div class=\"row mb-2\">`
+      + `<div class=\"col-6\"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T',' ').split('.')[0]}</span></div>`
+      + `<div class=\"col-6\"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId || ''}</span></div>`
+      + `</div>`
+      + `<div class=\"row mb-2\">`
+      + `<div class=\"col-12\"><strong>Address:</strong> <span>${location.fullAddress || location.address || location.place || '<i class=\"bi bi-patch-question\" title=\"No available data for Address\"></i>'}</span>${googleMapsLink(location)}</div>`
+      + `</div>`
+      + `<div class=\"row mb-2\">`
+      + `<div class=\"col-6\"><strong>Latitude:</strong> <span class=\"fw-bold text-primary\">${location.coordinates.latitude}</span></div>`
+      + `<div class=\"col-6\"><strong>Longitude:</strong> <span class=\"fw-bold text-primary\">${location.coordinates.longitude}</span></div>`
+      + `</div>`
+      + `<div class=\"row mb-2\" ${hasNotes? '' : 'style=\"display:none;\"'}>`
+      + `<div class=\"col-12\"><strong>Notes:</strong><div class=\"border p-1\">${hasNotes? notes : ''}</div></div>`
+      + `</div>`
+      + `</div>`;
+    const el = document.getElementById('modalContent'); if (el) el.innerHTML = html; new bootstrap.Modal(document.getElementById('locationModal')).show();
+  }
 
   // Organisation peer visibility toggle (per-user)
   const groupType = (document.getElementById('groupType')?.value || '').toLowerCase();

@@ -115,6 +115,21 @@
 
 <input type="hidden" id="groupType" value="@group.GroupType" />
 
+<!-- Location Details Modal (reused from timeline) -->
+<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header text-bg-primary">
+        <h5 class="modal-title" id="locationModalLabel">Location Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalContent"></div>
+      </div>
+    </div>
+  </div>
+ </div>
+
 <script src="~/lib/leaflet/leaflet-src.js"></script>
 <link rel="stylesheet" href="~/lib/leaflet/leaflet-1.9.4.css" />
 <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
