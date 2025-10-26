@@ -3,7 +3,7 @@
 [Oo]bj/
 
 .claude/
-
+debug_console.txt
 # Logs
 Logs/*
 

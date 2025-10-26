@@ -169,12 +169,12 @@ namespace Wayfarer.Parsers
 
             if (DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dtoWithOffset))
             {
-                return dtoWithOffset.DateTime;
+                return DateTime.SpecifyKind(dtoWithOffset.DateTime, DateTimeKind.Utc);
             }
 
             if (DateTime.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var parsedLocal))
             {
-                return parsedLocal;
+                return DateTime.SpecifyKind(parsedLocal, DateTimeKind.Utc);
             }
 
             return fallbackUtc;

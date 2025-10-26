@@ -765,6 +765,12 @@ thead th {
     box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
 }
 
+/* hide the default Leaflet shadow entirely */
+.leaflet-marker-shadow {
+    display: none !important;
+    opacity: 0;
+}
+
 /* Temporary help popup (bottom left) */
 .leaflet-bar.help-popup {
     font-size: 0.75rem;
