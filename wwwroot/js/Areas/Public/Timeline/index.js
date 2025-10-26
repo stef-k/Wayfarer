@@ -1,11 +1,11 @@
-﻿let locations = []; // Declare locations as a global variable
+let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;
 let username = null;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 let timelineLive;
-let markerLayer, clusterLayer;
+let markerLayer, clusterLayer, highlightLayer;
 let stream;
 // permalink setup
 const urlParams = new URLSearchParams(window.location.search);
@@ -105,10 +105,20 @@ const initializeMap = () => {
 
     addZoomLevelControl(mapContainer);
 
+    if (!highlightLayer) {
+        highlightLayer = L.layerGroup();
+    } else {
+        highlightLayer.clearLayers();
+    }
+    highlightLayer.addTo(mapContainer);
     return mapContainer;
 };
 
 const buildLayers = (locations) => {
+    if (highlightLayer) {
+        highlightLayer.clearLayers();
+    }
+
     // --- FLAT marker layer (no clustering) ---
     markerLayer = L.layerGroup();
 
@@ -118,64 +128,84 @@ const buildLayers = (locations) => {
         chunkedLoading:  true
     });
 
+    const nowMinGlobal = Math.floor(Date.now() / 60000);
+    const thresholdFor = (location) => location.locationTimeThresholdMinutes ?? 10;
+
+    let liveCandidate = null;
+    let latestCandidate = null;
+
+    locations.forEach(location => {
+        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+        const isLive = (nowMinGlobal - locMin) <= thresholdFor(location);
+
+        if (isLive) {
+            if (!liveCandidate || locMin > liveCandidate.locMin) {
+                liveCandidate = { location, locMin };
+            }
+        } else if (location.isLatestLocation) {
+            if (!latestCandidate || locMin > latestCandidate.locMin) {
+                latestCandidate = { location, locMin };
+            }
+        }
+    });
+
+    const highlightCandidate = liveCandidate
+        ? { location: liveCandidate.location, type: 'live' }
+        : latestCandidate
+            ? { location: latestCandidate.location, type: 'latest' }
+            : null;
+    const highlightId = highlightCandidate?.location?.id ?? null;
+
     locations.forEach(location => {
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
+        const isHighlight = highlightId !== null && location.id === highlightId;
 
-        // decide icon
-        const nowMin = Math.floor(Date.now() / 60000);
-        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-        const isLiveIcon   = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
-        const isLatestIcon = location.isLatestLocation;
+        const bindInteractions = (markerInstance) => {
+            markerInstance.on('click', () => {
+                const now2  = Math.floor(Date.now() / 60000);
+                const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+                const isLiveM   = (now2 - loc2) <= thresholdFor(location);
+                const isLatestM = location.isLatestLocation;
 
-        const markerOptions = {};
-        if (isLiveIcon)   markerOptions.icon = liveMarker;
-        else if (isLatestIcon) markerOptions.icon = latestLocationMarker;
+                document.getElementById('modalContent').innerHTML =
+                    generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
 
-        const marker = L.marker(coords, markerOptions);
-
-        // only show “latest” tooltip if not live
-        if (isLatestIcon && !isLiveIcon) {
-            marker.bindTooltip("User's latest location.", {
-                direction: "top",
-                offset: [0, -25]
+                new bootstrap.Modal(document.getElementById('locationModal')).show();
             });
-        }
+        };
 
-        // click ⇒ fill & show modal
-        marker.on('click', () => {
-            const now2  = Math.floor(Date.now() / 60000);
-            const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-            const isLiveM   = (now2 - loc2) <= location.locationTimeThresholdMinutes;
-            const isLatestM = location.isLatestLocation;
+        if (isHighlight && highlightLayer) {
+            const icon = highlightCandidate?.type === 'live' ? liveMarker : latestLocationMarker;
+            const highlightMarker = L.marker(coords, { icon });
+            if (highlightCandidate?.type === 'latest') {
+                highlightMarker.bindTooltip("User's latest location.", {
+                    direction: "top",
+                    offset: [0, -25]
+                });
+            }
+            bindInteractions(highlightMarker);
+            highlightMarker.addTo(highlightLayer);
+            highlightMarker.setZIndexOffset(1000);
+        } else {
+            const marker = L.marker(coords, {});
+            bindInteractions(marker);
 
-            document.getElementById('modalContent').innerHTML =
-                generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
-
-            new bootstrap.Modal(document.getElementById('locationModal')).show();
-        });
-
-        // add to both flat and cluster layers
-        if (markerLayer) {
-            markerLayer.addLayer(marker);
-        }
-        if (clusterLayer) {
-            clusterLayer.addLayer(marker);
+            if (markerLayer) markerLayer.addLayer(marker);
+            if (clusterLayer) clusterLayer.addLayer(marker);
         }
     });
 
     // add only the appropriate layer
     if (mapContainer.getZoom() <= 5) {
-        if (markerLayer) {
-            mapContainer.addLayer(markerLayer);
-        }
+        if (markerLayer) mapContainer.addLayer(markerLayer);
     } else {
-        if (clusterLayer) {
-            mapContainer.addLayer(clusterLayer);
-        }
+        if (clusterLayer) mapContainer.addLayer(clusterLayer);
     }
-};
 
-// Display locations on the mapContainer with markers
+    if (highlightLayer) {
+        highlightLayer.addTo(mapContainer);
+    }
+};// Display locations on the mapContainer with markers
 const displayLocationsOnMap = (mapContainer, locations) => {
     if (!mapContainer) {
         mapContainer = initializeMap();
@@ -551,3 +581,4 @@ const getUserStats = async (username) => {
     const summary = summaryParts.join(" | ");
     document.getElementById("timeline-summary").innerHTML = summary;
 };
+
