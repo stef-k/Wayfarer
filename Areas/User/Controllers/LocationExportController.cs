@@ -15,7 +15,6 @@ using NetTopologySuite.Geometries;
 using NetTopologySuite.IO; // GeoJsonSerializer
 using Wayfarer.Models;
 
-
 namespace Wayfarer.Areas.User.Controllers;
 
 [Authorize]
@@ -35,6 +34,9 @@ public class LocationExportController : Controller
     }
 
     [HttpGet]
+    /// <summary>
+    /// Exports the signed-in user's locations to GeoJSON, including reverse-geocoded details.
+    /// </summary>
     public async Task<IActionResult> GeoJson()
     {
         var locs = await UserLocations().ToListAsync();
@@ -42,17 +44,25 @@ public class LocationExportController : Controller
         var features = new FeatureCollection();
         foreach (var loc in locs)
         {
+            var shortAddress = loc.Address ?? loc.FullAddress;
             var attrs = new AttributesTable
             {
                 { "Id", loc.Id },
-                { "TimestampUtc", loc.Timestamp },
+                { "TimestampUtc", DateTime.SpecifyKind(loc.Timestamp, DateTimeKind.Utc) },
                 { "LocalTimestamp", loc.LocalTimestamp },
                 { "TimeZoneId", loc.TimeZoneId },
                 { "Accuracy", loc.Accuracy },
                 { "Altitude", loc.Altitude },
                 { "Speed", loc.Speed },
                 { "Activity", loc.ActivityType?.Name },
-                { "Address", loc.FullAddress },
+                { "Address", shortAddress },
+                { "FullAddress", loc.FullAddress },
+                { "AddressNumber", loc.AddressNumber },
+                { "StreetName", loc.StreetName },
+                { "PostCode", loc.PostCode },
+                { "Place", loc.Place },
+                { "Region", loc.Region },
+                { "Country", loc.Country },
                 { "Notes", loc.Notes },
             };
             features.Add(new Feature(loc.Coordinates, attrs));
@@ -70,8 +80,10 @@ public class LocationExportController : Controller
         return File(ms, "application/geo+json", $"{GenerateTitle()}.geojson");
     }
 
-
     [HttpGet]
+    /// <summary>
+    /// Exports the signed-in user's locations to CSV with rich address metadata.
+    /// </summary>
     public async Task<IActionResult> Csv()
     {
         var locs = await UserLocations().ToListAsync(); // Force client-side evaluation
@@ -79,7 +91,7 @@ public class LocationExportController : Controller
         var flatLocs = locs.Select(l => new
         {
             l.Id,
-            TimestampUtc = l.Timestamp.ToString("o"),
+            TimestampUtc = DateTime.SpecifyKind(l.Timestamp, DateTimeKind.Utc).ToString("o"),
             LocalTimestamp = l.LocalTimestamp.ToString("o"),
             l.TimeZoneId,
             Longitude = l.Coordinates.X,
@@ -88,7 +100,14 @@ public class LocationExportController : Controller
             l.Altitude,
             l.Speed,
             Activity = l.ActivityType?.Name,
-            Address = l.FullAddress,
+            Address = l.Address,
+            FullAddress = l.FullAddress,
+            AddressNumber = l.AddressNumber,
+            StreetName = l.StreetName,
+            PostCode = l.PostCode,
+            Place = l.Place,
+            Region = l.Region,
+            Country = l.Country,
             Notes = l.Notes
         });
 
@@ -106,9 +125,36 @@ public class LocationExportController : Controller
     }
 
     [HttpGet]
+    /// <summary>
+    /// Exports the signed-in user's locations to GPX with Wayfarer extensions.
+    /// </summary>
     public async Task<IActionResult> Gpx()
     {
         var locs = await UserLocations().ToListAsync();
+
+        static void WriteGpxExtension(XmlWriter writer, string localName, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                writer.WriteElementString("wf", localName, "https://wayfarer.app/schemas/gpx", value);
+            }
+        }
+
+        static bool HasGpxExtensionData(Wayfarer.Models.Location loc)
+        {
+            return !string.IsNullOrWhiteSpace(loc.TimeZoneId)
+                   || !string.IsNullOrWhiteSpace(loc.Address)
+                   || !string.IsNullOrWhiteSpace(loc.FullAddress)
+                   || !string.IsNullOrWhiteSpace(loc.AddressNumber)
+                   || !string.IsNullOrWhiteSpace(loc.StreetName)
+                   || !string.IsNullOrWhiteSpace(loc.PostCode)
+                   || !string.IsNullOrWhiteSpace(loc.Place)
+                   || !string.IsNullOrWhiteSpace(loc.Region)
+                   || !string.IsNullOrWhiteSpace(loc.Country)
+                   || loc.Accuracy.HasValue
+                   || loc.Speed.HasValue
+                   || !string.IsNullOrWhiteSpace(loc.Notes);
+        }
 
         var ms = new MemoryStream();
         var settings = new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 };
@@ -118,6 +164,7 @@ public class LocationExportController : Controller
             xw.WriteStartElement("gpx", "http://www.topografix.com/GPX/1/1");
             xw.WriteAttributeString("version", "1.1");
             xw.WriteAttributeString("creator", "Wayfarer");
+            xw.WriteAttributeString("xmlns", "wf", null, "https://wayfarer.app/schemas/gpx");
 
             xw.WriteStartElement("trk");
             xw.WriteElementString("name", "Wayfarer Location Export");
@@ -125,12 +172,33 @@ public class LocationExportController : Controller
 
             foreach (var loc in locs)
             {
+                var timestampUtc = DateTime.SpecifyKind(loc.Timestamp, DateTimeKind.Utc);
                 xw.WriteStartElement("trkpt");
                 xw.WriteAttributeString("lat", loc.Coordinates.Y.ToString(CultureInfo.InvariantCulture));
                 xw.WriteAttributeString("lon", loc.Coordinates.X.ToString(CultureInfo.InvariantCulture));
                 if (loc.Altitude.HasValue)
                     xw.WriteElementString("ele", loc.Altitude.Value.ToString(CultureInfo.InvariantCulture));
-                xw.WriteElementString("time", loc.Timestamp.ToString("o"));
+                xw.WriteElementString("time", timestampUtc.ToString("o"));
+
+                if (HasGpxExtensionData(loc))
+                {
+                    xw.WriteStartElement("extensions");
+                    WriteGpxExtension(xw, "localTimestamp", loc.LocalTimestamp.ToString("o"));
+                    WriteGpxExtension(xw, "timeZoneId", loc.TimeZoneId);
+                    WriteGpxExtension(xw, "accuracy", loc.Accuracy?.ToString(CultureInfo.InvariantCulture));
+                    WriteGpxExtension(xw, "speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
+                    WriteGpxExtension(xw, "address", loc.Address);
+                    WriteGpxExtension(xw, "fullAddress", loc.FullAddress);
+                    WriteGpxExtension(xw, "addressNumber", loc.AddressNumber);
+                    WriteGpxExtension(xw, "streetName", loc.StreetName);
+                    WriteGpxExtension(xw, "postCode", loc.PostCode);
+                    WriteGpxExtension(xw, "place", loc.Place);
+                    WriteGpxExtension(xw, "region", loc.Region);
+                    WriteGpxExtension(xw, "country", loc.Country);
+                    WriteGpxExtension(xw, "notes", loc.Notes);
+                    xw.WriteEndElement(); // extensions
+                }
+
                 xw.WriteEndElement(); // trkpt
             }
 
@@ -146,9 +214,25 @@ public class LocationExportController : Controller
     }
 
     [HttpGet]
+    /// <summary>
+    /// Exports the signed-in user's locations to KML with extended metadata.
+    /// </summary>
     public async Task<IActionResult> Kml()
     {
         var locs = await UserLocations().ToListAsync();
+
+        static void WriteKmlData(XmlWriter writer, string name, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            writer.WriteStartElement("Data", "http://www.opengis.net/kml/2.2");
+            writer.WriteAttributeString("name", name);
+            writer.WriteElementString("value", "http://www.opengis.net/kml/2.2", value);
+            writer.WriteEndElement();
+        }
 
         var ms = new MemoryStream(); // Do NOT use 'using' here
         var settings = new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 };
@@ -162,10 +246,29 @@ public class LocationExportController : Controller
 
             foreach (var loc in locs)
             {
+                var timestampUtc = DateTime.SpecifyKind(loc.Timestamp, DateTimeKind.Utc);
                 xw.WriteStartElement("Placemark");
-                xw.WriteElementString("name", loc.Timestamp.ToString("o"));
+                xw.WriteElementString("name", timestampUtc.ToString("o"));
                 if (!string.IsNullOrEmpty(loc.Notes))
                     xw.WriteElementString("description", loc.Notes);
+
+                xw.WriteStartElement("ExtendedData");
+                WriteKmlData(xw, "TimestampUtc", timestampUtc.ToString("o"));
+                WriteKmlData(xw, "LocalTimestamp", loc.LocalTimestamp.ToString("o"));
+                WriteKmlData(xw, "TimeZoneId", loc.TimeZoneId);
+                WriteKmlData(xw, "Accuracy", loc.Accuracy?.ToString(CultureInfo.InvariantCulture));
+                WriteKmlData(xw, "Altitude", loc.Altitude?.ToString(CultureInfo.InvariantCulture));
+                WriteKmlData(xw, "Speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
+                WriteKmlData(xw, "Activity", loc.ActivityType?.Name);
+                WriteKmlData(xw, "Address", loc.Address);
+                WriteKmlData(xw, "FullAddress", loc.FullAddress);
+                WriteKmlData(xw, "AddressNumber", loc.AddressNumber);
+                WriteKmlData(xw, "StreetName", loc.StreetName);
+                WriteKmlData(xw, "PostCode", loc.PostCode);
+                WriteKmlData(xw, "Place", loc.Place);
+                WriteKmlData(xw, "Region", loc.Region);
+                WriteKmlData(xw, "Country", loc.Country);
+                xw.WriteEndElement(); // ExtendedData
 
                 xw.WriteStartElement("Point");
                 var coords = $"{loc.Coordinates.X.ToString(CultureInfo.InvariantCulture)}," +

@@ -19,6 +19,7 @@ namespace Wayfarer.Parsers
     /// </summary>
     public class WayfarerGeoJsonParser : ILocationDataParser
     {
+        private static readonly CultureInfo ParsingCulture = CultureInfo.InvariantCulture;
         private readonly ILogger<WayfarerGeoJsonParser> _logger;
 
         public WayfarerGeoJsonParser(ILogger<WayfarerGeoJsonParser> logger)
@@ -26,6 +27,12 @@ namespace Wayfarer.Parsers
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        /// <summary>
+        /// Reads a Wayfarer-generated GeoJSON stream and turns each feature into a <see cref="Location"/> row.
+        /// </summary>
+        /// <param name="fileStream">The uploaded GeoJSON stream.</param>
+        /// <param name="userId">The user that owns the imported records.</param>
+        /// <returns>All parsed <see cref="Location"/> entities ready for persistence.</returns>
         public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
         {
             _logger.LogInformation("Parsing Wayfarer-exported GeoJSON for user {UserId}.", userId);
@@ -70,21 +77,24 @@ namespace Wayfarer.Parsers
 
                 // 3) Extract attributes with null guards
                 var tsUtcString = getString("TimestampUtc");
-                var tsUtc = tsUtcString != null
-                    ? parseUtc(tsUtcString)
-                    : DateTime.UtcNow;
+                var tzId = getString("TimeZoneId") ?? "UTC";
+                var tsUtc = ParseTimestampUtc(tsUtcString);
 
                 var localTsString = getString("LocalTimestamp");
-                DateTime? localTs = localTsString != null
-                    ? parseUtc(localTsString)
-                    : null;
+                var localTs = ParseLocalTimestamp(localTsString, tsUtc);
 
-                var tzId = getString("TimeZoneId") ?? "UTC";
                 var accuracy = getDouble("Accuracy");
                 var altitude = getDouble("Altitude");
                 var speed = getDouble("Speed");
                 var activity = getString("Activity");
                 var address = getString("Address");
+                var fullAddress = getString("FullAddress") ?? address;
+                var addressNumber = getString("AddressNumber");
+                var streetName = getString("StreetName") ?? getString("Street");
+                var postCode = getString("PostCode") ?? getString("Postcode");
+                var place = getString("Place");
+                var region = getString("Region");
+                var country = getString("Country");
                 var notes = getString("Notes");
 
                 // 4) Construct domain object
@@ -92,14 +102,21 @@ namespace Wayfarer.Parsers
                 {
                     UserId = userId,
                     Timestamp = tsUtc,
-                    LocalTimestamp = localTs ?? tsUtc,
+                    LocalTimestamp = localTs,
                     TimeZoneId = tzId,
                     Coordinates = pt,
                     Accuracy = accuracy,
                     Altitude = altitude,
                     Speed = speed,
                     Notes = notes,
-                    FullAddress = address,
+                    Address = address,
+                    FullAddress = fullAddress,
+                    AddressNumber = addressNumber,
+                    StreetName = streetName,
+                    PostCode = postCode,
+                    Place = place,
+                    Region = region,
+                    Country = country,
 
                     // TODO: map 'activity' to your ActivityType lookup
                     ActivityType = /* e.g. ResolveActivity(activity) */ null!
@@ -114,6 +131,53 @@ namespace Wayfarer.Parsers
                 locations.Count);
 
             return locations;
+        }
+
+        /// <summary>
+        /// Converts a timestamp string from the export into a UTC <see cref="DateTime"/>.
+        /// </summary>
+        /// <param name="rawTimestamp">ISO-8601 timestamp, ideally with an explicit offset.</param>
+        private static DateTime ParseTimestampUtc(string? rawTimestamp)
+        {
+            if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
+                DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
+            {
+                return dto.UtcDateTime;
+            }
+
+            if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
+                DateTime.TryParse(rawTimestamp, ParsingCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+            {
+                return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            }
+
+            return DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Returns the original local timestamp supplied by the export without altering its value.
+        /// </summary>
+        /// <param name="rawTimestamp">The timestamp string taken directly from the export.</param>
+        /// <param name="fallbackUtc">Value used when no local timestamp is provided in the export.</param>
+        private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)
+        {
+            if (string.IsNullOrWhiteSpace(rawTimestamp))
+            {
+                return fallbackUtc;
+            }
+
+            if (DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dtoWithOffset))
+            {
+                return dtoWithOffset.DateTime;
+            }
+
+            if (DateTime.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var parsedLocal))
+            {
+                return parsedLocal;
+            }
+
+            return fallbackUtc;
         }
     }
 }
