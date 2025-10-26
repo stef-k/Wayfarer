@@ -6,6 +6,11 @@ let markerLayer, clusterLayer;
 let stream;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
+import {
+    formatViewerAndSourceTimes,
+    formatDate,
+    getViewerTimeZone,
+} from '../../../util/datetime.js';
 
 // permalink setup
 const urlParams = new URLSearchParams(window.location.search);
@@ -19,6 +24,14 @@ let initialCenter = (
         ? [initialLat, initialLng]
         : [20, 0]
 );
+
+const viewerTimeZone = getViewerTimeZone();
+const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
+const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
+    iso: location?.localTimestamp,
+    sourceTimeZone: getLocationSourceTimeZone(location),
+    viewerTimeZone,
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the mapContainer and load location data
@@ -171,15 +184,15 @@ const buildLayers = (locations) => {
         });
 
         // add to both flat and cluster layers
-        markerLayer.addLayer(marker);
-        clusterLayer.addLayer(marker);
+        if (markerLayer) markerLayer.addLayer(marker);
+        if (clusterLayer) clusterLayer.addLayer(marker);
     });
 
     // add only the appropriate layer
     if (mapContainer.getZoom() <= 5) {
-        mapContainer.addLayer(markerLayer);
+        if (markerLayer) mapContainer.addLayer(markerLayer);
     } else {
-        mapContainer.addLayer(clusterLayer);
+        if (clusterLayer) mapContainer.addLayer(clusterLayer);
     }
 };
 
@@ -224,6 +237,12 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
 
+    const timestamps = getLocationTimestampInfo(location);
+    const sourceZone = getLocationSourceTimeZone(location);
+    const recordedTime = timestamps.source
+        ? `<div>${timestamps.source}</div>`
+        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
+
     return `<div class="container-fluid">
         <div class="row mb-2">
             <div class="col-12">
@@ -231,8 +250,15 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T', ' ').split('.')[0]}</span></div>
-            <div class="col-6"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId}</span></div>
+            <div class="col-6">
+                <strong>Datetime (your timezone):</strong>
+                <div>${timestamps.viewer}</div>
+            </div>
+            <div class="col-6">
+                <strong>Recorded local time:</strong>
+                ${recordedTime}
+                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
+            </div>
         </div>
         <div class="row mb-2">
             <div class="col-12"><strong>Coordinates:</strong></div>
@@ -407,13 +433,17 @@ const onZoomOrMoveChanges = () => {
         }
 
         if (z <= 5) {
-            if (mapContainer.hasLayer(clusterLayer)) {
+            if (clusterLayer && mapContainer.hasLayer(clusterLayer)) {
                 mapContainer.removeLayer(clusterLayer);
+            }
+            if (markerLayer) {
                 mapContainer.addLayer(markerLayer);
             }
         } else {
-            if (mapContainer.hasLayer(markerLayer)) {
+            if (markerLayer && mapContainer.hasLayer(markerLayer)) {
                 mapContainer.removeLayer(markerLayer);
+            }
+            if (clusterLayer) {
                 mapContainer.addLayer(clusterLayer);
             }
         }
@@ -516,9 +546,9 @@ const getUserStats = async () => {
     if (stats.totalLocations != null)
         summaryParts.push(`<strong>Total Locations:</strong> ${stats.totalLocations}`);
     if (stats.fromDate)
-        summaryParts.push(`<strong>From Date:</strong> ${new Date(stats.fromDate).toISOString().split('T')[0]}`);
+        summaryParts.push(`<strong>From Date:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })}`);
     if (stats.toDate)
-        summaryParts.push(`<strong>To Date:</strong> ${new Date(stats.toDate).toISOString().split('T')[0]}`);
+        summaryParts.push(`<strong>To Date:</strong> ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}`);
     if (stats.countriesVisited != null)
         summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="countries">Countries:</a></strong> ${stats.countriesVisited}`);
     if (stats.regionsVisited != null)
@@ -604,7 +634,7 @@ const generateStatsModalContent = (stats, highlightType) => {
     html += `<h6>Overview</h6>`;
     html += `<p><strong>Total Locations:</strong> ${stats.totalLocations}</p>`;
     if (stats.fromDate && stats.toDate) {
-        html += `<p><strong>Date Range:</strong> ${new Date(stats.fromDate).toISOString().split('T')[0]} to ${new Date(stats.toDate).toISOString().split('T')[0]}</p>`;
+        html += `<p><strong>Date Range:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })} to ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}</p>`;
     }
     html += '</div>';
     html += '</div>';
@@ -620,8 +650,8 @@ const generateStatsModalContent = (stats, highlightType) => {
 
         stats.countries.forEach((country, countryIdx) => {
             const homeLabel = country.isHomeCountry ? ' <span class="badge bg-info">Home</span>' : '';
-            const firstVisit = new Date(country.firstVisit).toISOString().split('T')[0];
-            const lastVisit = new Date(country.lastVisit).toISOString().split('T')[0];
+            const firstVisit = formatDate({ iso: country.firstVisit, displayTimeZone: viewerTimeZone });
+            const lastVisit = formatDate({ iso: country.lastVisit, displayTimeZone: viewerTimeZone });
 
             // Extract coordinates from PostGIS Point
             const lat = country.coordinates?.latitude || 0;
@@ -648,8 +678,8 @@ const generateStatsModalContent = (stats, highlightType) => {
                 html += `<div class="accordion" id="regionsAccordion-${countryIdx}">`;
 
                 countryRegions.forEach((region, regionIdx) => {
-                    const regFirstVisit = new Date(region.firstVisit).toISOString().split('T')[0];
-                    const regLastVisit = new Date(region.lastVisit).toISOString().split('T')[0];
+                    const regFirstVisit = formatDate({ iso: region.firstVisit, displayTimeZone: viewerTimeZone });
+                    const regLastVisit = formatDate({ iso: region.lastVisit, displayTimeZone: viewerTimeZone });
                     const regLat = region.coordinates?.latitude || 0;
                     const regLng = region.coordinates?.longitude || 0;
                     const regionMapUrl = `?lat=${regLat.toFixed(6)}&lng=${regLng.toFixed(6)}&zoom=10`;
@@ -674,8 +704,8 @@ const generateStatsModalContent = (stats, highlightType) => {
                         html += '<div class="list-group">';
 
                         regionCities.forEach(city => {
-                            const cityFirstVisit = new Date(city.firstVisit).toISOString().split('T')[0];
-                            const cityLastVisit = new Date(city.lastVisit).toISOString().split('T')[0];
+                            const cityFirstVisit = formatDate({ iso: city.firstVisit, displayTimeZone: viewerTimeZone });
+                            const cityLastVisit = formatDate({ iso: city.lastVisit, displayTimeZone: viewerTimeZone });
                             const cityLat = city.coordinates?.latitude || 0;
                             const cityLng = city.coordinates?.longitude || 0;
                             const cityMapUrl = `?lat=${cityLat.toFixed(6)}&lng=${cityLng.toFixed(6)}&zoom=13`;

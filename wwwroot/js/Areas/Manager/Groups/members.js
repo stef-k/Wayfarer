@@ -1,4 +1,19 @@
+import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
+
 (() => {
+  const viewerTimeZone = getViewerTimeZone();
+  document.querySelectorAll('.js-invite-created').forEach(el => {
+    const iso = el?.getAttribute('data-created-at');
+    if (!iso) return;
+    const formatted = formatDateTime({ iso, displayTimeZone: viewerTimeZone, includeOffset: true });
+    if (formatted) el.textContent = formatted;
+  });
+
+  const renderInviteCreatedCell = iso => {
+    const formatted = formatDateTime({ iso, displayTimeZone: viewerTimeZone, includeOffset: true });
+    return `<time class="js-invite-created" data-created-at="${iso}">${formatted}</time>`;
+  };
+
   const form = document.getElementById('inviteForm');
   const searchBtn = document.getElementById('userSearchBtn');
   const searchInput = document.getElementById('userSearch');
@@ -114,16 +129,18 @@
                 const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
                 const tokenVal = tokenEl ? tokenEl.value : '';
                 const revokeAction = form.action.replace(/Invite(?:Ajax)?$/, 'RevokeInviteAjax');
-                row.innerHTML = '<td>' + inviteeLabel + '</td>' +
-                                '<td>' + new Date().toLocaleString() + '</td>' +
-                                '<td>' +
-                                  '<form class="d-inline js-confirm js-ajax" method="post" action="' + revokeAction + '" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">' +
-                                    '<input type="hidden" name="groupId" value="' + (fd.get('groupId') || '') + '" />' +
-                                    '<input type="hidden" name="inviteId" value="' + data.invite.id + '" />' +
-                                    (tokenVal ? ('<input type="hidden" name="__RequestVerificationToken" value="' + tokenVal + '" />') : '') +
-                                    '<button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>' +
-                                  '</form>' +
-                                '</td>';
+                const createdIso = new Date().toISOString();
+                row.innerHTML = `
+                  <td>${inviteeLabel}</td>
+                  <td>${renderInviteCreatedCell(createdIso)}</td>
+                  <td>
+                    <form class="d-inline js-confirm js-ajax" method="post" action="${revokeAction}" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
+                      <input type="hidden" name="groupId" value="${fd.get('groupId') || ''}" />
+                      <input type="hidden" name="inviteId" value="${data.invite.id}" />
+                      ${tokenVal ? (`<input type="hidden" name="__RequestVerificationToken" value="${tokenVal}" />`) : ''}
+                      <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>
+                    </form>
+                  </td>`;
                 invitesTable.appendChild(row);
                 // Attach confirm handler to the new form
                 attachConfirmHandler(row.querySelector('form.js-confirm'));
@@ -184,9 +201,11 @@
                           } else {
                             inviteeLabel = (fd.get('inviteeUserId') || '');
                           }
-                          row.innerHTML = '<td>' + inviteeLabel + '</td>' +
-                                          '<td>' + new Date().toLocaleString() + '</td>' +
-                                          '<td></td>';
+                          const createdIso = new Date().toISOString();
+                          row.innerHTML = `
+                            <td>${inviteeLabel}</td>
+                            <td>${renderInviteCreatedCell(createdIso)}</td>
+                            <td></td>`;
                           invitesTable.appendChild(row);
                         }
                         if (typeof showAlert === 'function') showAlert('success', 'Invitation sent.');

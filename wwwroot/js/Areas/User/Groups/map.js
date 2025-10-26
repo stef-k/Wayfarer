@@ -1,6 +1,33 @@
 import { addZoomLevelControl } from '/js/map-utils.js';
+import {
+  formatViewerAndSourceTimes,
+  currentDateInputValue,
+  currentMonthInputValue,
+  currentYearInputValue,
+  shiftMonth as shiftMonthValue,
+  getViewerTimeZone,
+} from '../../../util/datetime.js';
 
 (() => {
+  const viewerTimeZone = getViewerTimeZone();
+  const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
+  const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
+    iso: location?.localTimestamp,
+    sourceTimeZone: getLocationSourceTimeZone(location),
+    viewerTimeZone,
+  });
+  const renderTimestampBlock = location => {
+    const info = getLocationTimestampInfo(location);
+    const recorded = info.source
+      ? `<div>${info.source}</div>`
+      : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
+    const zone = getLocationSourceTimeZone(location);
+    return {
+      viewer: info.viewer,
+      recorded: recorded + (zone && !info.source ? `<div class="small text-muted">${zone}</div>` : ''),
+    };
+  };
+
   const mapEl = document.getElementById('groupMap');
   const groupId = document.getElementById('groupId')?.value;
   if (!mapEl || !groupId) return;
@@ -13,13 +40,12 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   try { addZoomLevelControl(map); } catch(e){}
   // Initialize default pickers to today/current if empty
   (function initDefaultPickers(){
-    const today = new Date();
     const datePicker = document.getElementById('datePicker');
     const monthPicker = document.getElementById('monthPicker');
     const yearPicker = document.getElementById('yearPicker');
-    if (datePicker && !datePicker.value) datePicker.valueAsDate = today;
-    if (monthPicker && !monthPicker.value) monthPicker.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
-    if (yearPicker && !yearPicker.value) yearPicker.value = String(today.getFullYear());
+    if (datePicker && !datePicker.value) datePicker.value = currentDateInputValue();
+    if (monthPicker && !monthPicker.value) monthPicker.value = currentMonthInputValue();
+    if (yearPicker && !yearPicker.value) yearPicker.value = currentYearInputValue();
   })();
 
   const latestMarkers = new Map();
@@ -48,7 +74,17 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   function isLiveLocation(loc){ const now=new Date(), localTs=new Date(loc.localTimestamp); const diffMin=Math.abs(now-localTs)/60000; return diffMin <= (loc.locationTimeThresholdMinutes||10); }
   function latestIconHtml(baseColor, isLive){ const cls = isLive ? 'wf-marker wf-marker--live' : 'wf-marker wf-marker--latest'; return `<div class="${cls}" style="--wf-color:${baseColor}"></div>`; }
   function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
-  function buildTooltipHtml(info, loc){ const u=(info.username||'') + (info.display? (' ('+info.display+')') : ''); const dt=new Date(loc.localTimestamp).toLocaleString(); const addr=loc.fullAddress||loc.address||loc.place||''; return `${u}<br/>${dt}<br/>${addr}`; }
+  function buildTooltipHtml(info, loc){
+    const u=(info.username||'') + (info.display? (' ('+info.display+')') : '');
+    const timestamps = getLocationTimestampInfo(loc);
+    const addr=loc.fullAddress||loc.address||loc.place||'';
+    let recordedLine = timestamps.source || 'Recorded time unavailable';
+    const zone = getLocationSourceTimeZone(loc);
+    if (!timestamps.source && zone) {
+      recordedLine = `${recordedLine} (${zone})`;
+    }
+    return `${u}<br/>${timestamps.viewer}<br/>Recorded: ${recordedLine}<br/>${addr}`;
+  }
   function upsertLatestForUser(userId, loc) {
     const latlng=[loc.coordinates.latitude, loc.coordinates.longitude];
     const info=idToInfoMap().get(userId)||{ username:'', display:''};
@@ -191,10 +227,31 @@ import { addZoomLevelControl } from '/js/map-utils.js';
   if (yearPicker2) yearPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
   // prev/next helpers
   function shiftDay(delta){ if (!datePicker2) return; const d = datePicker2.value ? new Date(datePicker2.value) : new Date(); d.setDate(d.getDate()+delta); datePicker2.valueAsDate = d; if (viewDay2) viewDay2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
-  function shiftMonth(delta){ if (!monthPicker2) return; const base=(monthPicker2.value||new Date().toISOString().slice(0,7)); const dt=new Date(base+'-01T00:00:00'); dt.setMonth(dt.getMonth()+delta); const y = dt.getFullYear(); const m = (dt.getMonth()+1).toString().padStart(2,'0'); monthPicker2.value = `${y}-${m}`; if (viewMonth2) viewMonth2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
-  function shiftYear(delta){ if (!yearPicker2) return; const y=parseInt(yearPicker2.value||String(new Date().getFullYear()),10)+delta; yearPicker2.value=String(y); if (viewYear2) viewYear2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); }
+  function shiftMonth(delta){
+    if (!monthPicker2) return;
+    const base = monthPicker2.value || currentMonthInputValue();
+    monthPicker2.value = shiftMonthValue(base, delta, viewerTimeZone);
+    if (viewMonth2) viewMonth2.checked = true;
+    updatePickerVisibility();
+    loadViewport().catch(()=>{});
+  }
+  function shiftYear(delta){
+    if (!yearPicker2) return;
+    const current = yearPicker2.value || currentYearInputValue();
+    const y = parseInt(current, 10) + delta;
+    yearPicker2.value = String(y);
+    if (viewYear2) viewYear2.checked = true;
+    updatePickerVisibility();
+    loadViewport().catch(()=>{});
+  }
   document.getElementById('btnYesterday')?.addEventListener('click', ()=> shiftDay(-1));
-  document.getElementById('btnToday')?.addEventListener('click', ()=> { if (!datePicker2) return; const today=new Date(); datePicker2.valueAsDate=today; if (viewDay2) viewDay2.checked = true; updatePickerVisibility(); loadViewport().catch(()=>{}); });
+  document.getElementById('btnToday')?.addEventListener('click', ()=> {
+    if (!datePicker2) return;
+    datePicker2.value = currentDateInputValue();
+    if (viewDay2) viewDay2.checked = true;
+    updatePickerVisibility();
+    loadViewport().catch(()=>{});
+  });
   document.getElementById('btnPrevDay')?.addEventListener('click', ()=> shiftDay(-1));
   document.getElementById('btnNextDay')?.addEventListener('click', ()=> shiftDay(1));
   document.getElementById('btnPrevMonth')?.addEventListener('click', ()=> shiftMonth(-1));
@@ -239,11 +296,12 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     const badge = isLive ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>' : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');
     const notes = location.notes || '';
     const hasNotes = !!notes && notes.length>0;
+    const timestamps = renderTimestampBlock(location);
     const html = `<div class=\"container-fluid\">`
       + `<div class=\"row mb-2\"><div class=\"col-12\">${badge}</div></div>`
       + `<div class=\"row mb-2\">`
-      + `<div class=\"col-6\"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T',' ').split('.')[0]}</span></div>`
-      + `<div class=\"col-6\"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId || ''}</span></div>`
+      + `<div class=\"col-6\"><strong>Datetime (your timezone):</strong><div>${timestamps.viewer}</div></div>`
+      + `<div class=\"col-6\"><strong>Recorded local time:</strong>${timestamps.recorded}</div>`
       + `</div>`
       + `<div class=\"row mb-2\">`
       + `<div class=\"col-12\"><strong>Address:</strong> <span>${location.fullAddress || location.address || location.place || '<i class=\"bi bi-patch-question\" title=\"No available data for Address\"></i>'}</span>${googleMapsLink(location)}</div>`
@@ -281,3 +339,4 @@ import { addZoomLevelControl } from '/js/map-utils.js';
     }
   }
 })();
+

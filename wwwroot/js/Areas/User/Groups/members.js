@@ -1,4 +1,14 @@
+import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
+
 (() => {
+  const viewerTimeZone = getViewerTimeZone();
+  document.querySelectorAll('.js-invite-created').forEach(el => {
+    const iso = el?.getAttribute('data-created-at');
+    if (!iso) return;
+    const formatted = formatDateTime({ iso, displayTimeZone: viewerTimeZone, includeOffset: true });
+    if (formatted) el.textContent = formatted;
+  });
+
   const form = document.getElementById('inviteForm');
   const searchBtn = document.getElementById('userSearchBtn');
   const searchInput = document.getElementById('userSearch');
@@ -62,16 +72,24 @@
     const groupId = document.querySelector('#inviteForm input[name="groupId"]').value;
     const tokenVal = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const revokeAction = '/User/Groups/RevokeInvite';
-    row.innerHTML = '<td>' + (selectedText||'') + '</td>' +
-      '<td>' + (new Date()).toLocaleString() + '</td>' +
-      '<td>' +
-      '<form class="d-inline js-confirm js-ajax" method="post" action="' + revokeAction + '" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">' +
-      '<input type="hidden" name="groupId" value="' + groupId + '" />' +
-      '<input type="hidden" name="inviteId" value="' + invitationId + '" />' +
-      (tokenVal ? ('<input type="hidden" name="__RequestVerificationToken" value="' + tokenVal + '" />') : '') +
-      '<button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>' +
-      '</form>' +
-      '</td>';
+    const createdIso = new Date().toISOString();
+    const createdText = formatDateTime({ iso: createdIso, displayTimeZone: viewerTimeZone, includeOffset: true });
+    row.innerHTML = `
+      <td>${selectedText || ''}</td>
+      <td>
+        <time class="js-invite-created" data-created-at="${createdIso}">
+          ${createdText}
+        </time>
+      </td>
+      <td>
+        <form class="d-inline js-confirm js-ajax" method="post" action="${revokeAction}" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
+          <input type="hidden" name="groupId" value="${groupId}" />
+          <input type="hidden" name="inviteId" value="${invitationId}" />
+          ${tokenVal ? (`<input type="hidden" name="__RequestVerificationToken" value="${tokenVal}" />`) : ''}
+          <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>
+        </form>
+      </td>
+    `;
     tbody.appendChild(row);
     attachConfirmHandler(row.querySelector('form.js-confirm'));
   }

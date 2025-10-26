@@ -102,7 +102,11 @@
                     @:@inv.InviteeUserId
                 }
             </td>
-            <td>@inv.CreatedAt.ToLocalTime()</td>
+            <td>
+              <time class="js-invite-created" data-created-at="@inv.CreatedAt.ToString("O")">
+                  @inv.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+              </time>
+            </td>
             <td>
               <form asp-area="User" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
                 <input type="hidden" name="groupId" value="@group.Id" />

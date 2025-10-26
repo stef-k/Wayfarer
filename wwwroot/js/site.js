@@ -135,6 +135,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateManagerActivity();
     setInterval(updateManagerActivity, 60000);
 
+    try {
+        document.querySelectorAll('div.dropdown > button.btn.dropdown-toggle').forEach(btn => {
+            btn.addEventListener('show.bs.dropdown', () => {
+                localStorage.setItem('manager.activity.lastSeenAt', new Date().toISOString());
+                const badge = document.getElementById('managerGroupsBadge');
+                if (badge) {
+                    badge.textContent = '0';
+                    badge.classList.add('d-none');
+                }
+            });
+        });
+    } catch { /* ignore */ }
+
     // Optional SSE to refresh badge in real-time
     try {
         if (window.__currentUserId && typeof EventSource !== 'undefined') {
@@ -288,13 +301,4 @@ window.showAlert = showAlert;
 wayfarer.showAlert = showAlert;
 window.hideAlert = hideAlert;
 wayfarer.hideAlert = hideAlert;
-
-    try {
-        document.querySelectorAll('div.dropdown > button.btn.dropdown-toggle').forEach(btn => {
-            btn.addEventListener('show.bs.dropdown', () => {
-                localStorage.setItem('manager.activity.lastSeenAt', new Date().toISOString());
-                if (mgrBadge) { mgrBadge.textContent = '0'; mgrBadge.classList.add('d-none'); }
-            });
-        });
-    } catch { /* ignore */ }
 

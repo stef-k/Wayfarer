@@ -4,7 +4,22 @@ let mapContainer = null;
 let markerLayer, clusterLayer;
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
+import {
+    formatViewerAndSourceTimes,
+    formatDate,
+    currentDateInputValue,
+    currentMonthInputValue,
+    currentYearInputValue,
+    getViewerTimeZone,
+} from '../../../util/datetime.js';
 
+const viewerTimeZone = getViewerTimeZone();
+const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
+const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
+    iso: location?.localTimestamp,
+    sourceTimeZone: getLocationSourceTimeZone(location),
+    viewerTimeZone,
+});
 // Current view state
 let currentDate = new Date();
 let currentViewType = 'day'; // 'day', 'month', or 'year'
@@ -241,13 +256,9 @@ const updateYesterdayButton = () => {
  * Update date picker values based on current date
  */
 const updateDatePickerValues = () => {
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDate.getDate()).padStart(2, '0');
-
-    document.getElementById('datePicker').value = `${year}-${month}-${day}`;
-    document.getElementById('monthPicker').value = `${year}-${month}`;
-    document.getElementById('yearPicker').value = year;
+    document.getElementById('datePicker').value = currentDateInputValue(currentDate);
+    document.getElementById('monthPicker').value = currentMonthInputValue(currentDate);
+    document.getElementById('yearPicker').value = currentYearInputValue(currentDate);
 };
 
 /**
@@ -461,7 +472,7 @@ const generateStatsModalContent = (stats, highlightType) => {
     html += `<p><strong>Total Locations:</strong> ${stats.totalLocations}</p>`;
     html += `<p><strong>Period:</strong> ${formatDateDisplay(currentDate, currentViewType)}</p>`;
     if (stats.fromDate && stats.toDate) {
-        html += `<p><strong>Date Range:</strong> ${new Date(stats.fromDate).toISOString().split('T')[0]} to ${new Date(stats.toDate).toISOString().split('T')[0]}</p>`;
+        html += `<p><strong>Date Range:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })} to ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}</p>`;
     }
     html += '</div>';
     html += '</div>';
@@ -477,8 +488,8 @@ const generateStatsModalContent = (stats, highlightType) => {
 
         stats.countries.forEach((country, countryIdx) => {
             const homeLabel = country.isHomeCountry ? ' <span class="badge bg-info">Home</span>' : '';
-            const firstVisit = new Date(country.firstVisit).toISOString().split('T')[0];
-            const lastVisit = new Date(country.lastVisit).toISOString().split('T')[0];
+            const firstVisit = formatDate({ iso: country.firstVisit, displayTimeZone: viewerTimeZone });
+            const lastVisit = formatDate({ iso: country.lastVisit, displayTimeZone: viewerTimeZone });
 
             // Extract coordinates from PostGIS Point
             const lat = country.coordinates?.latitude || 0;
@@ -505,8 +516,8 @@ const generateStatsModalContent = (stats, highlightType) => {
                 html += `<div class="accordion" id="regionsAccordion-${countryIdx}">`;
 
                 countryRegions.forEach((region, regionIdx) => {
-                    const regFirstVisit = new Date(region.firstVisit).toISOString().split('T')[0];
-                    const regLastVisit = new Date(region.lastVisit).toISOString().split('T')[0];
+                    const regFirstVisit = formatDate({ iso: region.firstVisit, displayTimeZone: viewerTimeZone });
+                    const regLastVisit = formatDate({ iso: region.lastVisit, displayTimeZone: viewerTimeZone });
                     const regLat = region.coordinates?.latitude || 0;
                     const regLng = region.coordinates?.longitude || 0;
                     const regionMapUrl = `?lat=${regLat.toFixed(6)}&lng=${regLng.toFixed(6)}&zoom=10`;
@@ -531,8 +542,8 @@ const generateStatsModalContent = (stats, highlightType) => {
                         html += '<div class="list-group">';
 
                         regionCities.forEach(city => {
-                            const cityFirstVisit = new Date(city.firstVisit).toISOString().split('T')[0];
-                            const cityLastVisit = new Date(city.lastVisit).toISOString().split('T')[0];
+                            const cityFirstVisit = formatDate({ iso: city.firstVisit, displayTimeZone: viewerTimeZone });
+                            const cityLastVisit = formatDate({ iso: city.lastVisit, displayTimeZone: viewerTimeZone });
                             const cityLat = city.coordinates?.latitude || 0;
                             const cityLng = city.coordinates?.longitude || 0;
                             const cityMapUrl = `?lat=${cityLat.toFixed(6)}&lng=${cityLng.toFixed(6)}&zoom=13`;
@@ -727,6 +738,12 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
 
+    const timestamps = getLocationTimestampInfo(location);
+    const sourceZone = getLocationSourceTimeZone(location);
+    const recordedTime = timestamps.source
+        ? `<div>${timestamps.source}</div>`
+        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
+
     return `<div class="container-fluid">
         <div class="row mb-2">
             <div class="col-12">
@@ -734,8 +751,15 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Local Datetime:</strong> <span>${new Date(location.localTimestamp).toISOString().replace('T', ' ').split('.')[0]}</span></div>
-            <div class="col-6"><strong>Timezone:</strong> <span>${location.timezone || location.timeZoneId}</span></div>
+            <div class="col-6">
+                <strong>Datetime (your timezone):</strong>
+                <div>${timestamps.viewer}</div>
+            </div>
+            <div class="col-6">
+                <strong>Recorded local time:</strong>
+                ${recordedTime}
+                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
+            </div>
         </div>
         <div class="row mb-2">
             <div class="col-12"><strong>Coordinates:</strong></div>
@@ -893,3 +917,4 @@ const initWikipediaPopovers = modalEl => {
         });
     });
 };
+

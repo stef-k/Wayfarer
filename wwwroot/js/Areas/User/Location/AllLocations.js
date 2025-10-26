@@ -1,13 +1,36 @@
-﻿// AllLocations.js
+// AllLocations.js
+import {
+    formatViewerAndSourceTimes,
+    formatDate,
+    currentDateInputValue,
+    getViewerTimeZone,
+} from '../../../util/datetime.js';
+
 let locations = [];
 let currentPage = 1;
 const pageSize = 20;
 let currentFilters = {};
 
+const viewerTimeZone = getViewerTimeZone();
+const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
+const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
+    iso: location?.localTimestamp,
+    sourceTimeZone: getLocationSourceTimeZone(location),
+    viewerTimeZone,
+});
+
+const renderTimestampBlock = location => {
+    const info = getLocationTimestampInfo(location);
+    const sourceLabel = info.source
+        ? `<div class="small text-muted">Recorded: ${info.source}</div>`
+        : `<div class="small text-muted fst-italic">Recorded timezone unavailable</div>`;
+    return `<div>${info.viewer}</div>${sourceLabel}`;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const selectAllCheckbox = document.getElementById("selectAll");
     const tableBody = document.querySelector("#locationsTable tbody");
-    const today = new Date().toISOString().split('T')[0];
+    const today = currentDateInputValue();
     document.getElementById('toTimestamp').max = today;
 
     // INITIAL LOAD
@@ -193,11 +216,14 @@ const displayLocationsInTable = (locations) => {
         return;
     }
     for (const loc of locations) {
+        const timestampHtml = renderTimestampBlock(loc);
         tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="checkbox" name="locationCheckbox" value="${loc.id}"></td>
-        <td>${new Date(loc.localTimestamp).toISOString().replace('T', ' ').slice(0, 19)} 
-        <i class="bi bi-clock"></i> <span class="text-muted" title="Timezone">${loc.timezone || loc.timeZoneId}</span></td>
+        <td>
+          <i class="bi bi-clock me-1"></i>
+          ${timestampHtml}
+        </td>
         <td>${loc.coordinates.latitude}</td>
         <td>${loc.coordinates.longitude}</td>
         <td class="text-center">${loc.accuracy ?? '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
@@ -316,14 +342,22 @@ const viewLocationDetails = (loc) => {
 const generateLocationModalContent = (location) => {
     const charCount = location.notes ? location.notes.length : 0;
     const style = charCount === 0 ? 'display:none;' : `min-height:${16 * Math.ceil(charCount / 50) * 1.5}px;`;
+    const timestamps = getLocationTimestampInfo(location);
+    const sourceZone = getLocationSourceTimeZone(location);
+    const recordedBlock = timestamps.source
+        ? `<div>${timestamps.source}</div>`
+        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
     return `
     <div class="container-fluid">
       <div class="row mb-2">
         <div class="col-6">
-            <strong>Local Datetime:</strong> ${new Date(location.localTimestamp).toISOString().replace('T', ' ').split('.')[0]}
+            <strong>Datetime (your timezone):</strong>
+            <div>${timestamps.viewer}</div>
         </div>
         <div class="col-6">
-            <strong>Timezone:</strong> ${location.timezone || location.timeZoneId}
+            <strong>Recorded local time:</strong>
+              ${recordedBlock}
+              ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
         </div>
       </div>
       <div class="row mb-2">
@@ -457,9 +491,9 @@ const getUserStats = async () => {
     if (stats.totalLocations != null)
         summaryParts.push(`<strong>Total Locations:</strong> ${stats.totalLocations}`);
     if (stats.fromDate)
-        summaryParts.push(`<strong>From Date:</strong> ${new Date(stats.fromDate).toISOString().split('T')[0]}`);
+        summaryParts.push(`<strong>From Date:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })}`);
     if (stats.toDate)
-        summaryParts.push(`<strong>To Date:</strong> ${new Date(stats.toDate).toISOString().split('T')[0]}`);
+        summaryParts.push(`<strong>To Date:</strong> ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}`);
     if (stats.countriesVisited != null)
         summaryParts.push(`<strong>Countries:</strong> ${stats.countriesVisited}`);
     if (stats.regionsVisited != null)
