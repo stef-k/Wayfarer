@@ -53,8 +53,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!deleteLink) return;
 
         event.preventDefault();
-        const locationId = deleteLink.getAttribute("data-location-id");
-        if (!locationId) return;
+        const locationIdRaw = deleteLink.getAttribute("data-location-id");
+        const locationId = Number.parseInt(locationIdRaw, 10);
+        if (Number.isNaN(locationId)) {
+            // Defensive guard: ensure backend receives numeric IDs in expected shape.
+            return;
+        }
 
         const modalElement = document.querySelector(".modal.show");
         const modalInstance = bootstrap.Modal.getInstance(modalElement);

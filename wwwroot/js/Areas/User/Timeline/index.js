@@ -65,8 +65,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         event.preventDefault(); // Prevent the default link behavior
 
-        const locationId = deleteLink.getAttribute("data-location-id");
-        if (!locationId) return; // Exit if there's no valid location ID
+        const locationIdRaw = deleteLink.getAttribute("data-location-id");
+        const locationId = Number.parseInt(locationIdRaw, 10);
+        if (Number.isNaN(locationId)) {
+            // Defensive guard: keep API payload numeric so the backend binder accepts it.
+            return;
+        }
 
         // parent modal showing the location
         const modalElement = document.querySelector(".modal.show");

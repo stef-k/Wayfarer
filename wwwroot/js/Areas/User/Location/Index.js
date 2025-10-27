@@ -125,8 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         event.preventDefault(); // Prevent the default link behavior
 
-        const locationId = deleteLink.getAttribute("data-location-id");
-        if (!locationId) return; // Exit if there's no valid location ID
+        const locationIdRaw = deleteLink.getAttribute("data-location-id");
+        // Ensure API receives numeric identifier (BulkDeleteRequest expects List<int>).
+        const locationId = Number.parseInt(locationIdRaw, 10);
+        if (Number.isNaN(locationId)) return; // Exit if there's no valid location ID
 
         // parent modal showing the location
         const modalElement = document.querySelector(".modal.show");
@@ -634,7 +636,11 @@ const updatePagination = (totalItems, currentPage, pageSize) => {
 document.getElementById('deleteSelected').addEventListener('click', () => {
     const selectedIds = [];
     document.querySelectorAll('input[name="locationCheckbox"]:checked').forEach(checkbox => {
-        selectedIds.push(checkbox.value);
+        const parsedId = Number.parseInt(checkbox.value, 10);
+        if (!Number.isNaN(parsedId)) {
+            // Keep payload numeric for the API's List<int> binder.
+            selectedIds.push(parsedId);
+        }
     });
 
     if (selectedIds.length > 0) {
