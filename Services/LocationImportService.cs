@@ -64,7 +64,7 @@ namespace Wayfarer.Parsers
 
             try
             {
-                var allLocations = await GetLocationsToProcess(locationImport);
+                var allLocations = await GetLocationsToProcess(locationImport, cancellationToken);
                 int total      = allLocations.Count;
                 int processed  = locationImport.LastProcessedIndex;
                 locationImport.TotalRecords = total;
@@ -237,7 +237,7 @@ namespace Wayfarer.Parsers
             }
         }
 
-        private async Task<List<Location>> GetLocationsToProcess(LocationImport locationImport)
+        private async Task<List<Location>> GetLocationsToProcess(LocationImport locationImport, CancellationToken cancellationToken)
         {
             var filePath = locationImport.FilePath;
             if (!File.Exists(filePath))
@@ -245,13 +245,56 @@ namespace Wayfarer.Parsers
 
             var parser = _parserFactory.GetParser(locationImport.FileType);
             using var stream = File.OpenRead(filePath);
-            return await parser.ParseAsync(stream, locationImport.UserId);
+            var locations = await parser.ParseAsync(stream, locationImport.UserId);
+            await ResolveActivityTypesAsync(locations, cancellationToken);
+            return locations;
         }
 
         private async Task InsertLocationsToDb(List<Location> locations, CancellationToken cancellationToken)
         {
             _context.Locations.AddRange(locations);
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task ResolveActivityTypesAsync(List<Location> locations, CancellationToken cancellationToken)
+        {
+            var distinctNames = locations
+                .Select(l => l.ImportedActivityName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (distinctNames.Count == 0)
+            {
+                return;
+            }
+
+            var activities = await _context.ActivityTypes
+                .AsNoTracking()
+                .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                .ToListAsync(cancellationToken);
+
+            var lookup = activities
+                .ToDictionary(a => a.Name!, a => a.Id, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var location in locations)
+            {
+                if (string.IsNullOrWhiteSpace(location.ImportedActivityName))
+                {
+                    continue;
+                }
+
+                var key = location.ImportedActivityName.Trim();
+                if (!lookup.TryGetValue(key, out var activityId))
+                {
+                    continue;
+                }
+
+                location.ActivityTypeId = activityId;
+                location.ActivityType = null;
+                location.ImportedActivityName = null;
+            }
         }
     }
 }

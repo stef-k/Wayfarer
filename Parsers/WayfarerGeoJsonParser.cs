@@ -119,7 +119,8 @@ namespace Wayfarer.Parsers
                     Country = country,
 
                     // TODO: map 'activity' to your ActivityType lookup
-                    ActivityType = /* e.g. ResolveActivity(activity) */ null!
+                    ActivityType = /* e.g. ResolveActivity(activity) */ null!,
+                    ImportedActivityName = string.IsNullOrWhiteSpace(activity) ? null : activity
                 };
 
                 locations.Add(loc);

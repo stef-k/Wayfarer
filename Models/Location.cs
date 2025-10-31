@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Wayfarer.Models
 {
-    public class Location
+    public partial class Location
     {
         public int Id { get; set; }
         public required string UserId { get; set; }

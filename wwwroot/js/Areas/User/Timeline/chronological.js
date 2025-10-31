@@ -20,6 +20,8 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
     sourceTimeZone: getLocationSourceTimeZone(location),
     viewerTimeZone,
 });
+const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
 // Current view state
 let currentDate = new Date();
 let currentViewType = 'day'; // 'day', 'month', or 'year'
@@ -795,7 +797,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
         </div>
         <div class="row">
             <div class="col-5">
-                <a href="/User/Location/Edit/${location.id}" class="btn-link" title="Edit location">Edit</a>
+                <a href="${buildEditUrl(location.id)}" class="btn-link" title="Edit location">Edit</a>
             </div>
             <div class="col-5 offset-2">
                 <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}" title="Delete location">Delete</a>

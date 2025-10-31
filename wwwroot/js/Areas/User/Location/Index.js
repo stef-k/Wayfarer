@@ -34,6 +34,8 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
     sourceTimeZone: getLocationSourceTimeZone(location),
     viewerTimeZone,
 });
+const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the mapContainer and load location data
@@ -419,7 +421,7 @@ const generateLocationModalContent = location => {
         </div>
         <div class="row">
             <div class="col-5">
-                <a href="/User/Location/Edit/${location.id}" class="btn-link" title="Edit location">Edit</a>
+                <a href="${buildEditUrl(location.id)}" class="btn-link" title="Edit location">Edit</a>
             </div>
             <div class="col-5 offset-2">
                 <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}" title="Delete location">Delete</a>
@@ -596,7 +598,7 @@ const displayLocationsInTable = (locations) => {
                 <td>${location.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
                 <td>
                     <a href="#" class="btn btn-primary btn-sm view-location"  data-id="${location.id}">View</a>
-                    <a href="/User/Location/Edit/${location.id}" class="btn btn-secondary btn-sm">Edit</a>
+                    <a href="${buildEditUrl(location.id)}" class="btn btn-secondary btn-sm">Edit</a>
                 </td>
             `;
             tableBody.appendChild(row);

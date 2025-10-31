@@ -209,7 +209,7 @@ namespace Wayfarer.Areas.User.Controllers
         /// <param name="id">The ID of the location to edit.</param>
         /// <returns>The Edit view with the location data.</returns>
         [HttpGet]
-        public async Task<IActionResult> Edit(int id)
+        public async Task<IActionResult> Edit(int id, string? returnUrl = null)
         {
             string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             _logger.LogInformation("Edit[GET] start for LocationId={Id}, UserId={User}", id, userId);
@@ -273,6 +273,8 @@ namespace Wayfarer.Areas.User.Controllers
                     Country = location.Country,
                 };
 
+                viewModel.ReturnUrl = GetSafeReturnUrl(returnUrl);
+
                 SetPageTitle("Edit Location");
                 return View(viewModel);
             }
@@ -290,7 +292,7 @@ namespace Wayfarer.Areas.User.Controllers
         /// <returns>The updated location view or the list of locations.</returns>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(AddLocationViewModel model)
+        public async Task<IActionResult> Edit(AddLocationViewModel model, string? saveAction)
         {
             if (!ModelState.IsValid)
             {
@@ -302,6 +304,7 @@ namespace Wayfarer.Areas.User.Controllers
                     Text = a.Name,
                     Selected = a.Id == model.SelectedActivityId
                 }).ToList();
+                model.ReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
 
                 SetPageTitle("Edit Location");
                 return View(model);
@@ -352,7 +355,24 @@ namespace Wayfarer.Areas.User.Controllers
             await _dbContext.SaveChangesAsync();
 
             SetAlert("Location updated successfully.", "success");
-            return RedirectToAction("Index");
+            string safeReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
+            if (string.Equals(saveAction, "return", StringComparison.OrdinalIgnoreCase) &&
+                Url.IsLocalUrl(safeReturnUrl))
+            {
+                return Redirect(safeReturnUrl);
+            }
+
+            return RedirectToAction("Edit", new { id = model.Id, returnUrl = safeReturnUrl });
+        }
+
+        private string GetSafeReturnUrl(string? returnUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return returnUrl;
+            }
+
+            return Url.Action("Index", "Location", new { area = "User" }) ?? "/User/Location";
         }
 
         [HttpGet]

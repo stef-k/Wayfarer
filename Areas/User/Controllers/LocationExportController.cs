@@ -153,6 +153,7 @@ public class LocationExportController : Controller
                    || !string.IsNullOrWhiteSpace(loc.Country)
                    || loc.Accuracy.HasValue
                    || loc.Speed.HasValue
+                   || !string.IsNullOrWhiteSpace(loc.ActivityType?.Name)
                    || !string.IsNullOrWhiteSpace(loc.Notes);
         }
 
@@ -187,6 +188,7 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "timeZoneId", loc.TimeZoneId);
                     WriteGpxExtension(xw, "accuracy", loc.Accuracy?.ToString(CultureInfo.InvariantCulture));
                     WriteGpxExtension(xw, "speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
+                    WriteGpxExtension(xw, "activity", loc.ActivityType?.Name);
                     WriteGpxExtension(xw, "address", loc.Address);
                     WriteGpxExtension(xw, "fullAddress", loc.FullAddress);
                     WriteGpxExtension(xw, "addressNumber", loc.AddressNumber);

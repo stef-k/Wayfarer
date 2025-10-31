@@ -18,6 +18,8 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
     sourceTimeZone: getLocationSourceTimeZone(location),
     viewerTimeZone,
 });
+const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
 
 const renderTimestampBlock = location => {
     const info = getLocationTimestampInfo(location);
@@ -234,7 +236,7 @@ const displayLocationsInTable = (locations) => {
         <td>${loc.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
         <td>
           <a href="#" class="btn btn-primary btn-sm view-location" data-id="${loc.id}">View</a>
-          <a href="/User/Location/Edit/${loc.id}" class="btn btn-secondary btn-sm">Edit</a>
+          <a href="${buildEditUrl(loc.id)}" class="btn btn-secondary btn-sm">Edit</a>
         </td>
       </tr>
     `);
@@ -390,7 +392,7 @@ const generateLocationModalContent = (location) => {
       </div>
       <div class="row">
         <div class="col-5">
-            <a href="/User/Location/Edit/${location.id}" class="btn-link">Edit</a>
+            <a href="${buildEditUrl(location.id)}" class="btn-link">Edit</a>
         </div>
         <div class="col-5 offset-2">
             <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}">Delete</a>

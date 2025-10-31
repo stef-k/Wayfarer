@@ -18,10 +18,10 @@ namespace Wayfarer.Parsers
             {
                 LocationImportFileType.GoogleTimeline => new GoogleTimelineJsonParser(_loggerFactory.CreateLogger<GoogleTimelineJsonParser>()),
                 LocationImportFileType.WayfarerGeoJson => new WayfarerGeoJsonParser(_loggerFactory.CreateLogger<WayfarerGeoJsonParser>()),
-                // LocationImportFileType.Gpx => new GpxParser(),
+                LocationImportFileType.Gpx => new GpxLocationParser(_loggerFactory.CreateLogger<GpxLocationParser>()),
                 // LocationImportFileType.GeoJson => new GeoJsonParser(),
-                // LocationImportFileType.Kml => new KmlParser(),
-                // LocationImportFileType.Csv => new CsvParser(),
+                LocationImportFileType.Kml => new KmlLocationParser(_loggerFactory.CreateLogger<KmlLocationParser>()),
+                LocationImportFileType.Csv => new CsvLocationParser(_loggerFactory.CreateLogger<CsvLocationParser>()),
                 _ => throw new NotSupportedException($"Unsupported import file type: {fileType}")
             };
         }

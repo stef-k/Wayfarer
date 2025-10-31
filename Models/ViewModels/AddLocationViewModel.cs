@@ -8,7 +8,9 @@ namespace Wayfarer.Models.ViewModels
     {
         public int? Id { get; set; } // For editing  
 
-        [Required(ErrorMessage = "Please select an activity type.")]
+        /// <summary>
+        /// Selected activity type identifier; optional because existing locations may have none.
+        /// </summary>
         public int? SelectedActivityId { get; set; } // Maps to ActivityTypeId
 
         [BindNever]
@@ -40,6 +42,11 @@ namespace Wayfarer.Models.ViewModels
 
         [BindNever]
         public string? UserId { get; set; } // Will be set in the controller
+
+        /// <summary>
+        /// Destination to redirect to when the user chooses Save &amp; Return.
+        /// </summary>
+        public string? ReturnUrl { get; set; }
     }
 
 }
