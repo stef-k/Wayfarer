@@ -1,5 +1,6 @@
 # Task ledger for agent + human
-designs: []
+designs:
+- design/MobileGroups.md
 tasks:
 - id: TM-001
   title: Data Model and Migration
@@ -91,3 +92,69 @@ tasks:
   status: done
   deps: ['TM-003', 'TM-004', 'TM-005', 'TM-006']
   file: spec/tasks/TM-015.md
+- id: T-001
+  title: Mobile API foundation
+  labels: ['api', 'backend']
+  status: done
+  deps: []
+  file: spec/tasks/T-001.md
+- id: T-002
+  title: Mobile groups listing endpoint
+  labels: ['api', 'backend']
+  status: done
+  deps: ['T-001']
+  file: spec/tasks/T-002.md
+- id: T-003
+  title: Mobile group members roster
+  labels: ['api', 'backend']
+  status: done
+  deps: ['T-001']
+  file: spec/tasks/T-003.md
+- id: T-004
+  title: Group timeline service refactor
+  labels: ['backend']
+  status: done
+  deps: ['T-001', 'T-002', 'T-003']
+  file: spec/tasks/T-004.md
+- id: T-005
+  title: Mobile latest & query endpoints
+  labels: ['api', 'backend']
+  status: done
+  deps: ['T-001', 'T-002', 'T-003', 'T-004']
+  file: spec/tasks/T-005.md
+- id: T-006
+  title: Mobile SSE controller & heartbeats
+  labels: ['api', 'sse']
+  status: todo
+  deps: ['T-001']
+  file: spec/tasks/T-006.md
+- id: T-007
+  title: SSE payload enrichment & group channel
+  labels: ['sse', 'backend']
+  status: todo
+  deps: ['T-006']
+  file: spec/tasks/T-007.md
+- id: T-008
+  title: Location query caps & pagination
+  labels: ['backend', 'performance']
+  status: todo
+  deps: ['T-005']
+  file: spec/tasks/T-008.md
+- id: T-009
+  title: DTO updates & unit tests
+  labels: ['backend', 'testing']
+  status: todo
+  deps: ['T-002', 'T-003', 'T-004']
+  file: spec/tasks/T-009.md
+- id: T-010
+  title: Mobile integration test suite
+  labels: ['testing', 'api', 'sse']
+  status: todo
+  deps: ['T-002', 'T-003', 'T-005', 'T-006', 'T-007', 'T-008']
+  file: spec/tasks/T-010.md
+- id: T-011
+  title: Mobile backend documentation & ops
+  labels: ['docs', 'ops']
+  status: todo
+  deps: ['T-002', 'T-003', 'T-005', 'T-006', 'T-007', 'T-008', 'T-009', 'T-010']
+  file: spec/tasks/T-011.md
