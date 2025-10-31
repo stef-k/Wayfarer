@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
 
@@ -28,10 +25,7 @@ public class MobileGroupsControllerTests
     private static HttpContext CreateContext(string? token = null)
     {
         var ctx = new DefaultHttpContext();
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            ctx.Request.Headers["Authorization"] = $"Bearer {token}";
-        }
+        if (!string.IsNullOrWhiteSpace(token)) ctx.Request.Headers["Authorization"] = $"Bearer {token}";
         return ctx;
     }
 
@@ -41,10 +35,11 @@ public class MobileGroupsControllerTests
         var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
         var timeline = new GroupTimelineService(db, new LocationService(db));
         var color = new UserColorService();
-        var controller = new MobileGroupsController(db, NullLogger<BaseApiController>.Instance, accessor, color, timeline)
-        {
-            ControllerContext = new ControllerContext { HttpContext = httpContext }
-        };
+        var controller =
+            new MobileGroupsController(db, NullLogger<BaseApiController>.Instance, accessor, color, timeline)
+            {
+                ControllerContext = new ControllerContext { HttpContext = httpContext }
+            };
         return controller;
     }
 
@@ -64,7 +59,8 @@ public class MobileGroupsControllerTests
         };
         db.Users.Add(user);
         db.Groups.Add(group);
-        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "token", User = user, UserId = user.Id, CreatedAt = DateTime.UtcNow });
+        db.ApiTokens.Add(new ApiToken
+            { Name = "mobile", Token = "token", User = user, UserId = user.Id, CreatedAt = DateTime.UtcNow });
         db.GroupMembers.Add(new GroupMember
         {
             GroupId = group.Id,
@@ -88,10 +84,15 @@ public class MobileGroupsControllerTests
     {
         using var db = MakeDb();
         var user = new ApplicationUser { Id = "caller", UserName = "caller", DisplayName = "Caller", IsActive = true };
-        var group = new Group { Id = Guid.NewGuid(), Name = "Group", OwnerUserId = "owner", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        var group = new Group
+        {
+            Id = Guid.NewGuid(), Name = "Group", OwnerUserId = "owner", CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
         db.Users.Add(user);
         db.Groups.Add(group);
-        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "token", User = user, UserId = user.Id, CreatedAt = DateTime.UtcNow });
+        db.ApiTokens.Add(new ApiToken
+            { Name = "mobile", Token = "token", User = user, UserId = user.Id, CreatedAt = DateTime.UtcNow });
         await db.SaveChangesAsync();
 
         var controller = MakeController(db, "token");
