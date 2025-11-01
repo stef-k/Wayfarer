@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Options;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
@@ -21,13 +22,14 @@ public class MobileSseControllerTests
 {
     private static (ApplicationDbContext Db, MobileSseController Controller, SseService Sse) CreateController(string? token = null)
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
-        var db = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        var db = new ApplicationDbContext(dbOptions, new ServiceCollection().BuildServiceProvider());
         var sse = new SseService();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
         var timeline = new GroupTimelineService(db, new LocationService(db), configuration);
+        var sseOptions = new MobileSseOptions { HeartbeatIntervalMilliseconds = 50 };
 
         var httpContext = new DefaultHttpContext();
         httpContext.Response.Body = new MemoryStream();
@@ -37,7 +39,7 @@ public class MobileSseControllerTests
         }
 
         var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
-        var controller = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timeline)
+        var controller = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timeline, sseOptions)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
