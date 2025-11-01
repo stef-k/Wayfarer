@@ -30,6 +30,23 @@ public class SseServiceTests
     }
 
     [Fact]
+    public async Task SubscribeAsync_WithoutHeartbeat_DoesNotWriteFrames()
+    {
+        var service = new SseService();
+        var context = new DefaultHttpContext();
+        var stream = new MemoryStream();
+        context.Response.Body = stream;
+        using var cts = new CancellationTokenSource(50);
+
+        var task = service.SubscribeAsync("channel", context.Response, cts.Token, enableHeartbeat: false);
+        await Task.Delay(40);
+        cts.Cancel();
+        await task;
+
+        Assert.Equal(0, stream.Length);
+    }
+
+    [Fact]
     public async Task BroadcastAsync_WritesDataToSubscribers()
     {
         var service = new SseService();

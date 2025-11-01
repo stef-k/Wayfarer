@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -300,7 +299,7 @@ public class LocationController : BaseApiController
         var isLive = thresholdWindow == TimeSpan.Zero ||
                      DateTime.UtcNow - location.Timestamp <= thresholdWindow;
 
-        var payload = new LocationSsePayload
+        var payload = new MobileLocationSseEventDto
         {
             LocationId = location.Id,
             TimeStamp = location.Timestamp,
@@ -329,58 +328,6 @@ public class LocationController : BaseApiController
         {
             await _sse.BroadcastAsync($"group-location-update-{groupId}", serializedPayload);
         }
-    }
-
-    /// <summary>
-    /// Serializable payload emitted to SSE clients for location updates.
-    /// </summary>
-    private sealed class LocationSsePayload
-    {
-        /// <summary>
-        /// Legacy PascalCase identifier retained for existing web clients.
-        /// </summary>
-        public int LocationId { get; init; }
-
-        /// <summary>
-        /// Lower camel-case identifier expected by mobile clients.
-        /// </summary>
-        [JsonPropertyName("locationId")]
-        public int LocationIdLower => LocationId;
-
-        /// <summary>
-        /// Legacy timestamp retained for existing web clients.
-        /// </summary>
-        public DateTime TimeStamp { get; init; }
-
-        /// <summary>
-        /// Lower camel-case timestamp consumed by mobile clients.
-        /// </summary>
-        [JsonPropertyName("timestampUtc")]
-        public DateTime TimestampUtc => TimeStamp;
-
-        /// <summary>
-        /// Mobile-friendly identifier of the user that produced the update.
-        /// </summary>
-        [JsonPropertyName("userId")]
-        public string UserId { get; init; } = string.Empty;
-
-        /// <summary>
-        /// Human-readable username of the user that produced the update.
-        /// </summary>
-        [JsonPropertyName("userName")]
-        public string UserName { get; init; } = string.Empty;
-
-        /// <summary>
-        /// Indicates whether the update falls within the live threshold window.
-        /// </summary>
-        [JsonPropertyName("isLive")]
-        public bool IsLive { get; init; }
-
-        /// <summary>
-        /// Optional legacy type flag (only present for manual check-ins).
-        /// </summary>
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? Type { get; init; }
     }
 
     [HttpPost]
