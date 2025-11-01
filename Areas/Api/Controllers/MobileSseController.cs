@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Models.Options;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -16,17 +17,20 @@ public class MobileSseController : MobileApiController
 {
     private readonly SseService _sseService;
     private readonly IGroupTimelineService _timelineService;
+    private readonly MobileSseOptions _options;
 
     public MobileSseController(
         ApplicationDbContext dbContext,
         ILogger<BaseApiController> logger,
         IMobileCurrentUserAccessor userAccessor,
         SseService sseService,
-        IGroupTimelineService timelineService)
+        IGroupTimelineService timelineService,
+        MobileSseOptions options)
         : base(dbContext, logger, userAccessor)
     {
         _sseService = sseService;
         _timelineService = timelineService;
+        _options = options;
     }
 
     [HttpGet("location-update/{userName}")]
@@ -40,7 +44,12 @@ public class MobileSseController : MobileApiController
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        await _sseService.SubscribeAsync($"location-update-{userName}", Response, cancellationToken, enableHeartbeat: true);
+        await _sseService.SubscribeAsync(
+            $"location-update-{userName}",
+            Response,
+            cancellationToken,
+            enableHeartbeat: true,
+            heartbeatInterval: _options.HeartbeatInterval);
         return new EmptyResult();
     }
 
@@ -54,7 +63,12 @@ public class MobileSseController : MobileApiController
         if (context == null) return NotFound();
         if (!context.IsMember) return StatusCode(StatusCodes.Status403Forbidden);
 
-        await _sseService.SubscribeAsync($"group-location-update-{groupId}", Response, cancellationToken, enableHeartbeat: true);
+        await _sseService.SubscribeAsync(
+            $"group-location-update-{groupId}",
+            Response,
+            cancellationToken,
+            enableHeartbeat: true,
+            heartbeatInterval: _options.HeartbeatInterval);
         return new EmptyResult();
     }
 

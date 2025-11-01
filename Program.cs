@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using NetTopologySuite.Geometries;
+using Microsoft.Extensions.Options;
+using Wayfarer.Models.Options;
 using Quartz;
 using Quartz.Impl;
 using Quartz.Spi;
@@ -475,6 +477,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<IGroupService, GroupService>();
     builder.Services.AddScoped<IInvitationService, InvitationService>();
     builder.Services.AddScoped<IGroupTimelineService, GroupTimelineService>();
+    builder.Services.Configure<MobileSseOptions>(builder.Configuration.GetSection("MobileSse"));
+    builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<MobileSseOptions>>().Value);
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
