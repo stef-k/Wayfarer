@@ -137,24 +137,24 @@ tasks:
 - id: T-008
   title: Location query caps & pagination
   labels: ['backend', 'performance']
-  status: todo
+  status: done
   deps: ['T-005']
   file: spec/tasks/T-008.md
 - id: T-009
   title: DTO updates & unit tests
   labels: ['backend', 'testing']
-  status: todo
+  status: done
   deps: ['T-002', 'T-003', 'T-004']
   file: spec/tasks/T-009.md
 - id: T-010
   title: Mobile integration test suite
   labels: ['testing', 'api', 'sse']
-  status: todo
+  status: done
   deps: ['T-002', 'T-003', 'T-005', 'T-006', 'T-007', 'T-008']
   file: spec/tasks/T-010.md
 - id: T-011
   title: Mobile backend documentation & ops
   labels: ['docs', 'ops']
-  status: todo
+  status: done
   deps: ['T-002', 'T-003', 'T-005', 'T-006', 'T-007', 'T-008', 'T-009', 'T-010']
   file: spec/tasks/T-011.md
