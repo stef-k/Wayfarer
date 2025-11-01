@@ -5,10 +5,29 @@ namespace Wayfarer.Models.Dtos;
 /// </summary>
 public class GroupMemberDto
 {
+    /// <summary>
+    /// Unique identifier of the member user.
+    /// </summary>
     public string UserId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Login username for display or lookup purposes.
+    /// </summary>
     public string UserName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Friendly display name shown in UI elements; may be null when unset.
+    /// </summary>
     public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// Group role (Owner, Manager, Member) at the time of listing.
+    /// </summary>
     public string GroupRole { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Membership status (Active, Pending, Removed, etc.).
+    /// </summary>
     public string Status { get; set; } = string.Empty;
 
     /// <summary>
