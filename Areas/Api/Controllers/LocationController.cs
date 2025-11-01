@@ -1,5 +1,8 @@
-﻿using System.Security.Claims;
+using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -188,12 +191,17 @@ public class LocationController : BaseApiController
             await UpdateCheckInRateTracking(user.Id);
 
             // SSE broadcast (same pattern as log-location and User/LocationController)
-            await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
-            {
-                LocationId = location.Id,
-                TimeStamp = location.Timestamp,
-                Type = "check-in"
-            }));
+            var settings = _settingsService.GetSettings();
+            var locationTimeThreshold =
+                settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
+            var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
+
+            await BroadcastLocationUpdatesAsync(
+                user,
+                location,
+                locationTimeThreshold,
+                isCheckIn: true,
+                cancellationToken);
 
             // Note: Statistics are computed on-demand via GetStatsForUserAsync when needed
 
@@ -266,6 +274,113 @@ public class LocationController : BaseApiController
     {
         Response.Headers["Retry-After"] = CheckInMinIntervalSeconds.ToString();
         return StatusCode(429, new { Message = message });
+    }
+
+    /// <summary>
+    /// Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group channels.
+    /// </summary>
+    /// <param name="user">The user whose location has been updated.</param>
+    /// <param name="location">The persisted location entity.</param>
+    /// <param name="locationTimeThresholdMinutes">Threshold window (in minutes) used to determine live status.</param>
+    /// <param name="isCheckIn">Indicates whether the location originated from a manual check-in.</param>
+    /// <param name="cancellationToken">Cancellation token tied to the HTTP request.</param>
+    private async Task BroadcastLocationUpdatesAsync(
+        ApplicationUser user,
+        Location location,
+        int locationTimeThresholdMinutes,
+        bool isCheckIn,
+        CancellationToken cancellationToken)
+    {
+        if (user == null) throw new ArgumentNullException(nameof(user));
+        if (location == null) throw new ArgumentNullException(nameof(location));
+
+        var thresholdWindow = locationTimeThresholdMinutes > 0
+            ? TimeSpan.FromMinutes(locationTimeThresholdMinutes)
+            : TimeSpan.Zero;
+        var isLive = thresholdWindow == TimeSpan.Zero ||
+                     DateTime.UtcNow - location.Timestamp <= thresholdWindow;
+
+        var payload = new LocationSsePayload
+        {
+            LocationId = location.Id,
+            TimeStamp = location.Timestamp,
+            UserId = user.Id,
+            UserName = user.UserName ?? string.Empty,
+            IsLive = isLive,
+            Type = isCheckIn ? "check-in" : null
+        };
+
+        var serializedPayload = JsonSerializer.Serialize(payload);
+        await _sse.BroadcastAsync($"location-update-{user.UserName}", serializedPayload);
+
+        var groupIds = await _dbContext.GroupMembers
+            .Where(m => m.UserId == user.Id && m.Status == GroupMember.MembershipStatuses.Active)
+            .Join(
+                _dbContext.Groups,
+                member => member.GroupId,
+                group => group.Id,
+                (member, group) => new { member.GroupId, group.IsArchived })
+            .Where(x => !x.IsArchived)
+            .Select(x => x.GroupId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var groupId in groupIds)
+        {
+            await _sse.BroadcastAsync($"group-location-update-{groupId}", serializedPayload);
+        }
+    }
+
+    /// <summary>
+    /// Serializable payload emitted to SSE clients for location updates.
+    /// </summary>
+    private sealed class LocationSsePayload
+    {
+        /// <summary>
+        /// Legacy PascalCase identifier retained for existing web clients.
+        /// </summary>
+        public int LocationId { get; init; }
+
+        /// <summary>
+        /// Lower camel-case identifier expected by mobile clients.
+        /// </summary>
+        [JsonPropertyName("locationId")]
+        public int LocationIdLower => LocationId;
+
+        /// <summary>
+        /// Legacy timestamp retained for existing web clients.
+        /// </summary>
+        public DateTime TimeStamp { get; init; }
+
+        /// <summary>
+        /// Lower camel-case timestamp consumed by mobile clients.
+        /// </summary>
+        [JsonPropertyName("timestampUtc")]
+        public DateTime TimestampUtc => TimeStamp;
+
+        /// <summary>
+        /// Mobile-friendly identifier of the user that produced the update.
+        /// </summary>
+        [JsonPropertyName("userId")]
+        public string UserId { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Human-readable username of the user that produced the update.
+        /// </summary>
+        [JsonPropertyName("userName")]
+        public string UserName { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Indicates whether the update falls within the live threshold window.
+        /// </summary>
+        [JsonPropertyName("isLive")]
+        public bool IsLive { get; init; }
+
+        /// <summary>
+        /// Optional legacy type flag (only present for manual check-ins).
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Type { get; init; }
     }
 
     [HttpPost]
@@ -422,11 +537,14 @@ public class LocationController : BaseApiController
 
             _cache.Set(cacheKey, location, TimeSpan.FromMinutes(locationTimeThreshold));
 
-            await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
-            {
-                LocationId = location.Id,
-                TimeStamp = location.Timestamp
-            }));
+            var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
+
+            await BroadcastLocationUpdatesAsync(
+                user,
+                location,
+                locationTimeThreshold,
+                isCheckIn: false,
+                cancellationToken);
 
             return Ok(new { Message = "Location logged successfully", Location = location });
         }
@@ -1208,3 +1326,5 @@ public class CheckInRateLimitResult
     /// </summary>
     public string? Reason { get; set; }
 }
+
+
