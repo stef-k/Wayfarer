@@ -63,7 +63,7 @@ public class SseService
     /// <summary>
     /// Broadcasts a message to subscribed clients.
     /// </summary>
-    public async Task BroadcastAsync(string channel, string data)
+    public virtual async Task BroadcastAsync(string channel, string data)
     {
         if (!_channels.TryGetValue(channel, out var subscribers))
         {

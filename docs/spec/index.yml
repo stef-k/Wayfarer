@@ -125,13 +125,13 @@ tasks:
 - id: T-006
   title: Mobile SSE controller & heartbeats
   labels: ['api', 'sse']
-  status: todo
+  status: done
   deps: ['T-001']
   file: spec/tasks/T-006.md
 - id: T-007
   title: SSE payload enrichment & group channel
   labels: ['sse', 'backend']
-  status: todo
+  status: done
   deps: ['T-006']
   file: spec/tasks/T-007.md
 - id: T-008
