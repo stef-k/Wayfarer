@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
@@ -17,13 +20,27 @@ namespace Wayfarer.Services;
 /// </summary>
 public class GroupTimelineService : IGroupTimelineService
 {
+    private const int DefaultPageSizeFallback = 200;
+    private const int MaxPageSizeFallback = 500;
+
     private readonly ApplicationDbContext _dbContext;
     private readonly LocationService _locationService;
+    private readonly int _defaultPageSize;
+    private readonly int _maxPageSize;
 
-    public GroupTimelineService(ApplicationDbContext dbContext, LocationService locationService)
+    public GroupTimelineService(
+        ApplicationDbContext dbContext,
+        LocationService locationService,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _locationService = locationService;
+
+        _defaultPageSize = Math.Max(1,
+            configuration.GetValue<int?>("MobileGroups:Query:DefaultPageSize") ?? DefaultPageSizeFallback);
+
+        var configuredMax = configuration.GetValue<int?>("MobileGroups:Query:MaxPageSize") ?? MaxPageSizeFallback;
+        _maxPageSize = Math.Max(_defaultPageSize, Math.Max(1, configuredMax));
     }
 
     public async Task<GroupTimelineAccessContext?> BuildAccessContextAsync(Guid groupId, string callerUserId, CancellationToken cancellationToken = default)
@@ -108,7 +125,7 @@ public class GroupTimelineService : IGroupTimelineService
         return results;
     }
 
-    public async Task<(IReadOnlyList<PublicLocationDto> Results, int TotalItems)> QueryLocationsAsync(GroupTimelineAccessContext context, GroupLocationsQueryRequest request, CancellationToken cancellationToken = default)
+    public async Task<GroupLocationsQueryResult> QueryLocationsAsync(GroupTimelineAccessContext context, GroupLocationsQueryRequest request, CancellationToken cancellationToken = default)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
         if (request == null) throw new ArgumentNullException(nameof(request));
@@ -127,7 +144,7 @@ public class GroupTimelineService : IGroupTimelineService
 
         if (userIds.Count == 0)
         {
-            return (Array.Empty<PublicLocationDto>(), 0);
+            return new GroupLocationsQueryResult(Array.Empty<PublicLocationDto>(), 0, ResolvePageSize(request.PageSize), false, false, null);
         }
 
         bool multipleUsers = userIds.Count > 1;
@@ -197,7 +214,20 @@ public class GroupTimelineService : IGroupTimelineService
             }
         }
 
-        return (combined, totalItems);
+        var ordered = combined
+            .OrderByDescending(dto => dto.Timestamp)
+            .ThenByDescending(dto => dto.Id)
+            .ToList();
+
+        var pageSize = ResolvePageSize(request.PageSize);
+        var startIndex = ResolveStartIndex(ordered, request.ContinuationToken);
+        var pageResults = ordered.Skip(startIndex).Take(pageSize).ToList();
+
+        var hasMore = startIndex + pageResults.Count < ordered.Count;
+        var nextToken = hasMore ? CreateContinuationToken(pageResults[^1]) : null;
+        var isTruncated = hasMore || ordered.Count > pageResults.Count;
+
+        return new GroupLocationsQueryResult(pageResults, totalItems, pageSize, hasMore, isTruncated, nextToken);
     }
 
     private static PublicLocationDto MapLatest(LocationEntity location, string userId, int threshold)
@@ -230,5 +260,72 @@ public class GroupTimelineService : IGroupTimelineService
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = threshold
         };
+    }
+
+    private int ResolvePageSize(int? requestedPageSize)
+    {
+        if (!requestedPageSize.HasValue || requestedPageSize.Value <= 0)
+        {
+            return _defaultPageSize;
+        }
+
+        return Math.Min(requestedPageSize.Value, _maxPageSize);
+    }
+
+    private static int ResolveStartIndex(IReadOnlyList<PublicLocationDto> ordered, string? continuationToken)
+    {
+        if (!TryParseContinuationToken(continuationToken, out var timestampUtc, out var locationId))
+        {
+            return 0;
+        }
+
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var dto = ordered[index];
+            if (dto.Id == locationId && dto.Timestamp.ToUniversalTime() == timestampUtc)
+            {
+                return index + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private static string CreateContinuationToken(PublicLocationDto dto)
+    {
+        var payload = $"{dto.Timestamp.ToUniversalTime():O}|{dto.Id}";
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(payload));
+    }
+
+    private static bool TryParseContinuationToken(string? token, out DateTime timestampUtc, out int locationId)
+    {
+        timestampUtc = default;
+        locationId = default;
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        try
+        {
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(token));
+            var parts = decoded.Split('|', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2)
+            {
+                return false;
+            }
+
+            timestampUtc = DateTime.ParseExact(parts[0], "O", CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
+            locationId = int.Parse(parts[1], CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch
+        {
+            timestampUtc = default;
+            locationId = default;
+            return false;
+        }
     }
 }

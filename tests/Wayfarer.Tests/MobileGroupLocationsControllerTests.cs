@@ -5,6 +5,7 @@ using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
@@ -38,11 +39,12 @@ public class MobileGroupLocationsControllerTests
         return ctx;
     }
 
-    private static MobileGroupsController MakeController(ApplicationDbContext db, string? token = null)
+    private static MobileGroupsController MakeController(ApplicationDbContext db, string? token = null, IConfiguration? configuration = null)
     {
         var httpContext = CreateContext(token);
         var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
-        var timeline = new GroupTimelineService(db, new LocationService(db));
+        configuration ??= new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
+        var timeline = new GroupTimelineService(db, new LocationService(db), configuration);
         var color = new UserColorService();
         var controller = new MobileGroupsController(db, NullLogger<BaseApiController>.Instance, accessor, color, timeline)
         {
@@ -144,9 +146,89 @@ public class MobileGroupLocationsControllerTests
 
         var response = await controller.Query(group.Id, request, CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(response);
-        var payload = ok.Value!;
-        var payloadType = payload.GetType();
-        var total = (int)payloadType.GetProperty("totalItems")!.GetValue(payload)!;
-        Assert.Equal(1, total);
+        var payload = Assert.IsType<GroupLocationsQueryResponse>(ok.Value);
+        Assert.Equal(1, payload.TotalItems);
+        Assert.False(payload.HasMore);
+        Assert.Null(payload.NextPageToken);
+    }
+
+    [Fact]
+    public async Task MobileGroupLocationsPagination_ContinuationToken_Works()
+    {
+        using var db = MakeDb();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MobileGroups:Query:DefaultPageSize"] = "3",
+                ["MobileGroups:Query:MaxPageSize"] = "4"
+            })
+            .Build();
+
+        var caller = new ApplicationUser { Id = "caller", UserName = "caller", DisplayName = "Caller", IsActive = true };
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Explorers",
+            GroupType = "Friends",
+            OwnerUserId = caller.Id,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        db.Users.Add(caller);
+        db.Groups.Add(group);
+        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "token", User = caller, UserId = caller.Id, CreatedAt = DateTime.UtcNow });
+        db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = caller.Id, Role = GroupMember.Roles.Owner, Status = GroupMember.MembershipStatuses.Active, JoinedAt = DateTime.UtcNow });
+        db.ApplicationSettings.Add(new ApplicationSettings { LocationTimeThresholdMinutes = 5 });
+
+        var baseTime = DateTime.UtcNow;
+        for (var i = 0; i < 6; i++)
+        {
+            db.Locations.Add(new LocationEntity
+            {
+                UserId = caller.Id,
+                Coordinates = MakePoint(10 + i * 0.01, 10 + i * 0.01),
+                Timestamp = baseTime.AddMinutes(-i),
+                LocalTimestamp = baseTime.AddMinutes(-i),
+                TimeZoneId = "UTC"
+            });
+        }
+
+        await db.SaveChangesAsync();
+
+        var controller = MakeController(db, "token", configuration);
+        var request = new GroupLocationsQueryRequest
+        {
+            MinLng = -180,
+            MinLat = -90,
+            MaxLng = 180,
+            MaxLat = 90,
+            ZoomLevel = 5
+        };
+
+        var firstResponse = await controller.Query(group.Id, request, CancellationToken.None);
+        var firstPayload = Assert.IsType<GroupLocationsQueryResponse>(Assert.IsType<OkObjectResult>(firstResponse).Value);
+
+        Assert.Equal(6, firstPayload.TotalItems);
+        Assert.Equal(3, firstPayload.PageSize);
+        Assert.Equal(3, firstPayload.Results.Count);
+        Assert.True(firstPayload.HasMore);
+        Assert.True(firstPayload.IsTruncated);
+        Assert.NotNull(firstPayload.NextPageToken);
+
+        request.ContinuationToken = firstPayload.NextPageToken;
+        request.PageSize = 10; // Should clamp to max (4)
+
+        var secondResponse = await controller.Query(group.Id, request, CancellationToken.None);
+        var secondPayload = Assert.IsType<GroupLocationsQueryResponse>(Assert.IsType<OkObjectResult>(secondResponse).Value);
+
+        Assert.Equal(6, secondPayload.TotalItems);
+        Assert.Equal(4, secondPayload.PageSize);
+        Assert.Equal(3, secondPayload.Results.Count);
+        Assert.False(secondPayload.HasMore);
+        Assert.True(secondPayload.IsTruncated); // Total > returned page size
+        Assert.Null(secondPayload.NextPageToken);
     }
 }
+
+
