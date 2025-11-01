@@ -1,81 +1,157 @@
+using System;
 using System.Collections.Concurrent;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Wayfarer.Parsers;
 
 /// <summary>
 /// Server Send Events Service to broadcast messages to clients.
-/// The service uses simple channels to subscribe to and has the form of, channel, message, cancellation token and
-/// 2 methods, subscribe and broadcast.
 /// </summary>
 public class SseService
 {
-    // channel name → list of active client streams
-    private readonly ConcurrentDictionary<string, List<ClientConnection>> _channels 
-        = new();
+    private static readonly byte[] HeartbeatPayload = Encoding.UTF8.GetBytes(":\n\n");
+
+    // channel name -> list of active client streams
+    private readonly ConcurrentDictionary<string, List<ClientConnection>> _channels = new();
 
     /// <summary>
-    /// Lets clients to subscribe to chennels
+    /// Lets clients subscribe to channels.
     /// </summary>
-    /// <param name="channel">The name of the channel</param>
-    /// <param name="response"></param>
-    /// <param name="token"></param>
-    public async Task SubscribeAsync(string channel, HttpResponse response, CancellationToken token)
+    public async Task SubscribeAsync(
+        string channel,
+        HttpResponse response,
+        CancellationToken token,
+        bool enableHeartbeat = false,
+        TimeSpan? heartbeatInterval = null)
     {
         response.Headers.Add("Content-Type", "text/event-stream");
         response.Headers.Add("Cache-Control", "no-cache");
-        var client = new ClientConnection(response);
+        var client = new ClientConnection(response, HeartbeatPayload);
 
         var subscribers = _channels.GetOrAdd(channel, _ => new List<ClientConnection>());
-        lock (subscribers) { subscribers.Add(client); }
+        lock (subscribers)
+        {
+            subscribers.Add(client);
+        }
+
+        if (enableHeartbeat)
+        {
+            client.StartHeartbeat(heartbeatInterval ?? TimeSpan.FromSeconds(20));
+        }
 
         try
         {
-            // hold the request open until the client disconnects
             await Task.Delay(Timeout.Infinite, token);
         }
-        catch (OperationCanceledException) { /* client went away */ }
+        catch (OperationCanceledException)
+        {
+            // client disconnected
+        }
         finally
         {
-            // cleanup
-            lock (subscribers) { subscribers.Remove(client); }
+            lock (subscribers)
+            {
+                subscribers.Remove(client);
+            }
+
+            client.Dispose();
         }
     }
 
     /// <summary>
-    /// Broadcasts a message to subscribed clients
+    /// Broadcasts a message to subscribed clients.
     /// </summary>
-    /// <param name="channel">The name of the channel</param>
-    /// <param name="data">The message to broadcast</param>
     public async Task BroadcastAsync(string channel, string data)
     {
-        if (!_channels.TryGetValue(channel, out var subscribers)) 
-            return;
-
-        List<ClientConnection> copy;
-        lock (subscribers) { copy = subscribers.ToList(); }
-
-        var sseData = $"data: {data}\n\n";
-        var bytes = Encoding.UTF8.GetBytes(sseData);
-
-        foreach (var c in copy)
+        if (!_channels.TryGetValue(channel, out var subscribers))
         {
-            try
+            return;
+        }
+
+        List<ClientConnection> snapshot;
+        lock (subscribers)
+        {
+            snapshot = subscribers.ToList();
+        }
+
+        var bytes = Encoding.UTF8.GetBytes($"data: {data}\n\n");
+
+        foreach (var client in snapshot)
+        {
+            var success = await client.SendAsync(bytes);
+            if (!success)
             {
-                await c.Response.Body.WriteAsync(bytes, 0, bytes.Length);
-                await c.Response.Body.FlushAsync();
-            }
-            catch
-            {
-                // remove dead client
-                lock (subscribers) { subscribers.Remove(c); }
+                lock (subscribers)
+                {
+                    subscribers.Remove(client);
+                }
+
+                client.Dispose();
             }
         }
     }
 
-    private class ClientConnection
+    private sealed class ClientConnection : IDisposable
     {
-        public HttpResponse Response { get; }
-        public ClientConnection(HttpResponse resp) => Response = resp;
+        private readonly HttpResponse _response;
+        private readonly byte[] _heartbeatPayload;
+        private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private Timer? _heartbeatTimer;
+        private bool _disposed;
+
+        public ClientConnection(HttpResponse response, byte[] heartbeatPayload)
+        {
+            _response = response;
+            _heartbeatPayload = heartbeatPayload;
+        }
+
+        public void StartHeartbeat(TimeSpan interval)
+        {
+            _heartbeatTimer = new Timer(static state =>
+            {
+                var connection = (ClientConnection)state!;
+                _ = connection.SendHeartbeatAsync();
+            }, this, interval, interval);
+        }
+
+        public async Task<bool> SendAsync(byte[] payload)
+        {
+            if (_disposed)
+            {
+                return false;
+            }
+
+            try
+            {
+                await _sendLock.WaitAsync();
+                await _response.Body.WriteAsync(payload, 0, payload.Length);
+                await _response.Body.FlushAsync();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
+
+        private Task<bool> SendHeartbeatAsync() => SendAsync(_heartbeatPayload);
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _heartbeatTimer?.Dispose();
+            _sendLock.Dispose();
+        }
     }
 }
