@@ -474,6 +474,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Groups and invitations
     builder.Services.AddScoped<IGroupService, GroupService>();
     builder.Services.AddScoped<IInvitationService, InvitationService>();
+    builder.Services.AddScoped<IGroupTimelineService, GroupTimelineService>();
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
@@ -661,3 +662,4 @@ static async Task SeedDatabase(WebApplication app)
 }
 
 #endregion Methods
+

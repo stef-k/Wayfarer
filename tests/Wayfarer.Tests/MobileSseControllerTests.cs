@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
@@ -24,7 +26,8 @@ public class MobileSseControllerTests
             .Options;
         var db = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
         var sse = new SseService();
-        var timeline = new GroupTimelineService(db, new LocationService(db));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
+        var timeline = new GroupTimelineService(db, new LocationService(db), configuration);
 
         var httpContext = new DefaultHttpContext();
         httpContext.Response.Body = new MemoryStream();

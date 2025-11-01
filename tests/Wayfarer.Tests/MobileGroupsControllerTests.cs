@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
@@ -29,11 +33,12 @@ public class MobileGroupsControllerTests
         return ctx;
     }
 
-    private static MobileGroupsController MakeController(ApplicationDbContext db, string? token = null)
+    private static MobileGroupsController MakeController(ApplicationDbContext db, string? token = null, IConfiguration? configuration = null)
     {
         var httpContext = CreateContext(token);
         var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
-        var timeline = new GroupTimelineService(db, new LocationService(db));
+        configuration ??= new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
+        var timeline = new GroupTimelineService(db, new LocationService(db), configuration);
         var color = new UserColorService();
         var controller =
             new MobileGroupsController(db, NullLogger<BaseApiController>.Instance, accessor, color, timeline)

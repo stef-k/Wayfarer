@@ -236,7 +236,19 @@ public class MobileGroupsController : MobileApiController
         if (context == null) return NotFound();
         if (!context.IsMember) return StatusCode(StatusCodes.Status403Forbidden);
 
-        var (results, total) = await _timelineService.QueryLocationsAsync(context, request, cancellationToken);
-        return Ok(new { totalItems = total, results });
+        var queryResult = await _timelineService.QueryLocationsAsync(context, request, cancellationToken);
+        var response = new GroupLocationsQueryResponse
+        {
+            TotalItems = queryResult.TotalItems,
+            ReturnedItems = queryResult.Results.Count,
+            PageSize = queryResult.PageSize,
+            HasMore = queryResult.HasMore,
+            NextPageToken = queryResult.NextPageToken,
+            IsTruncated = queryResult.IsTruncated,
+            Results = queryResult.Results
+        };
+
+        return Ok(response);
     }
 }
+
