@@ -120,7 +120,9 @@ public class MobileGroupsController : MobileApiController
             .ToListAsync(cancellationToken);
 
         var memberCountLookup = memberCounts.ToDictionary(x => x.GroupId, x => x.Count);
-        var membershipLookup = userMemberships.ToDictionary(x => x.GroupId, x => x);
+        var membershipLookup = userMemberships
+            .GroupBy(x => x.GroupId)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var payload = groups
             .Select(g =>
@@ -251,4 +253,5 @@ public class MobileGroupsController : MobileApiController
         return Ok(response);
     }
 }
+
 
