@@ -386,6 +386,9 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
 // Method to configure services for the application
 static void ConfigureServices(WebApplicationBuilder builder)
 {
+    // Register memory cache for application services
+    builder.Services.AddMemoryCache();
+
     // Register application services with DI container
     builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
 
