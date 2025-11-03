@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
 public class ApplicationDbContextSeed
@@ -20,35 +21,35 @@ public class ApplicationDbContextSeed
     }
 
     /// <summary>
-    /// Seed application's user Roles: Admin, Manager, User and Vehicle
+    ///     Seed application's user Roles: Admin, Manager, User and Vehicle
     /// </summary>
     /// <param name="roleManager"></param>
     /// <returns></returns>
     private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
     {
         // Create roles if they don't exist
-        string[] roleNames = new[] { "Admin", "Manager", "User", "Vehicle" };
+        var roleNames = new[] { "Admin", "Manager", "User", "Vehicle" };
 
-        foreach (string? roleName in roleNames)
+        foreach (var roleName in roleNames)
         {
-            bool roleExists = await roleManager.RoleExistsAsync(roleName);
+            var roleExists = await roleManager.RoleExistsAsync(roleName);
             if (!roleExists)
             {
-                IdentityRole role = new IdentityRole(roleName);
+                var role = new IdentityRole(roleName);
                 await roleManager.CreateAsync(role);
             }
         }
     }
 
     /// <summary>
-    /// Seed application's default Admin user
+    ///     Seed application's default Admin user
     /// </summary>
     /// <param name="userManager"></param>
     /// <returns></returns>
     private static async Task SeedAdminUserAsync(UserManager<ApplicationUser> userManager)
     {
         // Check if the Admin user exists, and create it if not
-        ApplicationUser? adminUser = await userManager.FindByNameAsync("admin");
+        var adminUser = await userManager.FindByNameAsync("admin");
 
         if (adminUser == null)
         {
@@ -60,18 +61,16 @@ public class ApplicationDbContextSeed
                 IsProtected = true // Ensure the admin is protected and cannot be deleted
             };
 
-            IdentityResult createResult = await userManager.CreateAsync(adminUser, "Admin1!");
+            var createResult = await userManager.CreateAsync(adminUser, "Admin1!");
 
             if (createResult.Succeeded)
-            {
                 // Assign the Admin role to the new user
                 await userManager.AddToRoleAsync(adminUser, "Admin");
-            }
         }
     }
 
     /// <summary>
-    /// Seed application's default settings
+    ///     Seed application's default settings
     /// </summary>
     /// <param name="serviceProvider"></param>
     /// <returns></returns>
@@ -99,7 +98,7 @@ public class ApplicationDbContextSeed
         }
         else
         {
-            bool changed = false;
+            var changed = false;
 
             // Thresholds (0 = invalid, should always be > 0)
             if (settings.LocationTimeThresholdMinutes <= 0)
@@ -120,6 +119,7 @@ public class ApplicationDbContextSeed
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
                 changed = true;
             }
+
             if (settings.UploadSizeLimitMB == 0)
             {
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
@@ -129,24 +129,21 @@ public class ApplicationDbContextSeed
             // Do not override if explicitly set; this is only for missing/legacy rows that didn't have the column populated
             // If your deployment wants to enforce enablement, toggle in Admin Settings.
 
-            if (changed)
-            {
-                dbContext.ApplicationSettings.Update(settings);
-            }
+            if (changed) dbContext.ApplicationSettings.Update(settings);
         }
 
         await dbContext.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Add default activities in DB
+    ///     Add default activities in DB
     /// </summary>
     /// <param name="dbContext"></param>
     /// <returns></returns>
     private static async Task SeedActivityTypes(IServiceProvider serviceProvider)
     {
-        using IServiceScope scope = serviceProvider.CreateScope();
-        ApplicationDbContext dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        using var scope = serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         // Check if ActivityTypes are already seeded
         if (!dbContext.ActivityTypes.Any())
