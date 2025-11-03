@@ -80,7 +80,7 @@ public class ApplicationDbContextSeed
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        await dbContext.Database.EnsureCreatedAsync();
+        await dbContext.Database.MigrateAsync();
 
         var settings = await dbContext.ApplicationSettings.FindAsync(1);
 
