@@ -134,8 +134,15 @@ ConfigureServices(builder);
 
 var app = builder.Build();
 
-// Check and set if needed for Quartz database setup for job persistence 
+// Check and set if needed for Quartz database setup for job persistence
 await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
+
+#region Database Seeding
+
+// Seed the database with roles and the admin user if necessary
+await SeedDatabase(app);
+
+#endregion Database Seeding
 
 #region Middleware Setup
 
@@ -144,13 +151,6 @@ ConfigureAreas(app);
 ConfigureMiddleware(app).GetAwaiter().GetResult();
 
 #endregion Middleware Setup
-
-#region Database Seeding
-
-// Seed the database with roles and the admin user if necessary
-await SeedDatabase(app);
-
-#endregion Database Seeding
 
 app.Run();
 
