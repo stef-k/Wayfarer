@@ -15,14 +15,6 @@ namespace Wayfarer.Models
             _serviceProvider = serviceProvider;
         }
 
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            // Suppress pending model changes warning - EF Core sometimes detects false positives
-            // that don't result in actual schema changes (e.g., minor snapshot differences)
-            optionsBuilder.ConfigureWarnings(warnings =>
-                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-        }
-
         public DbSet<Location> Locations { get; set; }
         public DbSet<Vehicle> Vehicles { get; set; }
         public DbSet<ApiToken> ApiTokens { get; set; }
