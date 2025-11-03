@@ -29,12 +29,14 @@ This guide covers complete installation and deployment of Wayfarer on Linux serv
 
 **Minimum:**
 - 1 GB RAM
-- 2 GB disk space (plus storage for uploaded data and logs)
+- **5 GB disk space** minimum:
+  - ~2 GB for tile cache (zoom <= 8: ~1 GB, zoom >= 9: 1 GB configurable)
+  - Plus storage for uploaded location data, logs, and application files
 - ARM or x64 CPU (Raspberry Pi 3+ or equivalent)
 
 **Recommended:**
 - 2+ GB RAM
-- 10+ GB disk space
+- **10+ GB disk space** (allows for user data growth and cache expansion)
 - Multi-core CPU
 
 ### Software Requirements
@@ -284,37 +286,35 @@ exit
 
 ## Directory Structure & Permissions
 
-### 1. Create Required Directories
+### 1. Understanding the Directory Structure
 
-```bash
-# Create log directory
-sudo mkdir -p /var/log/wayfarer
-sudo chown wayfarer:wayfarer /var/log/wayfarer
-sudo chmod 755 /var/log/wayfarer
+The following directories are **included in the repository** and will be cloned automatically:
 
-# Create tile cache directory
-sudo mkdir -p /var/www/wayfarer/TileCache
-sudo chown wayfarer:wayfarer /var/www/wayfarer/TileCache
-sudo chmod 755 /var/www/wayfarer/TileCache
+- `Logs/` - Application log files (auto-created if missing, auto-cleaned after 1 month)
+- `TileCache/` - Cached map tiles (auto-created if missing)
+- `Uploads/` - User uploaded files (auto-created if missing, includes `Temp/` subdirectory)
 
-# Create uploads directory (created automatically by app, but can pre-create)
-sudo mkdir -p /var/www/wayfarer/Uploads
-sudo chown wayfarer:wayfarer /var/www/wayfarer/Uploads
-sudo chmod 755 /var/www/wayfarer/Uploads
-```
+**The application automatically creates these directories if they don't exist**, so no manual creation is needed.
 
-### 2. Set Application Permissions
+### 2. Set Ownership and Permissions
+
+After cloning, ensure the `wayfarer` user owns all application files and has write access to cache/log directories:
 
 ```bash
 # Ensure wayfarer user owns the entire application
 sudo chown -R wayfarer:wayfarer /var/www/wayfarer
 
-# Set directory permissions
+# Set directory permissions (755 = rwxr-xr-x)
 sudo find /var/www/wayfarer -type d -exec chmod 755 {} \;
 
-# Set file permissions
+# Set file permissions (644 = rw-r--r--)
 sudo find /var/www/wayfarer -type f -exec chmod 644 {} \;
 ```
+
+**Note:** The application requires write access to:
+- `Logs/` - For writing application logs
+- `TileCache/` - For caching map tiles
+- `Uploads/` - For storing user uploaded location data
 
 ### 3. Directory Structure Overview
 
@@ -327,14 +327,19 @@ sudo find /var/www/wayfarer -type f -exec chmod 644 {} \;
 ├── Areas/                           # MVC Areas
 ├── Models/                          # Data models
 ├── Services/                        # Business logic
+├── Jobs/                            # Background jobs (log cleanup, etc.)
 ├── wwwroot/                         # Static files (CSS, JS, images)
-├── TileCache/                       # Map tile cache (writable)
-├── Uploads/                         # User uploads (writable)
+├── Logs/                            # Application logs (auto-cleaned monthly)
+├── TileCache/                       # Map tile cache (~2 GB)
+├── Uploads/                         # User location data uploads
+│   └── Temp/                        # Temporary upload processing
 └── ...
-
-/var/log/wayfarer/
-└── wayfarer-*.log                   # Application logs (writable)
 ```
+
+**Storage Notes:**
+- `Logs/` - Automatically cleaned (files older than 1 month are deleted)
+- Cache directories - Managed by admin settings (configurable size limits)
+- `Uploads/` - User data, grows with usage
 
 ---
 
@@ -741,32 +746,24 @@ You can now:
 - Enable user registration (Settings → Registration → Open)
 - Or manually create users through the admin panel
 
-### 6. Set Up Log Rotation (Optional)
+### 6. Automatic Maintenance
 
-Prevent logs from consuming too much disk space:
+Wayfarer includes **automated maintenance jobs** via Quartz Scheduler:
 
-```bash
-sudo nano /etc/logrotate.d/wayfarer
-```
+**Log Cleanup Job:**
+- Runs automatically on a schedule
+- Deletes log files older than **1 month**
+- **No manual log rotation setup needed!**
+- Configured in `Jobs/LogCleanupJob.cs`
 
-Add:
+**Audit Log Cleanup Job:**
+- Cleans old audit log entries from the database
+- Prevents database bloat over time
 
-```
-/var/log/wayfarer/*.log {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    missingok
-    create 0644 wayfarer wayfarer
-}
-```
-
-Test:
-```bash
-sudo logrotate -f /etc/logrotate.d/wayfarer
-```
+**Monitor jobs via Admin Dashboard:**
+- Navigate to **Admin** → **Job History**
+- View job execution status and logs
+- Jobs are configured and scheduled automatically on first startup
 
 ---
 
@@ -948,13 +945,15 @@ df -h
 **Check which directories are consuming space:**
 ```bash
 sudo du -sh /var/www/wayfarer/*
-sudo du -sh /var/log/wayfarer/*
 ```
 
 **Clean up:**
-- Old logs: `sudo find /var/log/wayfarer -name "*.log" -mtime +30 -delete`
-- Tile cache: Navigate to Admin → Settings → Clear Tile Cache
-- Uploads: Review and delete old uploads through the web interface
+- **Logs:** Automatically cleaned after 1 month by LogCleanupJob (no manual action needed)
+  - If needed urgently: `sudo find /var/www/wayfarer/Logs -name "*.log" -mtime +30 -delete`
+- **Tile cache:** Navigate to **Admin → Settings → Clear Tile Cache** (or configure lower cache limits)
+- **MBTiles cache:** Navigate to **Admin → Settings** and configure cache limits
+- **Uploads:** Review and delete old location imports through the web interface (**User → Import History**)
+- **Database:** Run audit log cleanup manually via **Admin → Job History** if needed
 
 ---
 
@@ -967,9 +966,9 @@ After installation, ensure:
 - [ ] HTTPS is enabled (Let's Encrypt)
 - [ ] Firewall configured (only ports 80, 443, and SSH open)
 - [ ] Application running as non-root user (`wayfarer`)
-- [ ] Log rotation configured
-- [ ] Regular database backups scheduled
+- [ ] Regular database backups scheduled (automated via cron or similar)
 - [ ] `appsettings.json` has correct file permissions (not world-readable if it contains secrets)
+- [ ] Monitoring configured for disk space usage (cache directories can grow large)
 
 ---
 
