@@ -1,0 +1,21 @@
+# Features Overview
+
+Maps and Tiles
+- Interactive map via Leaflet with OpenStreetMap tiles.
+- Local tile caching (when enabled) to improve speed and reduce bandwidth.
+
+Timeline
+- Visualize your location history over time.
+- Filter by time range or activity type.
+- Reverse geocoding enriches points with human‑readable addresses when a personal token is configured.
+
+Trips
+- Organize a trip into Regions, Places (points), Areas (polygons), and Segments (routes).
+- Add notes, colors, and travel modes. Export to PDF or KML.
+
+Groups
+- Share live or recent locations among trusted members. Joining is by invitation.
+
+Privacy
+- Self‑hosted; you control where data lives and who can access it. Public sharing is opt‑in.
+

@@ -1,0 +1,48 @@
+:root{
+  --wf-accent:#e45141;  /* action / highlight */
+  --wf-primary:#105562; /* links / headings */
+  --wf-secondary:#96e0d6; /* subtle accents */
+  --wf-text:#212529;    /* body text */
+  --wf-bg:#f3f5f7;      /* page background */
+  --wf-white:#ffffff;   /* cards / content */
+}
+
+/* Layout & base */
+body{ background:var(--wf-bg); color:var(--wf-text); }
+.content{ background:var(--wf-white); }
+
+/* App name (top of sidebar) */
+.app-name, .app-name-link{ color:var(--wf-primary)!important; }
+
+/* Sidebar */
+.sidebar{ background:var(--wf-white); }
+.sidebar ul li a{ color:var(--wf-primary); }
+.sidebar ul li a:hover{ color:var(--wf-accent); }
+.sidebar ul li.active > a{ color:var(--wf-accent)!important; }
+
+/* Headings */
+.markdown-section h1, .markdown-section h2, .markdown-section h3,
+.markdown-section h4, .markdown-section h5, .markdown-section h6{
+  color:var(--wf-primary);
+}
+
+/* Links in content */
+.markdown-section a{ color:var(--wf-primary); }
+.markdown-section a:hover{ color:var(--wf-accent); }
+
+/* Code blocks & inline code */
+code, .markdown-section code{ background:#f8f9fa; color:#111; }
+pre>code{ border-left:4px solid var(--wf-secondary); }
+
+/* Tables */
+.markdown-section table thead th{ background:#eef3f5; color:var(--wf-text); }
+
+/* Blockquotes */
+.markdown-section blockquote{ border-left-color:var(--wf-secondary); }
+
+/* Search (if enabled later) */
+input.search{ border-color:var(--wf-secondary); }
+
+/* Buttons (plugin-dependent) */
+.github-corner svg{ fill:var(--wf-primary)!important; color:var(--wf-white)!important; }
+

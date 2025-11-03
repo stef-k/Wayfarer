@@ -1,0 +1,28 @@
+# Database
+
+ORM & Provider
+- EF Core with Npgsql provider and NetTopologySuite for spatial types.
+- PostGIS is required (e.g., `geography(Point, 4326)` for `Location.Coordinates`).
+
+Key Entities (selected)
+- `ApplicationUser` — identity user, profile flags (IsActive, IsProtected).
+- `Location` — point with timestamp, optional reverse‑geocoded fields, activity type, vehicle link.
+- `Vehicle` — metadata, JSONB fields (Passengers, Cargo) with GIN indices.
+- `Trip`, `Region`, `Place`, `Area`, `Segment` — trip planning model; cascading deletes and timestamp stamping on `Trip.UpdatedAt`.
+- `Group`, `GroupMember`, `GroupInvitation` — group ownership, membership, invitations, visibility flags.
+- `ApiToken` — per‑user tokens for API access.
+- `ApplicationSettings` — admin‑editable runtime settings stored in DB.
+- `AuditLog`, `JobHistory`, `TileCacheMetadata`, `LocationImport` — diagnostics, jobs, cache, and import tracking.
+
+Spatial & Indices
+- `Location.Coordinates` uses `geography(Point, 4326)` with GiST index for spatial queries.
+- `Vehicle.Passengers` and `Vehicle.Cargo` use JSONB with GIN indices.
+
+Seeding
+- `ApplicationDbContextSeed` seeds roles, a protected admin account (change credentials immediately), default activity types, and initial settings.
+
+Hidden Areas
+- `HiddenArea` polygons are used to filter public timeline results; any location within a user’s hidden polygons is excluded from public feeds.
+
+Quartz
+- Quartz uses a persistent ADO store with `qrtz_*` tables, auto‑created via `QuartzSchemaInstaller` on startup.
