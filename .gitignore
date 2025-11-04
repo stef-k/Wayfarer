@@ -6,6 +6,8 @@
 debug_console.txt
 # Logs
 Logs/*
+docs/design
+docs/spec
 
 # Uploads
 Uploads/*
