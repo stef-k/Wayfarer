@@ -120,6 +120,7 @@ export const formatDate = ({
 
 /**
  * Returns total offset label (e.g., "(GMT+03:00 Europe/Athens)").
+ * Calculates the actual offset for the target timezone at the given date (respects DST).
  * @param {Date} date
  * @param {string} tz
  * @returns {string}
@@ -127,13 +128,22 @@ export const formatDate = ({
 export const formatOffsetLabel = (date, tz) => {
     if (!tz) return '';
     try {
-        const zoned = new Date(date.toLocaleString('en-US', { timeZone: tz }));
-        const offsetMinutes = zoned.getTimezoneOffset() * -1;
-        const sign = offsetMinutes >= 0 ? '+' : '-';
-        const abs = Math.abs(offsetMinutes);
-        const hours = pad(Math.trunc(abs / 60));
-        const minutes = pad(abs % 60);
-        return `(GMT${sign}${hours}:${minutes} ${tz})`;
+        // Use Intl to get offset from the timezone directly
+        // The locale only affects digit formatting, not timezone calculation
+        const formatter = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+            timeZone: tz,
+            timeZoneName: 'shortOffset' // e.g., "GMT+2"
+        });
+
+        const parts = formatter.formatToParts(date);
+        const offsetPart = parts.find(p => p.type === 'timeZoneName');
+
+        if (offsetPart && offsetPart.value.startsWith('GMT')) {
+            return `(${offsetPart.value} ${tz})`;
+        }
+
+        // Fallback: just show timezone name
+        return `(${tz})`;
     } catch {
         return `(${tz})`;
     }
