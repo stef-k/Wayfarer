@@ -971,10 +971,9 @@ public class LocationController : BaseApiController
                             Longitude = l.Coordinates?.X,
                             Latitude = l.Coordinates?.Y
                         },
-                        LocalTimestamp =
-                            DateTimeUtils.ConvertUtcToLocalTime(CoordinateTimeZoneConverter.ConvertUtcToLocal(
+                        LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(
                                 l.Coordinates.Y, l.Coordinates.X,
-                                DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)), l.TimeZoneId),
+                                DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
                         l.TimeZoneId,
                         Activity = l.ActivityType?.Name,
                         l.Address,
