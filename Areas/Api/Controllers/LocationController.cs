@@ -558,10 +558,7 @@ public class LocationController : BaseApiController
             {
                 Id = location.Id,
                 Timestamp = location.Timestamp,
-                LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(
-                    location.Coordinates.Y,
-                    location.Coordinates.X,
-                    DateTime.SpecifyKind(location.LocalTimestamp, DateTimeKind.Utc)),
+                LocalTimestamp = location.LocalTimestamp, // Already converted by LocationService
                 Coordinates = location.Coordinates,
                 Timezone = location.Timezone,
                 Accuracy = location.Accuracy,
