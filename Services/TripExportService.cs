@@ -407,12 +407,14 @@ namespace Wayfarer.Parsers
                 RegexOptions.IgnoreCase);
 
 
-            // Puppeteer ➜ PDF
+            // Puppeteer ➜ PDF - Ensure Chrome is downloaded and get executable path
+            string executablePath;
             try
             {
                 _logger.LogInformation("Checking for Chrome browser for PDF generation...");
                 var installedBrowser = await _browserFetcher.DownloadAsync(); // once, then cached
-                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", installedBrowser.GetExecutablePath());
+                executablePath = installedBrowser.GetExecutablePath();
+                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", executablePath);
             }
             catch (Exception ex)
             {
@@ -421,12 +423,16 @@ namespace Wayfarer.Parsers
                     "Could not download Chrome browser required for PDF export. " +
                     "Check server logs for details. Common causes: " +
                     "1) No internet connection to download Chrome, " +
-                    "2) Insufficient disk permissions to write to ~/.local/share/puppeteer/, " +
+                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
                     "3) Missing system libraries (libnss3, libgbm1, etc.)", ex);
             }
 
             await using var browser = await Puppeteer.LaunchAsync(
-                new LaunchOptions { Headless = true });
+                new LaunchOptions
+                {
+                    Headless = true,
+                    ExecutablePath = executablePath
+                });
             await using var page = await browser.NewPageAsync();
 
             await page.SetContentAsync(html,

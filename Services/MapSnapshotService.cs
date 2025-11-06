@@ -72,12 +72,14 @@ namespace Wayfarer.Parsers
             var pageUri = new Uri(url);
             var origin = pageUri.GetLeftPart(UriPartial.Authority);
 
-            // 1) ensure Chromium is downloaded
+            // 1) ensure Chromium is downloaded and get executable path
+            string executablePath;
             try
             {
                 _logger.LogInformation("Checking for Chrome browser...");
                 var installedBrowser = await _fetcher.DownloadAsync();
-                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", installedBrowser.GetExecutablePath());
+                executablePath = installedBrowser.GetExecutablePath();
+                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", executablePath);
             }
             catch (Exception ex)
             {
@@ -86,14 +88,15 @@ namespace Wayfarer.Parsers
                     "Could not download Chrome browser required for PDF export. " +
                     "Check server logs for details. Common causes: " +
                     "1) No internet connection to download Chrome, " +
-                    "2) Insufficient disk permissions to write to ~/.local/share/puppeteer/, " +
+                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
                     "3) Missing system libraries (libnss3, libgbm1, etc.)", ex);
             }
 
-            // 2) launch headless with web‐security off
+            // 2) launch headless with web‐security off using our downloaded Chrome
             await using var browser = await Puppeteer.LaunchAsync(new LaunchOptions
             {
                 Headless = true,
+                ExecutablePath = executablePath,
                 Args = new[]
                 {
                     "--ignore-certificate-errors",
