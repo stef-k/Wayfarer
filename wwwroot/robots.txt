@@ -1,0 +1,29 @@
+# Robots.txt for Wayfarer
+# This file controls web crawler access to the site
+
+User-agent: *
+Allow: /
+Allow: /Public/
+
+# Disallow private user areas
+Disallow: /User/
+Disallow: /Identity/Account/
+Disallow: /Manager/
+Disallow: /Admin/
+
+# Disallow API endpoints (unless you want them indexed)
+Disallow: /api/
+
+# Allow legitimate search engine bots to index public trips
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: DuckDuckBot
+Allow: /Public/
+Disallow: /User/
+Disallow: /Identity/
+Disallow: /Manager/
+Disallow: /Admin/
+Disallow: /api/
+
+# Sitemap (optional - create if you have one)
+# Sitemap: https://yourdomain.com/sitemap.xml

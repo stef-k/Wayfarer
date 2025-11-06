@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using PuppeteerSharp;
 using PuppeteerSharp.Media;
@@ -21,6 +23,8 @@ namespace Wayfarer.Parsers
         readonly LinkGenerator _link;
         readonly IRazorViewRenderer _razor;
         readonly BrowserFetcher _browserFetcher;
+        readonly ILogger<TripExportService> _logger;
+        readonly IConfiguration _configuration;
         private static readonly CultureInfo CI = CultureInfo.InvariantCulture;
 
         public TripExportService(
@@ -28,14 +32,57 @@ namespace Wayfarer.Parsers
             MapSnapshotService mapSnapshot,
             IHttpContextAccessor httpContextAccessor,
             LinkGenerator linkGenerator,
-            IRazorViewRenderer razor)
+            IRazorViewRenderer razor,
+            ILogger<TripExportService> logger,
+            IConfiguration configuration)
         {
             _db = dbContext;
             _snap = mapSnapshot;
             _ctx = httpContextAccessor;
             _link = linkGenerator;
             _razor = razor;
-            _browserFetcher = new BrowserFetcher();
+            _logger = logger;
+            _configuration = configuration;
+
+            // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
+            var chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
+
+            // Resolve to absolute path and normalize path separators for current platform
+            chromeCachePath = Path.GetFullPath(chromeCachePath);
+
+            _logger.LogInformation("Chrome cache directory for PDF export configured at: {ChromePath}", chromeCachePath);
+
+            // Initialize BrowserFetcher with custom download path
+            // PuppeteerSharp automatically detects platform (Windows/Linux/Mac) and architecture (x64/ARM)
+            _browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
+            {
+                Path = chromeCachePath
+            });
+
+            // Clean up unused Chrome variants (ChromeHeadlessShell) to save disk space
+            CleanupUnusedChromeBinaries(chromeCachePath);
+        }
+
+        /// <summary>
+        /// Removes ChromeHeadlessShell if it exists, keeping only the standard Chrome browser
+        /// </summary>
+        private void CleanupUnusedChromeBinaries(string chromeCachePath)
+        {
+            try
+            {
+                var headlessShellPath = Path.Combine(chromeCachePath, "ChromeHeadlessShell");
+                if (Directory.Exists(headlessShellPath))
+                {
+                    _logger.LogInformation("Removing unused ChromeHeadlessShell to save disk space (~240MB)...");
+                    Directory.Delete(headlessShellPath, recursive: true);
+                    _logger.LogInformation("ChromeHeadlessShell removed successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Don't fail if cleanup fails - it's not critical
+                _logger.LogWarning(ex, "Failed to cleanup ChromeHeadlessShell directory (non-critical)");
+            }
         }
 
         /* ---------------------------------------------------------------- KML stubs */
@@ -361,7 +408,23 @@ namespace Wayfarer.Parsers
 
 
             // Puppeteer ➜ PDF
-            await _browserFetcher.DownloadAsync(); // once, then cached
+            try
+            {
+                _logger.LogInformation("Checking for Chrome browser for PDF generation...");
+                var installedBrowser = await _browserFetcher.DownloadAsync(); // once, then cached
+                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", installedBrowser.GetExecutablePath());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to download Chrome browser for PDF export. Check network connectivity and disk permissions.");
+                throw new InvalidOperationException(
+                    "Could not download Chrome browser required for PDF export. " +
+                    "Check server logs for details. Common causes: " +
+                    "1) No internet connection to download Chrome, " +
+                    "2) Insufficient disk permissions to write to ~/.local/share/puppeteer/, " +
+                    "3) Missing system libraries (libnss3, libgbm1, etc.)", ex);
+            }
+
             await using var browser = await Puppeteer.LaunchAsync(
                 new LaunchOptions { Headless = true });
             await using var page = await browser.NewPageAsync();
@@ -393,21 +456,36 @@ namespace Wayfarer.Parsers
 
         string BuildMapUrl(double lat, double lon, int zoom, bool pub, Guid id, string? segmentId = null)
         {
-            var area = pub ? "Public" : "User";
+            string uri;
 
-            var uri = _link.GetUriByAction(
-                _ctx.HttpContext!,
-                action: "View",
-                controller: "Trip",
-                values: new
-                {
-                    area,
-                    id,
-                    lat = lat.ToString("F6"),
-                    lon = lon.ToString("F6"),
-                    zoom,
-                    seg = segmentId
-                }) ?? throw new InvalidOperationException("Unable to create Trip/View URL");
+            if (pub)
+            {
+                // Public trips use custom route: /Public/Trips/{id}
+                // Can't use LinkGenerator because it uses controller/action naming, not custom routes
+                var request = _ctx.HttpContext!.Request;
+                var baseUrl = $"{request.Scheme}://{request.Host}";
+                var query = $"?lat={lat.ToString("F6")}&lon={lon.ToString("F6")}&zoom={zoom}";
+                if (segmentId != null)
+                    query += $"&seg={segmentId}";
+                uri = $"{baseUrl}/Public/Trips/{id}{query}";
+            }
+            else
+            {
+                // Private trips use standard route: /User/Trip/View/{id}
+                uri = _link.GetUriByAction(
+                    _ctx.HttpContext!,
+                    action: "View",
+                    controller: "Trip",
+                    values: new
+                    {
+                        area = "User",
+                        id,
+                        lat = lat.ToString("F6"),
+                        lon = lon.ToString("F6"),
+                        zoom,
+                        seg = segmentId
+                    }) ?? throw new InvalidOperationException("Unable to create User/Trip/View URL");
+            }
 
             return uri + "&print=1"; // ?print=1 hides sidebar for snapshots
         }

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using PuppeteerSharp;
 
 // for ResourceType
@@ -6,7 +8,56 @@ namespace Wayfarer.Parsers
 {
     public sealed class MapSnapshotService
     {
-        readonly BrowserFetcher _fetcher = new();
+        readonly BrowserFetcher _fetcher;
+        readonly ILogger<MapSnapshotService> _logger;
+
+        /// <summary>
+        /// Initializes MapSnapshotService with configured Chrome cache directory
+        /// </summary>
+        public MapSnapshotService(ILogger<MapSnapshotService> logger, IConfiguration configuration)
+        {
+            _logger = logger;
+
+            // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
+            var chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
+
+            // Resolve to absolute path and normalize path separators for current platform
+            chromeCachePath = Path.GetFullPath(chromeCachePath);
+
+            _logger.LogInformation("Chrome cache directory configured at: {ChromePath}", chromeCachePath);
+
+            // Initialize BrowserFetcher with custom download path
+            // PuppeteerSharp automatically detects platform (Windows/Linux/Mac) and architecture (x64/ARM)
+            _fetcher = new BrowserFetcher(new BrowserFetcherOptions
+            {
+                Path = chromeCachePath
+            });
+
+            // Clean up unused Chrome variants (ChromeHeadlessShell) to save disk space
+            CleanupUnusedChromeBinaries(chromeCachePath);
+        }
+
+        /// <summary>
+        /// Removes ChromeHeadlessShell if it exists, keeping only the standard Chrome browser
+        /// </summary>
+        private void CleanupUnusedChromeBinaries(string chromeCachePath)
+        {
+            try
+            {
+                var headlessShellPath = Path.Combine(chromeCachePath, "ChromeHeadlessShell");
+                if (Directory.Exists(headlessShellPath))
+                {
+                    _logger.LogInformation("Removing unused ChromeHeadlessShell to save disk space (~240MB)...");
+                    Directory.Delete(headlessShellPath, recursive: true);
+                    _logger.LogInformation("ChromeHeadlessShell removed successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Don't fail if cleanup fails - it's not critical
+                _logger.LogWarning(ex, "Failed to cleanup ChromeHeadlessShell directory (non-critical)");
+            }
+        }
 
         /// <summary>
         /// Captures a full‐page PNG screenshot of <paramref name="url"/> at the given viewport.
@@ -22,7 +73,22 @@ namespace Wayfarer.Parsers
             var origin = pageUri.GetLeftPart(UriPartial.Authority);
 
             // 1) ensure Chromium is downloaded
-            await _fetcher.DownloadAsync();
+            try
+            {
+                _logger.LogInformation("Checking for Chrome browser...");
+                var installedBrowser = await _fetcher.DownloadAsync();
+                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", installedBrowser.GetExecutablePath());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to download Chrome browser. Check network connectivity and disk permissions.");
+                throw new InvalidOperationException(
+                    "Could not download Chrome browser required for PDF export. " +
+                    "Check server logs for details. Common causes: " +
+                    "1) No internet connection to download Chrome, " +
+                    "2) Insufficient disk permissions to write to ~/.local/share/puppeteer/, " +
+                    "3) Missing system libraries (libnss3, libgbm1, etc.)", ex);
+            }
 
             // 2) launch headless with web‐security off
             await using var browser = await Puppeteer.LaunchAsync(new LaunchOptions

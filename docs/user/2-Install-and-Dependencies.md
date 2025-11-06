@@ -8,11 +8,28 @@ Wayfarer is designed for self-hosting by power users, small businesses, and orga
 
 ## Quick Start
 
-### Dependencies
+### Core Dependencies
 
 - **.NET 9 SDK** - Application runtime
 - **PostgreSQL 13+** with **PostGIS extension** - Database
 - **Nginx** (or similar reverse proxy) - Recommended for production
+
+### Optional: PDF Export Feature
+
+If you want to export trips as PDF documents, you'll need:
+- **Chrome system libraries** (Linux only)
+- Chrome browser is **automatically downloaded** by the application on first PDF export
+- No manual Chrome installation needed - it's handled automatically!
+
+**Linux users:** Install Chrome dependencies during initial setup:
+```bash
+sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libpango-1.0-0 libcairo2
+```
+
+**Windows users:** No additional setup needed - Chrome downloads automatically.
+
+> **Note:** If PDF export doesn't work after installation, see the [PDF Export Troubleshooting](../developer/13-Deployment.md#pdf-export--chrome-issues) guide.
 
 ### Basic Setup Steps
 
@@ -52,8 +69,12 @@ When you first run Wayfarer, it automatically:
 ### Linux (Ubuntu/Debian)
 
 ```bash
-# Install dependencies
+# Install core dependencies
 sudo apt install -y dotnet-sdk-9.0 postgresql postgis nginx
+
+# Install Chrome dependencies (for PDF export)
+sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libpango-1.0-0 libcairo2
 
 # Create database
 sudo -u postgres createdb wayfarer

@@ -1,0 +1,62 @@
+# Wayfarer Systemd Service Configuration
+#
+# This is a template systemd service file for running Wayfarer as a system service.
+#
+# INSTALLATION:
+# 1. Customize the paths and user below if needed
+# 2. Copy to systemd directory:
+#    sudo cp deployment/wayfarer.service /etc/systemd/system/wayfarer.service
+# 3. Reload systemd: sudo systemctl daemon-reload
+# 4. Enable on boot: sudo systemctl enable wayfarer
+# 5. Start service: sudo systemctl start wayfarer
+#
+# CUSTOMIZATION:
+# - User/Group: Change 'wayfarer' to your application user
+# - WorkingDirectory: Update if your deployment directory differs
+# - ExecStart: Update paths and port (default: localhost:5000)
+# - Environment: Add any additional environment variables needed
+#
+# ============================================================================
+
+[Unit]
+Description=Wayfarer Location Tracking and Trip Planning Application
+Documentation=https://github.com/yourusername/wayfarer
+After=network.target postgresql.service
+
+[Service]
+# Type=notify is recommended for ASP.NET Core applications
+Type=notify
+
+# CUSTOMIZE: User and group that runs the application
+User=wayfarer
+Group=wayfarer
+
+# CUSTOMIZE: Path to your deployment directory
+WorkingDirectory=/var/www/wayfarer
+
+# CUSTOMIZE: Command to start the application
+# - Update paths if different from /var/www/wayfarer
+# - Change port if not using localhost:5000
+# - The --urls parameter explicitly sets the listening address
+ExecStart=/usr/bin/dotnet /var/www/wayfarer/Wayfarer.dll --urls http://localhost:5000
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Graceful shutdown
+KillSignal=SIGINT
+
+# Logging identifier (shows up in journalctl)
+SyslogIdentifier=wayfarer
+
+# Environment variables
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+# Resource limits (file descriptors)
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
