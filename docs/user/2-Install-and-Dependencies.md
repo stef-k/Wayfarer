@@ -55,7 +55,7 @@ On first run, Wayfarer automatically creates:
 When you first run Wayfarer, it automatically:
 
 - ✅ Creates all database tables via migrations
-- ✅ Seeds system roles (Admin, Manager, User, Vehicle)
+- ✅ Seeds system roles (Admin, Manager, User)
 - ✅ Creates the default admin user
 - ✅ Initializes application settings with defaults
 - ✅ Seeds 69 predefined activity types for location categorization

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 
@@ -16,7 +16,6 @@ namespace Wayfarer.Models
         }
 
         public DbSet<Location> Locations { get; set; }
-        public DbSet<Vehicle> Vehicles { get; set; }
         public DbSet<ApiToken> ApiTokens { get; set; }
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
@@ -49,47 +48,13 @@ namespace Wayfarer.Models
             // Configure the Location entity to use PostGIS Point type for Coordinates
             builder.Entity<Location>()
                 .Property(l => l.Coordinates)
-                .HasColumnType(
-                    "geography(Point, 4326)"); // Define the column as PostGIS geography type (SRID 4326 is WGS84)
-
-            // Set Cascade Delete for the optional relationship between Location and Vehicle
-            builder.Entity<Location>()
-                .HasOne(l => l.Vehicle) // Specify the related entity
-                .WithMany(v => v.Locations) // Specify the navigation property on Vehicle
-                .HasForeignKey(l => l.VehicleId) // Specify the foreign key in the Location table
-                .OnDelete(DeleteBehavior.Cascade); // Cascade delete when a Vehicle is deleted
+                .HasColumnType("geography(Point, 4326)"); // Define the column as PostGIS geography type (SRID 4326 is WGS84)
 
             // Add index on Location Coordinates for faster spatial queries (if frequently queried)
             builder.Entity<Location>()
                 .HasIndex(l => l.Coordinates) // Create an index on the Coordinates column
-                .HasMethod("GIST") // 👈 this forces GiST for faster Gis spatial queries
+                .HasMethod("GIST") // ?? this forces GiST for faster Gis spatial queries
                 .HasDatabaseName("IX_Location_Coordinates");
-
-            // Configure the Vehicle entity to use JSONB for Passengers field
-            builder.Entity<Vehicle>()
-                .Property(v => v.Passengers)
-                .HasColumnType("jsonb"); // Define Passengers as JSONB type
-
-            // Add a GIN index for the JSONB column (Passengers)
-            builder.Entity<Vehicle>()
-                .HasIndex(v => v.Passengers)
-                .HasMethod("GIN")
-                .HasDatabaseName("IX_Vehicle_Passengers_GIN");
-
-            builder.Entity<Vehicle>()
-                .Property(v => v.Cargo)
-                .HasColumnType("jsonb"); // Define Cargo as JSONB type
-
-            // Add a GIN index for the JSONB column (Cargo)
-            builder.Entity<Vehicle>()
-                .HasIndex(v => v.Cargo)
-                .HasMethod("GIN")
-                .HasDatabaseName("IX_Vehicle_Cargo_GIN");
-
-            // Index on PlateNumber for Vehicle (for fast lookup by plate number)
-            builder.Entity<Vehicle>()
-                .HasIndex(v => v.PlateNumber)
-                .HasDatabaseName("IX_Vehicle_PlateNumber");
 
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)

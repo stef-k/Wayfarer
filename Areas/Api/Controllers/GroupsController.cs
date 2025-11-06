@@ -160,7 +160,6 @@ public class GroupsController : ControllerBase
             Region = t.Loc.Region,
             Country = t.Loc.Country,
             Notes = t.Loc.Notes,
-            VehicleId = t.Loc.VehicleId,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = locationTimeThreshold
         }).ToList();

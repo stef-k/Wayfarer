@@ -181,7 +181,7 @@ public class BaseController : Controller
     /// <summary>
     /// Retrieves a list of users based on their roles.
     /// </summary>
-    /// <param name="roles">Roles as an enumerable: new[] { "User", "Vehicle" }</param>
+    /// <param name="roles">Roles as an enumerable, e.g. new[] { "User" }</param>
     /// <returns></returns>
     public async Task<List<ApplicationUser>> GetUsersByRolesAsync(IEnumerable<string> roles)
     {

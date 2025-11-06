@@ -29,7 +29,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         }
 
         /// <summary>
-        /// Get all users with roles User and Vehicle.
+        /// Get all users with role User.
         /// </summary>
         /// <param name="search"></param>
         /// <param name="page"></param>
@@ -38,7 +38,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         {
             _logger.LogInformation("Manager Users index page accessed");
             const int PageSize = 10; // Number of items per page
-            string[] roleNames = new[] { "User", "Vehicle" };
+            string[] roleNames = new[] { "User" };
 
             IEnumerable<ApplicationUser> usersQuery = await GetUsersByRolesAsync(roleNames);
 
@@ -80,8 +80,8 @@ namespace Wayfarer.Areas.Manager.Controllers
         [HttpGet]
         public IActionResult Create()
         {
-            // Get only the roles 'User' and 'Vehicle' for Manager
-            string[] allowedRoles = new[] { "User", "Vehicle" };
+            // Get only the role 'User' for Manager
+            string[] allowedRoles = new[] { "User" };
 
             // Use GetUsersByRolesAsync from the base controller to get the users with these roles
             IEnumerable<ApplicationUser> users = GetUsersByRolesAsync(allowedRoles).Result;
@@ -106,8 +106,8 @@ namespace Wayfarer.Areas.Manager.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateUserViewModel model)
         {
-            // Get only the roles 'User' and 'Vehicle' for Manager
-            string[] allowedRoles = new[] { "User", "Vehicle" };
+            // Get only the role 'User' for Manager
+            string[] allowedRoles = new[] { "User" };
 
             // Use GetUsersByRolesAsync from the base controller to get the users with these roles
             IEnumerable<ApplicationUser> users = GetUsersByRolesAsync(allowedRoles).Result;
@@ -126,7 +126,7 @@ namespace Wayfarer.Areas.Manager.Controllers
 
             if (!allowedRoles.Contains(model.Role))
             {
-                ModelState.AddModelError("Role", "Managers can only create users with 'User' or 'Vehicle' roles.");
+                ModelState.AddModelError("Role", "Managers can only create users with the 'User' role.");
                 return View(model);
             }
 
@@ -189,9 +189,9 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return NotFound();
             }
 
-            // Ensure the manager can only delete User or Vehicle roles
+            // Ensure the manager can only delete User role accounts
             IList<string> roles = await _userManager.GetRolesAsync(user);
-            if (!roles.Contains("User") && !roles.Contains("Vehicle"))
+            if (!roles.Contains("User"))
             {
                 return RedirectToAction("AccessDenied", "Account");
             }
@@ -276,7 +276,7 @@ namespace Wayfarer.Areas.Manager.Controllers
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
 
             // Check if the current user is a Manager and prevent them from editing Admin/Manager roles
-            if (userRole != "User" && userRole != "Vehicle")
+            if (userRole != "User")
             {
                 return RedirectToAction("Index", "Users");
             }
@@ -351,10 +351,15 @@ namespace Wayfarer.Areas.Manager.Controllers
                     return View(model);
                 }
 
-                // Only allow updating roles to User or Vehicle
-                if (model.Role == "User" || model.Role == "Vehicle")
+                // Only allow updating roles to User
+                if (model.Role == "User")
                 {
                     roleResult = await _userManager.AddToRoleAsync(user, model.Role);
+                }
+                else
+                {
+                    ModelState.AddModelError("Role", "Managers can only assign the 'User' role.");
+                    return View(model);
                 }
 
                 if (roleResult.Succeeded)
@@ -411,10 +416,10 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return NotFound();
             }
 
-            // Only allow managers to change passwords for User or Vehicle roles
-            if (!(await _userManager.IsInRoleAsync(user, "User") || await _userManager.IsInRoleAsync(user, "Vehicle")))
+            // Only allow managers to change passwords for User role accounts
+            if (!await _userManager.IsInRoleAsync(user, "User"))
             {
-                return Forbid(); // Return Forbidden if the user is not a User or Vehicle role
+                return Forbid(); // Return Forbidden if the user is not a User role
             }
 
             ChangePasswordViewModel model = new ChangePasswordViewModel
@@ -445,10 +450,10 @@ namespace Wayfarer.Areas.Manager.Controllers
                     return NotFound();
                 }
 
-                // Only allow managers to change passwords for User or Vehicle roles
-                if (!(await _userManager.IsInRoleAsync(user, "User") || await _userManager.IsInRoleAsync(user, "Vehicle")))
+                // Only allow managers to change passwords for User role accounts
+                if (!await _userManager.IsInRoleAsync(user, "User"))
                 {
-                    return Forbid(); // Return Forbidden if the user is not a User or Vehicle role
+                    return Forbid(); // Return Forbidden if the user is not a User role
                 }
 
                 if (model.NewPassword != model.ConfirmPassword)

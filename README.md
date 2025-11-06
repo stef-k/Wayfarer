@@ -53,24 +53,19 @@ with a 2FA application (like Google Authenticator) and entering the generated co
 
 ### Application Roles
 
-The application has 4 roles: `Admin`, `Manager`, `User`, `Vehicle`.
+The application has 3 roles: `Admin`, `Manager`, `User`.
 
 #### Admin
 
-- Can create, read, update, delete and lock any user. Cannot use the application as a regular user (no timeline, no vehicle data, etc). Can change application's settings.
+- Can create, read, update, delete and lock any user. Cannot use the application as a regular user (no timeline access, etc). Can change application's settings.
 
 #### Manager
 
-- Can see current's User's (If is set as trusted by users) and Vehicle's data (location, status, passengers, etc) for all vehicles but cannot use it to track his own location data. Can edit Vehicle data.
+- Can see trusted users' location data but cannot track their own movements through the manager account.
 
 #### User
 
 - Account to for personal use of the application. If looking for a Timeline like experience, this is the role to use.
-
-#### Vehicle
-
-- Account for vehicles. This is used in order to get an Api Token so GPS logging mobile applications can send data to the server.
-- Cannot be used to see the vehicle's data. For that, use the Manager role.
 
 ### Use Cases
 
@@ -86,8 +81,7 @@ Useful for tracking children, family members with medical conditions, etc.
 
 #### Fleet Management
 
-- Use a `Manager` account to see all vehicles' data, track their location, status, passengers, etc.
-- Use `Vehicle` accounts to send tracking data to the server.
+- Use a `Manager` account to monitor trusted users or shared organizational devices that report under regular user accounts.
 
 ### Location Accuracy Recording and Data Overhead
 
@@ -95,22 +89,19 @@ Useful for tracking children, family members with medical conditions, etc.
 
 In High Accuracy, the application records incoming location data every 1.5 minutes that has a difference of 5 meters distance covered.
 
-- Assuming storing Location and Vehicle data with ~250 words or rich text as notes the setting needs ~767 MB for data storage per user per year.
-- In the same setting without the Vehicle data, the setting needs 432 MB for data storage per user per year.
+- Assuming storing location data with ~250 words or rich text as notes the setting needs ~432 MB for data storage per user per year.
 
 #### Mid Accuracy (Recommended Default)
 
 In Mid Accuracy, the application records incoming location data every 5 minutes that has a difference of 15 meters distance covered.
 
-- Assuming storing Location and Vehicle data with ~250 words or rich text as notes the setting needs ~151.6 MB for data storage per user per year.
-- In the same setting without the Vehicle data, the setting needs 129.5 MB for data storage per user per year.
+- Assuming storing location data with ~250 words or rich text as notes the setting needs ~129.5 MB for data storage per user per year.
 
 #### Low Accuracy (Small data overhead)
 
 In Low Accuracy, the application records incoming location data every 10 minutes that has a difference of 50 meters distance covered.
 
-- Assuming storing Location and Vehicle data with ~250 words or rich text as notes the setting needs ~75.6 MB for data storage per user per year.
-- In the same setting without the Vehicle data, the setting needs 64.9 MB for data storage per user per year.
+- Assuming storing location data with ~250 words or rich text as notes the setting needs ~64.9 MB for data storage per user per year.
 
 ### Tile Caching
 

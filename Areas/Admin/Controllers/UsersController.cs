@@ -139,7 +139,16 @@ namespace Wayfarer.Areas.Admin.Controllers
         public IActionResult Create()
         {
             // Populate the roles select list with available roles
-            List<string?> roles = _roleManager.Roles.Select(r => r.Name).ToList();
+            string[] allowedRoles =
+            {
+                ApplicationRoles.Admin,
+                ApplicationRoles.Manager,
+                ApplicationRoles.User
+            };
+            List<string?> roles = _roleManager.Roles
+                .Select(r => r.Name)
+                .Where(name => name != null && allowedRoles.Contains(name))
+                .ToList();
 
             // Create the view model and pass the list of roles
             CreateUserViewModel model = new CreateUserViewModel
@@ -160,7 +169,16 @@ namespace Wayfarer.Areas.Admin.Controllers
         public async Task<IActionResult> Create(CreateUserViewModel model)
         {
             // Ensure roles are populated on each request (including POST)
-            List<string?> roles = _roleManager.Roles.Select(r => r.Name).ToList();
+            string[] allowedRoles =
+            {
+                ApplicationRoles.Admin,
+                ApplicationRoles.Manager,
+                ApplicationRoles.User
+            };
+            List<string?> roles = _roleManager.Roles
+                .Select(r => r.Name)
+                .Where(name => name != null && allowedRoles.Contains(name))
+                .ToList();
             model.Roles = new SelectList(roles, model.Role);  // Re-populate roles dropdown with the selected role
 
             // Log all ModelState errors before any custom validation (for debugging)
@@ -178,6 +196,13 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 ModelState.AddModelError("Role", "Please select a role.");
                 LogAction("Admin POST", "User creation failed due to no role selected");
+                return View(model);
+            }
+
+            if (!allowedRoles.Contains(model.Role))
+            {
+                ModelState.AddModelError("Role", "Selected role is not valid.");
+                LogAction("Admin POST", $"User creation failed due to invalid role selection: {model.Role}");
                 return View(model);
             }
 

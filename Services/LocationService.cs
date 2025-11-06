@@ -107,7 +107,6 @@ namespace Wayfarer.Parsers
                     Region = l.Region,
                     Country = l.Country,
                     Notes = l.Notes,
-                    VehicleId = l.VehicleId,
                     IsLatestLocation = false,
                     LocationTimeThresholdMinutes = locationTimeThreshold
                 }).ToList();
@@ -270,7 +269,6 @@ namespace Wayfarer.Parsers
                 Region = l.Region,
                 Country = l.Country,
                 Notes = l.Notes,
-                VehicleId = l.VehicleId,
                 IsLatestLocation = false,
                 LocationTimeThresholdMinutes = locationTimeThreshold
             }).ToList();
@@ -459,7 +457,6 @@ namespace Wayfarer.Parsers
                     Region = l.Region,
                     Country = l.Country,
                     Notes = l.Notes,
-                    VehicleId = l.VehicleId,
                     IsLatestLocation = false,
                     LocationTimeThresholdMinutes = locationTimeThreshold
                 }).ToList();
@@ -543,7 +540,6 @@ namespace Wayfarer.Parsers
                 Region = l.Region,
                 Country = l.Country,
                 Notes = l.Notes,
-                VehicleId = l.VehicleId,
                 IsLatestLocation = false,
                 LocationTimeThresholdMinutes = locationTimeThreshold
             }).ToList();

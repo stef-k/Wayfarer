@@ -21,14 +21,14 @@ public class ApplicationDbContextSeed
     }
 
     /// <summary>
-    ///     Seed application's user Roles: Admin, Manager, User and Vehicle
+    ///     Seed application's user Roles: Admin, Manager, and User
     /// </summary>
     /// <param name="roleManager"></param>
     /// <returns></returns>
     private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
     {
         // Create roles if they don't exist
-        var roleNames = new[] { "Admin", "Manager", "User", "Vehicle" };
+        var roleNames = new[] { "Admin", "Manager", "User" };
 
         foreach (var roleName in roleNames)
         {

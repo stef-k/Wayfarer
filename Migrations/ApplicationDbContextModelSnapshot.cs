@@ -56,7 +56,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ApplicationSettings", (string)null);
+                    b.ToTable("ApplicationSettings");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -208,7 +208,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ActivityTypes", (string)null);
+                    b.ToTable("ActivityTypes");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApiToken", b =>
@@ -244,7 +244,7 @@ namespace Wayfarer.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_ApiToken_Name_UserId");
 
-                    b.ToTable("ApiTokens", (string)null);
+                    b.ToTable("ApiTokens");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApplicationUser", b =>
@@ -365,7 +365,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("RegionId");
 
-                    b.ToTable("Areas", (string)null);
+                    b.ToTable("Areas");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.AuditLog", b =>
@@ -393,7 +393,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Group", b =>
@@ -442,7 +442,7 @@ namespace Wayfarer.Migrations
                     b.HasIndex("OwnerUserId", "Name")
                         .IsUnique();
 
-                    b.ToTable("Groups", (string)null);
+                    b.ToTable("Groups");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.GroupInvitation", b =>
@@ -497,7 +497,7 @@ namespace Wayfarer.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("GroupInvitations", (string)null);
+                    b.ToTable("GroupInvitations");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.GroupMember", b =>
@@ -543,7 +543,7 @@ namespace Wayfarer.Migrations
                     b.HasIndex("GroupId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("GroupMembers", (string)null);
+                    b.ToTable("GroupMembers");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.HiddenArea", b =>
@@ -573,7 +573,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("HiddenAreas", (string)null);
+                    b.ToTable("HiddenAreas");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.JobHistory", b =>
@@ -597,7 +597,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("JobHistories", (string)null);
+                    b.ToTable("JobHistories");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Location", b =>
@@ -668,9 +668,6 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int?>("VehicleId")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ActivityTypeId");
@@ -682,9 +679,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("VehicleId");
-
-                    b.ToTable("Locations", (string)null);
+                    b.ToTable("Locations");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationImport", b =>
@@ -736,7 +731,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("LocationImports", (string)null);
+                    b.ToTable("LocationImports");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Place", b =>
@@ -778,7 +773,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("RegionId");
 
-                    b.ToTable("Places", (string)null);
+                    b.ToTable("Places");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Region", b =>
@@ -814,7 +809,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("TripId");
 
-                    b.ToTable("Regions", (string)null);
+                    b.ToTable("Regions");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Segment", b =>
@@ -863,7 +858,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("TripId");
 
-                    b.ToTable("Segments", (string)null);
+                    b.ToTable("Segments");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.TileCacheMetadata", b =>
@@ -910,7 +905,7 @@ namespace Wayfarer.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TileLocation"), "GIST");
 
-                    b.ToTable("TileCacheMetadata", (string)null);
+                    b.ToTable("TileCacheMetadata");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Trip", b =>
@@ -955,61 +950,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Trips", (string)null);
-                });
-
-            modelBuilder.Entity("Wayfarer.Models.Vehicle", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Cargo")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("CoDriverName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Details")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DriverName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Model")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Passengers")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("PlateNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Type")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Cargo")
-                        .HasDatabaseName("IX_Vehicle_Cargo_GIN");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Cargo"), "GIN");
-
-                    b.HasIndex("Passengers")
-                        .HasDatabaseName("IX_Vehicle_Passengers_GIN");
-
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Passengers"), "GIN");
-
-                    b.HasIndex("PlateNumber")
-                        .HasDatabaseName("IX_Vehicle_PlateNumber");
-
-                    b.ToTable("Vehicles", (string)null);
+                    b.ToTable("Trips");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -1164,14 +1105,7 @@ namespace Wayfarer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Wayfarer.Models.Vehicle", "Vehicle")
-                        .WithMany("Locations")
-                        .HasForeignKey("VehicleId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.Navigation("ActivityType");
-
-                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationImport", b =>
@@ -1283,11 +1217,6 @@ namespace Wayfarer.Migrations
                     b.Navigation("Regions");
 
                     b.Navigation("Segments");
-                });
-
-            modelBuilder.Entity("Wayfarer.Models.Vehicle", b =>
-                {
-                    b.Navigation("Locations");
                 });
 #pragma warning restore 612, 618
         }

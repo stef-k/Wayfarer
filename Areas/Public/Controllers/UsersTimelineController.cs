@@ -175,11 +175,7 @@ namespace Wayfarer.Areas.Public.Controllers
                     Place = location.Place,
                     Region = location.Region,
                     Country = location.Country,
-                    GeofenceName = location.GeofenceName,
-                    IsInsideGeofence = location.IsInsideGeofence,
-                    GeofenceRadius = location.GeofenceRadius,
                     Notes = location.Notes,
-                    VehicleId = location.VehicleId,
 
                     // User's latest location unrelated from filtered zoom & viewport but based on threshold
                     // the user has set for his public timeline.

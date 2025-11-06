@@ -22,5 +22,4 @@ Data Flow Examples
 - Mobile SSE: `SseService` channels broadcast status and import progress to connected clients
 
 Role Model
-- `Admin`, `Manager`, `User`, `Vehicle` roles (see `Util/ApplicationRoles.cs`). RBAC used across Admin/Manager areas and API.
-
+- `Admin`, `Manager`, `User` roles (see `Util/ApplicationRoles.cs`). RBAC used across Admin/Manager areas and API.

@@ -17,5 +17,4 @@ Mobile App Not Syncing
 - Ensure your account is active.
 
 Permissions
-- Some pages require specific roles (Admin, Manager, User, Vehicle). Ask your admin if you lack access.
-
+- Some pages require specific roles (Admin, Manager, User). Ask your admin if you lack access.

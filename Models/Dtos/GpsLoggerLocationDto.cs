@@ -13,5 +13,4 @@ public class GpsLoggerLocationDto
     public string? Notes { get; set; }
 
     public int? ActivityTypeId { get; set; }
-    public int? VehicleId { get; set; }
 }

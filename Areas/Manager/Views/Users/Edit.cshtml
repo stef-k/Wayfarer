@@ -64,7 +64,6 @@
                 {
                     <select asp-for="Role" class="form-select">
                         <option value="User">User</option>
-                        <option value="Vehicle">Vehicle</option>
                     </select>
                     @Html.ValidationMessageFor(m => m.Role, "", new { @class = "text-danger" })
                 }

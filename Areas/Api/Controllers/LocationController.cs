@@ -143,8 +143,7 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
                 Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId,
-                VehicleId = dto.VehicleId
+                ActivityTypeId = dto.ActivityTypeId
             };
 
             try
@@ -445,8 +444,7 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType,
                 Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId,
-                VehicleId = dto.VehicleId
+                ActivityTypeId = dto.ActivityTypeId
             };
 
             try
@@ -573,11 +571,7 @@ public class LocationController : BaseApiController
                 Place = location.Place,
                 Region = location.Region,
                 Country = location.Country,
-                GeofenceName = location.GeofenceName,
-                IsInsideGeofence = location.IsInsideGeofence,
-                GeofenceRadius = location.GeofenceRadius,
                 Notes = location.Notes,
-                VehicleId = location.VehicleId,
 
                 // true if this was the most recent event in *absolute* time
                 IsLatestLocation = location.Id == latestLocationId,

@@ -256,7 +256,6 @@ public class GroupTimelineService : IGroupTimelineService
             Region = location.Region,
             Country = location.Country,
             Notes = location.Notes,
-            VehicleId = location.VehicleId,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = threshold
         };

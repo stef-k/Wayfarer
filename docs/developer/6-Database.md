@@ -6,8 +6,7 @@ ORM & Provider
 
 Key Entities (selected)
 - `ApplicationUser` — identity user, profile flags (IsActive, IsProtected).
-- `Location` — point with timestamp, optional reverse‑geocoded fields, activity type, vehicle link.
-- `Vehicle` — metadata, JSONB fields (Passengers, Cargo) with GIN indices.
+- `Location` - point with timestamp, optional reverse-geocoded fields, activity type metadata.
 - `Trip`, `Region`, `Place`, `Area`, `Segment` — trip planning model; cascading deletes and timestamp stamping on `Trip.UpdatedAt`.
 - `Group`, `GroupMember`, `GroupInvitation` — group ownership, membership, invitations, visibility flags.
 - `ApiToken` — per‑user tokens for API access.
@@ -16,7 +15,6 @@ Key Entities (selected)
 
 Spatial & Indices
 - `Location.Coordinates` uses `geography(Point, 4326)` with GiST index for spatial queries.
-- `Vehicle.Passengers` and `Vehicle.Cargo` use JSONB with GIN indices.
 
 Seeding
 - `ApplicationDbContextSeed` seeds roles, a protected admin account (change credentials immediately), default activity types, and initial settings.

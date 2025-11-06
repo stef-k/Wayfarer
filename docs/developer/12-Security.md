@@ -1,7 +1,7 @@
 # Security
 
 Identity & Roles
-- ASP.NET Core Identity with roles: `Admin`, `Manager`, `User`, `Vehicle`.
+- ASP.NET Core Identity with roles: `Admin`, `Manager`, `User`.
 - Registration can be open/closed in `ApplicationSettings`.
 
 Passwords

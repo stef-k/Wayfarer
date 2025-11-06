@@ -43,10 +43,5 @@ namespace Wayfarer.Models
         public string? Country { get; set; }
         public string? Notes { get; set; }  // This could store plain text, HTML, or Markdown
 
-        // Foreign key to Vehicle (Many Locations can belong to One Vehicle)
-        // OPTIONAL if the app used by an Org to track workers/vehicles (Cascade delete enabled)
-        public int? VehicleId { get; set; }    // Foreign key to Vehicle table, VehicleId is nullable (optional relation)
-
-        public Vehicle? Vehicle { get; set; }  // Navigation property to Vehicle, Navigation property to Vehicle (nullable)
     }
 }

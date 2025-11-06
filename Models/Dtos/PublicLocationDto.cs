@@ -24,14 +24,10 @@ public class PublicLocationDto
     public string? Place { get; set; }
     public string? Region { get; set; }
     public string? Country { get; set; }
-    public string? GeofenceName { get; set; }
-    public bool IsInsideGeofence { get; set; }
-    public double? GeofenceRadius { get; set; }
     public string? Notes { get; set; }
-    public int? VehicleId { get; set; }
 
     // Additional fields
     public bool IsLatestLocation { get; set; }
-    
+
     public double LocationTimeThresholdMinutes { get; set; }
 }
