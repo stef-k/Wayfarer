@@ -129,42 +129,78 @@ sudo systemctl status nginx
 sudo apt install -y git
 ```
 
-### 6. Install Chrome Dependencies (for PDF Export)
+# 6. Install Chrome/Chromium & Runtime Deps (PDF export)
 
-Wayfarer uses Puppeteer to generate PDF exports of trips.
+Wayfarer uses **PuppeteerSharp** to render PDFs.
+On **x64** we use Chrome auto-download. On **ARM64** (Pi/ARM servers) use **system Chromium** and a few extra flags.
 
-**For x64 Linux (Intel/AMD):**
+## x64 Linux (Intel/AMD)
 
-Chrome is automatically downloaded, but requires system libraries:
+Chrome is auto-downloaded by PuppeteerSharp but needs system libraries:
 
 ```bash
-# Debian/Ubuntu x64
-sudo apt update && sudo apt install -y \
-  libnss3 \
-  libnspr4 \
-  libatk1.0-0t64 \
-  libatk-bridge2.0-0t64 \
-  libcups2t64 \
-  libdrm2 \
-  libdbus-1-3 \
-  libxkbcommon0 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxfixes3 \
-  libxrandr2 \
-  libgbm1 \
-  libasound2t64 \
-  libpango-1.0-0 \
-  libcairo2
+sudo apt update && sudo apt install -y   xdg-utils   libnss3   libnspr4   libatk1.0-0t64   libatk-bridge2.0-0t64   libcups2t64   libdrm2   libdbus-1-3   libxkbcommon0   libxcomposite1   libxdamage1   libxfixes3   libxrandr2   libgbm1   libasound2t64   libpango-1.0-0   libcairo2   fonts-liberation fonts-noto fonts-noto-cjk fonts-noto-color-emoji
 ```
 
-**For ARM64 Linux (Raspberry Pi, ARM servers):**
+> Note: `t64` package names are correct on Ubuntu/Debian 24.04+.
 
-Chrome doesn't provide ARM64 Linux binaries. Install Chromium instead:
+## ARM64 Linux (Raspberry Pi / ARM servers)
+
+Chromium is used instead of Chrome. Install Chromium and the same runtime deps:
 
 ```bash
-# Debian/Ubuntu ARM64 (Raspberry Pi)
-sudo apt-get update && sudo apt-get install -y chromium-browser
+sudo apt-get update && sudo apt-get install -y   chromium-browser xdg-utils   libnss3 libnspr4 libgbm1 libasound2t64 libxshmfence1   libatk-bridge2.0-0t64 libxcomposite1 libxdamage1 libxfixes3   libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2   fonts-liberation fonts-noto fonts-noto-cjk fonts-noto-color-emoji
+```
+
+> Tip: If `chromium-browser` is a snap, that’s fine — we’ll point its profile to a writable directory and set `HOME`/XDG vars so it doesn’t try `/nonexistent`.
+
+---
+
+# 7. Create writable cache/profile paths (all servers)
+
+```bash
+sudo mkdir -p /var/www/wayfarer/ChromeCache /var/www/wayfarer/.xdg
+sudo chown -R wayfarer:wayfarer /var/www/wayfarer
+```
+
+Also ensure the service user has a real HOME:
+
+```bash
+# only if needed
+sudo usermod -d /home/wayfarer wayfarer
+sudo mkdir -p /home/wayfarer && sudo chown -R wayfarer:wayfarer /home/wayfarer
+```
+
+---
+
+# 8. Systemd service environment (headless + snap-safe)
+
+Set `HOME` and `XDG_RUNTIME_DIR` so Chromium can create its profile, and keep Production env:
+
+```ini
+# /etc/systemd/system/wayfarer.service
+[Unit]
+Description=Wayfarer ASP.NET Core App
+After=network.target
+
+[Service]
+User=wayfarer
+WorkingDirectory=/var/www/wayfarer
+ExecStart=/usr/bin/dotnet Wayfarer.dll --urls http://localhost:5000
+Restart=on-failure
+Environment=DOTNET_ENVIRONMENT=Production
+Environment=HOME=/home/wayfarer
+Environment=XDG_RUNTIME_DIR=/var/www/wayfarer/.xdg
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Apply:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart wayfarer
 ```
 
 **Note:** Chrome/Chromium will be automatically detected on first PDF export. See [PDF Export Troubleshooting](#pdf-export--chrome-issues) if you encounter errors.
@@ -308,6 +344,7 @@ Update the following sections:
 - **Unix Socket:** `Host=/var/run/postgresql;Database=wayfarer;Username=wayfareruser;Password=yourpassword` (faster, local only)
 
 **Cache Directory Notes:**
+
 - **TileCache/ChromeCache:** Default relative paths work for both development and production
 - Relative paths resolve to the application's working directory
 - In production (systemd service), this becomes `/var/www/wayfarer/TileCache` and `/var/www/wayfarer/ChromeCache`
@@ -734,6 +771,7 @@ WantedBy=multi-user.target
 ```
 
 **Customization points:**
+
 - `User`: Your application user (default: `wayfarer`)
 - `WorkingDirectory`: Your deployment directory
 - `--urls`: Listening address/port (default: `http://localhost:5000`)
@@ -903,6 +941,7 @@ REF=v1.2.0 ./deployment/deploy.sh
 ```
 
 **What the script does:**
+
 1. Pulls latest code from Git
 2. Builds the application
 3. Applies database migrations
@@ -1142,6 +1181,7 @@ sudo du -sh /var/www/wayfarer/*
 Wayfarer uses **PuppeteerSharp** to generate PDF exports. Chrome/Chromium binaries are **NOT** included in the repository and are handled differently depending on your platform:
 
 **✅ Automatically supported platforms:**
+
 - Windows x64/ARM64
 - macOS x64/ARM64
 - Linux x64
