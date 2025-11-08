@@ -268,7 +268,7 @@ namespace Wayfarer.Parsers
             {
                 WaitUntil = new[] { WaitUntilNavigation.Networkidle0 },
                 Referer = origin,
-                ReferrerPolicy = "no-referrer" // Chrome 140+ rejects Puppeteer's camelCase default
+                ReferrerPolicy = "noReferrer" // CDP expects camelCase tokens (no hyphen)
             });
 
             // 8) try to pick up the leaflet-image dataURI, fallback to screenshot
