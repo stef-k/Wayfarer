@@ -173,26 +173,24 @@ This works on **all platforms**:
 
 ---
 
-# 7. Create writable cache/profile paths (all servers)
+# 7. Ensure service user has a HOME directory
+
+Playwright-managed Chromium needs a writable HOME directory for runtime profile data:
 
 ```bash
-sudo mkdir -p /var/www/wayfarer/ChromeCache /var/www/wayfarer/.xdg
-sudo chown -R wayfarer:wayfarer /var/www/wayfarer
-```
-
-Also ensure the service user has a real HOME:
-
-```bash
-# only if needed
+# Ensure wayfarer user has a home directory
 sudo usermod -d /home/wayfarer wayfarer
-sudo mkdir -p /home/wayfarer && sudo chown -R wayfarer:wayfarer /home/wayfarer
+sudo mkdir -p /home/wayfarer
+sudo chown -R wayfarer:wayfarer /home/wayfarer
 ```
+
+**Note:** The `ChromeCache/` directory will be created automatically by the application. Playwright will use `ChromeCache/playwright-browsers/` to store its Chromium binary.
 
 ---
 
-# 8. Systemd service environment (headless + snap-safe)
+# 8. Systemd service environment
 
-Set `HOME` and `XDG_RUNTIME_DIR` so Chromium can create its profile, and keep Production env:
+Set `HOME` so Playwright's Chromium can create runtime profiles:
 
 ```ini
 # /etc/systemd/system/wayfarer.service
@@ -207,7 +205,6 @@ ExecStart=/usr/bin/dotnet Wayfarer.dll --urls http://localhost:5000
 Restart=on-failure
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=HOME=/home/wayfarer
-Environment=XDG_RUNTIME_DIR=/var/www/wayfarer/.xdg
 
 [Install]
 WantedBy=multi-user.target
@@ -220,7 +217,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart wayfarer
 ```
 
-**Note:** Chrome/Chromium will be automatically detected on first PDF export. See [PDF Export Troubleshooting](#pdf-export--chrome-issues) if you encounter errors.
+**Note:** Playwright will automatically download Chromium to `ChromeCache/playwright-browsers/` on first PDF export. See [PDF Export Troubleshooting](#pdf-export--playwright-issues) if you encounter errors.
 
 ---
 

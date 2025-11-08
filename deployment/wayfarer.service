@@ -54,6 +54,8 @@ SyslogIdentifier=wayfarer
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+# HOME is required for Playwright's Chromium runtime profiles (PDF export)
+Environment=HOME=/home/wayfarer
 
 # Resource limits (file descriptors)
 LimitNOFILE=65536

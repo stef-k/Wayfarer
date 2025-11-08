@@ -113,6 +113,12 @@ echo "[6/8] Applying EF Core migrations..."
 export PATH="$PATH:$HOME/.dotnet/tools"
 DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update --project Wayfarer.csproj
 
+# Step 5.5: Pre-install Playwright browsers (optional, recommended)
+# Uncomment the following lines to pre-install Chromium (~400MB download)
+# This avoids slow first PDF export in production
+# echo "[6.5/8] Installing Playwright browsers..."
+# pwsh "$OUT_DIR/playwright.ps1" install chromium
+
 # Step 6: Stop service
 echo "[7/8] Stopping $SERVICE_NAME service..."
 sudo systemctl stop "$SERVICE_NAME"
