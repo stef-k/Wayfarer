@@ -8,6 +8,7 @@ debug_console.txt
 Logs/*
 docs/design
 docs/spec
+docs/archive
 ChromeCache/*
 
 # Uploads
