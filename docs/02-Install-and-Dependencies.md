@@ -29,7 +29,7 @@ sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
 
 **Windows users:** No additional setup needed - Chrome downloads automatically.
 
-> **Note:** If PDF export doesn't work after installation, see the [PDF Export Troubleshooting](../developer/13-Deployment.md#pdf-export--chrome-issues) guide.
+> **Note:** If PDF export doesn't work after installation, see the [PDF Export Troubleshooting](26-Deployment.md#pdf-export--chrome-issues) guide.
 
 ### Basic Setup Steps
 
@@ -112,7 +112,7 @@ For detailed production deployment instructions including:
 - Log rotation and monitoring
 - Update procedures and troubleshooting
 
-**→ See the comprehensive [Deployment Guide](../developer/13-Deployment.md)**
+**→ See the comprehensive [Deployment Guide](26-Deployment.md)**
 
 ---
 
@@ -177,11 +177,11 @@ After installation:
 
 ## Getting Help
 
-- **Detailed Installation:** [Developer Deployment Guide](../developer/13-Deployment.md)
-- **Configuration Reference:** [Developer Configuration Guide](../developer/3-Configuration.md)
+- **Detailed Installation:** [Developer Deployment Guide](26-Deployment.md)
+- **Configuration Reference:** [Developer Configuration Guide](16-Configuration.md)
 - **Troubleshooting:** [User Troubleshooting Guide](10-Troubleshooting.md)
 - **GitHub Issues:** Report bugs and request features
 
 ---
 
-**Ready to deploy?** Check out the [full deployment guide](../developer/13-Deployment.md) for step-by-step instructions!
+**Ready to deploy?** Check out the [full deployment guide](26-Deployment.md) for step-by-step instructions!
