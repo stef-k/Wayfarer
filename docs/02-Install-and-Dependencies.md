@@ -17,15 +17,12 @@ Wayfarer is designed for self-hosting by power users, small businesses, and orga
 ### Optional: PDF Export Feature
 
 If you want to export trips as PDF documents, you'll need:
+
 - **Chrome system libraries** (Linux only)
 - Chrome browser is **automatically downloaded** by the application on first PDF export
 - No manual Chrome installation needed - it's handled automatically!
 
-**Linux users:** Install Chrome dependencies during initial setup:
-```bash
-sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
-    libcups2 libdrm2 libpango-1.0-0 libcairo2
-```
+**Linux users:** See [Install Chrome Dependencies for PDF Export](26-Deployment?id=_6-install-chrome-dependencies-for-pdf-export)
 
 **Windows users:** No additional setup needed - Chrome downloads automatically.
 
@@ -43,6 +40,7 @@ sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
 ### Default Admin Credentials
 
 On first run, Wayfarer automatically creates:
+
 - **Username:** `admin`
 - **Password:** `Admin1!`
 
