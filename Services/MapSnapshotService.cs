@@ -264,10 +264,31 @@ namespace Wayfarer.Parsers
                 await page.SetCookieAsync(cookies.ToArray());
 
             // 7) navigate + wait for network idle
-            await page.GoToAsync(url, new NavigationOptions
+            // ARM64 Linux uses Chrome 142+ which has NavigationOptions incompatibility with PuppeteerSharp 20.2.x
+            var isLinuxArm64 = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                              RuntimeInformation.OSArchitecture == Architecture.Arm64;
+
+            if (isLinuxArm64)
             {
-                WaitUntil = new[] { WaitUntilNavigation.Networkidle0 }
-            });
+                // Workaround for Chrome 142+: navigate via JavaScript to bypass CDP Page.navigate
+                await page.EvaluateExpressionAsync($"window.location.href = '{url.Replace("'", "\\'")}'");
+                await Task.Delay(500); // Brief delay for navigation to start
+                await page.WaitForNetworkIdleAsync(new WaitForNetworkIdleOptions
+                {
+                    IdleTime = 500,
+                    Timeout = 30000
+                });
+            }
+            else
+            {
+                // Standard navigation for all other platforms (tested and working)
+                await page.GoToAsync(url, new NavigationOptions
+                {
+                    WaitUntil = new[] { WaitUntilNavigation.Networkidle0 },
+                    Referer = origin,
+                    ReferrerPolicy = "noReferrer"
+                });
+            }
 
             // 8) try to pick up the leaflet-image dataURI, fallback to screenshot
             byte[] imageBytes;
