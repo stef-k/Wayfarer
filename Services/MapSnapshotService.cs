@@ -266,9 +266,9 @@ namespace Wayfarer.Parsers
             // 7) navigate + wait for network idle
             await page.GoToAsync(url, new NavigationOptions
             {
-                WaitUntil = new[] { WaitUntilNavigation.Networkidle0 },
-                Referer = origin,
-                ReferrerPolicy = "no-referrer" // Chrome 142+ requires kebab-case (changed from camelCase in older versions)
+                WaitUntil = new[] { WaitUntilNavigation.Networkidle0 }
+                // Chrome 142+ removed ReferrerPolicy support from NavigationOptions
+                // The browser uses its default policy (strict-origin-when-cross-origin)
             });
 
             // 8) try to pick up the leaflet-image dataURI, fallback to screenshot
