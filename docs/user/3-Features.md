@@ -2,7 +2,7 @@
 
 Maps and Tiles
 - Interactive map via Leaflet with OpenStreetMap tiles.
-- Local tile caching (when enabled) to improve speed and reduce bandwidth.
+- Local tile caching (when enabled) to improve speed and reduce bandwidth. Tiles for zoom levels 0-8 are cached permanently; higher zooms use an LRU policy with an admin-configurable default cap of 1024 MB.
 
 Timeline
 - Visualize your location history over time.
@@ -18,4 +18,3 @@ Groups
 
 Privacy
 - Self‑hosted; you control where data lives and who can access it. Public sharing is opt‑in.
-

@@ -678,16 +678,65 @@ const init = () => {
         btn.addEventListener('click', async e => {
             e.preventDefault();
 
-            spinnerTxt.textContent = 'Generating file…';
-            await showModal(waitModal);                 // ① wait for fade-in
+            const isPdf = id === 'export-pdf';
+            let eventSource = null;
+            const progressMsg = document.getElementById('export-progress-message');
 
-            try {
-                await smartDownload(btn.href);            // ② download
-            } catch (err) {
-                wayfarer.showAlert('danger', 'Download failed.');
-                console.error(err);
-            } finally {
-                await hideModal(waitModal);               // ③ wait for fade-out
+            if (isPdf && progressMsg) {
+                // Generate unique session ID for this export
+                const sessionId = crypto.randomUUID();
+
+                // Extract trip ID from button href (format: /Trip/ExportPdf/{tripId})
+                const tripId = btn.href.split('/').pop().split('?')[0];
+
+                // Setup SSE for real-time progress updates
+                const progressUrl = `/Trip/ExportProgress/${tripId}?sessionId=${sessionId}`;
+                eventSource = new EventSource(progressUrl);
+
+                eventSource.onmessage = (evt) => {
+                    try {
+                        const { message } = JSON.parse(evt.data);
+                        progressMsg.innerHTML = message;
+                    } catch (e) {
+                        console.warn('Failed to parse progress message:', e);
+                    }
+                };
+
+                eventSource.onerror = () => {
+                    // Connection lost - not critical, just stop updating
+                    eventSource?.close();
+                };
+
+                spinnerTxt.textContent = 'Generating PDF Export';
+                progressMsg.innerHTML = 'Connecting...';
+
+                // Add sessionId to download URL
+                const dlUrl = btn.href + (btn.href.includes('?') ? '&' : '?') + `sessionId=${sessionId}`;
+
+                await showModal(waitModal);
+
+                try {
+                    await smartDownload(dlUrl);
+                } catch (err) {
+                    wayfarer.showAlert('danger', 'PDF export failed.');
+                    console.error(err);
+                } finally {
+                    eventSource?.close();
+                    await hideModal(waitModal);
+                }
+            } else {
+                // KML exports - simple flow (no progress)
+                spinnerTxt.textContent = 'Generating file…';
+                await showModal(waitModal);
+
+                try {
+                    await smartDownload(btn.href);
+                } catch (err) {
+                    wayfarer.showAlert('danger', 'Download failed.');
+                    console.error(err);
+                } finally {
+                    await hideModal(waitModal);
+                }
             }
         });
     });

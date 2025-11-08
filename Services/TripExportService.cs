@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Web;
 using System.Xml.Linq;
@@ -17,6 +18,9 @@ namespace Wayfarer.Parsers
     /// <summary>Generates PDF and KML exports for a Trip.</summary>
     public class TripExportService : ITripExportService
     {
+        // Static semaphore to prevent concurrent Chrome downloads across all instances
+        private static readonly SemaphoreSlim _downloadLock = new(1, 1);
+
         readonly ApplicationDbContext _db;
         readonly MapSnapshotService _snap;
         readonly IHttpContextAccessor _ctx;
@@ -25,6 +29,8 @@ namespace Wayfarer.Parsers
         readonly BrowserFetcher _browserFetcher;
         readonly ILogger<TripExportService> _logger;
         readonly IConfiguration _configuration;
+        readonly SseService _sseService;
+        readonly string _chromeCachePath;
         private static readonly CultureInfo CI = CultureInfo.InvariantCulture;
 
         public TripExportService(
@@ -34,7 +40,8 @@ namespace Wayfarer.Parsers
             LinkGenerator linkGenerator,
             IRazorViewRenderer razor,
             ILogger<TripExportService> logger,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            SseService sseService)
         {
             _db = dbContext;
             _snap = mapSnapshot;
@@ -43,24 +50,122 @@ namespace Wayfarer.Parsers
             _razor = razor;
             _logger = logger;
             _configuration = configuration;
+            _sseService = sseService;
 
             // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
-            var chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
+            _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
 
             // Resolve to absolute path and normalize path separators for current platform
-            chromeCachePath = Path.GetFullPath(chromeCachePath);
+            _chromeCachePath = Path.GetFullPath(_chromeCachePath);
 
-            _logger.LogInformation("Chrome cache directory for PDF export configured at: {ChromePath}", chromeCachePath);
+            _logger.LogInformation("Chrome cache directory for PDF export configured at: {ChromePath}", _chromeCachePath);
 
             // Initialize BrowserFetcher with custom download path
-            // PuppeteerSharp automatically detects platform (Windows/Linux/Mac) and architecture (x64/ARM)
+            // BrowserFetcher auto-detects platform: Windows (x64/ARM64), macOS (x64/ARM64), Linux (x64)
+            // Note: Chrome doesn't provide ARM64 Linux binaries - handled separately in GetChromeBinaryAsync()
             _browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
             {
-                Path = chromeCachePath
+                Path = _chromeCachePath
             });
+        }
 
-            // Clean up unused Chrome variants (ChromeHeadlessShell) to save disk space
-            CleanupUnusedChromeBinaries(chromeCachePath);
+        /// <summary>
+        /// Gets the Chrome/Chromium executable path. Downloads automatically for supported platforms.
+        /// For ARM64 Linux, looks for system-installed Chromium.
+        /// </summary>
+        private async Task<string> GetChromeBinaryAsync()
+        {
+            var isLinuxArm64 = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                              RuntimeInformation.OSArchitecture == Architecture.Arm64;
+
+            if (isLinuxArm64)
+            {
+                // Chrome doesn't provide ARM64 Linux binaries - must use system Chromium
+                _logger.LogInformation("ARM64 Linux detected. Searching for system-installed Chromium...");
+
+                var chromiumPaths = new[]
+                {
+                    "/usr/bin/chromium-browser",
+                    "/usr/bin/chromium",
+                    "/snap/bin/chromium",
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/google-chrome-stable"
+                };
+
+                var systemChromium = chromiumPaths.FirstOrDefault(File.Exists);
+
+                if (systemChromium != null)
+                {
+                    _logger.LogInformation("Using system Chromium at: {ChromiumPath}", systemChromium);
+                    return systemChromium;
+                }
+
+                // No Chromium found - throw clear error with installation instructions
+                throw new InvalidOperationException(
+                    "PDF Export requires Chromium browser on ARM64 Linux (e.g., Raspberry Pi).\n" +
+                    "Chrome doesn't provide official ARM64 Linux binaries.\n\n" +
+                    "To enable PDF export, install Chromium:\n" +
+                    "  sudo apt-get update && sudo apt-get install -y chromium-browser\n\n" +
+                    "Searched paths: " + string.Join(", ", chromiumPaths));
+            }
+
+            // For all other supported platforms (Windows x64/ARM64, macOS x64/ARM64, Linux x64)
+            // Check if Chrome is already installed before attempting download
+
+            _logger.LogInformation("Checking for Chrome browser for PDF generation...");
+
+            // GetInstalledBrowsers returns available browsers WITHOUT downloading
+            var installedBrowsers = _browserFetcher.GetInstalledBrowsers();
+            var chromeBrowser = installedBrowsers.FirstOrDefault();
+
+            if (chromeBrowser != null)
+            {
+                // Chrome already exists - use it directly
+                var executablePath = chromeBrowser.GetExecutablePath();
+                _logger.LogInformation("Chrome browser found at: {ExecutablePath}", executablePath);
+                return executablePath;
+            }
+
+            // Chrome doesn't exist - download it (use semaphore to prevent concurrent downloads)
+            _logger.LogInformation("Chrome not found, downloading...");
+            await _downloadLock.WaitAsync();
+            try
+            {
+                // Double-check after acquiring lock (another request might have downloaded it)
+                installedBrowsers = _browserFetcher.GetInstalledBrowsers();
+                chromeBrowser = installedBrowsers.FirstOrDefault();
+
+                if (chromeBrowser != null)
+                {
+                    _logger.LogInformation("Chrome was downloaded by another request");
+                    return chromeBrowser.GetExecutablePath();
+                }
+
+                // Actually download Chrome
+                var newBrowser = await _browserFetcher.DownloadAsync();
+                var newExecPath = newBrowser.GetExecutablePath();
+                _logger.LogInformation("Chrome browser downloaded to: {ExecutablePath}", newExecPath);
+
+                // Clean up unused Chrome variants AFTER download completes
+                // BrowserFetcher may download both Chrome and ChromeHeadlessShell - we only need Chrome
+                CleanupUnusedChromeBinaries(_chromeCachePath);
+
+                return newExecPath;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to download Chrome browser for PDF export");
+                throw new InvalidOperationException(
+                    "Could not download Chrome browser required for PDF export. " +
+                    "Check server logs for details. Common causes: " +
+                    "1) No internet connection to download Chrome, " +
+                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
+                    "3) Missing system libraries (libnss3, libgbm1, libatk-bridge2.0-0, etc.)", ex);
+            }
+            finally
+            {
+                _downloadLock.Release();
+            }
         }
 
         /// <summary>
@@ -280,13 +385,26 @@ namespace Wayfarer.Parsers
         }
 
         /// <summary>
-        /// PDF Exporter
+        /// PDF Exporter with optional real-time progress reporting via SSE
         /// </summary>
-        /// <param name="tripId"></param>
-        /// <returns></returns>
+        /// <param name="tripId">The trip to export</param>
+        /// <param name="progressChannel">Optional SSE channel for progress updates</param>
+        /// <returns>PDF stream</returns>
         /// <exception cref="KeyNotFoundException"></exception>
-        public async Task<Stream> GeneratePdfGuideAsync(Guid tripId)
+        public async Task<Stream> GeneratePdfGuideAsync(Guid tripId, string? progressChannel = null)
         {
+            // Helper to send progress updates if channel is provided
+            async Task ReportProgress(string message)
+            {
+                if (!string.IsNullOrEmpty(progressChannel))
+                {
+                    await _sseService.BroadcastAsync(progressChannel,
+                        System.Text.Json.JsonSerializer.Serialize(new { message }));
+                }
+            }
+
+            await ReportProgress("🗺️ Loading trip data...");
+
             /* 1 ── load trip + related data ------------------------------------ */
             var trip = await _db.Trips
                            .Include(t => t.User)
@@ -296,6 +414,8 @@ namespace Wayfarer.Parsers
             var regions = await _db.Regions.Include(r => r.Areas).Where(r => r.TripId == tripId).ToListAsync();
             var places = await _db.Places.Where(p => p.Region.TripId == tripId).ToListAsync();
             var segments = await _db.Segments.Where(s => s.TripId == tripId).ToListAsync();
+
+            await ReportProgress($"📊 Found {regions.Count} regions, {places.Count} places, {segments.Count} segments");
 
             /* 2 ── auth-cookies for private (User/) trips ---------------------- */
             var req = _ctx.HttpContext!.Request;
@@ -314,6 +434,7 @@ namespace Wayfarer.Parsers
             // cover photo (download once)
             if (!string.IsNullOrWhiteSpace(trip.CoverImageUrl))
             {
+                await ReportProgress("📷 Downloading cover photo...");
                 try
                 {
                     using var http = new HttpClient();
@@ -333,41 +454,74 @@ namespace Wayfarer.Parsers
             var cookie = isPub ? null : authCookie;
 
             // trip overview
+            await ReportProgress("📸 Capturing trip overview map...");
             snap["trip"] = await _snap.CaptureMapAsync(
                 BuildMapUrl(lat, lon, zoom, isPub, trip.Id),
                 800, 800, cookie);
 
             // regions
-            foreach (var r in regions)
+            if (regions.Count > 0)
             {
-                if (r.Center == null) continue;
-                snap[$"region_{r.Id}"] = await _snap.CaptureMapAsync(
-                    BuildMapUrl(r.Center.Y, r.Center.X, 10, isPub, trip.Id),
-                    600, 600, cookie);
+                await ReportProgress($"🗺️ Capturing {regions.Count} region maps...");
+                var regionIndex = 0;
+                foreach (var r in regions)
+                {
+                    if (r.Center == null) continue;
+                    regionIndex++;
+                    await ReportProgress($"  📍 Region {regionIndex}/{regions.Count}: {r.Name}");
+                    snap[$"region_{r.Id}"] = await _snap.CaptureMapAsync(
+                        BuildMapUrl(r.Center.Y, r.Center.X, 10, isPub, trip.Id),
+                        600, 600, cookie);
+                }
             }
 
             // places
-            foreach (var p in places)
+            if (places.Count > 0)
             {
-                if (p.Location == null) continue;
-                snap[$"place_{p.Id}"] = await _snap.CaptureMapAsync(
-                    BuildMapUrl(p.Location.Y, p.Location.X, 15, isPub, trip.Id),
-                    600, 600, cookie);
+                await ReportProgress($"📌 Capturing {places.Count} place maps...");
+                var placeIndex = 0;
+                var placesWithLocation = places.Where(p => p.Location != null).ToList();
+
+                foreach (var p in placesWithLocation)
+                {
+                    placeIndex++;
+                    var placeName = !string.IsNullOrWhiteSpace(p.Name) ? $" - {p.Name}" : "";
+                    await ReportProgress($"  📍 Place {placeIndex}/{placesWithLocation.Count}{placeName}");
+
+                    snap[$"place_{p.Id}"] = await _snap.CaptureMapAsync(
+                        BuildMapUrl(p.Location!.Y, p.Location.X, 15, isPub, trip.Id),
+                        600, 600, cookie);
+                }
             }
 
             // segments (mid-points)
-            foreach (var s in segments)
+            if (segments.Count > 0)
             {
-                var from = places.FirstOrDefault(p => p.Id == s.FromPlaceId);
-                var to = places.FirstOrDefault(p => p.Id == s.ToPlaceId);
-                if (from?.Location == null || to?.Location == null) continue;
+                await ReportProgress($"🛣️ Capturing {segments.Count} route segments...");
+                var segmentIndex = 0;
+                var validSegments = segments.Where(s =>
+                {
+                    var from = places.FirstOrDefault(p => p.Id == s.FromPlaceId);
+                    var to = places.FirstOrDefault(p => p.Id == s.ToPlaceId);
+                    return from?.Location != null && to?.Location != null;
+                }).ToList();
 
-                double midLat = (from.Location.Y + to.Location.Y) / 2;
-                double midLon = (from.Location.X + to.Location.X) / 2;
+                foreach (var s in validSegments)
+                {
+                    var from = places.First(p => p.Id == s.FromPlaceId);
+                    var to = places.First(p => p.Id == s.ToPlaceId);
 
-                snap[$"segment_{s.Id}"] = await _snap.CaptureMapAsync(
-                    BuildMapUrl(midLat, midLon, 11, isPub, trip.Id, segmentId: s.Id.ToString()),
-                    600, 600, cookie);
+                    segmentIndex++;
+                    var routeName = $"{from.Name} → {to.Name}";
+                    await ReportProgress($"  🚗 Segment {segmentIndex}/{validSegments.Count}: {routeName}");
+
+                    double midLat = (from.Location!.Y + to.Location!.Y) / 2;
+                    double midLon = (from.Location.X + to.Location.X) / 2;
+
+                    snap[$"segment_{s.Id}"] = await _snap.CaptureMapAsync(
+                        BuildMapUrl(midLat, midLon, 11, isPub, trip.Id, segmentId: s.Id.ToString()),
+                        600, 600, cookie);
+                }
             }
 
             /* 4 ── render PDF -------------------------------------------------- */
@@ -390,6 +544,7 @@ namespace Wayfarer.Parsers
             };
 
             // Razor ➜ HTML
+            await ReportProgress("📝 Rendering PDF template...");
             var html = await _razor.RenderViewToStringAsync(
                 "~/Views/Trip/Print.cshtml", vm);
 
@@ -407,25 +562,9 @@ namespace Wayfarer.Parsers
                 RegexOptions.IgnoreCase);
 
 
-            // Puppeteer ➜ PDF - Ensure Chrome is downloaded and get executable path
-            string executablePath;
-            try
-            {
-                _logger.LogInformation("Checking for Chrome browser for PDF generation...");
-                var installedBrowser = await _browserFetcher.DownloadAsync(); // once, then cached
-                executablePath = installedBrowser.GetExecutablePath();
-                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", executablePath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to download Chrome browser for PDF export. Check network connectivity and disk permissions.");
-                throw new InvalidOperationException(
-                    "Could not download Chrome browser required for PDF export. " +
-                    "Check server logs for details. Common causes: " +
-                    "1) No internet connection to download Chrome, " +
-                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
-                    "3) Missing system libraries (libnss3, libgbm1, etc.)", ex);
-            }
+            // Puppeteer ➜ PDF - Get Chrome/Chromium executable (auto-downloads for supported platforms)
+            await ReportProgress("🌐 Starting PDF generator...");
+            var executablePath = await GetChromeBinaryAsync();
 
             await using var browser = await Puppeteer.LaunchAsync(
                 new LaunchOptions
@@ -435,6 +574,7 @@ namespace Wayfarer.Parsers
                 });
             await using var page = await browser.NewPageAsync();
 
+            await ReportProgress("📄 Generating PDF document...");
             await page.SetContentAsync(html,
                 new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Networkidle0 } });
 
@@ -455,6 +595,7 @@ namespace Wayfarer.Parsers
 </div>"
             });
 
+            await ReportProgress("✅ PDF ready! Starting download...");
             return new MemoryStream(pdfBytes);
         }
 

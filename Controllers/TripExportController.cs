@@ -14,14 +14,17 @@ namespace Wayfarer.Controllers
     public class TripExportController : BaseController
     {
         private readonly ITripExportService _exportSvc;
+        private readonly SseService _sseService;
 
         public TripExportController(
             ILogger<BaseController> logger,
             ApplicationDbContext dbContext,
-            ITripExportService exportSvc)
+            ITripExportService exportSvc,
+            SseService sseService)
             : base(logger, dbContext)
         {
             _exportSvc = exportSvc;
+            _sseService = sseService;
         }
 
         // Helper to enforce public or owner access
@@ -87,8 +90,37 @@ namespace Wayfarer.Controllers
             }
         }
 
+        /// <summary>
+        /// SSE endpoint for real-time PDF generation progress.
+        /// Works for both public and private trips (uses same authorization as exports).
+        /// </summary>
         [HttpGet]
-        public async Task<IActionResult> ExportPdf(Guid id)
+        [Route("/Trip/ExportProgress/{id}")]
+        public async Task ExportProgress(Guid id, [FromQuery] string sessionId, CancellationToken ct)
+        {
+            // Verify access to trip (public OR owned by user)
+            try
+            {
+                await LoadAndAuthorizeAsync(id);
+            }
+            catch (ArgumentException)
+            {
+                Response.StatusCode = 404;
+                return;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Response.StatusCode = 403;
+                return;
+            }
+
+            // Channel name: unique per export session
+            var channel = $"pdf-export-{id}-{sessionId}";
+            await _sseService.SubscribeAsync(channel, Response, ct, enableHeartbeat: true);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportPdf(Guid id, [FromQuery] string? sessionId = null)
         {
             Trip trip;
             try
@@ -104,8 +136,15 @@ namespace Wayfarer.Controllers
                 return Forbid();
             }
 
+            // Build progress channel if sessionId provided
+            string? progressChannel = null;
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                progressChannel = $"pdf-export-{trip.Id}-{sessionId}";
+            }
+
             // now call the exporter _outside_ of that try/catch
-            var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id);
+            var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id, progressChannel);
             return File(stream, "application/pdf", $"{trip.Name}.pdf");
         }
     }

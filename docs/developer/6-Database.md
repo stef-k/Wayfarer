@@ -15,6 +15,10 @@ Key Entities (selected)
 
 Spatial & Indices
 - `Location.Coordinates` uses `geography(Point, 4326)` with GiST index for spatial queries.
+- Common PostGIS helpers used via NetTopologySuite:
+  - `ST_DWithin` ⇒ `geometry.Distance(otherPoint) <= radiusMeters` to filter points near a location.
+  - `ST_Intersects` ⇒ `geometry.Intersects(polygon)` to find points intersecting a polygon.
+  - `ST_Contains` ⇒ `polygon.Contains(geometry)` for “point inside polygon” checks (e.g., hidden areas).
 
 Seeding
 - `ApplicationDbContextSeed` seeds roles, a protected admin account (change credentials immediately), default activity types, and initial settings.

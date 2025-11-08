@@ -3,10 +3,12 @@
 Identity & Roles
 - ASP.NET Core Identity with roles: `Admin`, `Manager`, `User`.
 - Registration can be open/closed in `ApplicationSettings`.
+- Usernames are the unique login identifier; email is optional and not used for verification flows.
 
 Passwords
 - Never commit or document real passwords. For local dev, use throwaway credentials and rotate.
 - Admin seeding creates a protected admin account; change credentials immediately after first run.
+- Policy: minimum eight characters with at least one upper-case letter, one lower-case letter, one digit, and one special character.
 
 API Tokens
 - Stored per‑user; used for mobile and API access. Rotate regularly.

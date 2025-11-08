@@ -32,4 +32,3 @@
   - [15 — Testing](developer/15-Testing.md)
   - [16 — CLI](developer/16-CLI.md)
   - [17 — About](developer/17-About.md)
-

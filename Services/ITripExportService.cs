@@ -15,5 +15,7 @@ public interface ITripExportService
     /// <summary>
     /// Renders an A4 PDF guide for the trip.
     /// </summary>
-    Task<Stream> GeneratePdfGuideAsync(Guid tripId);
+    /// <param name="tripId">The trip ID to export</param>
+    /// <param name="progressChannel">Optional SSE channel for real-time progress updates</param>
+    Task<Stream> GeneratePdfGuideAsync(Guid tripId, string? progressChannel = null);
 }

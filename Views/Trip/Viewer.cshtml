@@ -194,9 +194,14 @@
 <div class="modal fade" id="exportWait" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow">
-            <div class="modal-body d-flex align-items-center gap-2">
-                <span class="spinner-border text-primary"></span>
-                <strong>Generating file…</strong>
+            <div class="modal-body">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                    <strong>Generating PDF Export</strong>
+                </div>
+                <div id="export-progress-message" class="text-muted small" style="min-height: 1.2em;">
+                    Preparing export...
+                </div>
             </div>
         </div>
     </div>

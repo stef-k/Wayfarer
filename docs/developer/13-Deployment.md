@@ -131,10 +131,14 @@ sudo apt install -y git
 
 ### 6. Install Chrome Dependencies (for PDF Export)
 
-Wayfarer uses Puppeteer to generate PDF exports of trips. Puppeteer automatically downloads Chrome, but requires system libraries:
+Wayfarer uses Puppeteer to generate PDF exports of trips.
+
+**For x64 Linux (Intel/AMD):**
+
+Chrome is automatically downloaded, but requires system libraries:
 
 ```bash
-# Debian/Ubuntu
+# Debian/Ubuntu x64
 sudo apt update && sudo apt install -y \
   libnss3 \
   libnspr4 \
@@ -154,7 +158,16 @@ sudo apt update && sudo apt install -y \
   libcairo2
 ```
 
-**Note:** Chrome will be automatically downloaded by PuppeteerSharp on first PDF export. See [PDF Export Troubleshooting](#pdf-export--chrome-issues) if you encounter errors.
+**For ARM64 Linux (Raspberry Pi, ARM servers):**
+
+Chrome doesn't provide ARM64 Linux binaries. Install Chromium instead:
+
+```bash
+# Debian/Ubuntu ARM64 (Raspberry Pi)
+sudo apt-get update && sudo apt-get install -y chromium-browser
+```
+
+**Note:** Chrome/Chromium will be automatically detected on first PDF export. See [PDF Export Troubleshooting](#pdf-export--chrome-issues) if you encounter errors.
 
 ---
 
@@ -1124,19 +1137,43 @@ sudo du -sh /var/www/wayfarer/*
 
 ### PDF Export / Chrome Issues
 
-**Symptom:** Error when exporting trips to PDF:
+**How Wayfarer handles Chrome across platforms:**
+
+Wayfarer uses **PuppeteerSharp** to generate PDF exports. Chrome/Chromium binaries are **NOT** included in the repository and are handled differently depending on your platform:
+
+**✅ Automatically supported platforms:**
+- Windows x64/ARM64
+- macOS x64/ARM64
+- Linux x64
+
+→ Chrome is **automatically downloaded** to `ChromeCache/` directory on first PDF export
+
+**⚠️ ARM64 Linux (Raspberry Pi, ARM servers):**
+
+Chrome doesn't provide official ARM64 Linux binaries. You **must install Chromium** manually:
+
+```bash
+sudo apt-get update && sudo apt-get install -y chromium-browser
+```
+
+Wayfarer will automatically detect ARM64 Linux and use the system-installed Chromium.
+
+**Common error on ARM64 without Chromium:**
 
 ```
 System.ComponentModel.Win32Exception (8): An error occurred trying to start process
 '/path/to/chrome' with working directory '/path/to/app'. Exec format error
 ```
 
-**How Wayfarer handles Chrome:**
+Or:
 
-- Wayfarer uses **PuppeteerSharp** to generate PDFs
-- Chrome is **NOT** included in the repository
-- Chrome is automatically downloaded to `~/.local/share/puppeteer/` on first PDF export
-- The application user (`wayfarer`) must have write permissions to this directory
+```
+InvalidOperationException: PDF Export requires Chromium browser on ARM64 Linux.
+To enable PDF export, install Chromium:
+  sudo apt-get update && sudo apt-get install -y chromium-browser
+```
+
+**Solution:** Install chromium-browser as shown above.
 
 **Troubleshooting steps:**
 

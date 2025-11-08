@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PuppeteerSharp;
@@ -8,33 +9,136 @@ namespace Wayfarer.Parsers
 {
     public sealed class MapSnapshotService
     {
+        // Static semaphore to prevent concurrent Chrome downloads across all instances
+        private static readonly SemaphoreSlim _downloadLock = new(1, 1);
+
         readonly BrowserFetcher _fetcher;
         readonly ILogger<MapSnapshotService> _logger;
+        readonly string _chromeCachePath;
 
         /// <summary>
-        /// Initializes MapSnapshotService with configured Chrome cache directory
+        /// Initializes MapSnapshotService with configured Chrome cache directory.
+        /// Supports cross-platform Chrome download for Windows (x64/ARM64), macOS (x64/ARM64), and Linux (x64).
+        /// For ARM64 Linux (e.g., Raspberry Pi), requires system-installed Chromium (see deployment docs).
         /// </summary>
         public MapSnapshotService(ILogger<MapSnapshotService> logger, IConfiguration configuration)
         {
             _logger = logger;
 
             // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
-            var chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
+            _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
 
             // Resolve to absolute path and normalize path separators for current platform
-            chromeCachePath = Path.GetFullPath(chromeCachePath);
+            _chromeCachePath = Path.GetFullPath(_chromeCachePath);
 
-            _logger.LogInformation("Chrome cache directory configured at: {ChromePath}", chromeCachePath);
+            _logger.LogInformation("Chrome cache directory configured at: {ChromePath}", _chromeCachePath);
 
             // Initialize BrowserFetcher with custom download path
-            // PuppeteerSharp automatically detects platform (Windows/Linux/Mac) and architecture (x64/ARM)
+            // BrowserFetcher auto-detects platform: Windows (x64/ARM64), macOS (x64/ARM64), Linux (x64)
+            // Note: Chrome doesn't provide ARM64 Linux binaries - handled separately in GetChromeBinaryAsync()
             _fetcher = new BrowserFetcher(new BrowserFetcherOptions
             {
-                Path = chromeCachePath
+                Path = _chromeCachePath
             });
+        }
 
-            // Clean up unused Chrome variants (ChromeHeadlessShell) to save disk space
-            CleanupUnusedChromeBinaries(chromeCachePath);
+        /// <summary>
+        /// Gets the Chrome/Chromium executable path. Downloads automatically for supported platforms.
+        /// For ARM64 Linux, looks for system-installed Chromium.
+        /// </summary>
+        private async Task<string> GetChromeBinaryAsync()
+        {
+            var isLinuxArm64 = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                              RuntimeInformation.OSArchitecture == Architecture.Arm64;
+
+            if (isLinuxArm64)
+            {
+                // Chrome doesn't provide ARM64 Linux binaries - must use system Chromium
+                _logger.LogInformation("ARM64 Linux detected. Searching for system-installed Chromium...");
+
+                var chromiumPaths = new[]
+                {
+                    "/usr/bin/chromium-browser",
+                    "/usr/bin/chromium",
+                    "/snap/bin/chromium",
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/google-chrome-stable"
+                };
+
+                var systemChromium = chromiumPaths.FirstOrDefault(File.Exists);
+
+                if (systemChromium != null)
+                {
+                    _logger.LogInformation("Using system Chromium at: {ChromiumPath}", systemChromium);
+                    return systemChromium;
+                }
+
+                // No Chromium found - throw clear error with installation instructions
+                throw new InvalidOperationException(
+                    "PDF Export requires Chromium browser on ARM64 Linux (e.g., Raspberry Pi).\n" +
+                    "Chrome doesn't provide official ARM64 Linux binaries.\n\n" +
+                    "To enable PDF export, install Chromium:\n" +
+                    "  sudo apt-get update && sudo apt-get install -y chromium-browser\n\n" +
+                    "Searched paths: " + string.Join(", ", chromiumPaths));
+            }
+
+            // For all other supported platforms (Windows x64/ARM64, macOS x64/ARM64, Linux x64)
+            // Check if Chrome is already installed before attempting download
+
+            _logger.LogInformation("Checking for Chrome browser...");
+
+            // GetInstalledBrowsers returns available browsers WITHOUT downloading
+            var installedBrowsers = _fetcher.GetInstalledBrowsers();
+            var chromeBrowser = installedBrowsers.FirstOrDefault();
+
+            if (chromeBrowser != null)
+            {
+                // Chrome already exists - use it directly
+                var executablePath = chromeBrowser.GetExecutablePath();
+                _logger.LogInformation("Chrome browser found at: {ExecutablePath}", executablePath);
+                return executablePath;
+            }
+
+            // Chrome doesn't exist - download it (use semaphore to prevent concurrent downloads)
+            _logger.LogInformation("Chrome not found, downloading...");
+            await _downloadLock.WaitAsync();
+            try
+            {
+                // Double-check after acquiring lock (another request might have downloaded it)
+                installedBrowsers = _fetcher.GetInstalledBrowsers();
+                chromeBrowser = installedBrowsers.FirstOrDefault();
+
+                if (chromeBrowser != null)
+                {
+                    _logger.LogInformation("Chrome was downloaded by another request");
+                    return chromeBrowser.GetExecutablePath();
+                }
+
+                // Actually download Chrome
+                var newBrowser = await _fetcher.DownloadAsync();
+                var newExecPath = newBrowser.GetExecutablePath();
+                _logger.LogInformation("Chrome browser downloaded to: {ExecutablePath}", newExecPath);
+
+                // Clean up unused Chrome variants AFTER download completes
+                // BrowserFetcher may download both Chrome and ChromeHeadlessShell - we only need Chrome
+                CleanupUnusedChromeBinaries(_chromeCachePath);
+
+                return newExecPath;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to download Chrome browser");
+                throw new InvalidOperationException(
+                    "Could not download Chrome browser required for PDF export. " +
+                    "Check server logs for details. Common causes: " +
+                    "1) No internet connection to download Chrome, " +
+                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
+                    "3) Missing system libraries (libnss3, libgbm1, libatk-bridge2.0-0, etc.)", ex);
+            }
+            finally
+            {
+                _downloadLock.Release();
+            }
         }
 
         /// <summary>
@@ -72,27 +176,10 @@ namespace Wayfarer.Parsers
             var pageUri = new Uri(url);
             var origin = pageUri.GetLeftPart(UriPartial.Authority);
 
-            // 1) ensure Chromium is downloaded and get executable path
-            string executablePath;
-            try
-            {
-                _logger.LogInformation("Checking for Chrome browser...");
-                var installedBrowser = await _fetcher.DownloadAsync();
-                executablePath = installedBrowser.GetExecutablePath();
-                _logger.LogInformation("Chrome browser ready at: {ExecutablePath}", executablePath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to download Chrome browser. Check network connectivity and disk permissions.");
-                throw new InvalidOperationException(
-                    "Could not download Chrome browser required for PDF export. " +
-                    "Check server logs for details. Common causes: " +
-                    "1) No internet connection to download Chrome, " +
-                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
-                    "3) Missing system libraries (libnss3, libgbm1, etc.)", ex);
-            }
+            // 1) Get Chrome/Chromium executable (auto-downloads for supported platforms)
+            var executablePath = await GetChromeBinaryAsync();
 
-            // 2) launch headless with web‐security off using our downloaded Chrome
+            // 2) launch headless with web‐security off
             await using var browser = await Puppeteer.LaunchAsync(new LaunchOptions
             {
                 Headless = true,

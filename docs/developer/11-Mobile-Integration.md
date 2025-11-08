@@ -45,6 +45,7 @@ Offline Tiles & Caching
 - Storage paths under `FileSystem.AppDataDirectory` (e.g., `tiles/trips`). Uses SQLite (`wayfarer.db`) to track downloads.
 - Throttling: `TileRateLimiter`, `SettingsStore.MaxConcurrentTileDownloads` and `MinTileRequestDelayMs`.
 - Tile server URL configurable via `SettingsStore.TileServerUrl` (defaults to OSM standard tile server). Respect provider usage policies.
+- Server cache behaviour: the backend caches tiles for zoom levels 0-8 permanently and applies an LRU eviction policy for higher zooms. The default `CacheSettings:MaxCacheSizeMb` is 1024 MB but can be reduced for constrained hosts.
 - Trip downloads coordinate with `TripContentService` which stores Trip/Region/Place/Area/Segment metadata locally.
 
 Trip Content & Navigation
