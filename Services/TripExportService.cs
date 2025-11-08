@@ -501,16 +501,11 @@ namespace Wayfarer.Parsers
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
                 RuntimeInformation.OSArchitecture == Architecture.Arm64)
             {
-                var profileDir = Path.Combine(_chromeCachePath, "Arm64Profile");
-                Directory.CreateDirectory(profileDir);
-
                 launchArgs.AddRange(new[]
                 {
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    $"--user-data-dir={profileDir}",
-                    $"--disk-cache-dir={_chromeCachePath}"
+                    "--disable-gpu"
                 });
             }
 
