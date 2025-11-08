@@ -152,7 +152,18 @@ Chromium is used instead of Chrome. Install Chromium and the same runtime deps:
 sudo apt-get update && sudo apt-get install -y   chromium-browser xdg-utils   libnss3 libnspr4 libgbm1 libasound2t64 libxshmfence1   libatk-bridge2.0-0t64 libxcomposite1 libxdamage1 libxfixes3   libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2   fonts-liberation fonts-noto fonts-noto-cjk fonts-noto-color-emoji
 ```
 
-> Tip: If `chromium-browser` is a snap, that’s fine — we’ll point its profile to a writable directory and set `HOME`/XDG vars so it doesn’t try `/nonexistent`.
+> Tip: On Ubuntu 22.04+ the `chromium-browser` package is just a snap wrapper, which cannot run from a systemd service (you’ll see “not a snap cgroup”). Remove the snap and install the classic `.deb` build via a trusted PPA, e.g.:
+
+```bash
+sudo snap remove chromium
+sudo apt purge chromium-browser chromium-browser-l10n chromium-codecs-ffmpeg-extra
+sudo add-apt-repository ppa:xtradeb/apps -y
+sudo apt update
+sudo apt install -y chromium
+chromium --product-version  # sanity-checks the binary
+```
+
+Wayfarer now auto-detects a usable ARM64 Chromium binary and will ignore the snap shim, so once the `.deb` build is installed the PDF export works without extra configuration beyond the writable cache paths below.
 
 ---
 
