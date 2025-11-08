@@ -4,23 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wayfarer Docs</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/themes/vue.css" />
+    <link
+      rel="stylesheet"
+      href="//cdn.jsdelivr.net/npm/docsify@4/themes/vue.css"
+    />
     <link rel="stylesheet" href="./theme.css" />
   </head>
   <body>
     <div id="app"></div>
     <script>
       window.$docsify = {
-        name: 'Wayfarer',
-        repo: 'https://github.com/stef-k/Wayfarer',
-        homepage: 'README.md',
+        name: "Wayfarer",
+        repo: "https://github.com/stef-k/Wayfarer",
+        homepage: "README.md",
         loadSidebar: true,
         subMaxLevel: 2,
+        search: {
+          paths: "auto",
+          placeholder: "Type to search",
+        },
         alias: {
-          '/.*/_sidebar.md': '/_sidebar.md'
-        }
-      }
+          "/.*/_sidebar.md": "/_sidebar.md",
+        },
+      };
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
   </body>
-  </html>
+</html>
