@@ -41,7 +41,19 @@ The [Wayfarer.Mobile](https://github.com/stef-k/Wayfarer.Mobile) app (built with
 - Logging & audit: Serilog sinks (console/file/DB) plus `AuditLogs` table
 - Tests: xUnit project at `tests/Wayfarer.Tests`
 
+## Issues, Ideas & PRs
+
+This is a spare-time project that currently meets my needs. I’ll improve it when I can, but **there’s no guaranteed schedule or roadmap**.
+
+- **Issues & feature requests:** Please open them—I'll read when I can, but I may not be able to respond or implement.
+- **Pull requests:** welcomed. That said, **reviews and merges are not guaranteed** and may be delayed or declined if they don’t fit the project’s goals or I don’t have time.
+- To improve your chances:
+  - Keep PRs small and focused.
+  - Explain the motivation and user impact.
+  - Include repro steps, tests (if applicable), and docs updates.
+
+> Note: This project is MIT-licensed and provided **“as is” without warranty**.
+
 ## License
 
 Wayfarer is released under the terms of [LICENSE.txt](LICENSE.txt). Contributions are welcome—please include tests and documentation updates where it makes sense. For issues or ideas, open a GitHub issue or PR. Happy travels!
-
