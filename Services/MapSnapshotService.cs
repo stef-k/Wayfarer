@@ -266,7 +266,9 @@ namespace Wayfarer.Parsers
             // 7) navigate + wait for network idle
             await page.GoToAsync(url, new NavigationOptions
             {
-                WaitUntil = new[] { WaitUntilNavigation.Networkidle0 }
+                WaitUntil = new[] { WaitUntilNavigation.Networkidle0 },
+                Referer = origin,
+                ReferrerPolicy = ReferrerPolicy.NoReferrer // Chrome 140+ rejects Puppeteer's camelCase default
             });
 
             // 8) try to pick up the leaflet-image dataURI, fallback to screenshot
