@@ -10,7 +10,12 @@ Location Timeline Exports
 Trip Exports
 - KML (Wayfarer flavor) — retains trip structure and colors for re‑import or viewing.
 - KML (Google MyMaps) — compatible with Google MyMaps.
-- PDF Guide — printable guide of your trip.
+- PDF Guide — printable guide of your trip with the following features:
+  - **Clickable place names** — Opens Google search for the location
+  - **Clickable coordinates** — Opens Google Maps at the exact coordinates
+  - Map snapshots for trip overview, regions, places, and route segments
+  - Complete trip details including notes, travel modes, and distances
+  - **Cancel button** — Stop PDF generation at any time during processing
 
 Notes
 - Export filenames include the current date/time for convenience.

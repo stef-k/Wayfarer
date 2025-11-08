@@ -16,8 +16,12 @@ Segments (Routes)
 - Add Segments between Places. Choose travel mode and add notes and route geometry if available.
 
 Exporting a Trip
-- PDF Guide — printable trip guide.
-- KML — Wayfarer or Google MyMaps compatible.
+- **PDF Guide** — printable trip guide with interactive features:
+  - Place names link to Google search
+  - Coordinates link to Google Maps
+  - Includes map snapshots and complete trip details
+  - Cancel export at any time during generation
+- **KML** — Wayfarer or Google MyMaps compatible formats.
 
 Tips
 - Keep names concise for cleaner export filenames.
