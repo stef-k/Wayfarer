@@ -17,5 +17,6 @@ public interface ITripExportService
     /// </summary>
     /// <param name="tripId">The trip ID to export</param>
     /// <param name="progressChannel">Optional SSE channel for real-time progress updates</param>
-    Task<Stream> GeneratePdfGuideAsync(Guid tripId, string? progressChannel = null);
+    /// <param name="cancellationToken">Cancellation token to abort the PDF generation</param>
+    Task<Stream> GeneratePdfGuideAsync(Guid tripId, string? progressChannel = null, CancellationToken cancellationToken = default);
 }

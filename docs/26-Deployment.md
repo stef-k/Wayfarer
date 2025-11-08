@@ -129,41 +129,47 @@ sudo systemctl status nginx
 sudo apt install -y git
 ```
 
-# 6. Install Chrome/Chromium & Runtime Deps (PDF export)
+# 6. Install Chromium Runtime Dependencies (PDF export)
 
-Wayfarer uses **PuppeteerSharp** to render PDFs.
-On **x64** we use Chrome auto-download. On **ARM64** (Pi/ARM servers) use **system Chromium** and a few extra flags.
+Wayfarer uses **Microsoft Playwright** to render PDFs.
+Playwright automatically downloads Chromium binaries for **all platforms** including ARM64 Linux.
 
-## x64 Linux (Intel/AMD)
+## All Platforms (x64 & ARM64 Linux)
 
-Chrome is auto-downloaded by PuppeteerSharp but needs system libraries:
-
-```bash
-sudo apt update && sudo apt install -y   xdg-utils   libnss3   libnspr4   libatk1.0-0t64   libatk-bridge2.0-0t64   libcups2t64   libdrm2   libdbus-1-3   libxkbcommon0   libxcomposite1   libxdamage1   libxfixes3   libxrandr2   libgbm1   libasound2t64   libpango-1.0-0   libcairo2   fonts-liberation fonts-noto fonts-noto-cjk fonts-noto-color-emoji
-```
-
-> Note: `t64` package names are correct on Ubuntu/Debian 24.04+.
-
-## ARM64 Linux (Raspberry Pi / ARM servers)
-
-Chromium is used instead of Chrome. Install Chromium and the same runtime deps:
+Install system libraries required by Chromium:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y   chromium-browser xdg-utils   libnss3 libnspr4 libgbm1 libasound2t64 libxshmfence1   libatk-bridge2.0-0t64 libxcomposite1 libxdamage1 libxfixes3   libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2   fonts-liberation fonts-noto fonts-noto-cjk fonts-noto-color-emoji
+sudo apt update && sudo apt install -y \
+  xdg-utils libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 \
+  libcups2t64 libdrm2 libdbus-1-3 libxkbcommon0 libxcomposite1 \
+  libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 \
+  libpango-1.0-0 libcairo2 libxshmfence1 \
+  fonts-liberation fonts-noto fonts-noto-cjk fonts-noto-color-emoji
 ```
 
-> Tip: On Ubuntu 22.04+ the `chromium-browser` package is just a snap wrapper, which cannot run from a systemd service (you’ll see “not a snap cgroup”). Remove the snap and install the classic `.deb` build via a trusted PPA, e.g.:
+> Note: `t64` package names are correct on Ubuntu/Debian 24.04+. On older versions, use package names without `t64` suffix (e.g., `libasound2` instead of `libasound2t64`).
+
+## Chromium Binary Installation
+
+Playwright will **automatically download** Chromium (~400MB) to `ChromeCache/playwright-browsers/` on first PDF export.
+
+**To pre-install Chromium during deployment** (recommended to avoid slow first export):
 
 ```bash
-sudo snap remove chromium
-sudo apt purge chromium-browser chromium-browser-l10n chromium-codecs-ffmpeg-extra
-sudo add-apt-repository ppa:xtradeb/apps -y
-sudo apt update
-sudo apt install -y chromium
-chromium --product-version  # sanity-checks the binary
+# After building the application
+cd /var/www/wayfarer
+pwsh bin/Release/net9.0/playwright.ps1 install chromium
+
+# Or let it auto-download on first PDF export
 ```
 
-Wayfarer now auto-detects a usable ARM64 Chromium binary and will ignore the snap shim, so once the `.deb` build is installed the PDF export works without extra configuration beyond the writable cache paths below.
+This works on **all platforms**:
+- ✅ Linux x64
+- ✅ Linux ARM64 (Raspberry Pi, ARM servers)
+- ✅ Windows x64/ARM64
+- ✅ macOS x64/ARM64
+
+**No system Chromium needed!** Playwright handles everything automatically.
 
 ---
 
@@ -407,7 +413,7 @@ The following directories are **included in the repository** and will be cloned 
 
 **The application automatically creates these directories if they don't exist**, so no manual creation is needed.
 
-**Note:** ChromeCache stores the Chromium browser used for PDF export. It's automatically downloaded (130MB) when you first export a trip as PDF. This directory is preserved during updates.
+**Note:** ChromeCache stores the Playwright-managed Chromium browser used for PDF export. It's automatically downloaded (~400MB) to `ChromeCache/playwright-browsers/` when you first export a trip as PDF. This directory is preserved during updates.
 
 ### 2. Set Ownership and Permissions
 
@@ -1185,150 +1191,121 @@ sudo du -sh /var/www/wayfarer/*
 - **Uploads:** Review and delete old location imports through the web interface (**User → Import History**)
 - **Database:** Run audit log cleanup manually via **Admin → Job History** if needed
 
-### PDF Export / Chrome Issues
+### PDF Export / Playwright Issues
 
-**How Wayfarer handles Chrome across platforms:**
+**How Wayfarer handles Chromium across platforms:**
 
-Wayfarer uses **PuppeteerSharp** to generate PDF exports. Chrome/Chromium binaries are **NOT** included in the repository and are handled differently depending on your platform:
+Wayfarer uses **Microsoft Playwright** to generate PDF exports. Chromium binaries are **NOT** included in the repository but are **automatically downloaded** by Playwright for all platforms.
 
-**✅ Automatically supported platforms:**
+**✅ All platforms automatically supported:**
 
 - Windows x64/ARM64
 - macOS x64/ARM64
 - Linux x64
+- **Linux ARM64** (Raspberry Pi, ARM servers) ✨ **NEW!**
 
-→ Chrome is **automatically downloaded** to `ChromeCache/` directory on first PDF export
-
-**⚠️ ARM64 Linux (Raspberry Pi, ARM servers):**
-
-Chrome doesn't provide official ARM64 Linux binaries. You **must install Chromium** manually:
-
-```bash
-sudo apt-get update && sudo apt-get install -y chromium-browser
-```
-
-Wayfarer will automatically detect ARM64 Linux and use the system-installed Chromium.
-
-**Common error on ARM64 without Chromium:**
-
-```
-System.ComponentModel.Win32Exception (8): An error occurred trying to start process
-'/path/to/chrome' with working directory '/path/to/app'. Exec format error
-```
-
-Or:
-
-```
-InvalidOperationException: PDF Export requires Chromium browser on ARM64 Linux.
-To enable PDF export, install Chromium:
-  sudo apt-get update && sudo apt-get install -y chromium-browser
-```
-
-**Solution:** Install chromium-browser as shown above.
+→ Chromium is **automatically downloaded** to `ChromeCache/playwright-browsers/` on first PDF export
 
 **Troubleshooting steps:**
 
-**1. Check if Chrome dependencies are installed:**
+**1. Check if Chromium dependencies are installed:**
 
 ```bash
 # Verify libraries are present
-dpkg -l | grep -E 'libnss3|libgbm1|libasound2'
+dpkg -l | grep -E 'libnss3|libgbm1|libasound2|libxshmfence'
 ```
 
-If missing, install them (see [Install Dependencies](#install-dependencies) section).
+If missing, install them (see [Install Chromium Runtime Dependencies](#install-dependencies) section).
 
-**2. Check Chrome download location:**
+**2. Check Chromium download location:**
+
+```bash
+# Check if Playwright downloaded Chromium
+ls -la /var/www/wayfarer/ChromeCache/playwright-browsers/
+# Should show Chromium directory like: chromium-1130/
+
+# Or check with find
+find /var/www/wayfarer/ChromeCache -name "chrome" -type f
+```
+
+**3. Pre-install Chromium (recommended):**
+
+If you want to avoid the ~400MB download on first PDF export:
 
 ```bash
 # Switch to wayfarer user
 sudo -u wayfarer bash
+cd /var/www/wayfarer
 
-# Check if Chrome was downloaded
-ls -la ~/.local/share/puppeteer/
-# Should show Chrome directory like: Chrome-Linux-138.0.7204.92/
+# Install Playwright browsers
+pwsh bin/Release/net9.0/playwright.ps1 install chromium
 
 exit
 ```
 
-**3. If Chrome is missing or corrupted, delete and re-download:**
+**4. Check Chromium binary has execute permission:**
 
 ```bash
-sudo -u wayfarer bash
-rm -rf ~/.local/share/puppeteer/
-exit
-
-# Trigger a PDF export from the web interface to download Chrome
+# Find and fix permissions
+find /var/www/wayfarer/ChromeCache/playwright-browsers -name "chrome" -type f -exec chmod +x {} \;
 ```
 
-**4. Check Chrome binary has execute permission:**
+**5. Test Chromium binary manually:**
 
 ```bash
-sudo -u wayfarer bash
-chmod +x ~/.local/share/puppeteer/*/chrome-linux*/chrome
-exit
-```
+# Find the chrome binary
+CHROME_PATH=$(find /var/www/wayfarer/ChromeCache/playwright-browsers -name "chrome" -type f | head -n1)
 
-**5. Test Chrome binary manually:**
-
-```bash
-sudo -u wayfarer bash
-~/.local/share/puppeteer/*/chrome-linux*/chrome --version
-# Should output: Chrome version number
-exit
+# Test it
+$CHROME_PATH --version
+# Should output: Chromium version number
 ```
 
 **6. Check for missing library dependencies:**
 
 ```bash
-sudo -u wayfarer bash
-ldd ~/.local/share/puppeteer/*/chrome-linux*/chrome | grep "not found"
+CHROME_PATH=$(find /var/www/wayfarer/ChromeCache/playwright-browsers -name "chrome" -type f | head -n1)
+ldd $CHROME_PATH | grep "not found"
 # Should show no output (all libraries found)
-exit
 ```
 
-If you see "not found", install the missing libraries.
+If you see "not found", install the missing libraries from step 1.
 
 **7. Check application logs:**
 
 ```bash
 # View detailed error messages
-sudo journalctl -u wayfarer -n 100 | grep -i "chrome\|puppeteer"
+sudo journalctl -u wayfarer -n 100 | grep -i "chrome\|playwright"
 
 # Or check log files
-sudo tail -f /var/log/wayfarer/wayfarer-*.log | grep -i "chrome"
+sudo tail -f /var/log/wayfarer/wayfarer-*.log | grep -i "playwright"
 ```
 
-**Common causes:**
+**8. Force reinstall Chromium:**
 
-- **Wrong architecture:** Chrome binary doesn't match CPU (x86 vs ARM) → Delete and re-download
-- **Missing libraries:** System libraries not installed → Install dependencies from step 1
-- **Permission issues:** `wayfarer` user can't write to `~/.local/share/` → Check permissions
-- **Corrupted download:** Chrome download was interrupted → Delete and re-download
-
-**Alternative: Use system-installed Chrome**
-
-If automatic download doesn't work, install Chrome system-wide:
+If Chromium download is corrupted:
 
 ```bash
-# Install Chrome
-wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-sudo apt update
-sudo apt install -y google-chrome-stable
+# Delete cached browsers
+sudo rm -rf /var/www/wayfarer/ChromeCache/playwright-browsers
 
-# Test installation
-google-chrome --version
+# Reinstall
+sudo -u wayfarer bash
+cd /var/www/wayfarer
+pwsh bin/Release/net9.0/playwright.ps1 install chromium
+exit
 ```
 
-Then modify `Services/TripExportService.cs` and `Services/MapSnapshotService.cs` to use system Chrome by adding `ExecutablePath`:
+**Common issues:**
 
-```csharp
-await using var browser = await Puppeteer.LaunchAsync(new LaunchOptions
-{
-    Headless = true,
-    ExecutablePath = "/usr/bin/google-chrome"  // Add this line
-});
-```
+- **Missing libraries:** System libraries not installed → Install dependencies from step 1
+- **Permission issues:** `wayfarer` user can't write to `ChromeCache/` → Check permissions
+- **Corrupted download:** Chromium download was interrupted → Delete and reinstall (step 8)
+- **No disk space:** Chromium needs ~400MB → Free up disk space
+
+**ARM64 Linux Notes:**
+
+Playwright now provides **official ARM64 Linux Chromium binaries**! No more need for system Chromium or xtradeb PPA workarounds. PDF export works identically on ARM64 as on x64.
 
 ---
 

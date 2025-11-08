@@ -120,7 +120,7 @@ namespace Wayfarer.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ExportPdf(Guid id, [FromQuery] string? sessionId = null)
+        public async Task<IActionResult> ExportPdf(Guid id, [FromQuery] string? sessionId = null, CancellationToken cancellationToken = default)
         {
             Trip trip;
             try
@@ -144,7 +144,7 @@ namespace Wayfarer.Controllers
             }
 
             // now call the exporter _outside_ of that try/catch
-            var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id, progressChannel);
+            var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id, progressChannel, cancellationToken);
             return File(stream, "application/pdf", $"{trip.Name}.pdf");
         }
     }

@@ -6,9 +6,8 @@ using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Playwright;
 using NetTopologySuite.Geometries;
-using PuppeteerSharp;
-using PuppeteerSharp.Media;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using static Wayfarer.Parsers.KmlMappings;
@@ -18,15 +17,15 @@ namespace Wayfarer.Parsers
     /// <summary>Generates PDF and KML exports for a Trip.</summary>
     public class TripExportService : ITripExportService
     {
-        // Static semaphore to prevent concurrent Chrome downloads across all instances
-        private static readonly SemaphoreSlim _downloadLock = new(1, 1);
+        // Static semaphore to prevent concurrent browser installations across all instances
+        private static readonly SemaphoreSlim _installLock = new(1, 1);
+        private static bool _browsersInstalled = false;
 
         readonly ApplicationDbContext _db;
         readonly MapSnapshotService _snap;
         readonly IHttpContextAccessor _ctx;
         readonly LinkGenerator _link;
         readonly IRazorViewRenderer _razor;
-        readonly BrowserFetcher _browserFetcher;
         readonly ILogger<TripExportService> _logger;
         readonly IConfiguration _configuration;
         readonly SseService _sseService;
@@ -58,135 +57,47 @@ namespace Wayfarer.Parsers
             // Resolve to absolute path and normalize path separators for current platform
             _chromeCachePath = Path.GetFullPath(_chromeCachePath);
 
-            _logger.LogInformation("Chrome cache directory for PDF export configured at: {ChromePath}", _chromeCachePath);
+            // Configure Playwright to store browsers in our ChromeCache directory
+            // This works across all platforms (Windows, Linux x64/ARM64, macOS)
+            var playwrightPath = Path.Combine(_chromeCachePath, "playwright-browsers");
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightPath);
 
-            // Initialize BrowserFetcher with custom download path
-            // BrowserFetcher auto-detects platform: Windows (x64/ARM64), macOS (x64/ARM64), Linux (x64)
-            // Note: Chrome doesn't provide ARM64 Linux binaries - handled separately in GetChromeBinaryAsync()
-            _browserFetcher = new BrowserFetcher(new BrowserFetcherOptions
-            {
-                Path = _chromeCachePath
-            });
+            _logger.LogInformation("Chrome cache directory for PDF export configured at: {ChromePath}", _chromeCachePath);
+            _logger.LogInformation("Playwright browsers will be stored at: {PlaywrightPath}", playwrightPath);
         }
 
         /// <summary>
-        /// Gets the Chrome/Chromium executable path. Downloads automatically for supported platforms.
-        /// For ARM64 Linux, looks for system-installed Chromium.
+        /// Ensures Playwright browsers are installed. Uses semaphore to prevent concurrent installations.
         /// </summary>
-        private async Task<string> GetChromeBinaryAsync()
+        private async Task EnsureBrowsersInstalledAsync(CancellationToken cancellationToken = default)
         {
-            var isLinuxArm64 = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-                              RuntimeInformation.OSArchitecture == Architecture.Arm64;
+            if (_browsersInstalled) return;
 
-            if (isLinuxArm64)
-            {
-                // Chrome doesn't provide ARM64 Linux binaries - must use system Chromium
-                _logger.LogInformation("ARM64 Linux detected. Searching for system-installed Chromium...");
-
-                var chromiumPaths = new[]
-                {
-                    "/usr/bin/chromium-browser",
-                    "/usr/bin/chromium",
-                    "/snap/bin/chromium",
-                    "/usr/bin/google-chrome",
-                    "/usr/bin/google-chrome-stable"
-                };
-
-                var systemChromium = chromiumPaths.FirstOrDefault(File.Exists);
-
-                if (systemChromium != null)
-                {
-                    _logger.LogInformation("Using system Chromium at: {ChromiumPath}", systemChromium);
-                    return systemChromium;
-                }
-
-                // No Chromium found - throw clear error with installation instructions
-                throw new InvalidOperationException(
-                    "PDF Export requires Chromium browser on ARM64 Linux (e.g., Raspberry Pi).\n" +
-                    "Chrome doesn't provide official ARM64 Linux binaries.\n\n" +
-                    "To enable PDF export, install Chromium:\n" +
-                    "  sudo apt-get update && sudo apt-get install -y chromium-browser\n\n" +
-                    "Searched paths: " + string.Join(", ", chromiumPaths));
-            }
-
-            // For all other supported platforms (Windows x64/ARM64, macOS x64/ARM64, Linux x64)
-            // Check if Chrome is already installed before attempting download
-
-            _logger.LogInformation("Checking for Chrome browser for PDF generation...");
-
-            // GetInstalledBrowsers returns available browsers WITHOUT downloading
-            var installedBrowsers = _browserFetcher.GetInstalledBrowsers();
-            var chromeBrowser = installedBrowsers.FirstOrDefault();
-
-            if (chromeBrowser != null)
-            {
-                // Chrome already exists - use it directly
-                var executablePath = chromeBrowser.GetExecutablePath();
-                _logger.LogInformation("Chrome browser found at: {ExecutablePath}", executablePath);
-                return executablePath;
-            }
-
-            // Chrome doesn't exist - download it (use semaphore to prevent concurrent downloads)
-            _logger.LogInformation("Chrome not found, downloading...");
-            await _downloadLock.WaitAsync();
+            await _installLock.WaitAsync(cancellationToken);
             try
             {
-                // Double-check after acquiring lock (another request might have downloaded it)
-                installedBrowsers = _browserFetcher.GetInstalledBrowsers();
-                chromeBrowser = installedBrowsers.FirstOrDefault();
+                if (_browsersInstalled) return;
 
-                if (chromeBrowser != null)
+                _logger.LogInformation("Checking Playwright browser installation...");
+
+                // Playwright will check if browsers are already installed
+                // Only downloads if missing
+                var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
+
+                if (exitCode != 0)
                 {
-                    _logger.LogInformation("Chrome was downloaded by another request");
-                    return chromeBrowser.GetExecutablePath();
+                    _logger.LogWarning("Playwright browser installation returned exit code {ExitCode}", exitCode);
+                }
+                else
+                {
+                    _logger.LogInformation("Playwright browsers ready");
                 }
 
-                // Actually download Chrome
-                var newBrowser = await _browserFetcher.DownloadAsync();
-                var newExecPath = newBrowser.GetExecutablePath();
-                _logger.LogInformation("Chrome browser downloaded to: {ExecutablePath}", newExecPath);
-
-                // Clean up unused Chrome variants AFTER download completes
-                // BrowserFetcher may download both Chrome and ChromeHeadlessShell - we only need Chrome
-                CleanupUnusedChromeBinaries(_chromeCachePath);
-
-                return newExecPath;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to download Chrome browser for PDF export");
-                throw new InvalidOperationException(
-                    "Could not download Chrome browser required for PDF export. " +
-                    "Check server logs for details. Common causes: " +
-                    "1) No internet connection to download Chrome, " +
-                    "2) Insufficient disk permissions to write to ChromeCache directory, " +
-                    "3) Missing system libraries (libnss3, libgbm1, libatk-bridge2.0-0, etc.)", ex);
+                _browsersInstalled = true;
             }
             finally
             {
-                _downloadLock.Release();
-            }
-        }
-
-        /// <summary>
-        /// Removes ChromeHeadlessShell if it exists, keeping only the standard Chrome browser
-        /// </summary>
-        private void CleanupUnusedChromeBinaries(string chromeCachePath)
-        {
-            try
-            {
-                var headlessShellPath = Path.Combine(chromeCachePath, "ChromeHeadlessShell");
-                if (Directory.Exists(headlessShellPath))
-                {
-                    _logger.LogInformation("Removing unused ChromeHeadlessShell to save disk space (~240MB)...");
-                    Directory.Delete(headlessShellPath, recursive: true);
-                    _logger.LogInformation("ChromeHeadlessShell removed successfully");
-                }
-            }
-            catch (Exception ex)
-            {
-                // Don't fail if cleanup fails - it's not critical
-                _logger.LogWarning(ex, "Failed to cleanup ChromeHeadlessShell directory (non-critical)");
+                _installLock.Release();
             }
         }
 
@@ -389,9 +300,10 @@ namespace Wayfarer.Parsers
         /// </summary>
         /// <param name="tripId">The trip to export</param>
         /// <param name="progressChannel">Optional SSE channel for progress updates</param>
+        /// <param name="cancellationToken">Cancellation token to abort PDF generation</param>
         /// <returns>PDF stream</returns>
         /// <exception cref="KeyNotFoundException"></exception>
-        public async Task<Stream> GeneratePdfGuideAsync(Guid tripId, string? progressChannel = null)
+        public async Task<Stream> GeneratePdfGuideAsync(Guid tripId, string? progressChannel = null, CancellationToken cancellationToken = default)
         {
             // Helper to send progress updates if channel is provided
             async Task ReportProgress(string message)
@@ -404,23 +316,25 @@ namespace Wayfarer.Parsers
             }
 
             await ReportProgress("🗺️ Loading trip data...");
+            cancellationToken.ThrowIfCancellationRequested();
 
             /* 1 ── load trip + related data ------------------------------------ */
             var trip = await _db.Trips
                            .Include(t => t.User)
-                           .FirstOrDefaultAsync(t => t.Id == tripId)
+                           .FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken)
                        ?? throw new KeyNotFoundException($"Trip not found: {tripId}");
 
-            var regions = await _db.Regions.Include(r => r.Areas).Where(r => r.TripId == tripId).ToListAsync();
-            var places = await _db.Places.Where(p => p.Region.TripId == tripId).ToListAsync();
-            var segments = await _db.Segments.Where(s => s.TripId == tripId).ToListAsync();
+            var regions = await _db.Regions.Include(r => r.Areas).Where(r => r.TripId == tripId).ToListAsync(cancellationToken);
+            var places = await _db.Places.Where(p => p.Region.TripId == tripId).ToListAsync(cancellationToken);
+            var segments = await _db.Segments.Where(s => s.TripId == tripId).ToListAsync(cancellationToken);
 
             await ReportProgress($"📊 Found {regions.Count} regions, {places.Count} places, {segments.Count} segments");
+            cancellationToken.ThrowIfCancellationRequested();
 
             /* 2 ── auth-cookies for private (User/) trips ---------------------- */
             var req = _ctx.HttpContext!.Request;
             var host = req.Host.Host;
-            var authCookie = req.Cookies.Select(p => new CookieParam
+            var authCookie = req.Cookies.Select(p => new Cookie
             {
                 Name = p.Key,
                 Value = p.Value,
@@ -438,13 +352,14 @@ namespace Wayfarer.Parsers
                 try
                 {
                     using var http = new HttpClient();
-                    snap["cover"] = await http.GetByteArrayAsync(trip.CoverImageUrl);
+                    snap["cover"] = await http.GetByteArrayAsync(trip.CoverImageUrl, cancellationToken);
                 }
                 catch
                 {
                     /* ignore – cover simply omitted on failure */
                 }
             }
+            cancellationToken.ThrowIfCancellationRequested();
 
             int zoom = trip.Zoom ?? 2;
             double lat = trip.CenterLat ?? 0;
@@ -457,7 +372,7 @@ namespace Wayfarer.Parsers
             await ReportProgress("📸 Capturing trip overview map...");
             snap["trip"] = await _snap.CaptureMapAsync(
                 BuildMapUrl(lat, lon, zoom, isPub, trip.Id),
-                800, 800, cookie);
+                800, 800, cookie, cancellationToken);
 
             // regions
             if (regions.Count > 0)
@@ -466,12 +381,13 @@ namespace Wayfarer.Parsers
                 var regionIndex = 0;
                 foreach (var r in regions)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (r.Center == null) continue;
                     regionIndex++;
                     await ReportProgress($"  📍 Region {regionIndex}/{regions.Count}: {r.Name}");
                     snap[$"region_{r.Id}"] = await _snap.CaptureMapAsync(
                         BuildMapUrl(r.Center.Y, r.Center.X, 10, isPub, trip.Id),
-                        600, 600, cookie);
+                        600, 600, cookie, cancellationToken);
                 }
             }
 
@@ -484,13 +400,14 @@ namespace Wayfarer.Parsers
 
                 foreach (var p in placesWithLocation)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     placeIndex++;
                     var placeName = !string.IsNullOrWhiteSpace(p.Name) ? $" - {p.Name}" : "";
                     await ReportProgress($"  📍 Place {placeIndex}/{placesWithLocation.Count}{placeName}");
 
                     snap[$"place_{p.Id}"] = await _snap.CaptureMapAsync(
                         BuildMapUrl(p.Location!.Y, p.Location.X, 15, isPub, trip.Id),
-                        600, 600, cookie);
+                        600, 600, cookie, cancellationToken);
                 }
             }
 
@@ -508,6 +425,7 @@ namespace Wayfarer.Parsers
 
                 foreach (var s in validSegments)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var from = places.First(p => p.Id == s.FromPlaceId);
                     var to = places.First(p => p.Id == s.ToPlaceId);
 
@@ -520,9 +438,10 @@ namespace Wayfarer.Parsers
 
                     snap[$"segment_{s.Id}"] = await _snap.CaptureMapAsync(
                         BuildMapUrl(midLat, midLon, 11, isPub, trip.Id, segmentId: s.Id.ToString()),
-                        600, 600, cookie);
+                        600, 600, cookie, cancellationToken);
                 }
             }
+            cancellationToken.ThrowIfCancellationRequested();
 
             /* 4 ── render PDF -------------------------------------------------- */
 
@@ -562,41 +481,95 @@ namespace Wayfarer.Parsers
                 RegexOptions.IgnoreCase);
 
 
-            // Puppeteer ➜ PDF - Get Chrome/Chromium executable (auto-downloads for supported platforms)
+            // Playwright ➜ PDF
             await ReportProgress("🌐 Starting PDF generator...");
-            var executablePath = await GetChromeBinaryAsync();
 
-            await using var browser = await Puppeteer.LaunchAsync(
-                new LaunchOptions
-                {
-                    Headless = true,
-                    ExecutablePath = executablePath
-                });
-            await using var page = await browser.NewPageAsync();
+            // Ensure browsers installed
+            await EnsureBrowsersInstalledAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
-            await ReportProgress("📄 Generating PDF document...");
-            await page.SetContentAsync(html,
-                new NavigationOptions { WaitUntil = new[] { WaitUntilNavigation.Networkidle0 } });
+            var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            var pdfBytes = await page.PdfDataAsync(new PdfOptions
+            var launchArgs = new List<string>
             {
-                Format = PaperFormat.A4,
-                MarginOptions = new MarginOptions
-                    { Top = "30mm", Bottom = "15mm", Left = "12mm", Right = "12mm" },
-                PrintBackground = true,
-                DisplayHeaderFooter = true,
-                HeaderTemplate = "<span></span>",
-                FooterTemplate     = @"
+                "--ignore-certificate-errors",
+                "--disable-web-security"
+            };
+
+            // ARM64 Linux specific flags
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+                RuntimeInformation.OSArchitecture == Architecture.Arm64)
+            {
+                var profileDir = Path.Combine(_chromeCachePath, "Arm64Profile");
+                Directory.CreateDirectory(profileDir);
+
+                launchArgs.AddRange(new[]
+                {
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    $"--user-data-dir={profileDir}",
+                    $"--disk-cache-dir={_chromeCachePath}"
+                });
+            }
+
+            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true,
+                Args = launchArgs
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var page = await browser.NewPageAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    await ReportProgress("📄 Generating PDF document...");
+                    await page.SetContentAsync(html, new PageSetContentOptions
+                    {
+                        WaitUntil = WaitUntilState.NetworkIdle
+                    });
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var pdfBytes = await page.PdfAsync(new PagePdfOptions
+                    {
+                        Format = "A4",
+                        Margin = new Margin
+                        {
+                            Top = "30mm",
+                            Bottom = "15mm",
+                            Left = "12mm",
+                            Right = "12mm"
+                        },
+                        PrintBackground = true,
+                        DisplayHeaderFooter = true,
+                        HeaderTemplate = "<span></span>",
+                        FooterTemplate = @"
 <div style=""width:100%;margin:0;padding:0;
                font-family:'Segoe UI',Arial,sans-serif;
                font-size:10pt;color:#555;
                text-align:center;"">
   Page <span class=""pageNumber""></span> of <span class=""totalPages""></span>
 </div>"
-            });
+                    });
 
-            await ReportProgress("✅ PDF ready! Starting download...");
-            return new MemoryStream(pdfBytes);
+                    await ReportProgress("✅ PDF ready! Starting download...");
+                    return new MemoryStream(pdfBytes);
+                }
+                finally
+                {
+                    await page.CloseAsync();
+                }
+            }
+            finally
+            {
+                await browser.CloseAsync();
+                playwright.Dispose();
+            }
         }
 
         /* ---------------------------------------------------------------- helpers */

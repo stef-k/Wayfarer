@@ -601,8 +601,8 @@ const init = () => {
     //------------------------------------------------------------------
     // (A) fast-path – fetch into memory → Blob → <a download>
     //------------------------------------------------------------------
-    async function fetchAndSave(url, fallbackName = 'download') {
-        const resp = await fetch(url, {credentials: 'include'});
+    async function fetchAndSave(url, fallbackName = 'download', signal = null) {
+        const resp = await fetch(url, {credentials: 'include', signal});
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
         const cd = resp.headers.get('Content-Disposition') ?? '';
@@ -649,25 +649,30 @@ const init = () => {
         });
     }
 
-    async function smartDownload(url) {
+    async function smartDownload(url, signal = null) {
         // HEAD request to know size (falls back to iframe if HEAD fails)
         let isBig = false;
         try {
-            const head = await fetch(url, {method: 'HEAD', credentials: 'include'});
+            const head = await fetch(url, {method: 'HEAD', credentials: 'include', signal});
             const sz = Number(head.headers.get('Content-Length')) || 0;
             isBig = sz > MAX_SAFE_SIZE;
-        } catch { /* HEAD failed – treat as unknown */
+        } catch (e) {
+            // If aborted, re-throw to let caller handle it
+            if (e.name === 'AbortError') throw e;
+            /* HEAD failed – treat as unknown */
         }
 
         if (!isBig) {
             try {           // fast path first
-                await fetchAndSave(url);
+                await fetchAndSave(url, 'download', signal);
                 return;     // success → exit
             } catch (e) {
+                // If aborted, re-throw to let caller handle it
+                if (e.name === 'AbortError') throw e;
                 console.warn('Blob download failed, switching to iframe:', e);
             }
         }
-        // large or fetch failed → iframe streaming
+        // large or fetch failed → iframe streaming (cannot abort iframe downloads)
         await iframeDownload(url);
     }
 
@@ -680,7 +685,9 @@ const init = () => {
 
             const isPdf = id === 'export-pdf';
             let eventSource = null;
+            let abortController = null;
             const progressMsg = document.getElementById('export-progress-message');
+            const cancelBtn = document.getElementById('export-cancel-btn');
 
             if (isPdf && progressMsg) {
                 // Generate unique session ID for this export
@@ -710,18 +717,37 @@ const init = () => {
                 spinnerTxt.textContent = 'Generating PDF Export';
                 progressMsg.innerHTML = 'Connecting...';
 
+                // Create AbortController for cancellation
+                abortController = new AbortController();
+
+                // Wire up cancel button
+                if (cancelBtn) {
+                    cancelBtn.style.display = 'inline-block';
+                    const handleCancel = () => {
+                        abortController.abort();
+                        cancelBtn.removeEventListener('click', handleCancel);
+                    };
+                    cancelBtn.addEventListener('click', handleCancel);
+                }
+
                 // Add sessionId to download URL
                 const dlUrl = btn.href + (btn.href.includes('?') ? '&' : '?') + `sessionId=${sessionId}`;
 
                 await showModal(waitModal);
 
                 try {
-                    await smartDownload(dlUrl);
+                    await smartDownload(dlUrl, abortController.signal);
                 } catch (err) {
-                    wayfarer.showAlert('danger', 'PDF export failed.');
-                    console.error(err);
+                    if (err.name === 'AbortError') {
+                        progressMsg.innerHTML = '❌ Export cancelled';
+                        wayfarer.showAlert('info', 'PDF export cancelled.');
+                    } else {
+                        wayfarer.showAlert('danger', 'PDF export failed.');
+                        console.error(err);
+                    }
                 } finally {
                     eventSource?.close();
+                    if (cancelBtn) cancelBtn.style.display = 'none';
                     await hideModal(waitModal);
                 }
             } else {
