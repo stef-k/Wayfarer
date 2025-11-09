@@ -164,6 +164,7 @@ pwsh bin/Release/net9.0/playwright.ps1 install chromium
 ```
 
 This works on **all platforms**:
+
 - ✅ Linux x64
 - ✅ Linux ARM64 (Raspberry Pi, ARM servers)
 - ✅ Windows x64/ARM64
@@ -550,7 +551,7 @@ Paste the following configuration:
 server {
     listen 80;
     server_name www.yourdomain.com;
-    return 301 http://yourdomain.com$request_uri;
+    return 301 https://yourdomain.com$request_uri;
 }
 
 # Main server configuration
@@ -779,6 +780,7 @@ WorkingDirectory=/var/www/wayfarer
 ExecStart=/usr/bin/dotnet /var/www/wayfarer/Wayfarer.dll --urls http://localhost:5000
 Restart=always
 Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=HOME=/home/wayfarer
 
 [Install]
 WantedBy=multi-user.target

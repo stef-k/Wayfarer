@@ -22,11 +22,11 @@ If you want to export trips as PDF documents, you'll need:
 - Chrome browser is **automatically downloaded** by the application on first PDF export
 - No manual Chrome installation needed - it's handled automatically!
 
-**Linux users:** See [Install Chrome Dependencies for PDF Export](26-Deployment?id=_6-install-chrome-dependencies-for-pdf-export)
+**Linux users:** See [Install Chromium Runtime Dependencies (PDF export)](26-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export)
 
 **Windows users:** No additional setup needed - Chrome downloads automatically.
 
-> **Note:** If PDF export doesn't work after installation, see the [PDF Export Troubleshooting](26-Deployment.md#pdf-export--chrome-issues) guide.
+> **Note:** If PDF export doesn't work after installation, see the [PDF Export / Playwright Issues](26-Deployment.md#pdf-export--playwright-issues) guide.guide.
 
 ### Basic Setup Steps
 
@@ -68,6 +68,11 @@ When you first run Wayfarer, it automatically:
 
 ```bash
 # Install core dependencies
+# 1) Add Microsoft package repo for .NET (required on a fresh system)
+wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb
+sudo apt update
+# 2) Install packages
 sudo apt install -y dotnet-sdk-9.0 postgresql postgis nginx
 
 # Install Chrome dependencies (for PDF export)
@@ -90,7 +95,7 @@ dotnet run
 ### Windows
 
 1. Install .NET 9 SDK from [microsoft.com/dotnet](https://dotnet.microsoft.com/download)
-2. Install PostgreSQL + PostGIS from [postgresapp.com](https://postgresapp.com/) or [enterprisedb.com](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
+2. Install PostgreSQL + PostGIS from [postgresql.org (Windows installer)](https://www.postgresql.org/download/windows/) or [enterprisedb.com](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
 3. Clone the repository
 4. Configure `appsettings.Development.json` with your connection string
 5. Run `dotnet restore` then `dotnet run`
