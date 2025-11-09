@@ -253,6 +253,43 @@ public class MobileGroupsController : MobileApiController
 
         return Ok(response);
     }
+
+    /// <summary>
+    /// Set peer visibility access for the current user in a Friends group
+    /// POST /api/mobile/groups/{groupId}/peer-visibility
+    /// </summary>
+    [HttpPost("{groupId:guid}/peer-visibility")]
+    public async Task<IActionResult> SetPeerVisibility(Guid groupId, [FromBody] OrgPeerVisibilityAccessRequest request, CancellationToken cancellationToken)
+    {
+        var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
+        if (error != null) return error;
+
+        var group = await DbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken);
+        if (group == null) return NotFound();
+
+        var member = await DbContext.GroupMembers.FirstOrDefaultAsync(
+            m => m.GroupId == groupId && m.UserId == user!.Id && m.Status == GroupMember.MembershipStatuses.Active,
+            cancellationToken);
+
+        if (member == null) return StatusCode(StatusCodes.Status403Forbidden);
+
+        member.OrgPeerVisibilityAccessDisabled = request.Disabled;
+        await DbContext.SaveChangesAsync(cancellationToken);
+
+        Logger.LogInformation($"User {user.Id} set peer visibility in group {groupId}: disabled={request.Disabled}");
+
+        // Broadcast visibility change to all group members via SSE
+        var sseService = HttpContext.RequestServices.GetRequiredService<SseService>();
+        await sseService.BroadcastAsync(
+            $"group-membership-update-{groupId}",
+            System.Text.Json.JsonSerializer.Serialize(new {
+                action = "peer-visibility-changed",
+                userId = user.Id,
+                disabled = member.OrgPeerVisibilityAccessDisabled
+            }));
+
+        return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
+    }
 }
 
 
