@@ -282,6 +282,13 @@ import {
    * @param {boolean} disabled - Whether the user's peer visibility is disabled
    */
   function updateMemberVisibility(userId, disabled) {
+    // Don't affect current user's own marker - they always see themselves
+    const currentUserId = document.getElementById('currentUserId')?.value;
+    if (userId === currentUserId) {
+      console.log(`Ignoring visibility change for self (${userId})`);
+      return;
+    }
+
     const memberItem = document.querySelector(`#userSidebar .user-item [data-user-id="${userId}"]`)?.closest('.user-item');
     if (memberItem) {
       if (disabled) {
@@ -294,13 +301,13 @@ import {
         }
       } else {
         memberItem.classList.remove('peer-visibility-disabled');
-        // Reload location when visibility is re-enabled
+        // Reload all selected users' locations to include this newly visible user
         const checkbox = memberItem.querySelector('input.user-select');
         if (checkbox && checkbox.checked) {
-          loadLatest([userId]).then(() => {
-            console.log(`Reloaded location for user ${userId} (visibility enabled)`);
+          loadLatest().then(() => {
+            console.log(`Reloaded locations including user ${userId} (visibility enabled)`);
           }).catch(err => {
-            console.error(`Failed to reload location for user ${userId}:`, err);
+            console.error(`Failed to reload locations:`, err);
           });
         }
       }
@@ -347,7 +354,62 @@ import {
     });
   }
 
-  const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
+  // User search/filter functionality
+  const userSearch = document.getElementById('userSearch');
+  let searchActive = false;
+  let savedSelectionState = new Map(); // Store selection state when search is active
+
+  if (userSearch) {
+    userSearch.addEventListener('input', () => {
+      const q = userSearch.value.trim().toLowerCase();
+      let visibleCount = 0;
+      const wasSearchActive = searchActive;
+      searchActive = q.length > 0;
+
+      // If activating search, save current selection state
+      if (searchActive && !wasSearchActive) {
+        savedSelectionState.clear();
+        document.querySelectorAll('#userSidebar .user-item input.user-select').forEach(checkbox => {
+          savedSelectionState.set(checkbox.getAttribute('data-user-id'), checkbox.checked);
+        });
+      }
+
+      document.querySelectorAll('#userSidebar .user-item').forEach(li => {
+        const text = (li.getAttribute('data-filter') || '').toLowerCase();
+        const matches = !q || text.indexOf(q) !== -1;
+        li.style.display = matches ? '' : 'none';
+
+        // Uncheck hidden items so they don't appear on map
+        const checkbox = li.querySelector('input.user-select');
+        if (checkbox && searchActive) {
+          if (!matches) {
+            checkbox.checked = false;
+          }
+        }
+
+        if (matches) visibleCount++;
+      });
+
+      // If deactivating search, restore saved selection state
+      if (!searchActive && wasSearchActive) {
+        document.querySelectorAll('#userSidebar .user-item input.user-select').forEach(checkbox => {
+          const userId = checkbox.getAttribute('data-user-id');
+          const savedState = savedSelectionState.get(userId);
+          if (savedState !== undefined) {
+            checkbox.checked = savedState;
+          }
+        });
+        savedSelectionState.clear();
+      }
+
+      // Reload map with filtered selection
+      if (searchActive || wasSearchActive) {
+        loadLatest().catch(() => {});
+      }
+
+      console.log(`Search: "${q}" - ${visibleCount} members visible`);
+    });
+  }
 
   // Chronological controls wiring
   const datePicker2 = document.getElementById('datePicker');
