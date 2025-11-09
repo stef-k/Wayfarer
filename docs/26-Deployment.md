@@ -544,8 +544,6 @@ For production deployments exposed to the internet, consider using the enhanced 
 sudo nano /etc/nginx/sites-available/wayfarer
 ```
 
-Paste the following configuration:
-
 ```nginx
 # Redirect www to non-www (optional)
 server {
@@ -561,6 +559,9 @@ server {
 
     # Increase max upload size (adjust as needed)
     client_max_body_size 250M;
+
+    # Dedicated access log for Wayfarer (needed for Fail2ban)
+    access_log /var/log/nginx/wayfarer.access.log combined;
 
     # Proxy WebSocket requests
     location /ws/ {
@@ -585,7 +586,7 @@ server {
         proxy_set_header   X-Forwarded-Proto $scheme;
         proxy_set_header   X-Forwarded-Host $host;
 
-        # Server-Sent Events (SSE) configuration
+        # Server-Sent Events (SSE)
         proxy_buffering     off;
         proxy_cache         off;
         proxy_read_timeout  3600s;
@@ -596,8 +597,6 @@ server {
     # Security headers
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "no-referrer-when-downgrade" always;
-
-    # Allow embedding for public sharing (adjust if needed)
     add_header X-Frame-Options "SAMEORIGIN" always;
 }
 ```
@@ -690,6 +689,9 @@ server {
     listen 443 ssl http2;
     server_name yourdomain.com;
 
+    # Dedicated access log for Wayfarer (needed for Fail2ban)
+    access_log /var/log/nginx/wayfarer.access.log combined;
+
     # SSL configuration (managed by Certbot)
     ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
@@ -774,7 +776,6 @@ Description=Wayfarer Location Tracking Application
 After=network.target
 
 [Service]
-Type=notify
 User=wayfarer
 WorkingDirectory=/var/www/wayfarer
 ExecStart=/usr/bin/dotnet /var/www/wayfarer/Wayfarer.dll --urls http://localhost:5000
@@ -1310,147 +1311,147 @@ Playwright now provides **official ARM64 Linux Chromium binaries**! No more need
 
 ## Security Hardening / Rate Limiting / Fail2ban
 
-After basic installation, enhance your security with rate limiting and intrusion detection.
+After basic installation, harden your instance with **Nginx rate limiting** (fast, stateless) and **Fail2ban** (persistent bans). Use both for layered protection.
 
 ### Nginx Rate Limiting
 
-Protect against brute force attacks, DDoS, and scanner bots with rate limiting.
+Protect against brute force, scanners, and noisy clients at the web edge.
 
-**Complete configuration template:** `deployment/nginx-ratelimit.conf`
+**Template:** `deployment/nginx-ratelimit.conf`
 
-This template includes:
+**What it includes**
 
-- **Rate limit zones** for general traffic, login pages, API endpoints, and 404 errors
-- **Connection limits** per IP address
-- **Security headers** (X-Frame-Options, X-Content-Type-Options, etc.)
-- **Automatic blocking** of .php requests and WordPress scanners at nginx level
-- **Static file serving** for better performance
+- Rate-limit zones (general, login, API, 404)
+- Per-IP connection limits
+- Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+- Immediate blocking of `*.php` probes / WordPress scanners
+- Static file rules for better performance
 
-**To use the rate limiting config:**
+**How to use**
 
 ```bash
-# Option 1: Replace your entire nginx config
+# Option 1: Replace your entire server block
 sudo cp deployment/nginx-ratelimit.conf /etc/nginx/sites-available/wayfarer
 
-# Option 2: Include rate limit zones in your existing config
-# Add the rate limit zones from the template to your http {} block
-# Then apply the location-specific limits in your server {} block
+# Option 2: Integrate pieces
+# - Copy the limit_req_zone blocks into nginx.conf’s http{} section
+# - Apply the location rules inside your existing server{} block
 ```
 
-**Customize before using:**
+**Customize before enabling**
 
-1. Replace `yourdomain.com` with your actual domain
-2. Update SSL certificate paths
-3. Adjust rate limits based on your traffic patterns
-4. Update Kestrel port if not using default 5000
-5. Set correct paths for logs and wwwroot
+1. Replace `yourdomain.com` with your real domain(s)
+2. Update TLS certificate paths
+3. Adjust limits to your expected traffic
+4. Update Kestrel upstream port if not 5000
+5. Confirm logs and wwwroot paths
 
-**Test configuration:**
+**Apply & verify**
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
+# Watch for limit hits:
+sudo tail -f /var/log/nginx/error.log | grep -i limiting
 ```
 
-**Monitor rate limiting:**
+---
 
-```bash
-# Watch for rate limit triggers
-sudo tail -f /var/log/nginx/error.log | grep "limiting"
+### Fail2ban (Nginx access-log jails — recommended)
+
+Fail2ban reads the **Nginx access log** and bans repeat offenders automatically. This works across all Wayfarer installs and correctly uses the real client IP (when Nginx is configured to see it).
+
+**1) Ensure a dedicated access log**
+Add this inside your Wayfarer server block (HTTP and HTTPS):
+
+```nginx
+access_log /var/log/nginx/wayfarer.access.log combined;
 ```
 
-### Fail2ban - Intrusion Detection
-
-Block repeat offenders automatically with fail2ban.
-
-**Configuration files provided:**
-
-- `deployment/fail2ban-wayfarer-filter.conf` - Detection patterns
-- `deployment/fail2ban-wayfarer-jail.conf` - Jail configuration
-
-**What gets detected and blocked:**
-
-- Multiple requests for .php files (scanner bots)
-- WordPress vulnerability probes (wp-admin, wp-content)
-- Repeated 404 errors
-- Failed login attempts
-
-**Installation:**
+Then reload:
 
 ```bash
-# 1. Install fail2ban if not already installed
-sudo apt install -y fail2ban
-
-# 2. Copy filter configuration
-sudo cp deployment/fail2ban-wayfarer-filter.conf /etc/fail2ban/filter.d/wayfarer.conf
-
-# 3. Add jail configuration
-sudo nano /etc/fail2ban/jail.local
-# Copy content from deployment/fail2ban-wayfarer-jail.conf
-# IMPORTANT: Update logpath to your actual log location
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**Customize jail.local:**
-
-- **logpath**: Update to your actual Wayfarer log path
-  - Common: `/var/log/wayfarer/wayfarer-$(date +%Y%m%d).log`
-  - Or check your `appsettings.json` for log location
-- **maxretry**: Number of violations before ban (default: 10 for scanners, 5 for logins)
-- **findtime**: Time window in seconds (default: 600 = 10 minutes)
-- **bantime**: How long to ban in seconds (default: 3600 = 1 hour)
-
-**Enable and start:**
+**2) Install Wayfarer filters & jails**
 
 ```bash
-# Restart fail2ban to load new config
+# Install filters (scanner / 404 storm / login abuse)
+sudo cp deployment/fail2ban/wayfarer-nginx-*.conf /etc/fail2ban/filter.d/
+
+# Install jails (uses /var/log/nginx/wayfarer.access.log)
+sudo cp deployment/fail2ban/wayfarer-nginx.conf /etc/fail2ban/jail.d/
+
+# Enable (or install fail2ban first: sudo apt install -y fail2ban)
 sudo systemctl restart fail2ban
+```
 
-# Check status
+**3) Verify**
+
+```bash
 sudo fail2ban-client status
-
-# Check Wayfarer jails specifically
-sudo fail2ban-client status wayfarer-scanner
-sudo fail2ban-client status wayfarer-login
+sudo fail2ban-client status wayfarer-nginx-scanner
+sudo fail2ban-client status wayfarer-nginx-404
+sudo fail2ban-client status wayfarer-nginx-login
 ```
 
-**Monitor fail2ban:**
+**What gets detected**
+
+- **Scanner:** PHP probes & known vuln paths (`/wp-admin`, `/xmlrpc.php`, `/.env`, etc.)
+- **404 storm:** high rate of 404s per IP
+- **Login abuse:** repeated hits to common login endpoints
+  (covers `/Identity/Account/Login`, `/Account/Login`, `/signin`, `/auth/login`, `/login`)
+
+**Tuning & safety**
+
+```ini
+# Tweak in /etc/fail2ban/jail.d/wayfarer-nginx.conf
+maxretry = (attempts before ban)
+findtime = (detection window, e.g., 10m)
+bantime  = (ban duration, e.g., 1h or 12h)
+```
+
+Whitelist yourself (optional):
 
 ```bash
-# View banned IPs
-sudo fail2ban-client status wayfarer-scanner
-
-# View fail2ban log
-sudo tail -f /var/log/fail2ban.log
-
-# Manually unban an IP if needed
-sudo fail2ban-client set wayfarer-scanner unbanip 192.168.1.100
+echo -e "[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 <your-ip-or-cidr>" | sudo tee /etc/fail2ban/jail.d/ignoreip.local
+sudo systemctl restart fail2ban
 ```
 
-**Testing fail2ban (optional):**
+**Quick tests (from another machine)**
 
 ```bash
-# From another machine, trigger the filter:
-# Request .php files multiple times
-for i in {1..12}; do curl http://yourdomain.com/test.php; done
+# Scanner (should trip wayfarer-nginx-scanner)
+for i in {1..12}; do curl -skS https://yourdomain.com/test.php >/dev/null; done
 
-# Check if your IP got banned
-sudo fail2ban-client status wayfarer-scanner
+# Login (should trip wayfarer-nginx-login)
+for i in {1..12}; do curl -skS https://yourdomain.com/Identity/Account/Login >/dev/null; done
+
+# 404 storm (should trip wayfarer-nginx-404)
+for i in {1..45}; do curl -skS https://yourdomain.com/definitely-not-here-$i >/dev/null; done
 ```
+
+**Notes**
+
+- If you’re behind a proxy/CDN (Cloudflare/ELB), configure Nginx `real_ip_header` and `set_real_ip_from` so logs contain the **visitor’s** IP.
+- Keep Nginx rate-limits **and** Fail2ban enabled—rate-limits throttle bursts; Fail2ban bans persistent offenders.
+
+---
 
 ### Combined Protection
 
-Using both nginx rate limiting AND fail2ban provides layered security:
+Use both layers:
 
-1. **Nginx rate limiting** - First line of defense, instant blocking, no database needed
-2. **Fail2ban** - Long-term bans for persistent offenders, system-wide protection
+1. **Nginx rate limiting** — instant, lightweight throttling
+2. **Fail2ban** — longer bans for persistent hostile behavior
 
-Together they protect against:
+Together they mitigate:
 
-- ✅ Brute force login attempts
-- ✅ Scanner bots looking for vulnerabilities
-- ✅ DDoS attempts
-- ✅ Automated attacks
-- ✅ Repeated 404 probing
+- ✅ Brute-force login attempts
+- ✅ Vulnerability scanners / PHP probes
+- ✅ 404 probing & path discovery
+- ✅ Bursty or abusive clients
 
 ---
 
@@ -1467,7 +1468,7 @@ After installation, ensure:
 - [ ] `appsettings.json` has correct file permissions (not world-readable if it contains secrets)
 - [ ] Monitoring configured for disk space usage (cache directories can grow large)
 - [ ] **Nginx rate limiting configured** (using `deployment/nginx-ratelimit.conf`)
-- [ ] **Fail2ban installed and configured** (using `deployment/fail2ban-*.conf`)
+- [ ] **Fail2ban installed and configured** (using `deployment/fail2ban/wayfarer-nginx-*.conf` and `deployment/fail2ban/wayfarer-nginx.conf`)
 - [ ] Fail2ban is actively monitoring logs (`systemctl status fail2ban`)
 
 ---

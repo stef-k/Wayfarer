@@ -26,7 +26,7 @@ If you want to export trips as PDF documents, you'll need:
 
 **Windows users:** No additional setup needed - Chrome downloads automatically.
 
-> **Note:** If PDF export doesn't work after installation, see the [PDF Export / Playwright Issues](26-Deployment.md#pdf-export--playwright-issues) guide.guide.
+> **Note:** If PDF export doesn't work after installation, see the [PDF Export / Playwright Issues](26-Deployment.md#pdf-export--playwright-issues) guide.
 
 ### Basic Setup Steps
 
