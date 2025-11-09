@@ -1,19 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
 /// <summary>
-/// Mobile endpoints for retrieving group data and locations.
+///     Mobile endpoints for retrieving group data and locations.
 /// </summary>
 [Area("Api")]
 [Route("api/mobile/groups")]
@@ -68,36 +64,25 @@ public class MobileGroupsController : MobileApiController
         {
             case "managed":
                 foreach (var membership in userMemberships)
-                {
                     if (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager)
-                    {
                         candidateGroupIds.Add(membership.GroupId);
-                    }
-                }
+
                 await IncludeOwnedAsync();
                 break;
             case "joined":
                 foreach (var membership in userMemberships.Where(m => m.Role == GroupMember.Roles.Member))
-                {
                     candidateGroupIds.Add(membership.GroupId);
-                }
                 break;
             case "all":
             case "":
-                foreach (var membership in userMemberships)
-                {
-                    candidateGroupIds.Add(membership.GroupId);
-                }
+                foreach (var membership in userMemberships) candidateGroupIds.Add(membership.GroupId);
                 await IncludeOwnedAsync();
                 break;
             default:
                 return BadRequest(new { message = "Unsupported scope value." });
         }
 
-        if (candidateGroupIds.Count == 0)
-        {
-            return Ok(Array.Empty<MobileGroupSummaryDto>());
-        }
+        if (candidateGroupIds.Count == 0) return Ok(Array.Empty<MobileGroupSummaryDto>());
 
         var groups = await DbContext.Groups
             .Where(g => candidateGroupIds.Contains(g.Id) && !g.IsArchived)
@@ -133,7 +118,8 @@ public class MobileGroupsController : MobileApiController
                 var isMember = membership?.Role == GroupMember.Roles.Member;
                 var isOrg = string.Equals(g.GroupType, "Organization", StringComparison.OrdinalIgnoreCase);
                 var hasOrgPeerVisibilityAccess = !isOrg ||
-                    (g.OrgPeerVisibilityEnabled && (membership == null || !membership.OrgPeerVisibilityAccessDisabled));
+                                                 (g.OrgPeerVisibilityEnabled && (membership == null ||
+                                                     !membership.OrgPeerVisibilityAccessDisabled));
 
                 return new MobileGroupSummaryDto
                 {
@@ -164,28 +150,22 @@ public class MobileGroupsController : MobileApiController
         var callerMembership = await DbContext.GroupMembers
             .AsNoTracking()
             .FirstOrDefaultAsync(m =>
-                m.GroupId == groupId &&
-                m.UserId == user!.Id &&
-                m.Status == GroupMember.MembershipStatuses.Active,
+                    m.GroupId == groupId &&
+                    m.UserId == user!.Id &&
+                    m.Status == GroupMember.MembershipStatuses.Active,
                 cancellationToken);
 
-        if (callerMembership == null)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
+        if (callerMembership == null) return StatusCode(StatusCodes.Status403Forbidden);
 
         var group = await DbContext.Groups
             .AsNoTracking()
             .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived, cancellationToken);
-        if (group == null)
-        {
-            return NotFound();
-        }
+        if (group == null) return NotFound();
 
         var members = await (from m in DbContext.GroupMembers
-                             where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
-                             join u in DbContext.Users on m.UserId equals u.Id
-                             select new { Member = m, User = u })
+                where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
+                join u in DbContext.Users on m.UserId equals u.Id
+                select new { Member = m, User = u })
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
@@ -216,7 +196,8 @@ public class MobileGroupsController : MobileApiController
     }
 
     [HttpPost("{groupId:guid}/locations/latest")]
-    public async Task<IActionResult> Latest(Guid groupId, [FromBody] GroupLocationsLatestRequest? request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Latest(Guid groupId, [FromBody] GroupLocationsLatestRequest? request,
+        CancellationToken cancellationToken)
     {
         var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
         if (error != null) return error;
@@ -225,12 +206,14 @@ public class MobileGroupsController : MobileApiController
         if (context == null) return NotFound();
         if (!context.IsMember) return StatusCode(StatusCodes.Status403Forbidden);
 
-        var results = await _timelineService.GetLatestLocationsAsync(context, request?.IncludeUserIds, cancellationToken);
+        var results =
+            await _timelineService.GetLatestLocationsAsync(context, request?.IncludeUserIds, cancellationToken);
         return Ok(results);
     }
 
     [HttpPost("{groupId:guid}/locations/query")]
-    public async Task<IActionResult> Query(Guid groupId, [FromBody] GroupLocationsQueryRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Query(Guid groupId, [FromBody] GroupLocationsQueryRequest request,
+        CancellationToken cancellationToken)
     {
         var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
         if (error != null) return error;
@@ -255,11 +238,12 @@ public class MobileGroupsController : MobileApiController
     }
 
     /// <summary>
-    /// Set peer visibility access for the current user in a Friends group
-    /// POST /api/mobile/groups/{groupId}/peer-visibility
+    ///     Set peer visibility access for the current user in a Friends group
+    ///     POST /api/mobile/groups/{groupId}/peer-visibility
     /// </summary>
     [HttpPost("{groupId:guid}/peer-visibility")]
-    public async Task<IActionResult> SetPeerVisibility(Guid groupId, [FromBody] OrgPeerVisibilityAccessRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> SetPeerVisibility(Guid groupId, [FromBody] OrgPeerVisibilityAccessRequest request,
+        CancellationToken cancellationToken)
     {
         var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
         if (error != null) return error;
@@ -282,7 +266,8 @@ public class MobileGroupsController : MobileApiController
         var sseService = HttpContext.RequestServices.GetRequiredService<SseService>();
         await sseService.BroadcastAsync(
             $"group-membership-update-{groupId}",
-            System.Text.Json.JsonSerializer.Serialize(new {
+            JsonSerializer.Serialize(new
+            {
                 action = "peer-visibility-changed",
                 userId = user.Id,
                 disabled = member.OrgPeerVisibilityAccessDisabled
@@ -291,5 +276,3 @@ public class MobileGroupsController : MobileApiController
         return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
     }
 }
-
-
