@@ -749,6 +749,179 @@ thead th {
 [data-bs-theme="dark"] .user-item.peer-visibility-disabled label {
     color: #adb5bd;
 }
+
+/* Peer visibility panel warning state (when disabled) */
+#peerVisibilityPanel.visibility-disabled {
+    background-color: #fff3cd !important; /* Bootstrap warning background */
+    border-color: #ffecb5 !important;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+#peerVisibilityPanel.visibility-disabled #peerVisibilityLabel {
+    color: #664d03; /* Bootstrap warning text */
+    font-weight: 500;
+}
+[data-bs-theme="dark"] #peerVisibilityPanel.visibility-disabled {
+    background-color: #664d03 !important;
+    border-color: #997404 !important;
+}
+[data-bs-theme="dark"] #peerVisibilityPanel.visibility-disabled #peerVisibilityLabel {
+    color: #ffecb5;
+}
+
+/* Search highlight for matched text */
+.search-highlight {
+    background-color: #ffeb3b;
+    color: #000;
+    font-weight: 500;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+[data-bs-theme="dark"] .search-highlight {
+    background-color: #fdd835;
+    color: #000;
+}
+
+/* Chronological navigation controls dark mode fix */
+[data-bs-theme="dark"] .bg-light.border.rounded {
+    background-color: #212529 !important;
+    border-color: #495057 !important;
+}
+
+/* Trip Edit view dark mode fixes */
+/* Fix search bar and lat/lon inputs background */
+[data-bs-theme="dark"] .trip-searchbar.bg-white,
+[data-bs-theme="dark"] .input-group.bg-white {
+    background-color: var(--bs-body-bg) !important;
+    border: 1px solid #495057;
+}
+
+/* Fix sidebar header text */
+[data-bs-theme="dark"] #sidebarHeader h5 {
+    color: var(--bs-body-color);
+}
+
+/* Fix last updated date text */
+[data-bs-theme="dark"] #sidebarTop .text-muted {
+    color: #adb5bd !important;
+}
+
+/* Fix trip name label and form labels */
+[data-bs-theme="dark"] .form-label {
+    color: var(--bs-body-color);
+}
+
+/* Fix accordion headers (region headers) */
+[data-bs-theme="dark"] .accordion-button {
+    background-color: #212529;
+    color: var(--bs-body-color);
+}
+[data-bs-theme="dark"] .accordion-button:not(.collapsed) {
+    background-color: #2c3034;
+    color: var(--bs-body-color);
+}
+
+/* Fix accordion body text (trip details) */
+[data-bs-theme="dark"] .accordion-body {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+/* Fix recenter map button visibility and dropdown button style */
+[data-bs-theme="dark"] #btn-trip-recenter.btn-outline-primary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+[data-bs-theme="dark"] #btn-trip-recenter.btn-outline-primary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Fix all dropdown-toggle buttons in trip edit to match Hide Legend style */
+[data-bs-theme="dark"] #sidebar .dropdown-toggle.btn-primary,
+[data-bs-theme="dark"] .trip-edit-dropdown.btn-primary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+[data-bs-theme="dark"] #sidebar .dropdown-toggle.btn-primary:hover,
+[data-bs-theme="dark"] .trip-edit-dropdown.btn-primary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Trip Viewer (public trip view) dark mode fixes */
+/* Fix trip title */
+[data-bs-theme="dark"] #trip-view #sidebar-primary h5 {
+    color: var(--bs-body-color);
+}
+
+/* Fix last updated date */
+[data-bs-theme="dark"] #trip-view dl dd,
+[data-bs-theme="dark"] #trip-view dl dt {
+    color: var(--bs-body-color);
+}
+
+/* Fix recenter button - change from outline-dark to outline-secondary */
+[data-bs-theme="dark"] #trip-view #btn-trip-center.btn-outline-dark {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+[data-bs-theme="dark"] #trip-view #btn-trip-center.btn-outline-dark:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Fix dropdown button - change from outline-primary to outline-secondary */
+[data-bs-theme="dark"] #trip-view #btn-more-actions.btn-outline-primary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+[data-bs-theme="dark"] #trip-view #btn-more-actions.btn-outline-primary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Fix region headers white background when expanded */
+[data-bs-theme="dark"] #trip-view .accordion-header.text-bg-light {
+    background-color: #2c3034 !important;
+    color: var(--bs-body-color) !important;
+}
+
+/* Fix sidebar background */
+[data-bs-theme="dark"] #trip-view #sidebar-primary.text-bg-light,
+[data-bs-theme="dark"] #trip-view #sidebar-secondary {
+    background-color: var(--bs-body-bg) !important;
+    color: var(--bs-body-color) !important;
+}
+
+/* Quill editor placeholder dark mode fix (all instances) */
+[data-bs-theme="dark"] .ql-editor.ql-blank::before {
+    color: #6c757d !important;
+}
+
+/* Quill editor text color */
+[data-bs-theme="dark"] .ql-editor {
+    color: var(--bs-body-color);
+}
+
+/* Quill toolbar background */
+[data-bs-theme="dark"] .ql-toolbar {
+    background-color: #2c3034;
+    border-color: #495057 !important;
+}
+
+/* Quill container background */
+[data-bs-theme="dark"] .ql-container {
+    background-color: var(--bs-body-bg);
+    border-color: #495057 !important;
+}
 .region-place-neutral {
     background-color: var(--bs-body-bg) !important;
 }

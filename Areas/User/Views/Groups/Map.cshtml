@@ -91,10 +91,12 @@
 
     @if (string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))
     {
-      <div class="alert alert-info py-2 mb-2">
+      <div id="peerVisibilityPanel" class="alert alert-info py-2 mb-2">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="peerVisibilityToggle">
-          <label class="form-check-label" for="peerVisibilityToggle">Allow peers to see my location in this Friends group</label>
+          <label class="form-check-label" for="peerVisibilityToggle">
+            <span id="peerVisibilityLabel">Allow peers to see my location in this Friends group</span>
+          </label>
         </div>
       </div>
     }

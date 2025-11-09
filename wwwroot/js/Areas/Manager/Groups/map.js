@@ -341,6 +341,23 @@ import {
   const userSearch = document.getElementById('userSearch');
   let searchActive = false;
   let savedSelectionState = new Map(); // Store selection state when search is active
+  let originalLabelHTML = new Map(); // Store original label HTML before highlighting
+
+  // Helper function to escape HTML special characters
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Helper function to highlight search term in text
+  function highlightText(text, searchTerm) {
+    if (!searchTerm) return escapeHtml(text);
+    const escapedText = escapeHtml(text);
+    const escapedSearch = escapeHtml(searchTerm);
+    const regex = new RegExp(`(${escapedSearch})`, 'gi');
+    return escapedText.replace(regex, '<span class="search-highlight">$1</span>');
+  }
 
   if (userSearch) {
     userSearch.addEventListener('input', () => {
@@ -349,11 +366,16 @@ import {
       const wasSearchActive = searchActive;
       searchActive = q.length > 0;
 
-      // If activating search, save current selection state
+      // If activating search, save current selection state and original HTML
       if (searchActive && !wasSearchActive) {
         savedSelectionState.clear();
+        originalLabelHTML.clear();
         document.querySelectorAll('#userSidebar .user-item input.user-select').forEach(checkbox => {
           savedSelectionState.set(checkbox.getAttribute('data-user-id'), checkbox.checked);
+          const label = checkbox.closest('label');
+          if (label) {
+            originalLabelHTML.set(checkbox.getAttribute('data-user-id'), label.innerHTML);
+          }
         });
       }
 
@@ -362,8 +384,30 @@ import {
         const matches = !q || text.indexOf(q) !== -1;
         li.style.display = matches ? '' : 'none';
 
-        // Uncheck hidden items so they don't appear on map
+        // Highlight matched text in label
         const checkbox = li.querySelector('input.user-select');
+        const label = checkbox?.closest('label');
+        if (label && searchActive && matches) {
+          const username = checkbox.getAttribute('data-username') || '';
+          const displayName = checkbox.getAttribute('data-display') || '';
+          const originalHTML = originalLabelHTML.get(checkbox.getAttribute('data-user-id'));
+          if (originalHTML) {
+            // Reconstruct label with highlighting
+            const highlightedUsername = highlightText(username, q);
+            const highlightedDisplay = highlightText(displayName, q);
+            const colorChip = '<span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>';
+            const checkboxHTML = checkbox.outerHTML;
+            label.innerHTML = `${colorChip}${checkboxHTML}${highlightedUsername} (${highlightedDisplay})`;
+            // Re-apply color to chip after HTML replacement
+            const chip = label.querySelector('.user-color');
+            const originalChip = li.querySelector('.user-color');
+            if (chip && originalChip) {
+              chip.style.backgroundColor = originalChip.style.backgroundColor || colorFromString(username);
+            }
+          }
+        }
+
+        // Uncheck hidden items so they don't appear on map
         if (checkbox && searchActive) {
           if (!matches) {
             checkbox.checked = false;
@@ -373,7 +417,7 @@ import {
         if (matches) visibleCount++;
       });
 
-      // If deactivating search, restore saved selection state
+      // If deactivating search, restore saved selection state and original HTML
       if (!searchActive && wasSearchActive) {
         document.querySelectorAll('#userSidebar .user-item input.user-select').forEach(checkbox => {
           const userId = checkbox.getAttribute('data-user-id');
@@ -381,8 +425,15 @@ import {
           if (savedState !== undefined) {
             checkbox.checked = savedState;
           }
+          // Restore original label HTML (removes highlighting)
+          const label = checkbox.closest('label');
+          const originalHTML = originalLabelHTML.get(userId);
+          if (label && originalHTML) {
+            label.innerHTML = originalHTML;
+          }
         });
         savedSelectionState.clear();
+        originalLabelHTML.clear();
       }
 
       // Reload map with filtered selection

@@ -388,18 +388,47 @@ const loadPersistedMarkers = () => {
  * ------------------------------------------------------------------ */
 const initSearchHandlers = () => {
     const input = document.getElementById('place-search');
+    const clearBtn = document.getElementById('btn-clear-search');
+    const resultsContainer = document.getElementById('place-search-results');
+
     if (!input) return;
+
+    // Show/hide clear button based on input value
+    const updateClearButton = () => {
+        if (clearBtn) {
+            clearBtn.style.display = input.value.trim() ? 'inline-block' : 'none';
+        }
+    };
 
     input.addEventListener('input', () => {
         clearTimeout(debounceTimeout);
+        updateClearButton();
 
         const query = input.value.trim();
-        if (!query) return;
+        if (!query) {
+            // Clear results when input is empty
+            if (resultsContainer) {
+                resultsContainer.innerHTML = '';
+            }
+            return;
+        }
 
         debounceTimeout = setTimeout(() => {
             searchNominatim(query);
         }, SEARCH_DELAY_MS);
     });
+
+    // Clear button click handler
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            input.value = '';
+            if (resultsContainer) {
+                resultsContainer.innerHTML = '';
+            }
+            updateClearButton();
+            input.focus();
+        });
+    }
 };
 
 /* ------------------------------------------------------------------ *

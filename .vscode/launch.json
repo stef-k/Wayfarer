@@ -1,0 +1,11 @@
+{
+  "configurations": [
+    {
+      "name": "C#: Wayfarer [https]",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}\\Wayfarer.csproj",
+      "launchConfigurationId": "TargetFramework=;https"
+    }
+  ]
+}
