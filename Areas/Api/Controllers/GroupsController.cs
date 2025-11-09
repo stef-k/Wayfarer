@@ -287,6 +287,10 @@ public class GroupsController : ControllerBase
         member.OrgPeerVisibilityAccessDisabled = req.Disabled;
         await _db.SaveChangesAsync(ct);
         await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityAccessSet", $"Group {group.Id}, User {userId}, Disabled={member.OrgPeerVisibilityAccessDisabled}", ct);
+
+        // Broadcast visibility change to all group members via SSE
+        await _sse.BroadcastAsync($"group-membership-update-{id}", System.Text.Json.JsonSerializer.Serialize(new { action = "peer-visibility-changed", userId, disabled = member.OrgPeerVisibilityAccessDisabled }));
+
         return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
     }
 

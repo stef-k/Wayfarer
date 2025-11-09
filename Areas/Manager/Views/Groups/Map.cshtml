@@ -28,7 +28,6 @@
         </button>
 
         <div class="d-flex align-items-center gap-2 mx-3">
-          <button id="btnYesterday" class="btn btn-sm btn-primary" title="Yesterday">Yesterday</button>
           <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
           <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;">
           <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;">
@@ -70,11 +69,23 @@
 <div id="group-map-view" class="position-relative d-flex flex-grow-1 w-100 overflow-hidden" style="min-height:0;">
   <aside class="flex-shrink-0 border-end overflow-auto" style="width:460px;">
     <h5>Members</h5>
-    
+
     @using (Html.BeginForm())
     {
         @Html.AntiForgeryToken()
     }
+
+    <div class="alert alert-secondary py-2 mb-2" id="historicalLocationsToggleContainer" style="display:none;">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="showHistoricalLocations">
+        <label class="form-check-label" for="showHistoricalLocations">
+          <i class="bi bi-clock-history"></i> Show historical locations for today
+        </label>
+      </div>
+      <small class="text-muted d-block mt-1">
+        When off, only latest/live locations are shown
+      </small>
+    </div>
     <div class="mb-2">
       <input id="userSearch" type="search" class="form-control form-control-sm" placeholder="Search users..." autocomplete="off" />
     </div>
@@ -94,7 +105,9 @@
       </div>
       @foreach (var u in members)
       {
-          <div class="list-group-item d-flex justify-content-between align-items-center user-item" data-filter="@u.UserName @u.DisplayName">
+          var peerVisDisabled = u.OrgPeerVisibilityAccessDisabled;
+          var dimmedClass = peerVisDisabled ? "peer-visibility-disabled" : "";
+          <div class="list-group-item d-flex justify-content-between align-items-center user-item @dimmedClass" data-filter="@u.UserName @u.DisplayName">
             <label class="mb-0 flex-grow-1">
               <span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>
               <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" data-display="@u.DisplayName" data-role="@u.Role" data-owner="@(u.Id == group.OwnerUserId)" />

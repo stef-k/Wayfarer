@@ -437,7 +437,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var members = await (from m in _dbContext.GroupMembers
                              where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
                              join u in _dbContext.Users on m.UserId equals u.Id
-                             select new { u.Id, u.UserName, u.DisplayName, m.Role }).AsNoTracking().ToListAsync();
+                             select new { u.Id, u.UserName, u.DisplayName, m.Role, m.OrgPeerVisibilityAccessDisabled }).AsNoTracking().ToListAsync();
         ViewBag.Members = members;
         SetPageTitle($"Map - {group.Name}");
         return View();

@@ -736,6 +736,19 @@ thead th {
     opacity: 0.4;
     transition: opacity 0.2s ease-in-out;
 }
+
+/* Group member with disabled peer visibility */
+.user-item.peer-visibility-disabled {
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+}
+.user-item.peer-visibility-disabled label {
+    font-style: italic;
+    color: #6c757d; /* Bootstrap secondary color */
+}
+[data-bs-theme="dark"] .user-item.peer-visibility-disabled label {
+    color: #adb5bd;
+}
 .region-place-neutral {
     background-color: var(--bs-body-bg) !important;
 }

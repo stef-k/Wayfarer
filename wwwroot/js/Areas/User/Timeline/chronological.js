@@ -110,14 +110,6 @@ const setupEventListeners = () => {
         loadChronologicalData();
     });
 
-    document.getElementById('btnYesterday').addEventListener('click', () => {
-        currentDate.setDate(currentDate.getDate() - 1);
-        currentViewType = 'day';
-        updateViewTypeUI();
-        updateDatePickerValues();
-        loadChronologicalData();
-    });
-
     // Date pickers
     document.getElementById('datePicker').addEventListener('change', (e) => {
         const selectedDate = new Date(e.target.value);
@@ -234,28 +226,11 @@ const updateViewTypeUI = () => {
     // Show/hide navigation buttons based on view type
     const showDayNav = currentViewType === 'day';
     const showMonthNav = currentViewType === 'day' || currentViewType === 'month';
-    const showYesterday = currentViewType === 'day';
 
     document.getElementById('btnPrevDay').style.display = showDayNav ? 'inline-block' : 'none';
     document.getElementById('btnNextDay').style.display = showDayNav ? 'inline-block' : 'none';
     document.getElementById('btnPrevMonth').style.display = showMonthNav ? 'inline-block' : 'none';
     document.getElementById('btnNextMonth').style.display = showMonthNav ? 'inline-block' : 'none';
-    document.getElementById('btnYesterday').style.display = showYesterday ? 'inline-block' : 'none';
-
-    // Update Yesterday button state - only enabled when viewing today
-    updateYesterdayButton();
-};
-
-/**
- * Update Yesterday button state - only enabled when viewing today's date
- */
-const updateYesterdayButton = () => {
-    const today = new Date();
-    const isToday = currentDate.getFullYear() === today.getFullYear() &&
-                    currentDate.getMonth() === today.getMonth() &&
-                    currentDate.getDate() === today.getDate();
-
-    document.getElementById('btnYesterday').disabled = !isToday;
 };
 
 /**

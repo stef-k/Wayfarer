@@ -51,6 +51,39 @@ import {
   const latestMarkers = new Map();
   let restClusters = new Map(); // userId -> MarkerClusterGroup
   let subscriptions = new Map();
+  let groupMembershipSubscription = null;
+
+  /**
+   * Checks if we're currently viewing today's date in day view
+   * @returns {boolean} True if viewing today
+   */
+  function isViewingToday() {
+    const viewDay = document.getElementById('viewDay');
+    if (!viewDay || !viewDay.checked) return false;
+
+    const datePicker = document.getElementById('datePicker');
+    if (!datePicker || !datePicker.value) return true; // Default is today
+
+    const selectedDate = new Date(datePicker.value + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return selectedDate.getTime() === today.getTime();
+  }
+
+  /**
+   * Updates visibility of the historical locations toggle based on current date selection
+   */
+  function updateHistoricalToggleVisibility() {
+    const container = document.getElementById('historicalLocationsToggleContainer');
+    if (!container) return;
+
+    if (isViewingToday()) {
+      container.style.display = '';
+    } else {
+      container.style.display = 'none';
+    }
+  }
 
   function selectedUsers() {
     const boxes = document.querySelectorAll('#userSidebar input.user-select:checked');
@@ -101,13 +134,28 @@ import {
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
     else { const m=L.marker(latlng, { icon, zIndexOffset:(live?10000:9000) }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
   }
+  /**
+   * Loads latest locations for specified users and removes markers for deselected users.
+   * @param {Array<string>} userIds - Optional array of user IDs to load. If not provided, uses currently selected users.
+   */
   async function loadLatest(userIds) {
     const url='/api/groups/' + groupId + '/locations/latest';
     const include = userIds && userIds.length ? userIds : selectedUsers().map(u=>u.id);
+    // Remove markers for users that are no longer selected
+    const includeSet = new Set(include);
+    latestMarkers.forEach((marker, userId) => {
+      if (!includeSet.has(userId)) {
+        map.removeLayer(marker);
+        latestMarkers.delete(userId);
+      }
+    });
     const data = await postJson(url, { includeUserIds: include });
     (Array.isArray(data)?data:[]).forEach((loc,idx)=>{ const uid=include[idx]; if (uid) upsertLatestForUser(uid, loc); });
     const latlngs=Array.from(latestMarkers.values()).map(m=>m.getLatLng()); if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding:[20,20] });
   }
+  /**
+   * Loads locations in current viewport with date filters applied
+   */
   async function loadViewport() {
     const url='/api/groups/' + groupId + '/locations/query';
     const body=toBBox(); body.UserIds=selectedUsers().map(u=>u.id);
@@ -126,10 +174,21 @@ import {
         body.DateType='year'; body.Year=parseInt(y.value,10);
       }
     }
+
+    // Check if we should skip historical locations
+    const showHistoricalToggle = document.getElementById('showHistoricalLocations');
+    const shouldSkipHistorical = isViewingToday() && showHistoricalToggle && !showHistoricalToggle.checked;
+
     const res=await postJson(url, body);
     // clear existing clusters
     restClusters.forEach(g => map.removeLayer(g));
     restClusters.clear();
+
+    // If viewing today with toggle off, skip rendering historical locations
+    if (shouldSkipHistorical) {
+      return; // Only show latest markers, which are handled by loadLatest()
+    }
+
     // build clusters per user for consistent color coding
     (res.results||[]).forEach(loc=>{
       if (!loc.isLatestLocation) {
@@ -176,6 +235,8 @@ import {
     }
   }
   enforceMultiUserDayOnly();
+  // Initialize historical toggle visibility
+  updateHistoricalToggleVisibility();
   loadLatest().catch(()=>{});
   loadViewport().catch(()=>{});
   // move refresh
@@ -188,9 +249,71 @@ import {
   }
   subscribeSseForUsers(selectedUsers());
 
-  // sidebar toggles
-  document.getElementById('selectAllUsers')?.addEventListener('change', function(){ const checked=this.checked; document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{el.checked=checked;}); subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); });
-  document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{ cb.addEventListener('change', ()=>{ subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); });
+  // Subscribe to group membership updates (member visibility changes, etc.)
+  /**
+   * Handles SSE events for group membership changes
+   */
+  function subscribeToGroupMembership() {
+    if (groupMembershipSubscription) {
+      groupMembershipSubscription.close();
+    }
+    try {
+      const es = new EventSource('/api/sse/stream/group-membership-update/' + groupId);
+      es.onmessage = (ev) => {
+        try {
+          const payload = JSON.parse(ev.data);
+          if (payload && payload.action === 'peer-visibility-changed') {
+            // Update member UI to reflect visibility change
+            updateMemberVisibility(payload.userId, payload.disabled);
+          }
+        } catch(e) {
+          console.error('Error processing group membership SSE event:', e);
+        }
+      };
+      es.onerror = () => {
+        es.close();
+      };
+      groupMembershipSubscription = es;
+    } catch(e) {
+      console.error('Error subscribing to group membership updates:', e);
+    }
+  }
+
+  /**
+   * Updates the UI to show/dim a member based on their peer visibility setting
+   * @param {string} userId - The user ID whose visibility changed
+   * @param {boolean} disabled - Whether the user's peer visibility is disabled
+   */
+  function updateMemberVisibility(userId, disabled) {
+    const memberItem = document.querySelector(`#userSidebar .user-item [data-user-id="${userId}"]`)?.closest('.user-item');
+    if (memberItem) {
+      if (disabled) {
+        memberItem.classList.add('peer-visibility-disabled');
+      } else {
+        memberItem.classList.remove('peer-visibility-disabled');
+      }
+    }
+  }
+
+  subscribeToGroupMembership();
+
+  // sidebar toggles - consolidated event listeners with enforceMultiUserDayOnly
+  document.getElementById('selectAllUsers')?.addEventListener('change', function(){
+    const checked=this.checked;
+    document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{el.checked=checked;});
+    enforceMultiUserDayOnly();
+    subscribeSseForUsers(selectedUsers());
+    loadLatest().catch(()=>{});
+    loadViewport().catch(()=>{});
+  });
+  document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      enforceMultiUserDayOnly();
+      subscribeSseForUsers(selectedUsers());
+      loadLatest().catch(()=>{});
+      loadViewport().catch(()=>{});
+    });
+  });
 
   const userSearch=document.getElementById('userSearch'); if (userSearch) { userSearch.addEventListener('input', ()=>{ const q=userSearch.value.trim().toLowerCase(); document.querySelectorAll('#userSidebar .user-item').forEach(li=>{ const text=(li.getAttribute('data-filter')||'').toLowerCase(); li.style.display = !q || text.indexOf(q)!==-1 ? '' : 'none'; }); }); }
 
@@ -206,12 +329,11 @@ import {
     else if (viewMonth2 && viewMonth2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display=''; if (yearPicker2) yearPicker2.style.display='none'; }
     else if (viewYear2 && viewYear2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display='none'; if (yearPicker2) yearPicker2.style.display=''; }
   }
-  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); loadViewport().catch(()=>{}); }); });
-  if (datePicker2) datePicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
-  if (monthPicker2) monthPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
-  if (yearPicker2) yearPicker2.addEventListener('change', ()=> loadViewport().catch(()=>{}));
-  const btnToday = document.getElementById('btnToday'); if (btnToday && datePicker2 && viewDay2) btnToday.addEventListener('click', ()=>{ datePicker2.value = currentDateInputValue(); viewDay2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); });
-  const btnYesterday = document.getElementById('btnYesterday'); if (btnYesterday && datePicker2 && viewDay2) btnYesterday.addEventListener('click', ()=>{ const d=new Date(); d.setDate(d.getDate()-1); datePicker2.value = currentDateInputValue(d); viewDay2.checked=true; updatePickerVisibility(); loadViewport().catch(()=>{}); });
+  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); }); });
+  if (datePicker2) datePicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
+  if (monthPicker2) monthPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
+  if (yearPicker2) yearPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
+  const btnToday = document.getElementById('btnToday'); if (btnToday && datePicker2 && viewDay2) btnToday.addEventListener('click', ()=>{ datePicker2.value = currentDateInputValue(); viewDay2.checked=true; updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
   function shiftDay(delta){
     if (!datePicker2) return;
     const base = datePicker2.value ? new Date(datePicker2.value) : new Date();
@@ -219,6 +341,7 @@ import {
     datePicker2.value = currentDateInputValue(base);
     if (viewDay2) viewDay2.checked=true;
     updatePickerVisibility();
+    updateHistoricalToggleVisibility();
     loadViewport().catch(()=>{});
   }
   function shiftMonth(delta){
@@ -227,6 +350,7 @@ import {
     monthPicker2.value = shiftMonthValue(base, delta, viewerTimeZone);
     if (viewMonth2) viewMonth2.checked=true;
     updatePickerVisibility();
+    updateHistoricalToggleVisibility();
     loadViewport().catch(()=>{});
   }
   function shiftYear(delta){
@@ -236,6 +360,7 @@ import {
     yearPicker2.value = String(y);
     if (viewYear2) viewYear2.checked=true;
     updatePickerVisibility();
+    updateHistoricalToggleVisibility();
     loadViewport().catch(()=>{});
   }
   const btnPrevDay=document.getElementById('btnPrevDay'); if (btnPrevDay) btnPrevDay.addEventListener('click', ()=> shiftDay(-1));
@@ -246,10 +371,37 @@ import {
   const btnNextYear=document.getElementById('btnNextYear'); if (btnNextYear) btnNextYear.addEventListener('click', ()=> shiftYear(1));
   updatePickerVisibility();
 
+  // Historical locations toggle event listener
+  const showHistoricalLocations = document.getElementById('showHistoricalLocations');
+  if (showHistoricalLocations) {
+    showHistoricalLocations.addEventListener('change', ()=> {
+      loadViewport().catch(()=>{});
+    });
+  }
+
   // Date filter apply
   const applyBtn = document.getElementById('applyDateFilter'); if (applyBtn) { applyBtn.addEventListener('click', ()=>{ loadViewport().catch(()=>{}); }); }
-  const showAllBtn = document.getElementById('showAllUsers'); if (showAllBtn) { showAllBtn.addEventListener('click', ()=>{ document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true); const all = document.getElementById('selectAllUsers'); if (all) all.checked = true; subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); }
-  const hideAllBtn = document.getElementById('hideAllUsers'); if (hideAllBtn) { hideAllBtn.addEventListener('click', ()=>{ document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = false); const all = document.getElementById('selectAllUsers'); if (all) all.checked = false; subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }); }
+  // Show All / Hide All buttons
+  const showAllBtn = document.getElementById('showAllUsers'); if (showAllBtn) {
+    showAllBtn.addEventListener('click', ()=>{
+      document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true);
+      const all = document.getElementById('selectAllUsers'); if (all) all.checked = true;
+      enforceMultiUserDayOnly();
+      subscribeSseForUsers(selectedUsers());
+      loadLatest().catch(()=>{});
+      loadViewport().catch(()=>{});
+    });
+  }
+  const hideAllBtn = document.getElementById('hideAllUsers'); if (hideAllBtn) {
+    hideAllBtn.addEventListener('click', ()=>{
+      document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = false);
+      const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
+      enforceMultiUserDayOnly();
+      subscribeSseForUsers(selectedUsers());
+      loadLatest().catch(()=>{});
+      loadViewport().catch(()=>{});
+    });
+  }
   // Color chips
   document.querySelectorAll('#userSidebar .user-item').forEach(li => {
     const cb = li.querySelector('input.user-select'); const chip = li.querySelector('.user-color');
@@ -289,6 +441,7 @@ import {
       const targetId = this.getAttribute('data-user-id');
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{ el.checked = (el.getAttribute('data-user-id') === targetId); });
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
+      enforceMultiUserDayOnly();
       subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
   });
@@ -317,9 +470,7 @@ import {
     });
   });
 
-  // Enforce performance rule: if multiple users selected, force Day-only view
-  document.getElementById('selectAllUsers')?.addEventListener('change', ()=>{ enforceMultiUserDayOnly(); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); });
-  document.querySelectorAll('#userSidebar input.user-select').forEach(cb=> cb.addEventListener('change', ()=>{ enforceMultiUserDayOnly(); loadLatest().catch(()=>{}); loadViewport().catch(()=>{}); }));
+  // Enforce initial multi-user day-only state
   enforceMultiUserDayOnly();
 
   // Modal generator aligned with public timeline
