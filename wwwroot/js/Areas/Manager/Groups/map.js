@@ -280,7 +280,7 @@ import {
   }
 
   /**
-   * Updates the UI to show/dim a member based on their peer visibility setting
+   * Updates the UI to show/dim a member based on their peer visibility setting and removes/reloads markers
    * @param {string} userId - The user ID whose visibility changed
    * @param {boolean} disabled - Whether the user's peer visibility is disabled
    */
@@ -289,8 +289,23 @@ import {
     if (memberItem) {
       if (disabled) {
         memberItem.classList.add('peer-visibility-disabled');
+        // Remove marker from map when visibility is disabled
+        if (latestMarkers.has(userId)) {
+          map.removeLayer(latestMarkers.get(userId));
+          latestMarkers.delete(userId);
+          console.log(`Removed marker for user ${userId} (visibility disabled)`);
+        }
       } else {
         memberItem.classList.remove('peer-visibility-disabled');
+        // Reload location when visibility is re-enabled
+        const checkbox = memberItem.querySelector('input.user-select');
+        if (checkbox && checkbox.checked) {
+          loadLatest([userId]).then(() => {
+            console.log(`Reloaded location for user ${userId} (visibility enabled)`);
+          }).catch(err => {
+            console.error(`Failed to reload location for user ${userId}:`, err);
+          });
+        }
       }
     }
   }
