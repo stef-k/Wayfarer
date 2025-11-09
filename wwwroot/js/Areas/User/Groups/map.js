@@ -282,10 +282,34 @@ import {
    * @param {boolean} disabled - Whether the user's peer visibility is disabled
    */
   function updateMemberVisibility(userId, disabled) {
-    // Don't affect current user's own marker - they always see themselves
     const currentUserId = document.getElementById('currentUserId')?.value;
+
+    // If this is the current user, update their peer visibility toggle
     if (userId === currentUserId) {
-      console.log(`Ignoring visibility change for self (${userId})`);
+      const toggle = document.getElementById('peerVisibilityToggle');
+      const panel = document.getElementById('peerVisibilityPanel');
+
+      if (toggle) {
+        // Update toggle state
+        const newChecked = !disabled;
+        if (toggle.checked !== newChecked) {
+          // Set a flag to prevent the change handler from making an API call
+          toggle.dataset.skipApiCall = 'true';
+          toggle.checked = newChecked;
+
+          // Update panel visual state
+          if (panel) {
+            if (newChecked) {
+              panel.classList.remove('visibility-disabled');
+            } else {
+              panel.classList.add('visibility-disabled');
+            }
+          }
+
+          console.log(`Updated peer visibility toggle for self (${userId}): disabled=${disabled}`);
+        }
+      }
+      // Don't affect current user's own marker - they always see themselves
       return;
     }
 
@@ -605,6 +629,12 @@ import {
       updatePanelState(toggle.checked);
 
       toggle.addEventListener('change', async ()=>{
+        // Check if this change was triggered by SSE update
+        if (toggle.dataset.skipApiCall === 'true') {
+          delete toggle.dataset.skipApiCall;
+          return; // Don't make API call, just update UI
+        }
+
         // Update panel visual state immediately
         updatePanelState(toggle.checked);
 

@@ -285,17 +285,28 @@ import {
    * @param {boolean} disabled - Whether the user's peer visibility is disabled
    */
   function updateMemberVisibility(userId, disabled) {
-    // Don't affect current user's own marker - they always see themselves
     const currentUserId = document.getElementById('currentUserId')?.value;
+
+    // Find the member item in the UI
+    const memberItem = document.querySelector(`#userSidebar .user-item [data-user-id="${userId}"]`)?.closest('.user-item');
+    if (memberItem) {
+      // Update visual dimming for all members (including self for consistency)
+      if (disabled) {
+        memberItem.classList.add('peer-visibility-disabled');
+      } else {
+        memberItem.classList.remove('peer-visibility-disabled');
+      }
+    }
+
+    // Current user always sees their own marker (managers see all)
     if (userId === currentUserId) {
-      console.log(`Ignoring visibility change for self (${userId})`);
+      console.log(`Updated visibility state for self (${userId}): disabled=${disabled}`);
       return;
     }
 
-    const memberItem = document.querySelector(`#userSidebar .user-item [data-user-id="${userId}"]`)?.closest('.user-item');
+    // For other members, handle marker visibility
     if (memberItem) {
       if (disabled) {
-        memberItem.classList.add('peer-visibility-disabled');
         // Remove marker from map when visibility is disabled
         if (latestMarkers.has(userId)) {
           map.removeLayer(latestMarkers.get(userId));
@@ -303,7 +314,6 @@ import {
           console.log(`Removed marker for user ${userId} (visibility disabled)`);
         }
       } else {
-        memberItem.classList.remove('peer-visibility-disabled');
         // Reload all selected users' locations to include this newly visible user
         const checkbox = memberItem.querySelector('input.user-select');
         if (checkbox && checkbox.checked) {
