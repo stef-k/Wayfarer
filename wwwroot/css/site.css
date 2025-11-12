@@ -1215,3 +1215,194 @@ body.embed-mode #mapContainer {
     flex: 1 1 auto !important;
     margin-bottom: 0 !important;
 }
+
+/* ============================================
+   Public Trips Index - Lazy Loading & Styling
+   ============================================ */
+
+/* Skeleton shimmer effect for lazy-loading images */
+img.js-lazy {
+    background-color: #f8f9fa;
+    min-height: 200px;
+}
+
+/* Smooth fade-in when images load */
+img.js-lazy[src] {
+    background-color: transparent;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0.3;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Card hover effects for grid view */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ============================================
+   PiP Map Badge + Overlay
+   ============================================ */
+
+/* PiP badge (small circular map) */
+.trip-map-badge {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    background: transparent;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    z-index: 3;
+    cursor: pointer;
+}
+
+/* Smaller badge for list view */
+.trip-map-badge-sm {
+    width: 48px;
+    height: 48px;
+}
+
+@media (min-width: 992px) {
+    .trip-map-badge {
+        width: 88px;
+        height: 88px;
+    }
+    .trip-map-badge:hover {
+        transform: scale(1.06);
+    }
+}
+
+.trip-map-badge:focus {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* Full-bleed overlay */
+.trip-hero-wrap .trip-map-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    opacity: 0;
+    transform: scale(0.98);
+    border-radius: inherit;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+    filter: saturate(105%);
+}
+
+/* Hover reveal (pointer devices only) */
+@media (hover: hover) {
+    .trip-hero-wrap .trip-map-badge:hover ~ .trip-map-overlay {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* JS toggled state for touch + keyboard */
+.trip-hero-wrap.show-map .trip-map-overlay {
+    opacity: 1;
+    transform: none;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .trip-hero-wrap .trip-map-overlay {
+        transition: none;
+    }
+}
+
+/* Pulse ring around PiP (hint of interactivity) */
+.trip-map-badge::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.4);
+    animation: pip-pulse 1.8s ease-out infinite;
+    z-index: -1;
+    pointer-events: none;
+    transform: scale(0.9);
+    opacity: 0.9;
+}
+
+/* Stop pulse after interaction */
+.trip-hero-wrap.tip-dismissed .trip-map-badge::after {
+    animation: none;
+    opacity: 0;
+}
+
+/* Tooltip bubble anchored to the PiP */
+.pip-tip-bubble {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    transform: translateY(-0.25rem);
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    font-size: 0.75rem;
+    line-height: 1;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.5rem;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.pip-tip-bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    right: 0.75rem;
+    border: 6px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.75);
+}
+
+/* Visible state (JS toggles this) */
+.pip-tip-bubble.is-visible {
+    opacity: 1;
+    transform: translateY(-0.35rem);
+}
+
+/* Disable motion-heavy hints when requested */
+@media (prefers-reduced-motion: reduce) {
+    .trip-map-badge::after {
+        animation: none;
+        opacity: 0;
+    }
+    .pip-tip-bubble {
+        transition: none;
+    }
+}
+
+@keyframes pip-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.45);
+        opacity: 0.9;
+    }
+    70% {
+        box-shadow: 0 0 0 12px rgba(13, 110, 253, 0);
+        opacity: 0.2;
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+        opacity: 0;
+    }
+}

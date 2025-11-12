@@ -1,0 +1,153 @@
+@model Wayfarer.Models.ViewModels.PublicTripIndexVm
+
+@if (Model.Items.Count == 0)
+{
+    <div class="text-center py-5">
+        <div class="text-muted mb-3">
+            <i class="bi bi-map" style="font-size: 3rem;"></i>
+        </div>
+        <h3 class="h5">No trips found</h3>
+        <p class="text-muted">
+            @if (!string.IsNullOrWhiteSpace(Model.Q))
+            {
+                <span>Try clearing your search filters.</span>
+            }
+            else
+            {
+                <span>There are no public trips available yet.</span>
+            }
+        </p>
+        @if (!string.IsNullOrWhiteSpace(Model.Q))
+        {
+            <a class="btn btn-outline-primary"
+               asp-route="PublicTripsIndex">Clear Filters</a>
+        }
+    </div>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4">
+        @foreach (var item in Model.Items)
+        {
+            <div class="col">
+                <div class="card h-100 shadow-sm">
+                    <!-- Hero Image with PiP Map -->
+                    <div class="trip-hero-wrap position-relative" style="height: 250px; overflow: hidden;">
+                        <!-- Base photo -->
+                        @if (!string.IsNullOrWhiteSpace(item.CoverImageUrl))
+                        {
+                            <img class="trip-photo card-img-top js-lazy"
+                                 data-src="@item.CoverImageUrl"
+                                 alt="@item.Name"
+                                 style="width: 100%; height: 100%; object-fit: cover;">
+                        }
+                        else
+                        {
+                            <div class="w-100 h-100 bg-light d-flex align-items-center justify-content-center">
+                                <i class="bi bi-map text-secondary" style="font-size: 3rem;"></i>
+                            </div>
+                        }
+
+                        <!-- PiP map badge (only show if trip has map coordinates) -->
+                        @if (item.CenterLat.HasValue && item.CenterLon.HasValue && !string.IsNullOrWhiteSpace(item.ThumbUrl))
+                        {
+                            <button type="button"
+                                    class="trip-map-badge"
+                                    aria-label="Show map preview"
+                                    data-hero-toggle
+                                    data-trip-preview="@item.Id">
+                                <img class="w-100 h-100 object-fit-cover js-lazy"
+                                     data-src="@item.ThumbUrl"
+                                     alt="">
+                                <!-- UI tip bubble -->
+                                <span class="pip-tip-bubble" role="status" aria-live="polite">
+                                    <span class="pip-tip-text d-none d-lg-inline">Hover for map</span>
+                                    <span class="pip-tip-text d-lg-none">Tap for map</span>
+                                </span>
+                            </button>
+
+                            <!-- Full-bleed map overlay -->
+                            <img class="trip-map-overlay w-100 h-100 object-fit-cover js-lazy"
+                                 data-src="@item.ThumbUrl"
+                                 alt="Map of @item.Name"
+                                 aria-hidden="true">
+                        }
+
+                        <!-- Updated badge -->
+                        @{
+                            var daysSinceUpdate = (DateTime.UtcNow - item.UpdatedAt).Days;
+                        }
+                        @if (daysSinceUpdate <= 7)
+                        {
+                            <span class="position-absolute top-0 end-0 m-2 badge bg-secondary">
+                                Updated @daysSinceUpdate day@(daysSinceUpdate == 1 ? "" : "s") ago
+                            </span>
+                        }
+                    </div>
+
+                    <div class="card-body d-flex flex-column">
+                        <!-- Title -->
+                        <h5 class="card-title">
+                            <a href="/Public/Trips/@item.Id" class="text-decoration-none text-dark stretched-link">
+                                @item.Name
+                            </a>
+                        </h5>
+
+                        <!-- Notes Excerpt -->
+                        @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
+                        {
+                            <p class="card-text text-muted small flex-grow-1">
+                                @item.NotesExcerpt
+                            </p>
+                        }
+
+                        <!-- Meta Row -->
+                        <div class="d-flex gap-3 text-muted small mt-2">
+                            @if (item.RegionsCount > 0)
+                            {
+                                <span title="@item.RegionsCount region@(item.RegionsCount == 1 ? "" : "s")">
+                                    <i class="bi bi-bounding-box"></i> @item.RegionsCount
+                                </span>
+                            }
+                            @if (item.PlacesCount > 0)
+                            {
+                                <span title="@item.PlacesCount place@(item.PlacesCount == 1 ? "" : "s")">
+                                    <i class="bi bi-geo-alt"></i> @item.PlacesCount
+                                </span>
+                            }
+                            @if (item.SegmentsCount > 0)
+                            {
+                                <span title="@item.SegmentsCount segment@(item.SegmentsCount == 1 ? "" : "s")">
+                                    <i class="bi bi-diagram-3"></i> @item.SegmentsCount
+                                </span>
+                            }
+                            <span class="ms-auto" title="Last updated">
+                                <i class="bi bi-clock"></i> @item.UpdatedAt.ToString("MMM d, yyyy")
+                            </span>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary flex-grow-1 position-relative"
+                                    data-trip-preview="@item.Id"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#tripQuickView"
+                                    style="z-index: 1030;"
+                                    title="Quick preview">
+                                <i class="bi bi-eye"></i> Preview
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary position-relative copy-url"
+                                    data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"
+                                    style="z-index: 1030;"
+                                    title="Copy public URL to clipboard">
+                                <i class="bi bi-share"></i> Share
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

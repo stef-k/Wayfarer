@@ -767,6 +767,32 @@ const init = () => {
         });
     });
 
+    // Handle copy-url clicks for Share button
+    document.addEventListener('click', async (e) => {
+        const el = e.target.closest('a.copy-url');
+        if (!el) return;
+
+        e.preventDefault();
+
+        const url = el.dataset.url;
+        try {
+            // URL is already absolute from server-side Url.Action with scheme
+            await navigator.clipboard.writeText(url);
+            // Use toast instead of alert to avoid viewport jumps
+            if (wayfarer.showToast) {
+                wayfarer.showToast('success', 'URL copied to clipboard!');
+            } else {
+                wayfarer.showAlert('success', 'URL copied to clipboard!');
+            }
+        } catch (err) {
+            console.error('Failed to copy URL:', err);
+            if (wayfarer.showToast) {
+                wayfarer.showToast('danger', 'Failed to copy URL.');
+            } else {
+                wayfarer.showAlert('danger', 'Failed to copy URL.');
+            }
+        }
+    });
 
 };
 

@@ -1,0 +1,167 @@
+@model Wayfarer.Models.ViewModels.PublicTripIndexVm
+
+@if (Model.Items.Count == 0)
+{
+    <div class="text-center py-5">
+        <div class="text-muted mb-3">
+            <i class="bi bi-map" style="font-size: 3rem;"></i>
+        </div>
+        <h3 class="h5">No trips found</h3>
+        <p class="text-muted">
+            @if (!string.IsNullOrWhiteSpace(Model.Q))
+            {
+                <span>Try clearing your search filters.</span>
+            }
+            else
+            {
+                <span>There are no public trips available yet.</span>
+            }
+        </p>
+        @if (!string.IsNullOrWhiteSpace(Model.Q))
+        {
+            <a class="btn btn-outline-primary"
+               asp-route="PublicTripsIndex">Clear Filters</a>
+        }
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 100px;">Image</th>
+                    <th style="width: 100px;">Map</th>
+                    <th>Trip</th>
+                    <th class="text-center" style="width: 100px;">Items</th>
+                    <th style="width: 130px;">Updated</th>
+                    <th style="width: 150px;" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <!-- Cover Image Column -->
+                        <td>
+                            <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
+                                @if (!string.IsNullOrWhiteSpace(item.CoverImageUrl))
+                                {
+                                    <img class="w-100 h-100 object-fit-cover js-lazy"
+                                         data-src="@item.CoverImageUrl"
+                                         alt="@item.Name"
+                                         style="background-color: #e9ecef;" />
+                                }
+                                else
+                                {
+                                    <div class="w-100 h-100 bg-light d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-image text-secondary"></i>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+
+                        <!-- Map Thumbnail Column -->
+                        <td>
+                            <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
+                                @if (item.CenterLat.HasValue && item.CenterLon.HasValue && !string.IsNullOrWhiteSpace(item.ThumbUrl))
+                                {
+                                    <img class="w-100 h-100 object-fit-cover js-lazy"
+                                         data-src="@item.ThumbUrl"
+                                         alt="Map of @item.Name"
+                                         style="background-color: #e9ecef;" />
+                                }
+                                else
+                                {
+                                    <div class="w-100 h-100 bg-light d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-map text-secondary"></i>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+
+                        <!-- Trip Info Column -->
+                        <td>
+                            <div>
+                                <a href="/Public/Trips/@item.Id" class="fw-semibold text-decoration-none text-dark d-block">
+                                    @item.Name
+                                </a>
+                                @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
+                                {
+                                    <div class="text-muted small mt-1">
+                                        @item.NotesExcerpt
+                                    </div>
+                                }
+                            </div>
+                        </td>
+
+                        <!-- Stats Column -->
+                        <td class="text-center">
+                            <div class="d-flex flex-column gap-1 small text-muted">
+                                @if (item.RegionsCount > 0)
+                                {
+                                    <span title="@item.RegionsCount region@(item.RegionsCount == 1 ? "" : "s")">
+                                        <i class="bi bi-bounding-box"></i> @item.RegionsCount
+                                    </span>
+                                }
+                                @if (item.PlacesCount > 0)
+                                {
+                                    <span title="@item.PlacesCount place@(item.PlacesCount == 1 ? "" : "s")">
+                                        <i class="bi bi-geo-alt"></i> @item.PlacesCount
+                                    </span>
+                                }
+                                @if (item.SegmentsCount > 0)
+                                {
+                                    <span title="@item.SegmentsCount segment@(item.SegmentsCount == 1 ? "" : "s")">
+                                        <i class="bi bi-diagram-3"></i> @item.SegmentsCount
+                                    </span>
+                                }
+                            </div>
+                        </td>
+
+                        <!-- Updated Column -->
+                        <td>
+                            <span class="small text-muted">
+                                @{
+                                    var daysSinceUpdate = (DateTime.UtcNow - item.UpdatedAt).Days;
+                                }
+                                @if (daysSinceUpdate == 0)
+                                {
+                                    <span class="badge bg-secondary">Today</span>
+                                }
+                                else if (daysSinceUpdate <= 7)
+                                {
+                                    <span class="badge bg-secondary">@daysSinceUpdate day@(daysSinceUpdate == 1 ? "" : "s") ago</span>
+                                }
+                                else
+                                {
+                                    <span>@item.UpdatedAt.ToString("MMM d, yyyy")</span>
+                                }
+                            </span>
+                        </td>
+
+                        <!-- Actions Column -->
+                        <td class="text-end">
+                            <div class="btn-group" role="group">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        data-trip-preview="@item.Id"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#tripQuickView"
+                                        title="Quick preview">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary copy-url"
+                                        data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"
+                                        title="Copy public URL to clipboard">
+                                    <i class="bi bi-share"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

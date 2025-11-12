@@ -103,9 +103,18 @@
             const url = el.dataset.url;
             try {
                 await navigator.clipboard.writeText(`${window.location.origin}${url}`);
-                wayfarer.showAlert('success', 'URL copied to clipboard!');
+                // Use toast instead of alert to avoid viewport jumps
+                if (wayfarer.showToast) {
+                    wayfarer.showToast('success', 'URL copied to clipboard!');
+                } else {
+                    wayfarer.showAlert('success', 'URL copied to clipboard!');
+                }
             } catch (err) {
-                wayfarer.showAlert('danger', 'Failed to copy URL.');
+                if (wayfarer.showToast) {
+                    wayfarer.showToast('danger', 'Failed to copy URL.');
+                } else {
+                    wayfarer.showAlert('danger', 'Failed to copy URL.');
+                }
             }
         });
         document.querySelectorAll('.btn-trip-delete')

@@ -90,6 +90,20 @@
                                         <hr class="dropdown-divider"/>
                                     </li>
                                 }
+                                @if (Model.IsPublic)
+                                {
+                                    <li>
+                                        <a class="dropdown-item copy-url"
+                                           href="#"
+                                           data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}")"
+                                           title="Copy public URL to clipboard">
+                                            <i class="bi bi-share me-1"></i>Share (Copy URL)
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider"/>
+                                    </li>
+                                }
                                 <li>
                                 <li>
                                     <a id="export-wayfarer"

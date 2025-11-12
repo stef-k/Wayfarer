@@ -1,0 +1,135 @@
+@model Wayfarer.Models.ViewModels.PublicTripIndexVm
+
+@{
+    var startPage = Math.Max(1, Model.Page - 2);
+    var endPage = Math.Min(Model.TotalPages, Model.Page + 2);
+
+    // Adjust if we're near the beginning
+    if (Model.Page <= 3)
+    {
+        endPage = Math.Min(5, Model.TotalPages);
+    }
+
+    // Adjust if we're near the end
+    if (Model.Page >= Model.TotalPages - 2)
+    {
+        startPage = Math.Max(1, Model.TotalPages - 4);
+    }
+}
+
+<nav aria-label="Trip pagination" class="mt-4">
+    <ul class="pagination justify-content-center">
+        <!-- Previous Button -->
+        <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+            @if (Model.HasPreviousPage)
+            {
+                <a class="page-link"
+                   asp-route="PublicTripsIndex"
+                   asp-route-page="@(Model.Page - 1)"
+                   asp-route-view="@Model.View"
+                   asp-route-sort="@Model.Sort"
+                   asp-route-q="@Model.Q"
+                   aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            }
+            else
+            {
+                <span class="page-link" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </span>
+            }
+        </li>
+
+        <!-- First Page -->
+        @if (startPage > 1)
+        {
+            <li class="page-item">
+                <a class="page-link"
+                   asp-route="PublicTripsIndex"
+                   asp-route-page="1"
+                   asp-route-view="@Model.View"
+                   asp-route-sort="@Model.Sort"
+                   asp-route-q="@Model.Q">
+                    1
+                </a>
+            </li>
+
+            @if (startPage > 2)
+            {
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+            }
+        }
+
+        <!-- Page Numbers -->
+        @for (var i = startPage; i <= endPage; i++)
+        {
+            <li class="page-item @(i == Model.Page ? "active" : "")">
+                @if (i == Model.Page)
+                {
+                    <span class="page-link">
+                        @i
+                        <span class="visually-hidden">(current)</span>
+                    </span>
+                }
+                else
+                {
+                    <a class="page-link"
+                       asp-route="PublicTripsIndex"
+                       asp-route-page="@i"
+                       asp-route-view="@Model.View"
+                       asp-route-sort="@Model.Sort"
+                       asp-route-q="@Model.Q">
+                        @i
+                    </a>
+                }
+            </li>
+        }
+
+        <!-- Last Page -->
+        @if (endPage < Model.TotalPages)
+        {
+            @if (endPage < Model.TotalPages - 1)
+            {
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+            }
+
+            <li class="page-item">
+                <a class="page-link"
+                   asp-route="PublicTripsIndex"
+                   asp-route-page="@Model.TotalPages"
+                   asp-route-view="@Model.View"
+                   asp-route-sort="@Model.Sort"
+                   asp-route-q="@Model.Q">
+                    @Model.TotalPages
+                </a>
+            </li>
+        }
+
+        <!-- Next Button -->
+        <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+            @if (Model.HasNextPage)
+            {
+                <a class="page-link"
+                   asp-route="PublicTripsIndex"
+                   asp-route-page="@(Model.Page + 1)"
+                   asp-route-view="@Model.View"
+                   asp-route-sort="@Model.Sort"
+                   asp-route-q="@Model.Q"
+                   aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            }
+            else
+            {
+                <span class="page-link" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </span>
+            }
+        </li>
+    </ul>
+</nav>

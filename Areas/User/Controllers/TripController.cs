@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -10,9 +11,15 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class TripController : BaseController
     {
-        public TripController(ILogger<TripController> logger, ApplicationDbContext dbContext)
+        private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
+
+        public TripController(
+            ILogger<TripController> logger,
+            ApplicationDbContext dbContext,
+            ITripMapThumbnailGenerator thumbnailGenerator)
             : base(logger, dbContext)
         {
+            _thumbnailGenerator = thumbnailGenerator;
         }
 
         /// <summary>
@@ -226,9 +233,14 @@ namespace Wayfarer.Areas.User.Controllers
                 trip.CenterLon = model.CenterLon;
                 trip.Zoom = model.Zoom;
                 trip.CoverImageUrl = model.CoverImageUrl;
-                trip.UpdatedAt = DateTime.UtcNow;
+                var updatedAt = DateTime.UtcNow;
+                trip.UpdatedAt = updatedAt;
 
                 await _dbContext.SaveChangesAsync();
+
+                // Invalidate old thumbnails (will regenerate on next request)
+                _thumbnailGenerator.InvalidateThumbnails(id, updatedAt);
+
                 SetAlert("Trip updated successfully!");
 
                 return submitAction == "save-edit"
@@ -266,6 +278,9 @@ namespace Wayfarer.Areas.User.Controllers
 
                 _dbContext.Trips.Remove(trip);
                 await _dbContext.SaveChangesAsync();
+
+                // Clean up associated thumbnails
+                _thumbnailGenerator.DeleteThumbnails(id);
 
                 SetAlert("Trip deleted successfully!");
                 return RedirectToAction(nameof(Index));

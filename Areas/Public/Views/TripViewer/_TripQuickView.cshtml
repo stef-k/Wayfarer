@@ -1,0 +1,67 @@
+@model Wayfarer.Models.ViewModels.PublicTripIndexItem
+
+<!-- Hero Image -->
+@if (!string.IsNullOrWhiteSpace(Model.ThumbUrl))
+{
+    <div class="mb-3" style="max-height: 400px; overflow: hidden;">
+        <img src="@Model.ThumbUrl"
+             alt="@Model.Name"
+             class="img-fluid w-100"
+             style="object-fit: cover;" />
+    </div>
+}
+
+<!-- Trip Name -->
+<h2 class="h4 mb-3">@Model.Name</h2>
+
+<!-- Stats Row -->
+<div class="d-flex gap-4 mb-3 text-muted">
+    @if (Model.RegionsCount > 0)
+    {
+        <div>
+            <i class="bi bi-bounding-box"></i>
+            <strong>@Model.RegionsCount</strong>
+            region@(Model.RegionsCount == 1 ? "" : "s")
+        </div>
+    }
+    @if (Model.PlacesCount > 0)
+    {
+        <div>
+            <i class="bi bi-geo-alt"></i>
+            <strong>@Model.PlacesCount</strong>
+            place@(Model.PlacesCount == 1 ? "" : "s")
+        </div>
+    }
+    @if (Model.SegmentsCount > 0)
+    {
+        <div>
+            <i class="bi bi-diagram-3"></i>
+            <strong>@Model.SegmentsCount</strong>
+            segment@(Model.SegmentsCount == 1 ? "" : "s")
+        </div>
+    }
+</div>
+
+<!-- Last Updated -->
+<div class="text-muted small mb-3">
+    <i class="bi bi-clock"></i>
+    Last updated: @Model.UpdatedAt.ToString("MMMM d, yyyy")
+</div>
+
+<!-- Notes -->
+@if (!string.IsNullOrWhiteSpace(Model.NotesExcerpt))
+{
+    <div class="mb-3">
+        <h3 class="h6 mb-2">Description</h3>
+        <div class="text-muted">
+            @Html.Raw(Model.NotesExcerpt)
+        </div>
+    </div>
+}
+
+<!-- CTA Button -->
+<div class="d-grid gap-2">
+    <a href="/Public/Trips/@Model.Id" class="btn btn-primary">
+        <i class="bi bi-map"></i> View Full Trip
+    </a>
+</div>

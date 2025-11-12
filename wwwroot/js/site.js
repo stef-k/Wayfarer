@@ -13,7 +13,7 @@ function hideAlert() {
 function showAlert(alertType, alertMessage) {
     let alertBox = document.getElementById("alertBox");
     let alertMessageSpan = document.getElementById("alertMessage");
-    
+
     if (!alertBox || !alertMessageSpan) {
         console.error("❌ Alert elements NOT found in the DOM!");
         return;
@@ -24,6 +24,64 @@ function showAlert(alertType, alertMessage) {
     alertBox.className = `alert alert-${alertType} alert-dismissible show`;
     alertBox.style.display = "block";
     alertBox.style.opacity = "1";
+}
+
+/**
+ * Shows a Bootstrap toast notification (non-intrusive, doesn't cause viewport jumps)
+ * @param {string} type - Toast type: 'success', 'danger', 'warning', 'info', 'primary', 'secondary'
+ * @param {string} message - Message to display
+ * @param {number} duration - Auto-hide duration in ms (default: 3000)
+ */
+function showToast(type, message, duration = 3000) {
+    const container = document.querySelector('.toast-container');
+    if (!container) {
+        console.error('Toast container not found');
+        return;
+    }
+
+    // Create a new toast from template
+    const template = document.getElementById('toastTemplate');
+    const toast = template.cloneNode(true);
+    toast.removeAttribute('id');
+
+    // Set background color based on type
+    const bgColorMap = {
+        'success': 'bg-success text-white',
+        'danger': 'bg-danger text-white',
+        'warning': 'bg-warning text-dark',
+        'info': 'bg-info text-white',
+        'primary': 'bg-primary text-white',
+        'secondary': 'bg-secondary text-white'
+    };
+
+    const bgClass = bgColorMap[type] || 'bg-secondary text-white';
+    toast.classList.add(...bgClass.split(' '));
+
+    // Adjust close button color for dark backgrounds
+    const closeBtn = toast.querySelector('.btn-close');
+    if (type === 'warning') {
+        closeBtn.classList.remove('btn-close-white');
+    }
+
+    // Set message
+    const toastBody = toast.querySelector('.toast-body');
+    toastBody.textContent = message;
+
+    // Add to container
+    container.appendChild(toast);
+
+    // Initialize and show
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: duration
+    });
+
+    bsToast.show();
+
+    // Remove from DOM after hidden
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
 }
 
 
@@ -301,4 +359,6 @@ window.showAlert = showAlert;
 wayfarer.showAlert = showAlert;
 window.hideAlert = hideAlert;
 wayfarer.hideAlert = hideAlert;
+window.showToast = showToast;
+wayfarer.showToast = showToast;
 

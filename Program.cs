@@ -479,6 +479,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
     builder.Services.AddSingleton<MapSnapshotService>();
 
+    // Trip thumbnail services for public trips index
+    builder.Services.AddScoped<ITripThumbnailService, TripThumbnailService>();
+    builder.Services.AddSingleton<ITripMapThumbnailGenerator, TripMapThumbnailGenerator>();
+
     // Trip import service
     builder.Services.AddScoped<ITripImportService, TripImportService>();
 
@@ -512,11 +516,21 @@ static async Task ConfigureMiddleware(WebApplication app)
         });
 
         app.UseMigrationsEndPoint(); // Provides migration management in development
+
+        // Enable custom error pages in development
+        // Comment out the line below to see detailed developer exception page
+        app.UseExceptionHandler("/Home/Error");
+
+        // Enable status code pages for 404, 403, etc. (must come after UseExceptionHandler)
+        app.UseStatusCodePagesWithReExecute("/Error/{0}");
     }
     else
     {
         app.UseExceptionHandler("/Home/Error"); // Global exception handler for production
         app.UseHsts(); // HTTP Strict Transport Security (HSTS) for production
+
+        // Enable status code pages for 404, 403, etc. (must come after UseExceptionHandler)
+        app.UseStatusCodePagesWithReExecute("/Error/{0}");
     }
 
     // Tile Cache Service initialization
@@ -605,11 +619,6 @@ static async Task ConfigureMiddleware(WebApplication app)
             }
         }
     });
-
-    // Custom 404 handling
-    app.UseWhen(
-        context => !context.Request.Path.StartsWithSegments("/api"),
-        appBuilder => { appBuilder.UseStatusCodePagesWithReExecute("/Error/{0}"); });
 
     // Define the default route for controllers
     app.MapControllerRoute(
