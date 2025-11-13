@@ -156,6 +156,54 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
     }
 
     /// <summary>
+    /// Gets the local base URL for Playwright to access the app on the same server.
+    /// Uses http://127.0.0.1:{port} for secure loopback communication.
+    /// </summary>
+    private string GetLocalBaseUrl()
+    {
+        // Try to get Kestrel HTTP endpoint from configuration
+        var httpUrl = _configuration["Kestrel:Endpoints:Http:Url"];
+
+        if (!string.IsNullOrWhiteSpace(httpUrl))
+        {
+            // Parse the port from the URL (e.g., "http://localhost:5000" or "http://*:5000")
+            if (Uri.TryCreate(httpUrl, UriKind.Absolute, out var uri))
+            {
+                return $"http://127.0.0.1:{uri.Port}";
+            }
+
+            // Handle format like "http://*:5000" or "http://+:5000"
+            var portMatch = System.Text.RegularExpressions.Regex.Match(httpUrl, @":(\d+)");
+            if (portMatch.Success && int.TryParse(portMatch.Groups[1].Value, out var portNumber))
+            {
+                return $"http://127.0.0.1:{portNumber}";
+            }
+        }
+
+        // Try ASPNETCORE_URLS environment variable (common in production)
+        var aspnetcoreUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        if (!string.IsNullOrWhiteSpace(aspnetcoreUrls))
+        {
+            // Split by semicolon, look for http:// URL
+            var urls = aspnetcoreUrls.Split(';');
+            foreach (var url in urls)
+            {
+                if (url.Trim().StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Uri.TryCreate(url.Trim(), UriKind.Absolute, out var envUri))
+                    {
+                        return $"http://127.0.0.1:{envUri.Port}";
+                    }
+                }
+            }
+        }
+
+        // Fallback to common default port
+        _logger.LogWarning("Could not determine Kestrel HTTP port from configuration, using default http://127.0.0.1:5000");
+        return "http://127.0.0.1:5000";
+    }
+
+    /// <summary>
     /// Captures a screenshot of the trip embed view using Playwright.
     /// </summary>
     private async Task<byte[]?> CaptureEmbedViewAsync(
@@ -167,10 +215,9 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
         int height,
         CancellationToken cancellationToken)
     {
-        // Build embed URL (use localhost since we're running server-side)
-        var baseUrl = _configuration["Kestrel:Endpoints:Https:Url"]
-                      ?? _configuration["Kestrel:Endpoints:Http:Url"]
-                      ?? "https://localhost:7149"; // Fallback to default HTTPS port
+        // Build embed URL using localhost HTTP endpoint (secure since it's loopback only)
+        // Playwright runs on same server, so we use http://127.0.0.1:{port} for performance and simplicity
+        var baseUrl = GetLocalBaseUrl();
 
         // Zoom out by 1 level for better thumbnail overview (lower zoom = more area visible)
         var thumbnailZoom = Math.Max(1, zoom - 1);

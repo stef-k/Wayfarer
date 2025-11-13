@@ -11,6 +11,7 @@ docs/design
 docs/spec
 docs/archive
 ChromeCache/*
+wwwroot/thumbs/trips/*
 
 # Uploads
 Uploads/*
