@@ -285,6 +285,93 @@
     };
 
     /**
+     * Lazy Load Thumbnails Asynchronously (on viewport intersection)
+     * Fetches map thumbnails via API only when trip cards enter viewport
+     */
+    const initAsyncThumbnails = () => {
+        // Find all trip cards with data-trip-id attribute
+        const tripCards = document.querySelectorAll('[data-trip-id]');
+
+        if (!tripCards.length) {
+            return;
+        }
+
+        // Use IntersectionObserver to fetch thumbnails only when cards enter viewport
+        if ('IntersectionObserver' in window) {
+            const thumbnailObserver = new IntersectionObserver(async (entries) => {
+                entries.forEach(async (entry) => {
+                    if (entry.isIntersecting) {
+                        const card = entry.target;
+                        const tripId = card.getAttribute('data-trip-id');
+
+                        // Stop observing this card (fetch only once)
+                        thumbnailObserver.unobserve(card);
+
+                        if (!tripId) return;
+
+                        // Find all thumbnail images for this trip
+                        const thumbImages = card.querySelectorAll('[data-thumb-placeholder]');
+                        if (!thumbImages.length) return;
+
+                        try {
+                            // Fetch thumbnail URL from API
+                            const response = await fetch(`/Public/Trips/${tripId}/Thumbnail?size=800x450`);
+
+                            if (!response.ok) {
+                                console.warn(`Failed to fetch thumbnail for trip ${tripId}`);
+                                return;
+                            }
+
+                            const data = await response.json();
+
+                            if (data.thumbUrl) {
+                                // Update all thumbnail images for this trip
+                                thumbImages.forEach(img => {
+                                    // Directly set the src to load the image immediately
+                                    img.src = data.thumbUrl;
+                                    img.removeAttribute('data-thumb-placeholder');
+                                });
+                            }
+                        } catch (error) {
+                            console.error(`Error fetching thumbnail for trip ${tripId}:`, error);
+                        }
+                    }
+                });
+            }, {
+                rootMargin: '600px' // Start fetching 600px before entering viewport (buffer ~1-2 cards)
+            });
+
+            // Observe all trip cards
+            tripCards.forEach(card => thumbnailObserver.observe(card));
+        } else {
+            // Fallback for browsers without IntersectionObserver support (rare)
+            // Fetch all thumbnails immediately
+            tripCards.forEach(async (card) => {
+                const tripId = card.getAttribute('data-trip-id');
+                if (!tripId) return;
+
+                const thumbImages = card.querySelectorAll('[data-thumb-placeholder]');
+                if (!thumbImages.length) return;
+
+                try {
+                    const response = await fetch(`/Public/Trips/${tripId}/Thumbnail?size=800x450`);
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+                    if (data.thumbUrl) {
+                        thumbImages.forEach(img => {
+                            img.src = data.thumbUrl;
+                            img.removeAttribute('data-thumb-placeholder');
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error fetching thumbnail for trip ${tripId}:`, error);
+                }
+            });
+        }
+    };
+
+    /**
      * Initialize all functionality when DOM is ready
      */
     const init = () => {
@@ -293,6 +380,7 @@
         initPiPTips();
         initQuickPreview();
         initShareButton();
+        initAsyncThumbnails(); // Fetch thumbnails asynchronously after page loads
     };
 
     // Run initialization

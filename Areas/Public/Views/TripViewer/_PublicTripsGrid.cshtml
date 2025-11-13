@@ -30,7 +30,7 @@ else
         @foreach (var item in Model.Items)
         {
             <div class="col">
-                <div class="card h-100 shadow-sm">
+                <div class="card h-100 shadow-sm" data-trip-id="@item.Id">
                     <!-- Hero Image with PiP Map -->
                     <div class="trip-hero-wrap position-relative" style="height: 250px; overflow: hidden;">
                         <!-- Base photo -->
@@ -49,16 +49,17 @@ else
                         }
 
                         <!-- PiP map badge (only show if trip has map coordinates) -->
-                        @if (item.CenterLat.HasValue && item.CenterLon.HasValue && !string.IsNullOrWhiteSpace(item.ThumbUrl))
+                        @if (item.CenterLat.HasValue && item.CenterLon.HasValue)
                         {
                             <button type="button"
                                     class="trip-map-badge"
                                     aria-label="Show map preview"
                                     data-hero-toggle
                                     data-trip-preview="@item.Id">
-                                <img class="w-100 h-100 object-fit-cover js-lazy"
-                                     data-src="@item.ThumbUrl"
-                                     alt="">
+                                <img class="w-100 h-100 object-fit-cover"
+                                     data-thumb-placeholder
+                                     alt=""
+                                     style="background-color: #e9ecef;">
                                 <!-- UI tip bubble -->
                                 <span class="pip-tip-bubble" role="status" aria-live="polite">
                                     <span class="pip-tip-text d-none d-lg-inline">Hover for map</span>
@@ -67,10 +68,11 @@ else
                             </button>
 
                             <!-- Full-bleed map overlay -->
-                            <img class="trip-map-overlay w-100 h-100 object-fit-cover js-lazy"
-                                 data-src="@item.ThumbUrl"
+                            <img class="trip-map-overlay w-100 h-100 object-fit-cover"
+                                 data-thumb-placeholder
                                  alt="Map of @item.Name"
-                                 aria-hidden="true">
+                                 aria-hidden="true"
+                                 style="background-color: #e9ecef;">
                         }
 
                         <!-- Updated badge -->

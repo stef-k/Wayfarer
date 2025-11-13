@@ -41,7 +41,7 @@ else
             <tbody>
                 @foreach (var item in Model.Items)
                 {
-                    <tr>
+                    <tr data-trip-id="@item.Id">
                         <!-- Cover Image Column -->
                         <td>
                             <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
@@ -64,10 +64,10 @@ else
                         <!-- Map Thumbnail Column -->
                         <td>
                             <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
-                                @if (item.CenterLat.HasValue && item.CenterLon.HasValue && !string.IsNullOrWhiteSpace(item.ThumbUrl))
+                                @if (item.CenterLat.HasValue && item.CenterLon.HasValue)
                                 {
-                                    <img class="w-100 h-100 object-fit-cover js-lazy"
-                                         data-src="@item.ThumbUrl"
+                                    <img class="w-100 h-100 object-fit-cover"
+                                         data-thumb-placeholder
                                          alt="Map of @item.Name"
                                          style="background-color: #e9ecef;" />
                                 }

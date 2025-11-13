@@ -111,15 +111,9 @@ public class TripViewerController : BaseController
                 }
             }
 
-            // Generate thumbnail URL (async for map snapshots)
-            item.ThumbUrl = await _thumbnailService.GetThumbUrlAsync(
-                item.Id,
-                item.CenterLat,
-                item.CenterLon,
-                item.Zoom,
-                item.CoverImageUrl,
-                item.UpdatedAt,
-                thumbnailSize);
+            // Don't generate thumbnails during page load - they'll be loaded asynchronously via API
+            // This prevents blocking the page response
+            item.ThumbUrl = null;
         }
 
         // Build view model
@@ -247,5 +241,56 @@ public class TripViewerController : BaseController
                           ?? "application/octet-stream";
         var bytes = await resp.Content.ReadAsByteArrayAsync();
         return File(bytes, contentType);
+    }
+
+    /// <summary>
+    /// API endpoint to generate thumbnail for a specific trip asynchronously.
+    /// Returns JSON with thumbnail URL.
+    /// GET: /Public/Trips/{id}/Thumbnail?size=800x450
+    /// </summary>
+    [HttpGet]
+    [Route("/Public/Trips/{id}/Thumbnail", Order = 0)]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetThumbnail(Guid id, string size = "800x450")
+    {
+        // Get trip info needed for thumbnail generation
+        var trip = await _dbContext.Trips
+            .Where(t => t.IsPublic && t.Id == id)
+            .Select(t => new
+            {
+                t.Id,
+                t.CoverImageUrl,
+                t.CenterLat,
+                t.CenterLon,
+                t.Zoom,
+                t.UpdatedAt
+            })
+            .FirstOrDefaultAsync();
+
+        if (trip == null)
+        {
+            return NotFound(new { error = "Trip not found" });
+        }
+
+        try
+        {
+            // Generate thumbnail asynchronously
+            var thumbUrl = await _thumbnailService.GetThumbUrlAsync(
+                trip.Id,
+                trip.CenterLat,
+                trip.CenterLon,
+                trip.Zoom,
+                trip.CoverImageUrl,
+                trip.UpdatedAt,
+                size);
+
+            return Json(new { tripId = id, thumbUrl });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate thumbnail for trip {TripId}", id);
+            // Fallback to cover image if thumbnail generation fails
+            return Json(new { tripId = id, thumbUrl = trip.CoverImageUrl });
+        }
     }
 }
