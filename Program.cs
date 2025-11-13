@@ -551,6 +551,9 @@ static async Task ConfigureMiddleware(WebApplication app)
     app.UseRouting();
     app.UseAuthorization();
 
+    // Serve static files (includes runtime-generated files like thumbnails)
+    app.UseStaticFiles();
+
     // Map static assets (e.g., CSS, JS) to routes
     app.MapStaticAssets();
 

@@ -37,6 +37,7 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
         // Prepare thumbs directory
         _thumbsDirectory = Path.Combine(_env.WebRootPath, "thumbs", "trips");
         Directory.CreateDirectory(_thumbsDirectory);
+        _logger.LogInformation("Thumbnail directory: {ThumbsDirectory}", _thumbsDirectory);
 
         // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
         _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
@@ -139,8 +140,8 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
                 // Set file timestamp to match trip's UpdatedAt for cache validation
                 File.SetLastWriteTimeUtc(filePath, updatedAt);
 
-                _logger.LogInformation("Generated thumbnail for trip {TripId}: {Width}x{Height}",
-                    tripId, width, height);
+                _logger.LogInformation("Generated thumbnail for trip {TripId}: {Width}x{Height}, saved to: {FilePath}",
+                    tripId, width, height, filePath);
 
                 // Add timestamp for browser cache busting
                 var timestamp = updatedAt.Ticks;
