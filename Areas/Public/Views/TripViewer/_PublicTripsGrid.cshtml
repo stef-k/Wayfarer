@@ -96,6 +96,14 @@ else
                             </a>
                         </h5>
 
+                        <!-- Attribution -->
+                        @if (!string.IsNullOrWhiteSpace(item.OwnerDisplayName))
+                        {
+                            <p class="text-muted small mb-2">
+                                <i class="bi bi-person"></i> by @item.OwnerDisplayName
+                            </p>
+                        }
+
                         <!-- Notes Excerpt -->
                         @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
                         {
@@ -143,7 +151,7 @@ else
                             @* Clone button - show for authenticated users, login prompt for others *@
                             @if (User.Identity?.IsAuthenticated == true)
                             {
-                                @if (item.UserId != User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier))
+                                @if (!item.IsOwner)
                                 {
                                     <form asp-area="User"
                                           asp-controller="Trip"

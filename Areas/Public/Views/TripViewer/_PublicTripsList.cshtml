@@ -87,6 +87,12 @@ else
                                 <a href="/Public/Trips/@item.Id" class="fw-semibold text-decoration-none text-dark d-block">
                                     @item.Name
                                 </a>
+                                @if (!string.IsNullOrWhiteSpace(item.OwnerDisplayName))
+                                {
+                                    <div class="text-muted small">
+                                        <i class="bi bi-person"></i> by @item.OwnerDisplayName
+                                    </div>
+                                }
                                 @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
                                 {
                                     <div class="text-muted small mt-1">
@@ -155,7 +161,7 @@ else
                                 @* Clone button - show for authenticated users, login prompt for others *@
                                 @if (User.Identity?.IsAuthenticated == true)
                                 {
-                                    @if (item.UserId != User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier))
+                                    @if (!item.IsOwner)
                                     {
                                         <form asp-area="User"
                                               asp-controller="Trip"

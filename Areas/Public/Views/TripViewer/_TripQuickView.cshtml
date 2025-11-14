@@ -14,6 +14,14 @@
 <!-- Trip Name -->
 <h2 class="h4 mb-3">@Model.Name</h2>
 
+<!-- Attribution -->
+@if (!string.IsNullOrWhiteSpace(Model.OwnerDisplayName))
+{
+    <div class="text-muted small mb-3">
+        <i class="bi bi-person"></i> by @Model.OwnerDisplayName
+    </div>
+}
+
 <!-- Stats Row -->
 <div class="d-flex gap-4 mb-3 text-muted">
     @if (Model.RegionsCount > 0)

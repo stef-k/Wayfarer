@@ -194,6 +194,11 @@
                 </div>
             </div>
             <dl class="row small px-2 pt-1 mb-2">
+                @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
+                {
+                    <dt class="col-5 text-muted">Trip by:</dt>
+                    <dd class="col-7">@Model.User.DisplayName</dd>
+                }
                 <dt class="col-5 text-muted">Last updated at:</dt>
                 <dd class="col-7">@Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")</dd>
             </dl>

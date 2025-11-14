@@ -779,6 +779,329 @@ return Ok(dto);
         return region;
     }
 
+    /// <summary>
+    /// Returns a paginated, searchable list of all public trips.
+    /// </summary>
+    /// <param name="q">Optional search query to filter trips by name or notes</param>
+    /// <param name="sort">Sort order: 'updated' (default) or 'name'</param>
+    /// <param name="page">Page number (default: 1)</param>
+    /// <param name="pageSize">Items per page (default: 24, max: 100)</param>
+    /// <remarks>
+    /// No authentication required (optional for ownership flag).
+    /// Returns lightweight trip summaries without full regions/segments data.
+    ///
+    /// Notes field includes HTML limited to 200 words for trip descriptions.
+    /// NotesExcerpt provides plain text preview limited to 140 characters.
+    ///
+    /// Example: GET /api/trips/public?q=europe&amp;sort=name&amp;page=1&amp;pageSize=20
+    /// </remarks>
+    /// <returns>
+    /// JSON object with:
+    /// - items: Array of trip summaries (includes notes HTML limited to 200 words)
+    /// - totalCount: Total number of matching trips
+    /// - page: Current page number
+    /// - pageSize: Items per page
+    /// - totalPages: Total number of pages
+    /// </returns>
+    /// <response code="200">Returns paginated public trips</response>
+    [HttpGet("public")]
+    [Route("api/trips/public", Order = 0)]
+    public async Task<IActionResult> GetPublicTrips(
+        [FromQuery] string? q = null,
+        [FromQuery] string sort = "updated",
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 24)
+    {
+        // Get current user ID if authenticated (to determine IsOwner)
+        var currentUser = GetUserFromToken();
+        var currentUserId = currentUser?.Id;
+
+        // Validate and cap page size
+        pageSize = Math.Min(Math.Max(pageSize, 1), 100);
+        page = Math.Max(page, 1);
+
+        // Base query: only public trips
+        var query = _dbContext.Trips
+            .Include(t => t.User) // Include user for display name
+            .Include(t => t.Regions).ThenInclude(r => r.Places)
+            .Include(t => t.Segments)
+            .Where(t => t.IsPublic)
+            .AsNoTracking();
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var searchTerm = q.ToLower();
+            query = query.Where(t =>
+                t.Name.ToLower().Contains(searchTerm) ||
+                (t.Notes != null && t.Notes.ToLower().Contains(searchTerm))
+            );
+        }
+
+        // Apply sorting
+        query = sort.ToLower() switch
+        {
+            "name" => query.OrderBy(t => t.Name),
+            _ => query.OrderByDescending(t => t.UpdatedAt) // "updated" or default
+        };
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync();
+
+        // Apply pagination and project to DTO
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => new
+            {
+                Trip = new ApiPublicTripSummaryDto
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    OwnerDisplayName = t.User.DisplayName,
+                    NotesExcerpt = t.Notes != null ? t.Notes.Substring(0, Math.Min(140, t.Notes.Length)) : null,
+                    Notes = t.Notes, // Full HTML notes (will be word-limited below)
+                    CoverImageUrl = t.CoverImageUrl,
+                    CenterLat = t.CenterLat,
+                    CenterLon = t.CenterLon,
+                    Zoom = t.Zoom,
+                    UpdatedAt = t.UpdatedAt,
+                    RegionsCount = t.Regions!.Count(),
+                    PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
+                    SegmentsCount = t.Segments!.Count(),
+                    IsOwner = t.UserId == currentUserId
+                },
+                t.UserId // Keep internally for IsOwner calculation
+            })
+            .ToListAsync();
+
+        // Extract just the DTOs (UserId was only needed for IsOwner calculation)
+        var tripItems = items.Select(x => x.Trip).ToList();
+
+        // Process notes: strip HTML for excerpt, limit HTML notes to 200 words
+        foreach (var item in tripItems)
+        {
+            // Process plain text excerpt
+            if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
+            {
+                item.NotesExcerpt = System.Text.RegularExpressions.Regex.Replace(
+                    item.NotesExcerpt, "<.*?>", string.Empty);
+
+                if (item.NotesExcerpt.Length > 140)
+                {
+                    item.NotesExcerpt = item.NotesExcerpt.Substring(0, 137) + "...";
+                }
+            }
+
+            // Limit HTML notes to 200 words
+            if (!string.IsNullOrWhiteSpace(item.Notes))
+            {
+                item.Notes = LimitHtmlToWords(item.Notes, 200);
+            }
+        }
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return Ok(new
+        {
+            items = tripItems,
+            totalCount,
+            page,
+            pageSize,
+            totalPages
+        });
+    }
+
+    /// <summary>
+    /// Clones a public trip to the authenticated user's account.
+    /// Creates a complete deep copy including all regions, places, areas, and segments.
+    /// </summary>
+    /// <param name="id">ID of the public trip to clone</param>
+    /// <remarks>
+    /// Requires a valid API token in the Authorization header.
+    ///
+    /// Rules:
+    /// - Only public trips can be cloned
+    /// - Cannot clone your own trips
+    /// - Cloned trip will be private by default
+    /// - All regions, places, areas, and segments are deep copied with new IDs
+    /// - Segment place references are remapped to new place IDs
+    ///
+    /// Example: POST /api/trips/{id}/clone
+    /// </remarks>
+    /// <returns>
+    /// JSON object with:
+    /// - clonedTripId: GUID of the newly created trip
+    /// - message: Success message
+    /// </returns>
+    /// <response code="200">Trip cloned successfully</response>
+    /// <response code="400">If trip is not public or user owns the trip</response>
+    /// <response code="401">If API token is missing or invalid</response>
+    /// <response code="404">If trip does not exist</response>
+    [HttpPost("{id}/clone")]
+    [Route("api/trips/{id}/clone", Order = 0)]
+    public async Task<IActionResult> CloneTrip(Guid id)
+    {
+        // Require authentication for cloning
+        var user = GetUserFromToken();
+        if (user == null)
+            return Unauthorized("Missing or invalid API token.");
+
+        // Load source trip with all related data
+        var sourceTrip = await _dbContext.Trips
+            .Include(t => t.Regions!).ThenInclude(r => r.Places)
+            .Include(t => t.Regions!).ThenInclude(r => r.Areas)
+            .Include(t => t.Segments)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id);
+
+        if (sourceTrip == null)
+            return NotFound(new { error = "Trip not found" });
+
+        // Validate: only public trips can be cloned
+        if (!sourceTrip.IsPublic)
+            return BadRequest(new { error = "This trip is not public and cannot be cloned" });
+
+        // Validate: don't allow cloning your own trip
+        if (sourceTrip.UserId == user.Id)
+            return BadRequest(new { error = "You already own this trip" });
+
+        try
+        {
+            // Create cloned trip
+            var clonedTrip = new Trip
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Name = $"{sourceTrip.Name} (Copy)",
+                Notes = sourceTrip.Notes,
+                IsPublic = false, // Start as private
+                CenterLat = sourceTrip.CenterLat,
+                CenterLon = sourceTrip.CenterLon,
+                Zoom = sourceTrip.Zoom,
+                CoverImageUrl = sourceTrip.CoverImageUrl,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            // Track old -> new ID mappings for places (needed for segments)
+            var placeIdMapping = new Dictionary<Guid, Guid>();
+
+            // Clone regions with places and areas
+            if (sourceTrip.Regions != null)
+            {
+                foreach (var sourceRegion in sourceTrip.Regions)
+                {
+                    var clonedRegion = new Region
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        TripId = clonedTrip.Id,
+                        Name = sourceRegion.Name,
+                        Notes = sourceRegion.Notes,
+                        DisplayOrder = sourceRegion.DisplayOrder,
+                        CoverImageUrl = sourceRegion.CoverImageUrl,
+                        Center = sourceRegion.Center
+                    };
+
+                    // Clone places within this region
+                    if (sourceRegion.Places != null)
+                    {
+                        foreach (var sourcePlace in sourceRegion.Places)
+                        {
+                            var newPlaceId = Guid.NewGuid();
+                            placeIdMapping[sourcePlace.Id] = newPlaceId;
+
+                            var clonedPlace = new Place
+                            {
+                                Id = newPlaceId,
+                                UserId = user.Id,
+                                RegionId = clonedRegion.Id,
+                                Name = sourcePlace.Name,
+                                Location = sourcePlace.Location,
+                                Notes = sourcePlace.Notes,
+                                DisplayOrder = sourcePlace.DisplayOrder,
+                                IconName = sourcePlace.IconName,
+                                MarkerColor = sourcePlace.MarkerColor,
+                                Address = sourcePlace.Address
+                            };
+
+                            clonedRegion.Places!.Add(clonedPlace);
+                        }
+                    }
+
+                    // Clone areas within this region
+                    if (sourceRegion.Areas != null)
+                    {
+                        foreach (var sourceArea in sourceRegion.Areas)
+                        {
+                            var clonedArea = new Area
+                            {
+                                Id = Guid.NewGuid(),
+                                RegionId = clonedRegion.Id,
+                                Name = sourceArea.Name,
+                                Notes = sourceArea.Notes,
+                                DisplayOrder = sourceArea.DisplayOrder,
+                                FillHex = sourceArea.FillHex,
+                                Geometry = sourceArea.Geometry
+                            };
+
+                            clonedRegion.Areas.Add(clonedArea);
+                        }
+                    }
+
+                    clonedTrip.Regions!.Add(clonedRegion);
+                }
+            }
+
+            // Clone segments with updated place references
+            if (sourceTrip.Segments != null)
+            {
+                foreach (var sourceSegment in sourceTrip.Segments)
+                {
+                    var clonedSegment = new Segment
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = user.Id,
+                        TripId = clonedTrip.Id,
+                        Mode = sourceSegment.Mode,
+                        RouteGeometry = sourceSegment.RouteGeometry,
+                        EstimatedDuration = sourceSegment.EstimatedDuration,
+                        EstimatedDistanceKm = sourceSegment.EstimatedDistanceKm,
+                        DisplayOrder = sourceSegment.DisplayOrder,
+                        Notes = sourceSegment.Notes,
+                        // Map old place IDs to new place IDs
+                        FromPlaceId = sourceSegment.FromPlaceId.HasValue && placeIdMapping.ContainsKey(sourceSegment.FromPlaceId.Value)
+                            ? placeIdMapping[sourceSegment.FromPlaceId.Value]
+                            : null,
+                        ToPlaceId = sourceSegment.ToPlaceId.HasValue && placeIdMapping.ContainsKey(sourceSegment.ToPlaceId.Value)
+                            ? placeIdMapping[sourceSegment.ToPlaceId.Value]
+                            : null
+                    };
+
+                    clonedTrip.Segments!.Add(clonedSegment);
+                }
+            }
+
+            // Save cloned trip to database
+            _dbContext.Trips.Add(clonedTrip);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
+                user.Id, sourceTrip.Id, clonedTrip.Id);
+
+            return Ok(new
+            {
+                clonedTripId = clonedTrip.Id,
+                message = $"Trip '{sourceTrip.Name}' has been cloned successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clone trip {TripId} for user {UserId}", id, user.Id);
+            return StatusCode(500, new { error = "Failed to clone trip. Please try again." });
+        }
+    }
+
     private async Task<int> GetNextPlaceOrder(Guid regionId)
     {
         var max = await _dbContext.Places.Where(p => p.RegionId == regionId).MaxAsync(p => (int?)p.DisplayOrder) ?? 0;
@@ -791,6 +1114,66 @@ return Ok(dto);
             .Where(r => r.TripId == tripId && r.Name != ShadowRegionName)
             .MaxAsync(r => (int?)r.DisplayOrder) ?? 0;
         return Math.Max(max + 1, 1);
+    }
+
+    /// <summary>
+    /// Limits HTML content to a specified number of words while preserving HTML structure.
+    /// Strips tags temporarily, counts words, then preserves original HTML up to that point.
+    /// </summary>
+    /// <param name="html">HTML content to limit</param>
+    /// <param name="maxWords">Maximum number of words to include</param>
+    /// <returns>Truncated HTML with ellipsis if content was cut</returns>
+    private string LimitHtmlToWords(string html, int maxWords)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return html;
+
+        // Strip HTML tags to count words in plain text
+        var plainText = System.Text.RegularExpressions.Regex.Replace(html, "<.*?>", string.Empty);
+        var words = plainText.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        // If under limit, return original HTML
+        if (words.Length <= maxWords)
+            return html;
+
+        // Find the position in plain text where we should cut
+        var limitedWords = string.Join(" ", words.Take(maxWords));
+
+        // Calculate approximate character position in the original HTML
+        // This is a simple approach - we count characters in stripped text
+        var targetLength = limitedWords.Length;
+
+        // Walk through HTML and count non-tag characters until we reach the limit
+        var result = new System.Text.StringBuilder();
+        var charCount = 0;
+        var inTag = false;
+
+        foreach (var ch in html)
+        {
+            result.Append(ch);
+
+            if (ch == '<')
+            {
+                inTag = true;
+            }
+            else if (ch == '>')
+            {
+                inTag = false;
+            }
+            else if (!inTag && !char.IsWhiteSpace(ch))
+            {
+                charCount++;
+
+                // Stop when we've captured enough characters
+                if (charCount >= targetLength)
+                {
+                    result.Append("...");
+                    break;
+                }
+            }
+        }
+
+        return result.ToString();
     }
 }
 

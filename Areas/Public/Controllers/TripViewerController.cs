@@ -50,8 +50,12 @@ public class TripViewerController : BaseController
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 60);
 
+        // Get current user ID for IsOwner check
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
         // Start with public trips only
         var query = _dbContext.Trips
+            .Include(t => t.User)
             .Where(t => t.IsPublic)
             .AsQueryable();
 
@@ -82,7 +86,7 @@ public class TripViewerController : BaseController
             .Select(t => new PublicTripIndexItem
             {
                 Id = t.Id,
-                UserId = t.UserId,
+                OwnerDisplayName = t.User.DisplayName,
                 Name = t.Name,
                 NotesExcerpt = t.Notes != null ? t.Notes.Substring(0, Math.Min(140, t.Notes.Length)) : null,
                 CoverImageUrl = t.CoverImageUrl,
@@ -92,7 +96,8 @@ public class TripViewerController : BaseController
                 UpdatedAt = t.UpdatedAt,
                 RegionsCount = t.Regions!.Count(),
                 PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
-                SegmentsCount = t.Segments!.Count()
+                SegmentsCount = t.Segments!.Count(),
+                IsOwner = t.UserId == currentUserId
             })
             .ToListAsync();
 
@@ -144,6 +149,7 @@ public class TripViewerController : BaseController
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var trip = await _dbContext.Trips
+            .Include(t => t.User)
             .Include(t => t.Regions!).ThenInclude(r => r.Places!)
             .Include(t => t.Regions!).ThenInclude(a => a.Areas)
             .Include(t => t.Segments!)
@@ -178,12 +184,16 @@ public class TripViewerController : BaseController
     [AllowAnonymous]
     public async Task<IActionResult> Preview(Guid id)
     {
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
         var trip = await _dbContext.Trips
+            .Include(t => t.User)
             .Where(t => t.IsPublic && t.Id == id)
             .Select(t => new
             {
                 t.Id,
                 t.UserId,
+                OwnerDisplayName = t.User.DisplayName,
                 t.Name,
                 t.Notes,
                 t.CoverImageUrl,
@@ -206,7 +216,7 @@ public class TripViewerController : BaseController
         var previewItem = new PublicTripIndexItem
         {
             Id = trip.Id,
-            UserId = trip.UserId,
+            OwnerDisplayName = trip.OwnerDisplayName,
             Name = trip.Name,
             NotesExcerpt = trip.Notes,
             CoverImageUrl = trip.CoverImageUrl,
@@ -216,7 +226,8 @@ public class TripViewerController : BaseController
             UpdatedAt = trip.UpdatedAt,
             RegionsCount = trip.RegionsCount,
             PlacesCount = trip.PlacesCount,
-            SegmentsCount = trip.SegmentsCount
+            SegmentsCount = trip.SegmentsCount,
+            IsOwner = trip.UserId == currentUserId
         };
 
         // Generate thumbnail for preview (larger size)
