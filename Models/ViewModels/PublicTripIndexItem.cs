@@ -9,6 +9,9 @@ public sealed class PublicTripIndexItem
     /// <summary>Trip identifier.</summary>
     public Guid Id { get; set; }
 
+    /// <summary>User identifier who owns this trip.</summary>
+    public string UserId { get; set; } = default!;
+
     /// <summary>Trip name or title.</summary>
     public string Name { get; set; } = default!;
 

@@ -82,6 +82,7 @@ public class TripViewerController : BaseController
             .Select(t => new PublicTripIndexItem
             {
                 Id = t.Id,
+                UserId = t.UserId,
                 Name = t.Name,
                 NotesExcerpt = t.Notes != null ? t.Notes.Substring(0, Math.Min(140, t.Notes.Length)) : null,
                 CoverImageUrl = t.CoverImageUrl,
@@ -182,6 +183,7 @@ public class TripViewerController : BaseController
             .Select(t => new
             {
                 t.Id,
+                t.UserId,
                 t.Name,
                 t.Notes,
                 t.CoverImageUrl,
@@ -204,6 +206,7 @@ public class TripViewerController : BaseController
         var previewItem = new PublicTripIndexItem
         {
             Id = trip.Id,
+            UserId = trip.UserId,
             Name = trip.Name,
             NotesExcerpt = trip.Notes,
             CoverImageUrl = trip.CoverImageUrl,

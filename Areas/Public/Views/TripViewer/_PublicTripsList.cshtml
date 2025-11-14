@@ -1,3 +1,4 @@
+@using System.Security.Claims
 @model Wayfarer.Models.ViewModels.PublicTripIndexVm
 
 @if (Model.Items.Count == 0)
@@ -151,6 +152,35 @@ else
                                         title="Quick preview">
                                     <i class="bi bi-eye"></i>
                                 </button>
+                                @* Clone button - show for authenticated users, login prompt for others *@
+                                @if (User.Identity?.IsAuthenticated == true)
+                                {
+                                    @if (item.UserId != User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier))
+                                    {
+                                        <form asp-area="User"
+                                              asp-controller="Trip"
+                                              asp-action="Clone"
+                                              asp-route-id="@item.Id"
+                                              method="post"
+                                              class="clone-trip-form d-inline-block">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    title="Clone this trip to your account">
+                                                <i class="bi bi-files"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                }
+                                else
+                                {
+                                    <a asp-area="Identity"
+                                       asp-page="/Account/Login"
+                                       asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString"
+                                       class="btn btn-sm btn-outline-secondary"
+                                       title="Login to clone this trip">
+                                        <i class="bi bi-box-arrow-in-right"></i>
+                                    </a>
+                                }
                                 <button type="button"
                                         class="btn btn-sm btn-outline-primary copy-url"
                                         data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"

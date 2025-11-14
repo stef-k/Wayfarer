@@ -100,6 +100,40 @@
                                             <i class="bi bi-share me-1"></i>Share (Copy URL)
                                         </a>
                                     </li>
+                                    @* Clone button - show for authenticated users, login prompt for others *@
+                                    @if (User.Identity?.IsAuthenticated == true)
+                                    {
+                                        @if (!(bool)(ViewBag.IsOwner ?? false))
+                                        {
+                                            <li>
+                                                <form asp-area="User"
+                                                      asp-controller="Trip"
+                                                      asp-action="Clone"
+                                                      asp-route-id="@Model.Id"
+                                                      method="post"
+                                                      class="d-inline"
+                                                      id="clone-trip-form">
+                                                    <button type="submit"
+                                                            class="dropdown-item"
+                                                            title="Clone this trip to your account">
+                                                        <i class="bi bi-files me-1"></i>Clone to My Trips
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <li>
+                                            <a class="dropdown-item"
+                                               asp-area="Identity"
+                                               asp-page="/Account/Login"
+                                               asp-route-returnUrl="@Context.Request.Path"
+                                               title="Login to clone this trip">
+                                                <i class="bi bi-box-arrow-in-right me-1"></i>Login to Clone
+                                            </a>
+                                        </li>
+                                    }
                                     <li>
                                         <hr class="dropdown-divider"/>
                                     </li>
@@ -230,6 +264,28 @@
 
 @section Scripts {
     <script type="module" src="~/js/tripViewer.js"></script>
+    <script>
+        // Clone trip confirmation
+        document.getElementById('clone-trip-form')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = this;
+            const btn = form.querySelector('button[type="submit"]');
+
+            showConfirmationModal({
+                title: 'Clone Trip',
+                message: 'Clone this trip to your account? You will be able to edit and customize your copy.',
+                confirmText: 'Clone Trip',
+                onConfirm: function() {
+                    // Show loading state
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cloning...';
+                    }
+                    form.submit();
+                }
+            });
+        });
+    </script>
 }
 
 

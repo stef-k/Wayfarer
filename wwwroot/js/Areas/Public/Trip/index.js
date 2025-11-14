@@ -372,6 +372,49 @@
     };
 
     /**
+     * Clone Trip Confirmation
+     * Shows a confirmation modal before cloning a trip
+     */
+    const initCloneForms = () => {
+        document.addEventListener('submit', (e) => {
+            const form = e.target;
+            if (!form.classList.contains('clone-trip-form')) {
+                return;
+            }
+
+            e.preventDefault();
+            const btn = form.querySelector('button[type="submit"]');
+
+            if (typeof window.showConfirmationModal === 'function') {
+                window.showConfirmationModal({
+                    title: 'Clone Trip',
+                    message: 'Clone this trip to your account? You will be able to edit and customize your copy.',
+                    confirmText: 'Clone Trip',
+                    onConfirm: () => {
+                        // Show loading state
+                        if (btn) {
+                            btn.disabled = true;
+                            const originalHTML = btn.innerHTML;
+                            btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                            // Restore after submit in case of redirect delay
+                            setTimeout(() => {
+                                btn.innerHTML = originalHTML;
+                                btn.disabled = false;
+                            }, 5000);
+                        }
+                        form.submit();
+                    }
+                });
+            } else {
+                // Fallback to browser confirm if custom modal not available
+                if (confirm('Clone this trip to your account? You will be able to edit and customize your copy.')) {
+                    form.submit();
+                }
+            }
+        });
+    };
+
+    /**
      * Initialize all functionality when DOM is ready
      */
     const init = () => {
@@ -381,6 +424,7 @@
         initQuickPreview();
         initShareButton();
         initAsyncThumbnails(); // Fetch thumbnails asynchronously after page loads
+        initCloneForms(); // Handle clone trip confirmation
     };
 
     // Run initialization
