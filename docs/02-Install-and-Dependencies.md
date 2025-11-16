@@ -82,6 +82,7 @@ sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
 # Create database
 sudo -u postgres createdb wayfarer
 sudo -u postgres psql wayfarer -c "CREATE EXTENSION postgis;"
+sudo -u postgres psql wayfarer -c "CREATE EXTENSION citext;"
 
 # Clone and configure
 git clone https://github.com/yourusername/wayfarer.git
