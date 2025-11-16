@@ -202,6 +202,25 @@
                 <dt class="col-5 text-muted">Last updated at:</dt>
                 <dd class="col-7">@Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")</dd>
             </dl>
+
+            @if (Model.Tags?.Count > 0)
+            {
+                <div class="px-2 pb-2">
+                    <div class="small text-muted mb-1">Tags:</div>
+                    <div class="d-flex flex-wrap gap-1" data-trip-tags>
+                        @foreach (var tag in Model.Tags.OrderBy(t => t.Name))
+                        {
+                            <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
+                               class="badge rounded-pill text-bg-secondary text-decoration-none"
+                               style="font-size: 0.75rem;"
+                               title="Filter by @tag.Name">
+                                <i class="bi bi-tag-fill"></i> @tag.Name
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+
             <div class="px-2 pb-2">
                 <input id="legend-search" type="search" class="form-control form-control-sm"
                        placeholder="Search regions, places, areas, segments" autocomplete="off" />

@@ -1,4 +1,7 @@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@using System.Linq
+@using System.Text.Json
+@using Wayfarer.Models
 @model Wayfarer.Models.Trip
 
 @{
@@ -12,6 +15,11 @@
     .ToList();
   
   var shadowRegion = regions.FirstOrDefault(r => r.Name == "Unassigned Places");
+  var tagSeed = (Model.Tags ?? Enumerable.Empty<Tag>())
+      .OrderBy(t => t.Name)
+      .Select(t => new { t.Id, t.Name, t.Slug })
+      .ToList();
+  var tagJson = JsonSerializer.Serialize(tagSeed, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
 
 <div class="row">
@@ -105,6 +113,52 @@
                   </a>
                 </div>
               }
+            </div>
+
+            <div class="col-md-12">
+              <label class="form-label">Tags</label>
+              <div class="border rounded p-3 bg-body-secondary-subtle"
+                   data-trip-tags
+                   data-trip-id="@Model.Id"
+                   data-tags='@Html.Raw(tagJson)'
+                   data-limit="15"
+                   data-suggest-url="/Public/Tags/Suggest">
+                <div class="d-flex flex-wrap gap-2 mb-2" data-tag-list>
+                  @if (Model.Tags?.Any() == true)
+                  {
+                    foreach (var tag in Model.Tags.OrderBy(t => t.Name))
+                    {
+                      <span class="badge text-bg-primary-subtle text-primary d-inline-flex align-items-center gap-1"
+                            data-tag-chip
+                            data-tag-slug="@tag.Slug">
+                        <span>@tag.Name</span>
+                        <button type="button" class="btn-close" style="width: 0.5em; height: 0.5em;" aria-label="Remove tag"></button>
+                      </span>
+                    }
+                  }
+                  else
+                  {
+                    <span class="text-muted small">No tags yet.</span>
+                  }
+                </div>
+
+                <div class="input-group input-group-sm">
+                  <input type="text"
+                         class="form-control"
+                         placeholder="Add a tag..."
+                         maxlength="64"
+                         data-tag-input />
+                  <button type="button" class="btn btn-outline-secondary" data-tag-add>
+                    <i class="bi bi-plus-circle"></i>
+                    Add
+                  </button>
+                </div>
+                <div class="list-group mt-2 d-none" data-tag-suggestions></div>
+                <div class="text-muted small mt-2">
+                  Up to 15 tags. Letters, numbers, spaces, hyphen, apostrophes only.
+                </div>
+                <div class="text-danger small mt-2 d-none" data-tag-feedback></div>
+              </div>
             </div>
 
             <div class="col-md-12 d-flex gap-2">

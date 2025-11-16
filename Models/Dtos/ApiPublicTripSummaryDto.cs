@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Wayfarer.Models.Dtos;
 
 /// <summary>
@@ -47,4 +50,7 @@ public class ApiPublicTripSummaryDto
 
     /// <summary>Whether current user owns this trip.</summary>
     public bool IsOwner { get; set; }
+
+    /// <summary>Tags associated with this trip.</summary>
+    public IReadOnlyList<TripTagDto> Tags { get; set; } = Array.Empty<TripTagDto>();
 }

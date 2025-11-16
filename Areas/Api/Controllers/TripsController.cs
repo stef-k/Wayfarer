@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
-
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -11,9 +11,12 @@ namespace Wayfarer.Areas.Api.Controllers;
 [ApiController]
 public class TripsController : BaseApiController
 {
-    public TripsController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger)
+    private readonly ITripTagService _tripTagService;
+
+    public TripsController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger, ITripTagService tripTagService)
         : base(dbContext, logger)
     {
+        _tripTagService = tripTagService;
     }
 
     private const string ShadowRegionName = "Unassigned Places";
@@ -810,7 +813,9 @@ return Ok(dto);
         [FromQuery] string? q = null,
         [FromQuery] string sort = "updated",
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 24)
+        [FromQuery] int pageSize = 24,
+        [FromQuery] string? tags = null,
+        [FromQuery(Name = "tagMode")] string tagMode = "all")
     {
         // Get current user ID if authenticated (to determine IsOwner)
         var currentUser = GetUserFromToken();
@@ -825,6 +830,7 @@ return Ok(dto);
             .Include(t => t.User) // Include user for display name
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
+            .Include(t => t.Tags)
             .Where(t => t.IsPublic)
             .AsNoTracking();
 
@@ -836,6 +842,13 @@ return Ok(dto);
                 t.Name.ToLower().Contains(searchTerm) ||
                 (t.Notes != null && t.Notes.ToLower().Contains(searchTerm))
             );
+        }
+
+        var parsedTags = ParseTagSlugs(tags);
+        var normalizedTagMode = string.Equals(tagMode, "any", StringComparison.OrdinalIgnoreCase) ? "any" : "all";
+        if (parsedTags.Length > 0)
+        {
+            query = _tripTagService.ApplyTagFilter(query, parsedTags, normalizedTagMode);
         }
 
         // Apply sorting
@@ -869,7 +882,8 @@ return Ok(dto);
                     RegionsCount = t.Regions!.Count(),
                     PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
                     SegmentsCount = t.Segments!.Count(),
-                    IsOwner = t.UserId == currentUserId
+                    IsOwner = t.UserId == currentUserId,
+                    Tags = t.Tags.Select(tag => new TripTagDto(tag.Id, tag.Name, tag.Slug)).ToList()
                 },
                 t.UserId // Keep internally for IsOwner calculation
             })
@@ -902,13 +916,22 @@ return Ok(dto);
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
+        IReadOnlyList<TripTagDto> selectedTags = parsedTags.Length == 0
+            ? Array.Empty<TripTagDto>()
+            : await _dbContext.Tags
+                .Where(t => parsedTags.Contains(t.Slug))
+                .Select(t => new TripTagDto(t.Id, t.Name, t.Slug))
+                .ToListAsync();
+
         return Ok(new
         {
             items = tripItems,
             totalCount,
             page,
             pageSize,
-            totalPages
+            totalPages,
+            selectedTags,
+            tagMode = normalizedTagMode
         });
     }
 
@@ -1174,6 +1197,19 @@ return Ok(dto);
         }
 
         return result.ToString();
+    }
+
+    private static string[] ParseTagSlugs(string? tagsCsv)
+    {
+        if (string.IsNullOrWhiteSpace(tagsCsv))
+        {
+            return Array.Empty<string>();
+        }
+
+        return tagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => s.ToLowerInvariant())
+            .Distinct()
+            .ToArray();
     }
 }
 

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using Wayfarer.Models.Dtos;
+
 namespace Wayfarer.Models.ViewModels;
 
 /// <summary>
@@ -35,4 +39,16 @@ public sealed class PublicTripIndexVm
 
     /// <summary>Whether there is a next page.</summary>
     public bool HasNextPage => Page < TotalPages;
+
+    /// <summary>Comma-separated list of selected tag slugs (for persistency).</summary>
+    public string? TagsCsv { get; init; }
+
+    /// <summary>Filter mode: "all" (default) or "any".</summary>
+    public string TagMode { get; init; } = "all";
+
+    /// <summary>Tags currently applied to the filter.</summary>
+    public IReadOnlyList<TripTagDto> SelectedTags { get; init; } = Array.Empty<TripTagDto>();
+
+    /// <summary>Popular tags for quick filtering.</summary>
+    public IReadOnlyList<TagSuggestionDto> PopularTags { get; init; } = Array.Empty<TagSuggestionDto>();
 }

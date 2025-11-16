@@ -23,13 +23,15 @@
         <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
             @if (Model.HasPreviousPage)
             {
-                <a class="page-link"
-                   asp-route="PublicTripsIndex"
-                   asp-route-page="@(Model.Page - 1)"
-                   asp-route-view="@Model.View"
-                   asp-route-sort="@Model.Sort"
-                   asp-route-q="@Model.Q"
-                   aria-label="Previous">
+                   <a class="page-link"
+                      asp-route="PublicTripsIndex"
+                      asp-route-page="@(Model.Page - 1)"
+                      asp-route-view="@Model.View"
+                      asp-route-sort="@Model.Sort"
+                      asp-route-q="@Model.Q"
+                      asp-route-tags="@Model.TagsCsv"
+                      asp-route-tagMode="@Model.TagMode"
+                      aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                 </a>
             }
@@ -45,12 +47,14 @@
         @if (startPage > 1)
         {
             <li class="page-item">
-                <a class="page-link"
-                   asp-route="PublicTripsIndex"
-                   asp-route-page="1"
-                   asp-route-view="@Model.View"
-                   asp-route-sort="@Model.Sort"
-                   asp-route-q="@Model.Q">
+                   <a class="page-link"
+                      asp-route="PublicTripsIndex"
+                      asp-route-page="1"
+                      asp-route-view="@Model.View"
+                      asp-route-sort="@Model.Sort"
+                      asp-route-q="@Model.Q"
+                      asp-route-tags="@Model.TagsCsv"
+                      asp-route-tagMode="@Model.TagMode">
                     1
                 </a>
             </li>
@@ -76,12 +80,14 @@
                 }
                 else
                 {
-                    <a class="page-link"
-                       asp-route="PublicTripsIndex"
-                       asp-route-page="@i"
-                       asp-route-view="@Model.View"
-                       asp-route-sort="@Model.Sort"
-                       asp-route-q="@Model.Q">
+                   <a class="page-link"
+                      asp-route="PublicTripsIndex"
+                      asp-route-page="@i"
+                      asp-route-view="@Model.View"
+                      asp-route-sort="@Model.Sort"
+                      asp-route-q="@Model.Q"
+                      asp-route-tags="@Model.TagsCsv"
+                      asp-route-tagMode="@Model.TagMode">
                         @i
                     </a>
                 }
@@ -99,12 +105,14 @@
             }
 
             <li class="page-item">
-                <a class="page-link"
-                   asp-route="PublicTripsIndex"
-                   asp-route-page="@Model.TotalPages"
-                   asp-route-view="@Model.View"
-                   asp-route-sort="@Model.Sort"
-                   asp-route-q="@Model.Q">
+                   <a class="page-link"
+                      asp-route="PublicTripsIndex"
+                      asp-route-page="@Model.TotalPages"
+                      asp-route-view="@Model.View"
+                      asp-route-sort="@Model.Sort"
+                      asp-route-q="@Model.Q"
+                      asp-route-tags="@Model.TagsCsv"
+                      asp-route-tagMode="@Model.TagMode">
                     @Model.TotalPages
                 </a>
             </li>
@@ -114,13 +122,15 @@
         <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
             @if (Model.HasNextPage)
             {
-                <a class="page-link"
-                   asp-route="PublicTripsIndex"
-                   asp-route-page="@(Model.Page + 1)"
-                   asp-route-view="@Model.View"
-                   asp-route-sort="@Model.Sort"
-                   asp-route-q="@Model.Q"
-                   aria-label="Next">
+                   <a class="page-link"
+                      asp-route="PublicTripsIndex"
+                      asp-route-page="@(Model.Page + 1)"
+                      asp-route-view="@Model.View"
+                      asp-route-sort="@Model.Sort"
+                      asp-route-q="@Model.Q"
+                      asp-route-tags="@Model.TagsCsv"
+                      asp-route-tagMode="@Model.TagMode"
+                      aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
                 </a>
             }

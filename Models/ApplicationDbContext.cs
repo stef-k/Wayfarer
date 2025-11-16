@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
@@ -35,6 +36,7 @@ namespace Wayfarer.Models
         public DbSet<Region> Regions { get; set; }
         public DbSet<Place> Places { get; set; }
         public DbSet<Segment> Segments { get; set; }
+        public DbSet<Tag> Tags { get; set; }
 
         public DbSet<Area> Areas { get; set; }
         public DbSet<Group> Groups { get; set; }
@@ -44,6 +46,8 @@ namespace Wayfarer.Models
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+
+            builder.HasPostgresExtension("citext");
 
             // Configure the Location entity to use PostGIS Point type for Coordinates
             builder.Entity<Location>()
@@ -307,6 +311,39 @@ namespace Wayfarer.Models
                 .WithMany(u => u.GroupInvitationsReceived)
                 .HasForeignKey(i => i.InviteeUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            builder.Entity<Tag>(b =>
+            {
+                b.Property(t => t.Name)
+                    .HasMaxLength(64)
+                    .HasColumnType("citext");
+                b.Property(t => t.Slug)
+                    .HasMaxLength(200)
+                    .IsRequired();
+                b.HasIndex(t => t.Name).IsUnique();
+                b.HasIndex(t => t.Slug).IsUnique();
+            });
+
+            builder.Entity<Trip>()
+                .HasMany(t => t.Tags)
+                .WithMany(tg => tg.Trips)
+                .UsingEntity<Dictionary<string, object>>(
+                    "TripTags",
+                    j => j.HasOne<Tag>()
+                          .WithMany()
+                          .HasForeignKey("TagId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                    j => j.HasOne<Trip>()
+                          .WithMany()
+                          .HasForeignKey("TripId")
+                          .OnDelete(DeleteBehavior.Cascade),
+                    j =>
+                    {
+                        j.HasKey("TripId", "TagId");
+                        j.ToTable("TripTags");
+                        j.HasIndex("TagId");
+                        j.HasIndex("TripId");
+                    });
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

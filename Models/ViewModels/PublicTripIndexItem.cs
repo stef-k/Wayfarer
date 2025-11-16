@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using Wayfarer.Models.Dtos;
+
 namespace Wayfarer.Models.ViewModels;
 
 /// <summary>
@@ -47,4 +51,7 @@ public sealed class PublicTripIndexItem
 
     /// <summary>Whether current user owns this trip.</summary>
     public bool IsOwner { get; set; }
+
+    /// <summary>Tags attached to this trip.</summary>
+    public IReadOnlyList<TripTagDto> Tags { get; set; } = Array.Empty<TripTagDto>();
 }

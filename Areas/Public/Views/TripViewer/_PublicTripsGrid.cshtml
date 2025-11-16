@@ -1,3 +1,4 @@
+@using System.Linq
 @using System.Security.Claims
 @model Wayfarer.Models.ViewModels.PublicTripIndexVm
 
@@ -110,6 +111,26 @@ else
                             <p class="card-text text-muted small flex-grow-1">
                                 @item.NotesExcerpt
                             </p>
+                        }
+
+                        <!-- Tags -->
+                        @if (item.Tags.Count > 0)
+                        {
+                            <div class="d-flex flex-wrap gap-1 mb-2" data-trip-tags>
+                                @foreach (var tag in item.Tags.Take(5))
+                                {
+                                    <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
+                                       class="badge rounded-pill text-bg-secondary text-decoration-none position-relative"
+                                       style="font-size: 0.7rem; z-index: 1030;"
+                                       title="Filter by @tag.Name">
+                                        <i class="bi bi-tag-fill"></i> @tag.Name
+                                    </a>
+                                }
+                                @if (item.Tags.Count > 5)
+                                {
+                                    <span class="badge rounded-pill text-bg-light">+@(item.Tags.Count - 5)</span>
+                                }
+                            </div>
                         }
 
                         <!-- Meta Row -->

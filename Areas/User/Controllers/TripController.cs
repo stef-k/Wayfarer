@@ -12,14 +12,17 @@ namespace Wayfarer.Areas.User.Controllers
     public class TripController : BaseController
     {
         private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
+        private readonly ITripTagService _tripTagService;
 
         public TripController(
             ILogger<TripController> logger,
             ApplicationDbContext dbContext,
-            ITripMapThumbnailGenerator thumbnailGenerator)
+            ITripMapThumbnailGenerator thumbnailGenerator,
+            ITripTagService tripTagService)
             : base(logger, dbContext)
         {
             _thumbnailGenerator = thumbnailGenerator;
+            _tripTagService = tripTagService;
         }
 
         /// <summary>
@@ -166,6 +169,7 @@ namespace Wayfarer.Areas.User.Controllers
                 .ThenInclude(r => r.Places)
                 .Include(t => t.Regions!).ThenInclude(a => a.Areas)
                 .Include(t => t.Segments)
+                .Include(t => t.Tags)
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (trip == null)
@@ -278,6 +282,7 @@ namespace Wayfarer.Areas.User.Controllers
 
                 _dbContext.Trips.Remove(trip);
                 await _dbContext.SaveChangesAsync();
+                await _tripTagService.RemoveOrphanTagsAsync();
 
                 // Clean up associated thumbnails
                 _thumbnailGenerator.DeleteThumbnails(id);
@@ -311,7 +316,8 @@ namespace Wayfarer.Areas.User.Controllers
                         .ThenInclude(r => r.Places)
                     .Include(t => t.Regions!)
                         .ThenInclude(r => r.Areas)
-                    .Include(t => t.Segments);
+                    .Include(t => t.Segments)
+                    .Include(t => t.Tags);
 
                 var sourceTrip = await sourceTripQuery.FirstOrDefaultAsync(t => t.Id == id);
 
@@ -450,6 +456,14 @@ namespace Wayfarer.Areas.User.Controllers
                 }
 
                 // Save the cloned trip to database
+                if (sourceTrip.Tags?.Count > 0)
+                {
+                    foreach (var tag in sourceTrip.Tags)
+                    {
+                        clonedTrip.Tags.Add(tag);
+                    }
+                }
+
                 _dbContext.Trips.Add(clonedTrip);
                 await _dbContext.SaveChangesAsync();
 

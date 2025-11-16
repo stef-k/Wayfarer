@@ -415,6 +415,211 @@
     };
 
     /**
+     * Tag filtering + suggestions
+     */
+    const initTagFilters = () => {
+        const filterRoot = document.querySelector('[data-tag-filter]');
+        if (!filterRoot) {
+            return;
+        }
+
+        const selectedTags = new Set(
+            (filterRoot.dataset.tags || '')
+                .split(',')
+                .map(slug => slug.trim())
+                .filter(Boolean)
+        );
+        let mode = (filterRoot.dataset.tagMode || 'all').toLowerCase() === 'any' ? 'any' : 'all';
+        const tagInput = filterRoot.querySelector('[data-tag-input]');
+        const tagWrapper = filterRoot.querySelector('[data-tag-input-wrapper]');
+        const suggestionsEl = filterRoot.querySelector('[data-tag-suggestions]');
+        const suggestUrl = filterRoot.dataset.suggestUrl || '/Public/Tags/Suggest';
+        const clearBtn = filterRoot.querySelector('[data-clear-tags]');
+        let currentSuggestions = [];
+        let debounceHandle;
+
+        // Click wrapper to focus input
+        if (tagWrapper) {
+            tagWrapper.addEventListener('click', ev => {
+                if (ev.target === tagWrapper || ev.target.closest('[data-tag-chip]') === null) {
+                    tagInput?.focus();
+                }
+            });
+        }
+
+        const applyFilters = () => {
+            const params = new URLSearchParams(window.location.search);
+            if (selectedTags.size > 0) {
+                params.set('tags', Array.from(selectedTags).join(','));
+            } else {
+                params.delete('tags');
+            }
+            params.set('tagMode', mode);
+            params.set('page', '1');
+            window.location.href = `${window.location.pathname}?${params.toString()}`;
+        };
+
+        const renderSuggestions = items => {
+            currentSuggestions = items;
+            if (!suggestionsEl) {
+                return;
+            }
+            if (!items.length) {
+                suggestionsEl.classList.add('d-none');
+                suggestionsEl.innerHTML = '';
+                return;
+            }
+
+            suggestionsEl.innerHTML = items.map(item => `
+                <button type="button" class="list-group-item list-group-item-action"
+                        data-suggest-slug="${item.slug}" data-suggest-name="${item.name}">
+                    <span class="fw-semibold">${item.name}</span>
+                    <span class="text-muted small ms-2">${item.count}</span>
+                </button>`).join('');
+            suggestionsEl.classList.remove('d-none');
+        };
+
+        const fetchSuggestions = async query => {
+            try {
+                const resp = await fetch(`${suggestUrl}?q=${encodeURIComponent(query)}`);
+                if (!resp.ok) {
+                    throw new Error(resp.statusText);
+                }
+                const data = await resp.json();
+                renderSuggestions(Array.isArray(data) ? data : []);
+            } catch (err) {
+                console.warn('Failed to load tag suggestions', err);
+                renderSuggestions([]);
+            }
+        };
+
+        const handleTagAdd = slug => {
+            if (!slug) {
+                return;
+            }
+            if (!selectedTags.has(slug)) {
+                selectedTags.add(slug);
+                applyFilters();
+            }
+        };
+
+        filterRoot.addEventListener('click', ev => {
+            const closeBtn = ev.target.closest('[data-tag-chip] .btn-close');
+            if (closeBtn) {
+                ev.preventDefault();
+                const slug = closeBtn.closest('[data-tag-chip]')?.dataset.tagSlug;
+                if (slug && selectedTags.has(slug)) {
+                    selectedTags.delete(slug);
+                    applyFilters();
+                }
+                return;
+            }
+
+            const popularBtn = ev.target.closest('[data-popular-tag]');
+            if (popularBtn) {
+                ev.preventDefault();
+                const slug = popularBtn.dataset.popularTag;
+                if (!slug) {
+                    return;
+                }
+                if (selectedTags.has(slug)) {
+                    selectedTags.delete(slug);
+                } else {
+                    selectedTags.add(slug);
+                }
+                applyFilters();
+                return;
+            }
+
+            const modeBtn = ev.target.closest('[data-tag-mode-toggle]');
+            if (modeBtn) {
+                ev.preventDefault();
+                // Toggle between 'all' and 'any'
+                mode = mode === 'all' ? 'any' : 'all';
+                applyFilters();
+            }
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', ev => {
+                ev.preventDefault();
+                if (selectedTags.size === 0) {
+                    return;
+                }
+                selectedTags.clear();
+                applyFilters();
+            });
+        }
+
+        if (tagInput) {
+            tagInput.addEventListener('input', () => {
+                clearTimeout(debounceHandle);
+                const term = tagInput.value.trim();
+                if (term.length < 2) {
+                    renderSuggestions([]);
+                    return;
+                }
+                debounceHandle = setTimeout(() => fetchSuggestions(term), 200);
+            });
+
+            tagInput.addEventListener('keydown', ev => {
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    if (currentSuggestions.length > 0) {
+                        handleTagAdd(currentSuggestions[0].slug);
+                    }
+                } else if (ev.key === 'Backspace' && tagInput.value === '') {
+                    // Backspace on empty input: remove last tag
+                    if (selectedTags.size > 0) {
+                        const tagsArray = Array.from(selectedTags);
+                        const lastTag = tagsArray[tagsArray.length - 1];
+                        selectedTags.delete(lastTag);
+                        applyFilters();
+                    }
+                }
+            });
+        }
+
+        if (suggestionsEl) {
+            suggestionsEl.addEventListener('click', ev => {
+                const option = ev.target.closest('[data-suggest-slug]');
+                if (!option) {
+                    return;
+                }
+                ev.preventDefault();
+                renderSuggestions([]);
+                if (tagInput) {
+                    tagInput.value = '';
+                }
+                handleTagAdd(option.dataset.suggestSlug);
+            });
+
+            document.addEventListener('click', ev => {
+                if (!suggestionsEl.contains(ev.target) && ev.target !== tagInput) {
+                    renderSuggestions([]);
+                }
+            });
+        }
+
+        document.addEventListener('click', ev => {
+            const tagBtn = ev.target.closest('[data-filter-tag]');
+            if (!tagBtn) {
+                return;
+            }
+            ev.preventDefault();
+            const slug = tagBtn.dataset.filterTag;
+            if (!slug) {
+                return;
+            }
+            if (selectedTags.has(slug)) {
+                return; // already active
+            }
+            selectedTags.add(slug);
+            applyFilters();
+        });
+    };
+
+    /**
      * Initialize all functionality when DOM is ready
      */
     const init = () => {
@@ -423,6 +628,7 @@
         initPiPTips();
         initQuickPreview();
         initShareButton();
+        initTagFilters();
         initAsyncThumbnails(); // Fetch thumbnails asynchronously after page loads
         initCloneForms(); // Handle clone trip confirmation
     };

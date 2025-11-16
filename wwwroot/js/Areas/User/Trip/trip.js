@@ -24,6 +24,7 @@ import {initAreaHandlers} from './areaHandlers.js';
 import {setupQuill} from './quillNotes.js';
 import {store} from './storeInstance.js';
 import {initOrdering} from './regionsOrder.js';
+import {initTripTagEditor} from './tagEditor.js';
 
 
 let currentTripId = null;
@@ -763,6 +764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initPlaceHandlers();
     initSegmentHandlers(currentTripId);
     initAreaHandlers(currentTripId);
+    initTripTagEditor();
 
     await setupQuill();
     attachListeners();

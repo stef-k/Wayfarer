@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 
@@ -13,16 +14,19 @@ public class TripViewerController : BaseController
 {
     private readonly HttpClient _httpClient;
     private readonly ITripThumbnailService _thumbnailService;
+    private readonly ITripTagService _tripTagService;
 
     public TripViewerController(
         ILogger<TripViewerController> logger,
         ApplicationDbContext dbContext,
         HttpClient httpClient,
-        ITripThumbnailService thumbnailService)
+        ITripThumbnailService thumbnailService,
+        ITripTagService tripTagService)
         : base(logger, dbContext)
     {
         _httpClient = httpClient;
         _thumbnailService = thumbnailService;
+        _tripTagService = tripTagService;
     }
 
     /// <summary>
@@ -37,7 +41,14 @@ public class TripViewerController : BaseController
     [HttpGet]
     [Route("/Public/Trips", Name = "PublicTripsIndex", Order = 0)]
     [AllowAnonymous]
-    public async Task<IActionResult> Index(string? q, string? view, string? sort, int page = 1, int pageSize = 24)
+    public async Task<IActionResult> Index(
+        string? q,
+        string? view,
+        string? sort,
+        string? tags,
+        string? tagMode,
+        int page = 1,
+        int pageSize = 24)
     {
         // Validate and normalize parameters
         view = view?.ToLowerInvariant() == "list" ? "list" : "grid";
@@ -56,6 +67,7 @@ public class TripViewerController : BaseController
         // Start with public trips only
         var query = _dbContext.Trips
             .Include(t => t.User)
+            .Include(t => t.Tags)
             .Where(t => t.IsPublic)
             .AsQueryable();
 
@@ -66,6 +78,13 @@ public class TripViewerController : BaseController
             query = query.Where(t =>
                 EF.Functions.ILike(t.Name, $"%{searchTerm}%") ||
                 (t.Notes != null && EF.Functions.ILike(t.Notes, $"%{searchTerm}%")));
+        }
+
+        var parsedTagSlugs = ParseTagSlugs(tags);
+        var normalizedTagMode = string.Equals(tagMode, "any", StringComparison.OrdinalIgnoreCase) ? "any" : "all";
+        if (parsedTagSlugs.Length > 0)
+        {
+            query = _tripTagService.ApplyTagFilter(query, parsedTagSlugs, normalizedTagMode);
         }
 
         // Get total count for pagination
@@ -97,7 +116,11 @@ public class TripViewerController : BaseController
                 RegionsCount = t.Regions!.Count(),
                 PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
                 SegmentsCount = t.Segments!.Count(),
-                IsOwner = t.UserId == currentUserId
+                IsOwner = t.UserId == currentUserId,
+                Tags = t.Tags
+                    .OrderBy(tag => tag.Name)
+                    .Select(tag => new TripTagDto(tag.Id, tag.Name, tag.Slug))
+                    .ToList()
             })
             .ToListAsync();
 
@@ -123,6 +146,15 @@ public class TripViewerController : BaseController
         }
 
         // Build view model
+        IReadOnlyList<TripTagDto> selectedTags = parsedTagSlugs.Length == 0
+            ? Array.Empty<TripTagDto>()
+            : await _dbContext.Tags
+                .Where(t => parsedTagSlugs.Contains(t.Slug))
+                .Select(t => new TripTagDto(t.Id, t.Name, t.Slug))
+                .ToListAsync();
+
+        var popularTags = await _tripTagService.GetPopularAsync(20);
+
         var viewModel = new PublicTripIndexVm
         {
             Items = items,
@@ -131,7 +163,11 @@ public class TripViewerController : BaseController
             Sort = sort,
             Page = page,
             PageSize = pageSize,
-            Total = total
+            Total = total,
+            TagsCsv = string.Join(',', parsedTagSlugs),
+            TagMode = normalizedTagMode,
+            SelectedTags = selectedTags,
+            PopularTags = popularTags
         };
 
         // Set page metadata
@@ -142,6 +178,18 @@ public class TripViewerController : BaseController
         return View("~/Areas/Public/Views/TripViewer/Index.cshtml", viewModel);
     }
 
+    /// <summary>
+    /// Redirects from tag-based URL to index with tag filter.
+    /// GET: /Public/Trips/tag/{slug}
+    /// </summary>
+    [HttpGet]
+    [Route("/Public/Trips/tag/{slug}", Name = "PublicTripsByTag", Order = 0)]
+    [AllowAnonymous]
+    public IActionResult ByTag(string slug, string? view, string? sort, int page = 1)
+    {
+        return RedirectToRoute("PublicTripsIndex", new { tags = slug, view, sort, page });
+    }
+
     // GET: /Public/Trips/View/{id}?embed=true
     [HttpGet]
     [Route("/Public/Trips/{id}", Order = 2)]
@@ -150,6 +198,7 @@ public class TripViewerController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var trip = await _dbContext.Trips
             .Include(t => t.User)
+            .Include(t => t.Tags)
             .Include(t => t.Regions!).ThenInclude(r => r.Places!)
             .Include(t => t.Regions!).ThenInclude(a => a.Areas)
             .Include(t => t.Segments!)
@@ -188,6 +237,7 @@ public class TripViewerController : BaseController
 
         var trip = await _dbContext.Trips
             .Include(t => t.User)
+            .Include(t => t.Tags)
             .Where(t => t.IsPublic && t.Id == id)
             .Select(t => new
             {
@@ -203,7 +253,11 @@ public class TripViewerController : BaseController
                 t.UpdatedAt,
                 RegionsCount = t.Regions!.Count(),
                 PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
-                SegmentsCount = t.Segments!.Count()
+                SegmentsCount = t.Segments!.Count(),
+                Tags = t.Tags
+                    .OrderBy(tag => tag.Name)
+                    .Select(tag => new TripTagDto(tag.Id, tag.Name, tag.Slug))
+                    .ToList()
             })
             .FirstOrDefaultAsync();
 
@@ -227,7 +281,8 @@ public class TripViewerController : BaseController
             RegionsCount = trip.RegionsCount,
             PlacesCount = trip.PlacesCount,
             SegmentsCount = trip.SegmentsCount,
-            IsOwner = trip.UserId == currentUserId
+            IsOwner = trip.UserId == currentUserId,
+            Tags = trip.Tags
         };
 
         // Generate thumbnail for preview (larger size)
@@ -306,5 +361,18 @@ public class TripViewerController : BaseController
             // Fallback to cover image if thumbnail generation fails
             return Json(new { tripId = id, thumbUrl = trip.CoverImageUrl });
         }
+    }
+
+    private static string[] ParseTagSlugs(string? tagsCsv)
+    {
+        if (string.IsNullOrWhiteSpace(tagsCsv))
+        {
+            return Array.Empty<string>();
+        }
+
+        return tagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => s.ToLowerInvariant())
+            .Distinct()
+            .ToArray();
     }
 }

@@ -21,6 +21,7 @@ namespace Wayfarer.Migrations
                 .HasAnnotation("ProductVersion", "9.0.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
@@ -861,6 +862,33 @@ namespace Wayfarer.Migrations
                     b.ToTable("Segments");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.Tag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("citext");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Tags");
+                });
+
             modelBuilder.Entity("Wayfarer.Models.TileCacheMetadata", b =>
                 {
                     b.Property<int>("Id")
@@ -951,6 +979,23 @@ namespace Wayfarer.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Trips");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.TripTag", b =>
+                {
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TripId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.HasIndex("TripId");
+
+                    b.ToTable("TripTags", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -1177,6 +1222,25 @@ namespace Wayfarer.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.TripTag", b =>
+                {
+                    b.HasOne("Wayfarer.Models.Tag", "Tag")
+                        .WithMany("TripTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wayfarer.Models.Trip", "Trip")
+                        .WithMany("TripTags")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Trip");
+                });
+
             modelBuilder.Entity("Wayfarer.Models.ApplicationUser", b =>
                 {
                     b.Navigation("ApiTokens");
@@ -1212,11 +1276,18 @@ namespace Wayfarer.Migrations
                     b.Navigation("Places");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.Tag", b =>
+                {
+                    b.Navigation("TripTags");
+                });
+
             modelBuilder.Entity("Wayfarer.Models.Trip", b =>
                 {
                     b.Navigation("Regions");
 
                     b.Navigation("Segments");
+
+                    b.Navigation("TripTags");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,4 +1,5 @@
 @using System.Security.Claims
+@using System.Linq
 @model Wayfarer.Models.ViewModels.PublicTripIndexVm
 
 @if (Model.Items.Count == 0)
@@ -34,7 +35,8 @@ else
                     <th style="width: 100px;">Image</th>
                     <th style="width: 100px;">Map</th>
                     <th>Trip</th>
-                    <th class="text-center" style="width: 100px;">Items</th>
+                    <th style="width: 180px;">Tags</th>
+                    <th class="text-center" style="width: 80px;">Items</th>
                     <th style="width: 130px;">Updated</th>
                     <th style="width: 150px;" class="text-end">Actions</th>
                 </tr>
@@ -100,6 +102,30 @@ else
                                     </div>
                                 }
                             </div>
+                        </td>
+
+                        <!-- Tags Column -->
+                        <td>
+                            @if (item.Tags.Count > 0)
+                            {
+                                <div class="d-flex flex-wrap gap-1" data-trip-tags>
+                                    @foreach (var tag in item.Tags.Take(3))
+                                    {
+                                        <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
+                                           class="badge rounded-pill text-bg-secondary text-decoration-none"
+                                           style="font-size: 0.7rem;"
+                                           title="Filter by @tag.Name">
+                                            <i class="bi bi-tag-fill"></i> @tag.Name
+                                        </a>
+                                    }
+                                    @if (item.Tags.Count > 3)
+                                    {
+                                        <span class="badge rounded-pill text-bg-light" title="@string.Join(", ", item.Tags.Skip(3).Select(t => t.Name))">
+                                            +@(item.Tags.Count - 3)
+                                        </span>
+                                    }
+                                </div>
+                            }
                         </td>
 
                         <!-- Stats Column -->

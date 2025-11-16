@@ -22,6 +22,23 @@
     </div>
 }
 
+<!-- Tags -->
+@if (Model.Tags?.Count > 0)
+{
+    <div class="mb-3">
+        <div class="d-flex flex-wrap gap-2" data-trip-tags>
+            @foreach (var tag in Model.Tags)
+            {
+                <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
+                   class="badge rounded-pill text-bg-secondary text-decoration-none"
+                   title="Filter by @tag.Name">
+                    <i class="bi bi-tag-fill"></i> @tag.Name
+                </a>
+            }
+        </div>
+    </div>
+}
+
 <!-- Stats Row -->
 <div class="d-flex gap-4 mb-3 text-muted">
     @if (Model.RegionsCount > 0)

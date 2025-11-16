@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
@@ -55,5 +56,8 @@ namespace Wayfarer.Models
 
         /// <summary>Collection of segments (travel legs) in this trip.</summary>
         public ICollection<Segment>? Segments { get; set; } = new List<Segment>();
+
+        /// <summary>Collection of tags applied to this trip.</summary>
+        public ICollection<Tag> Tags { get; set; } = new List<Tag>();
     }
 }

@@ -1,7 +1,11 @@
+@using System.Text.Json
 @model Wayfarer.Models.ViewModels.PublicTripIndexVm
 
 @{
     ViewData["Title"] = "Public Trips";
+    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var selectedTagsJson = JsonSerializer.Serialize(Model.SelectedTags, jsonOptions);
+    var popularTagsJson = JsonSerializer.Serialize(Model.PopularTags, jsonOptions);
 }
 
 <div class="container-fluid py-4">
@@ -12,88 +16,150 @@
         </div>
     </div>
 
-    <!-- Sticky Control Bar -->
-    <div class="d-flex align-items-center gap-2 flex-wrap sticky-top bg-body pt-2 pb-3 border-bottom" style="top:4rem; z-index: 1029;">
-        <!-- Search Form -->
-        <form class="d-flex flex-grow-1" method="get" style="max-width: 500px;">
-            <input type="hidden" name="view" value="@Model.View" />
-            <input type="hidden" name="sort" value="@Model.Sort" />
-            <div class="input-group">
-                <input name="q" value="@Model.Q" class="form-control" placeholder="Search trips..." aria-label="Search trips" />
-                <button class="btn btn-outline-secondary" type="submit" aria-label="Search">
-                    <i class="bi bi-search"></i>
-                </button>
-                @if (!string.IsNullOrWhiteSpace(Model.Q))
-                {
-                    <a class="btn btn-outline-secondary"
-                       asp-route="PublicTripsIndex"
-                       asp-route-view="@Model.View"
-                       asp-route-sort="@Model.Sort"
-                       title="Clear search">
-                        <i class="bi bi-x-lg"></i>
-                    </a>
-                }
+    <!-- Unified Control Bar - 3 Column Layout -->
+    <div class="sticky-top bg-body pt-2 pb-3 border-bottom mb-4" style="top:4rem; z-index: 1029;">
+        <div class="row g-3 align-items-start" data-tag-filter data-selected-tags='@Html.Raw(selectedTagsJson)'
+            data-popular-tags='@Html.Raw(popularTagsJson)' data-tag-mode="@Model.TagMode" data-tags="@Model.TagsCsv"
+            data-suggest-url="/Public/Tags/Suggest">
+
+            <!-- Column 1: Search -->
+            <div class="col-12 col-md-3 col-lg-3">
+                <form method="get">
+                    <input type="hidden" name="view" value="@Model.View" />
+                    <input type="hidden" name="sort" value="@Model.Sort" />
+                    <input type="hidden" name="tags" value="@Model.TagsCsv" />
+                    <input type="hidden" name="tagMode" value="@Model.TagMode" />
+                    <div class="input-group input-group-sm">
+                        <input name="q" value="@Model.Q" class="form-control" placeholder="Search trips..."
+                            aria-label="Search trips" />
+                        <button class="btn btn-outline-secondary" type="submit" aria-label="Search">
+                            <i class="bi bi-search"></i>
+                        </button>
+                        @if (!string.IsNullOrWhiteSpace(Model.Q))
+                        {
+                            <a class="btn btn-outline-secondary" asp-route="PublicTripsIndex" asp-route-view="@Model.View"
+                                asp-route-sort="@Model.Sort" asp-route-tags="@Model.TagsCsv"
+                                asp-route-tagMode="@Model.TagMode" title="Clear search">
+                                <i class="bi bi-x-lg"></i>
+                            </a>
+                        }
+                    </div>
+                </form>
             </div>
-        </form>
 
-        <!-- View Toggle -->
-        <div class="btn-group ms-auto" role="group" aria-label="View mode">
-            <a class="btn btn-outline-secondary @(Model.View=="grid"?"active":"")"
-               asp-route="PublicTripsIndex"
-               asp-route-view="grid"
-               asp-route-q="@Model.Q"
-               asp-route-sort="@Model.Sort"
-               asp-route-page="@Model.Page"
-               title="Grid view"
-               aria-label="Grid view">
-                <i class="bi bi-grid-3x3-gap"></i>
-            </a>
-            <a class="btn btn-outline-secondary @(Model.View=="list"?"active":"")"
-               asp-route="PublicTripsIndex"
-               asp-route-view="list"
-               asp-route-q="@Model.Q"
-               asp-route-sort="@Model.Sort"
-               asp-route-page="@Model.Page"
-               title="List view"
-               aria-label="List view">
-                <i class="bi bi-list"></i>
-            </a>
+            <!-- Column 2: Tag Filters -->
+            <div class="col-12 col-md-6 col-lg-6">
+                <div class="input-group input-group-sm">
+                    <!-- Inline tag input wrapper -->
+                    <div class="form-control d-flex flex-wrap gap-1 align-items-center p-1"
+                         data-tag-input-wrapper
+                         style="min-height: 31px; cursor: text;">
+                        @foreach (var tag in Model.SelectedTags)
+                        {
+                            <span class="badge rounded-pill text-bg-primary-subtle text-primary d-inline-flex align-items-center gap-1"
+                                  data-tag-chip
+                                  data-tag-slug="@tag.Slug"
+                                  style="font-size: 0.7rem;">
+                                <span>@tag.Name</span>
+                                <button type="button" class="btn-close" style="width: 0.4em; height: 0.4em;" aria-label="Remove tag"></button>
+                            </span>
+                        }
+                        <input type="text"
+                               class="border-0 flex-grow-1"
+                               style="outline: none; min-width: 100px; padding: 2px 4px;"
+                               placeholder="@(Model.SelectedTags.Count == 0 ? "Filter by tags..." : "")"
+                               autocomplete="off"
+                               data-tag-input />
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary" data-tag-mode-value="@Model.TagMode"
+                        data-tag-mode-toggle title="Match mode: @Model.TagMode">
+                        @(Model.TagMode == "all" ? "All" : "Any")
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-clear-tags
+                        @(string.IsNullOrEmpty(Model.TagsCsv) ? "disabled" : null)>
+                        Clear
+                    </button>
+                </div>
+                <div class="list-group position-absolute mt-1 d-none" data-tag-suggestions
+                    style="z-index: 1030; max-width: 400px;"></div>
+            </div>
+
+            <!-- Column 3: View & Sort -->
+            <div class="col-12 col-md-3 col-lg-3 text-end">
+                <div class="d-flex gap-2 justify-content-end">
+                    <!-- View Toggle -->
+                    <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+                        <a class="btn btn-outline-secondary @(Model.View == "grid" ? "active" : "")"
+                            asp-route="PublicTripsIndex" asp-route-view="grid" asp-route-q="@Model.Q"
+                            asp-route-sort="@Model.Sort" asp-route-tags="@Model.TagsCsv"
+                            asp-route-tagMode="@Model.TagMode" asp-route-page="@Model.Page" title="Grid view"
+                            aria-label="Grid view">
+                            <i class="bi bi-grid-3x3-gap"></i>
+                        </a>
+                        <a class="btn btn-outline-secondary @(Model.View == "list" ? "active" : "")"
+                            asp-route="PublicTripsIndex" asp-route-view="list" asp-route-q="@Model.Q"
+                            asp-route-sort="@Model.Sort" asp-route-tags="@Model.TagsCsv"
+                            asp-route-tagMode="@Model.TagMode" asp-route-page="@Model.Page" title="List view"
+                            aria-label="List view">
+                            <i class="bi bi-list"></i>
+                        </a>
+                    </div>
+
+                    <!-- Sort Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-sort-down"></i> Sort
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item @(Model.Sort == "updated_desc" ? "active" : "")"
+                                    asp-route="PublicTripsIndex" asp-route-sort="updated_desc"
+                                    asp-route-view="@Model.View" asp-route-q="@Model.Q" asp-route-tags="@Model.TagsCsv"
+                                    asp-route-tagMode="@Model.TagMode">
+                                    Updated (newest)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item @(Model.Sort == "name_asc" ? "active" : "")"
+                                    asp-route="PublicTripsIndex" asp-route-sort="name_asc" asp-route-view="@Model.View"
+                                    asp-route-q="@Model.Q" asp-route-tags="@Model.TagsCsv"
+                                    asp-route-tagMode="@Model.TagMode">
+                                    Name (A-Z)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item @(Model.Sort == "name_desc" ? "active" : "")"
+                                    asp-route="PublicTripsIndex" asp-route-sort="name_desc" asp-route-view="@Model.View"
+                                    asp-route-q="@Model.Q" asp-route-tags="@Model.TagsCsv"
+                                    asp-route-tagMode="@Model.TagMode">
+                                    Name (Z-A)
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <!-- Sort Dropdown -->
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-sort-down"></i> Sort
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                    <a class="dropdown-item @(Model.Sort=="updated_desc"?"active":"")"
-                       asp-route="PublicTripsIndex"
-                       asp-route-sort="updated_desc"
-                       asp-route-view="@Model.View"
-                       asp-route-q="@Model.Q">
-                        Updated (newest)
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item @(Model.Sort=="name_asc"?"active":"")"
-                       asp-route="PublicTripsIndex"
-                       asp-route-sort="name_asc"
-                       asp-route-view="@Model.View"
-                       asp-route-q="@Model.Q">
-                        Name (A–Z)
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item @(Model.Sort=="name_desc"?"active":"")"
-                       asp-route="PublicTripsIndex"
-                       asp-route-sort="name_desc"
-                       asp-route-view="@Model.View"
-                       asp-route-q="@Model.Q">
-                        Name (Z–A)
-                    </a>
-                </li>
-            </ul>
+    <!-- Popular Tags -->
+    <div class="mb-3">
+        <div class="text-muted small mb-2 d-flex align-items-center gap-2">
+            <i class="bi bi-stars"></i> Popular tags
+        </div>
+        <div class="d-flex flex-wrap gap-2" data-popular-tags>
+            @foreach (var tag in Model.PopularTags)
+            {
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-popular-tag="@tag.Slug">
+                    @tag.Name
+                    <span class="badge text-bg-light ms-1">@tag.Count</span>
+                </button>
+            }
+            @if (Model.PopularTags.Count == 0)
+            {
+                <span class="text-muted small">No usage data yet.</span>
+            }
         </div>
     </div>
 
@@ -101,7 +167,8 @@
     @if (Model.Total > 0)
     {
         <div class="text-muted small mb-3">
-            Showing @((Model.Page - 1) * Model.PageSize + 1)–@Math.Min(Model.Page * Model.PageSize, Model.Total) of @Model.Total trip@(Model.Total == 1 ? "" : "s")
+            Showing @((Model.Page - 1) * Model.PageSize + 1)–@Math.Min(Model.Page * Model.PageSize, Model.Total) of
+            @Model.Total trip@(Model.Total == 1 ? "" : "s")
         </div>
     }
 
