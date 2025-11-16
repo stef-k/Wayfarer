@@ -8,8 +8,8 @@
     var popularTagsJson = JsonSerializer.Serialize(Model.PopularTags, jsonOptions);
 }
 
-<div class="container-fluid py-4">
-    <div class="row mb-4">
+<div class="container-fluid py-1">
+    <div class="row mb-1">
         <div class="col">
             <h1 class="h2">Public Trips</h1>
             <p class="text-muted">Browse and discover trips shared by our community</p>
@@ -17,7 +17,7 @@
     </div>
 
     <!-- Unified Control Bar - 3 Column Layout -->
-    <div class="sticky-top bg-body pt-2 pb-3 border-bottom mb-4" style="top:4rem; z-index: 1029;">
+    <div class="sticky-top bg-body pt-2 pb-2 border-bottom mb-1" style="top:4rem; z-index: 1029;">
         <div class="row g-3 align-items-start" data-tag-filter data-selected-tags='@Html.Raw(selectedTagsJson)'
             data-popular-tags='@Html.Raw(popularTagsJson)' data-tag-mode="@Model.TagMode" data-tags="@Model.TagsCsv"
             data-suggest-url="/Public/Tags/Suggest">
@@ -51,25 +51,22 @@
             <div class="col-12 col-md-6 col-lg-6">
                 <div class="input-group input-group-sm">
                     <!-- Inline tag input wrapper -->
-                    <div class="form-control d-flex flex-wrap gap-1 align-items-center p-1"
-                         data-tag-input-wrapper
-                         style="min-height: 31px; cursor: text;">
+                    <div class="form-control d-flex flex-wrap gap-1 align-items-center p-1" data-tag-input-wrapper
+                        style="min-height: 31px; cursor: text;">
                         @foreach (var tag in Model.SelectedTags)
                         {
-                            <span class="badge rounded-pill text-bg-primary-subtle text-primary d-inline-flex align-items-center gap-1"
-                                  data-tag-chip
-                                  data-tag-slug="@tag.Slug"
-                                  style="font-size: 0.7rem;">
+                            <span
+                                class="badge rounded-pill text-bg-primary-subtle text-primary d-inline-flex align-items-center gap-1"
+                                data-tag-chip data-tag-slug="@tag.Slug" style="font-size: 0.7rem;">
                                 <span>@tag.Name</span>
-                                <button type="button" class="btn-close" style="width: 0.4em; height: 0.4em;" aria-label="Remove tag"></button>
+                                <button type="button" class="btn-close" style="width: 0.4em; height: 0.4em;"
+                                    aria-label="Remove tag"></button>
                             </span>
                         }
-                        <input type="text"
-                               class="border-0 flex-grow-1"
-                               style="outline: none; min-width: 100px; padding: 2px 4px;"
-                               placeholder="@(Model.SelectedTags.Count == 0 ? "Filter by tags..." : "")"
-                               autocomplete="off"
-                               data-tag-input />
+                        <input type="text" class="border-0 flex-grow-1"
+                            style="outline: none; min-width: 100px; padding: 2px 4px;"
+                            placeholder="@(Model.SelectedTags.Count == 0 ? "Filter by tags..." : "")" autocomplete="off"
+                            data-tag-input />
                     </div>
                     <button type="button" class="btn btn-outline-secondary" data-tag-mode-value="@Model.TagMode"
                         data-tag-mode-toggle title="Match mode: @Model.TagMode">
@@ -144,7 +141,7 @@
     </div>
 
     <!-- Popular Tags -->
-    <div class="mb-3">
+    <div class="mb-2">
         <div class="text-muted small mb-2 d-flex align-items-center gap-2">
             <i class="bi bi-stars"></i> Popular tags
         </div>
@@ -166,7 +163,7 @@
     <!-- Results Summary -->
     @if (Model.Total > 0)
     {
-        <div class="text-muted small mb-3">
+        <div class="text-muted small mb-1">
             Showing @((Model.Page - 1) * Model.PageSize + 1)–@Math.Min(Model.Page * Model.PageSize, Model.Total) of
             @Model.Total trip@(Model.Total == 1 ? "" : "s")
         </div>
