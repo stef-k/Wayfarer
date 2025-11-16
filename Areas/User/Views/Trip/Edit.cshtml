@@ -121,7 +121,7 @@
                    data-trip-tags
                    data-trip-id="@Model.Id"
                    data-tags='@Html.Raw(tagJson)'
-                   data-limit="15"
+                   data-limit="25"
                    data-suggest-url="/Public/Tags/Suggest">
                 <div class="d-flex flex-wrap gap-2 mb-2" data-tag-list>
                   @if (Model.Tags?.Any() == true)
@@ -155,7 +155,7 @@
                 </div>
                 <div class="list-group mt-2 d-none" data-tag-suggestions></div>
                 <div class="text-muted small mt-2">
-                  Up to 15 tags. Letters, numbers, spaces, hyphen, apostrophes only.
+                  Up to 25 tags. Letters, numbers, spaces, hyphen, apostrophes only.
                 </div>
                 <div class="text-danger small mt-2 d-none" data-tag-feedback></div>
               </div>

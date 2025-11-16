@@ -21,8 +21,7 @@
         </p>
         @if (!string.IsNullOrWhiteSpace(Model.Q))
         {
-            <a class="btn btn-outline-primary"
-               asp-route="PublicTripsIndex">Clear Filters</a>
+            <a class="btn btn-outline-primary" asp-route="PublicTripsIndex">Clear Filters</a>
         }
     </div>
 }
@@ -32,16 +31,22 @@ else
         @foreach (var item in Model.Items)
         {
             <div class="col">
-                <div class="card h-100 shadow-sm" data-trip-id="@item.Id">
+                <div class="card h-100 shadow-sm overflow-hidden" data-trip-id="@item.Id">
                     <!-- Hero Image with PiP Map -->
-                    <div class="trip-hero-wrap position-relative" style="height: 250px; overflow: hidden;">
+                    <div class="trip-hero-wrap">
                         <!-- Base photo -->
                         @if (!string.IsNullOrWhiteSpace(item.CoverImageUrl))
                         {
-                            <img class="trip-photo card-img-top js-lazy"
+                            <img class="trip-photo js-lazy"
                                  data-src="@item.CoverImageUrl"
-                                 alt="@item.Name"
-                                 style="width: 100%; height: 100%; object-fit: cover;">
+                                 alt="@item.Name">
+                        }
+                        else if (item.CenterLat.HasValue && item.CenterLon.HasValue)
+                        {
+                            <!-- Show map thumbnail if no cover image but has coordinates -->
+                            <img class="trip-photo js-lazy"
+                                 data-src="/thumbs/trips/@item.Id-800x450.jpg?v=@item.UpdatedAt.Ticks"
+                                 alt="Map of @item.Name">
                         }
                         else
                         {
@@ -53,15 +58,10 @@ else
                         <!-- PiP map badge (only show if trip has map coordinates) -->
                         @if (item.CenterLat.HasValue && item.CenterLon.HasValue)
                         {
-                            <button type="button"
-                                    class="trip-map-badge"
-                                    aria-label="Show map preview"
-                                    data-hero-toggle
-                                    data-trip-preview="@item.Id">
-                                <img class="w-100 h-100 object-fit-cover"
-                                     data-thumb-placeholder
-                                     alt=""
-                                     style="background-color: #e9ecef;">
+                            <button type="button" class="trip-map-badge" aria-label="Show map preview" data-hero-toggle
+                                data-trip-preview="@item.Id">
+                                <img class="w-100 h-100 object-fit-cover" data-thumb-placeholder alt=""
+                                    style="background-color: #e9ecef;">
                                 <!-- UI tip bubble -->
                                 <span class="pip-tip-bubble" role="status" aria-live="polite">
                                     <span class="pip-tip-text d-none d-lg-inline">Hover for map</span>
@@ -70,11 +70,8 @@ else
                             </button>
 
                             <!-- Full-bleed map overlay -->
-                            <img class="trip-map-overlay w-100 h-100 object-fit-cover"
-                                 data-thumb-placeholder
-                                 alt="Map of @item.Name"
-                                 aria-hidden="true"
-                                 style="background-color: #e9ecef;">
+                            <img class="trip-map-overlay w-100 h-100 object-fit-cover" data-thumb-placeholder
+                                alt="Map of @item.Name" aria-hidden="true" style="background-color: #e9ecef;">
                         }
 
                         <!-- Updated badge -->
@@ -109,7 +106,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
                         {
                             <p class="card-text text-muted small flex-grow-1">
-                                @item.NotesExcerpt
+                                @Html.Raw(item.NotesExcerpt)
                             </p>
                         }
 
@@ -121,8 +118,7 @@ else
                                 {
                                     <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
                                        class="badge rounded-pill text-bg-secondary text-decoration-none position-relative"
-                                       style="font-size: 0.7rem; z-index: 1030;"
-                                       title="Filter by @tag.Name">
+                                       style="font-size: 0.7rem; z-index: 1030;" title="Filter by @tag.Name">
                                         <i class="bi bi-tag-fill"></i> @tag.Name
                                     </a>
                                 }
@@ -160,13 +156,7 @@ else
 
                         <!-- Action Buttons -->
                         <div class="d-flex gap-2 mt-3">
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary flex-grow-1 position-relative"
-                                    data-trip-preview="@item.Id"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#tripQuickView"
-                                    style="z-index: 1030;"
-                                    title="Quick preview">
+                            <button type="button" class="btn btn-sm btn-outline-secondary flex-grow-1 position-relative" data-trip-preview="@item.Id" data-bs-toggle="modal" data-bs-target="#tripQuickView" style="z-index: 1030;" title="Quick preview">
                                 <i class="bi bi-eye"></i> Preview
                             </button>
                             @* Clone button - show for authenticated users, login prompt for others *@
@@ -174,16 +164,9 @@ else
                             {
                                 @if (!item.IsOwner)
                                 {
-                                    <form asp-area="User"
-                                          asp-controller="Trip"
-                                          asp-action="Clone"
-                                          asp-route-id="@item.Id"
-                                          method="post"
-                                          class="clone-trip-form flex-grow-1 position-relative"
-                                          style="z-index: 1030;">
-                                        <button type="submit"
-                                                class="btn btn-sm btn-outline-secondary w-100"
-                                                title="Clone this trip to your account">
+                                    <form asp-area="User" asp-controller="Trip" asp-action="Clone" asp-route-id="@item.Id" method="post" class="clone-trip-form flex-grow-1 position-relative" style="z-index: 1030;">
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary w-100"
+                                            title="Clone this trip to your account">
                                             <i class="bi bi-files"></i> Clone
                                         </button>
                                     </form>
@@ -191,20 +174,11 @@ else
                             }
                             else
                             {
-                                <a asp-area="Identity"
-                                   asp-page="/Account/Login"
-                                   asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString"
-                                   class="btn btn-sm btn-outline-secondary flex-grow-1 position-relative"
-                                   style="z-index: 1030;"
-                                   title="Login to clone this trip">
+                                <a asp-area="Identity" asp-page="/Account/Login" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" class="btn btn-sm btn-outline-secondary flex-grow-1 position-relative" style="z-index: 1030;" title="Login to clone this trip">
                                     <i class="bi bi-box-arrow-in-right"></i> Login to Clone
                                 </a>
                             }
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-primary position-relative copy-url"
-                                    data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"
-                                    style="z-index: 1030;"
-                                    title="Copy public URL to clipboard">
+                            <button type="button" class="btn btn-sm btn-outline-primary position-relative copy-url" data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")" style="z-index: 1030;" title="Copy public URL to clipboard">
                                 <i class="bi bi-share"></i> Share
                             </button>
                         </div>

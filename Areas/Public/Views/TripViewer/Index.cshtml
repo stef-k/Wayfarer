@@ -17,7 +17,7 @@
     </div>
 
     <!-- Unified Control Bar - 3 Column Layout -->
-    <div class="sticky-top bg-body pt-2 pb-2 border-bottom mb-1" style="top:4rem; z-index: 1029;">
+    <div id="stickyControlBar" class="sticky-top bg-white pt-2 pb-3 border-bottom shadow-sm mb-4" style="top:4rem; z-index: 1050; transition: top 0.2s ease-in-out;">
         <div class="row g-3 align-items-start" data-tag-filter data-selected-tags='@Html.Raw(selectedTagsJson)'
             data-popular-tags='@Html.Raw(popularTagsJson)' data-tag-mode="@Model.TagMode" data-tags="@Model.TagsCsv"
             data-suggest-url="/Public/Tags/Suggest">
@@ -148,10 +148,10 @@
         <div class="d-flex flex-wrap gap-2" data-popular-tags>
             @foreach (var tag in Model.PopularTags)
             {
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-popular-tag="@tag.Slug">
+                <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })" class="btn btn-outline-secondary btn-sm" data-popular-tag="@tag.Slug">
                     @tag.Name
                     <span class="badge text-bg-light ms-1">@tag.Count</span>
-                </button>
+                </a>
             }
             @if (Model.PopularTags.Count == 0)
             {

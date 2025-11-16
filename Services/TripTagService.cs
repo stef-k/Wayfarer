@@ -17,8 +17,8 @@ namespace Wayfarer.Services;
 public sealed class TripTagService(ApplicationDbContext dbContext, ILogger<TripTagService> logger)
     : ITripTagService
 {
-    private static readonly Regex NameRegex = new(@"^[\p{L}\p{Nd}][\p{L}\p{Nd}\s\-'’]*$", RegexOptions.Compiled);
-    private const int MaxTagsPerTrip = 15;
+    private static readonly Regex NameRegex = new(@"^[\p{L}\p{Nd}][\p{L}\p{Nd}\s\-'']*$", RegexOptions.Compiled);
+    private const int MaxTagsPerTrip = 25;
 
     public async Task<IReadOnlyList<TripTagDto>> GetTagsForTripAsync(Guid tripId, string userId, CancellationToken cancellationToken = default)
     {
@@ -77,7 +77,7 @@ public sealed class TripTagService(ApplicationDbContext dbContext, ILogger<TripT
 
         if (trip.Tags.Count + pending.Count > MaxTagsPerTrip)
         {
-            throw new ValidationException("You can add up to 15 tags per trip.");
+            throw new ValidationException("You can add up to 25 tags per trip.");
         }
 
         foreach (var tag in pending)

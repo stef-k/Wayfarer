@@ -23,6 +23,10 @@
                     if (entry.isIntersecting) {
                         const img = entry.target;
 
+                        // Remove any width/height attributes that might interfere with CSS
+                        img.removeAttribute('width');
+                        img.removeAttribute('height');
+
                         // Set the actual src from data-src
                         img.src = img.dataset.src;
 
@@ -43,7 +47,24 @@
         } else {
             // Fallback for browsers without IntersectionObserver support
             images.forEach(img => {
+                const isHeroImage = img.classList.contains('trip-photo');
+
+                if (isHeroImage) {
+                    img.removeAttribute('width');
+                    img.removeAttribute('height');
+                    img.style.cssText = 'position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: auto !important; height: 100% !important; min-width: 100% !important; min-height: 100% !important; max-width: none !important; max-height: none !important; object-fit: cover !important; object-position: center !important; display: block !important;';
+                }
+
                 img.src = img.dataset.src;
+
+                img.addEventListener('load', () => {
+                    if (isHeroImage) {
+                        img.removeAttribute('width');
+                        img.removeAttribute('height');
+                        img.style.cssText = 'position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: auto !important; height: 100% !important; min-width: 100% !important; min-height: 100% !important; max-width: none !important; max-height: none !important; object-fit: cover !important; object-position: center !important; display: block !important;';
+                    }
+                }, { once: true });
+
                 img.classList.remove('js-lazy');
                 delete img.dataset.src;
             });
@@ -620,6 +641,48 @@
     };
 
     /**
+     * Adjust sticky control bar position based on scroll
+     * Moves to top when navbar is out of view
+     */
+    const initStickyControlBar = () => {
+        const stickyBar = document.getElementById('stickyControlBar');
+        if (!stickyBar) return;
+
+        const navbar = document.querySelector('nav.navbar');
+        const navbarHeight = navbar ? navbar.offsetHeight : 64; // Default 4rem = 64px
+
+        let lastScrollY = window.scrollY;
+        let ticking = false;
+
+        const updateStickyPosition = () => {
+            const scrollY = window.scrollY;
+
+            // If scrolled past navbar, move sticky bar to top (0)
+            // Otherwise keep it below navbar (4rem)
+            if (scrollY > navbarHeight) {
+                stickyBar.style.top = '0';
+            } else {
+                stickyBar.style.top = '4rem';
+            }
+
+            lastScrollY = scrollY;
+            ticking = false;
+        };
+
+        const requestTick = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(updateStickyPosition);
+                ticking = true;
+            }
+        };
+
+        window.addEventListener('scroll', requestTick, { passive: true });
+
+        // Initial position
+        updateStickyPosition();
+    };
+
+    /**
      * Initialize all functionality when DOM is ready
      */
     const init = () => {
@@ -631,6 +694,7 @@
         initTagFilters();
         initAsyncThumbnails(); // Fetch thumbnails asynchronously after page loads
         initCloneForms(); // Handle clone trip confirmation
+        initStickyControlBar(); // Dynamic sticky bar positioning
     };
 
     // Run initialization

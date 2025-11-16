@@ -21,8 +21,7 @@
         </p>
         @if (!string.IsNullOrWhiteSpace(Model.Q))
         {
-            <a class="btn btn-outline-primary"
-               asp-route="PublicTripsIndex">Clear Filters</a>
+            <a class="btn btn-outline-primary" asp-route="PublicTripsIndex">Clear Filters</a>
         }
     </div>
 }
@@ -50,10 +49,8 @@ else
                             <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
                                 @if (!string.IsNullOrWhiteSpace(item.CoverImageUrl))
                                 {
-                                    <img class="w-100 h-100 object-fit-cover js-lazy"
-                                         data-src="@item.CoverImageUrl"
-                                         alt="@item.Name"
-                                         style="background-color: #e9ecef;" />
+                                    <img class="w-100 h-100 object-fit-cover js-lazy" data-src="@item.CoverImageUrl"
+                                        alt="@item.Name" style="background-color: #e9ecef;" />
                                 }
                                 else
                                 {
@@ -69,10 +66,8 @@ else
                             <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
                                 @if (item.CenterLat.HasValue && item.CenterLon.HasValue)
                                 {
-                                    <img class="w-100 h-100 object-fit-cover"
-                                         data-thumb-placeholder
-                                         alt="Map of @item.Name"
-                                         style="background-color: #e9ecef;" />
+                                    <img class="w-100 h-100 object-fit-cover" data-thumb-placeholder alt="Map of @item.Name"
+                                        style="background-color: #e9ecef;" />
                                 }
                                 else
                                 {
@@ -98,7 +93,7 @@ else
                                 @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
                                 {
                                     <div class="text-muted small mt-1">
-                                        @item.NotesExcerpt
+                                        @Html.Raw(item.NotesExcerpt)
                                     </div>
                                 }
                             </div>
@@ -112,15 +107,15 @@ else
                                     @foreach (var tag in item.Tags.Take(3))
                                     {
                                         <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
-                                           class="badge rounded-pill text-bg-secondary text-decoration-none"
-                                           style="font-size: 0.7rem;"
-                                           title="Filter by @tag.Name">
+                                            class="badge rounded-pill text-bg-secondary text-decoration-none" style="font-size: 0.7rem;"
+                                            title="Filter by @tag.Name">
                                             <i class="bi bi-tag-fill"></i> @tag.Name
                                         </a>
                                     }
                                     @if (item.Tags.Count > 3)
                                     {
-                                        <span class="badge rounded-pill text-bg-light" title="@string.Join(", ", item.Tags.Skip(3).Select(t => t.Name))">
+                                        <span class="badge rounded-pill text-bg-light"
+                                            title="@string.Join(", ", item.Tags.Skip(3).Select(t => t.Name))">
                                             +@(item.Tags.Count - 3)
                                         </span>
                                     }
@@ -164,7 +159,8 @@ else
                                 }
                                 else if (daysSinceUpdate <= 7)
                                 {
-                                    <span class="badge bg-secondary">@daysSinceUpdate day@(daysSinceUpdate == 1 ? "" : "s") ago</span>
+                                    <span class="badge bg-secondary">@daysSinceUpdate day@(daysSinceUpdate == 1 ? "" : "s")
+                                        ago</span>
                                 }
                                 else
                                 {
@@ -176,28 +172,19 @@ else
                         <!-- Actions Column -->
                         <td class="text-end">
                             <div class="btn-group" role="group">
-                                <button type="button"
-                                        class="btn btn-sm btn-outline-secondary"
-                                        data-trip-preview="@item.Id"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#tripQuickView"
-                                        title="Quick preview">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-trip-preview="@item.Id"
+                                    data-bs-toggle="modal" data-bs-target="#tripQuickView" title="Quick preview">
                                     <i class="bi bi-eye"></i>
                                 </button>
                                 @* Clone button - show for authenticated users, login prompt for others *@
-                                @if (User.Identity?.IsAuthenticated == true)
+                                        @if (User.Identity?.IsAuthenticated == true)
                                 {
                                     @if (!item.IsOwner)
                                     {
-                                        <form asp-area="User"
-                                              asp-controller="Trip"
-                                              asp-action="Clone"
-                                              asp-route-id="@item.Id"
-                                              method="post"
-                                              class="clone-trip-form d-inline-block">
-                                            <button type="submit"
-                                                    class="btn btn-sm btn-outline-secondary"
-                                                    title="Clone this trip to your account">
+                                        <form asp-area="User" asp-controller="Trip" asp-action="Clone" asp-route-id="@item.Id"
+                                            method="post" class="clone-trip-form d-inline-block">
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                title="Clone this trip to your account">
                                                 <i class="bi bi-files"></i>
                                             </button>
                                         </form>
@@ -205,18 +192,15 @@ else
                                 }
                                 else
                                 {
-                                    <a asp-area="Identity"
-                                       asp-page="/Account/Login"
-                                       asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString"
-                                       class="btn btn-sm btn-outline-secondary"
-                                       title="Login to clone this trip">
+                                    <a asp-area="Identity" asp-page="/Account/Login"
+                                        asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString"
+                                        class="btn btn-sm btn-outline-secondary" title="Login to clone this trip">
                                         <i class="bi bi-box-arrow-in-right"></i>
                                     </a>
                                 }
-                                <button type="button"
-                                        class="btn btn-sm btn-outline-primary copy-url"
-                                        data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"
-                                        title="Copy public URL to clipboard">
+                                <button type="button" class="btn btn-sm btn-outline-primary copy-url"
+                                    data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"
+                                    title="Copy public URL to clipboard">
                                     <i class="bi bi-share"></i>
                                 </button>
                             </div>

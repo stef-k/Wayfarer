@@ -129,11 +129,21 @@ public class TripViewerController : BaseController
 
         foreach (var item in items)
         {
+            // Strip images from HTML notes for excerpt but keep other HTML formatting
             if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
             {
-                // Strip HTML tags to plain text
-                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, "<.*?>", string.Empty);
-                // Trim to ~140 characters and add ellipsis if needed
+                // Remove <img> tags (including self-closing variants and with any attributes)
+                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, @"<img[^>]*/?>", string.Empty, RegexOptions.IgnoreCase);
+                // Remove background-image CSS properties
+                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, @"background-image\s*:\s*url\([^)]*\)", string.Empty, RegexOptions.IgnoreCase);
+
+                // Strip ALL HTML tags including incomplete/malformed ones
+                // First strip complete tags
+                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, "<[^>]*>", string.Empty);
+                // Then strip any remaining < characters (from incomplete tags)
+                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, "<.*", string.Empty);
+
+                // Trim to 140 characters
                 if (item.NotesExcerpt.Length > 140)
                 {
                     item.NotesExcerpt = item.NotesExcerpt.Substring(0, 137) + "...";
@@ -284,6 +294,36 @@ public class TripViewerController : BaseController
             IsOwner = trip.UserId == currentUserId,
             Tags = trip.Tags
         };
+
+        // Strip images from notes excerpt for preview modal but keep HTML formatting
+        if (!string.IsNullOrWhiteSpace(previewItem.NotesExcerpt))
+        {
+            // Remove <img> tags (including self-closing variants and with any attributes)
+            previewItem.NotesExcerpt = Regex.Replace(previewItem.NotesExcerpt, @"<img[^>]*/?>", string.Empty, RegexOptions.IgnoreCase);
+            // Remove background-image CSS properties
+            previewItem.NotesExcerpt = Regex.Replace(previewItem.NotesExcerpt, @"background-image\s*:\s*url\([^)]*\)", string.Empty, RegexOptions.IgnoreCase);
+
+            // Strip HTML for character counting to get accurate length
+            var plainText = Regex.Replace(previewItem.NotesExcerpt, "<.*?>", string.Empty);
+
+            // Trim HTML to ~200 characters of plain text content
+            if (plainText.Length > 200)
+            {
+                // Find approximately where to cut the HTML
+                var targetLength = 197;
+                var tempPlain = string.Empty;
+                var htmlLength = 0;
+
+                // Walk through HTML until we hit the character limit
+                while (tempPlain.Length < targetLength && htmlLength < previewItem.NotesExcerpt.Length)
+                {
+                    tempPlain = Regex.Replace(previewItem.NotesExcerpt.Substring(0, htmlLength), "<.*?>", string.Empty);
+                    htmlLength++;
+                }
+
+                previewItem.NotesExcerpt = previewItem.NotesExcerpt.Substring(0, Math.Min(htmlLength, previewItem.NotesExcerpt.Length)) + "...";
+            }
+        }
 
         // Generate thumbnail for preview (larger size)
         previewItem.ThumbUrl = await _thumbnailService.GetThumbUrlAsync(

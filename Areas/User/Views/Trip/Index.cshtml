@@ -43,7 +43,22 @@ else
         {
             <tr>
                 <td>@trip.Name</td>
-                <td>@Html.Raw(trip.Notes)</td>
+                <td>
+                    @{
+                        var notesPreview = trip.Notes;
+                        if (!string.IsNullOrWhiteSpace(notesPreview))
+                        {
+                            // Strip all HTML tags for display in table
+                            notesPreview = System.Text.RegularExpressions.Regex.Replace(notesPreview, "<.*?>", string.Empty);
+                            // Truncate to 100 characters
+                            if (notesPreview.Length > 100)
+                            {
+                                notesPreview = notesPreview.Substring(0, 97) + "...";
+                            }
+                        }
+                    }
+                    @notesPreview
+                </td>
                 <td>
                     @if (trip.IsPublic)
                     {

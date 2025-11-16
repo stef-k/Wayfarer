@@ -52,6 +52,7 @@ public class TripsController : BaseApiController
             return Unauthorized("Missing or invalid API token.");
 
         var trips = _dbContext.Trips
+            .Include(t => t.Tags)
             .Where(t => t.UserId == user.Id)
             .OrderByDescending(t => t.UpdatedAt)
             .Select(t => new
@@ -59,7 +60,8 @@ public class TripsController : BaseApiController
                 t.Id,
                 t.Name,
                 t.UpdatedAt,
-                t.IsPublic
+                t.IsPublic,
+                Tags = t.Tags.Select(tag => new { tag.Id, tag.Name, tag.Slug }).ToList()
             })
             .ToList();
 
@@ -90,6 +92,7 @@ public class TripsController : BaseApiController
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
             .Include(t => t.Segments)
+            .Include(t => t.Tags)
             .AsNoTracking()
             .FirstOrDefault(t => t.Id == id);
 
@@ -975,6 +978,7 @@ return Ok(dto);
             .Include(t => t.Regions!).ThenInclude(r => r.Places)
             .Include(t => t.Regions!).ThenInclude(r => r.Areas)
             .Include(t => t.Segments)
+            .Include(t => t.Tags)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id);
 
@@ -1102,6 +1106,15 @@ return Ok(dto);
                     };
 
                     clonedTrip.Segments!.Add(clonedSegment);
+                }
+            }
+
+            // Clone tags (tags are shared entities, so we just add the same tag references)
+            if (sourceTrip.Tags != null)
+            {
+                foreach (var tag in sourceTrip.Tags)
+                {
+                    clonedTrip.Tags.Add(tag);
                 }
             }
 
