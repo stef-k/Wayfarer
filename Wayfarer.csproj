@@ -43,6 +43,7 @@
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
         <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
         <PackageReference Include="Serilog.Sinks.PostgreSQL" Version="2.3.0" />
+        <PackageReference Include="SkiaSharp" Version="3.119.1" />
 
         <!-- Swashbuckle locked at 9.0.1 -->
         <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />

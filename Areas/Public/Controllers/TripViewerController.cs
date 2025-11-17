@@ -338,9 +338,15 @@ public class TripViewerController : BaseController
         return PartialView("~/Areas/Public/Views/TripViewer/_TripQuickView.cshtml", previewItem);
     }
 
+    /// <summary>
+    /// Proxy external images with automatic optimization.
+    /// Default: 95% JPEG quality (visually lossless, faster loading)
+    /// Print: Can specify maxWidth=600&quality=85 for smaller PDFs
+    /// GET: /Public/ProxyImage?url=...&maxWidth=600&quality=85
+    /// </summary>
     [AllowAnonymous]
     [HttpGet("Public/ProxyImage")]
-    public async Task<IActionResult> ProxyImage(string url)
+    public async Task<IActionResult> ProxyImage(string url, int? maxWidth = null, int? maxHeight = null, int? quality = null)
     {
         using var resp = await _httpClient.GetAsync(url);
         if (!resp.IsSuccessStatusCode)
@@ -349,7 +355,77 @@ public class TripViewerController : BaseController
         var contentType = resp.Content.Headers.ContentType?.MediaType
                           ?? "application/octet-stream";
         var bytes = await resp.Content.ReadAsByteArrayAsync();
+
+        // Always optimize images for faster loading and smaller size
+        if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                // Default to 95% quality if not specified (visually lossless)
+                // This provides faster loading with minimal quality loss
+                bytes = OptimizeImage(bytes, maxWidth, maxHeight, quality ?? 95);
+                contentType = "image/jpeg"; // Optimized images are always JPEG
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to optimize image from {Url}, serving original", url);
+                // Fall through to return original bytes
+            }
+        }
+
         return File(bytes, contentType);
+    }
+
+    /// <summary>
+    /// Optimize image using SkiaSharp - resize and compress while maintaining quality.
+    /// Converts all formats to JPEG for better compression.
+    /// </summary>
+    private byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality)
+    {
+        using var inputStream = new MemoryStream(imageBytes);
+        using var original = SkiaSharp.SKBitmap.Decode(inputStream);
+
+        if (original == null)
+            throw new InvalidOperationException("Failed to decode image");
+
+        // Calculate new dimensions maintaining aspect ratio
+        int targetWidth = original.Width;
+        int targetHeight = original.Height;
+
+        if (maxWidth.HasValue && targetWidth > maxWidth.Value)
+        {
+            var ratio = (float)maxWidth.Value / targetWidth;
+            targetWidth = maxWidth.Value;
+            targetHeight = (int)(targetHeight * ratio);
+        }
+
+        if (maxHeight.HasValue && targetHeight > maxHeight.Value)
+        {
+            var ratio = (float)maxHeight.Value / targetHeight;
+            targetHeight = maxHeight.Value;
+            targetWidth = (int)(targetWidth * ratio);
+        }
+
+        // Resize if needed
+        SkiaSharp.SKBitmap resized;
+        if (targetWidth != original.Width || targetHeight != original.Height)
+        {
+            var imageInfo = new SkiaSharp.SKImageInfo(targetWidth, targetHeight);
+            resized = original.Resize(imageInfo, SkiaSharp.SKFilterQuality.Medium);
+        }
+        else
+        {
+            resized = original;
+        }
+
+        // Encode as JPEG with specified quality
+        using var image = SkiaSharp.SKImage.FromBitmap(resized);
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, quality);
+
+        if (resized != original)
+            resized.Dispose();
+
+        return data.ToArray();
     }
 
     /// <summary>
