@@ -124,12 +124,13 @@ echo "[7/8] Stopping $SERVICE_NAME service..."
 sudo systemctl stop "$SERVICE_NAME"
 
 # Step 7: Deploy files
-echo "Deploying to $DEPLOY_DIR (excluding Uploads, TileCache, ChromeCache)..."
+echo "Deploying to $DEPLOY_DIR (excluding Uploads, TileCache, ChromeCache, Logs, wwwroot/thumbs)..."
 sudo rsync -av --delete \
   --exclude 'Uploads' \
   --exclude 'TileCache' \
   --exclude 'ChromeCache' \
   --exclude 'Logs' \
+  --exclude 'wwwroot/thumbs/' \
   "$OUT_DIR"/ "$DEPLOY_DIR"/
 
 # Step 8: Fix permissions and restart

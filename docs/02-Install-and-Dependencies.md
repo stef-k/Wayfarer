@@ -80,9 +80,13 @@ sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
     libcups2 libdrm2 libpango-1.0-0 libcairo2
 
 # Create database
+# (Optional) create a dedicated DB user, matching install.sh defaults
+sudo -u postgres psql -c "CREATE USER wayfarer_user WITH PASSWORD 'your-strong-password';"
 sudo -u postgres createdb wayfarer
 sudo -u postgres psql wayfarer -c "CREATE EXTENSION postgis;"
 sudo -u postgres psql wayfarer -c "CREATE EXTENSION citext;"
+
+If you use deployment/install.sh, it will prompt for DB name/user/password and create the database and extensions automatically (defaults: wayfarer / wayfarer_user).
 
 # Clone and configure
 git clone https://github.com/yourusername/wayfarer.git
@@ -176,6 +180,7 @@ After installation:
 - **Regular Updates:** Pull latest code and apply updates regularly
 - **Backup Database:** Schedule regular PostgreSQL backups
 - **Firewall Configuration:** Only expose ports 80, 443, and SSH
+- You can let `deployment/install.sh` install Certbot and request a Let’s Encrypt certificate automatically (recommended for first-time setup), or run Certbot manually later.
 
 ---
 

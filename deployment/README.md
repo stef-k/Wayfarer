@@ -6,18 +6,47 @@ This directory contains ready-to-use configuration files and scripts for deployi
 
 ### Deployment Automation
 
-**`deploy.sh`** - Automated deployment script
+**`install.sh`** – Interactive installer
+
+- Installs system packages (PostgreSQL + PostGIS, Nginx, runtime libs)
+- Creates DB + user and enables PostGIS/citext
+- Creates deployment directory and app user
+- Installs systemd service, Nginx vhost, Fail2ban jails
+- Optionally configures HTTPS via Certbot
+- Can run `deploy.sh` for the first deployment
+
+**`deploy.sh`** – Automated deployment script
 
 - Pulls code from Git
 - Builds the application
 - Applies database migrations
-- Deploys to production directory
+- Deploys to the production directory
 - Handles permissions automatically
 - Preserves user data directories
 
+**`uninstall.sh`** – Clean removal script
+
+- Stops and disables the systemd service
+- Removes systemd unit, Nginx vhost, Fail2ban jails
+- Optionally drops the Wayfarer DB and user (`--purge-db`)
+- Optionally deletes the Certbot certificate
+
 **Usage:**
 
+### First-time install (fresh server)
+
 ```bash
+# 1. Clone the repo
+git clone https://github.com/yourusername/Wayfarer.git
+cd Wayfarer/deployment
+
+# 2. Make scripts executable
+chmod +x install.sh deploy.sh uninstall.sh
+
+# 3. Run interactive installer (recommended)
+./install.sh
+
+
 # Deploy from master
 ./deployment/deploy.sh
 
@@ -49,13 +78,21 @@ sudo systemctl start wayfarer
 
 ### Nginx Configuration
 
-**`nginx-ratelimit.conf`** - Complete nginx reverse proxy with security
+**`nginx-ratelimit.conf`** – Global rate-limit configuration
 
-- Rate limiting (login, API, general traffic)
+- Defines `limit_req_zone` and `limit_conn_zone` contexts
+- Zones used by the Wayfarer vhost (wayfarer_general, wayfarer_login, wayfarer_api, wayfarer_404, wayfarer_conn)
+- Installed to `/etc/nginx/conf.d/nginx-ratelimit.conf` by `install.sh`
+
+**`wayfarer-nginx-vhost.conf`** – Wayfarer reverse proxy
+
+- HTTP → HTTPS redirect
+- SSL/TLS configuration (Let’s Encrypt compatible)
 - Security headers
-- Static file serving
-- SSL/TLS configuration
-- Blocks common exploit attempts
+- Static file serving from `/var/www/wayfarer/wwwroot`
+- Proxies to Kestrel on `http://localhost:5000`
+- Uses the rate-limit zones defined in `nginx-ratelimit.conf`
+
 
 **Installation:** See file header for detailed instructions
 
@@ -63,26 +100,28 @@ sudo systemctl start wayfarer
 
 ### Fail2ban Protection
 
-**`fail2ban-wayfarer-filter.conf`** - Detection patterns for malicious activity
+**`wayfarer-nginx.conf`** – Fail2ban jail configuration
 
-- PHP file scanners
-- WordPress vulnerability probes
-- Repeated 404 errors
-- Failed login attempts
+- Scanner bot protection
+- Brute-force login protection
+- 404 flood protection
+- Uses `/var/log/nginx/wayfarer-access.log` as log source (customize if needed)
 
-**`fail2ban-wayfarer-jail.conf`** - Ban policies and configuration
+**`wayfarer-nginx-404.conf`**, **`wayfarer-nginx-login.conf`**, **`wayfarer-nginx-scanner.conf`** – Filter definitions
 
+- Regex patterns for 404 floods, login failures, and generic scanner activity
 - Scanner bot protection
 - Brute force login protection
 - Configurable thresholds
 
-**Installation:**
+**Installation (manual):**
 
 ```bash
-sudo cp deployment/fail2ban-wayfarer-filter.conf /etc/fail2ban/filter.d/wayfarer.conf
-# Edit jail config to set your log path, then add to jail.local
+sudo cp deployment/wayfarer-nginx.conf /etc/fail2ban/jail.d/wayfarer-nginx.conf
+sudo cp deployment/wayfarer-nginx-404.conf /etc/fail2ban/filter.d/wayfarer-nginx-404.conf
+sudo cp deployment/wayfarer-nginx-login.conf /etc/fail2ban/filter.d/wayfarer-nginx-login.conf
+sudo cp deployment/wayfarer-nginx-scanner.conf /etc/fail2ban/filter.d/wayfarer-nginx-scanner.conf
 sudo systemctl restart fail2ban
-```
 
 ---
 
@@ -140,6 +179,11 @@ sudo systemctl restart fail2ban
    # Add to /etc/fail2ban/jail.local
    sudo systemctl restart fail2ban
    ```
+
+   ### HTTPS / Certbot
+
+- `install.sh` can optionally install `certbot` + `python3-certbot-nginx` and request a Let’s Encrypt certificate for your domain.
+- `uninstall.sh` can optionally delete the Certbot certificate (interactive or via `CERTBOT_DOMAIN` + `PURGE_CERT=1`).
 
 ### Updating Wayfarer
 
