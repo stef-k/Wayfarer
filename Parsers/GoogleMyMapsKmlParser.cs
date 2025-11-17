@@ -26,6 +26,16 @@ public class GoogleMyMapsKmlParser
             UpdatedAt = DateTime.UtcNow
         };
 
+        // Parse tags from ExtendedData if present (from Wayfarer export)
+        XNamespace wf = "https://wayfarer.stefk.me/kml";
+        var tagsCsv = root.Element(k + "ExtendedData")?.Element(wf + "Tags")?.Value;
+        if (!string.IsNullOrWhiteSpace(tagsCsv))
+        {
+            trip.Tags = tagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(slug => new Tag { Slug = slug, Name = slug })
+                .ToList();
+        }
+
         /* 1 ── iterate layers (Folders) */
         foreach (var f in root.Elements(k + "Folder"))
         {

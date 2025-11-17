@@ -46,6 +46,13 @@ public class TripWayfarerKmlExporter
             Ext("CenterLon", trip.CenterLon),
             Ext("Zoom", trip.Zoom));
 
+        // tags - store as comma-separated slugs
+        if (trip.Tags != null && trip.Tags.Any())
+        {
+            var tagSlugs = string.Join(",", trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug));
+            doc.Add(Ext("Tags", tagSlugs));
+        }
+
         doc.Add(styles);
 
 

@@ -109,6 +109,7 @@ namespace Wayfarer.Parsers
                            .Include(t => t.Regions).ThenInclude(r => r.Places)
                            .Include(t => t.Regions).ThenInclude(r => r.Areas)
                            .Include(t => t.Segments)
+                           .Include(t => t.Tags)
                            .AsNoTracking()
                            .FirstOrDefault(t => t.Id == tripId)
                        ?? throw new ArgumentException($"Trip not found: {tripId}", nameof(tripId));
@@ -127,6 +128,7 @@ namespace Wayfarer.Parsers
                 .Include(t => t.Regions).ThenInclude(r => r.Places)
                 .Include(t => t.Regions).ThenInclude(r => r.Areas)
                 .Include(t => t.Segments)
+                .Include(t => t.Tags)
                 .AsNoTracking()
                 .First(t => t.Id == tripId);
 
@@ -137,6 +139,14 @@ namespace Wayfarer.Parsers
             /* root                                                                */
             var doc = new XElement(k + "Document",
                 new XElement(k + "name", trip.Name));
+
+            // Add tags as ExtendedData at document level
+            if (trip.Tags != null && trip.Tags.Any())
+            {
+                var tagSlugs = string.Join(",", trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug));
+                doc.Add(new XElement(k + "ExtendedData",
+                    new XElement(wf + "Tags", tagSlugs)));
+            }
 
             /* 1 ── basic icon + line styles ------------------------------------- */
             var iconStyles = trip.Regions

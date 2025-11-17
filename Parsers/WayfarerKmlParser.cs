@@ -31,6 +31,15 @@ public class WayfarerKmlParser
         trip.IsPublic = false; // imports are private by default
         trip.UpdatedAt = DateTime.UtcNow;
 
+        // Parse tags - stored as comma-separated slugs
+        var tagsCsv = ReadString(tripDoc, "Tags");
+        if (!string.IsNullOrWhiteSpace(tagsCsv))
+        {
+            trip.Tags = tagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(slug => new Tag { Slug = slug, Name = slug })
+                .ToList();
+        }
+
         var regDict = new Dictionary<Guid, Region>();
         var placeDict = new Dictionary<Guid, Place>();
 
