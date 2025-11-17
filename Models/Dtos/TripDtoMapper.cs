@@ -36,6 +36,14 @@ public static class TripDtoMapper
                 .Where(s => s != null)
                 .OrderBy(s => s.DisplayOrder)
                 .Select(ToApiDto)
+                .ToList(),
+            Tags = trip.Tags?
+                .Select(t => new ApiTagDto
+                {
+                    Id = t.Id,
+                    Slug = t.Slug,
+                    Name = t.Name
+                })
                 .ToList()
         };
     }
