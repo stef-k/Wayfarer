@@ -204,7 +204,7 @@ footer {
     visibility: visible;
 }
 
-.ql-editor, #locationModal img {
+.ql-editor img, #locationModal img, #readableViewModal img {
     max-width: 100%; /* Ensure the image doesn't overflow the container */
     height: auto; /* Maintain the aspect ratio of the image */
     width: auto; /* Make the image responsive, scaling with its container */
@@ -1097,14 +1097,59 @@ thead th {
 /***************************************************************************/
 #sidebar-primary{
     position:absolute;
-    top:0; left:0;
-    width: var(--legend-w); height:100%;
-    overflow-y:auto; overflow-x:hidden;
+    top:0;
+    left:0;
+    right: auto !important; /* Prevent any right positioning */
+    width: var(--legend-w) !important; /* Force exact width */
+    height:100%;
+    overflow-y:auto !important;
+    overflow-x:hidden !important; /* Force hide horizontal overflow */
     background:#fff;
-    border-right:1px solid #dee2e6;
-    box-shadow:2px 0 6px rgba(0,0,0,.12);
+    border-right: none;
+    /* Outset shadow on right edge to cover any gaps - extends 2px beyond edge */
+    box-shadow: 2px 0 0px 0px rgba(222, 226, 230, 1), 2px 0 6px rgba(0,0,0,.12);
     transition:transform .6s ease;
     z-index:1050;
+    box-sizing: border-box;
+    /* Hide scrollbar but keep functionality */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,0.2) transparent;
+    /* Ensure all content wraps */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Webkit scrollbar styling for sidebar */
+#sidebar-primary::-webkit-scrollbar {
+    width: 8px;
+}
+
+#sidebar-primary::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#sidebar-primary::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 4px;
+}
+
+#sidebar-primary::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.3);
+}
+
+/* Ensure all children respect the sidebar width */
+#sidebar-primary > *,
+#sidebar-primary header,
+#sidebar-primary .form-control,
+#sidebar-primary input,
+#sidebar-primary .trip-notes,
+#sidebar-primary .trip-meta,
+#sidebar-primary p,
+#sidebar-primary div {
+    max-width: 100%;
+    box-sizing: border-box;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* slide completely off-canvas and remove shadow */

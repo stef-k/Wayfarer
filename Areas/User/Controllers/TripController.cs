@@ -62,6 +62,7 @@ namespace Wayfarer.Areas.User.Controllers
                 .Include(t => t.Regions!).ThenInclude(r => r.Places!)
                 .Include(t => t.Regions!).ThenInclude(a => a.Areas)
                 .Include(t => t.Segments!)
+                .Include(t => t.Tags)
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (trip == null) return NotFound(); 

@@ -36,7 +36,7 @@
 
     <!-- SIDEBAR – trip legend -->
     <aside id="sidebar-primary"
-           class="position-absolute top-0 start-0 h-100 border-end overflow-auto text-bg-light " data-collapsed="false">
+           class="position-absolute top-0 start-0 h-100 overflow-auto text-bg-light" data-collapsed="false">
 
         <!-- fixed header with collapse-handle + trip title + optional Edit -->
         <!-- ─── Trip legend header ─── -->
@@ -52,15 +52,15 @@
 
             @* Title + controls in one row *@
             <div class="px-2 py-2">
-                <div class="d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center justify-content-between gap-2">
 
                     <!-- Trip title -->
-                    <h5 class="mb-0 text-truncate" title="@Model.Name">
+                    <h5 class="mb-0 flex-shrink-1" style="font-size: 18px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; min-width: 0;" title="@Model.Name">
                         @Model.Name
                     </h5>
 
                     <!-- Right-side buttons -->
-                    <div class="btn-group" role="group" aria-label="Map controls & actions">
+                    <div class="btn-group flex-shrink-0" role="group" aria-label="Map controls & actions">
 
                         <!-- 3) “More” dropdown with Edit + exports -->
                         <div class="btn-group" role="group">
@@ -183,6 +183,16 @@
                             <i class="bi bi-crosshair"></i>
                         </button>
 
+                        <!-- Expand to readable view -->
+                        <button id="btn-expand-readable"
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#readableViewModal"
+                                title="Expand to readable view">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
+
                         <!-- 1) Collapse legend -->
                         <button id="btn-collapse-sidebar"
                                 type="button"
@@ -193,20 +203,21 @@
                     </div>
                 </div>
             </div>
-            <dl class="row small px-2 pt-1 mb-2">
+            <div class="row small px-2 pt-1 mb-2 gx-2">
                 @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
                 {
-                    <dt class="col-5 text-muted">Trip by:</dt>
-                    <dd class="col-7">@Model.User.DisplayName</dd>
+                    <div class="col-6">
+                        <span class="text-muted">Trip by:</span> @Model.User.DisplayName
+                    </div>
                 }
-                <dt class="col-5 text-muted">Last updated at:</dt>
-                <dd class="col-7">@Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")</dd>
-            </dl>
+                <div class="@(!string.IsNullOrWhiteSpace(Model.User?.DisplayName) ? "col-6" : "col-12")">
+                    <span class="text-muted">Updated:</span> @Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")
+                </div>
+            </div>
 
             @if (Model.Tags?.Count > 0)
             {
                 <div class="px-2 pb-2">
-                    <div class="small text-muted mb-1">Tags:</div>
                     <div class="d-flex flex-wrap gap-1" data-trip-tags>
                         @foreach (var tag in Model.Tags.OrderBy(t => t.Name))
                         {
@@ -232,7 +243,7 @@
 
             @if (!string.IsNullOrWhiteSpace(Model.Notes))
             {
-                <div class="trip-notes px-3 pb-2">
+                <div class="trip-notes px-3 pb-2" style="max-height: 200px; overflow-y: auto;">
                     @Html.LinkifyHtml(Model.Notes)
                 </div>
             }
@@ -286,6 +297,101 @@
 
 <iframe id="exportFrame" style="display:none"></iframe>
 
+<!-- Readable View Modal -->
+<div class="modal fade" id="readableViewModal" tabindex="-1" aria-labelledby="readableViewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="readableViewModalLabel">@Model.Name</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-width: 900px; margin: 0 auto;">
+                <!-- Trip metadata -->
+                <div class="row small mb-3">
+                    @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
+                    {
+                        <div class="col-md-6">
+                            <strong class="text-muted">Trip by:</strong> @Model.User.DisplayName
+                        </div>
+                    }
+                    <div class="col-md-6">
+                        <strong class="text-muted">Updated:</strong> @Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")
+                    </div>
+                </div>
+
+                <!-- Tags -->
+                @if (Model.Tags?.Count > 0)
+                {
+                    <div class="mb-3">
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var tag in Model.Tags.OrderBy(t => t.Name))
+                            {
+                                <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
+                                   class="badge rounded-pill text-bg-secondary text-decoration-none"
+                                   style="font-size: 0.875rem; padding: 0.5em 0.75em;">
+                                    <i class="bi bi-tag-fill"></i> @tag.Name
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Notes -->
+                @if (!string.IsNullOrWhiteSpace(Model.Notes))
+                {
+                    <div class="trip-notes-readable mb-4">
+                        <h6 class="text-muted mb-2">Notes</h6>
+                        <div class="fs-6">
+                            @Html.Raw(Model.Notes)
+                        </div>
+                    </div>
+                }
+
+                <!-- Regions -->
+                <div class="regions-readable">
+                    <h6 class="text-muted mb-3">Regions & Places</h6>
+                    @foreach (var region in Model.Regions.OrderBy(r => r.DisplayOrder))
+                    {
+                        <div class="region-readable mb-4 pb-3 border-bottom">
+                            <h5 class="mb-2">@region.Name</h5>
+
+                            @if (!string.IsNullOrWhiteSpace(region.Notes))
+                            {
+                                <div class="mb-3 text-muted">
+                                    @Html.Raw(region.Notes)
+                                </div>
+                            }
+
+                            @if (region.Places?.Count > 0)
+                            {
+                                <div class="places-list">
+                                    @foreach (var place in region.Places.OrderBy(p => p.DisplayOrder))
+                                    {
+                                        <div class="place-item mb-2 ps-3">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi bi-geo-alt-fill text-primary me-2 mt-1"></i>
+                                                <div class="flex-grow-1">
+                                                    <strong>@place.Name</strong>
+                                                    @if (!string.IsNullOrWhiteSpace(place.Notes))
+                                                    {
+                                                        <div class="small text-muted mt-1">
+                                                            @Html.Raw(place.Notes)
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script type="module" src="~/js/tripViewer.js"></script>
     <script>
@@ -309,6 +415,21 @@
                 }
             });
         });
+
+        // Proxy images in readable modal when it opens
+        const readableModal = document.getElementById('readableViewModal');
+        if (readableModal) {
+            readableModal.addEventListener('shown.bs.modal', function() {
+                // Proxy all images in the modal to avoid CORS issues
+                readableModal.querySelectorAll('img').forEach(img => {
+                    const orig = img.src;
+                    if (orig && !orig.includes('/Public/ProxyImage')) {
+                        img.setAttribute('data-original', orig);
+                        img.src = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
+                    }
+                });
+            });
+        }
     </script>
 }
 
