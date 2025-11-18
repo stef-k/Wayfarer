@@ -1,27 +1,23 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Services;
 
-public class InvitationServiceTests
+/// <summary>
+/// Tests for the InvitationService business logic.
+/// </summary>
+public class InvitationServiceTests : TestBase
 {
-    private static ApplicationDbContext MakeDb()
-    {
-        var opts = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new ApplicationDbContext(opts, new ServiceCollection().BuildServiceProvider());
-    }
-
     [Fact]
     public async Task Invite_Accept_Flows()
     {
-        using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
-        var user = new ApplicationUser { Id = "u", UserName = "u", DisplayName = "u" };
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "o");
+        var user = TestDataFixtures.CreateUser(id: "u");
         db.Users.AddRange(owner, user);
         await db.SaveChangesAsync();
 
@@ -29,12 +25,16 @@ public class InvitationServiceTests
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "G1", null);
 
-        // owner invites user
+        // Act - owner invites user
         var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+
+        // Assert
         Assert.Equal(GroupInvitation.InvitationStatuses.Pending, inv.Status);
 
-        // user accepts
+        // Act - user accepts
         var member = await invites.AcceptAsync(inv.Token, user.Id);
+
+        // Assert
         Assert.Equal(user.Id, member.UserId);
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "InviteAccept"));
     }
@@ -42,9 +42,10 @@ public class InvitationServiceTests
     [Fact]
     public async Task Decline_Sets_Status_And_Audit()
     {
-        using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
-        var user = new ApplicationUser { Id = "u", UserName = "u", DisplayName = "u" };
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "o");
+        var user = TestDataFixtures.CreateUser(id: "u");
         db.Users.AddRange(owner, user);
         await db.SaveChangesAsync();
 
@@ -53,8 +54,11 @@ public class InvitationServiceTests
         var g = await groups.CreateGroupAsync(owner.Id, "G2", null);
 
         var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+
+        // Act
         await invites.DeclineAsync(inv.Token, user.Id);
 
+        // Assert
         var reloaded = await db.GroupInvitations.FirstAsync(i => i.Id == inv.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Declined, reloaded.Status);
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "InviteDecline"));

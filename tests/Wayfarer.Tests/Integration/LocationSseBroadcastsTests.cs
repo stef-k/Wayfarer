@@ -19,7 +19,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Integration;
 
 public class LocationSseBroadcastsTests
 {

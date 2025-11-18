@@ -19,6 +19,12 @@
     </PackageReference>
     <!-- For UseInMemoryDatabase in tests -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.7" />
+    <!-- Mocking framework -->
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <!-- Fluent assertions for readable test assertions -->
+    <PackageReference Include="FluentAssertions" Version="7.0.0" />
+    <!-- Test data generation -->
+    <PackageReference Include="Bogus" Version="35.6.1" />
   </ItemGroup>
 
   <ItemGroup>

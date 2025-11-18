@@ -14,7 +14,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Controllers;
 
 public class MobileGroupsControllerTests
 {

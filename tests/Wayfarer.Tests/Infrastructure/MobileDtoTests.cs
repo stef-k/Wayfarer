@@ -3,7 +3,7 @@ using System.Text.Json;
 using Wayfarer.Models.Dtos;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Infrastructure;
 
 public class MobileDtoTests
 {

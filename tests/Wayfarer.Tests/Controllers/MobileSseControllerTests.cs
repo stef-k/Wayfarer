@@ -1,33 +1,34 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Options;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Controllers;
 
-public class MobileSseControllerTests
+/// <summary>
+/// Tests for the MobileSseController which handles Server-Sent Events for mobile clients.
+/// </summary>
+public class MobileSseControllerTests : TestBase
 {
-    private static (ApplicationDbContext Db, MobileSseController Controller, SseService Sse) CreateController(string? token = null)
+    /// <summary>
+    /// Creates a MobileSseController with test configuration.
+    /// </summary>
+    /// <param name="token">Optional bearer token for authentication.</param>
+    /// <returns>A tuple containing the database context, controller, and SSE service.</returns>
+    private (ApplicationDbContext Db, MobileSseController Controller, SseService Sse) CreateController(string? token = null)
     {
-        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        var db = new ApplicationDbContext(dbOptions, new ServiceCollection().BuildServiceProvider());
+        var db = CreateDbContext();
         var sse = new SseService();
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>())
+            .Build();
         var timeline = new GroupTimelineService(db, new LocationService(db), configuration);
         var sseOptions = new MobileSseOptions { HeartbeatIntervalMilliseconds = 50 };
 
@@ -50,22 +51,32 @@ public class MobileSseControllerTests
     [Fact]
     public async Task LocationUpdate_ReturnsUnauthorized_WhenNoToken()
     {
+        // Arrange
         var (_, controller, _) = CreateController();
+
+        // Act
         var result = await controller.SubscribeToUserAsync("any", CancellationToken.None);
+
+        // Assert
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
     [Fact]
     public async Task LocationUpdate_ReturnsForbidden_WhenNotPermitted()
     {
+        // Arrange
         var (db, controller, _) = CreateController("token");
-        var caller = new ApplicationUser { Id = "caller", UserName = "caller", DisplayName = "Caller", IsActive = true };
+        var caller = TestDataFixtures.CreateUser(id: "caller");
         db.Users.Add(caller);
-        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "token", UserId = caller.Id, User = caller, CreatedAt = DateTime.UtcNow });
+
+        var token = TestDataFixtures.CreateApiToken(caller, "token");
+        db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
-        
+        // Act
         var result = await controller.SubscribeToUserAsync("other", CancellationToken.None);
+
+        // Assert
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
     }
@@ -73,17 +84,25 @@ public class MobileSseControllerTests
     [Fact]
     public async Task LocationUpdate_AllowsSelfAndStreams()
     {
-        using var cts = new CancellationTokenSource(50);
+        // Arrange
         var (db, controller, _) = CreateController("token");
-        var user = new ApplicationUser { Id = "user", UserName = "me", DisplayName = "Me", IsActive = true };
+        var user = TestDataFixtures.CreateUser(id: "user", username: "me");
         db.Users.Add(user);
-        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "token", UserId = user.Id, User = user, CreatedAt = DateTime.UtcNow });
+
+        var token = TestDataFixtures.CreateApiToken(user, "token");
+        db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
+        // Use a longer timeout to allow database operations to complete before cancellation
+        using var cts = new CancellationTokenSource(500);
+
+        // Act
         var task = controller.SubscribeToUserAsync("me", cts.Token);
         await Task.Delay(100);
         cts.Cancel();
         var result = await task;
+
+        // Assert
         Assert.IsType<EmptyResult>(result);
     }
 }

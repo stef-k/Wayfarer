@@ -17,7 +17,7 @@ using Wayfarer.Services;
 using Xunit;
 using LocationEntity = Wayfarer.Models.Location;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Controllers;
 
 public class MobileGroupLocationsControllerTests
 {

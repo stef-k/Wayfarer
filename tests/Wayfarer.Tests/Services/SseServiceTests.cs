@@ -6,8 +6,11 @@ using Microsoft.AspNetCore.Http;
 using Wayfarer.Parsers;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Services;
 
+/// <summary>
+/// Tests for the SseService which manages Server-Sent Events subscriptions and broadcasts.
+/// </summary>
 public class SseServiceTests
 {
     [Fact]

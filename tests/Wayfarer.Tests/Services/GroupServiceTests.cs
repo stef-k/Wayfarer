@@ -1,31 +1,31 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Services;
 
-public class GroupServiceTests
+/// <summary>
+/// Tests for the GroupService business logic.
+/// </summary>
+public class GroupServiceTests : TestBase
 {
-    private static ApplicationDbContext MakeDb()
-    {
-        var opts = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new ApplicationDbContext(opts, new ServiceCollection().BuildServiceProvider());
-    }
-
     [Fact]
     public async Task CreateGroup_CreatesOwnerMembership()
     {
-        using var db = MakeDb();
-        db.Users.Add(new ApplicationUser { Id = "owner1", UserName = "owner1", DisplayName = "owner1" });
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner1");
+        db.Users.Add(owner);
         await db.SaveChangesAsync();
 
         var svc = new GroupService(db);
+
+        // Act
         var g = await svc.CreateGroupAsync("owner1", "My Group", null);
 
+        // Assert
         Assert.NotEqual(Guid.Empty, g.Id);
         Assert.Equal("owner1", g.OwnerUserId);
         Assert.True(await db.GroupMembers.AnyAsync(m =>
@@ -36,29 +36,30 @@ public class GroupServiceTests
     [Fact]
     public async Task AddMember_RequiresManagerOrOwner()
     {
-        using var db = MakeDb();
-        var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
-        var other = new ApplicationUser { Id = "u2", UserName = "u2", DisplayName = "u2" };
-        var actor = new ApplicationUser { Id = "actor", UserName = "actor", DisplayName = "actor" };
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "o");
+        var other = TestDataFixtures.CreateUser(id: "u2");
+        var actor = TestDataFixtures.CreateUser(id: "actor");
         db.Users.AddRange(owner, other, actor);
         await db.SaveChangesAsync();
 
         var svc = new GroupService(db);
         var g = await svc.CreateGroupAsync(owner.Id, "G", null);
 
-        // actor is not member -> should fail
+        // Act & Assert - actor is not member -> should fail
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             svc.AddMemberAsync(g.Id, actor.Id, other.Id, GroupMember.Roles.Member));
 
-        // make actor manager and retry
-        db.GroupMembers.Add(new GroupMember
-        {
-            Id = Guid.NewGuid(), GroupId = g.Id, UserId = actor.Id, Role = GroupMember.Roles.Manager,
-            Status = GroupMember.MembershipStatuses.Active, JoinedAt = DateTime.UtcNow
-        });
+        // Arrange - make actor manager and retry
+        var membership = TestDataFixtures.CreateGroupMember(g, actor, GroupMember.Roles.Manager);
+        db.GroupMembers.Add(membership);
         await db.SaveChangesAsync();
 
+        // Act
         var m = await svc.AddMemberAsync(g.Id, actor.Id, other.Id, GroupMember.Roles.Member);
+
+        // Assert
         Assert.Equal(other.Id, m.UserId);
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "MemberAdd"));
     }

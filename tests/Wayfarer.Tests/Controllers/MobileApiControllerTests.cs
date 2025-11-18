@@ -1,27 +1,22 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
-namespace Wayfarer.Tests;
+namespace Wayfarer.Tests.Controllers;
 
-public class MobileApiControllerTests
+/// <summary>
+/// Tests for the MobileApiController base class authentication functionality.
+/// </summary>
+public class MobileApiControllerTests : TestBase
 {
-    private static ApplicationDbContext MakeDb()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
-    }
-
+    /// <summary>
+    /// Test controller that exposes protected methods for testing.
+    /// </summary>
     private sealed class TestController : MobileApiController
     {
         public TestController(ApplicationDbContext db, IMobileCurrentUserAccessor accessor)
@@ -38,30 +33,16 @@ public class MobileApiControllerTests
         public Task<(ApplicationUser? user, IActionResult? error)> InvokeEnsureAsync(CancellationToken ct = default) => EnsureAuthenticatedUserAsync(ct);
     }
 
-    private static HttpContext CreateHttpContext(string? bearer = null)
-    {
-        var ctx = new DefaultHttpContext();
-        if (!string.IsNullOrWhiteSpace(bearer))
-        {
-            ctx.Request.Headers["Authorization"] = $"Bearer {bearer}";
-        }
-        return ctx;
-    }
-
     [Fact]
     public async Task GetCurrentUserAsync_ReturnsUser_WhenTokenValid()
     {
-        using var db = MakeDb();
-        var user = new ApplicationUser { Id = "user1", UserName = "user", DisplayName = "User", IsActive = true };
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user1");
         db.Users.Add(user);
-        db.ApiTokens.Add(new ApiToken
-        {
-            Name = "mobile",
-            Token = "token-123",
-            User = user,
-            UserId = user.Id,
-            CreatedAt = DateTime.UtcNow
-        });
+
+        var token = TestDataFixtures.CreateApiToken(user, "token-123");
+        db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
         var httpContext = CreateHttpContext("token-123");
@@ -69,7 +50,10 @@ public class MobileApiControllerTests
         var controller = new TestController(db, accessor);
         controller.SetHttpContext(httpContext);
 
+        // Act
         var resolved = await controller.InvokeGetUserAsync();
+
+        // Assert
         Assert.NotNull(resolved);
         Assert.Equal(user.Id, resolved!.Id);
     }
@@ -77,30 +61,30 @@ public class MobileApiControllerTests
     [Fact]
     public async Task EnsureAuthenticatedUserAsync_ReturnsUnauthorized_WhenMissingToken()
     {
-        using var db = MakeDb();
+        // Arrange
+        var db = CreateDbContext();
         var httpContext = CreateHttpContext();
         var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
         var controller = new TestController(db, accessor);
         controller.SetHttpContext(httpContext);
 
+        // Act
         var (_, error) = await controller.InvokeEnsureAsync();
+
+        // Assert
         Assert.IsType<UnauthorizedObjectResult>(error);
     }
 
     [Fact]
     public async Task EnsureAuthenticatedUserAsync_ReturnsForbid_WhenInactive()
     {
-        using var db = MakeDb();
-        var user = new ApplicationUser { Id = "user2", UserName = "inactive", DisplayName = "Inactive", IsActive = false };
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user2", isActive: false);
         db.Users.Add(user);
-        db.ApiTokens.Add(new ApiToken
-        {
-            Name = "mobile",
-            Token = "inactive-token",
-            User = user,
-            UserId = user.Id,
-            CreatedAt = DateTime.UtcNow
-        });
+
+        var token = TestDataFixtures.CreateApiToken(user, "inactive-token");
+        db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
         var httpContext = CreateHttpContext("inactive-token");
@@ -108,7 +92,10 @@ public class MobileApiControllerTests
         var controller = new TestController(db, accessor);
         controller.SetHttpContext(httpContext);
 
+        // Act
         var (resolved, error) = await controller.InvokeEnsureAsync();
+
+        // Assert
         Assert.Null(resolved);
         Assert.IsType<ForbidResult>(error);
     }
