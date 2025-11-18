@@ -147,6 +147,31 @@ public static class TestDataFixtures
     }
 
     /// <summary>
+    /// Creates a test trip with just a user ID (no User navigation property).
+    /// </summary>
+    /// <param name="userId">The user ID who owns the trip.</param>
+    /// <param name="name">The trip name. If null, a unique name is generated.</param>
+    /// <param name="isPublic">Whether the trip is public. Defaults to false.</param>
+    /// <returns>A new Trip instance.</returns>
+    public static Trip CreateTrip(
+        string userId,
+        string? name = null,
+        bool isPublic = false)
+    {
+        var counter = Interlocked.Increment(ref _tripCounter);
+        name ??= $"Test Trip {counter}";
+
+        return new Trip
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            UserId = userId,
+            IsPublic = isPublic,
+            UpdatedAt = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
     /// Creates a test region for a trip.
     /// </summary>
     /// <param name="trip">The parent trip.</param>
