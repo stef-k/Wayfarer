@@ -157,15 +157,21 @@ namespace Wayfarer.Util
             await _dbContext.SaveChangesAsync();
         }
 
+        /// <summary>
+        /// Converts token bytes to RFC 4648 URL-safe Base64 with Wayfarer prefix.
+        /// Format: wf_[base64] where base64 uses - instead of + and _ instead of /
+        /// Example: wf_YQz2_nK8mJ-3oPx_zA1B-vN7rD4tU6wL5eF9hG
+        /// </summary>
         private static string ToCustomUrlSafeBase64(byte[] tokenData)
         {
-            // Convert to Base64 and replace non-URL-safe characters with a single character
+            // Convert to Base64 and replace non-URL-safe characters per RFC 4648
             string base64 = Convert.ToBase64String(tokenData)
-                .Replace('+', '-')    // Replace '+' with '-'
-                .Replace('/', '-')    // Replace '/' with '-'
+                .Replace('+', '-')              // Replace '+' with '-'
+                .Replace('/', '_')              // Replace '/' with '_' (underscore, not dash)
                 .Replace("=", string.Empty);    // Remove padding '='
 
-            return base64;
+            // Add Wayfarer prefix for easy identification
+            return $"wf_{base64}";
         }
     }
 }

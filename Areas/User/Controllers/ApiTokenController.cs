@@ -88,12 +88,22 @@ namespace Wayfarer.Areas.User.Controllers
             return RedirectToAction("Index");
         }
 
+        /// <summary>
+        /// Regenerates the API token for the specified token name.
+        /// Returns JSON for AJAX requests with the new token.
+        /// </summary>
+        [HttpPost]
         public async Task<IActionResult> Regenerate(string name)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            await _apiTokenService.RegenerateTokenAsync(userId, name); // Use direct ApiTokenService call
-            SetAlert("API token regenerated successfully!", "success");
-            return RedirectToAction("Index");
+            ApiToken regeneratedToken = await _apiTokenService.RegenerateTokenAsync(userId, name);
+
+            // Return JSON for AJAX requests
+            return Json(new {
+                success = true,
+                token = regeneratedToken.Token,
+                message = "API token regenerated successfully! Make sure to update your mobile app and any third-party clients with the new token."
+            });
         }
 
         // GET: ApiToken/Delete/{tokenId}

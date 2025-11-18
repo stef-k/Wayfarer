@@ -163,8 +163,17 @@
                                                         <p><strong>Server:</strong> <code
                                                                 class="border p-2 rounded bg-light user-select-all">@serverBaseUrl</code>
                                                         </p>
-                                                        <p><strong>Token:</strong> <code
-                                                                class="border p-2 rounded bg-light user-select-all">@token.Token</code>
+                                                        <p class="d-flex align-items-center justify-content-between">
+                                                            <span>
+                                                                <strong>Token:</strong> <code id="wayfarer-token"
+                                                                    class="border p-2 rounded bg-light user-select-all">@token.Token</code>
+                                                            </span>
+                                                            <button type="button"
+                                                                    class="btn btn-warning btn-sm ms-2"
+                                                                    onclick="regenerateWayfarerToken()"
+                                                                    title="Regenerate API Token">
+                                                                <i class="bi bi-arrow-clockwise"></i> Regenerate
+                                                            </button>
                                                         </p>
                                                     </div>
                                                 </div>
@@ -559,7 +568,7 @@
         </div>
     </div>
 </div>
-<!-- JavaScript for QR Code Generation -->
+<!-- JavaScript for QR Code Generation and Token Regeneration -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         @if (Model.Tokens != null && Model.Tokens.Any())
@@ -601,6 +610,95 @@
             }
         }
     });
+
+    /**
+     * Regenerates the Wayfarer API token with user confirmation
+     */
+    function regenerateWayfarerToken() {
+        // Show confirmation modal with HTML formatted message
+        const modal = document.getElementById('deleteConfirmationModal');
+        if (!modal) {
+            console.error('Confirmation modal not found');
+            return;
+        }
+
+        const modalInstance = new bootstrap.Modal(modal);
+        const modalTitle = modal.querySelector('.modal-title');
+        const modalBody = modal.querySelector('.modal-body');
+        const confirmButton = modal.querySelector('.btn-danger');
+
+        modalTitle.textContent = 'Regenerate API Token?';
+        modalBody.innerHTML = `
+            <p><strong>This action will regenerate your Wayfarer API token.</strong></p>
+            <p>After regeneration, you will need to update the new token in:</p>
+            <ul>
+                <li>Wayfarer Mobile App</li>
+                <li>GPS Logger or other third-party apps</li>
+                <li>Any custom integrations</li>
+            </ul>
+            <p class="text-danger"><strong>Your current token will immediately stop working.</strong></p>
+            <p>Do you want to continue?</p>
+        `;
+        confirmButton.textContent = 'Yes, Regenerate Token';
+
+        confirmButton.onclick = async function() {
+            try {
+                // Call regenerate endpoint with token name in URL
+                const response = await fetch('@Url.Action("Regenerate", "ApiToken", new { area = "User" })?name=' + encodeURIComponent('Wayfarer Incoming Location Data API Token'), {
+                    method: 'POST',
+                    headers: {
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update token display
+                    const tokenElement = document.getElementById('wayfarer-token');
+                    if (tokenElement) {
+                        tokenElement.textContent = result.token;
+                    }
+
+                    // Regenerate QR code with new token
+                    const qrContainer = document.getElementById('qr-mobile-config');
+                    if (qrContainer) {
+                        qrContainer.innerHTML = ''; // Clear old QR code
+                        const mobileConfig = {
+                            serverUrl: '@serverBaseUrl',
+                            apiToken: result.token,
+                            userName: '@Model.UserName',
+                            serverName: '@Context.Request.Host.Host',
+                            version: '1.0'
+                        };
+
+                        new QRCode(qrContainer, {
+                            text: JSON.stringify(mobileConfig),
+                            width: 150,
+                            height: 150,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                    }
+
+                    // Close modal
+                    modalInstance.hide();
+
+                    // Show success toast
+                    showToast('success', result.message, 5000);
+                } else {
+                    showToast('danger', 'Failed to regenerate token. Please try again.', 5000);
+                }
+            } catch (error) {
+                console.error('Error regenerating token:', error);
+                showToast('danger', 'An error occurred while regenerating the token.', 5000);
+            }
+        };
+
+        // Show modal
+        modalInstance.show();
+    }
 </script>
 
 @* 
