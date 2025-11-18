@@ -339,14 +339,15 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Proxy external images with automatic optimization.
-    /// Default: 95% JPEG quality (visually lossless, faster loading)
+    /// Proxy external images with optional optimization.
+    /// Default: 95% quality (visually lossless, faster loading)
     /// Print: Can specify maxWidth=600&quality=85 for smaller PDFs
-    /// GET: /Public/ProxyImage?url=...&maxWidth=600&quality=85
+    /// Disable: Use optimize=false to serve original image
+    /// GET: /Public/ProxyImage?url=...&maxWidth=600&quality=85&optimize=true
     /// </summary>
     [AllowAnonymous]
     [HttpGet("Public/ProxyImage")]
-    public async Task<IActionResult> ProxyImage(string url, int? maxWidth = null, int? maxHeight = null, int? quality = null)
+    public async Task<IActionResult> ProxyImage(string url, int? maxWidth = null, int? maxHeight = null, int? quality = null, bool optimize = true)
     {
         using var resp = await _httpClient.GetAsync(url);
         if (!resp.IsSuccessStatusCode)
@@ -356,15 +357,17 @@ public class TripViewerController : BaseController
                           ?? "application/octet-stream";
         var bytes = await resp.Content.ReadAsByteArrayAsync();
 
-        // Always optimize images for faster loading and smaller size
-        if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        // Optimize images if enabled (default is true for performance)
+        if (optimize && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
                 // Default to 95% quality if not specified (visually lossless)
                 // This provides faster loading with minimal quality loss
-                bytes = OptimizeImage(bytes, maxWidth, maxHeight, quality ?? 95);
-                contentType = "image/jpeg"; // Optimized images are always JPEG
+                var optimizedBytes = OptimizeImage(bytes, maxWidth, maxHeight, quality ?? 95, out bool isPng);
+                bytes = optimizedBytes;
+                // Content type depends on whether transparency was preserved
+                contentType = isPng ? "image/png" : "image/jpeg";
             }
             catch (Exception ex)
             {
@@ -378,15 +381,20 @@ public class TripViewerController : BaseController
 
     /// <summary>
     /// Optimize image using SkiaSharp - resize and compress while maintaining quality.
-    /// Converts all formats to JPEG for better compression.
+    /// Preserves PNG transparency for icons, converts photos to JPEG.
     /// </summary>
-    private byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality)
+    private byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
     {
         using var inputStream = new MemoryStream(imageBytes);
         using var original = SkiaSharp.SKBitmap.Decode(inputStream);
 
         if (original == null)
             throw new InvalidOperationException("Failed to decode image");
+
+        // Check if image has transparency (alpha channel)
+        bool hasTransparency = original.ColorType == SkiaSharp.SKColorType.Rgba8888 ||
+                               original.ColorType == SkiaSharp.SKColorType.Bgra8888 ||
+                               original.AlphaType != SkiaSharp.SKAlphaType.Opaque;
 
         // Calculate new dimensions maintaining aspect ratio
         int targetWidth = original.Width;
@@ -418,9 +426,22 @@ public class TripViewerController : BaseController
             resized = original;
         }
 
-        // Encode as JPEG with specified quality
+        // Choose format based on transparency
         using var image = SkiaSharp.SKImage.FromBitmap(resized);
-        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, quality);
+        SkiaSharp.SKData data;
+
+        if (hasTransparency)
+        {
+            // Preserve transparency with PNG (for icons, logos, etc.)
+            data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, quality);
+            isPng = true;
+        }
+        else
+        {
+            // Use JPEG for photos (better compression)
+            data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, quality);
+            isPng = false;
+        }
 
         if (resized != original)
             resized.Dispose();

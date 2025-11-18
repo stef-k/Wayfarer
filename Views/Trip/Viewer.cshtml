@@ -385,6 +385,10 @@
                     <h6 class="text-muted mb-3">Regions & Places</h6>
                     @foreach (var region in Model.Regions.OrderBy(r => r.DisplayOrder))
                     {
+                        @if (region.Name == "Unassigned Places" && (region.Places == null || !region.Places.Any()))
+                        {
+                            continue;
+                        }
                         <div class="region-readable mb-4 pb-3 border-bottom">
                             <h5 class="mb-2">@region.Name</h5>
 
@@ -400,9 +404,12 @@
                                 <div class="places-list">
                                     @foreach (var place in region.Places.OrderBy(p => p.DisplayOrder))
                                     {
+                                        var iconName = string.IsNullOrWhiteSpace(place.IconName) ? "marker" : place.IconName.Trim();
+                                        var bgClass = string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor.Trim();
+
                                         <div class="place-item mb-2 ps-3">
                                             <div class="d-flex align-items-start">
-                                                <i class="bi bi-geo-alt-fill text-primary me-2 mt-1"></i>
+                                                @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml", (iconName, bgClass))
                                                 <div class="flex-grow-1">
                                                     <strong>@place.Name</strong>
                                                     @if (!string.IsNullOrWhiteSpace(place.Notes))
@@ -557,8 +564,15 @@
 
             // Replace all images with server-side optimized versions
             const images = modalContent.querySelectorAll('img');
+            const currentOrigin = window.location.origin;
+
             images.forEach(img => {
                 const currentSrc = img.src;
+
+                // Skip local marker icons (don't optimize them)
+                if (currentSrc.includes('/icons/wayfarer-map-icons/')) {
+                    return;
+                }
 
                 // If already using ProxyImage, add optimization parameters
                 if (currentSrc.includes('/Public/ProxyImage')) {
@@ -568,8 +582,8 @@
                     url.searchParams.set('maxWidth', '600');
                     url.searchParams.set('quality', '85');
                     img.src = url.toString();
-                } else if (currentSrc.startsWith('http')) {
-                    // For non-proxied images (user images, external URLs), route through proxy with optimization
+                } else if (currentSrc.startsWith('http') && !currentSrc.startsWith(currentOrigin + '/')) {
+                    // For external images only (not local), route through proxy with optimization
                     img.src = `/Public/ProxyImage?url=${encodeURIComponent(currentSrc)}&maxWidth=600&quality=85`;
                 }
 
@@ -591,12 +605,13 @@
                         }
                         body {
                             padding: 0;
-                            font-size: 11pt;
+                            font-size: 12pt;
                         }
                         ${String.fromCharCode(64)}media print {
                             body {
                                 padding: 0;
                                 margin: 0;
+                                font-size: 11pt;
                             }
                             .no-print { display: none !important; }
                             img {
@@ -606,9 +621,14 @@
                             }
                         }
                         ${String.fromCharCode(64)}media screen {
-                            body { padding: 2rem; }
+                            body {
+                                padding: 2rem;
+                                font-size: 14pt;
+                            }
                         }
-                        h5 { text-align: center; margin-bottom: 2rem; }
+                        h5 { text-align: center; margin-bottom: 2rem; font-size: 1.5rem; }
+                        h6 { font-size: 1.1rem; }
+                        .region-readable h5 { font-size: 1.3rem; }
                         .region-readable { page-break-inside: avoid; }
                     </style>
                 </head>
