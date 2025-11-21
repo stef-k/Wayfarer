@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Manager.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
