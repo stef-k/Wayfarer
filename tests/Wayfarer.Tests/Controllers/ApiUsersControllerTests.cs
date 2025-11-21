@@ -1,8 +1,13 @@
+using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
@@ -46,10 +51,12 @@ public class ApiUsersControllerTests : TestBase
     [Fact]
     public async Task DeleteAllUserLocations_Forbids_WhenCallerDifferent()
     {
-        var db = CreateDbContext();
+        var (db, connection) = CreateSqliteDb();
+        await using var _ = connection;
+        await using var __ = db;
         var user = TestDataFixtures.CreateUser(id: "target");
         db.Users.Add(user);
-        db.Locations.Add(new AppLocation { UserId = user.Id, Coordinates = TestDataFixtures.CreatePoint(), Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" });
+        db.Locations.Add(new AppLocation { UserId = user.Id, Coordinates = new NetTopologySuite.Geometries.Point(0, 0) { SRID = 4326 }, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" });
         await db.SaveChangesAsync();
         var controller = BuildController(db);
         controller.ControllerContext.HttpContext = CreateHttpContextWithUser("other");
@@ -63,10 +70,12 @@ public class ApiUsersControllerTests : TestBase
     [Fact]
     public async Task DeleteAllUserLocations_RemovesRows_WhenCallerMatches()
     {
-        var db = CreateDbContext();
+        var (db, connection) = CreateSqliteDb();
+        await using var _ = connection;
+        await using var __ = db;
         var user = TestDataFixtures.CreateUser(id: "target");
         db.Users.Add(user);
-        db.Locations.Add(new AppLocation { UserId = user.Id, Coordinates = TestDataFixtures.CreatePoint(), Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" });
+        db.Locations.Add(new AppLocation { UserId = user.Id, Coordinates = new NetTopologySuite.Geometries.Point(0, 0) { SRID = 4326 }, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" });
         await db.SaveChangesAsync();
         var controller = BuildController(db);
         controller.ControllerContext.HttpContext = CreateHttpContextWithUser(user.Id);
@@ -112,5 +121,69 @@ public class ApiUsersControllerTests : TestBase
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
         };
+    }
+
+    private static (ApplicationDbContext Db, SqliteConnection Connection) CreateSqliteDb()
+    {
+        var connection = new SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection, o => o.UseNetTopologySuite())
+            .ReplaceService<Microsoft.EntityFrameworkCore.Storage.IRelationalTypeMappingSource, SqliteGeographyTypeMappingSource>()
+            .Options;
+        var db = new SqliteApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        db.Database.EnsureCreated();
+        return (db, connection);
+    }
+
+    private sealed class SqliteApplicationDbContext : ApplicationDbContext
+    {
+        public SqliteApplicationDbContext(DbContextOptions<ApplicationDbContext> options, IServiceProvider sp) : base(options, sp)
+        {
+        }
+
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+
+            if (Database.IsSqlite())
+            {
+                builder.Entity<Location>()
+                    .Property(l => l.Coordinates)
+                    .HasConversion(
+                        v => v == null ? null : v.AsText(),
+                        v => string.IsNullOrEmpty(v) ? null : (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read(v!))
+                    .HasColumnType("TEXT");
+
+                builder.Entity<TileCacheMetadata>()
+                    .Property(t => t.TileLocation)
+                    .HasConversion(
+                        v => v == null ? null : v.AsText(),
+                        v => string.IsNullOrEmpty(v) ? null : (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read(v!))
+                    .HasColumnType("TEXT");
+            }
+        }
+    }
+
+    private sealed class SqliteGeographyTypeMappingSource : Microsoft.EntityFrameworkCore.Sqlite.Storage.Internal.SqliteTypeMappingSource
+    {
+        public SqliteGeographyTypeMappingSource(
+            Microsoft.EntityFrameworkCore.Storage.TypeMappingSourceDependencies deps,
+            Microsoft.EntityFrameworkCore.Storage.RelationalTypeMappingSourceDependencies relationalDeps)
+            : base(deps, relationalDeps)
+        {
+        }
+
+        protected override Microsoft.EntityFrameworkCore.Storage.RelationalTypeMapping? FindMapping(in Microsoft.EntityFrameworkCore.Storage.RelationalTypeMappingInfo mappingInfo)
+        {
+            if (mappingInfo.StoreTypeName != null &&
+                mappingInfo.StoreTypeName.StartsWith("geography", StringComparison.OrdinalIgnoreCase))
+            {
+                var stringInfo = new Microsoft.EntityFrameworkCore.Storage.RelationalTypeMappingInfo(typeof(string));
+                return base.FindMapping(stringInfo);
+            }
+
+            return base.FindMapping(mappingInfo);
+        }
     }
 }

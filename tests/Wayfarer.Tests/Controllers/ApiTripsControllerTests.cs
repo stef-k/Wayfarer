@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -34,7 +35,7 @@ public class ApiTripsControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
         db.Users.Add(user);
-        db.ApiTokens.Add(new ApiToken { Id = Guid.NewGuid(), Token = "tok", UserId = user.Id, Name = "test" });
+        db.ApiTokens.Add(new ApiToken { Id = 1, Token = "tok", UserId = user.Id, Name = "test", User = user });
         db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip1", UpdatedAt = DateTime.UtcNow });
         db.SaveChanges();
         var controller = BuildController(db);
@@ -54,7 +55,7 @@ public class ApiTripsControllerTests : TestBase
         var owner = TestDataFixtures.CreateUser(id: "owner");
         var other = TestDataFixtures.CreateUser(id: "other");
         db.Users.AddRange(owner, other);
-        db.ApiTokens.Add(new ApiToken { Id = Guid.NewGuid(), Token = "tok", UserId = other.Id, Name = "test" });
+        db.ApiTokens.Add(new ApiToken { Id = 2, Token = "tok", UserId = other.Id, Name = "test", User = other });
         db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Private", IsPublic = false });
         db.SaveChanges();
         var controller = BuildController(db);
