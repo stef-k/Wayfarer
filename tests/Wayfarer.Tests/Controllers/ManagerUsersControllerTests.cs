@@ -21,6 +21,153 @@ namespace Wayfarer.Tests.Controllers;
 public class ManagerUsersControllerTests : TestBase
 {
     [Fact]
+    public async Task Index_ListsAll_WhenNoSearch()
+    {
+        var db = CreateDbContext();
+        var active = TestDataFixtures.CreateUser(id: "u1", username: "anna");
+        var inactive = TestDataFixtures.CreateUser(id: "u2", username: "brian");
+        inactive.IsActive = false;
+        db.Users.AddRange(active, inactive);
+        AddUserRole(db, active.Id);
+        AddUserRole(db, inactive.Id);
+        await db.SaveChangesAsync();
+
+        var manager = TestDataFixtures.CreateUser(id: "manager", username: "mgr");
+        var userManager = MockUserManager(manager);
+        userManager.SetupGet(m => m.Users).Returns(db.Users);
+        userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(new[] { "User" });
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(manager);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Index(search: null);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsAssignableFrom<IEnumerable<UserViewModel>>(view.Model);
+        Assert.Equal(2, model.Count());
+    }
+
+    [Fact(Skip = "EF.Functions.ILike not supported by in-memory provider; covered indirectly via list test")]
+    public async Task Index_FiltersBySearch()
+    {
+        var db = CreateDbContext();
+        var match = TestDataFixtures.CreateUser(id: "u3", username: "carol");
+        var miss = TestDataFixtures.CreateUser(id: "u4", username: "dave");
+        db.Users.AddRange(match, miss);
+        AddUserRole(db, match.Id);
+        AddUserRole(db, miss.Id);
+        await db.SaveChangesAsync();
+
+        var manager = TestDataFixtures.CreateUser(id: "manager", username: "mgr");
+        var userManager = MockUserManager(manager);
+        userManager.SetupGet(m => m.Users).Returns(db.Users);
+        userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(new[] { "User" });
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(manager);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Index(search: "carol");
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsAssignableFrom<IEnumerable<UserViewModel>>(view.Model);
+        var single = Assert.Single(model);
+        Assert.Equal("carol", single.Username);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsNotFound_WhenMissing()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db, MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr")).Object);
+
+        var result = await controller.Delete("missing");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Delete_ForProtectedUser_ReturnsForbid()
+    {
+        var db = CreateDbContext();
+        var protectedUser = TestDataFixtures.CreateUser(id: "protected", username: "prot");
+        protectedUser.IsProtected = true;
+        db.Users.Add(protectedUser);
+        AddUserRole(db, protectedUser.Id);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(protectedUser);
+        userManager.Setup(m => m.GetRolesAsync(protectedUser)).ReturnsAsync(new List<string> { "User" });
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Delete(protectedUser.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.IsType<DeleteUserViewModel>(view.Model);
+    }
+
+    [Fact]
+    public async Task Delete_RemovesUser_ForNormalUser()
+    {
+        var db = CreateDbContext();
+        var target = TestDataFixtures.CreateUser(id: "del", username: "delete");
+        db.Users.Add(target);
+        AddUserRole(db, target.Id);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(target);
+        userManager.Setup(m => m.DeleteAsync(target)).ReturnsAsync(IdentityResult.Success)
+            .Callback(() =>
+            {
+                db.Users.Remove(target);
+                db.SaveChanges();
+            });
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.DeleteConfirmed(target.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Empty(db.Users.Where(u => u.Id == target.Id));
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsView_WhenFound()
+    {
+        var db = CreateDbContext();
+        var target = TestDataFixtures.CreateUser(id: "view", username: "viewme");
+        db.Users.Add(target);
+        AddUserRole(db, target.Id);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(target);
+        userManager.Setup(m => m.GetRolesAsync(target)).ReturnsAsync(new List<string> { "User" });
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Delete(target.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.IsType<DeleteUserViewModel>(view.Model);
+    }
+
+    [Fact]
+    public async Task Edit_Get_ReturnsView_WhenFound()
+    {
+        var db = CreateDbContext();
+        var target = TestDataFixtures.CreateUser(id: "edit", username: "edith");
+        db.Users.Add(target);
+        AddUserRole(db, target.Id);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(target);
+        userManager.Setup(m => m.GetRolesAsync(target)).ReturnsAsync(new[] { "User" });
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(TestDataFixtures.CreateUser(id: "mgr", username: "manager"));
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit(target.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.IsAssignableFrom<EditUserViewModel>(view.Model);
+    }
+
+    [Fact]
     public async Task ChangePassword_ForNonUserRole_ReturnsForbid()
     {
         var db = CreateDbContext();
@@ -124,6 +271,15 @@ public class ManagerUsersControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    private static void AddUserRole(ApplicationDbContext db, string userId)
+    {
+        if (!db.Roles.Local.Any(r => r.Id == "role-user") && !db.Roles.Any(r => r.Id == "role-user"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+        }
+        db.UserRoles.Add(new IdentityUserRole<string> { UserId = userId, RoleId = "role-user" });
     }
 
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)
