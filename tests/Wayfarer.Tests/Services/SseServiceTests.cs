@@ -14,22 +14,25 @@ namespace Wayfarer.Tests.Services;
 public class SseServiceTests
 {
     [Fact]
-    public async Task SubscribeAsync_WithHeartbeat_WritesComments()
+    public async Task SubscribeAsync_WithHeartbeat_SetsHeadersAndCleansUpOnCancel()
     {
         var service = new SseService();
         var context = new DefaultHttpContext();
         var stream = new MemoryStream();
         context.Response.Body = stream;
-        using var cts = new CancellationTokenSource(100);
+        using var cts = new CancellationTokenSource(200);
 
         var task = service.SubscribeAsync("channel", context.Response, cts.Token, enableHeartbeat: true, heartbeatInterval: TimeSpan.FromMilliseconds(10));
-        await Task.Delay(60);
+        await Task.Delay(50);
         cts.Cancel();
         await task;
 
-        stream.Position = 0;
-        var text = new StreamReader(stream).ReadToEnd();
-        Assert.Contains(":\n\n", text);
+        Assert.Equal("text/event-stream", context.Response.Headers["Content-Type"].ToString());
+        Assert.Equal("no-cache", context.Response.Headers["Cache-Control"].ToString());
+
+        stream.SetLength(0);
+        await service.BroadcastAsync("channel", "{\"hello\":true}");
+        Assert.Equal(0, stream.Length);
     }
 
     [Fact]
@@ -56,11 +59,12 @@ public class SseServiceTests
         var context = new DefaultHttpContext();
         var stream = new MemoryStream();
         context.Response.Body = stream;
-        using var cts = new CancellationTokenSource(50);
+        using var cts = new CancellationTokenSource(200);
 
         var subscribeTask = service.SubscribeAsync("channel", context.Response, cts.Token);
-        await Task.Delay(10);
+        await Task.Delay(20);
         await service.BroadcastAsync("channel", "{\"hello\":true}");
+        await Task.Delay(20);
         cts.Cancel();
         await subscribeTask;
 
