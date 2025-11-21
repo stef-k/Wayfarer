@@ -39,6 +39,74 @@ public class ManagerApiTokenControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Index_Redirects_WhenUserMissing()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db, MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr")).Object);
+
+        var result = await controller.Index("missing");
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Home", redirect.ControllerName);
+    }
+
+    [Fact]
+    public async Task Index_ReturnsView_WithTokens()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "mgr-user3", username: "carol");
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { Id = 7, UserId = user.Id, User = user, Name = "existing", Token = "tok" });
+        await db.SaveChangesAsync();
+        var userManager = MockUserManager(user);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Index(user.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<ApiTokenViewModel>(view.Model);
+        Assert.Equal(user.Id, model.UserId);
+        Assert.Single(model.Tokens);
+        Assert.Equal("existing", model.Tokens.Single().Name);
+    }
+
+    [Fact]
+    public async Task Create_ShowsWarning_WhenNameExists()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "mgr-user4", username: "dave");
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { Id = 9, UserId = user.Id, User = user, Name = "dupe", Token = "tok" });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, MockUserManager(user).Object);
+
+        var result = await controller.Create(user.Id, "dupe");
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Single(db.ApiTokens);
+    }
+
+    [Fact]
+    public async Task Regenerate_UpdatesTokenValue()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "mgr-user5", username: "erin");
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { Id = 11, UserId = user.Id, User = user, Name = "reporting", Token = "old" });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, MockUserManager(user).Object);
+
+        var result = await controller.Regenerate(user.Id, "reporting");
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        var token = Assert.Single(db.ApiTokens);
+        Assert.NotEqual("old", token.Token);
+    }
+
+    [Fact]
     public async Task Delete_RejectsDefaultToken()
     {
         var db = CreateDbContext();
