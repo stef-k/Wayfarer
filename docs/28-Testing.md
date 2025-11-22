@@ -7,10 +7,15 @@ Approach
 Running Tests
 - `dotnet test`
 
+Coverage
+- Install tools and generate HTML: `dotnet tool restore` then `.\tools\coverage-report.ps1`
+- Reports land in `coverage-report/index.html` (cobertura XML in `tests/Wayfarer.Tests/TestResults/coverage/coverage.cobertura.xml`).
+- Uses Coverlet (msbuild) + ReportGenerator; backend-only scope, no prod code changes.
+
 Targets
 - Parsers: sample fixtures for GPX/KML/CSV/GeoJSON/Google JSON.
 - Services: `LocationImportService`, `TripExportService`, `ReverseGeocodingService` (mock external calls).
-- API: controller tests using `WebApplicationFactory` and in‑memory DB or test containers.
+- API: controller tests using `WebApplicationFactory` and in-memory DB or test containers.
 
 Guidelines
 - Keep tests focused and deterministic.
