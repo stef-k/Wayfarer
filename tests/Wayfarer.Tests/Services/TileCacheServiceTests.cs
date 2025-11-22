@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -66,15 +67,50 @@ public class TileCacheServiceTests : TestBase
         Assert.Empty(db.TileCacheMetadata);
     }
 
-    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir)
+    [Fact]
+    public async Task CacheTileAsync_EvictsLru_WhenCacheOverLimit()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new SizedTileHandler(600_000); // ~0.57 MB tiles
+        var service = CreateService(db, dir.Path, handler, maxCacheMb: 1);
+
+        await service.CacheTileAsync("http://tiles/9/1/1.png", "9", "1", "1"); // fits
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2"); // triggers eviction of oldest
+
+        Assert.Equal(1, db.TileCacheMetadata.Count());
+        var meta = db.TileCacheMetadata.Single();
+        Assert.Equal(1, meta.X);
+        Assert.Equal(2, meta.Y);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_UpdatesLastAccessed_ForExistingTile()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+        await service.CacheTileAsync("http://tiles/9/3/4.png", "9", "3", "4");
+        var meta = db.TileCacheMetadata.Single();
+        meta.LastAccessed = DateTime.UtcNow.AddMinutes(-5);
+        db.SaveChanges();
+        var old = meta.LastAccessed;
+
+        await Task.Delay(5);
+        await service.RetrieveTileAsync("9", "3", "4");
+
+        Assert.True(db.TileCacheMetadata.Single().LastAccessed > old);
+    }
+
+    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["CacheSettings:TileCacheDirectory"] = cacheDir
             }).Build();
-        var httpClient = new HttpClient(new StubTileHandler());
-        var appSettings = new StubSettingsService();
+        var httpClient = new HttpClient(handler ?? new StubTileHandler());
+        var appSettings = new StubSettingsService(maxCacheMb);
         var scopeFactory = new SingleScopeFactory(db);
         return new TileCacheService(
             NullLogger<TileCacheService>.Instance,
@@ -96,12 +132,29 @@ public class TileCacheServiceTests : TestBase
         }
     }
 
+    private sealed class SizedTileHandler : HttpMessageHandler
+    {
+        private readonly byte[] _payload;
+        public SizedTileHandler(int sizeBytes) => _payload = Enumerable.Repeat((byte)5, sizeBytes).ToArray();
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(_payload)
+            });
+        }
+    }
+
     private sealed class StubSettingsService : IApplicationSettingsService
     {
+        private readonly int _maxCache;
+        public StubSettingsService(int maxCacheMb = 10) => _maxCache = maxCacheMb;
+
         public ApplicationSettings GetSettings() => new ApplicationSettings
         {
             Id = 1,
-            MaxCacheTileSizeInMB = 10,
+            MaxCacheTileSizeInMB = _maxCache,
             UploadSizeLimitMB = 5,
             IsRegistrationOpen = true
         };
