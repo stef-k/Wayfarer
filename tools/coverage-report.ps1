@@ -8,11 +8,13 @@ Set-Location $repoRoot
 Write-Host "Restoring tools..."
 dotnet tool restore | Out-Null
 
-$coverageDir = "tests/Wayfarer.Tests/TestResults/coverage"
+$coverageDir = Join-Path $repoRoot "tests/Wayfarer.Tests/TestResults/coverage"
+if (-not (Test-Path $coverageDir)) { New-Item -ItemType Directory -Path $coverageDir | Out-Null }
+
 Write-Host "Running tests with coverage..."
 dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
     /p:CollectCoverage=true `
-    /p:CoverletOutput=$coverageDir/ `
+    "/p:CoverletOutput=$coverageDir\coverage" `
     /p:CoverletOutputFormat=cobertura `
     /p:Exclude=\"[WayfarerAspNetCoreGeneratedDocument*]*\" | Out-Null
 
