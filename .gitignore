@@ -12,6 +12,7 @@ docs/spec
 docs/archive
 ChromeCache/*
 wwwroot/thumbs/trips/*
+coverage-report/*
 
 # Uploads
 Uploads/*
