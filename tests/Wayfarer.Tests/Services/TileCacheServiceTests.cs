@@ -102,6 +102,68 @@ public class TileCacheServiceTests : TestBase
         Assert.True(db.TileCacheMetadata.Single().LastAccessed > old);
     }
 
+    [Fact]
+    public async Task GetCacheFileSizeInMbAsync_ReturnsZeroWhenEmpty()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+
+        var size = await service.GetCacheFileSizeInMbAsync();
+
+        Assert.Equal(0, size);
+    }
+
+    [Fact]
+    public async Task CacheSizeAndCountHelpers_ReportDiskValues()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+        var fileA = Path.Combine(dir.Path, "a.bin");
+        var fileB = Path.Combine(dir.Path, "b.bin");
+        await File.WriteAllBytesAsync(fileA, new byte[512 * 1024]); // 0.5 MB
+        await File.WriteAllBytesAsync(fileB, new byte[256 * 1024]); // 0.25 MB
+
+        var size = await service.GetCacheFileSizeInMbAsync();
+        var count = await service.GetTotalCachedFilesAsync();
+
+        Assert.InRange(size, 0.74, 0.76);
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public async Task LruHelpers_UseDatabaseMetadata()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        db.TileCacheMetadata.AddRange(
+            new TileCacheMetadata
+            {
+                Zoom = 9, X = 1, Y = 1,
+                Size = 1024,
+                TileLocation = new NetTopologySuite.Geometries.Point(0, 0) { SRID = 4326 },
+                TileFilePath = Path.Combine(dir.Path, "1.png"),
+                LastAccessed = DateTime.UtcNow
+            },
+            new TileCacheMetadata
+            {
+                Zoom = 9, X = 1, Y = 2,
+                Size = 2048,
+                TileLocation = new NetTopologySuite.Geometries.Point(0, 0) { SRID = 4326 },
+                TileFilePath = Path.Combine(dir.Path, "2.png"),
+                LastAccessed = DateTime.UtcNow
+            });
+        await db.SaveChangesAsync();
+        var service = CreateService(db, dir.Path);
+
+        var mb = await service.GetLruCachedInMbFilesAsync();
+        var total = await service.GetLruTotalFilesInDbAsync();
+
+        Assert.InRange(mb, 0.0029, 0.0031); // 3 KB -> ~0.0029 MB
+        Assert.Equal(2, total);
+    }
+
     private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10)
     {
         var config = new ConfigurationBuilder()
