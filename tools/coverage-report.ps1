@@ -13,7 +13,8 @@ Write-Host "Running tests with coverage..."
 dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
     /p:CollectCoverage=true `
     /p:CoverletOutput=$coverageDir/ `
-    /p:CoverletOutputFormat=cobertura | Out-Null
+    /p:CoverletOutputFormat=cobertura `
+    /p:Exclude=\"[WayfarerAspNetCoreGeneratedDocument*]*\" | Out-Null
 
 $coverageFile = Join-Path $coverageDir "coverage.cobertura.xml"
 if (-not (Test-Path $coverageFile)) {
