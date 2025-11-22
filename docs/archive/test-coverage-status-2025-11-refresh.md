@@ -8,7 +8,7 @@ This refresh compares the current test suite against the archived **test-coverag
 
 ## 1) Current Coverage Status
 
-- **Suite size**: 596 passing, 1 skipped (ManagerUsers search/ILike) across 70+ C# test files. Backend-only; JS/browser automation remains deferred.
+- **Suite size**: 596 passing across 70+ C# test files. Backend-only; JS/browser automation remains deferred.
 - **New coverage since prior refresh**:
   - **Controllers**: Admin/Manager/User/API/Public broadly covered; Manager search skip noted above.
   - **Services/Helpers**: ApplicationSettings, Registration, ApiToken, TileCache (store/purge + LRU eviction + LastAccessed updates), map thumbnail file maintenance (TripMapThumbnailGenerator non-Playwright paths), RazorViewRenderer, QuartzHostedService, CoordinateTimeZoneConverter basics, TimespanHelper, HtmlHelpers.

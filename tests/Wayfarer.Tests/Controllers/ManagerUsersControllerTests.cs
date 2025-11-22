@@ -46,32 +46,6 @@ public class ManagerUsersControllerTests : TestBase
         Assert.Equal(2, model.Count());
     }
 
-    [Fact(Skip = "EF.Functions.ILike not supported by in-memory provider; covered indirectly via list test")]
-    public async Task Index_FiltersBySearch()
-    {
-        var db = CreateDbContext();
-        var match = TestDataFixtures.CreateUser(id: "u3", username: "carol");
-        var miss = TestDataFixtures.CreateUser(id: "u4", username: "dave");
-        db.Users.AddRange(match, miss);
-        AddUserRole(db, match.Id);
-        AddUserRole(db, miss.Id);
-        await db.SaveChangesAsync();
-
-        var manager = TestDataFixtures.CreateUser(id: "manager", username: "mgr");
-        var userManager = MockUserManager(manager);
-        userManager.SetupGet(m => m.Users).Returns(db.Users);
-        userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(new[] { "User" });
-        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(manager);
-        var controller = BuildController(db, userManager.Object);
-
-        var result = await controller.Index(search: "carol");
-
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<UserViewModel>>(view.Model);
-        var single = Assert.Single(model);
-        Assert.Equal("carol", single.Username);
-    }
-
     [Fact]
     public async Task Delete_ReturnsNotFound_WhenMissing()
     {
