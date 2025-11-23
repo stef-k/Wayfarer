@@ -18,14 +18,13 @@ using Xunit;
 namespace Wayfarer.Tests.Controllers;
 
 /// <summary>
-/// API-facing location tests (bulk delete).
+/// API-facing location tests (bulk delete and navigation flags).
 /// </summary>
 public class ApiLocationControllerTests : TestBase
 {
     [Fact]
     public async Task BulkDelete_RemovesOnlyCurrentUserLocations()
     {
-        // Arrange
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
         var other = TestDataFixtures.CreateUser(id: "api-other", username: "api-other");
@@ -45,10 +44,8 @@ public class ApiLocationControllerTests : TestBase
             LocationIds = new List<int> { userLocation1.Id, userLocation2.Id, otherLocation.Id }
         };
 
-        // Act
         var result = await controller.BulkDelete(request);
 
-        // Assert
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("2 locations deleted", payload);
@@ -61,7 +58,6 @@ public class ApiLocationControllerTests : TestBase
     [Fact]
     public async Task BulkDelete_ReturnsNotFoundWhenNoMatchingIds()
     {
-        // Arrange
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
         db.Users.Add(user);
@@ -74,20 +70,17 @@ public class ApiLocationControllerTests : TestBase
             LocationIds = new List<int> { 999, 1000 }
         };
 
-        // Act
         var result = await controller.BulkDelete(request);
 
-        // Assert
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
         var payload = JsonSerializer.Serialize(notFound.Value);
         Assert.Contains("No locations found", payload);
-        Assert.Single(db.Locations); // original still present
+        Assert.Single(db.Locations);
     }
 
     [Fact]
     public async Task Delete_RemovesSingleLocationForOwner()
     {
-        // Arrange
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
         var other = TestDataFixtures.CreateUser(id: "api-other", username: "api-other");
@@ -100,10 +93,8 @@ public class ApiLocationControllerTests : TestBase
 
         var controller = BuildApiController(db, user);
 
-        // Act
         var result = await controller.Delete(ownLoc.Id);
 
-        // Assert
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = JsonSerializer.Serialize(ok.Value);
         Assert.Contains("Location deleted", payload);
@@ -111,18 +102,61 @@ public class ApiLocationControllerTests : TestBase
         Assert.Contains(db.Locations, l => l.Id == otherLoc.Id);
     }
 
-    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user)
+    [Fact]
+    public async Task CheckNavigationAvailability_ReturnsUnauthorized_WhenTokenMissing()
     {
-        var token = $"token-{user.Id}";
-        db.ApiTokens.Add(new ApiToken
-        {
-            Name = "mobile",
-            Token = token,
-            UserId = user.Id,
-            User = user,
-            CreatedAt = DateTime.UtcNow
-        });
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        db.Users.Add(user);
         db.SaveChanges();
+
+        var controller = BuildApiController(db, user, includeAuthHeader: false);
+
+        var result = await controller.CheckNavigationAvailability("day", DateTime.UtcNow.Year, 1, 1);
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CheckNavigationAvailability_ReturnsFlags_ForCurrentDay()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "tok", UserId = user.Id, User = user, CreatedAt = DateTime.UtcNow });
+        db.SaveChanges();
+
+        var controller = BuildApiController(db, user, tokenOverride: "tok");
+        var today = DateTime.Today;
+
+        var result = await controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        bool? canPrev = payload.GetType().GetProperty("canNavigatePrevDay")?.GetValue(payload) as bool?;
+        bool? canNext = payload.GetType().GetProperty("canNavigateNextDay")?.GetValue(payload) as bool?;
+        Assert.True(canPrev);
+        Assert.False(canNext);
+    }
+
+    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user)
+        => BuildApiController(db, user, includeAuthHeader: true, tokenOverride: null);
+
+    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user, bool includeAuthHeader, string? tokenOverride = null)
+    {
+        var token = tokenOverride ?? $"token-{user.Id}";
+        if (!db.ApiTokens.Any(t => t.Token == token))
+        {
+            db.ApiTokens.Add(new ApiToken
+            {
+                Name = "mobile",
+                Token = token,
+                UserId = user.Id,
+                User = user,
+                CreatedAt = DateTime.UtcNow
+            });
+            db.SaveChanges();
+        }
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var settings = new ApplicationSettingsService(db, cache);
@@ -143,7 +177,10 @@ public class ApiLocationControllerTests : TestBase
             locationService);
 
         var httpContext = new DefaultHttpContext();
-        httpContext.Request.Headers["Authorization"] = $"Bearer {token}";
+        if (includeAuthHeader)
+        {
+            httpContext.Request.Headers["Authorization"] = $"Bearer {token}";
+        }
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id)
@@ -154,19 +191,6 @@ public class ApiLocationControllerTests : TestBase
             HttpContext = httpContext
         };
         return controller;
-    }
-
-    private static ApplicationUser CreateUser(string id, string username)
-    {
-        return new ApplicationUser
-        {
-            Id = id,
-            UserName = username,
-            DisplayName = username,
-            Email = $"{username}@test.com",
-            EmailConfirmed = true,
-            IsActive = true
-        };
     }
 
     private static Wayfarer.Models.Location CreateLocation(string userId, int seed)
