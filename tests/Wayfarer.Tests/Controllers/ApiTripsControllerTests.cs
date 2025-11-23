@@ -150,6 +150,87 @@ public class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task GetTripBoundary_ReturnsNotFound_WhenTripMissing()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = await controller.GetTripBoundary(Guid.NewGuid());
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetTripBoundary_ReturnsBadRequest_WhenNoValidGeometry()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Name = "EmptyGeo",
+            IsPublic = true,
+            Regions = new List<Region>
+            {
+                new Region
+                {
+                    Id = Guid.NewGuid(),
+                    TripId = Guid.NewGuid(),
+                    UserId = user.Id,
+                    Name = "R1",
+                    Places = new List<Place>() // no coordinates
+                }
+            },
+            Segments = new List<Segment>()
+        };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.GetTripBoundary(trip.Id);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetPublicTrips_ReturnsOnlyPublic()
+    {
+        var db = CreateDbContext();
+        var tagService = new Mock<ITripTagService>();
+        tagService.Setup(s => s.ApplyTagFilter(It.IsAny<IQueryable<Trip>>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<string>()))
+            .Returns<IQueryable<Trip>>(q => q);
+        var controller = BuildController(db, token: null, tagService: tagService.Object);
+        var publicTrip = new Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "Public", IsPublic = true, UpdatedAt = DateTime.UtcNow };
+        var privateTrip = new Trip { Id = Guid.NewGuid(), UserId = "u2", Name = "Private", IsPublic = false, UpdatedAt = DateTime.UtcNow };
+        db.Trips.AddRange(publicTrip, privateTrip);
+        db.SaveChanges();
+
+        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: "updated_desc", tags: null, tagMode: null);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var items = payload.GetType().GetProperty("items")?.GetValue(payload) as IEnumerable<object>;
+        Assert.NotNull(items);
+        Assert.Single(items!);
+    }
+
+    [Fact]
+    public async Task CloneTrip_ReturnsBadRequest_WhenPrivate()
+    {
+        var db = CreateDbContext();
+        var requester = SeedUserWithToken(db, "tok");
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Private", IsPublic = false });
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CloneTrip(db.Trips.First().Id);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
     public async Task UpdatePlace_ReturnsUnauthorized_WhenNoToken()
     {
         var controller = BuildController(CreateDbContext());
@@ -360,9 +441,10 @@ public class ApiTripsControllerTests : TestBase
         Assert.True(db.Places.Any(p => p.RegionId == region.Id && p.Name == "P1"));
     }
 
-    private TripsController BuildController(ApplicationDbContext db, string? token = null)
+    private TripsController BuildController(ApplicationDbContext db, string? token = null, ITripTagService? tagService = null)
     {
-        var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, Mock.Of<ITripTagService>());
+        tagService ??= Mock.Of<ITripTagService>();
+        var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, tagService);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
