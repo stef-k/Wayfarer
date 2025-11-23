@@ -55,6 +55,23 @@ public class UsersTimelineControllerTests : TestBase
         Assert.Equal("alice", controller.ViewData["Username"]);
     }
 
+    [Fact]
+    public async Task Embed_ReturnsView_ForPublicTimeline()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
+        user.IsTimelinePublic = true;
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Embed("alice");
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Timeline", view.ViewName);
+        Assert.True((bool)controller.ViewBag.IsEmbed);
+    }
+
     private static UsersTimelineController BuildController(ApplicationDbContext db)
     {
         // locationService and statsService are unused in these actions; keep defaults.
