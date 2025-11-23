@@ -11,16 +11,25 @@ dotnet tool restore | Out-Null
 $coverageDir = Join-Path $repoRoot "tests/Wayfarer.Tests/TestResults/coverage"
 if (-not (Test-Path $coverageDir)) { New-Item -ItemType Directory -Path $coverageDir | Out-Null }
 $coverageFile = Join-Path $coverageDir "coverage.cobertura.xml"
-$excludeAssemblies = "[Wayfarer]AspNetCoreGeneratedDocument*"
-$excludeFiles = "**/obj/**;**/bin/**;**/Migrations/*.cs;**/Areas/Identity/Pages/Account/Login.cshtml.cs;**/Areas/Identity/Pages/Account/Logout.cshtml.cs;**/Areas/Identity/Pages/Account/AccessDenied.cshtml.cs;**/Areas/Identity/Pages/Account/RegisterConfirmation.cshtml.cs;**/Areas/Identity/Pages/Account/ForgotPassword*.cshtml.cs;**/Areas/Identity/Pages/Account/ResetPassword*.cshtml.cs;**/Areas/Identity/Pages/Account/Manage/**;**/Areas/Identity/Pages/Error.cshtml.cs;**/Areas/Identity/Pages/Shared/**;**/Models/ViewModels/**/*.cs;**/Models/Dtos/**/*.cs"
+$excludeAssemblies = "[Wayfarer]AspNetCoreGeneratedDocument*;[*]Migrations.*;[*]ViewModels.*;[*]Dtos.*"
+$excludeFiles = "**/obj/**;**/bin/**;**/Migrations/*.cs;**/Areas/Identity/Pages/**/*.cshtml.cs;**/Models/ViewModels/**/*.cs;**/Models/Dtos/**/*.cs"
+$testProject = "tests/Wayfarer.Tests/Wayfarer.Tests.csproj"
+$testDll = Join-Path $repoRoot "tests/Wayfarer.Tests/bin/Debug/net9.0/Wayfarer.Tests.dll"
 
-Write-Host "Running tests with coverage..."
-dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
-    /p:CollectCoverage=true `
-    "/p:CoverletOutput=$coverageDir\coverage" `
-    /p:CoverletOutputFormat=cobertura `
-    "/p:Exclude=$excludeAssemblies" `
-    "/p:ExcludeByFile=$excludeFiles" | Out-Null
+Write-Host "Building tests..."
+dotnet build $testProject -c Debug | Out-Null
+
+if (Test-Path $coverageFile) { Remove-Item $coverageFile -Force }
+
+Write-Host "Running tests with coverlet.console..."
+dotnet tool run coverlet `
+    "$testDll" `
+    --target "dotnet" `
+    --targetargs "test $testProject --no-build" `
+    --output "$coverageFile" `
+    --format cobertura `
+    --exclude "$excludeAssemblies" `
+    --exclude-by-file "$excludeFiles" | Out-Null
 
 if (-not (Test-Path $coverageFile)) {
     Write-Error "Coverage report not found at $coverageFile"
