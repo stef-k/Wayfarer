@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Security.Claims;
@@ -58,6 +56,7 @@ public class ApiLocationControllerCheckInTests : TestBase
 
     private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true)
     {
+        SeedSettings(db);
         var user = SeedUserWithToken(db, "tok");
         var cache = new MemoryCache(new MemoryCacheOptions());
         var settings = new ApplicationSettingsService(db, cache);
@@ -98,6 +97,12 @@ public class ApiLocationControllerCheckInTests : TestBase
         db.ApiTokens.Add(new ApiToken { Token = token, UserId = user.Id, Name = "test", User = user });
         db.SaveChanges();
         return user;
+    }
+
+    private static void SeedSettings(ApplicationDbContext db)
+    {
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1 });
+        db.SaveChanges();
     }
 
     private sealed class FakeHandler : HttpMessageHandler

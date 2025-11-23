@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -12,13 +11,13 @@ namespace Wayfarer.Tests.Controllers;
 public class UserLocationExportControllerTests : TestBase
 {
     [Fact]
-    public void Index_ReturnsView()
+    public async Task GeoJson_ReturnsFile_ForAuthenticatedUser()
     {
-        var controller = new LocationExportController(NullLogger<LocationExportController>.Instance, CreateDbContext());
+        var controller = new LocationExportController(CreateDbContext());
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("u1") };
 
-        var result = controller.Index();
+        var result = await controller.GeoJson();
 
-        Assert.IsType<ViewResult>(result);
+        Assert.IsType<FileStreamResult>(result);
     }
 }

@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http;
+using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
@@ -49,8 +52,31 @@ public class ApiLocationControllerLogTests : TestBase
         Assert.Equal(1, db.Locations.Count());
     }
 
+    [Fact]
+    public async Task CheckIn_ReturnsUnauthorized_WhenTokenMissing()
+    {
+        var controller = BuildController(CreateDbContext(), includeAuth: false);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto());
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CheckIn_CreatesLocation_ForValidInput()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 5, Longitude = 6, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(1, db.Locations.Count());
+    }
+
     private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true)
     {
+        SeedSettings(db);
         var cache = new MemoryCache(new MemoryCacheOptions());
         var settings = new ApplicationSettingsService(db, cache);
         var user = SeedUserWithToken(db, "tok");
@@ -88,6 +114,12 @@ public class ApiLocationControllerLogTests : TestBase
         db.ApiTokens.Add(new ApiToken { Token = token, UserId = user.Id, Name = "test", User = user });
         db.SaveChanges();
         return user;
+    }
+
+    private static void SeedSettings(ApplicationDbContext db)
+    {
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1 });
+        db.SaveChanges();
     }
 
     private sealed class FakeHandler : HttpMessageHandler

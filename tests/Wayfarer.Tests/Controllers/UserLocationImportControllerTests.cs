@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -6,6 +7,7 @@ using Quartz;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -21,8 +23,8 @@ public class UserLocationImportControllerTests : TestBase
     {
         var db = CreateDbContext();
         db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
-        db.LocationImports.Add(new LocationImport { Id = 1, UserId = "u1", FileName = "f", Status = "PENDING" });
-        db.LocationImports.Add(new LocationImport { Id = 2, UserId = "other", FileName = "x", Status = "PENDING" });
+        db.LocationImports.Add(new LocationImport { Id = 1, UserId = "u1", FilePath = "f", FileType = LocationImportFileType.GeoJson, TotalRecords = 0, LastProcessedIndex = 0, Status = ImportStatus.Stopped });
+        db.LocationImports.Add(new LocationImport { Id = 2, UserId = "other", FilePath = "x", FileType = LocationImportFileType.GeoJson, TotalRecords = 0, LastProcessedIndex = 0, Status = ImportStatus.Stopped });
         db.SaveChanges();
         var controller = BuildController(db, "u1");
 
@@ -38,7 +40,11 @@ public class UserLocationImportControllerTests : TestBase
     {
         var controller = BuildController(CreateDbContext(), "u1");
 
-        var result = await controller.Upload(null!, LocationImportFileType.GeoJson);
+        var result = await controller.Upload(new LocationImportUploadViewModel
+        {
+            File = null!,
+            FileType = LocationImportFileType.GeoJson
+        });
 
         Assert.IsType<ViewResult>(result);
     }

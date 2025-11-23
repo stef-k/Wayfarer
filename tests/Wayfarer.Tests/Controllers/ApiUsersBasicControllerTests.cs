@@ -42,8 +42,7 @@ public class ApiUsersBasicControllerTests : TestBase
     private UsersController BuildController(ApplicationDbContext db, string role)
     {
         var controller = new UsersController(db, NullLogger<UsersController>.Instance, new LocationStatsService(db));
-        var ctx = new DefaultHttpContext();
-        ctx.User = BuildPrincipal("u-current", role);
+        var ctx = BuildHttpContextWithUser("u-current", role);
         controller.ControllerContext = new ControllerContext { HttpContext = ctx };
         return controller;
     }

@@ -80,6 +80,7 @@ public abstract class TestBase : IDisposable
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, userId),
             new(ClaimTypes.Role, role)
         };
         return new DefaultHttpContext

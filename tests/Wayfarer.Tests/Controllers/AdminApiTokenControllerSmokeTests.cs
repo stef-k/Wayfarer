@@ -1,10 +1,14 @@
+using System.Linq;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
-using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -54,11 +58,31 @@ public class AdminApiTokenControllerSmokeTests : TestBase
         Assert.Single(db.ApiTokens);
     }
 
+    [Fact]
+    public async Task Index_ReturnsView_WhenUserExists()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        db.Users.Add(user);
+        db.SaveChanges();
+        var controller = BuildController(db);
+
+        var result = await controller.Index("u1");
+
+        Assert.IsType<ViewResult>(result);
+    }
+
     private ApiTokenController BuildController(ApplicationDbContext db)
     {
-        var svc = new ApiTokenService(db, new NullLogger<ApiTokenService>());
+        var userStore = new Mock<IUserStore<ApplicationUser>>();
+        var userManager = new Mock<UserManager<ApplicationUser>>(userStore.Object, null, null, null, null, null, null, null, null);
+        userManager.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync((string id) => db.Users.SingleOrDefault(u => u.Id == id));
+
+        var svc = new ApiTokenService(db, userManager.Object);
         var controller = new ApiTokenController(NullLogger<ApiTokenController>.Instance, db, svc);
-        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+        var httpContext = new DefaultHttpContext();
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
 }

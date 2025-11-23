@@ -1,9 +1,14 @@
+using System.Net.Http;
+using System.Threading;
+using System.Net.Http;
+using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -20,6 +25,7 @@ public class ApiLocationControllerAuthTests : TestBase
     public async Task CheckIn_ReturnsForbidden_WhenUserInactive()
     {
         var db = CreateDbContext();
+        SeedSettings(db);
         var user = SeedUserWithToken(db, "tok");
         user.IsActive = false;
         db.SaveChanges();
@@ -50,9 +56,8 @@ public class ApiLocationControllerAuthTests : TestBase
             stats,
             locationService);
 
-        var httpContext = new DefaultHttpContext();
+        var httpContext = BuildHttpContextWithUser("u1", "User");
         httpContext.Request.Headers["Authorization"] = "Bearer tok";
-        httpContext.User = BuildPrincipal("u1", "User");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         return controller;
     }
@@ -64,5 +69,22 @@ public class ApiLocationControllerAuthTests : TestBase
         db.ApiTokens.Add(new ApiToken { Token = token, UserId = user.Id, Name = "test", User = user });
         db.SaveChanges();
         return user;
+    }
+
+    private static void SeedSettings(ApplicationDbContext db)
+    {
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1 });
+        db.SaveChanges();
+    }
+
+    private sealed class FakeHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"features\":[]}", System.Text.Encoding.UTF8, "application/json")
+            });
+        }
     }
 }

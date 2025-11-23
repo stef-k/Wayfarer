@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
@@ -63,7 +65,7 @@ public class UserHiddenAreasControllerTests : TestBase
 
         var result = await controller.DeleteConfirmed(123);
 
-        Assert.IsType<NotFoundResult>(result);
+        Assert.IsType<RedirectToActionResult>(result);
     }
 
     private HiddenAreasController BuildController(ApplicationDbContext db)
@@ -71,10 +73,12 @@ public class UserHiddenAreasControllerTests : TestBase
         var controller = new HiddenAreasController(
             NullLogger<BaseController>.Instance,
             db);
+        var httpContext = BuildHttpContextWithUser("u1");
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext()
+            HttpContext = httpContext
         };
+        controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
 }

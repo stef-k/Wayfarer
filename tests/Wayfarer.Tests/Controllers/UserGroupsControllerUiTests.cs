@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.User.Controllers;
@@ -18,9 +19,27 @@ public class UserGroupsControllerUiTests : TestBase
     {
         var db = CreateDbContext();
         db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "G1",
+            OwnerUserId = "u1",
+            GroupType = "Friends",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(new GroupMember
+        {
+            Id = Guid.NewGuid(),
+            GroupId = group.Id,
+            UserId = "u1",
+            Role = GroupMember.Roles.Member,
+            Status = GroupMember.MembershipStatuses.Active,
+            JoinedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
         var svc = new GroupService(db);
-        var group = await svc.CreateGroupAsync("u1", "G1", null);
-        await svc.JoinGroupAsync(group.Id, "u1", GroupMember.Roles.Member);
 
         var controller = new Wayfarer.Areas.User.Controllers.GroupsController(
             NullLogger<BaseController>.Instance, db, svc, new InvitationService(db), new Wayfarer.Parsers.SseService());
@@ -29,7 +48,7 @@ public class UserGroupsControllerUiTests : TestBase
         var result = await controller.Index();
 
         var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<Group>>(view.Model);
-        Assert.Single(model);
+        var joined = Assert.IsAssignableFrom<IEnumerable<object>>(view.ViewData["Joined"]);
+        Assert.Single(joined);
     }
 }

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
@@ -16,7 +18,10 @@ public class AdminActivityTypeControllerTests : TestBase
     [Fact]
     public async Task Create_ReturnsView_WhenModelInvalid()
     {
-        var controller = BuildController(CreateDbContext());
+        var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "admin"));
+        db.SaveChanges();
+        var controller = BuildController(db);
         controller.ModelState.AddModelError("Name", "required");
 
         var result = await controller.Create(new ActivityType { Name = "Test" });
@@ -28,6 +33,8 @@ public class AdminActivityTypeControllerTests : TestBase
     public async Task Create_Persists_WhenValid()
     {
         var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "admin"));
+        db.SaveChanges();
         var controller = BuildController(db);
 
         var result = await controller.Create(new ActivityType { Name = "Walk", Description = "desc" });
@@ -40,7 +47,9 @@ public class AdminActivityTypeControllerTests : TestBase
     private ActivityTypeController BuildController(ApplicationDbContext db)
     {
         var controller = new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db);
-        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
+        var httpContext = BuildHttpContextWithUser("admin", "Admin");
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
 }

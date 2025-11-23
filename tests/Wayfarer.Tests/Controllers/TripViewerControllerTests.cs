@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -131,7 +132,7 @@ public class TripViewerControllerTests : TestBase
 
         var tagService = new Mock<ITripTagService>();
         tagService.Setup(s => s.ApplyTagFilter(It.IsAny<IQueryable<Trip>>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<string>()))
-            .Returns<IQueryable<Trip>>(q => q);
+            .Returns<IQueryable<Trip>, IReadOnlyCollection<string>, string>((q, tags, mode) => q);
         tagService.Setup(s => s.GetPopularAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TagSuggestionDto>());
 

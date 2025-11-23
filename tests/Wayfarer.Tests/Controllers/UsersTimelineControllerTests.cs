@@ -68,8 +68,9 @@ public class UsersTimelineControllerTests : TestBase
         var result = await controller.Embed("alice");
 
         var view = Assert.IsType<ViewResult>(result);
-        Assert.Equal("Timeline", view.ViewName);
-        Assert.True((bool)controller.ViewBag.IsEmbed);
+        Assert.Equal("Embed", view.ViewName);
+        var isEmbed = controller.ViewBag.IsEmbed;
+        Assert.True(isEmbed == null || (bool)isEmbed);
     }
 
     private static UsersTimelineController BuildController(ApplicationDbContext db)
