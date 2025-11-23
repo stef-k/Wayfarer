@@ -114,6 +114,34 @@ public class GroupsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task ToggleOrgPeerVisibility_ReturnsUnauthorized_WhenMissingUser()
+    {
+        var db = CreateDbContext();
+        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
+
+        var result = await controller.ToggleOrgPeerVisibility(Guid.NewGuid(), new OrgPeerVisibilityToggleRequest(), CancellationToken.None);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task ToggleOrgPeerVisibility_ReturnsBadRequest_WhenNotOrganization()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        var group = new Group { Id = Guid.NewGuid(), GroupType = "Friends" };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = user.Id, Status = GroupMember.MembershipStatuses.Active, Role = GroupMember.Roles.Owner });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, user.Id);
+
+        var result = await controller.ToggleOrgPeerVisibility(group.Id, new OrgPeerVisibilityToggleRequest { Enabled = true }, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
     public async Task Create_Returns_Created()
     {
         // Arrange

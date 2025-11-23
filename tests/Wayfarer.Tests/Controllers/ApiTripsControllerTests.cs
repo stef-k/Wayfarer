@@ -214,6 +214,31 @@ public class ApiTripsControllerTests : TestBase
         Assert.Single(items!);
     }
 
+    [Theory]
+    [InlineData("name_asc")]
+    [InlineData("name_desc")]
+    [InlineData("updated_desc")]
+    public async Task GetPublicTrips_SupportsSorting(string sort)
+    {
+        var db = CreateDbContext();
+        var tagService = new Mock<ITripTagService>();
+        tagService.Setup(s => s.ApplyTagFilter(It.IsAny<IQueryable<Trip>>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<string>()))
+            .Returns<IQueryable<Trip>>(q => q);
+        db.Trips.AddRange(
+            new Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "B", IsPublic = true, UpdatedAt = DateTime.UtcNow.AddDays(-1) },
+            new Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "A", IsPublic = true, UpdatedAt = DateTime.UtcNow });
+        db.SaveChanges();
+        var controller = BuildController(db, tagService: tagService.Object);
+
+        var result = await controller.GetPublicTrips(1, 10, sort, tags: null, tagMode: null);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var items = payload.GetType().GetProperty("items")?.GetValue(payload) as IEnumerable<object>;
+        Assert.NotNull(items);
+        Assert.Equal(2, items!.Count());
+    }
+
     [Fact]
     public async Task CloneTrip_ReturnsBadRequest_WhenPrivate()
     {
