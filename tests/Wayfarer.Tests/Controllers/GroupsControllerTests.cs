@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -39,6 +41,10 @@ public class GroupsControllerTests : TestBase
     {
         var db = CreateDbContext();
         var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+        };
 
         var result = await controller.Query(Guid.NewGuid(), new GroupLocationsQueryRequest
         {
@@ -120,6 +126,10 @@ public class GroupsControllerTests : TestBase
     {
         var db = CreateDbContext();
         var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+        };
 
         var result = await controller.ToggleOrgPeerVisibility(Guid.NewGuid(), new OrgPeerVisibilityToggleRequest(), CancellationToken.None);
 
