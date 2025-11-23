@@ -9,7 +9,7 @@ This refresh compares the current test suite against the archived **test-coverag
 ## 1) Current Coverage Status
 
 - **Suite size**: 596 passing across 70+ C# test files. Backend-only; JS/browser automation remains deferred.
-- **Coverage snapshot (views excluded)**: 18.30% line / 38.26% branch. `tools/coverage-report.ps1` excludes `AspNetCoreGeneratedDocument*` Razor artifacts plus migrations and Identity Pages (except our customized Register flow). HTML lives at `coverage-report/index.html` (XML at `tests/Wayfarer.Tests/TestResults/coverage/coverage.cobertura.xml`).
+- **Coverage snapshot (views excluded)**: 18.30% line / 38.26% branch. `tools/coverage-report.ps1` excludes `AspNetCoreGeneratedDocument*` Razor artifacts plus migrations, Identity pages (except our customized Register flow), and applies report-level file filters to drop DTOs/ViewModels so the report focuses on executable backend logic. HTML lives at `coverage-report/index.html` (XML at `tests/Wayfarer.Tests/TestResults/coverage/coverage.cobertura.xml`).
 - **New coverage since prior refresh**:
   - **Controllers**: Admin/Manager/User/API/Public broadly covered; Manager search skip noted above.
   - **Services/Helpers**: ApplicationSettings, Registration, ApiToken, TileCache (store/purge + LRU eviction + LastAccessed updates), map thumbnail file maintenance (TripMapThumbnailGenerator non-Playwright paths), RazorViewRenderer, QuartzHostedService, CoordinateTimeZoneConverter basics, TimespanHelper, HtmlHelpers.
