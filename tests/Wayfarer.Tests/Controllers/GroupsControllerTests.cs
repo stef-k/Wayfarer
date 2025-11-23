@@ -33,6 +33,87 @@ public class GroupsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Query_ReturnsUnauthorized_WhenUserMissing()
+    {
+        var db = CreateDbContext();
+        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db));
+
+        var result = await controller.Query(Guid.NewGuid(), new GroupLocationsQueryRequest
+        {
+            MinLat = 0,
+            MinLng = 0,
+            MaxLat = 1,
+            MaxLng = 1,
+            ZoomLevel = 5
+        }, CancellationToken.None);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task Query_ReturnsForbidden_WhenNotMember()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, user.Id);
+
+        var result = await controller.Query(Guid.NewGuid(), new GroupLocationsQueryRequest
+        {
+            MinLat = 0,
+            MinLng = 0,
+            MaxLat = 1,
+            MaxLng = 1,
+            ZoomLevel = 5
+        }, CancellationToken.None);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(403, status.StatusCode);
+    }
+
+    [Fact]
+    public async Task Query_ReturnsLocations_ForActiveMember()
+    {
+        var db = CreateDbContext();
+        var current = TestDataFixtures.CreateUser(id: "u1");
+        var friend = TestDataFixtures.CreateUser(id: "u2");
+        db.Users.AddRange(current, friend);
+        var group = new Group { Id = Guid.NewGuid(), GroupType = "Friends" };
+        db.Groups.Add(group);
+        db.GroupMembers.AddRange(
+            new GroupMember { GroupId = group.Id, UserId = current.Id, Status = GroupMember.MembershipStatuses.Active, Role = GroupMember.Roles.Owner },
+            new GroupMember { GroupId = group.Id, UserId = friend.Id, Status = GroupMember.MembershipStatuses.Active, Role = GroupMember.Roles.Member, OrgPeerVisibilityAccessDisabled = false });
+        db.Locations.AddRange(
+            new Location { Id = 1, UserId = current.Id, Coordinates = new Point(0.5, 0.5) { SRID = 4326 }, LocalTimestamp = DateTime.UtcNow, Timestamp = DateTime.UtcNow, TimeZoneId = "UTC" },
+            new Location { Id = 2, UserId = friend.Id, Coordinates = new Point(0.6, 0.6) { SRID = 4326 }, LocalTimestamp = DateTime.UtcNow, Timestamp = DateTime.UtcNow, TimeZoneId = "UTC" }
+        );
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, current.Id);
+
+        var result = await controller.Query(group.Id, new GroupLocationsQueryRequest
+        {
+            MinLat = 0,
+            MinLng = 0,
+            MaxLat = 1,
+            MaxLng = 1,
+            ZoomLevel = 5,
+            DateType = "day",
+            Year = DateTime.UtcNow.Year,
+            Month = DateTime.UtcNow.Month,
+            Day = DateTime.UtcNow.Day
+        }, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var totalItems = payload.GetType().GetProperty("totalItems")?.GetValue(payload) as int?;
+        var results = payload.GetType().GetProperty("results")?.GetValue(payload) as IEnumerable<object>;
+        Assert.Equal(2, totalItems);
+        Assert.NotNull(results);
+        Assert.Equal(2, results!.Count());
+    }
+
+    [Fact]
     public async Task Create_Returns_Created()
     {
         // Arrange
