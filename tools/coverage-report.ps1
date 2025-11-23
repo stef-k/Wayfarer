@@ -18,7 +18,8 @@ dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
     /p:CollectCoverage=true `
     "/p:CoverletOutput=$coverageDir\coverage" `
     /p:CoverletOutputFormat=cobertura `
-    "/p:Exclude=$excludeAssemblies" | Out-Null
+    "/p:Exclude=$excludeAssemblies" `
+    "/p:ExcludeByFile=**/obj/**;**/bin/**;**/Migrations/*.cs;**/Areas/Identity/Pages/**;**/*.cshtml.cs" | Out-Null
 
 if (-not (Test-Path $coverageFile)) {
     Write-Error "Coverage report not found at $coverageFile"

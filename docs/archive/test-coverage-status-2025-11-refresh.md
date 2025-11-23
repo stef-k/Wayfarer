@@ -9,7 +9,7 @@ This refresh compares the current test suite against the archived **test-coverag
 ## 1) Current Coverage Status
 
 - **Suite size**: 596 passing across 70+ C# test files. Backend-only; JS/browser automation remains deferred.
-- **Coverage snapshot (views excluded)**: 18.55% line / 38.9% branch. `tools/coverage-report.ps1` now excludes `AspNetCoreGeneratedDocument*` Razor artifacts; HTML lives at `coverage-report/index.html` (XML at `tests/Wayfarer.Tests/TestResults/coverage/coverage.cobertura.xml`).
+- **Coverage snapshot (views excluded)**: 18.30% line / 38.26% branch. `tools/coverage-report.ps1` excludes `AspNetCoreGeneratedDocument*` Razor artifacts plus migrations and Identity Pages (except our customized Register flow). HTML lives at `coverage-report/index.html` (XML at `tests/Wayfarer.Tests/TestResults/coverage/coverage.cobertura.xml`).
 - **New coverage since prior refresh**:
   - **Controllers**: Admin/Manager/User/API/Public broadly covered; Manager search skip noted above.
   - **Services/Helpers**: ApplicationSettings, Registration, ApiToken, TileCache (store/purge + LRU eviction + LastAccessed updates), map thumbnail file maintenance (TripMapThumbnailGenerator non-Playwright paths), RazorViewRenderer, QuartzHostedService, CoordinateTimeZoneConverter basics, TimespanHelper, HtmlHelpers.
@@ -33,6 +33,7 @@ This refresh compares the current test suite against the archived **test-coverag
 - **Point JSON**: Round-trip tests for `PointJsonConverter` (NTS Point to/from JSON).
 - **Tile cache helpers**: Size/count helpers + purge/LRU branches using temp cache dir + EF InMemory/SQLite.
 - **Trip tags**: Popular/suggestion/orphan cleanup paths – **requires PostgreSQL/Testcontainers** because service uses Postgres-only SQL (`ILIKE`, `::int`); defer until infra is available.
+- **Controllers with low coverage (no special infra needed)**: User Area (`GroupsController` CRUD/invites/members/map, `HiddenAreasController`, `InvitationsController`, `LocationController` bulk note/hidden, `TimelineController` stats/navigation), core `TripExportController` (progress/exports), `HomeController`, `ErrorController`.
 
 ### B. Map Snapshot & Public Tiles (focused stubs)
 - **Targets**: MapSnapshotService (stub Playwright/page to exercise install/screenshot fallback); Public TilesController referer/403/404 paths; TileCacheService concurrency/size accounting under stress.
