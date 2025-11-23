@@ -240,6 +240,80 @@ public class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task GetPublicTrips_AppliesTagFilter()
+    {
+        var db = CreateDbContext();
+        var tagService = new Mock<ITripTagService>();
+        tagService.Setup(s => s.ApplyTagFilter(It.IsAny<IQueryable<Trip>>(), It.IsAny<IReadOnlyCollection<string>>(), "any"))
+            .Returns<IQueryable<Trip>>(q => q.Where(t => t.Name == "Tagged"));
+        db.Trips.AddRange(
+            new Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "Tagged", IsPublic = true, UpdatedAt = DateTime.UtcNow },
+            new Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "Other", IsPublic = true, UpdatedAt = DateTime.UtcNow });
+        db.SaveChanges();
+        var controller = BuildController(db, tagService: tagService.Object);
+
+        var result = await controller.GetPublicTrips(1, 10, "updated_desc", tags: "tag1", tagMode: "any");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var items = payload.GetType().GetProperty("items")?.GetValue(payload) as IEnumerable<object>;
+        Assert.Single(items!);
+    }
+
+    [Fact]
+    public async Task CloneTrip_ReturnsBadRequest_WhenCloningOwnTrip()
+    {
+        var db = CreateDbContext();
+        var requester = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = requester.Id, Name = "Mine", IsPublic = true };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CloneTrip(trip.Id);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreatePlace_ReturnsUnauthorized_ForDifferentOwner()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var other = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = owner.Id, Name = "R1" };
+        db.Users.Add(owner);
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CreatePlace(trip.Id, region.Id, new PlaceCreateRequestDto { Name = "P1", Latitude = 1, Longitude = 2 });
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateRegion_ReturnsUnauthorized_ForDifferentOwner()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var other = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = owner.Id, Name = "R1" };
+        db.Users.Add(owner);
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "New" });
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
     public async Task CloneTrip_ReturnsBadRequest_WhenPrivate()
     {
         var db = CreateDbContext();
