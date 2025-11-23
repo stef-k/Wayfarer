@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -126,7 +127,7 @@ public class ApiLocationControllerTests : TestBase
         db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = "tok", UserId = user.Id, User = user, CreatedAt = DateTime.UtcNow });
         db.SaveChanges();
 
-        var controller = BuildApiController(db, user, tokenOverride: "tok");
+        var controller = BuildApiController(db, user, includeAuthHeader: true, tokenOverride: "tok");
         var today = DateTime.Today;
 
         var result = await controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
@@ -137,6 +138,103 @@ public class ApiLocationControllerTests : TestBase
         bool? canNext = payload.GetType().GetProperty("canNavigateNextDay")?.GetValue(payload) as bool?;
         Assert.True(canPrev);
         Assert.False(canNext);
+    }
+
+    [Fact]
+    public async Task CheckIn_ReturnsBadRequest_WhenCoordinatesAreZero()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        db.Users.Add(user);
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 0, Longitude = 0, Timestamp = DateTime.UtcNow });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CheckIn_ReturnsBadRequest_WhenLatitudeOutOfRange()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        db.Users.Add(user);
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 100, Longitude = 50, Timestamp = DateTime.UtcNow });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CheckIn_ReturnsBadRequest_WhenLongitudeOutOfRange()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        db.Users.Add(user);
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 50, Longitude = 200, Timestamp = DateTime.UtcNow });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CheckIn_ReturnsUnauthorized_WhenNoToken()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        db.Users.Add(user);
+        var controller = BuildApiController(db, user, includeAuthHeader: false);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 40.7128, Longitude = -74.0060, Timestamp = DateTime.UtcNow });
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CheckIn_CreatesLocation_WithValidData()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        user.IsActive = true;
+        db.Users.Add(user);
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, LocationTimeThresholdMinutes = 5, LocationDistanceThresholdMeters = 15 });
+        db.SaveChanges();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto
+        {
+            Latitude = 40.7128,
+            Longitude = -74.0060,
+            Timestamp = DateTime.UtcNow,
+            Accuracy = 10,
+            Altitude = 50,
+            Speed = 5
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Single(db.Locations.Where(l => l.UserId == user.Id));
+        var location = db.Locations.First(l => l.UserId == user.Id);
+        Assert.Equal(40.7128, location.Coordinates.Y, 4);
+        Assert.Equal(-74.0060, location.Coordinates.X, 4);
+        Assert.Equal(10, location.Accuracy);
+        Assert.Equal(50, location.Altitude);
+    }
+
+    [Fact]
+    public async Task CheckIn_ReturnsForbid_WhenUserInactive()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
+        user.IsActive = false;
+        db.Users.Add(user);
+        db.SaveChanges();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 40.7128, Longitude = -74.0060, Timestamp = DateTime.UtcNow });
+
+        Assert.IsType<ForbidResult>(result);
     }
 
     private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user)

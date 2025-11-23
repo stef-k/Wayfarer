@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
@@ -8,6 +9,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Tests.Controllers;
 
@@ -79,7 +81,7 @@ public class GroupsControllerTests : TestBase
         var current = TestDataFixtures.CreateUser(id: "u1");
         var friend = TestDataFixtures.CreateUser(id: "u2");
         db.Users.AddRange(current, friend);
-        var group = new Group { Id = Guid.NewGuid(), GroupType = "Friends" };
+        var group = new Group { Id = Guid.NewGuid(), Name = "Test Group", OwnerUserId = current.Id, GroupType = "Friends", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         db.Groups.Add(group);
         db.GroupMembers.AddRange(
             new GroupMember { GroupId = group.Id, UserId = current.Id, Status = GroupMember.MembershipStatuses.Active, Role = GroupMember.Roles.Owner },
@@ -130,7 +132,7 @@ public class GroupsControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1");
         db.Users.Add(user);
-        var group = new Group { Id = Guid.NewGuid(), GroupType = "Friends" };
+        var group = new Group { Id = Guid.NewGuid(), Name = "Test Group", OwnerUserId = user.Id, GroupType = "Friends", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
         db.Groups.Add(group);
         db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = user.Id, Status = GroupMember.MembershipStatuses.Active, Role = GroupMember.Roles.Owner });
         await db.SaveChangesAsync();

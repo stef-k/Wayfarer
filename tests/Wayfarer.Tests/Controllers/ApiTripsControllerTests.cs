@@ -2,6 +2,7 @@ using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NetTopologySuite.Geometries;
@@ -101,10 +102,12 @@ public class ApiTripsControllerTests : TestBase
     {
         var db = CreateDbContext();
         var regionId = Guid.NewGuid();
+        var tripId = Guid.NewGuid();
+        const string userId = "u1";
         var trip = new Trip
         {
-            Id = Guid.NewGuid(),
-            UserId = "u1",
+            Id = tripId,
+            UserId = userId,
             Name = "HasGeo",
             IsPublic = true,
             Regions = new List<Region>
@@ -112,7 +115,7 @@ public class ApiTripsControllerTests : TestBase
                 new Region
                 {
                     Id = regionId,
-                    TripId = trip.Id,
+                    TripId = tripId,
                     Name = "R1",
                     Places = new List<Place>
                     {
@@ -120,7 +123,7 @@ public class ApiTripsControllerTests : TestBase
                         {
                             Id = Guid.NewGuid(),
                             Name = "P1",
-                            UserId = trip.UserId,
+                            UserId = userId,
                             RegionId = regionId,
                             Location = new Point(20, 10) { SRID = 4326 }
                         }
@@ -230,7 +233,7 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, tagService: tagService.Object);
 
-        var result = await controller.GetPublicTrips(1, 10, sort, tags: null, tagMode: null);
+        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: sort, tags: null, tagMode: null);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = ok.Value!;
@@ -252,7 +255,7 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, tagService: tagService.Object);
 
-        var result = await controller.GetPublicTrips(1, 10, "updated_desc", tags: "tag1", tagMode: "any");
+        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: "updated_desc", tags: "tag1", tagMode: "any");
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = ok.Value!;
@@ -512,7 +515,7 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, token: "tok");
 
-        var result = await controller.CreatePlace(trip.Id, region.Id, new PlaceCreateRequestDto { Name = "P1" });
+        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id });
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
@@ -539,6 +542,227 @@ public class ApiTripsControllerTests : TestBase
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.True(db.Places.Any(p => p.RegionId == region.Id && p.Name == "P1"));
+    }
+
+    [Fact]
+    public async Task UpdatePlace_UpdatesCoordinates_ForOwner()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var place = new Place { Id = Guid.NewGuid(), RegionId = region.Id, Region = region, Name = "P1", UserId = user.Id, Location = new Point(10, 20) { SRID = 4326 } };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Places.Add(place);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Latitude = 30, Longitude = 40 });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Places.First(p => p.Id == place.Id);
+        Assert.Equal(30, updated.Location!.Y);
+        Assert.Equal(40, updated.Location!.X);
+    }
+
+    [Fact]
+    public async Task UpdatePlace_UpdatesIconAndMarkerColor()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var place = new Place { Id = Guid.NewGuid(), RegionId = region.Id, Region = region, Name = "P1", UserId = user.Id, IconName = "marker", MarkerColor = "bg-blue" };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Places.Add(place);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { IconName = "star", MarkerColor = "bg-red" });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Places.First(p => p.Id == place.Id);
+        Assert.Equal("star", updated.IconName);
+        Assert.Equal("bg-red", updated.MarkerColor);
+    }
+
+    [Fact]
+    public async Task UpdatePlace_ClearsIcon_WhenClearIconTrue()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var place = new Place { Id = Guid.NewGuid(), RegionId = region.Id, Region = region, Name = "P1", UserId = user.Id, IconName = "star" };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Places.Add(place);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { ClearIcon = true });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Places.First(p => p.Id == place.Id);
+        Assert.Equal("marker", updated.IconName);
+    }
+
+    [Fact]
+    public async Task UpdatePlace_ReturnsNotFound_WhenPlaceDoesNotExist()
+    {
+        var db = CreateDbContext();
+        SeedUserWithToken(db, "tok");
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdatePlace(Guid.NewGuid(), new PlaceUpdateRequestDto { Name = "Updated" });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePlace_ValidatesCoordinateRange()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var place = new Place { Id = Guid.NewGuid(), RegionId = region.Id, Region = region, Name = "P1", UserId = user.Id };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Places.Add(place);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Latitude = 100, Longitude = 200 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreatePlace_ValidatesCoordinateRange()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id, Latitude = 91, Longitude = 181 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreatePlace_UsesDefaultIcon_WhenNotProvided()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id, Latitude = 10, Longitude = 20 });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var place = db.Places.First(p => p.Name == "P1");
+        Assert.Equal("marker", place.IconName);
+        Assert.Equal("bg-blue", place.MarkerColor);
+    }
+
+    [Fact]
+    public async Task CloneTrip_CopiesRegionsAndPlaces()
+    {
+        var db = CreateDbContext();
+        var sourceOwner = TestDataFixtures.CreateUser(id: "owner");
+        var requester = SeedUserWithToken(db, "tok");
+        var sourceTrip = new Trip
+        {
+            Id = Guid.NewGuid(),
+            UserId = sourceOwner.Id,
+            Name = "Public Trip",
+            IsPublic = true,
+            Regions = new List<Region>
+            {
+                new Region
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Region1",
+                    UserId = sourceOwner.Id,
+                    Places = new List<Place>
+                    {
+                        new Place { Id = Guid.NewGuid(), Name = "Place1", UserId = sourceOwner.Id, Location = new Point(10, 20) { SRID = 4326 } }
+                    }
+                }
+            },
+            Segments = new List<Segment>()
+        };
+        db.Users.Add(sourceOwner);
+        db.Trips.Add(sourceTrip);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CloneTrip(sourceTrip.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var clonedId = (Guid?)payload.GetType().GetProperty("clonedTripId")?.GetValue(payload);
+        Assert.NotNull(clonedId);
+        var clonedTrip = db.Trips.Include(t => t.Regions).ThenInclude(r => r.Places).First(t => t.Id == clonedId);
+        Assert.Equal(requester.Id, clonedTrip.UserId);
+        Assert.Single(clonedTrip.Regions);
+        Assert.Single(clonedTrip.Regions.First().Places);
+    }
+
+    [Fact]
+    public async Task UpdateRegion_ReturnsNotFound_WhenRegionDoesNotExist()
+    {
+        var db = CreateDbContext();
+        SeedUserWithToken(db, "tok");
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateRegion(Guid.NewGuid(), new RegionUpdateRequestDto { Name = "New" });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateRegion_ReturnsBadRequest_WhenReservedName()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "Unassigned Places" });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateRegion_ReturnsNotFound_ForDifferentOwner()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Trip" };
+        db.Users.Add(owner);
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "R1" });
+
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     private TripsController BuildController(ApplicationDbContext db, string? token = null, ITripTagService? tagService = null)
