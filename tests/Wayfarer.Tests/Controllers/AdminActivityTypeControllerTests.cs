@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Admin.Controllers;
@@ -18,7 +19,7 @@ public class AdminActivityTypeControllerTests : TestBase
         var controller = BuildController(CreateDbContext());
         controller.ModelState.AddModelError("Name", "required");
 
-        var result = await controller.Create(new ActivityType());
+        var result = await controller.Create(new ActivityType { Name = "Test" });
 
         Assert.IsType<ViewResult>(result);
     }
@@ -29,7 +30,7 @@ public class AdminActivityTypeControllerTests : TestBase
         var db = CreateDbContext();
         var controller = BuildController(db);
 
-        var result = await controller.Create(new ActivityType { Name = "Walk" });
+        var result = await controller.Create(new ActivityType { Name = "Walk", Description = "desc" });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(ActivityTypeController.Index), redirect.ActionName);

@@ -51,9 +51,9 @@ public class ApiLocationControllerLogTests : TestBase
 
     private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true)
     {
-        var user = SeedUserWithToken(db, "tok");
         var cache = new MemoryCache(new MemoryCacheOptions());
         var settings = new ApplicationSettingsService(db, cache);
+        var user = SeedUserWithToken(db, "tok");
         var reverseGeocoding = new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance);
         var locationService = new LocationService(db);
         var sse = new SseService();
@@ -74,10 +74,30 @@ public class ApiLocationControllerLogTests : TestBase
         if (includeAuth)
         {
             httpContext.Request.Headers["Authorization"] = "Bearer tok";
-            httpContext.User = BuildPrincipal(user.Id, "User");
+            httpContext.User = BuildHttpContextWithUser(user.Id).User;
         }
 
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         return controller;
+    }
+
+    private static ApplicationUser SeedUserWithToken(ApplicationDbContext db, string token)
+    {
+        var user = TestDataFixtures.CreateUser(id: "u-log");
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { Token = token, UserId = user.Id, Name = "test", User = user });
+        db.SaveChanges();
+        return user;
+    }
+
+    private sealed class FakeHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"features\":[]}", System.Text.Encoding.UTF8, "application/json")
+            });
+        }
     }
 }

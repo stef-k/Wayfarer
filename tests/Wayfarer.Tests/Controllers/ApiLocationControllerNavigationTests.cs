@@ -52,9 +52,8 @@ public class ApiLocationControllerNavigationTests : TestBase
             stats,
             locationService);
 
-        var httpContext = new DefaultHttpContext();
+        var httpContext = BuildHttpContextWithUser("u1");
         httpContext.Request.Headers["Authorization"] = "Bearer tok";
-        httpContext.User = BuildPrincipal("u1", "User");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         return controller;
     }
@@ -66,5 +65,16 @@ public class ApiLocationControllerNavigationTests : TestBase
         db.ApiTokens.Add(new ApiToken { Token = token, UserId = user.Id, Name = "test", User = user });
         db.SaveChanges();
         return user;
+    }
+
+    private sealed class FakeHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"features\":[]}", System.Text.Encoding.UTF8, "application/json")
+            });
+        }
     }
 }

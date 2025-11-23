@@ -73,6 +73,22 @@ public abstract class TestBase : IDisposable
     }
 
     /// <summary>
+    /// Helper to create an HttpContext with user and optional role (used by various controller tests).
+    /// </summary>
+    protected static DefaultHttpContext BuildHttpContextWithUser(string userId, string role = "User")
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Role, role)
+        };
+        return new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+        };
+    }
+
+    /// <summary>
     /// Configures a controller with the specified user ID for authentication.
     /// </summary>
     /// <typeparam name="T">The type of controller.</typeparam>

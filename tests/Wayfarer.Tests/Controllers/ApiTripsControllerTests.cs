@@ -289,7 +289,7 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, token: "tok");
 
-        var result = await controller.CreatePlace(trip.Id, region.Id, new PlaceCreateRequestDto { Name = "P1", Latitude = 1, Longitude = 2 });
+        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id, Latitude = 1, Longitude = 2 });
 
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
@@ -529,9 +529,10 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, token: "tok");
 
-        var result = await controller.CreatePlace(trip.Id, region.Id, new PlaceCreateRequestDto
+        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto
         {
             Name = "P1",
+            RegionId = region.Id,
             Latitude = 10,
             Longitude = 20
         });

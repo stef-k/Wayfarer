@@ -23,7 +23,9 @@ public class LocationServiceDateTests : TestBase
     public async Task GetLocationsByDateAsync_ReturnsForDay()
     {
         var db = CreateDbContext();
-        db.Locations.Add(TestDataFixtures.CreateLocation(userId: "u", timestamp: new DateTime(2024, 6, 1)));
+        var user = TestDataFixtures.CreateUser(id: "u");
+        db.Users.Add(user);
+        db.Locations.Add(TestDataFixtures.CreateLocation(user, timestamp: new DateTime(2024, 6, 1)));
         db.SaveChanges();
         var service = new LocationService(db);
 
@@ -37,7 +39,9 @@ public class LocationServiceDateTests : TestBase
     public async Task GetLocationsByDateAsync_ReturnsForMonth()
     {
         var db = CreateDbContext();
-        db.Locations.Add(TestDataFixtures.CreateLocation(userId: "u", timestamp: new DateTime(2024, 6, 15)));
+        var user = TestDataFixtures.CreateUser(id: "u");
+        db.Users.Add(user);
+        db.Locations.Add(TestDataFixtures.CreateLocation(user, timestamp: new DateTime(2024, 6, 15)));
         db.SaveChanges();
         var service = new LocationService(db);
 
@@ -51,7 +55,9 @@ public class LocationServiceDateTests : TestBase
     public async Task GetLocationsByDateAsync_ReturnsForYear()
     {
         var db = CreateDbContext();
-        db.Locations.Add(TestDataFixtures.CreateLocation(userId: "u", timestamp: new DateTime(2024, 1, 1)));
+        var user = TestDataFixtures.CreateUser(id: "u");
+        db.Users.Add(user);
+        db.Locations.Add(TestDataFixtures.CreateLocation(user, timestamp: new DateTime(2024, 1, 1)));
         db.SaveChanges();
         var service = new LocationService(db);
 
