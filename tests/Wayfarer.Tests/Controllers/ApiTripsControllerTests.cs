@@ -95,6 +95,59 @@ public class ApiTripsControllerTests : TestBase
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
+    [Fact]
+    public async Task GetTripBoundary_ReturnsBoundingBox_ForPublicTrip()
+    {
+        var db = CreateDbContext();
+        var regionId = Guid.NewGuid();
+        var trip = new Trip
+        {
+            Id = Guid.NewGuid(),
+            UserId = "u1",
+            Name = "HasGeo",
+            IsPublic = true,
+            Regions = new List<Region>
+            {
+                new Region
+                {
+                    Id = regionId,
+                    TripId = trip.Id,
+                    Name = "R1",
+                    Places = new List<Place>
+                    {
+                        new Place
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = "P1",
+                            UserId = trip.UserId,
+                            RegionId = regionId,
+                            Location = new Point(20, 10) { SRID = 4326 }
+                        }
+                    }
+                }
+            },
+            Segments = new List<Segment>()
+        };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db);
+
+        var result = await controller.GetTripBoundary(trip.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var boundingBox = payload.GetType().GetProperty("BoundingBox")?.GetValue(payload);
+        Assert.NotNull(boundingBox);
+        double? north = boundingBox?.GetType().GetProperty("North")?.GetValue(boundingBox) as double?;
+        double? south = boundingBox?.GetType().GetProperty("South")?.GetValue(boundingBox) as double?;
+        double? east = boundingBox?.GetType().GetProperty("East")?.GetValue(boundingBox) as double?;
+        double? west = boundingBox?.GetType().GetProperty("West")?.GetValue(boundingBox) as double?;
+        Assert.True(north >= 10);
+        Assert.True(south <= 10);
+        Assert.True(east >= 20);
+        Assert.True(west <= 20);
+    }
+
     private TripsController BuildController(ApplicationDbContext db)
     {
         var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, Mock.Of<ITripTagService>());
