@@ -101,6 +101,8 @@ public class ApiTripsControllerTests : TestBase
     public async Task GetTripBoundary_ReturnsBoundingBox_ForPublicTrip()
     {
         var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
         var regionId = Guid.NewGuid();
         var tripId = Guid.NewGuid();
         const string userId = "u1";
@@ -116,6 +118,7 @@ public class ApiTripsControllerTests : TestBase
                 {
                     Id = regionId,
                     TripId = tripId,
+                    UserId = userId,
                     Name = "R1",
                     Places = new List<Place>
                     {
