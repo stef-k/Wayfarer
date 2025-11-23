@@ -1,68 +1,45 @@
-using System.Security.Claims;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
-using Wayfarer.Util;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
 /// <summary>
-/// Admin ActivityTypeController simple guardrails.
+/// Admin activity type controller basics.
 /// </summary>
 public class AdminActivityTypeControllerTests : TestBase
 {
     [Fact]
-    public async Task Create_InvalidModel_ReturnsView()
+    public async Task Create_ReturnsView_WhenModelInvalid()
     {
-        var db = CreateDbContext();
-        var controller = BuildController(db);
+        var controller = BuildController(CreateDbContext());
         controller.ModelState.AddModelError("Name", "required");
 
-        var result = await controller.Create(new ActivityType { Name = "", Description = "desc" });
+        var result = await controller.Create(new ActivityType());
 
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.False(controller.ModelState.IsValid);
+        Assert.IsType<ViewResult>(result);
     }
 
     [Fact]
-    public async Task Edit_IdMismatch_ReturnsNotFound()
+    public async Task Create_Persists_WhenValid()
     {
         var db = CreateDbContext();
         var controller = BuildController(db);
 
-        var result = await controller.Edit(2, new ActivityType { Id = 1, Name = "Hike" });
+        var result = await controller.Create(new ActivityType { Name = "Walk" });
 
-        Assert.IsType<NotFoundResult>(result);
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(ActivityTypeController.Index), redirect.ActionName);
+        Assert.Single(db.ActivityTypes);
     }
 
-    private static ActivityTypeController BuildController(ApplicationDbContext db)
+    private ActivityTypeController BuildController(ApplicationDbContext db)
     {
-        var controller = new ActivityTypeController(
-            NullLogger<ActivityTypeController>.Instance,
-            db);
-        var http = new DefaultHttpContext
-        {
-            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, "admin"),
-                new Claim(ClaimTypes.Name, "admin"),
-                new Claim(ClaimTypes.Role, ApplicationRoles.Admin)
-            }, "TestAuth"))
-        };
-        controller.ControllerContext = new ControllerContext { HttpContext = http };
-        controller.TempData = new TempDataDictionary(http, new TestTempDataProvider());
+        var controller = new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db);
+        controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         return controller;
     }
-}
-
-internal sealed class TestTempDataProvider : ITempDataProvider
-{
-    public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
-    public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
 }

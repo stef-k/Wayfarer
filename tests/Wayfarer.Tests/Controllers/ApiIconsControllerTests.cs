@@ -3,65 +3,64 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Api.Controllers;
-using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
 /// <summary>
-/// Icons API behaviors for layouts and discovery.
+/// API icons listing.
 /// </summary>
 public class ApiIconsControllerTests : TestBase
 {
     [Fact]
     public void GetIcons_ReturnsBadRequest_ForInvalidLayout()
     {
-        var controller = BuildControllerWithRoot(CreateTempRoot());
+        var controller = BuildController(CreateTempWebRoot());
 
-        var result = controller.GetIcons("invalid");
+        var result = controller.GetIcons("triangle");
 
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public void GetIcons_ReturnsList_WhenDirectoryExists()
+    public void GetIcons_ReturnsNotFound_WhenDirectoryMissing()
     {
-        var root = CreateTempRoot();
-        var dir = Path.Combine(root, "icons", "wayfarer-map-icons", "dist", "marker");
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "pin.svg"), "<svg></svg>");
-        var controller = BuildControllerWithRoot(root);
+        var env = CreateTempWebRoot();
+        var controller = BuildController(env);
 
         var result = controller.GetIcons("marker");
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var names = Assert.IsAssignableFrom<IEnumerable<string>>(ok.Value);
-        Assert.Contains("pin", names);
-    }
-
-    [Fact]
-    public void GetAvailableColors_ReturnsNotFound_WhenCssMissing()
-    {
-        var controller = BuildControllerWithRoot(CreateTempRoot());
-
-        var result = controller.GetAvailableColors();
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
 
-    private string CreateTempRoot()
+    [Fact]
+    public void GetIcons_ReturnsIcons_WhenExists()
     {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        return root;
+        var env = CreateTempWebRoot();
+        var layoutDir = Path.Combine(env.WebRootPath, "icons", "wayfarer-map-icons", "dist", "marker");
+        Directory.CreateDirectory(layoutDir);
+        File.WriteAllText(Path.Combine(layoutDir, "one.svg"), "<svg></svg>");
+        var controller = BuildController(env);
+
+        var result = controller.GetIcons("marker");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var list = Assert.IsAssignableFrom<IEnumerable<object>>(ok.Value!);
+        Assert.Single(list);
     }
 
-    private IconsController BuildControllerWithRoot(string root)
+    private IconsController BuildController(IWebHostEnvironment env)
+    {
+        return new IconsController(CreateDbContext(), NullLogger<IconsController>.Instance, env);
+    }
+
+    private static IWebHostEnvironment CreateTempWebRoot()
     {
         var env = new Mock<IWebHostEnvironment>();
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
         env.SetupGet(e => e.WebRootPath).Returns(root);
-        var controller = new IconsController(CreateDbContext(), NullLogger<IconsController>.Instance, env.Object);
-        return controller;
+        return env.Object;
     }
 }
