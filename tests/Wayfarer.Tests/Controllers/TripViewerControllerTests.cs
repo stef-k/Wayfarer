@@ -110,6 +110,58 @@ public class TripViewerControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Index_ReturnsPublicTrips_WithPagingAndDefaults()
+    {
+        var db = CreateDbContext();
+        var publicTrip = new Trip
+        {
+            Id = Guid.NewGuid(),
+            UserId = "u1",
+            Name = "Public Trip",
+            IsPublic = true,
+            UpdatedAt = DateTime.UtcNow,
+            Regions = new List<Region>(),
+            Segments = new List<Segment>(),
+            Tags = new List<Tag>()
+        };
+        var privateTrip = new Trip { Id = Guid.NewGuid(), UserId = "u2", Name = "Private Trip", IsPublic = false, UpdatedAt = DateTime.UtcNow };
+        db.Trips.AddRange(publicTrip, privateTrip);
+        db.Users.Add(TestDataFixtures.CreateUser(id: "u1", username: "alice"));
+        await db.SaveChangesAsync();
+
+        var tagService = new Mock<ITripTagService>();
+        tagService.Setup(s => s.ApplyTagFilter(It.IsAny<IQueryable<Trip>>(), It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<string>()))
+            .Returns<IQueryable<Trip>>(q => q);
+        tagService.Setup(s => s.GetPopularAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TagSuggestionDto>());
+
+        var controller = BuildController(db, tagService: tagService.Object);
+
+        var result = await controller.Index(q: null, view: null, sort: null, tags: null, tagMode: null, page: 1, pageSize: 24);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<PublicTripIndexVm>(view.Model);
+        Assert.Single(model.Items);
+        Assert.Equal("grid", model.View);
+        Assert.Equal("updated_desc", model.Sort);
+        Assert.Equal(1, model.Page);
+        Assert.Equal(24, model.PageSize);
+    }
+
+    [Fact]
+    public void ByTag_RedirectsToIndexRoute()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = controller.ByTag("hiking", view: "grid", sort: "name_asc", page: 2);
+
+        var redirect = Assert.IsType<RedirectToRouteResult>(result);
+        Assert.Equal("PublicTripsIndex", redirect.RouteName);
+        Assert.Equal("hiking", redirect.RouteValues!["tags"]);
+        Assert.Equal(2, redirect.RouteValues!["page"]);
+    }
+
+    [Fact]
     public async Task ProxyImage_ReturnsStatusCode_FromHttpClient()
     {
         var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.NotFound));
