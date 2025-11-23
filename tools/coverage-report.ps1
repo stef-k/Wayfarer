@@ -16,6 +16,8 @@ $excludeFiles = "**/obj/**;" +
                "**/bin/**;" +
                "**/Migrations/*.cs;" +
                "**/Areas/Identity/Pages/**/*.cshtml.cs;" +
+               "**/Models/Dtos/*.cs;" +
+               "**/Models/ViewModels/*.cs;" +
                "**/*.cshtml;" +
                "**/*.cshtml.g.cs;" +
                "**/Views/**/*.g.cs;" +
@@ -65,6 +67,6 @@ dotnet reportgenerator `
     "-targetdir:$OutputDir" `
     "-reporttypes:Html" `
     "-assemblyfilters:+Wayfarer;-AspNetCoreGeneratedDocument*;-WayfarerAspNetCoreGeneratedDocument*" `
-    "-filefilters:-*Migrations*;-*Areas/Identity/Pages/*" | Out-Null
+    "-filefilters:-*Migrations*;-*Areas/Identity/Pages/*;-*Models/Dtos/*;-*Models/ViewModels/*" | Out-Null
 
 Write-Host "Coverage report generated at $OutputDir/index.html"
