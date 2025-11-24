@@ -410,6 +410,196 @@ public class TripControllerTests : TestBase
         Assert.Contains(clonedTrip.Tags, t => t.Id == tag2.Id);
     }
 
+    [Fact]
+    public async Task Edit_Get_RedirectsWithAlert_WhenTripMissing()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user-1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+
+        var result = await controller.Edit(Guid.NewGuid());
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
+        Assert.Equal("Trip not found.", controller.TempData["AlertMessage"]);
+    }
+
+    [Fact]
+    public async Task Edit_Get_ReturnsView_WithLoadedCollections()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Owned Trip");
+        var region = new Region
+        {
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            UserId = user.Id,
+            Name = "Region",
+            Places = new List<Place> { new() { Id = Guid.NewGuid(), UserId = user.Id, RegionId = Guid.NewGuid(), Name = "Place" } }
+        };
+        var segment = new Segment
+        {
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            UserId = user.Id,
+            Mode = "walk"
+        };
+        trip.Regions = new List<Region> { region };
+        trip.Segments = new List<Segment> { segment };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+
+        var result = await controller.Edit(trip.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<Trip>(view.Model);
+        Assert.NotNull(model.Regions);
+        Assert.Single(model.Regions);
+        Assert.NotNull(model.Regions.First().Places);
+        Assert.Single(model.Regions.First().Places);
+        Assert.NotNull(model.Segments);
+        Assert.Single(model.Segments);
+    }
+
+    [Fact]
+    public async Task Edit_Post_Redirects_WhenIdMismatch()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Trip");
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+        var model = new Trip { Id = Guid.NewGuid(), Name = "Changed" };
+
+        var result = await controller.Edit(trip.Id, model, submitAction: null);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
+        Assert.Equal("ID mismatch.", controller.TempData["AlertMessage"]);
+        Assert.Equal("Trip", db.Trips.Find(trip.Id)!.Name);
+    }
+
+    [Fact]
+    public async Task Edit_Post_Redirects_WhenUnauthorized()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var other = TestDataFixtures.CreateUser(id: "other");
+        db.Users.AddRange(owner, other);
+        var trip = TestDataFixtures.CreateTrip(owner, "Secret Trip");
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, other.Id);
+        var model = new Trip { Id = trip.Id, Name = "Attempted change" };
+
+        var result = await controller.Edit(trip.Id, model, submitAction: null);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
+        Assert.Equal("Unauthorized or trip not found.", controller.TempData["AlertMessage"]);
+        Assert.Equal("Secret Trip", db.Trips.Find(trip.Id)!.Name);
+    }
+
+    [Fact]
+    public async Task Edit_Post_UpdatesTrip_AndRedirectsToIndex()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Original");
+        trip.IsPublic = false;
+        trip.Notes = "Old notes";
+        trip.CenterLat = 1;
+        trip.CenterLon = 2;
+        trip.Zoom = 3;
+        trip.CoverImageUrl = "http://old";
+        trip.UpdatedAt = new DateTime(2024, 1, 1);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var thumbnailMock = new Mock<ITripMapThumbnailGenerator>();
+        var controller = BuildControllerWithUser(db, user.Id, thumbnailMock);
+        var model = new Trip
+        {
+            Id = trip.Id,
+            Name = "Updated",
+            IsPublic = true,
+            Notes = "New notes",
+            CenterLat = 5,
+            CenterLon = 6,
+            Zoom = 7,
+            CoverImageUrl = "http://new"
+        };
+
+        var result = await controller.Edit(trip.Id, model, submitAction: null);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
+
+        var updated = db.Trips.Find(trip.Id)!;
+        Assert.Equal("Updated", updated.Name);
+        Assert.True(updated.IsPublic);
+        Assert.Equal("New notes", updated.Notes);
+        Assert.Equal(5, updated.CenterLat);
+        Assert.Equal(6, updated.CenterLon);
+        Assert.Equal(7, updated.Zoom);
+        Assert.Equal("http://new", updated.CoverImageUrl);
+        Assert.NotEqual(new DateTime(2024, 1, 1), updated.UpdatedAt);
+        thumbnailMock.Verify(t => t.InvalidateThumbnails(trip.Id, It.IsAny<DateTime>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Edit_Post_RedirectsToEdit_WhenSaveEditRequested()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Original");
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+        var model = new Trip { Id = trip.Id, Name = "Updated" };
+
+        var result = await controller.Edit(trip.Id, model, submitAction: "save-edit");
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(TripController.Edit), redirect.ActionName);
+        Assert.Equal(trip.Id, redirect.RouteValues!["id"]);
+    }
+
+    [Fact]
+    public async Task Edit_Post_ReturnsView_WhenModelInvalid()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Original");
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+        controller.ModelState.AddModelError("Name", "Required");
+        var model = new Trip { Id = trip.Id, Name = string.Empty };
+
+        var result = await controller.Edit(trip.Id, model, submitAction: null);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Same(model, view.Model);
+        Assert.Equal("Original", db.Trips.Find(trip.Id)!.Name);
+    }
+
     private TripController BuildController(ApplicationDbContext db)
     {
         var controller = new TripController(
@@ -422,6 +612,20 @@ public class TripControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
 
+        return controller;
+    }
+
+    private TripController BuildControllerWithUser(ApplicationDbContext db, string userId, Mock<ITripMapThumbnailGenerator>? thumbnailMock = null)
+    {
+        var httpContext = BuildHttpContextWithUser(userId);
+        var controller = new TripController(
+            NullLogger<TripController>.Instance,
+            db,
+            thumbnailMock?.Object ?? Mock.Of<ITripMapThumbnailGenerator>(),
+            Mock.Of<ITripTagService>());
+
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
 }

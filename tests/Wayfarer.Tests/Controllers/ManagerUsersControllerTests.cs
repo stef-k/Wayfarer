@@ -424,6 +424,49 @@ public class ManagerUsersControllerTests : TestBase
     }
 
     [Fact]
+    public async Task ChangePassword_Get_Forbids_WhenRoleNotUser()
+    {
+        var db = CreateDbContext();
+        var adminUser = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        db.Users.Add(adminUser);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(adminUser);
+        userManager.Setup(m => m.FindByIdAsync(adminUser.Id)).ReturnsAsync(adminUser);
+        userManager.Setup(m => m.IsInRoleAsync(adminUser, "User")).ReturnsAsync(false);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.ChangePassword(adminUser.Id);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task ChangePassword_Post_Forbids_WhenRoleNotUser()
+    {
+        var db = CreateDbContext();
+        var adminUser = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        db.Users.Add(adminUser);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(adminUser);
+        userManager.Setup(m => m.FindByIdAsync(adminUser.Id)).ReturnsAsync(adminUser);
+        userManager.Setup(m => m.IsInRoleAsync(adminUser, "User")).ReturnsAsync(false);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.ChangePassword(new ChangePasswordViewModel
+        {
+            UserId = adminUser.Id,
+            UserName = adminUser.UserName,
+            NewPassword = "Pass1!",
+            ConfirmPassword = "Pass1!"
+        });
+
+        Assert.IsType<ForbidResult>(result);
+        userManager.Verify(m => m.RemovePasswordAsync(It.IsAny<ApplicationUser>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Delete_DeniesNonUserRole()
     {
         var db = CreateDbContext();

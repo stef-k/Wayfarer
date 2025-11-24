@@ -26,14 +26,18 @@ public class GroupsControllerTests : TestBase
     /// <param name="db">The database context.</param>
     /// <param name="userId">The authenticated user ID.</param>
     /// <returns>A configured GroupsController instance.</returns>
-    private GroupsController CreateController(ApplicationDbContext db, string userId)
+    private GroupsController CreateController(ApplicationDbContext db, string userId, string role = "User")
     {
         var controller = new GroupsController(
             db,
             new GroupService(db),
             new NullLogger<GroupsController>(),
             new LocationService(db));
-        return ConfigureControllerWithUser(controller, userId);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = BuildHttpContextWithUser(userId, role)
+        };
+        return controller;
     }
 
     [Fact]
@@ -193,5 +197,75 @@ public class GroupsControllerTests : TestBase
         var ok = Assert.IsType<OkObjectResult>(resp);
         Assert.True(await db.GroupMembers.AnyAsync(m =>
             m.GroupId == g.Id && m.UserId == owner.Id && m.Status == GroupMember.MembershipStatuses.Left));
+    }
+
+    [Fact]
+    public async Task ManagedActivity_ReturnsUnauthorized_WhenUserMissing()
+    {
+        var db = CreateDbContext();
+        var controller = new GroupsController(db, new GroupService(db), new NullLogger<GroupsController>(), new LocationService(db))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() } }
+        };
+
+        var result = await controller.ManagedActivity();
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task ManagedActivity_ReturnsEmpty_WhenNoManagedGroups()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "manager1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, user.Id, role: "Manager");
+
+        var result = await controller.ManagedActivity();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var count = (int)(payload.GetType().GetProperty("count")?.GetValue(payload) ?? 0);
+        var items = payload.GetType().GetProperty("items")?.GetValue(payload) as IEnumerable<object>;
+        Assert.Equal(0, count);
+        Assert.Empty(items ?? Array.Empty<object>());
+    }
+
+    [Fact]
+    public async Task ManagedActivity_ReturnsRecentLogs_ForManagedGroups()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "manager1");
+        db.Users.Add(user);
+        var group = new Group { Id = Guid.NewGuid(), Name = "Managed", OwnerUserId = user.Id, GroupType = "Organization", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(new GroupMember
+        {
+            GroupId = group.Id,
+            UserId = user.Id,
+            Status = GroupMember.MembershipStatuses.Active,
+            Role = GroupMember.Roles.Manager
+        });
+        db.AuditLogs.AddRange(
+            new AuditLog { UserId = user.Id, Action = "Update", Details = $"Group {group.Id} changed", Timestamp = DateTime.UtcNow.AddHours(-1) },
+            new AuditLog { UserId = user.Id, Action = "Ignore", Details = "Other details", Timestamp = DateTime.UtcNow.AddHours(-1) },
+            new AuditLog { UserId = user.Id, Action = "Old", Details = $"Group {group.Id} old", Timestamp = DateTime.UtcNow.AddHours(-30) }
+        );
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, user.Id, role: "Manager");
+
+        var result = await controller.ManagedActivity(sinceHours: 1000); // exercise clamp to 24h
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var count = (int)(payload.GetType().GetProperty("count")?.GetValue(payload) ?? 0);
+        var items = (payload.GetType().GetProperty("items")?.GetValue(payload) as IEnumerable<object>)?.ToList();
+        Assert.Equal(1, count);
+        Assert.NotNull(items);
+        Assert.Single(items!);
+        var first = items!.First();
+        var groupName = first.GetType().GetProperty("GroupName")?.GetValue(first) as string;
+        Assert.Equal(group.Name, groupName);
     }
 }

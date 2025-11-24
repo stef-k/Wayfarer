@@ -418,6 +418,118 @@ public class AdminUsersControllerTests : TestBase
         Assert.False(controller.ModelState.IsValid);
     }
 
+    [Fact]
+    public async Task Create_Post_RequiresRoleSelection()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        var controller = BuildController(db, userManager.Object);
+        var model = new CreateUserViewModel
+        {
+            UserName = "newuser",
+            DisplayName = "New User",
+            Password = "P@ssw0rd!"
+        };
+
+        var result = await controller.Create(model);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.True(controller.ModelState.ContainsKey("Role"));
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsNotFound_WhenUserMissing()
+    {
+        var db = CreateDbContext();
+        var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "admin", username: "admin"));
+        userManager.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser?)null);
+
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Delete("missing");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsView_ForUserRole()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        var target = TestDataFixtures.CreateUser(id: "user1", username: "user1");
+        db.Users.AddRange(admin, target);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        userManager.Setup(m => m.FindByIdAsync(target.Id)).ReturnsAsync(target);
+        userManager.Setup(m => m.GetRolesAsync(target)).ReturnsAsync(new List<string> { "User" });
+
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Delete(target.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<DeleteUserViewModel>(view.Model);
+        Assert.Equal(target.Id, model.Id);
+        Assert.Equal(target.UserName, model.Username);
+    }
+
+    [Fact]
+    public async Task DeleteConfirmed_AllowsDeletion_EvenWhenProtected()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        var protectedUser = TestDataFixtures.CreateUser(id: "prot", username: "prot");
+        protectedUser.IsProtected = true;
+        db.Users.AddRange(admin, protectedUser);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        userManager.Setup(m => m.FindByIdAsync(protectedUser.Id)).ReturnsAsync(protectedUser);
+        userManager.Setup(m => m.DeleteAsync(protectedUser)).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.UpdateSecurityStampAsync(protectedUser)).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(admin);
+
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.DeleteConfirmed(protectedUser.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Users", redirect.ControllerName);
+        userManager.Verify(m => m.DeleteAsync(protectedUser), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteConfirmed_RemovesUser_WhenAllowed()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        var target = TestDataFixtures.CreateUser(id: "target", username: "target");
+        db.Users.AddRange(admin, target);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        userManager.Setup(m => m.FindByIdAsync(target.Id)).ReturnsAsync(target);
+        userManager.Setup(m => m.DeleteAsync(target)).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.UpdateSecurityStampAsync(target)).ReturnsAsync(IdentityResult.Success);
+
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.DeleteConfirmed(target.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Users", redirect.ControllerName);
+        userManager.Verify(m => m.DeleteAsync(target), Times.Once);
+        userManager.Verify(m => m.UpdateSecurityStampAsync(target), Times.Once);
+    }
+
     private static UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
     {
         var roleManager = MockRoleManager();
