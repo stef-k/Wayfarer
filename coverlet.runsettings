@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[Wayfarer]*</Include>
+          <Exclude>[AspNetCoreGeneratedDocument*]*;[WayfarerAspNetCoreGeneratedDocument*]*;[*]Migrations.*</Exclude>
+          <ExcludeByFile>**/obj/**;**/bin/**;**/Migrations/*.cs;**/Areas/Identity/Pages/**;**/Models/Dtos/*.cs;**/Models/ViewModels/*.cs;**/*.cshtml;**/*.cshtml.cs;**/*.cshtml.g.cs;**/Views/**;**/Razor/**</ExcludeByFile>
+          <SkipAutoProps>true</SkipAutoProps>
+          <SingleHit>false</SingleHit>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

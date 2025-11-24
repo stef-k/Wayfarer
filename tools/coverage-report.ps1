@@ -8,65 +8,30 @@ Set-Location $repoRoot
 Write-Host "Restoring tools..."
 dotnet tool restore | Out-Null
 
-$coverageDir = Join-Path $repoRoot "tests/Wayfarer.Tests/TestResults/coverage"
-if (-not (Test-Path $coverageDir)) { New-Item -ItemType Directory -Path $coverageDir | Out-Null }
-$coverageFile = Join-Path $coverageDir "coverage.cobertura.xml"
-$excludeAssemblies = "[*]AspNetCoreGeneratedDocument*;[*]WayfarerAspNetCoreGeneratedDocument*;[*]Migrations.*"
-$excludeFiles = "**/obj/**;" +
-               "**/bin/**;" +
-               "**/Migrations/*.cs;" +
-               "**/Areas/Identity/Pages/**/*.cshtml.cs;" +
-               "**/Models/Dtos/*.cs;" +
-               "**/Models/ViewModels/*.cs;" +
-               "**/*.cshtml;" +
-               "**/*.cshtml.g.cs;" +
-               "**/Views/**/*.g.cs;" +
-               "**/Razor/**/*.g.cs"
+$runSettings = Join-Path $repoRoot "coverlet.runsettings"
 $testProject = "tests/Wayfarer.Tests/Wayfarer.Tests.csproj"
-$testDll = Join-Path $repoRoot "tests/Wayfarer.Tests/bin/Debug/net9.0/Wayfarer.Tests.dll"
 
 Write-Host "Building tests..."
 dotnet build $testProject -c Debug | Out-Null
 
-if (Test-Path $coverageFile) { Remove-Item $coverageFile -Force }
+Write-Host "Running tests with XPlat Code Coverage (runsettings)..."
+dotnet test $testProject -c Debug --settings "$runSettings" --collect:"XPlat Code Coverage" | Out-Null
 
-Write-Host "Running tests with coverlet.console..."
-dotnet tool run coverlet `
-    "$testDll" `
-    --target "dotnet" `
-    --targetargs "test $testProject --no-build" `
-    --output "$coverageFile" `
-    --format cobertura `
-    --exclude "$excludeAssemblies" `
-    --exclude-by-file "$excludeFiles" `
-    --exclude-by-file "**/*.cshtml" `
-    --exclude-by-file "**/*.cshtml.g.cs" | Out-Null
+$coverageFile = Get-ChildItem -Path "tests/Wayfarer.Tests/TestResults" -Recurse -Filter "coverage.cobertura.xml" |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
 
-Write-Host "Scrubbing migrations from coverage XML..."
-[xml]$cobertura = Get-Content $coverageFile
-$classes = $cobertura.coverage.packages.package.classes.class
-$toRemove = @()
-foreach ($cls in $classes) {
-    if ($cls.filename -like "Migrations*") {
-        $toRemove += $cls
-    }
-}
-foreach ($cls in $toRemove) {
-    [void]$cls.ParentNode.RemoveChild($cls)
-}
-$cobertura.Save($coverageFile)
-
-if (-not (Test-Path $coverageFile)) {
-    Write-Error "Coverage report not found at $coverageFile"
+if (-not $coverageFile) {
+    Write-Error "Coverage report not found under tests/Wayfarer.Tests/TestResults"
     exit 1
 }
 
 Write-Host "Generating HTML report to $OutputDir..."
 dotnet reportgenerator `
-    "-reports:$coverageFile" `
+    "-reports:$($coverageFile.FullName)" `
     "-targetdir:$OutputDir" `
     "-reporttypes:Html" `
     "-assemblyfilters:+Wayfarer;-AspNetCoreGeneratedDocument*;-WayfarerAspNetCoreGeneratedDocument*" `
-    "-filefilters:-*Migrations*;-*Areas/Identity/Pages/*;-*Models/Dtos/*;-*Models/ViewModels/*" | Out-Null
+    "-filefilters:-*Migrations*;-*Areas/Identity/Pages/*;-*\Models\Dtos\*;-*\Models\ViewModels\*;-*Views/*;-*.cshtml;-*.cshtml.cs;-*.cshtml.g.cs" | Out-Null
 
 Write-Host "Coverage report generated at $OutputDir/index.html"
