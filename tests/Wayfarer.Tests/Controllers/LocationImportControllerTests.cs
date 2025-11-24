@@ -185,6 +185,136 @@ public class LocationImportControllerTests : TestBase
         return controller;
     }
 
+    [Fact]
+    public async Task StartImport_ReturnsRedirect_WhenNotFound()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = await controller.StartImport(999);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task StartImport_DeletesExistingJob_BeforeRescheduling()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.LocationImports.Add(NewImport(15, user.Id, ImportStatus.Stopped));
+        await db.SaveChangesAsync();
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var controller = BuildController(db, user, scheduler.Object);
+
+        var result = await controller.StartImport(15);
+
+        scheduler.Verify(s => s.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task StopImport_ReturnsRedirect_WhenNotFound()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = await controller.StopImport(999);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task StopImport_DeniesOtherUser()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.LocationImports.Add(NewImport(25, "other", ImportStatus.InProgress));
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = await controller.StopImport(25);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(ImportStatus.InProgress, db.LocationImports.Single(i => i.Id == 25).Status);
+    }
+
+    [Fact]
+    public async Task StopImport_HandlesJobNotExisting()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.LocationImports.Add(NewImport(26, user.Id, ImportStatus.InProgress));
+        await db.SaveChangesAsync();
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(s => s.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var controller = BuildController(db, user, scheduler.Object);
+
+        var result = await controller.StopImport(26);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsRedirect_WhenNotFound()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = await controller.Delete(999);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task Delete_RejectsInProgressImport()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.LocationImports.Add(NewImport(35, user.Id, ImportStatus.InProgress));
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = await controller.Delete(35);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Single(db.LocationImports);
+    }
+
+    [Fact]
+    public void Upload_Get_ReturnsView_WithFileTypes()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, UploadSizeLimitMB = 100 });
+        db.SaveChanges();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = controller.Upload();
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.NotNull(view.ViewData["FileTypes"]);
+        Assert.NotNull(view.ViewData["AcceptedExtensions"]);
+        Assert.Equal("100", view.ViewData["UploadLimit"]);
+    }
+
     private static LocationImport NewImport(int id, string userId, ImportStatus status)
     {
         return new LocationImport
