@@ -798,4 +798,156 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         return user;
     }
+
+    #region LimitHtmlToWords Tests
+
+    /// <summary>
+    /// Invokes the private LimitHtmlToWords method via reflection.
+    /// </summary>
+    private static string InvokeLimitHtmlToWords(TripsController controller, string html, int maxWords)
+    {
+        var method = typeof(TripsController).GetMethod("LimitHtmlToWords",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (string)method!.Invoke(controller, new object[] { html, maxWords })!;
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_ReturnsNull_WhenInputNull()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = InvokeLimitHtmlToWords(controller, null!, 10);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_ReturnsEmpty_WhenInputEmpty()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = InvokeLimitHtmlToWords(controller, "", 10);
+
+        Assert.Equal("", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_ReturnsWhitespace_WhenOnlyWhitespace()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = InvokeLimitHtmlToWords(controller, "   \t\n", 10);
+
+        Assert.Equal("   \t\n", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_ReturnsOriginal_WhenUnderLimit()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "This is a short sentence.";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 10);
+
+        Assert.Equal("This is a short sentence.", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_TruncatesPlainText_WhenOverLimit()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "This is a very long sentence that should be truncated after a few words.";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 5);
+
+        Assert.Contains("...", result);
+        Assert.Contains("This", result);
+        Assert.DoesNotContain("truncated", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_PreservesHtmlTags_WhenUnderLimit()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "<p>This is <strong>bold</strong> text.</p>";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 10);
+
+        Assert.Equal("<p>This is <strong>bold</strong> text.</p>", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_TruncatesWithTags_WhenOverLimit()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "<p>This is a <strong>very long sentence</strong> with many words that should be truncated.</p>";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 5);
+
+        Assert.Contains("...", result);
+        Assert.Contains("<p>", result);
+        Assert.DoesNotContain("truncated", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_HandlesMultipleTags()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "<div><p>First paragraph.</p><p>Second paragraph with more content.</p></div>";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 3);
+
+        Assert.Contains("...", result);
+        Assert.Contains("<", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_HandlesNestedTags()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "<p>This <em>is <strong>nested</strong></em> content.</p>";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 2);
+
+        Assert.Contains("...", result);
+        Assert.Contains("This", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_CountsWordsNotTags()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "<p><strong><em>One</em></strong> <span>Two</span> Three Four Five</p>";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 3);
+
+        Assert.Contains("...", result);
+        Assert.DoesNotContain("Four", result);
+        Assert.DoesNotContain("Five", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_HandlesExactLimit()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "One Two Three Four Five";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 5);
+
+        Assert.Equal("One Two Three Four Five", result);
+        Assert.DoesNotContain("...", result);
+    }
+
+    [Fact]
+    public void LimitHtmlToWords_AddsEllipsis_WhenTruncated()
+    {
+        var controller = BuildController(CreateDbContext());
+        var html = "One Two Three Four Five Six Seven";
+
+        var result = InvokeLimitHtmlToWords(controller, html, 4);
+
+        Assert.EndsWith("...", result);
+    }
+
+    #endregion
 }
