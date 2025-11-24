@@ -54,11 +54,41 @@ public class ApiLocationControllerCheckInTests : TestBase
         Assert.Equal(1, db.Locations.Count());
     }
 
-    private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true)
+    [Fact]
+    public async Task CheckIn_ReturnsTooManyRequests_WhenRateLimitedByTime()
+    {
+        var db = CreateDbContext();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var controller = BuildController(db, includeAuth: true, cache: cache);
+        var userId = db.Users.Single().Id;
+        cache.Set($"lastCheckIn_{userId}", DateTime.UtcNow, TimeSpan.FromMinutes(5));
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
+
+        var tooMany = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(429, tooMany.StatusCode);
+    }
+
+    [Fact]
+    public async Task CheckIn_ReturnsTooManyRequests_WhenHourlyLimitExceeded()
+    {
+        var db = CreateDbContext();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        var controller = BuildController(db, includeAuth: true, cache: cache);
+        var userId = db.Users.Single().Id;
+        cache.Set($"checkInCount_{userId}_{DateTime.UtcNow:yyyyMMddHH}", 60, TimeSpan.FromHours(1));
+
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
+
+        var tooMany = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(429, tooMany.StatusCode);
+    }
+
+    private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true, IMemoryCache? cache = null)
     {
         SeedSettings(db);
         var user = SeedUserWithToken(db, "tok");
-        var cache = new MemoryCache(new MemoryCacheOptions());
+        cache ??= new MemoryCache(new MemoryCacheOptions());
         var settings = new ApplicationSettingsService(db, cache);
         var reverseGeocoding = new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance);
         var locationService = new LocationService(db);

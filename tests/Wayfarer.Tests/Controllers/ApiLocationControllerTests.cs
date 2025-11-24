@@ -57,6 +57,147 @@ public class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Update_ReturnsUnauthorized_WhenNoToken()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user, includeAuthHeader: false);
+
+        var result = await controller.Update(1, new LocationUpdateRequestDto());
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsBadRequest_WhenLatWithoutLon()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        db.Locations.Add(CreateLocation(user.Id, 99));
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(99, new LocationUpdateRequestDto { Latitude = 10 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsBadRequest_WhenCoordinatesOutOfRange()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        db.Locations.Add(CreateLocation(user.Id, 100));
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(100, new LocationUpdateRequestDto { Latitude = 120, Longitude = 10 });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        var unchanged = db.Locations.First(l => l.Id == 100);
+        Assert.Equal(100, unchanged.Coordinates.X);
+        Assert.Equal(100, unchanged.Coordinates.Y);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsNotFound_WhenLocationDoesNotBelongToUser()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var other = TestDataFixtures.CreateUser(id: "other", username: "other");
+        db.Users.Add(other);
+        db.Locations.Add(CreateLocation(other.Id, 77));
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(77, new LocationUpdateRequestDto { Latitude = 1, Longitude = 1 });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_UpdatesCoordinates_AndNotes()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        db.Locations.Add(CreateLocation(user.Id, 42));
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(42, new LocationUpdateRequestDto { Latitude = 1, Longitude = 2, Notes = "updated" });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Locations.First(l => l.Id == 42);
+        Assert.Equal(2, updated.Coordinates.X);
+        Assert.Equal(1, updated.Coordinates.Y);
+        Assert.Equal("updated", updated.Notes);
+    }
+
+    [Fact]
+    public async Task Update_ClearsNotesAndActivity()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var activity = new ActivityType { Id = 5, Name = "Hike" };
+        db.Set<ActivityType>().Add(activity);
+        db.Locations.Add(new Wayfarer.Models.Location
+        {
+            Id = 55,
+            UserId = user.Id,
+            Coordinates = new Point(0, 0) { SRID = 4326 },
+            Timestamp = DateTime.UtcNow,
+            LocalTimestamp = DateTime.UtcNow,
+            TimeZoneId = "UTC",
+            Notes = "old",
+            ActivityTypeId = activity.Id
+        });
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(55, new LocationUpdateRequestDto { ClearNotes = true, ClearActivity = true });
+
+        Assert.IsType<OkObjectResult>(result);
+        var updated = db.Locations.First(l => l.Id == 55);
+        Assert.Null(updated.Notes);
+        Assert.Null(updated.ActivityTypeId);
+    }
+
+    [Fact]
+    public async Task Update_SetsActivity_ByName()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var activity = new ActivityType { Id = 8, Name = "Run" };
+        db.Set<ActivityType>().Add(activity);
+        db.Locations.Add(CreateLocation(user.Id, 88));
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(88, new LocationUpdateRequestDto { ActivityName = "Run" });
+
+        Assert.IsType<OkObjectResult>(result);
+        var updated = db.Locations.First(l => l.Id == 88);
+        Assert.Equal(activity.Id, updated.ActivityTypeId);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsOk_WhenNoChangesApplied()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        db.Locations.Add(CreateLocation(user.Id, 15));
+        await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Update(15, new LocationUpdateRequestDto());
+
+        Assert.IsType<OkObjectResult>(result);
+        var existing = db.Locations.First(l => l.Id == 15);
+        Assert.Equal(15, existing.Coordinates.X);
+        Assert.Equal(15, existing.Coordinates.Y);
+    }
+
+    [Fact]
     public async Task BulkDelete_ReturnsNotFoundWhenNoMatchingIds()
     {
         var db = CreateDbContext();
@@ -235,6 +376,15 @@ public class ApiLocationControllerTests : TestBase
         var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 40.7128, Longitude = -74.0060, Timestamp = DateTime.UtcNow });
 
         Assert.IsType<ForbidResult>(result);
+    }
+
+    private static ApplicationUser SeedUserWithToken(ApplicationDbContext db, string token)
+    {
+        var user = TestDataFixtures.CreateUser(id: $"user-{token}", username: $"user-{token}");
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { Name = "mobile", Token = token, UserId = user.Id, User = user, CreatedAt = DateTime.UtcNow });
+        db.SaveChanges();
+        return user;
     }
 
     private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user)

@@ -25,7 +25,7 @@ public class ApiLocationControllerLogTests : TestBase
     {
         var controller = BuildController(CreateDbContext(), includeAuth: false);
 
-        var result = await controller.LogLocation(new GpsLoggerLocationDto());
+        var result = await controller.LogLocation(new GpsLoggerLocationDto { Latitude = 0, Longitude = 0, Timestamp = DateTime.UtcNow });
 
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
