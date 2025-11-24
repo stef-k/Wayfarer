@@ -222,6 +222,226 @@ public class ManagerUsersControllerTests : TestBase
         Assert.True(controller.ModelState.ContainsKey("UserName"));
     }
 
+    [Fact]
+    public async Task Edit_Get_ReturnsNotFound_WhenIdNull()
+    {
+        var db = CreateDbContext();
+        var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit((string)null);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Edit_Get_ReturnsNotFound_WhenUserNotFound()
+    {
+        var db = CreateDbContext();
+        var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
+        userManager.Setup(m => m.FindByIdAsync("missing")).ReturnsAsync((ApplicationUser)null);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit("missing");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Edit_Get_RedirectsToIndex_WhenUserIsNotUser()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        userManager.Setup(m => m.GetRolesAsync(admin)).ReturnsAsync(new[] { "Admin" });
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit(admin.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task Edit_Post_PreventsAdminUsernameChange()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit(new EditUserViewModel
+        {
+            Id = admin.Id,
+            UserName = "admin",
+            DisplayName = "Admin",
+            Role = "User",
+            IsActive = true,
+            IsProtected = false
+        });
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey("Role"));
+    }
+
+    [Fact]
+    public async Task Edit_Post_PreventsRoleChangeToAdmin()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user1", username: "user1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(user);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit(new EditUserViewModel
+        {
+            Id = user.Id,
+            UserName = "user1",
+            DisplayName = "User",
+            Role = "Admin",
+            IsActive = true,
+            IsProtected = false
+        });
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey("Role"));
+    }
+
+    [Fact]
+    public async Task Edit_Post_UpdatesUser_WhenValid()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user2", username: "user2");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(user);
+        userManager.Setup(m => m.GetRolesAsync(user)).ReturnsAsync(new[] { "User" });
+        userManager.Setup(m => m.RemoveFromRolesAsync(user, It.IsAny<IList<string>>())).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.AddToRoleAsync(user, "User")).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.UpdateAsync(user)).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.UpdateSecurityStampAsync(user)).ReturnsAsync(IdentityResult.Success);
+
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Edit(new EditUserViewModel
+        {
+            Id = user.Id,
+            UserName = "user2",
+            DisplayName = "Updated Name",
+            Role = "User",
+            IsActive = false,
+            IsProtected = true
+        });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Updated Name", user.DisplayName);
+        Assert.False(user.IsActive);
+        Assert.True(user.IsProtected);
+    }
+
+    [Fact]
+    public async Task DeleteConfirmed_PreventsProtectedUserDeletion()
+    {
+        var db = CreateDbContext();
+        var protectedUser = TestDataFixtures.CreateUser(id: "prot", username: "protected");
+        protectedUser.IsProtected = true;
+        db.Users.Add(protectedUser);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(protectedUser);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.DeleteConfirmed(protectedUser.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Delete", redirect.ActionName);
+        userManager.Verify(m => m.DeleteAsync(It.IsAny<ApplicationUser>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChangePassword_Get_ReturnsView_WhenValid()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "chgpwd", username: "user");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(user);
+        userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.ChangePassword(user.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<ChangePasswordViewModel>(view.Model);
+        Assert.Equal(user.Id, model.UserId);
+    }
+
+    [Fact]
+    public async Task ChangePassword_Get_ReturnsNotFound_WhenIdNull()
+    {
+        var db = CreateDbContext();
+        var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.ChangePassword((string)null);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task ChangePassword_Post_ReturnsView_WhenPasswordMismatch()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "pwd", username: "user");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(user);
+        userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.ChangePassword(new ChangePasswordViewModel
+        {
+            UserId = user.Id,
+            UserName = user.UserName,
+            NewPassword = "Pass1!",
+            ConfirmPassword = "Pass2!"
+        });
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+    }
+
+    [Fact]
+    public async Task Delete_DeniesNonUserRole()
+    {
+        var db = CreateDbContext();
+        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+
+        var userManager = MockUserManager(admin);
+        userManager.Setup(m => m.GetRolesAsync(admin)).ReturnsAsync(new[] { "Admin" });
+        var controller = BuildController(db, userManager.Object);
+
+        var result = await controller.Delete(admin.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("AccessDenied", redirect.ActionName);
+        Assert.Equal("Account", redirect.ControllerName);
+    }
+
     private static UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
     {
         var roleStore = new Mock<IRoleStore<IdentityRole>>();
