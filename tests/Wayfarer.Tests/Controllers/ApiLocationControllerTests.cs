@@ -378,6 +378,208 @@ public class ApiLocationControllerTests : TestBase
         Assert.IsType<ForbidResult>(result);
     }
 
+    [Fact]
+    public async Task GetStats_ReturnsUnauthorized_WhenNoToken()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user, includeAuthHeader: false);
+
+        var result = await controller.GetStats();
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.IsType<UserLocationStatsDto>(ok.Value);
+    }
+
+    [Fact]
+    public async Task GetStats_ReturnsStats_WhenAuthorized()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var statsDto = new UserLocationStatsDto { TotalLocations = 5 };
+        var statsService = new StubStatsService(statsDto);
+        var controller = BuildApiController(db, user, statsService: statsService);
+
+        var result = await controller.GetStats();
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Same(statsDto, ok.Value);
+    }
+
+    [Fact]
+    public async Task GetChronological_ReturnsUnauthorized_WhenNoToken()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user, includeAuthHeader: false);
+
+        var result = await controller.GetChronological("day", DateTime.UtcNow.Year, DateTime.UtcNow.Month, DateTime.UtcNow.Day);
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetChronological_ReturnsForbid_WhenUserInactive()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        user.IsActive = false;
+        db.SaveChanges();
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.GetChronological("day", DateTime.UtcNow.Year, DateTime.UtcNow.Month, DateTime.UtcNow.Day);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task GetChronological_ReturnsData_ForDay()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        user.IsActive = true;
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, LocationTimeThresholdMinutes = 5, LocationDistanceThresholdMeters = 1 });
+        var today = DateTime.UtcNow.Date.AddHours(10);
+        db.Locations.Add(new Wayfarer.Models.Location
+        {
+            UserId = user.Id,
+            Coordinates = new Point(1, 2) { SRID = 4326 },
+            Timestamp = today,
+            LocalTimestamp = today,
+            TimeZoneId = "UTC"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.GetChronological("day", today.Year, today.Month, today.Day);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var payloadType = payload.GetType();
+        Assert.True((bool)(payloadType.GetProperty("success")?.GetValue(payload) ?? false));
+        Assert.Equal(1, (int)(payloadType.GetProperty("totalItems")?.GetValue(payload) ?? 0));
+    }
+
+    [Fact]
+    public async Task GetChronologicalStats_ReturnsBadRequest_ForInvalidDateType()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.GetChronologicalStats("invalid", 2024);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetChronologicalStats_ReturnsStats_ForValidRange()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var statsDto = new UserLocationStatsDto { TotalLocations = 3 };
+        var statsService = new StubStatsService(statsDto);
+        var controller = BuildApiController(db, user, statsService: statsService);
+
+        var result = await controller.GetChronologicalStats("year", 2024);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var payloadType = payload.GetType();
+        Assert.True((bool)(payloadType.GetProperty("success")?.GetValue(payload) ?? false));
+        Assert.Same(statsDto, payloadType.GetProperty("stats")?.GetValue(payload));
+    }
+
+    [Fact]
+    public async Task HasDataForDate_ReturnsBadRequest_ForInvalidDate()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.HasDataForDate("not-a-date");
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task HasDataForDate_ReturnsOkFalse_WhenNoData()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.HasDataForDate(DateTime.UtcNow.ToString("O"));
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var hasData = (bool)(payload.GetType().GetProperty("hasData")?.GetValue(payload) ?? false);
+        Assert.False(hasData);
+    }
+
+    [Fact]
+    public async Task Search_ReturnsUnauthorized_WhenNoUser()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user, includeAuthHeader: false);
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal();
+
+        var result = await controller.Search(null, null, null, null, null, null, null, null, null, null);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task Search_FiltersByActivityNotesAndAddress()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var activity = new ActivityType { Id = 1, Name = "Walk" };
+        db.ActivityTypes.Add(activity);
+        db.Locations.Add(new Wayfarer.Models.Location
+        {
+            UserId = user.Id,
+            Coordinates = new Point(1, 1) { SRID = 4326 },
+            Timestamp = DateTime.UtcNow,
+            LocalTimestamp = DateTime.UtcNow,
+            TimeZoneId = "UTC",
+            ActivityTypeId = activity.Id,
+            ActivityType = activity,
+            Notes = "morning walk",
+            Address = "123 Main St",
+            Country = "USA",
+            Region = "CA",
+            Place = "LA"
+        });
+        db.Locations.Add(new Wayfarer.Models.Location
+        {
+            UserId = user.Id,
+            Coordinates = new Point(2, 2) { SRID = 4326 },
+            Timestamp = DateTime.UtcNow,
+            LocalTimestamp = DateTime.UtcNow,
+            TimeZoneId = "UTC",
+            ActivityTypeId = null,
+            Notes = "other",
+            Address = "Other St",
+            Country = "Canada",
+            Region = "BC",
+            Place = "Vancouver"
+        });
+        await db.SaveChangesAsync();
+
+        var controller = BuildApiController(db, user);
+
+        var result = await controller.Search(null, null, null, null, "walk", "morning", "Main", "usa", "ca", "LA");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var dataProp = payload.GetType().GetProperty("Data");
+        var data = Assert.IsAssignableFrom<IEnumerable<object>>(dataProp!.GetValue(payload)!);
+        Assert.Single(data);
+    }
+
     private static ApplicationUser SeedUserWithToken(ApplicationDbContext db, string token)
     {
         var user = TestDataFixtures.CreateUser(id: $"user-{token}", username: $"user-{token}");
@@ -387,10 +589,7 @@ public class ApiLocationControllerTests : TestBase
         return user;
     }
 
-    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user)
-        => BuildApiController(db, user, includeAuthHeader: true, tokenOverride: null);
-
-    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user, bool includeAuthHeader, string? tokenOverride = null)
+    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user, bool includeAuthHeader = true, string? tokenOverride = null, ILocationStatsService? statsService = null)
     {
         var token = tokenOverride ?? $"token-{user.Id}";
         if (!db.ApiTokens.Any(t => t.Token == token))
@@ -411,7 +610,7 @@ public class ApiLocationControllerTests : TestBase
         var reverseGeocoding = new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance);
         var locationService = new LocationService(db);
         var sse = new SseService();
-        var stats = new LocationStatsService(db);
+        var stats = statsService ?? new LocationStatsService(db);
 
         var controller = new LocationController(
             db,
@@ -463,5 +662,15 @@ public class ApiLocationControllerTests : TestBase
                 Content = new StringContent("{\"features\":[]}", Encoding.UTF8, "application/json")
             });
         }
+    }
+
+    private sealed class StubStatsService : ILocationStatsService
+    {
+        private readonly UserLocationStatsDto _stats;
+        public StubStatsService(UserLocationStatsDto stats) => _stats = stats;
+        public Task<UserLocationStatsDto> GetStatsForUserAsync(string userId) => Task.FromResult(_stats);
+        public Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate) => Task.FromResult(_stats);
+        public Task<UserLocationStatsDetailedDto> GetDetailedStatsForUserAsync(string userId) => Task.FromResult(new UserLocationStatsDetailedDto());
+        public Task<UserLocationStatsDetailedDto> GetDetailedStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate) => Task.FromResult(new UserLocationStatsDetailedDto());
     }
 }

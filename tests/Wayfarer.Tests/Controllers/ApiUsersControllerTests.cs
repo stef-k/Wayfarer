@@ -115,6 +115,130 @@ public class ApiUsersControllerTests : TestBase
         Assert.Equal(3, dto.TotalLocations);
     }
 
+    [Fact]
+    public async Task GetDetailedStats_ReturnsNotFound_WhenUserMissing()
+    {
+        var controller = BuildController(CreateDbContext(), Mock.Of<ILocationStatsService>());
+
+        var result = await controller.GetDetailedStats();
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetDetailedStats_ReturnsPayload_WhenUserPresent()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var statsDto = new UserLocationStatsDetailedDto { TotalLocations = 7 };
+        var statsService = new Mock<ILocationStatsService>();
+        statsService.Setup(s => s.GetDetailedStatsForUserAsync(user.Id)).ReturnsAsync(statsDto);
+
+        var controller = BuildController(db, statsService.Object);
+        controller.ControllerContext.HttpContext = CreateHttpContextWithUser(user.Id);
+
+        var result = await controller.GetDetailedStats();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Same(statsDto, ok.Value);
+    }
+
+    [Fact]
+    public async Task GetUserActivity_ReturnsUnauthorized_WhenUserMissing()
+    {
+        var controller = BuildController(CreateDbContext(), Mock.Of<ILocationStatsService>());
+
+        var result = await controller.GetUserActivity();
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task GetUserActivity_ReturnsAggregatedActivity()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        var group = new Group { Id = Guid.NewGuid(), Name = "Alpha", OwnerUserId = user.Id };
+        var invite = new GroupInvitation
+        {
+            Id = Guid.NewGuid(),
+            GroupId = group.Id,
+            InviteeUserId = user.Id,
+            InviterUserId = user.Id,
+            Token = Guid.NewGuid().ToString(),
+            Status = GroupInvitation.InvitationStatuses.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+        var joined = new GroupMember
+        {
+            GroupId = group.Id,
+            UserId = user.Id,
+            Status = GroupMember.MembershipStatuses.Active,
+            JoinedAt = DateTime.UtcNow.AddHours(-1),
+            Role = GroupMember.Roles.Member
+        };
+        var left = new GroupMember
+        {
+            GroupId = group.Id,
+            UserId = user.Id,
+            Status = GroupMember.MembershipStatuses.Left,
+            LeftAt = DateTime.UtcNow.AddHours(-2),
+            Role = GroupMember.Roles.Member
+        };
+        var removed = new GroupMember
+        {
+            GroupId = group.Id,
+            UserId = user.Id,
+            Status = GroupMember.MembershipStatuses.Removed,
+            LeftAt = DateTime.UtcNow.AddHours(-3),
+            Role = GroupMember.Roles.Member
+        };
+
+        db.Users.Add(user);
+        db.Groups.Add(group);
+        db.GroupInvitations.Add(invite);
+        db.GroupMembers.AddRange(joined, left, removed);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext = CreateHttpContextWithUser(user.Id);
+
+        var result = await controller.GetUserActivity();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var invites = payload.GetType().GetProperty("invites")?.GetValue(payload) as IEnumerable<object>;
+        var joinedList = payload.GetType().GetProperty("joined")?.GetValue(payload) as IEnumerable<object>;
+        var removedList = payload.GetType().GetProperty("removed")?.GetValue(payload) as IEnumerable<object>;
+        var leftList = payload.GetType().GetProperty("left")?.GetValue(payload) as IEnumerable<object>;
+
+        Assert.NotNull(invites);
+        Assert.Single(invites!);
+        Assert.NotNull(joinedList);
+        Assert.Single(joinedList!);
+        Assert.NotNull(removedList);
+        Assert.Single(removedList!);
+        Assert.NotNull(leftList);
+        Assert.Single(leftList!);
+    }
+
+    [Fact]
+    public async Task Search_ReturnsEmpty_WhenQueryTooShort()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext = CreateHttpContextWithUser("u1");
+
+        var result = await controller.Search("a", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var items = Assert.IsAssignableFrom<IEnumerable<object>>(ok.Value);
+        Assert.Empty(items);
+    }
+
     private UsersController BuildController(ApplicationDbContext db, ILocationStatsService? statsService = null)
     {
         return new UsersController(db, NullLogger<UsersController>.Instance, statsService ?? new LocationStatsService(db))
