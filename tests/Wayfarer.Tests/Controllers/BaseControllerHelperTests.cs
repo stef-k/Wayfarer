@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
+using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
