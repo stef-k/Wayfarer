@@ -51,7 +51,7 @@ public class SegmentsController : BaseController
 
         if (trip == null) return NotFound();
 
-        Segment segment;
+        Segment? segment;
 
         if (segmentId.HasValue)
         {
@@ -76,7 +76,7 @@ public class SegmentsController : BaseController
             };
         }
 
-        ViewData["Places"] = trip.Regions
+        ViewData["Places"] = (trip.Regions ?? Enumerable.Empty<Region>())
             .SelectMany(r => r.Places ?? new List<Place>())
             .OrderBy(p => p.Name)
             .ToList();
@@ -91,6 +91,7 @@ public class SegmentsController : BaseController
     {
         ModelState.Remove(nameof(model.UserId));
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
         model.UserId = userId;
 
         // Convert EstimatedDurationMinutes from form (if present)
@@ -264,18 +265,18 @@ public class SegmentsController : BaseController
                     s.RouteGeometry.Coordinates.Select(c => new[] { c.Y, c.X })
                 )
                 : null,
-            FromPlace = new PlaceDto
+            FromPlace = s.FromPlace != null ? new PlaceDto
             {
                 Id = s.FromPlace.Id,
                 Name = s.FromPlace.Name,
                 Location = s.FromPlace.Location
-            },
-            ToPlace = new PlaceDto
+            } : null,
+            ToPlace = s.ToPlace != null ? new PlaceDto
             {
                 Id = s.ToPlace.Id,
                 Name = s.ToPlace.Name,
                 Location = s.ToPlace.Location
-            }
+            } : null
         }).ToList();
 
         return Json(dtoList);

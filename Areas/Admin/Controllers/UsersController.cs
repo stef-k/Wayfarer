@@ -53,7 +53,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             ChangePasswordViewModel model = new ChangePasswordViewModel
             {
                 UserId = id,
-                UserName = user.UserName,
+                UserName = user.UserName ?? string.Empty,
                 DisplayName = user.DisplayName
             };
             LogAction("Admin GET", $"Change password for user {user.UserName}");
@@ -82,7 +82,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
 
                 // Prevent the current user (admin) from changing their own password on this page
-                if (currentUser.UserName == user.UserName)
+                if (currentUser?.UserName == user.UserName)
                 {
                     ModelState.AddModelError(string.Empty, "You cannot change your own password from this page. Please go to the identity pages to update your password.");
                     LogAction("Admin POST", "Admin attempted to change their own password from the admin page.");
@@ -185,7 +185,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             foreach (string key in ModelState.Keys)
             {
                 Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateEntry? state = ModelState[key];
-                foreach (Microsoft.AspNetCore.Mvc.ModelBinding.ModelError error in state.Errors)
+                foreach (Microsoft.AspNetCore.Mvc.ModelBinding.ModelError error in state?.Errors ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.ModelBinding.ModelError>())
                 {
                     LogAction("Validation Error", $"Key: {key}, Error: {error.ErrorMessage}");
                 }
@@ -268,7 +268,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             DeleteUserViewModel model = new DeleteUserViewModel
             {
                 Id = user.Id,
-                Username = user.UserName,
+                Username = user.UserName ?? string.Empty,
                 DisplayName = user.DisplayName,
             };
             LogAction("Admin GET", $"Delete user {user.UserName}");
@@ -354,12 +354,12 @@ namespace Wayfarer.Areas.Admin.Controllers
             EditUserViewModel model = new EditUserViewModel
             {
                 Id = user.Id,
-                UserName = user.UserName,
+                UserName = user.UserName ?? string.Empty,
                 DisplayName = user.DisplayName,
                 IsProtected = user.IsProtected,
                 IsActive = user.IsActive, // Or whatever property you have
-                Role = userRole, // Assign the role to the model
-                IsCurrentUser = user.UserName == currentUser.UserName
+                Role = userRole ?? string.Empty, // Assign the role to the model
+                IsCurrentUser = user.UserName == currentUser?.UserName
             };
 
             LogAction("Admin GET", $"Edit user {user.UserName}");
@@ -487,7 +487,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (!string.IsNullOrEmpty(search))
             {
                 usersQuery = usersQuery.Where(u =>
-                    EF.Functions.ILike(u.UserName, $"%{search}%") ||
+                    EF.Functions.ILike(u.UserName ?? string.Empty, $"%{search}%") ||
                     EF.Functions.ILike(u.DisplayName, $"%{search}%"));
             }
 
@@ -508,7 +508,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 userList.Add(new UserViewModel
                 {
                     Id = user.Id,
-                    Username = user.UserName,
+                    Username = user.UserName ?? string.Empty,
                     Role = string.Join(", ", roles) ?? "No Role",
                     DisplayName = user.DisplayName,
                     IsActive = user.IsActive,

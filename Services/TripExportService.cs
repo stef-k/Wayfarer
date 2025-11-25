@@ -149,16 +149,16 @@ namespace Wayfarer.Parsers
             }
 
             /* 1 ── basic icon + line styles ------------------------------------- */
-            var iconStyles = trip.Regions
+            var iconStyles = (trip.Regions ?? Enumerable.Empty<Region>())
                 .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
                 .Select(p => (p.IconName, p.MarkerColor))
                 .Distinct()
                 .Select(ic =>
                 {
-                    IconMapping.TryGetValue(ic.IconName, out var shape);
+                    IconMapping.TryGetValue(ic.IconName ?? string.Empty, out var shape);
                     shape ??= "placemark_circle";
 
-                    ColorMapping.TryGetValue(ic.MarkerColor, out var clr);
+                    ColorMapping.TryGetValue(ic.MarkerColor ?? string.Empty, out var clr);
                     clr ??= "ff000000";
 
                     var href = $"http://maps.google.com/mapfiles/kml/shapes/{shape}.png";
@@ -200,7 +200,7 @@ namespace Wayfarer.Parsers
                     new XElement(k + "name", $"{idx + 1:00} – {reg.Name}"));
 
                 /* 2a ── Places --------------------------------------------------- */
-                foreach (var p in reg.Places.OrderBy(p => p.DisplayOrder))
+                foreach (var p in (reg.Places ?? Enumerable.Empty<Place>()).OrderBy(p => p.DisplayOrder))
                 {
                     if (p.Location == null) continue;
 
@@ -259,14 +259,14 @@ namespace Wayfarer.Parsers
             }
 
             /* 3 ── Segments as lines ------------------------------------------- */
-            foreach (var s in trip.Segments.OrderBy(s => s.DisplayOrder))
+            foreach (var s in (trip.Segments ?? Enumerable.Empty<Segment>()).OrderBy(s => s.DisplayOrder))
             {
                 if (s.RouteGeometry is not LineString line) continue;
 
                 // --- friendly title / description --------------------------------
-                var from = trip.Regions.SelectMany(r => r.Places)
+                var from = (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
                     .FirstOrDefault(p => p.Id == s.FromPlaceId);
-                var to = trip.Regions.SelectMany(r => r.Places)
+                var to = (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
                     .FirstOrDefault(p => p.Id == s.ToPlaceId);
 
                 string fromTxt = from == null ? "Start" : $"{from.Name} ({from.Region?.Name})";

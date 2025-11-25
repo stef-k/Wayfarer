@@ -110,7 +110,7 @@ public class TripsController : BaseApiController
             }
         }
 
-        foreach (var place in trip.Regions.SelectMany(r => r.Places))
+        foreach (var place in (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Places ?? Enumerable.Empty<Place>()))
         {
             if (place.Location != null)
             {
@@ -126,7 +126,7 @@ public class TripsController : BaseApiController
             }
         }
 
-        foreach (var seg in trip.Segments)
+        foreach (var seg in trip.Segments ?? Enumerable.Empty<Segment>())
         {
             if (seg.RouteGeometry != null && seg.RouteGeometry.SRID != 4326)
             {
@@ -480,7 +480,7 @@ return Ok(dto);
         if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest("Name is required.");
 
         // Resolve destination region
-        Region destRegion;
+        Region? destRegion;
         if (request.RegionId.HasValue)
         {
             destRegion = await _dbContext.Regions.FirstOrDefaultAsync(r => r.Id == request.RegionId.Value);
