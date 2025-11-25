@@ -6,7 +6,7 @@ namespace Wayfarer.Models.ViewModels;
 public class LocationImportUploadViewModel
 {
     [Required(ErrorMessage = "Please select a file.")]
-    public IFormFile File { get; set; }
+    public IFormFile File { get; set; } = default!;
     
     [Required(ErrorMessage = "Please select a valid file type.")]
     public LocationImportFileType? FileType { get; set; }

@@ -7,6 +7,6 @@
         // Threshold options like "Up to 2 hours before now"
         public string? PublicTimelineTimeThreshold { get; set; }
 
-        public string CustomThreshold { get; set; }
+        public string CustomThreshold { get; set; } = string.Empty;
     }
 }

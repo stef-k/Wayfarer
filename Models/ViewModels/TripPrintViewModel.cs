@@ -2,9 +2,9 @@ namespace Wayfarer.Models.ViewModels;
 
 public class TripPrintViewModel
 {
-    public Trip                         Trip     { get; init; }
-    public List<Region>                 Regions  { get; init; }
-    public List<Place>                  Places   { get; init; }
-    public List<Segment>                Segments { get; init; }
-    public IDictionary<string,string>   Snap     { get; init; } 
+    public Trip Trip { get; init; } = null!;
+    public List<Region> Regions { get; init; } = new();
+    public List<Place> Places { get; init; } = new();
+    public List<Segment> Segments { get; init; } = new();
+    public IDictionary<string, string> Snap { get; init; } = new Dictionary<string, string>();
 }

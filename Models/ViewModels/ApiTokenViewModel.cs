@@ -2,8 +2,8 @@
 {
     public class ApiTokenViewModel
     {
-        public string UserId { get; set; }
-        public string UserName { get; set; }
-        public List<ApiToken> Tokens { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+        public List<ApiToken> Tokens { get; set; } = new();
     }
 }
