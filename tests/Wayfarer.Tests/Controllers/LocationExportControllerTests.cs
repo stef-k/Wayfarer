@@ -87,6 +87,29 @@ public class LocationExportControllerTests : TestBase
         Assert.DoesNotContain("BobKml", payload);
     }
 
+    [Fact]
+    public async Task Gpx_ExportsOnlyCurrentUserLocations()
+    {
+        var db = CreateDbContext();
+        var current = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        var other = TestDataFixtures.CreateUser(id: "u2", username: "bob");
+        db.Users.AddRange(current, other);
+        db.Locations.AddRange(
+            CreateLocation(current.Id, "AliceGpx"),
+            CreateLocation(other.Id, "BobGpx"));
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, current.Id);
+
+        var result = await controller.Gpx();
+
+        var file = Assert.IsType<FileStreamResult>(result);
+        Assert.Equal("application/gpx+xml", file.ContentType);
+        using var reader = new StreamReader(file.FileStream, Encoding.UTF8);
+        var payload = await reader.ReadToEndAsync();
+        Assert.Contains("AliceGpx", payload);
+        Assert.DoesNotContain("BobGpx", payload);
+    }
+
     private static LocationExportController BuildController(ApplicationDbContext db, string userId)
     {
         var controller = new LocationExportController(db);
