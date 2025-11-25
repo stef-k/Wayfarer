@@ -1,88 +1,30 @@
 0>TileCacheService.cs(51,27): Warning CS8601 : Possible null reference assignment.
-0>UsersController.cs(85,21): Warning CS8602 : Dereference of a possibly null reference.
 0>TileCacheService.cs(129,31): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
 0>TileCacheService.cs(179,46): Warning CS8602 : Dereference of a possibly null reference.
 0>TileCacheService.cs(207,45): Warning CS8602 : Dereference of a possibly null reference.
-0>Program.cs(232,39): Warning CS8604 : Possible null reference argument for parameter 'path' in 'DirectoryInfo Directory.CreateDirectory(string path)'.
-0>Program.cs(250,23): Warning CS8604 : Possible null reference argument for parameter 'path' in 'LoggerConfiguration FileLoggerConfigurationExtensions.File(LoggerSinkConfiguration sinkConfiguration, string path, LogEventLevel restrictedToMinimumLevel = LogEventLevel.Verbose, string outputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}", IFormatProvider? formatProvider = null, long? fileSizeLimitBytes = 1073741824, LoggingLevelSwitch? levelSwitch = null, bool buffered = false, bool shared = false, TimeSpan? flushToDiskInterval = null, RollingInterval rollingInterval = RollingInterval.Infinite, bool rollOnFileSizeLimit = false, int? retainedFileCountLimit = 31, Encoding? encoding = null, FileLifecycleHooks? hooks = null, TimeSpan? retainedFileTimeLimit = null)'.
+0>TileCacheService.cs(335,24): Warning CS8603 : Possible null reference return.
+0>TileCacheService.cs(366,20): Warning CS8603 : Possible null reference return.
+0>TileCacheService.cs(371,20): Warning CS8603 : Possible null reference return.
+0>UsersController.cs(85,21): Warning CS8602 : Dereference of a possibly null reference.
+0>TripController.cs(175,30): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
 0>UsersController.cs(188,84): Warning CS8602 : Dereference of a possibly null reference.
 0>UsersController.cs(271,28): Warning CS8601 : Possible null reference assignment.
 0>UsersController.cs(301,68): Warning CS8604 : Possible null reference argument for parameter 'user' in 'Task<IdentityResult> UserManager<ApplicationUser>.DeleteAsync(ApplicationUser user)'.
 0>UsersController.cs(357,28): Warning CS8601 : Possible null reference assignment.
 0>UsersController.cs(361,24): Warning CS8601 : Possible null reference assignment.
 0>UsersController.cs(362,50): Warning CS8602 : Dereference of a possibly null reference.
-0>TileCacheService.cs(335,24): Warning CS8603 : Possible null reference return.
-0>TileCacheService.cs(366,20): Warning CS8603 : Possible null reference return.
-0>TileCacheService.cs(371,20): Warning CS8603 : Possible null reference return.
 0>UsersController.cs(490,40): Warning CS8604 : Possible null reference argument for parameter 'matchExpression' in 'bool NpgsqlDbFunctionsExtensions.ILike(DbFunctions _, string matchExpression, string pattern)'.
 0>UsersController.cs(511,32): Warning CS8601 : Possible null reference assignment.
-0>_Layout.cshtml(39,47): Warning CS8605 : Unboxing a possibly null value.
-0>_Layout.cshtml(147,49): Warning CS8605 : Unboxing a possibly null value.
-0>TripController.cs(103,28): Warning CS8601 : Possible null reference assignment.
-0>TripController.cs(123,34): Warning CS8601 : Possible null reference assignment.
-0>UsersController.cs(48,40): Warning CS8604 : Possible null reference argument for parameter 'matchExpression' in 'bool NpgsqlDbFunctionsExtensions.ILike(DbFunctions _, string matchExpression, string pattern)'.
-0>UsersController.cs(59,32): Warning CS8601 : Possible null reference assignment.
-0>UsersController.cs(64,37): Warning CS8602 : Dereference of a possibly null reference.
-0>BaseApiController.cs(94,24): Warning CS8603 : Possible null reference return.
-0>ApiTokenController.cs(27,82): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task<List<ApiToken>> ApiTokenService.GetTokensForUserAsync(string userId)'.
-0>ApiTokenController.cs(30,28): Warning CS8602 : Dereference of a possibly null reference.
-0>ApiTokenController.cs(30,28): Warning CS8601 : Possible null reference assignment.
-0>ApiTokenController.cs(54,73): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task<ApiToken> ApiTokenService.CreateApiTokenAsync(string userId, string name)'.
-0>ApiTokenController.cs(85,77): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task<ApiToken> ApiTokenService.StoreThirdPartyToken(string userId, string thirdPartyServiceName, string thirdPartyToken)'.
-0>TripController.cs(168,30): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>ApiTokenController.cs(99,85): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task<ApiToken> ApiTokenService.RegenerateTokenAsync(string userId, string name)'.
-0>ApiTokenController.cs(114,81): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task<List<ApiToken>> ApiTokenService.GetTokensForUserAsync(string userId)'.
-0>ApiTokenController.cs(144,64): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task ApiTokenService.DeleteTokenForUserAsync(string userId, int tokenId)'.
-0>UsersController.cs(202,28): Warning CS8601 : Possible null reference assignment.
-0>UsersController.cs(231,68): Warning CS8604 : Possible null reference argument for parameter 'user' in 'Task<IdentityResult> UserManager<ApplicationUser>.DeleteAsync(ApplicationUser user)'.
-0>UsersController.cs(178,44): Warning CS8604 : Possible null reference argument for parameter 'matchExpression' in 'bool NpgsqlDbFunctionsExtensions.ILike(DbFunctions _, string matchExpression, string pattern)'.
-0>UsersController.cs(288,28): Warning CS8601 : Possible null reference assignment.
-0>UsersController.cs(293,50): Warning CS8602 : Dereference of a possibly null reference.
-0>AreasController.cs(101,57): Warning CS8602 : Dereference of a possibly null reference.
-0>JobsController.cs(116,53): Warning CS8625 : Cannot convert null literal to non-nullable reference type.
-0>_EmbedLayout.cshtml(58,45): Warning CS8605 : Unboxing a possibly null value.
-0>ApiTokenController.cs(40,28): Warning CS8601 : Possible null reference assignment.
-0>HiddenAreasController.cs(61,30): Warning CS8601 : Possible null reference assignment.
-0>HiddenAreasController.cs(94,31): Warning CS8601 : Possible null reference assignment.
-0>TripController.cs(349,30): Warning CS8601 : Possible null reference assignment.
-0>TripController.cs(371,38): Warning CS8601 : Possible null reference assignment.
-0>TripController.cs(391,46): Warning CS8601 : Possible null reference assignment.
-0>TripController.cs(438,38): Warning CS8601 : Possible null reference assignment.
-0>ApiTokenController.cs(100,69): Warning CS8602 : Dereference of a possibly null reference.
-0>TripsController.cs(91,20): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>TripsController.cs(91,20): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Area>> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Area>>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Area>>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>TripsController.cs(113,31): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Place> Enumerable.SelectMany<Region, Place>(IEnumerable<Region> source, Func<Region, IEnumerable<Place>> selector)'.
-0>TripsController.cs(113,60): Warning CS8603 : Possible null reference return.
-0>TripsController.cs(129,29): Warning CS8602 : Dereference of a possibly null reference.
-0>HiddenAreasController.cs(129,35): Warning CS8601 : Possible null reference assignment.
-0>HiddenAreasController.cs(152,76): Warning CS8602 : Dereference of a possibly null reference.
-0>SettingsController.cs(19,70): Warning CS8604 : Possible null reference argument for parameter 'userId' in 'Task<ApplicationUser?> UserManager<ApplicationUser>.FindByIdAsync(string userId)'.
-0>HiddenAreasController.cs(166,76): Warning CS8602 : Dereference of a possibly null reference.
-0>LocationController.cs(141,38): Warning CS8602 : Dereference of a possibly null reference.
-0>LocationController.cs(149,30): Warning CS8601 : Possible null reference assignment.
-0>TripsController.cs(198,30): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>TripsController.cs(198,30): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Area>> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Area>>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Area>>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>LocationController.cs(214,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>LocationController.cs(337,34): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(47,26): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
 0>SegmentsController.cs(58,23): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
 0>SegmentsController.cs(75,26): Warning CS8601 : Possible null reference assignment.
 0>SegmentsController.cs(79,30): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Place> Enumerable.SelectMany<Region, Place>(IEnumerable<Region> source, Func<Region, IEnumerable<Place>> selector)'.
-0>LocationController.cs(381,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>PlacesController.cs(52,24): Warning CS8601 : Possible null reference assignment.
-0>TripsController.cs(486,26): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
 0>SegmentsController.cs(94,24): Warning CS8601 : Possible null reference assignment.
 0>SegmentsController.cs(123,73): Warning CS8604 : Possible null reference argument for parameter 'json' in 'List<double[]>? JsonSerializer.Deserialize<List<double[]>>(string json, JsonSerializerOptions? options = null)'.
 0>SegmentsController.cs(163,57): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(164,55): Warning CS8602 : Dereference of a possibly null reference.
-0>Viewer.cshtml(254,18): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Region> Enumerable.Where<Region>(IEnumerable<Region> source, Func<Region, bool> predicate)'.
-0>Viewer.cshtml(254,18): Warning CS8602 : Dereference of a possibly null reference.
-0>Viewer.cshtml(254,18): Warning CS8604 : Possible null reference argument for parameter 'source' in 'bool Enumerable.Any<Place>(IEnumerable<Place> source)'.
-0>LocationImportController.cs(311,30): Warning CS8601 : Possible null reference assignment.
-0>ApiTokenController.cs(40,28): Warning CS8601 : Possible null reference assignment.
 0>SegmentsController.cs(234,57): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(235,55): Warning CS8602 : Dereference of a possibly null reference.
-0>ApiTokenController.cs(99,69): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(250,57): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(251,55): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(261,21): Warning CS8601 : Possible null reference assignment.
@@ -90,53 +32,24 @@
 0>SegmentsController.cs(271,28): Warning CS8601 : Possible null reference assignment.
 0>SegmentsController.cs(275,22): Warning CS8602 : Dereference of a possibly null reference.
 0>SegmentsController.cs(277,28): Warning CS8601 : Possible null reference assignment.
+0>Viewer.cshtml(254,18): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Region> Enumerable.Where<Region>(IEnumerable<Region> source, Func<Region, bool> predicate)'.
+0>Viewer.cshtml(254,18): Warning CS8602 : Dereference of a possibly null reference.
+0>Viewer.cshtml(254,18): Warning CS8604 : Possible null reference argument for parameter 'source' in 'bool Enumerable.Any<Place>(IEnumerable<Place> source)'.
+0>CsvLocationParser.cs(38,45): Warning CS8603 : Possible null reference return.
+0>CsvLocationParser.cs(57,100): Warning CS8602 : Dereference of a possibly null reference.
 0>TripImportService.cs(37,28): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
 0>TripImportService.cs(90,24): Warning CS8604 : Possible null reference argument for parameter 'parsed' in 'void TripImportService.SyncCollection<Region>(IEnumerable<Region> parsed, ICollection<Region> dbSet, Func<Region, Region, bool> match)'.
 0>TripImportService.cs(90,40): Warning CS8604 : Possible null reference argument for parameter 'dbSet' in 'void TripImportService.SyncCollection<Region>(IEnumerable<Region> parsed, ICollection<Region> dbSet, Func<Region, Region, bool> match)'.
 0>TripImportService.cs(91,24): Warning CS8604 : Possible null reference argument for parameter 'parsed' in 'void TripImportService.SyncCollection<Segment>(IEnumerable<Segment> parsed, ICollection<Segment> dbSet, Func<Segment, Segment, bool> match)'.
 0>TripImportService.cs(91,41): Warning CS8604 : Possible null reference argument for parameter 'dbSet' in 'void TripImportService.SyncCollection<Segment>(IEnumerable<Segment> parsed, ICollection<Segment> dbSet, Func<Segment, Segment, bool> match)'.
 0>TripImportService.cs(98,17): Warning CS8604 : Possible null reference argument for parameter 'dbSet' in 'void TripImportService.SyncCollection<Place>(IEnumerable<Place> parsed, ICollection<Place> dbSet, Func<Place, Place, bool> match)'.
-0>RegionsController.cs(56,28): Warning CS8601 : Possible null reference assignment.
-0>GroupsController.cs(201,13): Warning CS8602 : Dereference of a possibly null reference.
-0>GroupsController.cs(212,39): Warning CS8602 : Dereference of a possibly null reference.
-0>TilesController.cs(33,89): Warning CS8604 : Possible null reference argument for parameter 'referer' in 'bool TilesController.IsValidReferer(string referer)'.
-0>TilesController.cs(35,81): Warning CS8604 : Possible null reference argument for parameter 'args' in 'void LoggerExtensions.LogWarning(ILogger logger, string? message, params object?[] args)'.
-0>LogCleanupJob.cs(29,56): Warning CS8604 : Possible null reference argument for parameter 'path' in 'string[] Directory.GetFiles(string path, string searchPattern)'.
-0>JobFactory.cs(18,20): Warning CS8603 : Possible null reference return.
-0>LocationController.cs(422,33): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>LocationController.cs(467,30): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>LocationController.cs(563,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>LocationController.cs(101,40): Warning CS8604 : Possible null reference argument for parameter 'message' in 'IActionResult LocationController.TooManyRequests(string message)'.
-0>LocationController.cs(576,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>Print.cshtml(204,79): Warning CS8602 : Dereference of a possibly null reference.
-0>LocationController.cs(596,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>TileCacheMetadata.cs(16,22): Warning CS8618 : Non-nullable property 'TileLocation' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>TileCacheMetadata.cs(26,23): Warning CS8618 : Non-nullable property 'TileFilePath' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>_SegmentReadonlyList.cshtml(51,49): Warning CS8602 : Dereference of a possibly null reference.
-0>_SegmentReadonlyList.cshtml(79,47): Warning CS8602 : Dereference of a possibly null reference.
-0>MobileGroupsController.cs(176,55): Warning CS8602 : Dereference of a possibly null reference.
-0>TripsController.cs(832,21): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>JobHistory.cs(6,23): Warning CS8618 : Non-nullable property 'JobName' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>JobHistory.cs(8,23): Warning CS8618 : Non-nullable property 'Status' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>HiddenArea.cs(14,23): Warning CS8618 : Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>HiddenArea.cs(19,24): Warning CS8618 : Non-nullable property 'Area' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>HiddenArea.cs(22,23): Warning CS8618 : Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>HiddenArea.cs(25,32): Warning CS8618 : Non-nullable property 'User' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>HiddenArea.cs(28,23): Warning CS8618 : Non-nullable property 'AreaWKT' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>LocationController.cs(518,14): Warning CS8602 : Dereference of a possibly null reference.
-0>MobileGroupsController.cs(263,39): Warning CS8602 : Dereference of a possibly null reference.
-0>ApplicationUser.cs(8,23): Warning CS8618 : Non-nullable property 'DisplayName' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>ApplicationUser.cs(40,34): Warning CS8618 : Non-nullable property 'Trips' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>CsvLocationParser.cs(38,45): Warning CS8603 : Possible null reference return.
-0>CsvLocationParser.cs(57,100): Warning CS8602 : Dereference of a possibly null reference.
 0>TripExportService.cs(108,24): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
 0>TripExportService.cs(108,24): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Area>> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Area>>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Area>>> navigationPropertyPath)' due to differences in the nullability of reference types.
-0>AuditLog.cs(6,23): Warning CS8618 : Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>AuditLog.cs(7,23): Warning CS8618 : Non-nullable property 'Action' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
-0>AuditLog.cs(9,23): Warning CS8618 : Non-nullable property 'Details' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable.
 0>GoogleMyMapsKmlParser.cs(158,25): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Place> Enumerable.SelectMany<Region, Place>(IEnumerable<Region> source, Func<Region, IEnumerable<Place>> selector)'.
-0>LocationController.cs(971,33): Warning CS8602 : Dereference of a possibly null reference.
+0>Print.cshtml(204,79): Warning CS8602 : Dereference of a possibly null reference.
 0>GoogleTimelineJsonParser.cs(43,39): Warning CS8604 : Possible null reference argument for parameter 'raw' in 'bool GoogleTimelineJsonParser.TryParsePoint(string raw, out Point pt)'.
+0>_SegmentReadonlyList.cshtml(51,49): Warning CS8602 : Dereference of a possibly null reference.
+0>_SegmentReadonlyList.cshtml(79,47): Warning CS8602 : Dereference of a possibly null reference.
 0>TripExportService.cs(127,24): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
 0>TripExportService.cs(127,24): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Area>> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Area>>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Area>>> navigationPropertyPath)' due to differences in the nullability of reference types.
 0>TripExportService.cs(152,30): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Place> Enumerable.SelectMany<Region, Place>(IEnumerable<Region> source, Func<Region, IEnumerable<Place>> selector)'.
@@ -146,28 +59,55 @@
 0>TripExportService.cs(262,31): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IOrderedEnumerable<Segment> Enumerable.OrderBy<Segment, int>(IEnumerable<Segment> source, Func<Segment, int> keySelector)'.
 0>TripExportService.cs(267,57): Warning CS8603 : Possible null reference return.
 0>TripExportService.cs(269,55): Warning CS8603 : Possible null reference return.
-0>WayfarerGeoJsonParser.cs(72,26): Warning CS8321 : The local function 'parseUtc' is declared but never used
 0>ApplicationSettingsService.cs(28,59): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
 0>ApplicationSettingsService.cs(36,20): Warning CS8603 : Possible null reference return.
-0>_SegmentItemPartial.cshtml(114,62): Warning CS8602 : Dereference of a possibly null reference.
+0>WayfarerKmlParser.cs(154,28): Warning CS8601 : Possible null reference assignment.
+0>WayfarerKmlParser.cs(192,34): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
 0>LocationImportService.cs(79,25): Warning CS8602 : Dereference of a possibly null reference.
 0>LocationImportService.cs(122,41): Warning CS8604 : Possible null reference argument for parameter 'apiToken' in 'Task<ReverseLocationResults> ReverseGeocodingService.GetReverseGeocodingDataAsync(double latitude, double longitude, string apiToken, string provider = "Mapbox")'.
 0>LocationImportService.cs(202,35): Warning CS8602 : Dereference of a possibly null reference.
 0>LocationImportService.cs(226,35): Warning CS8602 : Dereference of a possibly null reference.
-0>WayfarerKmlParser.cs(154,28): Warning CS8601 : Possible null reference assignment.
-0>Index.cshtml(3,71): Warning CS8605 : Unboxing a possibly null value.
-0>WayfarerKmlParser.cs(192,34): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
 0>LocationService.cs(51,17): Warning CS8602 : Dereference of a possibly null reference.
 0>ReverseGeocodingService.cs(204,51): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>UsersController.cs(178,44): Warning CS8604 : Possible null reference argument for parameter 'matchExpression' in 'bool NpgsqlDbFunctionsExtensions.ILike(DbFunctions _, string matchExpression, string pattern)'.
 0>ReverseGeocodingService.cs(240,35): Warning CS8601 : Possible null reference assignment.
 0>ReverseGeocodingService.cs(244,41): Warning CS8601 : Possible null reference assignment.
 0>ReverseGeocodingService.cs(245,38): Warning CS8601 : Possible null reference assignment.
 0>ReverseGeocodingService.cs(246,36): Warning CS8601 : Possible null reference assignment.
 0>ReverseGeocodingService.cs(249,35): Warning CS8601 : Possible null reference assignment.
-0>Index.cshtml(65,43): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
-0>Index.cshtml(65,65): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>UsersController.cs(48,40): Warning CS8604 : Possible null reference argument for parameter 'matchExpression' in 'bool NpgsqlDbFunctionsExtensions.ILike(DbFunctions _, string matchExpression, string pattern)'.
+0>UsersController.cs(59,32): Warning CS8601 : Possible null reference assignment.
+0>UsersController.cs(64,37): Warning CS8602 : Dereference of a possibly null reference.
+0>UsersController.cs(202,28): Warning CS8601 : Possible null reference assignment.
+0>UsersController.cs(231,68): Warning CS8604 : Possible null reference argument for parameter 'user' in 'Task<IdentityResult> UserManager<ApplicationUser>.DeleteAsync(ApplicationUser user)'.
+0>UsersController.cs(288,28): Warning CS8601 : Possible null reference assignment.
+0>UsersController.cs(293,50): Warning CS8602 : Dereference of a possibly null reference.
+0>LocationController.cs(141,38): Warning CS8602 : Dereference of a possibly null reference.
+0>LocationController.cs(149,30): Warning CS8601 : Possible null reference assignment.
+0>TripsController.cs(91,20): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
+0>TripsController.cs(91,20): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Area>> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Area>>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Area>>> navigationPropertyPath)' due to differences in the nullability of reference types.
+0>TripsController.cs(113,31): Warning CS8604 : Possible null reference argument for parameter 'source' in 'IEnumerable<Place> Enumerable.SelectMany<Region, Place>(IEnumerable<Region> source, Func<Region, IEnumerable<Place>> selector)'.
+0>TripsController.cs(113,60): Warning CS8603 : Possible null reference return.
+0>TripsController.cs(129,29): Warning CS8602 : Dereference of a possibly null reference.
+0>_SegmentItemPartial.cshtml(114,62): Warning CS8602 : Dereference of a possibly null reference.
+0>LocationController.cs(214,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>LocationController.cs(337,34): Warning CS8602 : Dereference of a possibly null reference.
+0>TripsController.cs(198,30): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
+0>TripsController.cs(198,30): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Area>> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Area>>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Area>>> navigationPropertyPath)' due to differences in the nullability of reference types.
+0>LocationController.cs(381,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>GroupsController.cs(201,13): Warning CS8602 : Dereference of a possibly null reference.
+0>GroupsController.cs(212,39): Warning CS8602 : Dereference of a possibly null reference.
+0>LocationController.cs(101,40): Warning CS8604 : Possible null reference argument for parameter 'message' in 'IActionResult LocationController.TooManyRequests(string message)'.
+0>TripsController.cs(486,26): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>LocationController.cs(422,33): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>LocationController.cs(467,30): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>LocationController.cs(563,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>LocationController.cs(576,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>LocationController.cs(518,14): Warning CS8602 : Dereference of a possibly null reference.
+0>MobileGroupsController.cs(176,55): Warning CS8602 : Dereference of a possibly null reference.
+0>LocationController.cs(596,29): Warning CS8600 : Converting null literal or possible null value to non-nullable type.
+0>MobileGroupsController.cs(263,39): Warning CS8602 : Dereference of a possibly null reference.
+0>TripsController.cs(832,21): Warning CS8620 : Argument of type 'IIncludableQueryable<Trip, ICollection<Region>?>' cannot be used for parameter 'source' of type 'IIncludableQueryable<Trip, IEnumerable<Region>>' in 'IIncludableQueryable<Trip, ICollection<Place>?> EntityFrameworkQueryableExtensions.ThenInclude<Trip, Region, ICollection<Place>?>(IIncludableQueryable<Trip, IEnumerable<Region>> source, Expression<Func<Region, ICollection<Place>?>> navigationPropertyPath)' due to differences in the nullability of reference types.
+0>LocationController.cs(971,33): Warning CS8602 : Dereference of a possibly null reference.
 0>Edit.cshtml(70,64): Warning CS8602 : Dereference of a possibly null reference.
-0>_Layout.cshtml(174,14): Warning MVC1000 : Use of IHtmlHelper.Partial may result in application deadlocks. Consider using <partial> Tag Helper or IHtmlHelper.PartialAsync.
 0>Program.cs(187,20): Warning ASP0000 : Calling 'BuildServiceProvider' from application code results in an additional copy of singleton services being created. Consider alternatives such as dependency injecting services as parameters to 'Configure'. (https://aka.ms/AA5k895)
-0>LocationImportController.cs(164,40): Warning CA2017 : Number of parameters supplied in the logging message template do not match the number of named placeholders (https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca2017)
-0>_RegionItemPartial.cshtml(192,30): Warning MVC1000 : Use of IHtmlHelper.Partial may result in application deadlocks. Consider using <partial> Tag Helper or IHtmlHelper.PartialAsync.

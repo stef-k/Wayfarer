@@ -251,9 +251,12 @@
 
         <!-- regions accordion -->
         <div id="regions-accordion" class="accordion accordion-flush ">
-            @if (@Model.Regions.Where(r => r.Name == "Unassigned Places").FirstOrDefault().Places.Any())
-            {
-                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", @Model.Regions.Where(r => r.Name == "Unassigned Places").FirstOrDefault())
+            @{
+                var unassignedRegion = @Model.Regions?.Where(r => r.Name == "Unassigned Places").FirstOrDefault();
+                if (unassignedRegion?.Places?.Any() == true)
+                {
+                    @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", unassignedRegion)
+                }
             }
             @foreach (var r in Model.Regions.Where(r => r.Name != "Unassigned Places").OrderBy(r => r.DisplayOrder))
             {

@@ -35,7 +35,7 @@ public sealed class CsvLocationParser : ILocationDataParser
             BadDataFound = null,
             MissingFieldFound = null,
             HeaderValidated = null,
-            PrepareHeaderForMatch = args => args.Header?.Trim()
+            PrepareHeaderForMatch = args => args.Header?.Trim() ?? string.Empty
         };
 
         var locations = new List<Location>();
@@ -54,7 +54,7 @@ public sealed class CsvLocationParser : ILocationDataParser
             if (!TryGetRequiredDouble(csv, "Latitude", out var latitude) ||
                 !TryGetRequiredDouble(csv, "Longitude", out var longitude))
             {
-                _logger.LogWarning("Skipping CSV record due to missing coordinates at row {Row}.", csv.Context.Parser.Row);
+                _logger.LogWarning("Skipping CSV record due to missing coordinates at row {Row}.", csv.Context?.Parser?.Row ?? 0);
                 continue;
             }
 
