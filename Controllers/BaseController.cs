@@ -40,8 +40,11 @@ public class BaseController : Controller
         // Log success message to Serilog (console/file)
         _logger.LogInformation($"Alert: {message}");
 
-        TempData["AlertMessage"] = message;
-        TempData["AlertType"] = alertType;
+        if (TempData != null)
+        {
+            TempData["AlertMessage"] = message;
+            TempData["AlertType"] = alertType;
+        }
     }
 
     /// <summary>
@@ -70,12 +73,14 @@ public class BaseController : Controller
     public void LogAudit(string action, string description, string message)
     {
         // Create a new AuditLog entry
+        string userName = User?.Identity?.Name ?? string.Empty;
+
         AuditLog auditLog = new AuditLog
         {
             Action = action,
             Details = $"{description}: {message}",
             Timestamp = DateTime.UtcNow,
-            UserId = User.Identity.Name // Assuming the username is stored in the User.Identity.Name
+            UserId = userName // Assuming the username is stored in the User.Identity.Name
         };
 
         // Add the audit log to the database context
@@ -106,10 +111,11 @@ public class BaseController : Controller
         if (!User.IsInRole(role))
         {
             // Log unauthorized access attempt via Serilog
-            _logger.LogWarning($"Unauthorized access attempt by user {User.Identity.Name} to role: {role}");
+            string userName = User?.Identity?.Name ?? "Unknown";
+            _logger.LogWarning($"Unauthorized access attempt by user {userName} to role: {role}");
 
             // Log the unauthorized attempt to PostgreSQL
-            LogAudit("Unauthorized Access", $"Access attempt to {role} by {User.Identity.Name}.", "Access denied.");
+            LogAudit("Unauthorized Access", $"Access attempt to {role} by {userName}.", "Access denied.");
 
             SetAlert("You do not have the required permissions to perform this action.", "danger");
             return false;
@@ -148,7 +154,7 @@ public class BaseController : Controller
     /// <param name="routeValues">An object containing the route parameters (optional).</param>
     /// <param name="area">The area to redirect to (optional).</param>
     /// <returns>A redirect to the specified action.</returns>
-    public IActionResult RedirectWithAlert(string action, string controller, string message, string alertType = "success", object routeValues = null, string area = null)
+    public IActionResult RedirectWithAlert(string action, string controller, string message, string alertType = "success", object? routeValues = null, string? area = null)
     {
         // Set the alert message in TempData
         SetAlert(message, alertType);
