@@ -206,8 +206,8 @@ public class ReverseGeocodingServiceTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal("Test Full Address", result.FullAddress);
-        Assert.Null(result.Address);
-        Assert.Null(result.Country);
+        Assert.Equal(string.Empty, result.Address);
+        Assert.Equal(string.Empty, result.Country);
     }
 
     [Fact]
@@ -308,8 +308,8 @@ public class ReverseGeocodingServiceTests
         Assert.NotNull(result);
         Assert.Equal("Test Street", result.Address);
         Assert.Equal("Test Country", result.Country);
-        Assert.Null(result.Place);
-        Assert.Null(result.Region);
+        Assert.Equal(string.Empty, result.Place);
+        Assert.Equal(string.Empty, result.Region);
     }
 
     [Fact]
