@@ -40,7 +40,7 @@ public class GoogleTimelineJsonParser : ILocationDataParser
             {
                 foreach (var tp in seg.TimelinePath)
                 {
-                    if (TryParsePoint(tp.Point, out var pt) &&
+                    if (TryParsePoint(tp.Point ?? string.Empty, out var pt) &&
                         DateTimeOffset.TryParse(tp.Time, out var when))
                     {
                         locations.Add(MakeLocation(userId, pt, when, null, null, null, null));

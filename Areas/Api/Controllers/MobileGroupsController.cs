@@ -180,7 +180,7 @@ public class MobileGroupsController : MobileApiController
                 {
                     UserId = x.User?.Id ?? string.Empty,
                     UserName = username,
-                    DisplayName = x.User.DisplayName,
+                    DisplayName = x.User?.DisplayName ?? string.Empty,
                     GroupRole = x.Member.Role,
                     Status = x.Member.Status,
                     ColorHex = color,

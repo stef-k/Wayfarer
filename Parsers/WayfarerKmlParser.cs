@@ -151,7 +151,7 @@ public class WayfarerKmlParser
                     TripId = trip.Id,
                     FromPlaceId = ReadGuid(pm, "FromPlaceId"),
                     ToPlaceId = ReadGuid(pm, "ToPlaceId"),
-                    Mode = ReadString(pm, "Mode"),
+                    Mode = ReadString(pm, "Mode") ?? string.Empty,
                     EstimatedDistanceKm = ReadDouble(pm, "DistanceKm"),
                     EstimatedDuration = ReadDouble(pm, "DurationMin") is { } m
                         ? TimeSpan.FromMinutes(m)
@@ -189,6 +189,6 @@ public class WayfarerKmlParser
     static string? ReadString(XElement el, string name) =>
         el.Elements(X + "ExtendedData")
             .Elements(X + "Data")
-            .FirstOrDefault(d => (string)d.Attribute("name") == name)
+            .FirstOrDefault(d => (string?)d.Attribute("name") == name)
             ?.Element(X + "value")?.Value;
 }
