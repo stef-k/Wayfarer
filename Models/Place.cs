@@ -12,7 +12,7 @@ public class Place
 
     /// <summary>User identifier from ASP.NET Identity.</summary>
     [BindNever, ValidateNever] 
-    public string UserId { get; set; }
+    public string UserId { get; set; } = string.Empty;
 
     /// <summary>Foreign key to the parent region.</summary>
     public Guid RegionId { get; set; }
@@ -20,10 +20,10 @@ public class Place
     /// <summary>Navigation property to the parent region.</summary>
     [ValidateNever] 
     [JsonIgnore] 
-    public Region Region { get; set; }
+    public Region Region { get; set; } = null!;
 
     /// <summary>Place name or title.</summary>
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>Geographic coordinate of this place.</summary>
     public Point? Location { get; set; }

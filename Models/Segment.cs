@@ -12,14 +12,14 @@ public class Segment
     public Guid Id { get; set; }
 
     /// <summary>User identifier from ASP.NET Identity.</summary>
-    public string UserId { get; set; }
+    public string UserId { get; set; } = string.Empty;
 
     /// <summary>Foreign key to the parent trip.</summary>
     public Guid TripId { get; set; }
 
     /// <summary>Navigation property to the parent trip.</summary>
     [JsonIgnore] 
-    public Trip Trip { get; set; }
+    public Trip Trip { get; set; } = null!;
 
     /// <summary>Optional foreign key to the starting place.</summary>
     public Guid? FromPlaceId { get; set; }
@@ -36,7 +36,7 @@ public class Segment
     public Place? ToPlace { get; set; }
 
     /// <summary>Mode of transport (e.g., "walk", "bike").</summary>
-    public string Mode { get; set; }
+    public string Mode { get; set; } = string.Empty;
 
     /// <summary>Geometry of the route as a LineString.</summary>
     public LineString? RouteGeometry { get; set; }

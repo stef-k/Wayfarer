@@ -29,7 +29,7 @@ public class ImportStatus
     public static bool operator !=(ImportStatus left, ImportStatus right) => left?.Value != right?.Value;
 
     // Override Equals and GetHashCode for better comparisons
-    public override bool Equals(object obj) => obj is ImportStatus status && status.Value == Value;
+    public override bool Equals(object? obj) => obj is ImportStatus status && status.Value == Value;
     public override int GetHashCode() => Value.GetHashCode();
 }
 

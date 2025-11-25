@@ -13,17 +13,17 @@ public class Region
     public Guid Id { get; set; }
 
     /// <summary>User identifier from ASP.NET Identity.</summary>
-    public string UserId { get; set; }
+    public string UserId { get; set; } = string.Empty;
 
     /// <summary>Foreign key to the parent trip.</summary>
     public Guid TripId { get; set; }
 
     /// <summary>Navigation property to the parent trip.</summary>
     [JsonIgnore] 
-    public Trip Trip { get; set; }
+    public Trip Trip { get; set; } = null!;
 
     /// <summary>Region name or title.</summary>
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>Center point for map auto-zoom.</summary>
     [ValidateNever]

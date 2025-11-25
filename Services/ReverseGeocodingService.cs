@@ -10,69 +10,69 @@ namespace Wayfarer.Parsers
     public class ReverseLocationResponse
     {
         [JsonPropertyName("type")]
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
 
         [JsonPropertyName("features")]
-        public List<Feature> Features { get; set; }
+        public List<Feature> Features { get; set; } = new();
 
         [JsonPropertyName("attribution")]
-        public string Attribution { get; set; }
+        public string Attribution { get; set; } = string.Empty;
     }
 
     // Each Feature object in the features array
     public class Feature
     {
         [JsonPropertyName("type")]
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
 
         [JsonPropertyName("id")]
-        public string Id { get; set; }
+        public string Id { get; set; } = string.Empty;
 
         [JsonPropertyName("geometry")]
-        public Geometry Geometry { get; set; }
+        public Geometry Geometry { get; set; } = null!;
 
         [JsonPropertyName("properties")]
-        public FeatureProperties Properties { get; set; }
+        public FeatureProperties Properties { get; set; } = null!;
     }
 
     // Geometry information (for a point, an array of [longitude, latitude])
     public class Geometry
     {
         [JsonPropertyName("type")]
-        public string Type { get; set; }
+        public string Type { get; set; } = string.Empty;
 
         [JsonPropertyName("coordinates")]
-        public List<double> Coordinates { get; set; }
+        public List<double> Coordinates { get; set; } = new();
     }
 
     // Properties that are directly under the "properties" node for each feature
     public class FeatureProperties
     {
         [JsonPropertyName("mapbox_id")]
-        public string MapboxId { get; set; }
+        public string MapboxId { get; set; } = string.Empty;
 
         [JsonPropertyName("feature_type")]
-        public string FeatureType { get; set; }
+        public string FeatureType { get; set; } = string.Empty;
 
         [JsonPropertyName("full_address")]
-        public string FullAddress { get; set; }
+        public string FullAddress { get; set; } = string.Empty;
 
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [JsonPropertyName("name_preferred")]
-        public string NamePreferred { get; set; }
+        public string NamePreferred { get; set; } = string.Empty;
 
         // Detailed coordinates information if needed
         [JsonPropertyName("coordinates")]
-        public CoordinatesDetail Coordinates { get; set; }
+        public CoordinatesDetail Coordinates { get; set; } = null!;
 
         [JsonPropertyName("place_formatted")]
-        public string PlaceFormatted { get; set; }
+        public string PlaceFormatted { get; set; } = string.Empty;
 
         // The nested context with additional details like address, street, postcode, etc.
         [JsonPropertyName("context")]
-        public Context Context { get; set; }
+        public Context Context { get; set; } = new();
     }
 
     // Coordinates detail class (for the nested coordinates object)
@@ -86,16 +86,16 @@ namespace Wayfarer.Parsers
 
         // Optional: you can add accuracy or routable_points if needed.
         [JsonPropertyName("accuracy")]
-        public string Accuracy { get; set; }
+        public string Accuracy { get; set; } = string.Empty;
 
         [JsonPropertyName("routable_points")]
-        public List<RoutablePoint> RoutablePoints { get; set; }
+        public List<RoutablePoint> RoutablePoints { get; set; } = new();
     }
 
     public class RoutablePoint
     {
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [JsonPropertyName("latitude")]
         public double Latitude { get; set; }
@@ -109,38 +109,38 @@ namespace Wayfarer.Parsers
     {
         // The "address" context is special because it contains an address number and a street name.
         [JsonPropertyName("address")]
-        public ContextAddress Address { get; set; }
+        public ContextAddress Address { get; set; } = new();
 
         [JsonPropertyName("street")]
-        public ContextDetail Street { get; set; }
+        public ContextDetail Street { get; set; } = new();
 
         [JsonPropertyName("postcode")]
-        public ContextDetail Postcode { get; set; }
+        public ContextDetail Postcode { get; set; } = new();
 
         [JsonPropertyName("locality")]
-        public ContextDetail Locality { get; set; }
+        public ContextDetail Locality { get; set; } = new();
 
         [JsonPropertyName("place")]
-        public ContextDetail Place { get; set; }
+        public ContextDetail Place { get; set; } = new();
 
         [JsonPropertyName("district")]
-        public ContextDetail District { get; set; }
+        public ContextDetail District { get; set; } = new();
 
         [JsonPropertyName("region")]
-        public ContextDetail Region { get; set; }
+        public ContextDetail Region { get; set; } = new();
 
         [JsonPropertyName("country")]
-        public ContextDetail Country { get; set; }
+        public ContextDetail Country { get; set; } = new();
     }
 
     // A basic context detail for most keys (e.g. street, postcode, place, region, country)
     public class ContextDetail
     {
         [JsonPropertyName("mapbox_id")]
-        public string MapboxId { get; set; }
+        public string MapboxId { get; set; } = string.Empty;
 
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         // Additional fields can be added here if needed (e.g., wikidata_id)
     }
@@ -149,10 +149,10 @@ namespace Wayfarer.Parsers
     public class ContextAddress : ContextDetail
     {
         [JsonPropertyName("address_number")]
-        public string AddressNumber { get; set; }
+        public string AddressNumber { get; set; } = string.Empty;
 
         [JsonPropertyName("street_name")]
-        public string StreetName { get; set; }
+        public string StreetName { get; set; } = string.Empty;
     }
 
 
@@ -163,9 +163,9 @@ namespace Wayfarer.Parsers
         public string AddressNumber { get; set; } = string.Empty;
 
         public string StreetName { get; set; } = string.Empty;
-        public string Place { get; set; } = string.Empty;
+        public string? Place { get; set; }
         public string PostCode { get; set; } = string.Empty;
-        public string Region { get; set; } = string.Empty;
+        public string? Region { get; set; }
         public string Country { get; set; } = string.Empty;
     }
 
@@ -239,11 +239,13 @@ namespace Wayfarer.Parsers
 
                 results.Address = feature.Properties.Context?.Street?.Name;
                 results.FullAddress = feature.Properties.FullAddress;
-                results.Place = feature.Properties.Context?.Place?.Name;
+                string? placeName = feature.Properties.Context?.Place?.Name;
+                results.Place = string.IsNullOrWhiteSpace(placeName) ? null : placeName;
                 results.AddressNumber = feature.Properties.Context?.Address?.AddressNumber;
                 results.StreetName = feature.Properties.Context?.Address?.StreetName;
                 results.PostCode = feature.Properties.Context?.Postcode?.Name;
-                results.Region = feature.Properties.Context?.Region?.Name;
+                string? regionName = feature.Properties.Context?.Region?.Name;
+                results.Region = string.IsNullOrWhiteSpace(regionName) ? null : regionName;
                 results.Country = feature.Properties.Context?.Country?.Name;
             }
 
