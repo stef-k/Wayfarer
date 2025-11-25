@@ -226,7 +226,7 @@ static void ConfigureConfiguration(WebApplicationBuilder builder)
 
     // Ensuring that the directory for logs exists
     var logDirectory = Path.GetDirectoryName(logFilePath);
-    if (!Directory.Exists(logDirectory))
+    if (!string.IsNullOrEmpty(logDirectory) && !Directory.Exists(logDirectory))
         try
         {
             Directory.CreateDirectory(logDirectory);
@@ -243,6 +243,10 @@ static void ConfigureLogging(WebApplicationBuilder builder)
 {
     // Retrieve the log file path from configuration
     var logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
+
+    if (string.IsNullOrEmpty(logFilePath))
+        throw new InvalidOperationException(
+            "Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
 
     // Configure Serilog for logging to console, file, and PostgreSQL
     Log.Logger = new LoggerConfiguration()

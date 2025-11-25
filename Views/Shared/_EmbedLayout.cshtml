@@ -55,7 +55,7 @@
     <script src="~/lib/tippy/tippy-bundle.umd.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 
-    @if (ViewData["LoadLeaflet"] == null || (bool)ViewData["LoadLeaflet"])
+    @if (ViewData["LoadLeaflet"] == null || (ViewData["LoadLeaflet"] as bool?) != false)
     {
         <script src="~/js/map-utils.js" type="module"></script>
         <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>

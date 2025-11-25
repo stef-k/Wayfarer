@@ -36,7 +36,7 @@
             <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
             <link rel="stylesheet" href="~/lib/leaflet/leaflet.draw.css" />
         }
-        @if (ViewData["LoadQuill"] == null || (bool)ViewData["LoadQuill"])
+        @if (ViewData["LoadQuill"] == null || (ViewData["LoadQuill"] as bool?) != false)
         {
             <link href="~/lib/quill/quill.snow-2.0.3.css" rel="stylesheet" />
         }
@@ -144,7 +144,7 @@
         <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
         <script src="~/lib/sortablejs/Sortable.min.js"></script>
 
-        @if (ViewData["LoadLeaflet"] == null || (bool)ViewData["LoadLeaflet"])
+        @if (ViewData["LoadLeaflet"] == null || (ViewData["LoadLeaflet"] as bool?) != false)
         {
             <script src="~/js/map-utils.js" type="module"></script>
             <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>

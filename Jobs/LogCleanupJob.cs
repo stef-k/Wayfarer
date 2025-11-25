@@ -26,6 +26,14 @@ namespace Wayfarer.Jobs
                 jobDataMap["Status"] = "In Progress"; // Update to In Progress when the job starts
 
                 string? logDirectory = Path.GetDirectoryName(_configuration["Logging:LogFilePath:Default"]);
+
+                if (string.IsNullOrEmpty(logDirectory))
+                {
+                    _logger.LogWarning("Log directory path could not be determined. Skipping log cleanup.");
+                    jobDataMap["Status"] = "Completed";
+                    return Task.CompletedTask;
+                }
+
                 string[] logFiles = Directory.GetFiles(logDirectory, "wayfarer-*.log");
 
                 foreach (string logFile in logFiles)

@@ -1,6 +1,6 @@
 @model ApplicationSettings
 @{
-    var isRegistrationOpen = ViewData["IsRegistrationOpen"] != null ? (bool)ViewData["IsRegistrationOpen"] : false;
+    var isRegistrationOpen = (ViewData["IsRegistrationOpen"] as bool?) ?? false;
 }
 
 <div class="container">
