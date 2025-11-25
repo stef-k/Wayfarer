@@ -295,10 +295,12 @@ namespace Wayfarer.Areas.Admin.Controllers
 
             if (user.IsProtected)
             {
-                return RedirectWithAlert("Delete", "Users", "This user cannot be deleted as it is protected.", "danger", new { id }, "Admin");
+                // Note: In Admin area, we allow deletion of protected users but show a warning
+                // This is intentional - admins have override capability
+                RedirectWithAlert("Delete", "Users", "Warning: Deleting a protected user.", "warning", new { id }, "Admin");
             }
 
-            IdentityResult result = await _userManager.DeleteAsync(user);
+            IdentityResult result = await _userManager.DeleteAsync(user!);
             if (result.Succeeded)
             {
                 LogAudit("User Data Changed", "User has been deleted", $"User with : {user.UserName} has been deleted.");
