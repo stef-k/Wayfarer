@@ -189,7 +189,7 @@
                     <ul class="list-group list-group-flush">
                         @foreach (var area in Model.Areas.OrderBy(a => a.DisplayOrder))
                         {
-                            @Html.Partial(
+                            @await Html.PartialAsync(
                                 "~/Areas/User/Views/Trip/Partials/_AreaItemPartial.cshtml",
                                 area
                             )

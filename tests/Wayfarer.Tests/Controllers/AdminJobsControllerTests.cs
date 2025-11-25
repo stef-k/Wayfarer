@@ -57,7 +57,7 @@ public class AdminJobsControllerTests : TestBase
         var scheduler = new Mock<IScheduler>();
         var jobKey = new JobKey("JobB", "default");
         scheduler.Setup(s => s.GetJobDetail(jobKey, It.IsAny<CancellationToken>())).ReturnsAsync(Mock.Of<IJobDetail>());
-        scheduler.Setup(s => s.TriggerJob(jobKey, null, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        scheduler.Setup(s => s.TriggerJob(jobKey, It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var services = new ServiceCollection()
             .AddSingleton(db)
             .BuildServiceProvider();
@@ -68,7 +68,7 @@ public class AdminJobsControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        scheduler.Verify(s => s.TriggerJob(jobKey, null, It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(s => s.TriggerJob(jobKey, It.IsAny<JobDataMap>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static JobsController BuildController(ApplicationDbContext db, IScheduler scheduler, IServiceProvider? services = null)

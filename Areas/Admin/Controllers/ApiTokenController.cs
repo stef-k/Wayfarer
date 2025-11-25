@@ -37,7 +37,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             ApiTokenViewModel viewModel = new ApiTokenViewModel
             {
                 UserId = id,
-                UserName = user.UserName,
+                UserName = user.UserName ?? string.Empty,
                 Tokens = tokens
             };
             SetPageTitle("API Token Management");
@@ -97,7 +97,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 ApiToken apiToken = await _apiTokenService.RegenerateTokenAsync(id, name);
                 ApplicationUser? user = await _dbContext.ApplicationUsers.FindAsync(id);
-                SetAlert($"Token '{name}' has been regenerated for {user.UserName}.", "success");
+                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}.", "success");
             }
             catch (ArgumentException ex)
             {

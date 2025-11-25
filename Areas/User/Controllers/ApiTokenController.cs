@@ -24,10 +24,17 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Index()
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get current logged-in user ID
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             List<ApiToken> tokens = await _apiTokenService.GetTokensForUserAsync(userId); // Fetch tokens for the logged-in user
             ApiTokenViewModel viewModel = new ApiTokenViewModel
             {
-                UserName = User.Identity.Name,
+                UserName = User.Identity?.Name ?? string.Empty,
                 UserId = userId,
                 Tokens = tokens
             };
@@ -41,6 +48,12 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Create(string name)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
 
             // check if token exists for current user before creating it
             bool exists = await _dbContext.ApiTokens.AnyAsync(t => t.UserId == userId && t.Name == name);
@@ -68,10 +81,16 @@ namespace Wayfarer.Areas.User.Controllers
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             // Check if token exists for current user before creating it
-            bool exists = await _dbContext.ApiTokens.AnyAsync(t => 
-                t.UserId == userId && 
-                (t.Name.Trim().ToLower() == thirdPartyServiceName.Trim().ToLower() || 
+            bool exists = await _dbContext.ApiTokens.AnyAsync(t =>
+                t.UserId == userId &&
+                (t.Name.Trim().ToLower() == thirdPartyServiceName.Trim().ToLower() ||
                  t.Name.Trim().ToLower().Contains(thirdPartyServiceName.Trim().ToLower()))
             );
 
@@ -96,6 +115,12 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Regenerate(string name)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Json(new { success = false, message = "User not authenticated." });
+            }
+
             ApiToken regeneratedToken = await _apiTokenService.RegenerateTokenAsync(userId, name);
 
             // Return JSON for AJAX requests
@@ -111,6 +136,13 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Delete(int tokenId)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             List<ApiToken> token = await _apiTokenService.GetTokensForUserAsync(userId);
 
             ApiToken? tokenToDelete = token.FirstOrDefault(t => t.Id == tokenId);
@@ -139,6 +171,13 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> DeleteConfirmed(int tokenId)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get current user's ID
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             try
             {
                 await _apiTokenService.DeleteTokenForUserAsync(userId, tokenId); // Call the service to delete the token

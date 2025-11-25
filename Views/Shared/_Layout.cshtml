@@ -171,7 +171,7 @@
         <script src="~/js/site.js" asp-append-version="true"></script>
         @if (!embed)
         {
-            @Html.Partial("_ValidationScriptsPartial")
+            @await Html.PartialAsync("_ValidationScriptsPartial")
         }
         @await RenderSectionAsync("Scripts", required: false)
 
