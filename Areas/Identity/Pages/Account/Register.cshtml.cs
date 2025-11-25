@@ -33,35 +33,35 @@ public class RegisterModel : PageModel
     }
 
     [BindProperty]
-    public InputModel Input { get; set; }
+    public InputModel Input { get; set; } = new();
 
-    public string ReturnUrl { get; set; }
+    public string? ReturnUrl { get; set; }
 
-    public IList<AuthenticationScheme> ExternalLogins { get; set; }
+    public IList<AuthenticationScheme> ExternalLogins { get; set; } = new List<AuthenticationScheme>();
 
     public class InputModel
     {
         [Required]
         [StringLength(100, ErrorMessage = "The {0} must be at least {2} characters long.", MinimumLength = 3)]
         [Display(Name = "UserName")]
-        public string Username { get; set; }
+        public string Username { get; set; } = string.Empty;
 
         [Required]
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
-        public string Password { get; set; }
+        public string Password { get; set; } = string.Empty;
 
         [DataType(DataType.Password)]
         [Display(Name = "Confirm password")]
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
-        public string ConfirmPassword { get; set; }
+        public string ConfirmPassword { get; set; } = string.Empty;
 
         [Required]
         [StringLength(100)]
-        public string DisplayName { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
     }
 
-    public async Task OnGetAsync(string returnUrl = null)
+    public async Task OnGetAsync(string? returnUrl = null)
     {
         // check if the app has registrations open
         _registrationService.CheckRegistration(HttpContext);
@@ -69,7 +69,7 @@ public class RegisterModel : PageModel
         ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
     }
 
-    public async Task<IActionResult> OnPostAsync(string returnUrl = null)
+    public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
     {
         // check if the app has registrations open
         _registrationService.CheckRegistration(HttpContext);

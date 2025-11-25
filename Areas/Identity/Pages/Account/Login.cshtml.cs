@@ -21,28 +21,28 @@ namespace Wayfarer.Areas.Identity.Pages.Account
         }
 
         [BindProperty]
-        public InputModel Input { get; set; }
+        public InputModel Input { get; set; } = new();
 
-        public IList<AuthenticationScheme> ExternalLogins { get; set; }
-        public string ReturnUrl { get; set; }
+        public IList<AuthenticationScheme> ExternalLogins { get; set; } = new List<AuthenticationScheme>();
+        public string? ReturnUrl { get; set; }
 
         [TempData]
-        public string ErrorMessage { get; set; }
+        public string? ErrorMessage { get; set; }
 
         public class InputModel
         {
             [Required]
-            public string Username { get; set; }
+            public string Username { get; set; } = string.Empty;
 
             [Required]
             [DataType(DataType.Password)]
-            public string Password { get; set; }
+            public string Password { get; set; } = string.Empty;
 
             [Display(Name = "Remember me?")]
             public bool RememberMe { get; set; }
         }
 
-        public async Task OnGetAsync(string returnUrl = null)
+        public async Task OnGetAsync(string? returnUrl = null)
         {
             if (!string.IsNullOrEmpty(ErrorMessage))
             {
@@ -58,7 +58,7 @@ namespace Wayfarer.Areas.Identity.Pages.Account
             ReturnUrl = returnUrl;
         }
 
-        public async Task<IActionResult> OnPostAsync(string returnUrl = null)
+        public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
             returnUrl ??= Url.Content("~/");
 

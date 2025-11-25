@@ -13,7 +13,7 @@ namespace Wayfarer.Areas.User.Controllers;
 [Authorize(Roles = "User")]
 public class SegmentsController : BaseController
 {
-    private readonly ILogger<SegmentsController> _logger;
+    private new readonly ILogger<SegmentsController> _logger;
     private readonly ApplicationDbContext _db;
 
     public SegmentsController(ILogger<SegmentsController> logger, ApplicationDbContext dbContext) : base(logger,

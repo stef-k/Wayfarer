@@ -14,8 +14,8 @@ namespace Wayfarer.Areas.User.Controllers;
 [Authorize(Roles = "User")]
 public class PlacesController : BaseController
 {
-    private readonly ILogger<PlacesController> _logger;
-    private readonly ApplicationDbContext _dbContext;
+    private new readonly ILogger<PlacesController> _logger;
+    private new readonly ApplicationDbContext _dbContext;
     private readonly ReverseGeocodingService _reverseGeocodingService;
 
     public PlacesController(ILogger<PlacesController> logger, ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocodingService)

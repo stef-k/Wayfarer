@@ -20,7 +20,7 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class AreasController : BaseController
     {
-        private readonly ILogger<AreasController> _logger;
+        private new readonly ILogger<AreasController> _logger;
         private readonly ApplicationDbContext _db;
 
         public AreasController(ILogger<AreasController> logger, ApplicationDbContext dbContext)
