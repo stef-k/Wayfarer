@@ -98,7 +98,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogWarning("Check-in rate limit exceeded for user {UserId}: {Reason}", user.Id,
                     rateLimitResult.Reason);
-                return TooManyRequests(rateLimitResult.Reason);
+                return TooManyRequests(rateLimitResult.Reason ?? "Rate limit exceeded");
             }
 
             // Process timestamp and timezone (same as log-location)

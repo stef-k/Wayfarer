@@ -87,15 +87,15 @@ public class TripImportService : ITripImportService
         target.UpdatedAt = DateTime.UtcNow;
 
         /* 4 sync regions  segments ----------------------------------- */
-        SyncCollection(parsed.Regions, target.Regions, (p, d) => p.Id == d.Id);
-        SyncCollection(parsed.Segments, target.Segments, (p, d) => p.Id == d.Id);
+        SyncCollection(parsed.Regions ?? Enumerable.Empty<Region>(), target.Regions ?? new List<Region>(), (p, d) => p.Id == d.Id);
+        SyncCollection(parsed.Segments ?? Enumerable.Empty<Segment>(), target.Segments ?? new List<Segment>(), (p, d) => p.Id == d.Id);
 
         /* 5 sync places inside each region ---------------------------- */
-        foreach (var pReg in parsed.Regions)
+        foreach (var pReg in parsed.Regions ?? Enumerable.Empty<Region>())
         {
-            var tReg = target.Regions.First(r => r.Id == pReg.Id);
+            var tReg = target.Regions?.First(r => r.Id == pReg.Id);
             SyncCollection(pReg.Places ?? Enumerable.Empty<Place>(),
-                tReg.Places,
+                tReg?.Places ?? new List<Place>(),
                 (p, d) => p.Id == d.Id);
             
             tReg.Places ??= new List<Place>();

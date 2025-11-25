@@ -48,7 +48,7 @@ public class TileCacheService
         }
 
         // Read the cache directory from configuration, fallback to a default if not set.
-        _cacheDirectory = _configuration.GetSection("CacheSettings:TileCacheDirectory").Value;
+        _cacheDirectory = _configuration.GetSection("CacheSettings:TileCacheDirectory").Value ?? string.Empty;
         if (string.IsNullOrEmpty(_cacheDirectory))
         {
             _logger.LogWarning("Invalid or missing TileCacheDirectory. Using default path.");
@@ -126,7 +126,7 @@ public class TileCacheService
 
             // Download the tile with retry logic.
             int retryCount = 3;
-            byte[] tileData = null;
+            byte[]? tileData = null;
             while (retryCount > 0)
             {
                 var response = await _httpClient.GetAsync(tileUrl);
@@ -176,7 +176,7 @@ public class TileCacheService
                 if (existingMetadata == null)
                 {
                     // If adding a new tile would exceed the cache limit in Gibabytes, evict tiles.
-                    if ((_currentCacheSize + tileData.Length) > (_maxCacheSizeInMB * 1024 * 1024))
+                    if ((_currentCacheSize + (tileData?.Length ?? 0)) > (_maxCacheSizeInMB * 1024 * 1024))
                     {
                         await EvictDbTilesAsync();
                     }
@@ -204,7 +204,7 @@ public class TileCacheService
                     // Save the old size for cache size adjustment
                     var oldSize = existingMetadata.Size;
                     // Prepare new values
-                    existingMetadata.Size = tileData.Length;
+                    existingMetadata.Size = tileData?.Length ?? 0;
                     existingMetadata.LastAccessed = DateTime.UtcNow;
 
                     // Retry loop to handle potential concurrency conflicts.
@@ -307,7 +307,7 @@ public class TileCacheService
     /// Retrieves a tile from the cache. First checks the file system;
     /// if the file is missing but metadata exists, it attempts to re-fetch the tile.
     /// </summary>
-    public async Task<byte[]> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
+    public async Task<byte[]?> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
         string? tileUrl = null)
     {
         try
