@@ -153,7 +153,7 @@ public class LocationController : BaseApiController
                 if (apiToken != null)
                 {
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
-                        dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
+                        dto.Latitude, dto.Longitude, apiToken.Token ?? string.Empty, apiToken.Name ?? string.Empty);
 
                     _logger.LogInformation(
                         $"Check-in, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");

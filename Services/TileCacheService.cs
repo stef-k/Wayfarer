@@ -188,7 +188,7 @@ public class TileCacheService
                         Y = y,
                         // Storing the coordinates as a point (update as needed).
                         TileLocation = new Point(x, y),
-                        Size = tileData.Length,
+                        Size = tileData?.Length ?? 0,
                         TileFilePath = tileFilePath,
                         LastAccessed = DateTime.UtcNow
                         // Note: RowVersion is handled automatically by EF Core with [Timestamp]
@@ -236,7 +236,7 @@ public class TileCacheService
 
                             // Update the local copy with database values and reapply our changes.
                             existingMetadata = (TileCacheMetadata)databaseValues.ToObject();
-                            existingMetadata.Size = tileData.Length;
+                            existingMetadata.Size = tileData?.Length ?? 0;
                             existingMetadata.LastAccessed = DateTime.UtcNow;
                         }
                     }
@@ -249,7 +249,7 @@ public class TileCacheService
                     }
 
                     // Adjust the in-memory cache size using the previously saved value.
-                    _currentCacheSize = _currentCacheSize - oldSize + tileData.Length;
+                    _currentCacheSize = _currentCacheSize - oldSize + (tileData?.Length ?? 0);
                 }
             }
         }

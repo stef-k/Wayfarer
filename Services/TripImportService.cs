@@ -98,17 +98,17 @@ public class TripImportService : ITripImportService
                 tReg?.Places ?? new List<Place>(),
                 (p, d) => p.Id == d.Id);
             
-            tReg.Places ??= new List<Place>();
-            
+            tReg!.Places ??= new List<Place>();
+
             SyncCollection(pReg.Areas ?? Enumerable.Empty<Area>(),
-                tReg.Areas,
+                tReg.Areas ?? new List<Area>(),
                 (p, d) => p.Id == d.Id);
             tReg.Areas ??= new List<Area>();
         }
-        
-        // --- ensure every trip has its “Unassigned Places” shadow region ---
+
+        // --- ensure every trip has its "Unassigned Places" shadow region ---
         const string ShadowName = "Unassigned Places";
-        if (!target.Regions.Any(r => r.Name == ShadowName))
+        if (!(target.Regions ?? Enumerable.Empty<Region>()).Any(r => r.Name == ShadowName))
         {
             // bump all existing display orders up by 1
             foreach (var r in target.Regions)

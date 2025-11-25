@@ -386,7 +386,7 @@
                 <!-- Regions -->
                 <div class="regions-readable">
                     <h6 class="text-muted mb-3">Regions & Places</h6>
-                    @foreach (var region in Model.Regions.OrderBy(r => r.DisplayOrder))
+                    @foreach (var region in (Model.Regions ?? Enumerable.Empty<Region>()).OrderBy(r => r.DisplayOrder))
                     {
                         @if (region.Name == "Unassigned Places" && (region.Places == null || !region.Places.Any()))
                         {

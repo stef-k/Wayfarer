@@ -43,6 +43,7 @@ public class SegmentsController : BaseController
     public async Task<IActionResult> CreateOrUpdate(Guid? segmentId, Guid tripId)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Unauthorized();
 
         var trip = await _db.Trips
             .Include(t => t.Regions)

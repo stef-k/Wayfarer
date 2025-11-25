@@ -192,7 +192,7 @@ namespace Wayfarer.Parsers
             doc.Add(lineStyle);
 
             /* 2 ── Regions → Folders ------------------------------------------- */
-            foreach (var (reg, idx) in trip.Regions
+            foreach (var (reg, idx) in (trip.Regions ?? Enumerable.Empty<Region>())
                          .OrderBy(r => r.DisplayOrder)
                          .Select((r, i) => (r, i)))
             {
