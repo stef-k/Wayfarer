@@ -254,7 +254,7 @@ public class ApiLocationControllerTests : TestBase
 
         var controller = BuildApiController(db, user, includeAuthHeader: false);
 
-        var result = await controller.CheckNavigationAvailability("day", DateTime.UtcNow.Year, 1, 1);
+        var result = controller.CheckNavigationAvailability("day", DateTime.UtcNow.Year, 1, 1);
 
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
@@ -271,7 +271,7 @@ public class ApiLocationControllerTests : TestBase
         var controller = BuildApiController(db, user, includeAuthHeader: true, tokenOverride: "tok");
         var today = DateTime.Today;
 
-        var result = await controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
+        var result = controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = ok.Value!;

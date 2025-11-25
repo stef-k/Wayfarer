@@ -123,8 +123,9 @@ namespace Wayfarer.Areas.User.Controllers
                 hiddenArea.Name = vm.Name;
                 hiddenArea.Description = vm.Description;
 
-                var factory = new GeometryFactory(new PrecisionModel(), 4326);
-                var reader = new WKTReader(factory);
+                var geometryServices = NtsGeometryServices.Instance;
+                var factory = geometryServices.CreateGeometryFactory(4326);
+                var reader = new WKTReader(geometryServices);
                 hiddenArea.Area = reader.Read(vm.AreaWKT) as Polygon;
 
                 await _dbContext.SaveChangesAsync();

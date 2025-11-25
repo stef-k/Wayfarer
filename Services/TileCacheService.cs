@@ -578,11 +578,12 @@ public class TileCacheService
                 if (File.Exists(file.TileFilePath))
                 {
                     // Use RetryOperationAsync for file deletion logic
-                    await RetryOperationAsync(async () =>
+                    await RetryOperationAsync(() =>
                     {
                         File.Delete(file.TileFilePath);
                         _currentCacheSize -= file.Size;
                         filesToDelete.Add(file);
+                        return Task.CompletedTask;
                     }, 3, 500); // 3 retries, 500ms delay between retries
                 }
                 else

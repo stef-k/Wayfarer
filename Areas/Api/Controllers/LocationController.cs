@@ -214,7 +214,7 @@ public class LocationController : BaseApiController
     /// </summary>
     /// <param name="userId">User ID to check rate limits for</param>
     /// <returns>Rate limit validation result</returns>
-    private async Task<CheckInRateLimitResult> ValidateCheckInRateLimit(string userId)
+    private Task<CheckInRateLimitResult> ValidateCheckInRateLimit(string userId)
     {
         // Check minimum interval between check-ins
         var lastCheckInCacheKey = $"lastCheckIn_{userId}";
@@ -224,11 +224,11 @@ public class LocationController : BaseApiController
             if (timeSinceLastCheckIn.TotalSeconds < CheckInMinIntervalSeconds)
             {
                 var remainingSeconds = CheckInMinIntervalSeconds - (int)timeSinceLastCheckIn.TotalSeconds;
-                return new CheckInRateLimitResult
+                return Task.FromResult(new CheckInRateLimitResult
                 {
                     IsAllowed = false,
                     Reason = $"Please wait {remainingSeconds} seconds between check-ins."
-                };
+                });
             }
         }
 
@@ -236,20 +236,20 @@ public class LocationController : BaseApiController
         var hourlyCacheKey = $"checkInCount_{userId}_{DateTime.UtcNow:yyyyMMddHH}";
         if (_cache.TryGetValue(hourlyCacheKey, out int currentHourlyCount))
             if (currentHourlyCount >= CheckInMaxPerHour)
-                return new CheckInRateLimitResult
+                return Task.FromResult(new CheckInRateLimitResult
                 {
                     IsAllowed = false,
                     Reason = $"Maximum {CheckInMaxPerHour} check-ins per hour exceeded. Please try again later."
-                };
+                });
 
-        return new CheckInRateLimitResult { IsAllowed = true };
+        return Task.FromResult(new CheckInRateLimitResult { IsAllowed = true });
     }
 
     /// <summary>
     ///     Updates rate limiting tracking after a successful check-in.
     /// </summary>
     /// <param name="userId">User ID to update tracking for</param>
-    private async Task UpdateCheckInRateTracking(string userId)
+    private Task UpdateCheckInRateTracking(string userId)
     {
         // Update last check-in time
         var lastCheckInCacheKey = $"lastCheckIn_{userId}";
@@ -261,6 +261,8 @@ public class LocationController : BaseApiController
             _cache.Set(hourlyCacheKey, currentCount + 1, TimeSpan.FromHours(1));
         else
             _cache.Set(hourlyCacheKey, 1, TimeSpan.FromHours(1));
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -1149,7 +1151,7 @@ public class LocationController : BaseApiController
     /// <param name="month">Current month (1-12)</param>
     /// <param name="day">Current day (1-31)</param>
     [HttpGet("check-navigation-availability")]
-    public async Task<IActionResult> CheckNavigationAvailability(string dateType, int year, int? month = null,
+    public IActionResult CheckNavigationAvailability(string dateType, int year, int? month = null,
         int? day = null)
     {
         try

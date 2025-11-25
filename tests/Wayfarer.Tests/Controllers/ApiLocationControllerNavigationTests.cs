@@ -28,7 +28,7 @@ public class ApiLocationControllerNavigationTests : TestBase
         var controller = BuildController(db);
         var today = DateTime.Today;
 
-        var result = await controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
+        var result = controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
 
         Assert.IsType<ForbidResult>(result);
     }

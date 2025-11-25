@@ -419,7 +419,8 @@ public class TripViewerController : BaseController
         if (targetWidth != original.Width || targetHeight != original.Height)
         {
             var imageInfo = new SkiaSharp.SKImageInfo(targetWidth, targetHeight);
-            resized = original.Resize(imageInfo, SkiaSharp.SKFilterQuality.Medium);
+            var samplingOptions = new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear, SkiaSharp.SKMipmapMode.Linear);
+            resized = original.Resize(imageInfo, samplingOptions);
         }
         else
         {
