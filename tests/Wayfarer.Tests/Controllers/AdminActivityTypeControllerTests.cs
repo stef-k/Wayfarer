@@ -47,11 +47,11 @@ public class AdminActivityTypeControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_Get_ReturnsView()
+    public void Create_Get_ReturnsView()
     {
         var controller = BuildController(CreateDbContext());
 
-        var result = await controller.Create();
+        var result = controller.Create();
 
         Assert.IsType<ViewResult>(result);
     }

@@ -45,7 +45,7 @@ namespace Wayfarer.Areas.Admin.Controllers
 
 
         // GET: Admin/ActivityType/Create
-        public async Task<IActionResult> Create()
+        public IActionResult Create()
         {
             SetPageTitle("New Activity Type");
             return View();

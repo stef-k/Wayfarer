@@ -400,18 +400,18 @@ public class TileCacheService
     /// <summary>
     /// Gets the current file size of the total cache.
     /// </summary>
-    public async Task<double> GetCacheFileSizeInMbAsync()
+    public Task<double> GetCacheFileSizeInMbAsync()
     {
         DirectoryInfo di = new DirectoryInfo(_cacheDirectory);
         var totalSizeInBytes = di.GetFiles().Sum(f => f.Length);
         if (totalSizeInBytes <= 0)
         {
-            return 0;
+            return Task.FromResult(0.0);
         }
 
         var totalSizeInMb = totalSizeInBytes / 1024.0 / 1024.0;
 
-        return totalSizeInMb;
+        return Task.FromResult(totalSizeInMb);
     }
 
 
@@ -419,12 +419,12 @@ public class TileCacheService
     /// Gets the total tile cache size store in file system
     /// </summary>
     /// <returns></returns>
-    public async Task<int> GetTotalCachedFilesAsync()
+    public Task<int> GetTotalCachedFilesAsync()
     {
         DirectoryInfo di = new DirectoryInfo(_cacheDirectory);
         var totalFiles = di.GetFiles().Count();
 
-        return totalFiles;
+        return Task.FromResult(totalFiles);
     }
 
     /// <summary>
@@ -432,16 +432,16 @@ public class TileCacheService
     /// LRU cache is cached tiles with zoom levels >= 9.
     /// </summary>
     /// <returns></returns>
-    public async Task<double> GetLruCachedInMbFilesAsync()
+    public Task<double> GetLruCachedInMbFilesAsync()
     {
         var lruSize = _dbContext.TileCacheMetadata.Sum(t => t.Size);
 
         if (lruSize <= 0)
         {
-            return 0;
+            return Task.FromResult(0.0);
         }
 
-        return lruSize / 1024.0 / 1024.0;
+        return Task.FromResult(lruSize / 1024.0 / 1024.0);
     }
 
     public async Task<int> GetLruTotalFilesInDbAsync()

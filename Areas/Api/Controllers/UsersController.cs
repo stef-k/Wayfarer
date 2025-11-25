@@ -137,7 +137,7 @@ public class UsersController : ControllerBase
 
         // Joined in the last window
         var joined = await _dbContext.GroupMembers
-            .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active && m.JoinedAt != null && m.JoinedAt >= since)
+            .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active && m.JoinedAt >= since)
             .Join(_dbContext.Groups, m => m.GroupId, g => g.Id, (m, g) => new { m.GroupId, GroupName = g.Name, m.JoinedAt })
             .AsNoTracking()
             .ToListAsync(ct);

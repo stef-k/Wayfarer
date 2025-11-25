@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO;
 using NetTopologySuite.Geometries;
+using NetTopologySuite;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 
@@ -122,7 +123,8 @@ namespace Wayfarer.Areas.User.Controllers
                 hiddenArea.Name = vm.Name;
                 hiddenArea.Description = vm.Description;
 
-                var reader = new WKTReader(new GeometryFactory(new PrecisionModel(), 4326));
+                var factory = new GeometryFactory(new PrecisionModel(), 4326);
+                var reader = new WKTReader(factory);
                 hiddenArea.Area = reader.Read(vm.AreaWKT) as Polygon;
 
                 await _dbContext.SaveChangesAsync();

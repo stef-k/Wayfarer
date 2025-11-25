@@ -124,11 +124,11 @@ namespace Wayfarer.Areas.Admin.Controllers
 
 
 
-        private async Task<string> GetJobStatusFromDb(string jobName)
+        private Task<string> GetJobStatusFromDb(string jobName)
         {
             // Retrieve the job status from the database (e.g., 'Failed', 'Pending', etc.)
             // Example: Return "Failed" if the job was previously marked as failed.
-            return "Failed"; // This is just an example, you can replace it with real logic
+            return Task.FromResult("Failed"); // This is just an example, you can replace it with real logic
         }
 
     }

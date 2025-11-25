@@ -154,10 +154,10 @@ ConfigureMiddleware(app).GetAwaiter().GetResult();
 
 app.Run();
 
-static async Task<long> LoadUploadSizeLimitFromDatabaseAsync()
+static Task<long> LoadUploadSizeLimitFromDatabaseAsync()
 {
     // Your logic to load the size limit from the database
-    return 100 * 1024 * 1024; // example: 100MB
+    return Task.FromResult(100L * 1024 * 1024); // example: 100MB
 }
 
 #region Methods
