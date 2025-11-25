@@ -64,6 +64,29 @@ public class LocationExportControllerTests : TestBase
         Assert.DoesNotContain("BobPlace", payload);
     }
 
+    [Fact]
+    public async Task Kml_ExportsOnlyCurrentUserLocations()
+    {
+        var db = CreateDbContext();
+        var current = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        var other = TestDataFixtures.CreateUser(id: "u2", username: "bob");
+        db.Users.AddRange(current, other);
+        db.Locations.AddRange(
+            CreateLocation(current.Id, "AliceKml"),
+            CreateLocation(other.Id, "BobKml"));
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, current.Id);
+
+        var result = await controller.Kml();
+
+        var file = Assert.IsType<FileStreamResult>(result);
+        Assert.Equal("application/vnd.google-earth.kml+xml", file.ContentType);
+        using var reader = new StreamReader(file.FileStream, Encoding.UTF8);
+        var payload = await reader.ReadToEndAsync();
+        Assert.Contains("AliceKml", payload);
+        Assert.DoesNotContain("BobKml", payload);
+    }
+
     private static LocationExportController BuildController(ApplicationDbContext db, string userId)
     {
         var controller = new LocationExportController(db);
