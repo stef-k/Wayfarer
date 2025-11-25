@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -88,7 +89,7 @@ public class InvitationsControllerTests : TestBase
         await db.SaveChangesAsync();
         var ctrl = CreateController(db, user.Id);
 
-        var resp = await ctrl.Create(new Models.Dtos.InvitationCreateRequest
+        var resp = await ctrl.Create(new InvitationCreateRequest
         {
             GroupId = Guid.Empty,
             InviteeUserId = "invitee"
@@ -106,7 +107,7 @@ public class InvitationsControllerTests : TestBase
         await db.SaveChangesAsync();
         var ctrl = CreateController(db, user.Id);
 
-        var resp = await ctrl.Create(new Models.Dtos.InvitationCreateRequest
+        var resp = await ctrl.Create(new InvitationCreateRequest
         {
             GroupId = Guid.NewGuid(),
             InviteeUserId = null,
@@ -129,7 +130,7 @@ public class InvitationsControllerTests : TestBase
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
         var ctrl = CreateController(db, owner.Id);
 
-        var resp = await ctrl.Create(new Models.Dtos.InvitationCreateRequest
+        var resp = await ctrl.Create(new InvitationCreateRequest
         {
             GroupId = group.Id,
             InviteeUserId = invitee.Id
@@ -151,7 +152,7 @@ public class InvitationsControllerTests : TestBase
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
         var ctrl = CreateController(db, owner.Id);
 
-        var resp = await ctrl.Create(new Models.Dtos.InvitationCreateRequest
+        var resp = await ctrl.Create(new InvitationCreateRequest
         {
             GroupId = group.Id,
             InviteeEmail = "test@example.com"
@@ -175,7 +176,7 @@ public class InvitationsControllerTests : TestBase
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
         var ctrl = CreateController(db, unauthorized.Id);
 
-        var resp = await ctrl.Create(new Models.Dtos.InvitationCreateRequest
+        var resp = await ctrl.Create(new InvitationCreateRequest
         {
             GroupId = group.Id,
             InviteeUserId = invitee.Id

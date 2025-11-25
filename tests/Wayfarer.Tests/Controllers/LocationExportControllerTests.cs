@@ -1,18 +1,20 @@
+using System;
+using System.IO;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.User.Controllers;
-using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Location = Wayfarer.Models.Location;
+using Wayfarer.Models;
 
 namespace Wayfarer.Tests.Controllers;
 
 /// <summary>
-/// User location export flows.
+/// Ensures LocationExportController exports only the signed-in user's data.
 /// </summary>
 public class LocationExportControllerTests : TestBase
 {
@@ -20,75 +22,74 @@ public class LocationExportControllerTests : TestBase
     public async Task GeoJson_ExportsOnlyCurrentUserLocations()
     {
         var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        var current = TestDataFixtures.CreateUser(id: "u1", username: "alice");
         var other = TestDataFixtures.CreateUser(id: "u2", username: "bob");
-        db.Users.AddRange(user, other);
+        db.Users.AddRange(current, other);
         db.Locations.AddRange(
-            CreateLoc(user.Id, 1, 1, "CA"),
-            CreateLoc(other.Id, 2, 2, "TX"));
+            CreateLocation(current.Id, "Main St"),
+            CreateLocation(other.Id, "ShouldNotAppear"));
         await db.SaveChangesAsync();
-
-        var controller = BuildController(db, user);
+        var controller = BuildController(db, current.Id);
 
         var result = await controller.GeoJson();
 
         var file = Assert.IsType<FileStreamResult>(result);
         Assert.Equal("application/geo+json", file.ContentType);
-        using var reader = new StreamReader(file.FileStream, Encoding.UTF8, leaveOpen: true);
-        var json = reader.ReadToEnd();
-        Assert.Contains("\"Region\":\"CA\"", json);
-        Assert.DoesNotContain("TX", json);
+        using var reader = new StreamReader(file.FileStream, Encoding.UTF8);
+        var payload = await reader.ReadToEndAsync();
+        Assert.Contains("Main St", payload);
+        Assert.DoesNotContain("ShouldNotAppear", payload);
     }
 
     [Fact]
     public async Task Csv_ExportsOnlyCurrentUserLocations()
     {
         var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        var current = TestDataFixtures.CreateUser(id: "u1", username: "alice");
         var other = TestDataFixtures.CreateUser(id: "u2", username: "bob");
-        db.Users.AddRange(user, other);
+        db.Users.AddRange(current, other);
         db.Locations.AddRange(
-            CreateLoc(user.Id, 1, 1, "CA"),
-            CreateLoc(other.Id, 2, 2, "TX"));
+            CreateLocation(current.Id, "AlicePlace"),
+            CreateLocation(other.Id, "BobPlace"));
         await db.SaveChangesAsync();
-
-        var controller = BuildController(db, user);
+        var controller = BuildController(db, current.Id);
 
         var result = await controller.Csv();
 
         var file = Assert.IsType<FileStreamResult>(result);
         Assert.Equal("text/csv", file.ContentType);
-        using var reader = new StreamReader(file.FileStream, Encoding.UTF8, leaveOpen: true);
-        var csv = reader.ReadToEnd();
-        Assert.Contains("CA", csv);
-        Assert.DoesNotContain("TX", csv);
+        using var reader = new StreamReader(file.FileStream, Encoding.UTF8);
+        var payload = await reader.ReadToEndAsync();
+        Assert.Contains("AlicePlace", payload);
+        Assert.DoesNotContain("BobPlace", payload);
     }
 
-    private static LocationExportController BuildController(ApplicationDbContext db, ApplicationUser user)
+    private static LocationExportController BuildController(ApplicationDbContext db, string userId)
     {
         var controller = new LocationExportController(db);
-        var http = new DefaultHttpContext
+        var httpContext = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id),
-                new Claim(ClaimTypes.Name, user.UserName!)
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Name, "test-user")
             }, "TestAuth"))
         };
-        controller.ControllerContext = new ControllerContext { HttpContext = http };
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         return controller;
     }
 
-    private static Wayfarer.Models.Location CreateLoc(string userId, double x, double y, string region)
+    private static Location CreateLocation(string userId, string? notes)
     {
-        return new Wayfarer.Models.Location
+        return new Location
         {
             UserId = userId,
-            Coordinates = new Point(x, y) { SRID = 4326 },
+            Coordinates = new Point(23.72, 37.98) { SRID = 4326 },
             Timestamp = DateTime.UtcNow,
             LocalTimestamp = DateTime.UtcNow,
             TimeZoneId = "UTC",
-            Region = region
+            Notes = notes,
+            Place = notes
         };
     }
 }

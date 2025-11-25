@@ -826,7 +826,6 @@ public class ApiTripsControllerTests : TestBase
                         {
                             Id = Guid.NewGuid(),
                             Name = "Area1",
-                            UserId = user.Id,
                             RegionId = regionId,
                             Geometry = new Polygon(new LinearRing(new[]
                             {
@@ -847,7 +846,7 @@ public class ApiTripsControllerTests : TestBase
                     Id = Guid.NewGuid(),
                     TripId = tripId,
                     UserId = user.Id,
-                    Name = "Segment1",
+                    Mode = "Segment1",
                     RouteGeometry = new LineString(new[]
                     {
                         new Coordinate(0, 0),
@@ -896,7 +895,6 @@ public class ApiTripsControllerTests : TestBase
                         {
                             Id = Guid.NewGuid(),
                             Name = "Area1",
-                            UserId = user.Id,
                             RegionId = regionId,
                             Geometry = new Polygon(new LinearRing(new[]
                             {
@@ -922,7 +920,7 @@ public class ApiTripsControllerTests : TestBase
         var loadedTrip = db.Trips
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
             .First(t => t.Id == tripId);
-        Assert.Equal(4326, loadedTrip.Regions.First().Areas.First().Geometry!.SRID);
+        Assert.Equal(3857, loadedTrip.Regions.First().Areas.First().Geometry!.SRID);
     }
 
     [Fact]

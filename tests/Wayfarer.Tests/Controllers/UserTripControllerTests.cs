@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.User.Controllers;
@@ -210,6 +211,9 @@ public class UserTripControllerTests : TestBase
         {
             HttpContext = BuildHttpContextWithUser(userId)
         };
+        controller.TempData = new TempDataDictionary(
+            controller.ControllerContext.HttpContext,
+            Mock.Of<ITempDataProvider>());
         return controller;
     }
 }

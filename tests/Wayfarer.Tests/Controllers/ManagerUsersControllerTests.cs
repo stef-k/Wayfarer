@@ -1,10 +1,14 @@
+using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Wayfarer.Areas.Manager.Controllers;
 using Wayfarer.Models;
@@ -613,7 +617,13 @@ public class ManagerUsersControllerTests : TestBase
         var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
         var userManager = MockUserManager(manager);
         userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null);
-        userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Success)
+            .Callback<ApplicationUser, string>((u, _) =>
+            {
+                db.Users.Add(u);
+                db.SaveChanges();
+            });
         userManager.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "User")).ReturnsAsync(IdentityResult.Success);
         var controller = BuildController(db, userManager.Object);
         var model = new CreateUserViewModel
@@ -651,6 +661,8 @@ public class ManagerUsersControllerTests : TestBase
         var userManager = MockUserManager(manager);
         var controller = BuildController(db, userManager.Object);
         controller.ModelState.AddModelError("UserName", "Required");
+        userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError { Description = "invalid" }));
         var model = new CreateUserViewModel
         {
             UserName = "",
@@ -702,8 +714,12 @@ public class ManagerUsersControllerTests : TestBase
 
     private static UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
     {
-        var roleStore = new Mock<IRoleStore<IdentityRole>>();
-        var roleManager = new RoleManager<IdentityRole>(roleStore.Object, null, null, null, null);
+        var roleManager = MockRoleManager();
+        if (Mock.Get(userManager) is Mock<UserManager<ApplicationUser>> userManagerMock)
+        {
+            userManagerMock.Setup(m => m.FindByIdAsync(It.IsAny<string>()))
+                .ReturnsAsync((string id) => db.Users.FirstOrDefault(u => u.Id == id));
+        }
         var controller = new UsersController(
             userManager,
             roleManager,
@@ -740,5 +756,24 @@ public class ManagerUsersControllerTests : TestBase
         var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
         mgr.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
         return mgr;
+    }
+
+    private static RoleManager<IdentityRole> MockRoleManager(IEnumerable<IdentityRole>? roles = null)
+    {
+        roles ??= new[]
+        {
+            new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" }
+        };
+
+        var store = new Mock<IRoleStore<IdentityRole>>();
+        var roleManager = new Mock<RoleManager<IdentityRole>>(
+            store.Object,
+            Array.Empty<IRoleValidator<IdentityRole>>(),
+            Mock.Of<ILookupNormalizer>(),
+            new IdentityErrorDescriber(),
+            Mock.Of<ILogger<RoleManager<IdentityRole>>>());
+
+        roleManager.Setup(r => r.Roles).Returns(roles.AsQueryable());
+        return roleManager.Object;
     }
 }

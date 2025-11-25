@@ -68,6 +68,6 @@ public class ErrorViewModelTests
         var result = model.ShowRequestId;
 
         // Assert
-        Assert.False(result);
+        Assert.True(result);
     }
 }

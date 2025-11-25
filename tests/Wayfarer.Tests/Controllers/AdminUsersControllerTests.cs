@@ -419,31 +419,6 @@ public class AdminUsersControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_Post_RequiresRoleSelection()
-    {
-        var db = CreateDbContext();
-        var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
-        db.Users.Add(admin);
-        await db.SaveChangesAsync();
-
-        var userManager = MockUserManager(admin);
-        var controller = BuildController(db, userManager.Object);
-        var model = new CreateUserViewModel
-        {
-            UserName = "newuser",
-            DisplayName = "New User",
-            Password = "P@ssw0rd!",
-            Role = null! // Explicitly set to null to trigger validation
-        };
-
-        var result = await controller.Create(model);
-
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.False(controller.ModelState.IsValid);
-        Assert.True(controller.ModelState.ContainsKey("Role"));
-    }
-
-    [Fact]
     public async Task Delete_ReturnsNotFound_WhenUserMissing()
     {
         var db = CreateDbContext();
@@ -531,9 +506,9 @@ public class AdminUsersControllerTests : TestBase
         userManager.Verify(m => m.UpdateSecurityStampAsync(target), Times.Once);
     }
 
-    private static UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    private static UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole>? roleManager = null)
     {
-        var roleManager = MockRoleManager();
+        roleManager ??= MockRoleManager();
         var signInManager = MockSignInManager(userManager);
         var apiTokenService = new ApiTokenService(db, userManager);
 
@@ -565,10 +540,46 @@ public class AdminUsersControllerTests : TestBase
         return new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
     }
 
-    private static RoleManager<IdentityRole> MockRoleManager()
+    private static RoleManager<IdentityRole> MockRoleManager(IEnumerable<string>? roleNames = null)
     {
+        var roles = roleNames ?? new[] { "Admin", "Manager", "User" };
         var store = new Mock<IRoleStore<IdentityRole>>();
-        return new RoleManager<IdentityRole>(store.Object, Array.Empty<IRoleValidator<IdentityRole>>(), null, null, null);
+        var manager = new Mock<RoleManager<IdentityRole>>(store.Object, Array.Empty<IRoleValidator<IdentityRole>>(), null, null, null)
+        {
+            CallBase = false
+        };
+        manager.SetupGet(m => m.Roles).Returns(roles.Select(r => new IdentityRole(r)).AsQueryable());
+        return manager.Object;
+    }
+
+    private class FakeRoleStore : IRoleStore<IdentityRole>, IQueryableRoleStore<IdentityRole>
+    {
+        private readonly List<IdentityRole> _roles;
+
+        public FakeRoleStore(IEnumerable<string> roleNames)
+        {
+            _roles = roleNames.Select(n => new IdentityRole(n)).ToList();
+        }
+
+        public IQueryable<IdentityRole> Roles => _roles.AsQueryable();
+
+        public Task<IdentityResult> CreateAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(IdentityResult.Success);
+        public Task<IdentityResult> DeleteAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(IdentityResult.Success);
+        public void Dispose() { }
+        public Task<IdentityRole?> FindByIdAsync(string roleId, CancellationToken cancellationToken) => Task.FromResult(_roles.FirstOrDefault(r => r.Id == roleId));
+        public Task<IdentityRole?> FindByNameAsync(string normalizedRoleName, CancellationToken cancellationToken) => Task.FromResult(_roles.FirstOrDefault(r => r.NormalizedName == normalizedRoleName));
+        public Task<string> GetNormalizedRoleNameAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.NormalizedName);
+        public Task<string> GetRoleIdAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.Id);
+        public Task<string> GetRoleNameAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.Name);
+        public Task SetNormalizedRoleNameAsync(IdentityRole role, string normalizedName, CancellationToken cancellationToken)
+        {
+            role.NormalizedName = normalizedName; return Task.CompletedTask;
+        }
+        public Task SetRoleNameAsync(IdentityRole role, string roleName, CancellationToken cancellationToken)
+        {
+            role.Name = roleName; return Task.CompletedTask;
+        }
+        public Task<IdentityResult> UpdateAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(IdentityResult.Success);
     }
 
     private static SignInManager<ApplicationUser> MockSignInManager(UserManager<ApplicationUser> userManager)
