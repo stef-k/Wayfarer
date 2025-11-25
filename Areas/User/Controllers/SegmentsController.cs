@@ -120,7 +120,7 @@ public class SegmentsController : BaseController
         {
             try
             {
-                var points = JsonSerializer.Deserialize<List<double[]>>(routeJsonStr);
+                var points = JsonSerializer.Deserialize<List<double[]>>(routeJsonStr.ToString());
                 if (points != null && points.Count >= 2)
                 {
                     var coords = points.Select(p => new Coordinate(p[1], p[0])).ToArray(); // [lon, lat]
@@ -160,8 +160,8 @@ public class SegmentsController : BaseController
 
         // Re-fetch the full segment with related From/To place for display
         var segment = await _dbContext.Segments
-            .Include(s => s.FromPlace).ThenInclude(p => p.Region)
-            .Include(s => s.ToPlace).ThenInclude(p => p.Region)
+            .Include(s => s.FromPlace!).ThenInclude(p => p.Region)
+            .Include(s => s.ToPlace!).ThenInclude(p => p.Region)
             .FirstOrDefaultAsync(s => s.Id == model.Id && s.UserId == userId);
 
         if (segment == null)
@@ -231,8 +231,8 @@ public class SegmentsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var segment = await _db.Segments
-            .Include(s => s.FromPlace).ThenInclude(p => p.Region)
-            .Include(s => s.ToPlace).ThenInclude(p => p.Region)
+            .Include(s => s.FromPlace!).ThenInclude(p => p.Region)
+            .Include(s => s.ToPlace!).ThenInclude(p => p.Region)
             .FirstOrDefaultAsync(s => s.Id == segmentId && s.UserId == userId);
 
         if (segment == null)
@@ -247,8 +247,8 @@ public class SegmentsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var segments = await _db.Segments
-            .Include(s => s.FromPlace).ThenInclude(p => p.Region)
-            .Include(s => s.ToPlace).ThenInclude(p => p.Region)
+            .Include(s => s.FromPlace!).ThenInclude(p => p.Region)
+            .Include(s => s.ToPlace!).ThenInclude(p => p.Region)
             .Where(s => s.UserId == userId && s.TripId == tripId)
             .ToListAsync();
 
