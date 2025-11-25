@@ -5,7 +5,7 @@ namespace Wayfarer.Models
     // Add profile data for application users by adding properties to the ApplicationUser class
     public class ApplicationUser : IdentityUser
     {
-        public string DisplayName { get; set; }
+        public required string DisplayName { get; set; }
 
         // The user is not locked by Admins/Managers
         public bool IsActive { get; set; }
@@ -37,7 +37,7 @@ namespace Wayfarer.Models
         /// <summary>
         /// Navigation property for the user's trips.
         /// </summary>
-        public ICollection<Trip> Trips { get; set; }
+        public ICollection<Trip> Trips { get; set; } = new List<Trip>();
 
         /// <summary>
         /// Groups owned by this user.

@@ -13,7 +13,7 @@ namespace Wayfarer.Models
         public int Y { get; set; }
         
         // The location of the tile (X and Y coordinates) stored as a PostGIS Point
-        public Point TileLocation { get; set; }
+        public required Point TileLocation { get; set; }
 
         // Track when the tile was last accessed (for eviction purposes)
         public DateTime LastAccessed { get; set; }
@@ -23,7 +23,7 @@ namespace Wayfarer.Models
 
         // This could be a reference to the actual file location or just an identifier
         // indicating that the tile is stored on disk
-        public string TileFilePath { get; set; } 
+        public required string TileFilePath { get; set; } 
 
         // To manage how long the tile should be kept, in this case, we do not need expiration logic
         // Expiration logic has been replaced with the eviction mechanism in the cache service

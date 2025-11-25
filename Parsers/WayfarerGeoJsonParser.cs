@@ -68,13 +68,6 @@ namespace Wayfarer.Parsers
                         ? Convert.ToDouble(attrs[key])
                         : (double?)null;
 
-                // helper to safely parse a UTC DateTime
-                DateTime parseUtc(string input)
-                {
-                    var dt = DateTime.Parse(input, null, DateTimeStyles.RoundtripKind);
-                    return dt.Kind == DateTimeKind.Utc ? dt : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
-                }
-
                 // 3) Extract attributes with null guards
                 var tsUtcString = getString("TimestampUtc");
                 var tzId = getString("TimeZoneId") ?? "UTC";

@@ -11,20 +11,20 @@ namespace Wayfarer.Models
         public int Id { get; set; }
 
         [Required]
-        public string Name { get; set; }
+        public required string Name { get; set; }
 
         public string? Description { get; set; }
 
         [Required]
-        public Polygon Area { get; set; }
+        public required Polygon Area { get; set; }
 
         [Required]
-        public string UserId { get; set; }
+        public required string UserId { get; set; }
 
         [ForeignKey(nameof(UserId))]
-        public ApplicationUser User { get; set; }
-        
+        public ApplicationUser? User { get; set; }
+
         [NotMapped]
-        public string AreaWKT { get; set; }
+        public string AreaWKT { get; set; } = string.Empty;
     }
 }
