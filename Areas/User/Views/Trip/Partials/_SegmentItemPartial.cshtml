@@ -111,7 +111,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="segmentNotesLabel-@segmentId">
-                        Notes for <span class="fw-semibold">@Model.Mode from @fromName to @toName</span>
+                        Notes for <span class="fw-semibold">@(Model.Mode ?? "Segment") from @fromName to @toName</span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"
                             aria-label="Close"></button>

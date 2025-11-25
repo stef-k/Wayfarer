@@ -48,8 +48,8 @@ namespace Wayfarer.Parsers
             countCmd.Parameters.Add(new NpgsqlParameter("maxLat", maxLatitude));
             countCmd.Parameters.Add(new NpgsqlParameter("userId", userId));
 
-            if (countCmd.Connection.State != System.Data.ConnectionState.Open)
-                await countCmd.Connection.OpenAsync(cancellationToken);
+            if (countCmd.Connection?.State != System.Data.ConnectionState.Open)
+                await countCmd.Connection!.OpenAsync(cancellationToken);
 
             int totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync(cancellationToken));
 

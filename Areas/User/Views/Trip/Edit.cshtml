@@ -67,7 +67,7 @@
             <input type="hidden" asp-for="CenterLat" data-default="@Model.CenterLat?.ToString("F6")"/>
             <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")"/>
             <input type="hidden" asp-for="Zoom" data-default="@Model.Zoom"/>
-            <input type="hidden" id="shadow-region-id" value="@shadowRegion.Id" />
+            <input type="hidden" id="shadow-region-id" value="@(shadowRegion?.Id)" />
             
             <div class="col-md-12">
               <label asp-for="Name" class="form-label"></label>

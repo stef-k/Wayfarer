@@ -258,7 +258,7 @@
                     @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", unassignedRegion)
                 }
             }
-            @foreach (var r in Model.Regions.Where(r => r.Name != "Unassigned Places").OrderBy(r => r.DisplayOrder))
+            @foreach (var r in (Model.Regions ?? Enumerable.Empty<Region>()).Where(r => r.Name != "Unassigned Places").OrderBy(r => r.DisplayOrder))
             {
                 @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r)
             }

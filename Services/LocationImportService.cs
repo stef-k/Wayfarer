@@ -74,9 +74,9 @@ namespace Wayfarer.Parsers
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Refresh status in case user clicked “stop”
+                    // Refresh status in case user clicked "stop"
                     locationImport = await _context.LocationImports.FindAsync(importId);
-                    if (locationImport.Status == ImportStatus.Stopping)
+                    if (locationImport?.Status == ImportStatus.Stopping)
                     {
                         locationImport.Status = ImportStatus.Stopped;
                         await _context.SaveChangesAsync(cancellationToken);
@@ -119,7 +119,7 @@ namespace Wayfarer.Parsers
                                     .GetReverseGeocodingDataAsync(
                                         loc.Coordinates.Y,
                                         loc.Coordinates.X,
-                                        apiToken);
+                                        apiToken!);
 
                                 loc.FullAddress   = rev.FullAddress;
                                 loc.Place         = rev.Place;
@@ -160,7 +160,7 @@ namespace Wayfarer.Parsers
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
                         JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath),
+                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,
                             LastProcessedIndex   = locationImport.LastProcessedIndex,
                             TotalRecords     = locationImport.TotalRecords,
@@ -201,7 +201,7 @@ namespace Wayfarer.Parsers
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
                         JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath),
+                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,
                             LastProcessedIndex   = locationImport.LastProcessedIndex,
                             TotalRecords     = locationImport.TotalRecords,
@@ -225,7 +225,7 @@ namespace Wayfarer.Parsers
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
                         JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath),
+                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,
                             LastProcessedIndex   = locationImport.LastProcessedIndex,
                             TotalRecords     = locationImport.TotalRecords,
