@@ -201,7 +201,7 @@ namespace Wayfarer.Parsers
             }
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
-            ReverseLocationResponse reverseData = JsonSerializer.Deserialize<ReverseLocationResponse>(jsonResponse);
+            ReverseLocationResponse? reverseData = JsonSerializer.Deserialize<ReverseLocationResponse>(jsonResponse);
 
             if (reverseData?.Features != null && reverseData.Features.Any())
             {
@@ -237,16 +237,16 @@ namespace Wayfarer.Parsers
                 // Map the data into your custom results object.
                 // Note: Some fields (like AddressNumber) are not available in this response.
 
-                results.Address = feature.Properties.Context?.Street?.Name;
-                results.FullAddress = feature.Properties.FullAddress;
+                results.Address = feature.Properties.Context?.Street?.Name ?? string.Empty;
+                results.FullAddress = feature.Properties.FullAddress ?? string.Empty;
                 string? placeName = feature.Properties.Context?.Place?.Name;
-                results.Place = string.IsNullOrWhiteSpace(placeName) ? null : placeName;
-                results.AddressNumber = feature.Properties.Context?.Address?.AddressNumber;
-                results.StreetName = feature.Properties.Context?.Address?.StreetName;
-                results.PostCode = feature.Properties.Context?.Postcode?.Name;
+                results.Place = string.IsNullOrWhiteSpace(placeName) ? string.Empty : placeName;
+                results.AddressNumber = feature.Properties.Context?.Address?.AddressNumber ?? string.Empty;
+                results.StreetName = feature.Properties.Context?.Address?.StreetName ?? string.Empty;
+                results.PostCode = feature.Properties.Context?.Postcode?.Name ?? string.Empty;
                 string? regionName = feature.Properties.Context?.Region?.Name;
-                results.Region = string.IsNullOrWhiteSpace(regionName) ? null : regionName;
-                results.Country = feature.Properties.Context?.Country?.Name;
+                results.Region = string.IsNullOrWhiteSpace(regionName) ? string.Empty : regionName;
+                results.Country = feature.Properties.Context?.Country?.Name ?? string.Empty;
             }
 
             return results;

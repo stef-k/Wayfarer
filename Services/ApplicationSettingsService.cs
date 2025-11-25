@@ -25,7 +25,7 @@ namespace Wayfarer.Parsers
         public ApplicationSettings GetSettings()
         {
             // Attempt to get the settings from the memory cache
-            if (!_cache.TryGetValue(SettingsCacheKey, out ApplicationSettings settings))
+            if (!_cache.TryGetValue(SettingsCacheKey, out ApplicationSettings? settings) || settings == null)
             {
                 // If not in cache, load from the database and cache it
                 settings = LoadSettingsFromDb();

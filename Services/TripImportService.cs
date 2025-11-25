@@ -126,6 +126,7 @@ public class TripImportService : ITripImportService
                 CoverImageUrl= null,
                 Places       = new List<Place>()
             };
+            target.Regions ??= new List<Region>();
             target.Regions.Add(shadow);
         }
 

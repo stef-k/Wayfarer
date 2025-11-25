@@ -84,7 +84,7 @@ namespace Wayfarer.Parsers
                         await _sse.BroadcastAsync(
                             $"import-{locationImport?.UserId}",
                             JsonSerializer.Serialize(new {
-                                FilePath           = Path.GetFileName(locationImport.FilePath),
+                                FilePath           = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
                                 LastImportedRecord = locationImport.LastImportedRecord,
                                 LastProcessedIndex = locationImport.LastProcessedIndex,
                                 TotalRecords     = locationImport.TotalRecords,
@@ -179,7 +179,7 @@ namespace Wayfarer.Parsers
                 await _sse.BroadcastAsync(
                     $"import-{locationImport.UserId}",
                     JsonSerializer.Serialize(new {
-                        FilePath             = Path.GetFileName(locationImport.FilePath),
+                        FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                         LastImportedRecord   = locationImport.LastImportedRecord,
                         LastProcessedIndex   = locationImport.LastProcessedIndex,
                         Status = ImportStatus.Completed,

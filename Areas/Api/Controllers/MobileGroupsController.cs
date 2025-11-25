@@ -178,7 +178,7 @@ public class MobileGroupsController : MobileApiController
 
                 return new GroupMemberDto
                 {
-                    UserId = x.User.Id,
+                    UserId = x.User?.Id ?? string.Empty,
                     UserName = username,
                     DisplayName = x.User.DisplayName,
                     GroupRole = x.Member.Role,
@@ -269,7 +269,7 @@ public class MobileGroupsController : MobileApiController
             JsonSerializer.Serialize(new
             {
                 action = "peer-visibility-changed",
-                userId = user.Id,
+                userId = user?.Id,
                 disabled = member.OrgPeerVisibilityAccessDisabled
             }));
 
