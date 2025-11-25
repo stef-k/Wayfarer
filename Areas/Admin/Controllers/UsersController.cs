@@ -488,7 +488,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 usersQuery = usersQuery.Where(u =>
                     EF.Functions.ILike(u.UserName ?? string.Empty, $"%{search}%") ||
-                    EF.Functions.ILike(u.DisplayName, $"%{search}%"));
+                    EF.Functions.ILike(u.DisplayName ?? string.Empty, $"%{search}%"));
             }
 
             int totalUsers = await usersQuery.CountAsync();

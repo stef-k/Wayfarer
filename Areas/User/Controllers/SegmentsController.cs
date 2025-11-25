@@ -259,7 +259,7 @@ public class SegmentsController : BaseController
             Mode = s.Mode,
             EstimatedDistanceKm = s.EstimatedDistanceKm,
             EstimatedDuration = s.EstimatedDuration,
-            Notes = s.Notes,
+            Notes = s.Notes ?? string.Empty,
             RouteJson = s.RouteGeometry != null
                 ? JsonSerializer.Serialize(
                     s.RouteGeometry.Coordinates.Select(c => new[] { c.Y, c.X })
@@ -268,14 +268,14 @@ public class SegmentsController : BaseController
             FromPlace = s.FromPlace != null ? new PlaceDto
             {
                 Id = s.FromPlace.Id,
-                Name = s.FromPlace.Name,
-                Location = s.FromPlace.Location
+                Name = s.FromPlace.Name ?? string.Empty,
+                Location = s.FromPlace.Location!
             } : null,
             ToPlace = s.ToPlace != null ? new PlaceDto
             {
                 Id = s.ToPlace.Id,
-                Name = s.ToPlace.Name,
-                Location = s.ToPlace.Location
+                Name = s.ToPlace.Name ?? string.Empty,
+                Location = s.ToPlace.Location!
             } : null
         }).ToList();
 

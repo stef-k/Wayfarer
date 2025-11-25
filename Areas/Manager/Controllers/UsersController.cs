@@ -45,8 +45,8 @@ namespace Wayfarer.Areas.Manager.Controllers
             if (!string.IsNullOrEmpty(search))
             {
                 usersQuery = usersQuery.Where(u =>
-                    EF.Functions.ILike(u.UserName, $"%{search}%") ||
-                    EF.Functions.ILike(u.DisplayName, $"%{search}%"));
+                    EF.Functions.ILike(u.UserName ?? string.Empty, $"%{search}%") ||
+                    EF.Functions.ILike(u.DisplayName ?? string.Empty, $"%{search}%"));
             }
 
             int totalUsers = usersQuery.Count();
@@ -56,12 +56,12 @@ namespace Wayfarer.Areas.Manager.Controllers
                 .Select(u => new UserViewModel
                 {
                     Id = u.Id,
-                    Username = u.UserName,
+                    Username = u.UserName ?? string.Empty,
                     DisplayName = u.DisplayName,
                     Role = string.Join(", ", _userManager.GetRolesAsync(u).Result),
                     IsActive = u.IsActive,
                     IsProtected = u.IsProtected, // Example condition
-                    IsCurrentUser = User.Identity.Name == u.UserName // Example condition
+                    IsCurrentUser = User.Identity?.Name == u.UserName // Example condition
                 }).ToList();
 
             ViewBag.TotalPages = (int)Math.Ceiling(totalUsers / (double)PageSize);
@@ -199,7 +199,7 @@ namespace Wayfarer.Areas.Manager.Controllers
             DeleteUserViewModel model = new DeleteUserViewModel
             {
                 Id = user.Id,
-                Username = user.UserName,
+                Username = user.UserName ?? string.Empty,
                 DisplayName = user.DisplayName,
             };
 
@@ -285,12 +285,12 @@ namespace Wayfarer.Areas.Manager.Controllers
             EditUserViewModel model = new EditUserViewModel
             {
                 Id = user.Id,
-                UserName = user.UserName,
+                UserName = user.UserName ?? string.Empty,
                 DisplayName = user.DisplayName,
                 IsProtected = user.IsProtected,
                 IsActive = user.IsActive,
-                Role = userRole, // Assign the role to the model
-                IsCurrentUser = user.UserName == currentUser.UserName
+                Role = userRole ?? string.Empty, // Assign the role to the model
+                IsCurrentUser = user.UserName == currentUser?.UserName
             };
             LogAudit("Manager User Edit", "User Edit GET", $"Manager is editing user {user.UserName}");
             LogAction("Manager-User Edit GET", $"Manager is editing user {user.UserName}");

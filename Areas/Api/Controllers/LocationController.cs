@@ -149,7 +149,7 @@ public class LocationController : BaseApiController
             try
             {
                 // Reverse geocoding (exactly like log-location)
-                var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                var apiToken = user.ApiTokens?.FirstOrDefault(t => t.Name == "Mapbox");
                 if (apiToken != null)
                 {
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(

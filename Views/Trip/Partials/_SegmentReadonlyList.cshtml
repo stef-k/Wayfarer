@@ -43,7 +43,7 @@
                 <text>
                     <li class="list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2 segment-list-item-view"
                         title="Click to view the route"
-                        data-segment-id="@seg.Id"
+                        data-segment-id="@(seg?.Id)"
                         data-from-place-name="@seg?.FromPlace?.Name"
                         data-from-placeregion-name="@seg?.FromPlace?.Region?.Name"
                         data-to-place-name="@seg?.ToPlace?.Name"
