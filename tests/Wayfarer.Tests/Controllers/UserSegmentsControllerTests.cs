@@ -42,14 +42,13 @@ public class UserSegmentsControllerTests : TestBase
         httpContext.Features.Set<IFormFeature>(new FormFeature(new FormCollection(new Dictionary<string, StringValues>())));
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
-        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        var result = await controller.CreateOrUpdate(new Segment
         {
-            await controller.CreateOrUpdate(new Segment
-            {
-                Mode = "walk",
-                UserId = null
-            });
+            Mode = "walk",
+            UserId = null
         });
+
+        Assert.IsType<UnauthorizedResult>(result);
     }
 
     [Fact]
