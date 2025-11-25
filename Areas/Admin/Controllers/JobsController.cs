@@ -113,7 +113,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                                             .Build();
 
                 // Trigger the existing job
-                await _scheduler.TriggerJob(jobKey, null); // Trigger the job without creating a new instance
+                await _scheduler.TriggerJob(jobKey, default(JobDataMap)); // Trigger the job without creating a new instance
             }
 
             TempData["Message"] = "Job started.";

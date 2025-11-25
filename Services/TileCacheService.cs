@@ -308,7 +308,7 @@ public class TileCacheService
     /// if the file is missing but metadata exists, it attempts to re-fetch the tile.
     /// </summary>
     public async Task<byte[]> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
-        string tileUrl = null)
+        string? tileUrl = null)
     {
         try
         {

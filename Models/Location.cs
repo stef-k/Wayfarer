@@ -30,7 +30,7 @@ namespace Wayfarer.Models
         public int? ActivityTypeId { get; set; }
 
         // Navigation property to ActivityType
-        public ActivityType ActivityType { get; set; }
+        public ActivityType? ActivityType { get; set; }
 
         // Reverse Geocoding information
         public string? Address { get; set; }

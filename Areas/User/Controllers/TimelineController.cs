@@ -74,7 +74,7 @@ namespace Wayfarer.Controllers
         {
             if (model.PublicTimelineTimeThreshold != "custom")
             {
-                model.CustomThreshold = null;  // Optionally clear the value
+                model.CustomThreshold = string.Empty;  // Optionally clear the value
                 ModelState.Remove("CustomThreshold");  // Skip validation for CustomThreshold
             }
 
