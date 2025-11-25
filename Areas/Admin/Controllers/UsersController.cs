@@ -145,9 +145,10 @@ namespace Wayfarer.Areas.Admin.Controllers
                 ApplicationRoles.Manager,
                 ApplicationRoles.User
             };
-            List<string?> roles = _roleManager.Roles
+            List<string> roles = _roleManager.Roles
                 .Select(r => r.Name)
                 .Where(name => name != null && allowedRoles.Contains(name))
+                .Select(name => name!)
                 .ToList();
 
             // Create the view model and pass the list of roles
@@ -175,9 +176,10 @@ namespace Wayfarer.Areas.Admin.Controllers
                 ApplicationRoles.Manager,
                 ApplicationRoles.User
             };
-            List<string?> roles = _roleManager.Roles
+            List<string> roles = _roleManager.Roles
                 .Select(r => r.Name)
                 .Where(name => name != null && allowedRoles.Contains(name))
+                .Select(name => name!)
                 .ToList();
             model.Roles = new SelectList(roles, model.Role);  // Re-populate roles dropdown with the selected role
 
@@ -488,9 +490,10 @@ namespace Wayfarer.Areas.Admin.Controllers
 
             if (!string.IsNullOrEmpty(search))
             {
+                string searchPattern = $"%{search}%";
                 usersQuery = usersQuery.Where(u =>
-                    EF.Functions.ILike(u.UserName ?? string.Empty, $"%{search}%") ||
-                    EF.Functions.ILike(u.DisplayName ?? string.Empty, $"%{search}%"));
+                    EF.Functions.ILike(u.UserName != null ? u.UserName : string.Empty, searchPattern) ||
+                    EF.Functions.ILike(u.DisplayName != null ? u.DisplayName : string.Empty, searchPattern));
             }
 
             int totalUsers = await usersQuery.CountAsync();

@@ -1,14 +1,13 @@
+using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
-using Wayfarer.Services;
 using Wayfarer.Parsers;
-using NetTopologySuite.Geometries;
+using Wayfarer.Services;
 using Wayfarer.Util;
-using Microsoft.Extensions.DependencyInjection;
 using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -22,11 +21,12 @@ public class GroupsController : ControllerBase
     private readonly ApplicationDbContext _db;
     private readonly IGroupService _groups;
     private readonly LocationService _locationService;
-    private readonly SseService _sse;
     private readonly ILogger<GroupsController> _logger;
+    private readonly SseService _sse;
 
     [ActivatorUtilitiesConstructor]
-    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService, SseService sse)
+    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger,
+        LocationService locationService, SseService sse)
     {
         _db = db;
         _groups = groups;
@@ -36,9 +36,11 @@ public class GroupsController : ControllerBase
     }
 
     // Backward-compatible ctor for tests
-    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger, LocationService locationService)
+    public GroupsController(ApplicationDbContext db, IGroupService groups, ILogger<GroupsController> logger,
+        LocationService locationService)
         : this(db, groups, logger, locationService, new SseService())
-    {}
+    {
+    }
 
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -51,7 +53,8 @@ public class GroupsController : ControllerBase
         try
         {
             var group = await _groups.CreateGroupAsync(CurrentUserId, request.Name.Trim(), request.Description, ct);
-            return CreatedAtAction(nameof(Get), new { id = group.Id }, new { id = group.Id, name = group.Name, description = group.Description });
+            return CreatedAtAction(nameof(Get), new { id = group.Id },
+                new { id = group.Id, name = group.Name, description = group.Description });
         }
         catch (InvalidOperationException ex)
         {
@@ -68,17 +71,19 @@ public class GroupsController : ControllerBase
 
         // must be a member to view list
         var isMember = await _db.GroupMembers
-            .AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+            .AnyAsync(
+                m => m.GroupId == groupId && m.UserId == CurrentUserId &&
+                     m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (!isMember) return StatusCode(403);
 
         var roster = await (from m in _db.GroupMembers
-                            where m.GroupId == groupId
-                            join u in _db.Users on m.UserId equals u.Id
-                            select new { m, u })
+                where m.GroupId == groupId
+                join u in _db.Users on m.UserId equals u.Id
+                select new { m, u })
             .AsNoTracking()
             .ToListAsync(ct);
 
-        var payload = roster.Select(x => new Wayfarer.Models.Dtos.GroupMemberDto
+        var payload = roster.Select(x => new GroupMemberDto
         {
             UserId = x.u.Id,
             UserName = x.u.UserName ?? string.Empty,
@@ -92,11 +97,14 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{groupId}/locations/latest
     [HttpPost("{groupId}/locations/latest")]
-    public async Task<IActionResult> Latest([FromRoute] Guid groupId, [FromBody] GroupLocationsLatestRequest req, CancellationToken ct)
+    public async Task<IActionResult> Latest([FromRoute] Guid groupId, [FromBody] GroupLocationsLatestRequest req,
+        CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
         // must be active member
-        var isMember = await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        var isMember = await _db.GroupMembers.AnyAsync(
+            m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active,
+            ct);
         if (!isMember) return StatusCode(403);
 
         var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
@@ -108,17 +116,28 @@ public class GroupsController : ControllerBase
             .Select(m => new { m.UserId, m.OrgPeerVisibilityAccessDisabled })
             .ToListAsync(ct);
         var activeMemberIds = activeMembers.Select(x => x.UserId).ToList();
-        var requested = (req?.IncludeUserIds != null && req.IncludeUserIds.Count > 0)
+        var requested = req?.IncludeUserIds != null && req.IncludeUserIds.Count > 0
             ? req.IncludeUserIds.Distinct().ToList()
             : activeMemberIds;
         // enforce visibility for Friends: others only if not disabled; always include self
         var allowed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var m in activeMembers)
         {
-            if (m.UserId == CurrentUserId) { allowed.Add(m.UserId); continue; }
-            if (!isFriends) { allowed.Add(m.UserId); continue; }
+            if (m.UserId == CurrentUserId)
+            {
+                allowed.Add(m.UserId);
+                continue;
+            }
+
+            if (!isFriends)
+            {
+                allowed.Add(m.UserId);
+                continue;
+            }
+
             if (!m.OrgPeerVisibilityAccessDisabled) allowed.Add(m.UserId);
         }
+
         var userIds = requested.Intersect(activeMemberIds).Where(uid => allowed.Contains(uid)).ToList();
 
         // query latest per user in the same order as userIds for stable client mapping
@@ -137,14 +156,15 @@ public class GroupsController : ControllerBase
 
         // settings for threshold
         var settings = await _db.ApplicationSettings.FirstOrDefaultAsync(ct);
-        int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
+        var locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
 
         var result = latestPerUser.Select(t => new PublicLocationDto
         {
             Id = t.Loc.Id,
             UserId = t.UserId,
             Timestamp = t.Loc.Timestamp,
-            LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(t.Loc.Coordinates.Y, t.Loc.Coordinates.X, DateTime.SpecifyKind(t.Loc.LocalTimestamp, DateTimeKind.Utc)),
+            LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(t.Loc.Coordinates.Y, t.Loc.Coordinates.X,
+                DateTime.SpecifyKind(t.Loc.LocalTimestamp, DateTimeKind.Utc)),
             Coordinates = t.Loc.Coordinates,
             Timezone = t.Loc.TimeZoneId,
             Accuracy = t.Loc.Accuracy,
@@ -169,10 +189,13 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{groupId}/locations/query
     [HttpPost("{groupId}/locations/query")]
-    public async Task<IActionResult> Query([FromRoute] Guid groupId, [FromBody] GroupLocationsQueryRequest req, CancellationToken ct)
+    public async Task<IActionResult> Query([FromRoute] Guid groupId, [FromBody] GroupLocationsQueryRequest req,
+        CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
-        var isMember = await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        var isMember = await _db.GroupMembers.AnyAsync(
+            m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active,
+            ct);
         if (!isMember) return StatusCode(403);
 
         var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
@@ -182,34 +205,47 @@ public class GroupsController : ControllerBase
             .Select(m => new { m.UserId, m.OrgPeerVisibilityAccessDisabled })
             .ToListAsync(ct);
         var activeMemberIds = activeMembers.Select(x => x.UserId).ToList();
-        var requested = (req?.UserIds != null && req.UserIds.Count > 0)
+        var requested = req?.UserIds != null && req.UserIds.Count > 0
             ? req.UserIds.Distinct().ToList()
             : activeMemberIds;
         var allowed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var m in activeMembers)
         {
-            if (m.UserId == CurrentUserId) { allowed.Add(m.UserId); continue; }
-            if (!isFriends) { allowed.Add(m.UserId); continue; }
+            if (m.UserId == CurrentUserId)
+            {
+                allowed.Add(m.UserId);
+                continue;
+            }
+
+            if (!isFriends)
+            {
+                allowed.Add(m.UserId);
+                continue;
+            }
+
             if (!m.OrgPeerVisibilityAccessDisabled) allowed.Add(m.UserId);
         }
+
         var userIds = requested.Intersect(activeMemberIds).Where(uid => allowed.Contains(uid)).ToList();
 
         // Performance guard: if multiple users are requested, enforce day-only queries
         // This limits the result size and keeps UI responsive even for large datasets.
         if (userIds.Count > 1)
-        {
-            req.DateType = "day";
-            // If specific day not provided, default to today's UTC date
-            if (!req.Year.HasValue || !req.Month.HasValue || !req.Day.HasValue)
+            if (req != null)
             {
-                var today = DateTime.UtcNow;
-                req.Year ??= today.Year;
-                req.Month ??= today.Month;
-                req.Day ??= today.Day;
+                req.DateType = "day";
+                // If specific day not provided, default to today's UTC date
+                if (!req.Year.HasValue || !req.Month.HasValue || !req.Day.HasValue)
+                {
+                    var today = DateTime.UtcNow;
+                    req.Year ??= today.Year;
+                    req.Month ??= today.Month;
+                    req.Day ??= today.Day;
+                }
             }
-        }
+
         // Fallback: if client sent no DateType at all, default to today's day view to avoid huge history loads
-        if (string.IsNullOrWhiteSpace(req.DateType))
+        if (req != null && string.IsNullOrWhiteSpace(req.DateType))
         {
             var today = DateTime.UtcNow;
             req.DateType = "day";
@@ -219,9 +255,8 @@ public class GroupsController : ControllerBase
         }
 
         var combined = new List<PublicLocationDto>();
-        int total = 0;
+        var total = 0;
         foreach (var uid in userIds)
-        {
             if (!string.IsNullOrWhiteSpace(req.DateType) && req.Year.HasValue)
             {
                 var (locs, userTotal) = await _locationService.GetLocationsByDateAsync(
@@ -242,7 +277,6 @@ public class GroupsController : ControllerBase
                 combined.AddRange(locations);
                 total += userTotal;
             }
-        }
 
         return Ok(new { totalItems = total, results = combined });
     }
@@ -250,7 +284,8 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{id}/settings/org-peer-visibility
     [HttpPost("{id}/settings/org-peer-visibility")]
-    public async Task<IActionResult> ToggleOrgPeerVisibility([FromRoute] Guid id, [FromBody] OrgPeerVisibilityToggleRequest req, CancellationToken ct)
+    public async Task<IActionResult> ToggleOrgPeerVisibility([FromRoute] Guid id,
+        [FromBody] OrgPeerVisibilityToggleRequest req, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
         var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
@@ -258,20 +293,25 @@ public class GroupsController : ControllerBase
         if (!string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Not an Organisation group" });
 
-        var membership = await _db.GroupMembers.AsNoTracking().FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
-        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
+        var membership = await _db.GroupMembers.AsNoTracking().FirstOrDefaultAsync(
+            m => m.GroupId == id && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        var isOwnerOrManager = membership != null &&
+                               (membership.Role == GroupMember.Roles.Owner ||
+                                membership.Role == GroupMember.Roles.Manager);
         if (!isOwnerOrManager) return StatusCode(403);
 
         group.OrgPeerVisibilityEnabled = req.Enabled;
         group.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
-        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityToggle", $"Group {group.Id} set Enabled={group.OrgPeerVisibilityEnabled}", ct);
+        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityToggle",
+            $"Group {group.Id} set Enabled={group.OrgPeerVisibilityEnabled}", ct);
         return Ok(new { enabled = group.OrgPeerVisibilityEnabled });
     }
 
     // POST /api/groups/{id}/members/{userId}/org-peer-visibility-access
     [HttpPost("{id}/members/{userId}/org-peer-visibility-access")]
-    public async Task<IActionResult> SetMemberOrgPeerVisibilityAccess([FromRoute] Guid id, [FromRoute] string userId, [FromBody] OrgPeerVisibilityAccessRequest req, CancellationToken ct)
+    public async Task<IActionResult> SetMemberOrgPeerVisibilityAccess([FromRoute] Guid id, [FromRoute] string userId,
+        [FromBody] OrgPeerVisibilityAccessRequest req, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
         if (!string.Equals(CurrentUserId, userId, StringComparison.Ordinal)) return StatusCode(403);
@@ -281,15 +321,19 @@ public class GroupsController : ControllerBase
         // Allow per-user peer visibility control; currently applied by Friends logic,
         // but stored for all groups for consistency (tests depend on this).
 
-        var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        var member = await _db.GroupMembers.FirstOrDefaultAsync(
+            m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (member == null) return StatusCode(403);
 
         member.OrgPeerVisibilityAccessDisabled = req.Disabled;
         await _db.SaveChangesAsync(ct);
-        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityAccessSet", $"Group {group.Id}, User {userId}, Disabled={member.OrgPeerVisibilityAccessDisabled}", ct);
+        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityAccessSet",
+            $"Group {group.Id}, User {userId}, Disabled={member.OrgPeerVisibilityAccessDisabled}", ct);
 
         // Broadcast visibility change to all group members via SSE
-        await _sse.BroadcastAsync($"group-membership-update-{id}", System.Text.Json.JsonSerializer.Serialize(new { action = "peer-visibility-changed", userId, disabled = member.OrgPeerVisibilityAccessDisabled }));
+        await _sse.BroadcastAsync($"group-membership-update-{id}",
+            JsonSerializer.Serialize(new
+                { action = "peer-visibility-changed", userId, disabled = member.OrgPeerVisibilityAccessDisabled }));
 
         return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
     }
@@ -305,10 +349,10 @@ public class GroupsController : ControllerBase
         if (scope == "managed")
         {
             var managed = await (from m in _db.GroupMembers
-                                 where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active &&
-                                       (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
-                                 join g in _db.Groups on m.GroupId equals g.Id
-                                 select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
+                where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active &&
+                      (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
+                join g in _db.Groups on m.GroupId equals g.Id
+                select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
             // also include groups the user owns explicitly
             var owned = await _db.Groups.Where(g => g.OwnerUserId == CurrentUserId)
                 .Select(g => new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
@@ -319,9 +363,10 @@ public class GroupsController : ControllerBase
         if (scope == "joined")
         {
             var joined = await (from m in _db.GroupMembers
-                                where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active && m.Role == GroupMember.Roles.Member
-                                join g in _db.Groups on m.GroupId equals g.Id
-                                select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
+                where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active &&
+                      m.Role == GroupMember.Roles.Member
+                join g in _db.Groups on m.GroupId equals g.Id
+                select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
             return Ok(joined);
         }
 
@@ -332,8 +377,8 @@ public class GroupsController : ControllerBase
     }
 
     /// <summary>
-    /// Returns recent activity for groups the current user manages (owner/manager roles).
-    /// Used for offline notification badge for managers.
+    ///     Returns recent activity for groups the current user manages (owner/manager roles).
+    ///     Used for offline notification badge for managers.
     /// </summary>
     [HttpGet("managed/activity")]
     [Authorize(Roles = "Manager")]
@@ -343,10 +388,10 @@ public class GroupsController : ControllerBase
         if (sinceHours <= 0 || sinceHours > 168) sinceHours = 24; // clamp to [1..168]
 
         var managedGroupIds = await (from m in _db.GroupMembers
-                                     where m.UserId == CurrentUserId
-                                           && m.Status == GroupMember.MembershipStatuses.Active
-                                           && (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
-                                     select m.GroupId)
+                where m.UserId == CurrentUserId
+                      && m.Status == GroupMember.MembershipStatuses.Active
+                      && (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
+                select m.GroupId)
             .Distinct()
             .ToListAsync(ct);
 
@@ -372,12 +417,12 @@ public class GroupsController : ControllerBase
         {
             Guid? gid = null;
             foreach (var mgid in managedGroupIds)
-            {
                 if (log.Details?.Contains(mgid.ToString(), StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    gid = mgid; break;
+                    gid = mgid;
+                    break;
                 }
-            }
+
             if (gid.HasValue)
             {
                 var gname = nameMap.ContainsKey(gid.Value) ? nameMap[gid.Value] : null;
@@ -396,10 +441,12 @@ public class GroupsController : ControllerBase
         try
         {
             await _groups.LeaveGroupAsync(groupId, CurrentUserId, ct);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-left", userId = CurrentUserId }));
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}",
+                JsonSerializer.Serialize(new { action = "member-left", userId = CurrentUserId }));
             var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
             var gname = group?.Name;
-            await _sse.BroadcastAsync($"membership-update-{CurrentUserId}", System.Text.Json.JsonSerializer.Serialize(new { action = "left", groupId, groupName = gname }));
+            await _sse.BroadcastAsync($"membership-update-{CurrentUserId}",
+                JsonSerializer.Serialize(new { action = "left", groupId, groupName = gname }));
             return Ok(new { message = "Left group" });
         }
         catch (KeyNotFoundException)
@@ -414,16 +461,19 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{groupId}/members/{userId}/remove
     [HttpPost("{groupId}/members/{userId}/remove")]
-    public async Task<IActionResult> RemoveMember([FromRoute] Guid groupId, [FromRoute] string userId, CancellationToken ct)
+    public async Task<IActionResult> RemoveMember([FromRoute] Guid groupId, [FromRoute] string userId,
+        CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
         try
         {
             await _groups.RemoveMemberAsync(groupId, CurrentUserId, userId, ct);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId }));
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}",
+                JsonSerializer.Serialize(new { action = "member-removed", userId }));
             var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
             var gname = group?.Name;
-            await _sse.BroadcastAsync($"membership-update-{userId}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
+            await _sse.BroadcastAsync($"membership-update-{userId}",
+                JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
             return Ok(new { message = "Member removed" });
         }
         catch (KeyNotFoundException)
@@ -435,6 +485,7 @@ public class GroupsController : ControllerBase
             return StatusCode(403);
         }
     }
+
     private async Task AddAuditAsync(string userId, string action, string details, CancellationToken ct)
     {
         var audit = new AuditLog

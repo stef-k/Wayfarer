@@ -1,7 +1,5 @@
-using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -198,7 +196,7 @@ public class LocationController : BaseApiController
                 user,
                 location,
                 locationTimeThreshold,
-                isCheckIn: true,
+                true,
                 cancellationToken);
 
             // Note: Statistics are computed on-demand via GetStatsForUserAsync when needed
@@ -277,7 +275,8 @@ public class LocationController : BaseApiController
     }
 
     /// <summary>
-    /// Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group channels.
+    ///     Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group
+    ///     channels.
     /// </summary>
     /// <param name="user">The user whose location has been updated.</param>
     /// <param name="location">The persisted location entity.</param>
@@ -326,9 +325,7 @@ public class LocationController : BaseApiController
             .ToListAsync(cancellationToken);
 
         foreach (var groupId in groupIds)
-        {
             await _sse.BroadcastAsync($"group-location-update-{groupId}", serializedPayload);
-        }
     }
 
     [HttpPost]
@@ -490,7 +487,7 @@ public class LocationController : BaseApiController
                 user,
                 location,
                 locationTimeThreshold,
-                isCheckIn: false,
+                false,
                 cancellationToken);
 
             return Ok(new { Message = "Location logged successfully", Location = location });
@@ -515,7 +512,7 @@ public class LocationController : BaseApiController
         if (request == null) return BadRequest(new { Success = false, Message = "Invalid request payload." });
 
         // Check if the user is authenticated
-        if (!User.Identity.IsAuthenticated)
+        if (User.Identity != null && !User.Identity.IsAuthenticated)
             return Unauthorized(new { Success = false, Message = "User is not authenticated." });
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -967,9 +964,11 @@ public class LocationController : BaseApiController
                             Longitude = l.Coordinates?.X,
                             Latitude = l.Coordinates?.Y
                         },
-                        LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(
+                        LocalTimestamp = l.Coordinates != null
+                            ? CoordinateTimeZoneConverter.ConvertUtcToLocal(
                                 l.Coordinates.Y, l.Coordinates.X,
-                                DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
+                                DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc))
+                            : l.LocalTimestamp,
                         l.TimeZoneId,
                         Activity = l.ActivityType?.Name,
                         l.Address,
@@ -1268,5 +1267,3 @@ public class CheckInRateLimitResult
     /// </summary>
     public string? Reason { get; set; }
 }
-
-

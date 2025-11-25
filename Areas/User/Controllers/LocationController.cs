@@ -135,10 +135,12 @@ namespace Wayfarer.Areas.User.Controllers
 
                 // Associate the location with the current user
                 model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (model.UserId == null) return Unauthorized();
+
                 ApplicationUser? user = await _dbContext.ApplicationUsers
                     .Include(u => u.ApiTokens)
                     .FirstOrDefaultAsync(u => u.Id == model.UserId);
-                ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
+                ApiToken? apiToken = user?.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
                 DateTime Timestamp = DateTime.UtcNow;
                 // Map the ViewModel to the Location entity
                 var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude,
@@ -185,8 +187,8 @@ namespace Wayfarer.Areas.User.Controllers
 
                 LogAction("CreateLocation", $"Location added for user {model.UserId}");
                 SetAlert("The location has been successfully created.", "success");
-                
-                await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(new
+
+                await _sse.BroadcastAsync($"location-update-{user?.UserName ?? model.UserId}", JsonSerializer.Serialize(new
                 {
                     LocationId = location.Id,
                     TimeStamp = location.Timestamp,
@@ -211,7 +213,9 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(int id, string? returnUrl = null)
         {
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
+
             _logger.LogInformation("Edit[GET] start for LocationId={Id}, UserId={User}", id, userId);
 
             try
@@ -334,7 +338,7 @@ namespace Wayfarer.Areas.User.Controllers
             ApplicationUser? user = await _dbContext.ApplicationUsers
                 .Include(u => u.ApiTokens)
                 .FirstOrDefaultAsync(u => u.Id == model.UserId);
-            ApiToken? apiToken = user.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
+            ApiToken? apiToken = user?.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
 
             if (apiToken != null)
             {
@@ -378,7 +382,8 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public async Task<IActionResult> BulkEditNotes()
         {
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Unauthorized();
 
             // Pull distinct filter values for this user
             var query = _dbContext.Locations
@@ -419,7 +424,9 @@ namespace Wayfarer.Areas.User.Controllers
             if (!ModelState.IsValid)
             {
                 // Re-populate dropdown lists with selected values and keep dates intact
-                string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (userId == null) return Unauthorized();
+
                 var allLocations = _dbContext.Locations.Where(l => l.UserId == userId);
 
                 // Countries
@@ -464,7 +471,9 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             // Proceed with your existing POST logic here (unchanged)
-            string userId2 = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? userId2 = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId2 == null) return Unauthorized();
+
             var query = _dbContext.Locations
                 .Where(l => l.UserId == userId2);
 
@@ -499,7 +508,7 @@ namespace Wayfarer.Areas.User.Controllers
                 else if (model.Append)
                 {
                     if (!string.IsNullOrWhiteSpace(model.Notes))
-                        loc.Notes = (loc.Notes ?? "") + model.Notes;
+                        loc.Notes = (loc.Notes ?? "") + model.Notes!;
                 }
                 else
                 {
@@ -560,7 +569,9 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public async Task<JsonResult> GetRegions(string country)
         {
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Json(new List<string>());
+
             var regions = await _dbContext.Locations
                 .Where(l => l.UserId == userId && l.Country == country)
                 .Select(l => l.Region!)
@@ -573,7 +584,9 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public async Task<JsonResult> GetPlaces(string country, string region)
         {
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Json(new List<string>());
+
             var places = await _dbContext.Locations
                 .Where(l => l.UserId == userId
                             && l.Country == country
@@ -593,7 +606,8 @@ namespace Wayfarer.Areas.User.Controllers
             string? country, string? region, string? place,
             DateTime? fromDate, DateTime? toDate)
         {
-            string userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Json(new { count = 0 });
 
             if (fromDate.HasValue)
                 fromDate = DateTime.SpecifyKind(fromDate.Value.Date, DateTimeKind.Utc);

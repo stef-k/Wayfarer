@@ -172,7 +172,7 @@ public class GroupsController : BaseController
         {
             // Owner-only for User area
             var isOwner = await _dbContext.GroupMembers.AsNoTracking()
-                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
+                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId! && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
             var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
@@ -193,23 +193,27 @@ public class GroupsController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RemoveMemberAjax(Guid groupId, string userId)
+    public async Task<IActionResult> RemoveMemberAjax(Guid groupId, string? userId)
     {
         var actorId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (actorId == null) return Unauthorized();
         if (userId == null) return BadRequest("User ID is required");
+
+        // After null check, userId is guaranteed non-null
+        string userIdNonNull = userId;
+
         try
         {
             var isOwner = await _dbContext.GroupMembers.AsNoTracking()
-                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
+                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId! && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
-            await _groupService.RemoveMemberAsync(groupId, actorId, userId);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId }));
+            await _groupService.RemoveMemberAsync(groupId, actorId!, userIdNonNull);
+            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId = userIdNonNull }));
             var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
             var gname = group?.Name;
-            await _sse.BroadcastAsync($"membership-update-{userId}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
-            return Ok(new { success = true, userId });
+            await _sse.BroadcastAsync($"membership-update-{userIdNonNull}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
+            return Ok(new { success = true, userId = userIdNonNull });
         }
         catch (Exception ex)
         {
@@ -226,7 +230,7 @@ public class GroupsController : BaseController
         try
         {
             var isOwner = await _dbContext.GroupMembers.AsNoTracking()
-                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
+                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId! && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
             await _invitationService.RevokeAsync(inviteId, actorId);
@@ -253,7 +257,7 @@ public class GroupsController : BaseController
         if (group == null) return NotFound();
 
         var isMember = await _dbContext.GroupMembers.AsNoTracking()
-            .AnyAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
+            .AnyAsync(m => m.GroupId == groupId && m.UserId == userId! && m.Status == GroupMember.MembershipStatuses.Active);
         if (!isMember) return Forbid();
 
         ViewBag.Group = group;

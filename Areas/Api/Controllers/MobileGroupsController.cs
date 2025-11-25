@@ -173,7 +173,7 @@ public class MobileGroupsController : MobileApiController
             .Select(x =>
             {
                 var username = x.User.UserName ?? string.Empty;
-                var isSelf = string.Equals(x.User?.Id, user.Id, StringComparison.Ordinal);
+                var isSelf = string.Equals(x.User?.Id, user!.Id, StringComparison.Ordinal);
                 var color = _colorService.GetColorHex(username);
 
                 return new GroupMemberDto

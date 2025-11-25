@@ -76,15 +76,21 @@ namespace Wayfarer.Parsers
 
                     // Refresh status in case user clicked "stop"
                     locationImport = await _context.LocationImports.FindAsync(importId);
-                    if (locationImport?.Status == ImportStatus.Stopping)
+                    if (locationImport == null)
+                    {
+                        _logger.LogWarning("Import {ImportId} record disappeared during processing.", importId);
+                        return;
+                    }
+
+                    if (locationImport.Status == ImportStatus.Stopping)
                     {
                         locationImport.Status = ImportStatus.Stopped;
                         await _context.SaveChangesAsync(cancellationToken);
-                        
+
                         await _sse.BroadcastAsync(
-                            $"import-{locationImport?.UserId}",
+                            $"import-{locationImport.UserId}",
                             JsonSerializer.Serialize(new {
-                                FilePath           = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
+                                FilePath           = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                                 LastImportedRecord = locationImport.LastImportedRecord,
                                 LastProcessedIndex = locationImport.LastProcessedIndex,
                                 TotalRecords     = locationImport.TotalRecords,
@@ -92,7 +98,7 @@ namespace Wayfarer.Parsers
                                 ErrorMessage = locationImport.ErrorMessage,
                             })
                         );
-                        
+
                         _logger.LogInformation(
                             "Import {ImportId} cancelled by user after {Processed} records.",
                             importId, processed);
@@ -160,12 +166,12 @@ namespace Wayfarer.Parsers
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
                         JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
-                            LastImportedRecord   = locationImport.LastImportedRecord,
-                            LastProcessedIndex   = locationImport.LastProcessedIndex,
-                            TotalRecords     = locationImport.TotalRecords,
+                            FilePath             = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
+                            LastImportedRecord   = locationImport?.LastImportedRecord,
+                            LastProcessedIndex   = locationImport?.LastProcessedIndex,
+                            TotalRecords     = locationImport?.TotalRecords ?? 0,
                             Status = ImportStatus.InProgress,
-                            ErrorMessage = locationImport.ErrorMessage,
+                            ErrorMessage = locationImport?.ErrorMessage,
                         })
                     );
 
@@ -174,21 +180,24 @@ namespace Wayfarer.Parsers
                 }
 
                 // 5) All done
-                locationImport.Status = ImportStatus.Completed;
-                await _context.SaveChangesAsync(cancellationToken);
-                await _sse.BroadcastAsync(
-                    $"import-{locationImport.UserId}",
-                    JsonSerializer.Serialize(new {
-                        FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
-                        LastImportedRecord   = locationImport.LastImportedRecord,
-                        LastProcessedIndex   = locationImport.LastProcessedIndex,
-                        Status = ImportStatus.Completed,
-                        ErrorMessage = locationImport.ErrorMessage,
-                    })
-                );
-                _logger.LogInformation(
-                    "Import {ImportId} completed successfully: {Total} records processed.",
-                    importId, total);
+                if (locationImport != null)
+                {
+                    locationImport.Status = ImportStatus.Completed;
+                    await _context.SaveChangesAsync(cancellationToken);
+                    await _sse.BroadcastAsync(
+                        $"import-{locationImport.UserId}",
+                        JsonSerializer.Serialize(new {
+                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
+                            LastImportedRecord   = locationImport.LastImportedRecord,
+                            LastProcessedIndex   = locationImport.LastProcessedIndex,
+                            Status = ImportStatus.Completed,
+                            ErrorMessage = locationImport.ErrorMessage,
+                        })
+                    );
+                    _logger.LogInformation(
+                        "Import {ImportId} completed successfully: {Total} records processed.",
+                        importId, total);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -201,12 +210,12 @@ namespace Wayfarer.Parsers
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
                         JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
-                            LastImportedRecord   = locationImport.LastImportedRecord,
-                            LastProcessedIndex   = locationImport.LastProcessedIndex,
-                            TotalRecords     = locationImport.TotalRecords,
+                            FilePath             = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
+                            LastImportedRecord   = locationImport?.LastImportedRecord,
+                            LastProcessedIndex   = locationImport?.LastProcessedIndex,
+                            TotalRecords     = locationImport?.TotalRecords ?? 0,
                             Status = ImportStatus.Stopped,
-                            ErrorMessage = locationImport.ErrorMessage,
+                            ErrorMessage = locationImport?.ErrorMessage,
                         })
                     );
                 }
@@ -225,12 +234,12 @@ namespace Wayfarer.Parsers
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
                         JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
-                            LastImportedRecord   = locationImport.LastImportedRecord,
-                            LastProcessedIndex   = locationImport.LastProcessedIndex,
-                            TotalRecords     = locationImport.TotalRecords,
+                            FilePath             = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
+                            LastImportedRecord   = locationImport?.LastImportedRecord,
+                            LastProcessedIndex   = locationImport?.LastProcessedIndex,
+                            TotalRecords     = locationImport?.TotalRecords ?? 0,
                             Status = ImportStatus.Failed,
-                            ErrorMessage = locationImport.ErrorMessage,
+                            ErrorMessage = locationImport?.ErrorMessage,
                         })
                     );
                 }
