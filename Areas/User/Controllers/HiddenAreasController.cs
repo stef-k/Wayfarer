@@ -52,13 +52,20 @@ namespace Wayfarer.Areas.User.Controllers
             try
             {
                 var reader = new WKTReader();
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    SetAlert("User not authenticated.", "danger");
+                    return RedirectToAction("Index", "Home", new { area = "" });
+                }
+
                 var polygon = (Polygon)reader.Read(vm.AreaWKT);
                 var hiddenArea = new HiddenArea
                 {
                     Name = vm.Name,
                     Description = vm.Description,
                     Area = polygon,
-                    UserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    UserId = userId
                 };
 
                 _dbContext.HiddenAreas.Add(hiddenArea);
@@ -79,8 +86,15 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Edit(int id)
         {
             var userId = User.Identity?.Name;
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             var hiddenArea = await _dbContext.HiddenAreas
-                .FirstOrDefaultAsync(h => h.Id == id && h.User.UserName == userId);
+                .Include(h => h.User)
+                .FirstOrDefaultAsync(h => h.Id == id && h.User != null && h.User.UserName == userId);
 
             if (hiddenArea == null)
             {
@@ -91,7 +105,7 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 Id = hiddenArea.Id,
                 Name = hiddenArea.Name,
-                Description = hiddenArea.Description,
+                Description = hiddenArea.Description ?? string.Empty,
                 AreaWKT = hiddenArea.Area?.AsText() ?? ""
             };
 
@@ -109,9 +123,15 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             var userId = User.Identity?.Name;
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             var hiddenArea = await _dbContext.HiddenAreas
                 .Include(h => h.User)
-                .FirstOrDefaultAsync(h => h.Id == vm.Id && h.User.UserName == userId);
+                .FirstOrDefaultAsync(h => h.Id == vm.Id && h.User != null && h.User.UserName == userId);
 
             if (hiddenArea == null)
             {
@@ -126,7 +146,13 @@ namespace Wayfarer.Areas.User.Controllers
                 var geometryServices = NtsGeometryServices.Instance;
                 var factory = geometryServices.CreateGeometryFactory(4326);
                 var reader = new WKTReader(geometryServices);
-                hiddenArea.Area = reader.Read(vm.AreaWKT) as Polygon;
+                var polygon = reader.Read(vm.AreaWKT) as Polygon;
+                if (polygon == null)
+                {
+                    SetAlert("Invalid area geometry.", "error");
+                    return View(vm);
+                }
+                hiddenArea.Area = polygon;
 
                 await _dbContext.SaveChangesAsync();
 
@@ -148,8 +174,16 @@ namespace Wayfarer.Areas.User.Controllers
             if (id == null)
                 return NotFound();
 
+            var userId = User.Identity?.Name;
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             var hiddenArea = await _dbContext.HiddenAreas
-                .FirstOrDefaultAsync(m => m.Id == id && m.User.UserName == User.Identity.Name);
+                .Include(m => m.User)
+                .FirstOrDefaultAsync(m => m.Id == id && m.User != null && m.User.UserName == userId);
 
             if (hiddenArea == null)
                 return NotFound();
@@ -162,8 +196,16 @@ namespace Wayfarer.Areas.User.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
+            var userId = User.Identity?.Name;
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             var hiddenArea = await _dbContext.HiddenAreas
-                .FirstOrDefaultAsync(m => m.Id == id && m.User.UserName == User.Identity.Name);
+                .Include(m => m.User)
+                .FirstOrDefaultAsync(m => m.Id == id && m.User != null && m.User.UserName == userId);
 
             if (hiddenArea != null)
             {

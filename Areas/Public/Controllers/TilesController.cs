@@ -30,9 +30,10 @@ public class TilesController : Controller
     public async Task<IActionResult> GetTile(int z, int x, int y)
     {
         // Validate the referer header to prevent third-party exploitation.
-        if (!Request.Headers.TryGetValue("Referer", out var referer) || string.IsNullOrEmpty(referer) || !IsValidReferer(referer))
+        string? refererValue = Request.Headers["Referer"].ToString();
+        if (string.IsNullOrEmpty(refererValue) || !IsValidReferer(refererValue))
         {
-            _logger.LogWarning("Unauthorized tile request. Referer: {Referer}", referer.ToString());
+            _logger.LogWarning("Unauthorized tile request. Referer: {Referer}", refererValue ?? "null");
             return Unauthorized("Unauthorized request.");
         }
 

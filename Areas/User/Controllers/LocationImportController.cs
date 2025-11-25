@@ -289,6 +289,12 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var randomString = Guid.NewGuid().ToString("N").Substring(0, 6);
             var uniqueFileName = $"{model.FileType}_{userId}_Timestamp_{timestamp}__{randomString}";

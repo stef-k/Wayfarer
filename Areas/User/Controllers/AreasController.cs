@@ -95,10 +95,13 @@ namespace Wayfarer.Areas.User.Controllers
                     "Please draw an area before saving.");
             }
 
-            // If anything’s invalid, return the form partial so the user sees the validation-summary
+            // If anything's invalid, return the form partial so the user sees the validation-summary
             if (!ModelState.IsValid)
             {
-                var errors = ModelState.SelectMany(m => m.Value.Errors).Select(m => m.ErrorMessage);
+                var errors = ModelState
+                    .Where(m => m.Value != null)
+                    .SelectMany(m => m.Value!.Errors)
+                    .Select(m => m.ErrorMessage);
 
                 foreach (var error in errors)
                 {
