@@ -15,7 +15,7 @@ namespace Wayfarer.Jobs
         public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
         {
             Type jobType = bundle.JobDetail.JobType;
-            return _serviceProvider.GetRequiredService(jobType) as IJob;
+            return (IJob)_serviceProvider.GetRequiredService(jobType);
         }
 
         public void ReturnJob(IJob job)

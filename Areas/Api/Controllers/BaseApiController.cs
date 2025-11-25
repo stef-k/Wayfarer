@@ -85,9 +85,9 @@ namespace Wayfarer.Areas.Api.Controllers
         /// <summary>
         /// Helper method to sanitize floating point values for use in JSON serialization
         /// </summary>
-        /// <param name="value"></param>
+        /// <param name="point"></param>
         /// <returns></returns>
-        protected Point SanitizePoint(Point point)
+        protected Point? SanitizePoint(Point? point)
         {
             if (point == null)
             {

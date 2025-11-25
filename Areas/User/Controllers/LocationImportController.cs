@@ -161,7 +161,7 @@ namespace Wayfarer.Areas.User.Controllers
                 import.Status = ImportStatus.Stopping;
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogInformation("Job with key {JobKey} is in progress. Attempting to interrupt it.");
+                _logger.LogInformation("Job with key {JobKey} is in progress. Attempting to interrupt it.", jobKey);
                 await _scheduler.Interrupt(jobKey);
 
                 // Optionally, delete the job after interrupting

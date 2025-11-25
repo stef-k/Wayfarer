@@ -100,7 +100,14 @@ namespace Wayfarer.Areas.User.Controllers
             SetPageTitle("New Trip");
 
             // Assign owner and timestamp
-            model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
+            model.UserId = userId;
             model.UpdatedAt = DateTime.UtcNow;
 
             // Remove any ModelState entries for User/UserId if necessary
@@ -310,6 +317,12 @@ namespace Wayfarer.Areas.User.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    SetAlert("User not authenticated.", "danger");
+                    return RedirectToAction("Index", "Home", new { area = "" });
+                }
 
                 // Load the source trip with all related data
                 var sourceTripQuery = _dbContext.Trips
