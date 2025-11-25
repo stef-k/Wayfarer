@@ -432,7 +432,8 @@ public class AdminUsersControllerTests : TestBase
         {
             UserName = "newuser",
             DisplayName = "New User",
-            Password = "P@ssw0rd!"
+            Password = "P@ssw0rd!",
+            Role = null! // Explicitly set to null to trigger validation
         };
 
         var result = await controller.Create(model);
