@@ -216,6 +216,20 @@ namespace Wayfarer.Tests.Controllers;
     }
 
     [Fact]
+    public void Index_ReturnsView()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var controller = BuildController(db, TestDataFixtures.CreateUser(id: "user-index", username: "index-user"));
+
+        // Act
+        var result = controller.Index();
+
+        // Assert
+        Assert.IsType<ViewResult>(result);
+    }
+
+    [Fact]
     public void AllLocations_ReturnsView()
     {
         // Arrange
@@ -227,6 +241,217 @@ namespace Wayfarer.Tests.Controllers;
 
         // Assert
         Assert.IsType<ViewResult>(result);
+    }
+
+    [Fact]
+    public async Task Create_Get_ReturnsView_WithActivityTypes()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        db.ActivityTypes.AddRange(
+            new ActivityType { Id = 1, Name = "Walking" },
+            new ActivityType { Id = 2, Name = "Running" });
+        await db.SaveChangesAsync();
+        var user = TestDataFixtures.CreateUser(id: "user-create-get", username: "create-user");
+        var controller = BuildController(db, user);
+
+        // Act
+        var result = await controller.Create();
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<AddLocationViewModel>(view.Model);
+        Assert.Equal(user.Id, model.UserId);
+        Assert.Equal(2, model.ActivityTypes.Count);
+        Assert.NotNull(model.LocalTimestamp);
+    }
+
+    [Fact]
+    public async Task Edit_Get_ReturnsView_WhenLocationExists()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner-edit-get", username: "owner");
+        db.Users.Add(owner);
+        db.ActivityTypes.Add(new ActivityType { Id = 1, Name = "Walking" });
+        var location = CreateLocation(owner.Id, new DateTime(2024, 1, 1), "US", "CA");
+        location.Id = 100;
+        location.ActivityTypeId = 1;
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, owner);
+
+        // Act
+        var result = await controller.Edit(location.Id);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<AddLocationViewModel>(view.Model);
+        Assert.Equal(location.Id, model.Id);
+        Assert.Equal(location.Coordinates.Y, model.Latitude);
+        Assert.Equal(location.Coordinates.X, model.Longitude);
+    }
+
+    [Fact]
+    public async Task Edit_Get_RedirectsToIndex_WhenLocationNotFound()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user-notfound", username: "user");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user);
+
+        // Act
+        var result = await controller.Edit(999);
+
+        // Assert
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task Edit_Get_RedirectsToIndex_WhenNotOwned()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner-edit", username: "owner");
+        var other = TestDataFixtures.CreateUser(id: "other-edit", username: "other");
+        db.Users.AddRange(owner, other);
+        var location = CreateLocation(owner.Id, new DateTime(2024, 1, 1), "US", "CA");
+        location.Id = 200;
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, other);
+
+        // Act
+        var result = await controller.Edit(location.Id);
+
+        // Assert
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+    }
+
+    [Fact]
+    public async Task Edit_Post_RedirectsToReturnUrl_WhenSaveActionReturn()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner-return", username: "owner");
+        db.Users.Add(owner);
+        var location = CreateLocation(owner.Id, new DateTime(2024, 1, 1), "US", "CA");
+        location.Id = 300;
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, owner);
+        var model = new AddLocationViewModel
+        {
+            Id = location.Id,
+            Latitude = 34.0,
+            Longitude = -118.0,
+            LocalTimestamp = new DateTime(2024, 2, 1, 10, 0, 0, DateTimeKind.Unspecified),
+            Notes = "Updated",
+            SelectedActivityId = 1,
+            ReturnUrl = "/User/Location/AllLocations"
+        };
+
+        // Act
+        var result = await controller.Edit(model, saveAction: "return");
+
+        // Assert
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/User/Location/AllLocations", redirect.Url);
+    }
+
+    [Fact]
+    public async Task BulkEditNotes_Get_ReturnsView_WithDropdownData()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user-bulk-get", username: "bulk-user");
+        db.Users.Add(user);
+        db.Locations.AddRange(
+            CreateLocation(user.Id, DateTime.UtcNow, "US", "CA", place: "LA"),
+            CreateLocation(user.Id, DateTime.UtcNow, "US", "NY", place: "NYC"),
+            CreateLocation(user.Id, DateTime.UtcNow, "Canada", "ON", place: "Toronto"));
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, user);
+
+        // Act
+        var result = await controller.BulkEditNotes();
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<BulkEditNotesViewModel>(view.Model);
+        Assert.Equal(2, model.Countries.Count); // US, Canada
+        Assert.True(model.Regions.Count >= 2); // CA, NY, ON
+        Assert.True(model.Places.Count >= 3); // LA, NYC, Toronto
+    }
+
+    [Fact]
+    public async Task BulkEditNotes_Post_ClearsNotes_WhenClearNotesTrue()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user-clear", username: "clear-user");
+        db.Users.Add(user);
+        var loc1 = CreateLocation(user.Id, new DateTime(2024, 1, 1), "US", "CA", notes: "old note");
+        var loc2 = CreateLocation(user.Id, new DateTime(2024, 1, 2), "US", "CA", notes: "another note");
+        db.Locations.AddRange(loc1, loc2);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, user);
+        var model = new BulkEditNotesViewModel
+        {
+            Country = "US",
+            Region = "CA",
+            ClearNotes = true
+        };
+
+        // Act
+        var result = await controller.BulkEditNotes(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        var returned = Assert.IsType<BulkEditNotesViewModel>(view.Model);
+        Assert.Equal(2, returned.AffectedCount);
+        var cleared = db.Locations.Where(l => l.UserId == user.Id).ToList();
+        Assert.All(cleared, l => Assert.Null(l.Notes));
+    }
+
+    [Fact]
+    public async Task BulkEditNotes_Post_ReplacesNotes_WhenAppendFalse()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "user-replace", username: "replace-user");
+        db.Users.Add(user);
+        var loc = CreateLocation(user.Id, new DateTime(2024, 1, 1), "US", "CA", notes: "old");
+        db.Locations.Add(loc);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db, user);
+        var model = new BulkEditNotesViewModel
+        {
+            Country = "US",
+            Region = "CA",
+            Append = false,
+            Notes = "new note"
+        };
+
+        // Act
+        var result = await controller.BulkEditNotes(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        var returned = Assert.IsType<BulkEditNotesViewModel>(view.Model);
+        Assert.Equal(1, returned.AffectedCount);
+        var updated = db.Locations.Single(l => l.UserId == user.Id);
+        Assert.Equal("new note", updated.Notes);
     }
 
     [Fact]

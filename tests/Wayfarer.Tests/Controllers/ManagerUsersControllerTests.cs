@@ -485,6 +485,221 @@ public class ManagerUsersControllerTests : TestBase
         Assert.Equal("Account", redirect.ControllerName);
     }
 
+    [Fact]
+    public void Create_Get_ReturnsView_WithRoles()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+            db.SaveChanges();
+        }
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        var controller = BuildController(db, userManager.Object);
+
+        // Act
+        var result = controller.Create();
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CreateUserViewModel>(view.Model);
+        Assert.NotNull(model.Roles);
+    }
+
+    [Fact]
+    public async Task Create_Post_RequiresRole()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+            db.SaveChanges();
+        }
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        var controller = BuildController(db, userManager.Object);
+        var model = new CreateUserViewModel
+        {
+            UserName = "newuser",
+            DisplayName = "New User",
+            Password = "P@ssw0rd!",
+            Role = null!
+        };
+
+        // Act
+        var result = await controller.Create(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.True(controller.ModelState.ContainsKey("Role"));
+    }
+
+    [Fact]
+    public async Task Create_Post_ValidatesRoleMustBeUser()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+            db.SaveChanges();
+        }
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        var controller = BuildController(db, userManager.Object);
+        var model = new CreateUserViewModel
+        {
+            UserName = "newuser",
+            DisplayName = "New User",
+            Password = "P@ssw0rd!",
+            Role = "Admin"
+        };
+
+        // Act
+        var result = await controller.Create(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey("Role"));
+    }
+
+    [Fact]
+    public async Task Create_Post_PreventsDuplicateUsername()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var existing = TestDataFixtures.CreateUser(id: "existing", username: "duplicate");
+        db.Users.Add(existing);
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+        }
+        await db.SaveChangesAsync();
+
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        userManager.Setup(m => m.FindByNameAsync("duplicate")).ReturnsAsync(existing);
+        var controller = BuildController(db, userManager.Object);
+        var model = new CreateUserViewModel
+        {
+            UserName = "duplicate",
+            DisplayName = "New User",
+            Password = "P@ssw0rd!",
+            Role = "User"
+        };
+
+        // Act
+        var result = await controller.Create(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey("UserName"));
+    }
+
+    [Fact]
+    public async Task Create_Post_CreatesUser_WhenValid()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+            db.SaveChanges();
+        }
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null);
+        userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "User")).ReturnsAsync(IdentityResult.Success);
+        var controller = BuildController(db, userManager.Object);
+        var model = new CreateUserViewModel
+        {
+            UserName = "newuser",
+            DisplayName = "New User",
+            Password = "P@ssw0rd!",
+            Role = "User",
+            IsActive = true,
+            IsProtected = false
+        };
+
+        // Act
+        var result = await controller.Create(model);
+
+        // Assert
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Users", redirect.ControllerName);
+        userManager.Verify(m => m.CreateAsync(It.IsAny<ApplicationUser>(), "P@ssw0rd!"), Times.Once);
+        userManager.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "User"), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_Post_ReturnsView_WhenModelInvalid()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+            db.SaveChanges();
+        }
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        var controller = BuildController(db, userManager.Object);
+        controller.ModelState.AddModelError("UserName", "Required");
+        var model = new CreateUserViewModel
+        {
+            UserName = "",
+            DisplayName = "New User",
+            Password = "P@ssw0rd!",
+            Role = "User"
+        };
+
+        // Act
+        var result = await controller.Create(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+    }
+
+    [Fact]
+    public async Task Create_Post_ReturnsView_WhenUserCreationFails()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        if (!db.Roles.Any(r => r.Name == "User"))
+        {
+            db.Roles.Add(new IdentityRole { Id = "role-user", Name = "User", NormalizedName = "USER" });
+            db.SaveChanges();
+        }
+        var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
+        var userManager = MockUserManager(manager);
+        userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null);
+        userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Failed(new IdentityError { Code = "PasswordTooWeak", Description = "Password is too weak" }));
+        var controller = BuildController(db, userManager.Object);
+        var model = new CreateUserViewModel
+        {
+            UserName = "newuser",
+            DisplayName = "New User",
+            Password = "weak",
+            Role = "User"
+        };
+
+        // Act
+        var result = await controller.Create(model);
+
+        // Assert
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Contains(controller.ModelState.Values, v => v.Errors.Any(e => e.ErrorMessage.Contains("Password is too weak")));
+    }
+
     private static UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
     {
         var roleStore = new Mock<IRoleStore<IdentityRole>>();
