@@ -293,9 +293,9 @@ namespace Wayfarer.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            if (user != null && user.IsProtected)
+            if (user.IsProtected)
             {
-                RedirectWithAlert("Delete", "Users", "This user cannot be deleted as it is protected.", "danger", new { id }, "Admin");
+                return RedirectWithAlert("Delete", "Users", "This user cannot be deleted as it is protected.", "danger", new { id }, "Admin");
             }
 
             IdentityResult result = await _userManager.DeleteAsync(user);

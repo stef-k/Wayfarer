@@ -223,7 +223,7 @@ namespace Wayfarer.Areas.Manager.Controllers
             }
 
             // Check if the user is protected, and if so, prevent deletion
-            if (user != null && user.IsProtected)
+            if (user.IsProtected)
             {
                 return RedirectWithAlert("Delete", "Users", "This user cannot be deleted as it is protected.", "danger", new { id }, "Manager");
             }
