@@ -89,6 +89,121 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         Assert.False(File.Exists(file));
     }
 
+    [Fact]
+    public void GetLocalBaseUrl_ParsesKestrelHttpUrl_WithValidUri()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Kestrel:Endpoints:Http:Url"] = "http://localhost:5500"
+            })
+            .Build();
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+        var result = InvokeGetLocalBaseUrl(generator);
+
+        Assert.Equal("http://127.0.0.1:5500", result);
+    }
+
+    [Fact]
+    public void GetLocalBaseUrl_ParsesKestrelHttpUrl_WithWildcard()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Kestrel:Endpoints:Http:Url"] = "http://*:8080"
+            })
+            .Build();
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+        var result = InvokeGetLocalBaseUrl(generator);
+
+        Assert.Equal("http://127.0.0.1:8080", result);
+    }
+
+    [Fact]
+    public void GetLocalBaseUrl_ParsesKestrelHttpUrl_WithPlusSign()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Kestrel:Endpoints:Http:Url"] = "http://+:3000"
+            })
+            .Build();
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+        var result = InvokeGetLocalBaseUrl(generator);
+
+        Assert.Equal("http://127.0.0.1:3000", result);
+    }
+
+    [Fact]
+    public void GetLocalBaseUrl_UsesAspNetCoreUrls_WhenKestrelNotSet()
+    {
+        var originalEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:7000;https://localhost:7001");
+            var config = new ConfigurationBuilder().Build();
+            var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+            var result = InvokeGetLocalBaseUrl(generator);
+
+            Assert.Equal("http://127.0.0.1:7000", result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalEnvVar);
+        }
+    }
+
+    [Fact]
+    public void GetLocalBaseUrl_ReturnsFallback_WhenNoConfigFound()
+    {
+        var originalEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", null);
+            var config = new ConfigurationBuilder().Build();
+            var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+            var result = InvokeGetLocalBaseUrl(generator);
+
+            Assert.Equal("http://127.0.0.1:5000", result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalEnvVar);
+        }
+    }
+
+    [Fact]
+    public void GetLocalBaseUrl_SkipsHttpsUrls_InAspNetCoreUrls()
+    {
+        var originalEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+        try
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "https://localhost:7001;http://localhost:6000");
+            var config = new ConfigurationBuilder().Build();
+            var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+            var result = InvokeGetLocalBaseUrl(generator);
+
+            Assert.Equal("http://127.0.0.1:6000", result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalEnvVar);
+        }
+    }
+
+    private static string InvokeGetLocalBaseUrl(TripMapThumbnailGenerator generator)
+    {
+        var method = typeof(TripMapThumbnailGenerator).GetMethod("GetLocalBaseUrl",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (string)method!.Invoke(generator, null)!;
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { /* ignore */ }
