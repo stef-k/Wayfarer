@@ -775,6 +775,204 @@ public class ApiTripsControllerTests : TestBase
         Assert.IsType<NotFoundObjectResult>(result);
     }
 
+    [Fact]
+    public void GetTrip_ReturnsNotFound_WhenTripDoesNotExist()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        var result = controller.GetTrip(Guid.NewGuid());
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public void GetTrip_ReturnsOk_WithAreasAndSegments()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        var tripId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+        var trip = new Trip
+        {
+            Id = tripId,
+            UserId = user.Id,
+            Name = "CompleteTrip",
+            IsPublic = true,
+            UpdatedAt = DateTime.UtcNow,
+            Regions = new List<Region>
+            {
+                new Region
+                {
+                    Id = regionId,
+                    TripId = tripId,
+                    UserId = user.Id,
+                    Name = "Region1",
+                    Places = new List<Place>
+                    {
+                        new Place
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = "Place1",
+                            UserId = user.Id,
+                            RegionId = regionId,
+                            Location = new Point(10, 20) { SRID = 4326 }
+                        }
+                    },
+                    Areas = new List<Area>
+                    {
+                        new Area
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = "Area1",
+                            UserId = user.Id,
+                            RegionId = regionId,
+                            Geometry = new Polygon(new LinearRing(new[]
+                            {
+                                new Coordinate(0, 0),
+                                new Coordinate(1, 0),
+                                new Coordinate(1, 1),
+                                new Coordinate(0, 1),
+                                new Coordinate(0, 0)
+                            })) { SRID = 3857 } // Different SRID to test conversion
+                        }
+                    }
+                }
+            },
+            Segments = new List<Segment>
+            {
+                new Segment
+                {
+                    Id = Guid.NewGuid(),
+                    TripId = tripId,
+                    UserId = user.Id,
+                    Name = "Segment1",
+                    RouteGeometry = new LineString(new[]
+                    {
+                        new Coordinate(0, 0),
+                        new Coordinate(1, 1)
+                    }) { SRID = 3857 } // Different SRID to test conversion
+                }
+            }
+        };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db);
+
+        var result = controller.GetTrip(trip.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(ok.Value);
+    }
+
+    [Fact]
+    public void GetTrip_SanitizesGeometrySRID()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        var tripId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+        var trip = new Trip
+        {
+            Id = tripId,
+            UserId = user.Id,
+            Name = "Trip",
+            IsPublic = true,
+            UpdatedAt = DateTime.UtcNow,
+            Regions = new List<Region>
+            {
+                new Region
+                {
+                    Id = regionId,
+                    TripId = tripId,
+                    UserId = user.Id,
+                    Name = "Region1",
+                    Places = new List<Place>(),
+                    Areas = new List<Area>
+                    {
+                        new Area
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = "Area1",
+                            UserId = user.Id,
+                            RegionId = regionId,
+                            Geometry = new Polygon(new LinearRing(new[]
+                            {
+                                new Coordinate(0, 0),
+                                new Coordinate(1, 0),
+                                new Coordinate(1, 1),
+                                new Coordinate(0, 1),
+                                new Coordinate(0, 0)
+                            })) { SRID = 3857 }
+                        }
+                    }
+                }
+            },
+            Segments = new List<Segment>()
+        };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db);
+
+        controller.GetTrip(trip.Id);
+
+        // Verify that SRID was changed to 4326
+        var loadedTrip = db.Trips
+            .Include(t => t.Regions).ThenInclude(r => r.Areas)
+            .First(t => t.Id == tripId);
+        Assert.Equal(4326, loadedTrip.Regions.First().Areas.First().Geometry!.SRID);
+    }
+
+    [Fact]
+    public async Task GetTripBoundary_Unauthorized_ForPrivateTrip()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var other = TestDataFixtures.CreateUser(id: "other");
+        db.Users.AddRange(owner, other);
+        db.ApiTokens.Add(new ApiToken { Id = 1, Token = "tok", UserId = other.Id, Name = "test", User = other });
+        var regionId = Guid.NewGuid();
+        var tripId = Guid.NewGuid();
+        var trip = new Trip
+        {
+            Id = tripId,
+            UserId = owner.Id,
+            Name = "PrivateTrip",
+            IsPublic = false,
+            Regions = new List<Region>
+            {
+                new Region
+                {
+                    Id = regionId,
+                    TripId = tripId,
+                    UserId = owner.Id,
+                    Name = "R1",
+                    Places = new List<Place>
+                    {
+                        new Place
+                        {
+                            Id = Guid.NewGuid(),
+                            Name = "P1",
+                            UserId = owner.Id,
+                            RegionId = regionId,
+                            Location = new Point(20, 10) { SRID = 4326 }
+                        }
+                    }
+                }
+            },
+            Segments = new List<Segment>()
+        };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.GetTripBoundary(trip.Id);
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
     private TripsController BuildController(ApplicationDbContext db, string? token = null, ITripTagService? tagService = null)
     {
         tagService ??= Mock.Of<ITripTagService>();
