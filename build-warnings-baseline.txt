@@ -1,4 +1,0 @@
-Baseline warning count: 1152
-Generated: 2025-02-25 using `dotnet build --nologo --verbosity minimal /t:Rebuild --flp:logfile=build-warnings.log;verbosity=normal`
-Counting method: occurrences of `: warning` in `build-warnings.log` via `Select-String -Pattern ': warning' | Measure-Object`.
-Note: rebuild is required; incremental builds skip compilation and report zero warnings.
