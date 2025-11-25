@@ -26,8 +26,8 @@ public class SseService
         bool enableHeartbeat = false,
         TimeSpan? heartbeatInterval = null)
     {
-        response.Headers.Add("Content-Type", "text/event-stream");
-        response.Headers.Add("Cache-Control", "no-cache");
+        response.Headers.Append("Content-Type", "text/event-stream");
+        response.Headers.Append("Cache-Control", "no-cache");
         var client = new ClientConnection(response, HeartbeatPayload);
 
         var subscribers = _channels.GetOrAdd(channel, _ => new List<ClientConnection>());

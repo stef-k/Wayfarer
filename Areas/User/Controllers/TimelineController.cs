@@ -34,7 +34,13 @@ namespace Wayfarer.Controllers
         public async Task<IActionResult> Index()
         {
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
-            ViewData["Username"] = currentUser.UserName;
+            if (currentUser == null)
+            {
+                SetAlert("User not found.", "danger");
+                return RedirectToAction("Index", "Home");
+            }
+
+            ViewData["Username"] = currentUser.UserName ?? string.Empty;
             
             SetPageTitle("Private Timeline");
             return View();
