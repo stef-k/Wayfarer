@@ -49,6 +49,13 @@ public class PlacesController : BaseController
     public async Task<IActionResult> CreateOrUpdate(Place model)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            SetAlert("User not authenticated.", "danger");
+            return RedirectToAction("Index", "Home", new { area = "" });
+        }
+
         model.UserId = userId;
 
         // Parse coordinates from form using invariant culture

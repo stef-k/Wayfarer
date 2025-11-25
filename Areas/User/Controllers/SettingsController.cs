@@ -16,11 +16,17 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Index()
         {
             string? userId = _userManager.GetUserId(User);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return RedirectWithAlert("Login", "Account", "User not authenticated", "error", null, null);
+            }
+
             ApplicationUser? user = await _userManager.FindByIdAsync(userId);
 
             if (user == null)
             {
-                RedirectWithAlert("Login", "Account", "User not found", "error", null, null);
+                return RedirectWithAlert("Login", "Account", "User not found", "error", null, null);
             }
 
             SetPageTitle("Settings Management");

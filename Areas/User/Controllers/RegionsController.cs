@@ -53,6 +53,12 @@ namespace Wayfarer.Areas.User.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+            if (string.IsNullOrEmpty(userId))
+            {
+                SetAlert("User not authenticated.", "danger");
+                return RedirectToAction("Index", "Home", new { area = "" });
+            }
+
             model.UserId = userId;
             ModelState.Remove(nameof(model.UserId));
             ModelState.Remove(nameof(model.Trip));
