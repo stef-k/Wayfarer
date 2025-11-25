@@ -44,6 +44,23 @@ public class TripViewerControllerTests : TestBase
     }
 
     [Fact]
+    public async Task View_ReturnsView_ForPublicTrip()
+    {
+        var db = CreateDbContext();
+        var tripId = Guid.NewGuid();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner", username: "owner"));
+        db.Trips.Add(new Trip { Id = tripId, UserId = "owner", Name = "Public", IsPublic = true, UpdatedAt = DateTime.UtcNow });
+        db.SaveChanges();
+        var controller = BuildController(db);
+
+        var result = await controller.View(tripId);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<Trip>(view.Model);
+        Assert.Equal(tripId, model.Id);
+    }
+
+    [Fact]
     public async Task Preview_ReturnsPartial_ForPublicTrip()
     {
         var db = CreateDbContext();
