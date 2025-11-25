@@ -20,7 +20,7 @@
                 };
             }
 
-            @foreach (var seg in Model.Segments.OrderBy(s => s.DisplayOrder))
+            @foreach (var seg in (Model.Segments ?? Enumerable.Empty<Segment>()).OrderBy(s => s.DisplayOrder))
             {
                 /* ─── data & helpers ─────────────────────────────────────────── */
                 var modeKey = (seg.Mode ?? "").ToLowerInvariant();

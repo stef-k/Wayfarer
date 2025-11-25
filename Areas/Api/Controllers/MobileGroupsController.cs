@@ -173,7 +173,7 @@ public class MobileGroupsController : MobileApiController
             .Select(x =>
             {
                 var username = x.User.UserName ?? string.Empty;
-                var isSelf = string.Equals(x.User.Id, user.Id, StringComparison.Ordinal);
+                var isSelf = string.Equals(x.User?.Id, user.Id, StringComparison.Ordinal);
                 var color = _colorService.GetColorHex(username);
 
                 return new GroupMemberDto
@@ -260,7 +260,7 @@ public class MobileGroupsController : MobileApiController
         member.OrgPeerVisibilityAccessDisabled = request.Disabled;
         await DbContext.SaveChangesAsync(cancellationToken);
 
-        Logger.LogInformation($"User {user.Id} set peer visibility in group {groupId}: disabled={request.Disabled}");
+        Logger.LogInformation($"User {user?.Id} set peer visibility in group {groupId}: disabled={request.Disabled}");
 
         // Broadcast visibility change to all group members via SSE
         var sseService = HttpContext.RequestServices.GetRequiredService<SseService>();

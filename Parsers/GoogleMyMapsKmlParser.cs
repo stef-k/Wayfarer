@@ -155,7 +155,7 @@ public class GoogleMyMapsKmlParser
     static void LinkSegmentsToPlaces(Trip trip)
     {
         const double maxDist = 0.2; // ~ km because SRID 4326 distance is deg
-        var allPlaces = trip.Regions.SelectMany(r => r.Places!).ToList();
+        var allPlaces = (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Places ?? Enumerable.Empty<Place>()).ToList();
 
         foreach (var seg in trip.Segments ?? Enumerable.Empty<Segment>())
         {

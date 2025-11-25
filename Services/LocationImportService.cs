@@ -82,7 +82,7 @@ namespace Wayfarer.Parsers
                         await _context.SaveChangesAsync(cancellationToken);
                         
                         await _sse.BroadcastAsync(
-                            $"import-{locationImport.UserId}",
+                            $"import-{locationImport?.UserId}",
                             JsonSerializer.Serialize(new {
                                 FilePath           = Path.GetFileName(locationImport.FilePath),
                                 LastImportedRecord = locationImport.LastImportedRecord,
@@ -158,7 +158,7 @@ namespace Wayfarer.Parsers
                     await _context.SaveChangesAsync(cancellationToken);
 
                     await _sse.BroadcastAsync(
-                        $"import-{locationImport.UserId}",
+                        $"import-{locationImport?.UserId}",
                         JsonSerializer.Serialize(new {
                             FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,
@@ -199,7 +199,7 @@ namespace Wayfarer.Parsers
                     li.Status = ImportStatus.Stopped;
                     await _context.SaveChangesAsync(CancellationToken.None);
                     await _sse.BroadcastAsync(
-                        $"import-{locationImport.UserId}",
+                        $"import-{locationImport?.UserId}",
                         JsonSerializer.Serialize(new {
                             FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,
@@ -223,7 +223,7 @@ namespace Wayfarer.Parsers
                         : ex.ToString();
                     await _context.SaveChangesAsync(CancellationToken.None);
                     await _sse.BroadcastAsync(
-                        $"import-{locationImport.UserId}",
+                        $"import-{locationImport?.UserId}",
                         JsonSerializer.Serialize(new {
                             FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,

@@ -196,7 +196,7 @@ public class TileCacheService
 
                     _dbContext.TileCacheMetadata.Add(tileMetadata);
                     await _dbContext.SaveChangesAsync();
-                    _currentCacheSize += tileData.Length;
+                    _currentCacheSize += tileData?.Length ?? 0;
                     _logger.LogInformation("Tile metadata stored in database.");
                 }
                 else

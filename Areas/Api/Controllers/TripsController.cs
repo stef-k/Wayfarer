@@ -118,7 +118,7 @@ public class TripsController : BaseApiController
             }
         }
 
-        foreach (var area in trip.Regions.SelectMany(r => r.Areas))
+        foreach (var area in (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Areas ?? Enumerable.Empty<Area>()))
         {
             if (area.Geometry != null && area.Geometry.SRID != 4326)
             {

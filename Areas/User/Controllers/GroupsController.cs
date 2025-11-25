@@ -197,6 +197,7 @@ public class GroupsController : BaseController
     {
         var actorId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (actorId == null) return Unauthorized();
+        if (userId == null) return BadRequest("User ID is required");
         try
         {
             var isOwner = await _dbContext.GroupMembers.AsNoTracking()

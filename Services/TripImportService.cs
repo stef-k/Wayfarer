@@ -111,7 +111,7 @@ public class TripImportService : ITripImportService
         if (!(target.Regions ?? Enumerable.Empty<Region>()).Any(r => r.Name == ShadowName))
         {
             // bump all existing display orders up by 1
-            foreach (var r in target.Regions)
+            foreach (var r in target.Regions ?? Enumerable.Empty<Region>())
                 r.DisplayOrder++;
 
             var shadow = new Region
