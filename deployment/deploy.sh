@@ -24,6 +24,11 @@
 #   # Deploy from a tag:
 #   REF=v1.0.0 ./deploy.sh
 #
+# RECOMMENDED:
+# - Run this script as the user that owns the repo (e.g. "wayfarer" or your login user)
+# - That user must have sudo privileges for systemctl/rsync/chown
+#
+# DO NOT run this as root unless you know what you're doing.
 # ============================================================================
 
 set -e  # Exit on any error
@@ -33,7 +38,9 @@ set -e  # Exit on any error
 # ============================================================================
 
 # Directory where you cloned the Wayfarer repository
-# This is where you run git pull and dotnet build
+# IMPORTANT:
+# - Change /home/youruser/Wayfarer to the path where you cloned the repo
+# - Or pass APP_DIR=/path/to/Wayfarer when running the script
 APP_DIR="${APP_DIR:-/home/youruser/Wayfarer}"
 
 # Temporary output directory for dotnet publish
@@ -46,6 +53,10 @@ DEPLOY_DIR="${DEPLOY_DIR:-/var/www/wayfarer}"
 
 # Systemd service name
 # Check with: systemctl list-units | grep wayfarer
+# Create a systemd service (e.g. /etc/systemd/system/wayfarer.service) that:
+# - Uses User=wayfarer
+# - Uses WorkingDirectory=/var/www/wayfarer
+# - Runs dotnet Wayfarer.dll
 SERVICE_NAME="${SERVICE_NAME:-wayfarer}"
 
 # System user that runs the application
@@ -106,9 +117,11 @@ mkdir -p "$OUT_DIR"
 
 echo "[5/8] Building project to $OUT_DIR..."
 export DOTNET_ENVIRONMENT
-dotnet publish -c Release -o "$OUT_DIR"
+dotnet publish Wayfarer.csproj -c Release -o "$OUT_DIR"
 
 # Step 5: Apply database migrations
+# Requires dotnet-ef installed as a global tool:
+#   dotnet tool install -g dotnet-ef
 echo "[6/8] Applying EF Core migrations..."
 export PATH="$PATH:$HOME/.dotnet/tools"
 DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update --project Wayfarer.csproj
@@ -131,6 +144,10 @@ sudo rsync -av --delete \
   --exclude 'ChromeCache' \
   --exclude 'Logs' \
   --exclude 'wwwroot/thumbs/' \
+  --exclude 'tests' \
+  --exclude 'coverage' \
+  --exclude 'coverage-report' \
+  --exclude 'coverlet.runsettings' \
   "$OUT_DIR"/ "$DEPLOY_DIR"/
 
 # Step 8: Fix permissions and restart
