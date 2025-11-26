@@ -1,8 +1,0 @@
-*.ts
-!*.d.ts
-.*
-.github
-.vscode
-docs
-test
-tsconfig.json
