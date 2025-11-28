@@ -30,5 +30,8 @@ jobs:
       - name: Build main project
         run: dotnet build Wayfarer.csproj --no-restore --configuration Release
 
+      - name: Build test project
+        run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --no-restore --configuration Release
+
       - name: Test
-        run: dotnet test --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --no-build --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"
