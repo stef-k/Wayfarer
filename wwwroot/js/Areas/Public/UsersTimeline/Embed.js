@@ -316,7 +316,7 @@ const generateLocationModalContent = (location, { isLive, isLatest }) => {
  * Generates a Google Maps link combining address and coordinates for precision.
  * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
  */
-export const generateGoogleMapsLink = location => {
+const generateGoogleMapsLink = location => {
     const addr = location?.fullAddress || '';
     const lat  = location?.coordinates?.latitude;
     const lon  = location?.coordinates?.longitude;
