@@ -121,7 +121,9 @@ rm -rf "$APP_DIR/wwwroot/dist"
 
 echo "[5/8] Building project to $OUT_DIR..."
 export DOTNET_ENVIRONMENT
-dotnet publish Wayfarer.csproj -c Release -o "$OUT_DIR"
+# Build first to regenerate static web assets manifest, then publish
+dotnet build Wayfarer.csproj -c Release
+dotnet publish Wayfarer.csproj -c Release -o "$OUT_DIR" --no-build
 
 # Step 5: Apply database migrations
 # Requires dotnet-ef installed as a global tool:
