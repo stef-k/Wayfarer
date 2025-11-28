@@ -27,11 +27,8 @@ jobs:
       - name: Restore tools
         run: dotnet tool restore
 
-      - name: Build main project
-        run: dotnet build Wayfarer.csproj --no-restore --configuration Release
-
-      - name: Build test project
-        run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --no-restore --configuration Release
-
-      - name: Test
-        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --no-build --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"
+      - name: Build and Test
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"
+        env:
+          # Disable frontend bundling in CI - we're testing C# code, not frontend assets
+          MvcFrontendKitEnabled: 'false'

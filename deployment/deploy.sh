@@ -123,6 +123,7 @@ mkdir -p "$OUT_DIR"
 echo "[4.6/8] Cleaning build artifacts..."
 dotnet clean Wayfarer.csproj -c Release
 rm -rf "$APP_DIR/wwwroot/dist"
+rm -f "$APP_DIR/wwwroot/frontend.manifest.json"
 
 # Step 5: Build and publish
 echo "[5/8] Building project to $OUT_DIR..."
