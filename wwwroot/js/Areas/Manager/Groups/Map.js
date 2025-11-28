@@ -1,4 +1,4 @@
-import { addZoomLevelControl } from '/js/map-utils.js';
+import { addZoomLevelControl } from '../../../map-utils.js';
 import {
   formatViewerAndSourceTimes,
   currentDateInputValue,
@@ -597,13 +597,13 @@ import {
               const item = this.closest('.user-item'); if (item) item.remove();
               if (latestMarkers.has(uid)) { map.removeLayer(latestMarkers.get(uid)); latestMarkers.delete(uid); }
               loadViewport().catch(()=>{});
-              if (typeof showAlert === 'function') showAlert('success', 'Member removed.');
+              if (wayfarer.showAlert) wayfarer.showAlert('success', 'Member removed.');
             } else {
-              if (typeof showAlert === 'function') showAlert('danger', (data && data.message) || 'Remove failed.');
+              if (wayfarer.showAlert) wayfarer.showAlert('danger', (data && data.message) || 'Remove failed.');
             }
           });
       };
-      if (typeof showConfirmationModal === 'function') showConfirmationModal({ title: 'Remove Member', message: 'Remove this member from the group?', confirmText: 'Remove', onConfirm: doRemove });
+      if (wayfarer.showConfirmationModal) wayfarer.showConfirmationModal({ title: 'Remove Member', message: 'Remove this member from the group?', confirmText: 'Remove', onConfirm: doRemove });
       else if (confirm('Remove this member from the group?')) doRemove();
     });
   });

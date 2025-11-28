@@ -9,7 +9,7 @@ function handleLocationsDeletion() {
         e.preventDefault();
         btn.disabled = true;
 
-        showConfirmationModal({
+        wayfarer.showConfirmationModal({
             title: 'Confirm Deletion',
             message: 'Are you sure you want to delete ALL YOUR LOCATIONS? This cannot be undone!!!',
             confirmText: 'Delete',
@@ -30,11 +30,11 @@ function handleLocationsDeletion() {
                         const confirmModal = bootstrap.Modal.getInstance(confirmEl);
                         if (confirmModal) confirmModal.hide();
 
-                        showAlert('success', 'All locations deleted successfully.');
+                        wayfarer.showAlert('success', 'All locations deleted successfully.');
                     })
                     .catch(err => {
                         console.error('Delete failed', err);
-                        showAlert('danger', typeof err === 'string' ? err : 'Could not delete locations');
+                        wayfarer.showAlert('danger', typeof err === 'string' ? err : 'Could not delete locations');
                     })
                     .finally(() => {
                         btn.disabled = false;

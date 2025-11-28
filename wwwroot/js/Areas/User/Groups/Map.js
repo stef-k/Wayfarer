@@ -1,4 +1,4 @@
-import { addZoomLevelControl } from '/js/map-utils.js';
+import { addZoomLevelControl } from '../../../map-utils.js';
 import {
   formatViewerAndSourceTimes,
   currentDateInputValue,

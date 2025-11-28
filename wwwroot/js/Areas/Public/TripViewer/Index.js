@@ -275,10 +275,8 @@
                 await navigator.clipboard.writeText(url);
 
                 // Show success toast (non-intrusive)
-                if (window.wayfarer?.showToast) {
-                    window.wayfarer.showToast('success', 'URL copied to clipboard!');
-                } else if (window.showToast) {
-                    window.showToast('success', 'URL copied to clipboard!');
+                if (wayfarer.showToast) {
+                    wayfarer.showToast('success', 'URL copied to clipboard!');
                 } else {
                     // Fallback: show brief visual feedback
                     const icon = shareButton.querySelector('i');
@@ -294,10 +292,8 @@
                 console.error('Failed to copy URL:', error);
 
                 // Show error toast
-                if (window.wayfarer?.showToast) {
-                    window.wayfarer.showToast('danger', 'Failed to copy URL.');
-                } else if (window.showToast) {
-                    window.showToast('danger', 'Failed to copy URL.');
+                if (wayfarer.showToast) {
+                    wayfarer.showToast('danger', 'Failed to copy URL.');
                 } else {
                     alert('Failed to copy URL to clipboard.');
                 }
@@ -406,8 +402,8 @@
             e.preventDefault();
             const btn = form.querySelector('button[type="submit"]');
 
-            if (typeof window.showConfirmationModal === 'function') {
-                window.showConfirmationModal({
+            if (typeof wayfarer.showConfirmationModal === 'function') {
+                wayfarer.showConfirmationModal({
                     title: 'Clone Trip',
                     message: 'Clone this trip to your account? You will be able to edit and customize your copy.',
                     confirmText: 'Clone Trip',
