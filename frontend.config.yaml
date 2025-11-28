@@ -1,0 +1,81 @@
+# MvcFrontendKit Configuration for Wayfarer
+# Schema version for future migration / breaking changes
+configVersion: 1
+
+# JS bundling mode: views (per-view bundles + site-wide bundle)
+mode: views
+
+# Application base path for sub-path deployments
+appBasePath: "/"
+
+# Root physical directories (relative to project root)
+webRoot: wwwroot
+jsRoot: wwwroot/js
+cssRoot: wwwroot/css
+libRoot: wwwroot/lib
+
+# Dist URL structure used in generated HTML and manifest
+distUrlRoot: /dist
+distJsSubPath: js
+distCssSubPath: css
+
+# Output cleaning strategy for dist folder(s)
+output:
+  cleanDistOnBuild: true
+
+# CSS URL & @import policy
+cssUrlPolicy:
+  # Only allow root-relative URLs like /icons/..., not ../
+  allowRelative: false
+  # Resolve @import statements inline
+  resolveImports: true
+
+# Dev-time import map (disabled for now)
+importMap:
+  enabled: false
+  prodStrategy: "bundle"
+  entries: {}
+
+# Global site assets (loaded on every page)
+global:
+  js:
+    - wwwroot/js/site.js
+  css:
+    - wwwroot/css/site.css
+
+# Per-view conventions and overrides for JS & CSS
+views:
+  # Enable auto-discovery by naming conventions
+  jsAutoLinkByConvention: true
+  cssAutoLinkByConvention: true
+
+  # JS conventions: map view keys to JS files
+  # ViewKey format from ViewKeyResolver: "Views/{Controller}/{Action}" or "Areas/{Area}/{Controller}/{Action}"
+  conventions:
+    # Root views: Views/{Controller}/{Action} -> wwwroot/js/{Controller}/{Action}.js
+    - viewPattern: "Views/{Controller}/{Action}"
+      scriptBasePattern: "wwwroot/js/{Controller}/{Action}"
+
+    # Area views: Areas/{Area}/{Controller}/{Action} -> wwwroot/js/Areas/{Area}/{Controller}/{Action}.js
+    - viewPattern: "Areas/{Area}/{Controller}/{Action}"
+      scriptBasePattern: "wwwroot/js/Areas/{Area}/{Controller}/{Action}"
+
+  # CSS conventions (optional - no per-view CSS currently)
+  cssConventions:
+    - viewPattern: "Views/{Controller}/{Action}"
+      cssPattern: "wwwroot/css/{Controller}/{Action}.css"
+
+    - viewPattern: "Areas/{Area}/{Controller}/{Action}"
+      cssPattern: "wwwroot/css/Areas/{Area}/{Controller}/{Action}.css"
+
+  # Explicit overrides (if any views don't follow conventions)
+  overrides: {}
+
+# Shared components (currently none, can add later)
+components: {}
+
+# Esbuild tuning
+esbuild:
+  jsTarget: "es2020"
+  jsSourcemap: true
+  cssSourcemap: true

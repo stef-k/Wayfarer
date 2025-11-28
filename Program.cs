@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
+using MvcFrontendKit.Extensions;
 using NetTopologySuite.Geometries;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models.Options;
@@ -422,6 +423,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
             o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
             o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
         });
+
+    // Add MvcFrontendKit for frontend bundling
+    builder.Services.AddMvcFrontendKit();
 
 
     // Add Swagger generation
