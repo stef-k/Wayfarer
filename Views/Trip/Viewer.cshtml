@@ -445,7 +445,7 @@
 </div>
 
 @section Scripts {
-    <script type="module" src="~/js/tripViewer.js"></script>
+    @Html.FrontendViewScripts()
     <script>
         // Clone trip confirmation
         document.getElementById('clone-trip-form')?.addEventListener('submit', function(e) {
@@ -453,7 +453,7 @@
             const form = this;
             const btn = form.querySelector('button[type="submit"]');
 
-            showConfirmationModal({
+            wayfarer.showConfirmationModal({
                 title: 'Clone Trip',
                 message: 'Clone this trip to your account? You will be able to edit and customize your copy.',
                 confirmText: 'Clone Trip',

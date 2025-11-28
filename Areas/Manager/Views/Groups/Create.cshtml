@@ -27,4 +27,6 @@
     <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">Cancel</a>
   </form>
 
-<script src="~/js/Areas/Manager/Groups/index.js"></script>
+@section Scripts {
+    @Html.FrontendViewScripts()
+}
