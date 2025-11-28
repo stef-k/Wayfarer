@@ -22,12 +22,12 @@
                 @("Wayfarer")
             }
         </title>
-        <script type="importmap"></script>
+        @Html.FrontendImportMap()
         <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
         <link href="/lib/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
         <link rel="stylesheet" href="~/icons/wayfarer-map-icons/dist/wayfarer-map-icons.css"
             asp-append-version="true" />
-        <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+        @Html.FrontendGlobalStyles()
         <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
         @if (ViewData["LoadLeaflet"] as bool? == true)
         {
@@ -86,7 +86,7 @@
             }
             <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
                 <span id="alertMessage">This is a placeholder message.</span>
-                <button type="button" class="btn-close" onclick="hideAlert()" aria-label="Close"></button>
+                <button type="button" class="btn-close" onclick="wayfarer.hideAlert()" aria-label="Close"></button>
             </div>
 
             <!-- Toast Container (for non-intrusive notifications) -->
@@ -146,7 +146,6 @@
 
         @if (ViewData["LoadLeaflet"] == null || (ViewData["LoadLeaflet"] as bool?) != false)
         {
-            <script src="~/js/map-utils.js" type="module"></script>
             <script src="~/lib/leaflet/leaflet-1.9.4.js"></script>
             <script src="~/lib/leaflet-image/leaflet-image.js"></script>
             <script src="~/lib/Leaflet.markercluster-1.4.1/dist/leaflet.markercluster.js"></script>
@@ -164,11 +163,7 @@
             }
         }
 
-        <script>
-            // Wayfarer cross-site object
-            window.wayfarer = window.wayfarer || {};
-        </script>
-        <script src="~/js/site.js" asp-append-version="true"></script>
+        @Html.FrontendGlobalScripts()
         @if (!embed)
         {
             @await Html.PartialAsync("_ValidationScriptsPartial")

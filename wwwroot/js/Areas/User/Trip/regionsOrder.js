@@ -70,7 +70,7 @@ const saveOrder = async (type, ordered) => {
         if (!resp.ok) throw new Error(await resp.text());
     } catch (err) {
         console.error('Order save failed', err);
-        showAlert('danger', `Failed to save ${type} order`);
+        wayfarer.showAlert('danger', `Failed to save ${type} order`);
     }
 };
 

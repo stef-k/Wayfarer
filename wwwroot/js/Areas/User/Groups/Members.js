@@ -54,14 +54,14 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
     form.addEventListener('submit', function(e){
       const uid = form.querySelector('#inviteeUserId');
       if (uid && (!uid.value || !uid.value.trim()) && results && results.value) uid.value = results.value;
-      if (!uid || !uid.value || !uid.value.trim()) { e.preventDefault(); results?.classList.add('is-invalid'); if (typeof showAlert==='function') showAlert('danger','Please select a user to invite.'); return; }
+      if (!uid || !uid.value || !uid.value.trim()) { e.preventDefault(); results?.classList.add('is-invalid'); if (wayfarer.showAlert) wayfarer.showAlert('danger','Please select a user to invite.'); return; }
       e.preventDefault();
       const fd = new FormData(form);
       const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
       const url = form.action.replace(/Invite$/, 'InviteAjax');
       fetch(url, { method: 'POST', body: fd, headers: tokenEl ? { 'RequestVerificationToken': tokenEl.value } : {} })
         .then(r => r.json())
-        .then(data => { if (data?.success){ if (typeof showAlert==='function') showAlert('success','Invitation sent'); addInviteRow(data.invite?.id, results); } else { if (typeof showAlert==='function') showAlert('danger', data?.message || 'Failed'); } });
+        .then(data => { if (data?.success){ if (wayfarer.showAlert) wayfarer.showAlert('success','Invitation sent'); addInviteRow(data.invite?.id, results); } else { if (wayfarer.showAlert) wayfarer.showAlert('danger', data?.message || 'Failed'); } });
     });
   }
 
@@ -94,8 +94,8 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
     attachConfirmHandler(row.querySelector('form.js-confirm'));
   }
 
-  function attachConfirmHandler(f){ if (!f) return; f.addEventListener('submit', function(e){ e.preventDefault(); const title=f.dataset.confirmTitle||'Confirm', message=f.dataset.confirmMessage||'Confirm?'; if (typeof showConfirmationModal==='function'){ showConfirmationModal({ title, message, confirmText:'Continue', onConfirm: ()=> submitAjax(f)});} else { if (confirm(message)) submitAjax(f); } }); }
-  function submitAjax(f){ const fd=new FormData(f); fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/, '$1Ajax'), { method:'POST', body: fd }).then(r => r.json()).then(data => { if (data?.success){ if (f.action.endsWith('RemoveMember')) removeRosterRow(fd.get('userId')); if (f.action.endsWith('RevokeInvite')) removeInviteRow(fd.get('inviteId')); } else { if (typeof showAlert==='function') showAlert('danger', data?.message || 'Failed'); } }); }
+  function attachConfirmHandler(f){ if (!f) return; f.addEventListener('submit', function(e){ e.preventDefault(); const title=f.dataset.confirmTitle||'Confirm', message=f.dataset.confirmMessage||'Confirm?'; if (wayfarer.showConfirmationModal){ wayfarer.showConfirmationModal({ title, message, confirmText:'Continue', onConfirm: ()=> submitAjax(f)});} else { if (confirm(message)) submitAjax(f); } }); }
+  function submitAjax(f){ const fd=new FormData(f); fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/, '$1Ajax'), { method:'POST', body: fd }).then(r => r.json()).then(data => { if (data?.success){ if (f.action.endsWith('RemoveMember')) removeRosterRow(fd.get('userId')); if (f.action.endsWith('RevokeInvite')) removeInviteRow(fd.get('inviteId')); } else { if (wayfarer.showAlert) wayfarer.showAlert('danger', data?.message || 'Failed'); } }); }
   async function addRosterRow(userId){
     const tbody = document.querySelector('#rosterTable tbody'); if (!tbody) return;
     if (document.querySelector('tr[data-user-id="' + userId + '"]')) return;
@@ -128,5 +128,5 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
   function removeInviteRow(inviteId){ const tr=document.querySelector('tr[data-invite-id="'+inviteId+'"]'); if (tr) tr.remove(); }
 
   // SSE live updates
-  document.addEventListener('DOMContentLoaded', function(){ try { const gid = document.querySelector('#inviteForm input[name="groupId"]').value; if (!gid || typeof EventSource==='undefined') return; const es=new EventSource('/api/sse/stream/group-membership-update/' + gid); es.onmessage=function(evt){ try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (!d||!d.action) return; if (d.action==='member-joined' && d.userId){ if (typeof showAlert==='function') showAlert('success','A user joined the group.'); addRosterRow(d.userId); if (d.invitationId) removeInviteRow(d.invitationId); } else if (d.action==='member-left' && d.userId){ if (typeof showAlert==='function') showAlert('warning','A user left the group.'); removeRosterRow(d.userId); } else if (d.action==='member-removed' && d.userId){ if (typeof showAlert==='function') showAlert('info','A user was removed from the group.'); removeRosterRow(d.userId); } else if (d.action==='invite-declined' && d.invitationId){ if (typeof showAlert==='function') showAlert('secondary','An invite was declined.'); removeInviteRow(d.invitationId); } else if (d.action==='invite-revoked' && d.inviteId){ removeInviteRow(d.inviteId); } } catch {} }; } catch {} });
+  document.addEventListener('DOMContentLoaded', function(){ try { const gid = document.querySelector('#inviteForm input[name="groupId"]').value; if (!gid || typeof EventSource==='undefined') return; const es=new EventSource('/api/sse/stream/group-membership-update/' + gid); es.onmessage=function(evt){ try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (!d||!d.action) return; if (d.action==='member-joined' && d.userId){ if (wayfarer.showAlert) wayfarer.showAlert('success','A user joined the group.'); addRosterRow(d.userId); if (d.invitationId) removeInviteRow(d.invitationId); } else if (d.action==='member-left' && d.userId){ if (wayfarer.showAlert) wayfarer.showAlert('warning','A user left the group.'); removeRosterRow(d.userId); } else if (d.action==='member-removed' && d.userId){ if (wayfarer.showAlert) wayfarer.showAlert('info','A user was removed from the group.'); removeRosterRow(d.userId); } else if (d.action==='invite-declined' && d.invitationId){ if (wayfarer.showAlert) wayfarer.showAlert('secondary','An invite was declined.'); removeInviteRow(d.invitationId); } else if (d.action==='invite-revoked' && d.inviteId){ removeInviteRow(d.inviteId); } } catch {} }; } catch {} });
 })();

@@ -5,7 +5,7 @@
  *  • segment polylines + visibility
  */
 
-import {addZoomLevelControl} from './map-utils.js';
+import {addZoomLevelControl} from '../map-utils.js';
 
 /* ---------- Wayfarer PNG marker URL ---------- */
 const png = (icon, bg) => `/icons/wayfarer-map-icons/dist/png/marker/${bg}/${icon}.png`;

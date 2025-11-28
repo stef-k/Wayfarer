@@ -1,7 +1,7 @@
 // User Invitations page module
 // - Fetches pending invites from /api/invitations
 // - Accepts/declines with anti-forgery header
-// - Uses shared helpers: showConfirmationModal, showAlert
+// - Uses shared helpers: wayfarer.showConfirmationModal, wayfarer.showAlert
 
 const config = window.__userInvitationsConfig || {};
 const token = window.__antiForgeryToken || document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
@@ -88,12 +88,12 @@ const accept = async (id) => {
       method: 'POST',
       headers: token ? { 'RequestVerificationToken': token } : {}
     });
-    if (typeof showAlert === 'function') showAlert('success', 'Invitation accepted.');
+    if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation accepted.');
     // Remove row and update empty state quickly for immediate feedback
     el.tbody?.querySelector(`tr[data-invite-id="${id}"]`)?.remove();
     setEmptyVisibility();
   } catch (e) {
-    if (typeof showAlert === 'function') showAlert('danger', e.message || 'Failed to accept invitation.');
+    if (wayfarer.showAlert) wayfarer.showAlert('danger', e.message || 'Failed to accept invitation.');
   } finally {
     disableRow(id, false);
   }
@@ -106,11 +106,11 @@ const decline = async (id) => {
       method: 'POST',
       headers: token ? { 'RequestVerificationToken': token } : {}
     });
-    if (typeof showAlert === 'function') showAlert('success', 'Invitation declined.');
+    if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation declined.');
     el.tbody?.querySelector(`tr[data-invite-id="${id}"]`)?.remove();
     setEmptyVisibility();
   } catch (e) {
-    if (typeof showAlert === 'function') showAlert('danger', e.message || 'Failed to decline invitation.');
+    if (wayfarer.showAlert) wayfarer.showAlert('danger', e.message || 'Failed to decline invitation.');
   } finally {
     disableRow(id, false);
   }
@@ -123,8 +123,8 @@ const onClick = (ev) => {
   if (!id) return;
 
   if (t.classList.contains('js-accept')) {
-    if (typeof showConfirmationModal === 'function') {
-      showConfirmationModal({
+    if (wayfarer.showConfirmationModal) {
+      wayfarer.showConfirmationModal({
         title: 'Accept Invitation',
         message: 'Join this group?',
         confirmText: 'Accept',
@@ -136,8 +136,8 @@ const onClick = (ev) => {
   }
 
   if (t.classList.contains('js-decline')) {
-    if (typeof showConfirmationModal === 'function') {
-      showConfirmationModal({
+    if (wayfarer.showConfirmationModal) {
+      wayfarer.showConfirmationModal({
         title: 'Decline Invitation',
         message: 'Decline this invitation?',
         confirmText: 'Decline',
@@ -161,6 +161,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch { /* ignore */ }
   } catch (e) {
-    if (typeof showAlert === 'function') showAlert('danger', e.message || 'Failed to load invitations.');
+    if (wayfarer.showAlert) wayfarer.showAlert('danger', e.message || 'Failed to load invitations.');
   }
 });

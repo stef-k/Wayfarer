@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const id     = btn.dataset.id;
             const isStart = action === 'start';
 
-            showConfirmationModal({
+            wayfarer.showConfirmationModal({
                 title:       isStart ? 'Start Import' : 'Stop Import',
                 message:     isStart
                     ? 'Are you sure you want to start this import job?'
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const status = link.dataset.status;
             const isPending = status === 'Pending';
 
-            showConfirmationModal({
+            wayfarer.showConfirmationModal({
                 title:       isPending ? 'Cancel Import' : 'Remove Import',
                 message:     isPending
                     ? 'Are you sure you want to cancel this import?'

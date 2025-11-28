@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalElement = document.querySelector(".modal.show");
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
 
-        showConfirmationModal({
+        wayfarer.showConfirmationModal({
             title: "Confirm Deletion",
             message: "Are you sure you want to delete the selected location? This action cannot be undone.",
             confirmText: "Delete",

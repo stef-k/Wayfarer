@@ -353,12 +353,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.showConfirmationModal = showConfirmationModal;
+// Export all utilities to the wayfarer namespace only
+// Usage: wayfarer.showAlert(), wayfarer.showToast(), etc.
 wayfarer.showConfirmationModal = showConfirmationModal;
-window.showAlert = showAlert;
 wayfarer.showAlert = showAlert;
-window.hideAlert = hideAlert;
 wayfarer.hideAlert = hideAlert;
-window.showToast = showToast;
 wayfarer.showToast = showToast;
 
