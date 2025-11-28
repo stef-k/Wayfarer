@@ -24,8 +24,11 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Build main project
+        run: dotnet build Wayfarer.csproj --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"
+        run: dotnet test --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"

@@ -110,19 +110,24 @@ git show --quiet --pretty='format:%h %ci %s'
 echo ""
 echo ""
 
-# Step 4: Build application
-echo "[4/8] Clearing output directory: $OUT_DIR"
+# Step 4: Restore dependencies and tools
+echo "[4/8] Restoring dependencies and tools..."
+dotnet restore Wayfarer.csproj
+dotnet tool restore
+
+# Step 4.5: Clean and prepare
+echo "[4.5/8] Clearing output directory: $OUT_DIR"
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
-echo "[4.5/8] Cleaning build artifacts..."
+echo "[4.6/8] Cleaning build artifacts..."
 dotnet clean Wayfarer.csproj -c Release
 rm -rf "$APP_DIR/wwwroot/dist"
 
+# Step 5: Build and publish
 echo "[5/8] Building project to $OUT_DIR..."
 export DOTNET_ENVIRONMENT
-# Build first to regenerate static web assets manifest, then publish
-dotnet build Wayfarer.csproj -c Release
+dotnet build Wayfarer.csproj -c Release --no-restore
 dotnet publish Wayfarer.csproj -c Release -o "$OUT_DIR" --no-build
 
 # Step 5: Apply database migrations
