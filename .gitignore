@@ -163,3 +163,7 @@ src/.vs/config/applicationhost.config
 # JetBrains Rider's auto generated files
 .idea/
 wayfarer-api.rest
+
+# MvcFrontendKit generated files
+wwwroot/dist/
+wwwroot/frontend.manifest.json
