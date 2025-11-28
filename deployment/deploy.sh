@@ -115,6 +115,10 @@ echo "[4/8] Clearing output directory: $OUT_DIR"
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
+echo "[4.5/8] Cleaning build artifacts..."
+dotnet clean Wayfarer.csproj -c Release
+rm -rf "$APP_DIR/wwwroot/dist"
+
 echo "[5/8] Building project to $OUT_DIR..."
 export DOTNET_ENVIRONMENT
 dotnet publish Wayfarer.csproj -c Release -o "$OUT_DIR"
