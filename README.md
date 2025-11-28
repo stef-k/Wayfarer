@@ -1,5 +1,7 @@
 # Wayfarer
 
+[![Tests](https://github.com/stef-k/Wayfarer/actions/workflows/tests.yml/badge.svg)](https://github.com/stef-k/Wayfarer/actions/workflows/tests.yml)
+
 Wayfarer is a self-hosted travel companion that lets you keep a private location timeline, plan trips, and optionally share real-time progress with trusted people. The web app runs on ASP.NET Core and PostgreSQL/PostGIS, and a companion mobile app (Wayfarer.Mobile) can stream live GPS updates or manual check‑ins straight to your server.
 
 ## What you get
