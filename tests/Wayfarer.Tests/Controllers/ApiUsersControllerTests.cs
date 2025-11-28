@@ -49,6 +49,7 @@ public class ApiUsersControllerTests : TestBase
     }
 
     [Fact]
+    [Trait("Category", "RequiresSpatialite")]
     public async Task DeleteAllUserLocations_Forbids_WhenCallerDifferent()
     {
         var (db, connection) = CreateSqliteDb();
@@ -68,6 +69,7 @@ public class ApiUsersControllerTests : TestBase
     }
 
     [Fact]
+    [Trait("Category", "RequiresSpatialite")]
     public async Task DeleteAllUserLocations_RemovesRows_WhenCallerMatches()
     {
         var (db, connection) = CreateSqliteDb();
