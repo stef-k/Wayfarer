@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get the current open modal instance
             const modalEl = document.getElementById('locationModal');
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
-            showConfirmationModal({
+            wayfarer.showConfirmationModal({
                 title: "Confirm Deletion",
                 message: "Are you sure? This cannot be undone.",
                 confirmText: "Delete",
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2) Confirm, then POST to /bulk-delete
-        showConfirmationModal({
+        wayfarer.showConfirmationModal({
             title: 'Confirm Bulk Deletion',
             message: `Are you sure you want to delete ${selectedIds.length} location(s)? This cannot be undone.`,
             confirmText: 'Delete',
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .catch(err => {
                         console.error(err);
-                        showAlert('danger', typeof err === 'string' ? err : 'Could not delete locations');
+                        wayfarer.showAlert('danger', typeof err === 'string' ? err : 'Could not delete locations');
                     });
             }
         });

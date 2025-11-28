@@ -150,7 +150,7 @@ export const initRegionHandlers = (tripId) => {
  * @param {string} regionId
  */
 const handleDeleteRegion = (regionId) => {
-    showConfirmationModal({
+    wayfarer.showConfirmationModal({
         title: 'Delete Region?',
         message: 'Are you sure you want to permanently delete this region and all its places?',
         confirmText: 'Delete',
@@ -172,9 +172,9 @@ const handleDeleteRegion = (regionId) => {
                     const { initSegmentHandlers } = await import('./segmentHandlers.js');
                     await initSegmentHandlers(tripId);
                 }
-                showAlert('success', 'Region deleted.');
+                wayfarer.showAlert('success', 'Region deleted.');
             } else {
-                showAlert('danger', 'Failed to delete region.');
+                wayfarer.showAlert('danger', 'Failed to delete region.');
             }
         }
     });
@@ -316,7 +316,7 @@ const attachRegionFormHandlers = () => {
                 const dom = new DOMParser().parseFromString(html, 'text/html');
                 const errors = Array.from(dom.querySelectorAll('.region-form-errors ul li'))
                     .map(li => li.textContent.trim());
-                if (errors.length) showAlert('danger', errors.join('\n'));
+                if (errors.length) wayfarer.showAlert('danger', errors.join('\n'));
             }
         };
     });

@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * Deletes all map tile cache from zoom level 1 to max from file system and database.
  */
 const deleteAllMapTileCache = () => {
-    showConfirmationModal({
+    wayfarer.showConfirmationModal({
         title: "Confirm Deletion",
         message: "Are you sure you want to delete all map tile cache? This action cannot be undone.",
         confirmText: "Delete",
@@ -37,14 +37,14 @@ const deleteAllMapTileCache = () => {
                         document.getElementById('TotalCacheSizeGB').textContent = data.cacheStatus.totalCacheSizeGB;
                         document.getElementById('TotalLru').textContent = data.cacheStatus.totalLru;
                         document.getElementById('TotalLruGB').textContent = data.cacheStatus.totalLruGB;
-                        showAlert("success", data.message);
+                        wayfarer.showAlert("success", data.message);
                     } else {
-                        showAlert("danger", "Failed to delete map tile cache.");
+                        wayfarer.showAlert("danger", "Failed to delete map tile cache.");
                     }
                 })
                 .catch(error => {
                     console.error("danger:", error);
-                    showAlert("danger", `Failed to delete map tile cache. ${error}`);
+                    wayfarer.showAlert("danger", `Failed to delete map tile cache. ${error}`);
                 });
         }
     });
@@ -54,7 +54,7 @@ const deleteAllMapTileCache = () => {
  * Deletes Least Recently Used map tile cache (zoom levels >= 9) from file system and database.
  */
 const deleteLruCache = () => {
-    showConfirmationModal({
+    wayfarer.showConfirmationModal({
         title: "Confirm Deletion",
         message: "Are you sure you want to delete the Least Recently Used map tile cache (zoom levels >= 9)? This action cannot be undone.",
         confirmText: "Delete",
@@ -72,14 +72,14 @@ const deleteLruCache = () => {
                         document.getElementById('TotalCacheSizeGB').textContent = data.cacheStatus.totalCacheSizeGB;
                         document.getElementById('TotalLru').textContent = data.cacheStatus.totalLru;
                         document.getElementById('TotalLruGB').textContent = data.cacheStatus.totalLruGB;
-                        showAlert("success", data.message);
+                        wayfarer.showAlert("success", data.message);
                     } else {
-                        showAlert("danger", "Failed to delete Least Recently Used map tile cache.");
+                        wayfarer.showAlert("danger", "Failed to delete Least Recently Used map tile cache.");
                     }
                 })
                 .catch(error => {
                     console.error("danger:", error);
-                    showAlert("danger", `Failed to delete Least Recently Used map tile cache. ${error}`);
+                    wayfarer.showAlert("danger", `Failed to delete Least Recently Used map tile cache. ${error}`);
                 });
         }
     });
@@ -89,7 +89,7 @@ const deleteLruCache = () => {
  * Deletes all MBTiles cache used for mobile app.
  */
 const deleteMbtilesCache = () => {
-    showConfirmationModal({
+    wayfarer.showConfirmationModal({
         title: "Confirm MBTiles Deletion",
         message: "Are you sure you want to delete all MBTiles files used for mobile app caching?",
         confirmText: "Delete",
@@ -102,12 +102,12 @@ const deleteMbtilesCache = () => {
                     if (response.ok) {
                         location.reload(); // simplest way to reflect updated MB/GB/file count
                     } else {
-                        showAlert("danger", "Failed to delete MBTiles cache.");
+                        wayfarer.showAlert("danger", "Failed to delete MBTiles cache.");
                     }
                 })
                 .catch(error => {
                     console.error("error:", error);
-                    showAlert("danger", `Failed to delete MBTiles cache. ${error}`);
+                    wayfarer.showAlert("danger", `Failed to delete MBTiles cache. ${error}`);
                 });
         }
     });
