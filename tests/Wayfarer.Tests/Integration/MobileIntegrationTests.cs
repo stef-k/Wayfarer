@@ -189,7 +189,8 @@ public class MobileIntegrationTests
 
         ctx.HttpContext.Response.Body.Position = 0;
         var text = await new StreamReader(ctx.HttpContext.Response.Body).ReadToEndAsync();
-        Assert.Contains(":\n\n", text);
+        // SSE heartbeat: ":" followed by blank line - accept both LF and CRLF line endings
+        Assert.Matches(@":\r?\n\r?\n", text);
         Assert.Contains("\"userId\":\"caller\"", text);
         Assert.Contains("\"userName\":\"caller\"", text);
         Assert.Contains("\"locationId\"", text);
