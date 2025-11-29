@@ -304,7 +304,7 @@ if ! command -v dotnet >/dev/null 2>&1; then
     exit 1
   fi
 
-  echo "We can try to install .NET 9 SDK via Microsoft's packages for Debian/Ubuntu."
+  echo "We can try to install .NET 10 SDK via Microsoft's packages for Debian/Ubuntu."
   confirm_or_exit
 
   # Detect distro for Microsoft package feed
@@ -341,7 +341,7 @@ if ! command -v dotnet >/dev/null 2>&1; then
   rm /tmp/packages-microsoft-prod.deb
 
   sudo apt-get update -y
-  sudo apt-get install -y dotnet-sdk-9.0
+  sudo apt-get install -y dotnet-sdk-10.0
 else
   echo "dotnet is already installed."
 fi
