@@ -73,7 +73,8 @@
                         @if (!string.IsNullOrEmpty(wkt))
                         {
                         <text> data-route-wkt="@wkt" </text>
-                        }>
+                        }
+                        data-segment-notes="@(seg?.Notes ?? "")">
 
                         <div class="d-flex align-items-start gap-2 small">
                             <span class="fs-5" aria-hidden="true">@emojiIcon</span>

@@ -1,6 +1,7 @@
 // mapManager.js – refactored to use store
 import {addZoomLevelControl} from '../../../map-utils.js';
 import {store} from './storeInstance.js';
+import {buildPlacePopup, buildAreaPopup} from '../../../Trip/tripPopupBuilder.js';
 
 /* ------------------------------------------------------------------ *
  *  Private state
@@ -269,7 +270,7 @@ export const initAreaMap = (areaId, geometry, fillColor) => {
 
 
 // draw a polygon on the **main** map
-export const renderAreaPolygon = ({Id, Geometry, FillHex}) => {
+export const renderAreaPolygon = ({Id, Geometry, FillHex, Name, Notes}) => {
     if (!Geometry) return;
     // Remove stale
     if (areaPolygonsById[Id]) {
@@ -279,6 +280,20 @@ export const renderAreaPolygon = ({Id, Geometry, FillHex}) => {
     const poly = L.geoJSON(Geometry, {
         style: () => ({color: FillHex, fillColor: FillHex, fillOpacity: 0.3, weight: 2})
     }).addTo(mapContainer);
+
+    // Build and bind rich tooltip for hover if name available
+    if (Name) {
+        const tooltipContent = buildAreaPopup({
+            name: Name,
+            notes: Notes
+        });
+
+        poly.bindTooltip(tooltipContent, {
+            direction: 'right',
+            className: 'trip-rich-tooltip'
+        });
+    }
+
     areaPolygonsById[Id] = poly;
 };
 
@@ -336,6 +351,21 @@ export const renderPlaceMarker = async (p) => {
     const marker = L.marker([lat, lon], {
         icon: L.icon({iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'})
     }).addTo(mapContainer);
+
+    // Build and bind rich tooltip for hover
+    const tooltipContent = buildPlacePopup({
+        name: p.Name,
+        lat,
+        lon,
+        address: p.Address,
+        notes: p.Notes,
+        regionName: p.RegionName
+    });
+    marker.bindTooltip(tooltipContent, {
+        direction: 'right',
+        className: 'trip-rich-tooltip',
+        permanent: false
+    });
 
     marker.on('click', () => {
         clearSelectedMarker();
@@ -514,6 +544,7 @@ store.subscribe(({type, payload}) => {
                 removePlaceMarker(markerId);
             }
         }
+        const regionName = regionEl.dataset.regionName || 'Unnamed Region';
         for (const el of placeEls) {
             const placeId = el.dataset.placeId;
             const lat = parseFloat(el.dataset.placeLat);
@@ -521,6 +552,10 @@ store.subscribe(({type, payload}) => {
             const icon = el.dataset.placeIcon;
             const color = el.dataset.placeColor;
             const name = el.dataset.placeName;
+            const address = el.dataset.placeAddress || '';
+            // Get notes from hidden div
+            const notesEl = el.querySelector('.place-notes');
+            const notes = notesEl?.innerHTML || '';
 
             if (!isNaN(lat) && !isNaN(lon)) {
                 renderPlaceMarker({
@@ -530,7 +565,10 @@ store.subscribe(({type, payload}) => {
                     Longitude: lon,
                     IconName: icon,
                     MarkerColor: color,
-                    RegionId: payload.regionId
+                    RegionId: payload.regionId,
+                    RegionName: regionName,
+                    Address: address,
+                    Notes: notes
                 });
             }
         }
@@ -549,7 +587,9 @@ store.subscribe(({type, payload}) => {
         regionEl.querySelectorAll('.area-list-item').forEach(el => {
             const geom = JSON.parse(el.dataset.areaGeom || 'null');
             const fill = el.dataset.areaFill;
-            renderAreaPolygon({Id: el.dataset.areaId, Geometry: geom, FillHex: fill});
+            const areaName = el.dataset.areaName || el.querySelector('.area-name')?.textContent?.trim();
+            const areaNotes = el.dataset.areaNotes || '';
+            renderAreaPolygon({Id: el.dataset.areaId, Geometry: geom, FillHex: fill, Name: areaName, Notes: areaNotes});
         });
     }
 });

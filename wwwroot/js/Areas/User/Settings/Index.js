@@ -39,6 +39,9 @@ function handleLocationsDeletion() {
                     .finally(() => {
                         btn.disabled = false;
                     });
+            },
+            onCancel: () => {
+                btn.disabled = false;
             }
         });
     });

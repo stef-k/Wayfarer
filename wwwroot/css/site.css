@@ -1055,6 +1055,67 @@ thead th {
     padding: 4px 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Trip Rich Tooltips - Hover tooltips for places, segments, and areas
+   ───────────────────────────────────────────────────────────── */
+.leaflet-tooltip.trip-rich-tooltip {
+    background: white;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    width: 280px;
+    white-space: normal;
+}
+.leaflet-tooltip.trip-rich-tooltip::before {
+    border-right-color: white;
+}
+.trip-popup {
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+.trip-popup .popup-header {
+    margin-bottom: 0.35rem;
+    font-size: 0.875rem;
+}
+.trip-popup .popup-header strong {
+    color: var(--bs-primary);
+}
+.trip-popup .popup-region {
+    font-size: 0.75rem;
+}
+.trip-popup .popup-coords,
+.trip-popup .popup-address,
+.trip-popup .popup-details {
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+    color: var(--bs-secondary);
+}
+.trip-popup .popup-notes {
+    font-size: 0.75rem;
+    margin-top: 0.35rem;
+    padding: 0.25rem 0.4rem;
+    background: var(--bs-light);
+    border-radius: 0.25rem;
+    max-height: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.trip-popup .popup-footer {
+    margin-top: 0.5rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed var(--bs-border-color);
+    font-size: 0.7rem;
+    color: var(--bs-secondary);
+    text-align: center;
+    font-style: italic;
+}
+.trip-popup .popup-footer i {
+    font-size: 0.75rem;
+    margin-right: 0.2rem;
+}
+
 .segment-highlight {
     animation: flash-border 1s ease-in-out;
     border: 2px solid var(--bs-primary);

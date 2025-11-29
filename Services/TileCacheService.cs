@@ -526,6 +526,22 @@ public class TileCacheService
                 _logger.LogInformation("Final commit completed. Rows affected: {Rows}", affectedRows);
             }, maxRetries, delayBetweenRetries);
         }
+
+        // Clean up orphan DB records (records without corresponding files on disk)
+        var orphanRecords = await dbContext.TileCacheMetadata
+            .Where(t => !File.Exists(t.TileFilePath))
+            .ToListAsync();
+
+        if (orphanRecords.Any())
+        {
+            _logger.LogInformation("Found {Count} orphan DB records without files on disk.", orphanRecords.Count);
+            await RetryOperationAsync(async () =>
+            {
+                dbContext.TileCacheMetadata.RemoveRange(orphanRecords);
+                var affectedRows = await dbContext.SaveChangesAsync();
+                _logger.LogInformation("Orphan records cleanup completed. Rows affected: {Rows}", affectedRows);
+            }, maxRetries, delayBetweenRetries);
+        }
     }
 
     private async Task RetryOperationAsync(Func<Task> operation, int maxRetries, int delayBetweenRetries)
@@ -555,21 +571,21 @@ public class TileCacheService
     }
 
     /// <summary>
-    /// Purges all LRU tile cache
+    /// Purges all LRU tile cache (zoom levels >= 9) from both file system and database.
     /// </summary>
     public async Task PurgeLRUCacheAsync()
     {
         using var scope = _serviceScopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        using var transaction = await dbContext.Database.BeginTransactionAsync(); // Explicit transaction
+        using var transaction = await dbContext.Database.BeginTransactionAsync();
 
         var lruCache = await dbContext.TileCacheMetadata
             .Where(file => file.Zoom >= 9)
             .AsTracking()
             .ToListAsync();
 
-        var filesToDelete = new List<TileCacheMetadata>();
+        var recordsToDelete = new List<TileCacheMetadata>();
 
         foreach (var file in lruCache)
         {
@@ -582,7 +598,6 @@ public class TileCacheService
                     {
                         File.Delete(file.TileFilePath);
                         _currentCacheSize -= file.Size;
-                        filesToDelete.Add(file);
                         return Task.CompletedTask;
                     }, 3, 500); // 3 retries, 500ms delay between retries
                 }
@@ -590,6 +605,8 @@ public class TileCacheService
                 {
                     _logger.LogWarning("File not found for deletion: {File}", file.TileFilePath);
                 }
+                // Always mark DB record for deletion, regardless of whether file existed
+                recordsToDelete.Add(file);
             }
             catch (Exception e)
             {
@@ -597,19 +614,19 @@ public class TileCacheService
             }
         }
 
-        if (filesToDelete.Any())
+        if (recordsToDelete.Any())
         {
             // Use RetryOperationAsync for database save logic
             await RetryOperationAsync(async () =>
             {
-                dbContext.TileCacheMetadata.RemoveRange(filesToDelete);
+                dbContext.TileCacheMetadata.RemoveRange(recordsToDelete);
                 await dbContext.SaveChangesAsync();
-                await transaction.CommitAsync(); // Commit after saving
+                await transaction.CommitAsync();
             }, 3, 1000); // 3 retries, 1000ms delay between retries
         }
         else
         {
-            await transaction.RollbackAsync(); // Rollback if no files were deleted
+            await transaction.RollbackAsync();
         }
     }
 }

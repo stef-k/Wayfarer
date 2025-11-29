@@ -32,11 +32,11 @@ const deleteAllMapTileCache = () => {
                 .then(data => {
                     if (data.success) {
                         document.getElementById('TotalCacheFiles').textContent = data.cacheStatus.totalCacheFiles;
-                        document.getElementById('LruTotalFiles').textContent = data.cacheStatus.truTotalFiles;
-                        document.getElementById('TotalCacheSize').textContent = data.cacheStatus.totalCacheSize;
-                        document.getElementById('TotalCacheSizeGB').textContent = data.cacheStatus.totalCacheSizeGB;
-                        document.getElementById('TotalLru').textContent = data.cacheStatus.totalLru;
-                        document.getElementById('TotalLruGB').textContent = data.cacheStatus.totalLruGB;
+                        document.getElementById('LruTotalFiles').textContent = data.cacheStatus.lruTotalFiles;
+                        document.getElementById('TotalCacheSize').textContent = data.cacheStatus.totalCacheSize + ' MB';
+                        document.getElementById('TotalCacheSizeGB').textContent = data.cacheStatus.totalCacheSizeGB + ' GB';
+                        document.getElementById('TotalLru').textContent = data.cacheStatus.totalLru + ' MB';
+                        document.getElementById('TotalLruGB').textContent = data.cacheStatus.totalLruGB + ' GB';
                         wayfarer.showAlert("success", data.message);
                     } else {
                         wayfarer.showAlert("danger", "Failed to delete map tile cache.");
@@ -67,11 +67,11 @@ const deleteLruCache = () => {
                 .then(data => {
                     if (data.success) {
                         document.getElementById('TotalCacheFiles').textContent = data.cacheStatus.totalCacheFiles;
-                        document.getElementById('LruTotalFiles').textContent = data.cacheStatus.truTotalFiles;
-                        document.getElementById('TotalCacheSize').textContent = data.cacheStatus.totalCacheSize;
-                        document.getElementById('TotalCacheSizeGB').textContent = data.cacheStatus.totalCacheSizeGB;
-                        document.getElementById('TotalLru').textContent = data.cacheStatus.totalLru;
-                        document.getElementById('TotalLruGB').textContent = data.cacheStatus.totalLruGB;
+                        document.getElementById('LruTotalFiles').textContent = data.cacheStatus.lruTotalFiles;
+                        document.getElementById('TotalCacheSize').textContent = data.cacheStatus.totalCacheSize + ' MB';
+                        document.getElementById('TotalCacheSizeGB').textContent = data.cacheStatus.totalCacheSizeGB + ' GB';
+                        document.getElementById('TotalLru').textContent = data.cacheStatus.totalLru + ' MB';
+                        document.getElementById('TotalLruGB').textContent = data.cacheStatus.totalLruGB + ' GB';
                         wayfarer.showAlert("success", data.message);
                     } else {
                         wayfarer.showAlert("danger", "Failed to delete Least Recently Used map tile cache.");

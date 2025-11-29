@@ -95,7 +95,9 @@
                                 data-area-geom='@(area.Geometry != null
                                                     ? new GeoJsonWriter().Write(area.Geometry)
                                                     : "null")'
-                                data-area-fill="@area.FillHex">
+                                data-area-fill="@area.FillHex"
+                                data-area-name="@area.Name"
+                                data-area-notes="@(area.Notes ?? "")">
 
                                 <div class="d-flex flex-column align-items-start">
                                     <!-- first row: icon + name -->

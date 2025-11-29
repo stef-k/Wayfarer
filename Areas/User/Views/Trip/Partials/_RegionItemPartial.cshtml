@@ -100,8 +100,12 @@
                             <li class="place-list-item list-group-item d-flex  align-items-center" data-place-id="@place.Id"
                                 data-region-id="@Model.Id" data-place-lat="@place.Location?.Y"
                                 data-place-lon="@place.Location?.X" data-place-icon="@place.IconName"
-                                data-place-color="@place.MarkerColor" data-place-name="@place.Name?.Trim()">
+                                data-place-color="@place.MarkerColor" data-place-name="@place.Name?.Trim()"
+                                data-place-address="@place.Address"
+                                data-region-name="@Model.Name">
                                 <i class="bi bi-grip-vertical drag-handle me-1"></i>
+                                @* Hidden div for notes - used by popup builder *@
+                                <div class="d-none place-notes">@Html.LinkifyHtml(place.Notes)</div>
 
                                 @if (place.Location != null)
                                 {

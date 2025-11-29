@@ -132,21 +132,27 @@ import {
   /**
    * Loads latest locations for specified users and removes markers for deselected users.
    * @param {Array<string>} userIds - Optional array of user IDs to load. If not provided, uses currently selected users.
+   * @param {boolean} skipMarkerCleanup - If true, skip removing markers for users not in the list (used for SSE single-user updates).
    */
-  async function loadLatest(userIds) {
+  async function loadLatest(userIds, skipMarkerCleanup = false) {
     const url='/api/groups/' + groupId + '/locations/latest';
     const include = userIds && userIds.length ? userIds : selectedUsers().map(u=>u.id);
-    // Remove markers for users that are no longer selected
-    const includeSet = new Set(include);
-    latestMarkers.forEach((marker, userId) => {
-      if (!includeSet.has(userId)) {
-        map.removeLayer(marker);
-        latestMarkers.delete(userId);
-      }
-    });
+    // Remove markers for users that are no longer selected (skip when updating a single user via SSE)
+    if (!skipMarkerCleanup) {
+      const includeSet = new Set(include);
+      latestMarkers.forEach((marker, userId) => {
+        if (!includeSet.has(userId)) {
+          map.removeLayer(marker);
+          latestMarkers.delete(userId);
+        }
+      });
+    }
     const data = await postJson(url, { includeUserIds: include });
     (Array.isArray(data)?data:[]).forEach((loc,idx)=>{ const uid=include[idx]; if (uid) upsertLatestForUser(uid, loc); });
-    const latlngs=Array.from(latestMarkers.values()).map(m=>m.getLatLng()); if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding:[20,20] });
+    // Only fit bounds when loading all users, not for single-user SSE updates
+    if (!skipMarkerCleanup) {
+      const latlngs=Array.from(latestMarkers.values()).map(m=>m.getLatLng()); if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding:[20,20] });
+    }
   }
   /**
    * Loads locations in current viewport with date filters applied
@@ -242,7 +248,7 @@ import {
   // SSE
   function subscribeSseForUsers(users){
     subscriptions.forEach(es=>es.close()); subscriptions.clear();
-    users.forEach(u=>{ try { const es=new EventSource('/api/sse/stream/location-update/' + encodeURIComponent(u.username)); es.onmessage=(ev)=>{ try { const payload=JSON.parse(ev.data); if (payload && (payload.locationId || payload.LocationId)) { loadLatest([u.id]).catch(()=>{}); loadViewport().catch(()=>{}); } } catch(e){} }; es.onerror=()=>{ es.close(); }; subscriptions.set(u.username, es);} catch(e){} });
+    users.forEach(u=>{ try { const es=new EventSource('/api/sse/stream/location-update/' + encodeURIComponent(u.username)); es.onmessage=(ev)=>{ try { const payload=JSON.parse(ev.data); if (payload && (payload.locationId || payload.LocationId)) { loadLatest([u.id], true).catch(()=>{}); loadViewport().catch(()=>{}); } } catch(e){} }; es.onerror=()=>{ es.close(); }; subscriptions.set(u.username, es);} catch(e){} });
   }
   subscribeSseForUsers(selectedUsers());
 

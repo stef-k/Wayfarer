@@ -5,6 +5,7 @@ import { store } from './storeInstance.js';
 import { focusMapView, MAP_ZOOM } from './mapZoom.js'
 import { calculateLineDistanceKm } from '../../../map-utils.js';
 import { setupQuill, waitForQuill } from './quillNotes.js';
+import { buildSegmentPopup } from '../../../Trip/tripPopupBuilder.js';
 
 let cachedInitOrdering = null;
 let cachedTripId = null;
@@ -65,7 +66,7 @@ const renderStaticSegmentRoute = async (segId, wrapperEl) => {
             className: 'segment-polyline'
         });
 
-        // 🏷️ Tooltip from data attributes
+        // 🏷️ Data from attributes
         const mode = wrapperEl.dataset.segmentMode || 'unknown';
         const from = wrapperEl.dataset.segmentFrom || 'Start';
         const to = wrapperEl.dataset.segmentTo || 'End';
@@ -78,14 +79,27 @@ const renderStaticSegmentRoute = async (segId, wrapperEl) => {
             mins = Math.round(hh * 60 + mm + ss / 60);
         }
 
-        const time = mins ? `in ~${mins} min` : '';
+        const time = mins ? `~${mins} min` : '';
         const capitalizedName = mode.charAt(0).toUpperCase() + mode.slice(1);
-        const tooltipText = `${capitalizedName} <br>From: ${from} <br>To: ${to}<br>Distance: ${dist} km ${time}`;
 
-        poly.bindTooltip(tooltipText, {
+        // Build rich tooltip content for hover
+        const tooltipContent = buildSegmentPopup({
+            fromPlace: from,
+            toPlace: to,
+            mode: capitalizedName,
+            distance: dist ? `${dist} km` : null,
+            duration: time,
+            fromLat: coords[0]?.[0],
+            fromLon: coords[0]?.[1],
+            toLat: coords[coords.length - 1]?.[0],
+            toLon: coords[coords.length - 1]?.[1]
+        });
+
+        // Bind rich tooltip for hover
+        poly.bindTooltip(tooltipContent, {
             sticky: true,
             direction: 'top',
-            className: 'segment-tooltip'
+            className: 'trip-rich-tooltip'
         });
 
         poly.on('click', async () => {

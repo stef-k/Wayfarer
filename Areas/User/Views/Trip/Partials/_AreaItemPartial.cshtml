@@ -10,7 +10,9 @@
 <li class="area-list-item list-group-item d-flex align-items-center"
     data-area-id="@Model.Id"
     data-area-geom='@Html.Raw(geomJson)'
-    data-area-fill="@Model.FillHex">
+    data-area-fill="@Model.FillHex"
+    data-area-name="@Model.Name"
+    data-area-notes="@(Model.Notes ?? "")">
     <i class="bi bi-grip-vertical drag-handle me-1"></i>
 
     <span class="area-name flex-grow-1">

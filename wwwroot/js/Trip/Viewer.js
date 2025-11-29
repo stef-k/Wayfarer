@@ -13,6 +13,7 @@ import {
     addRegionMarker,
     addPlaceMarker,
     addSegment,
+    addAreaPolygon,
     setRegionVisible,
     setSegmentVisible,
     wktToCoords,
@@ -289,13 +290,23 @@ const init = () => {
 
     $$('.place-list-item').forEach(li => {
         const d = li.dataset;
+        // Get notes from hidden div
+        const notesEl = li.querySelector('.place-notes');
+        const notes = notesEl?.innerHTML || '';
+
         if (d.placeLat && d.placeLon) addPlaceMarker(map, d.placeId, [+d.placeLat, +d.placeLon], {
-            name: d.placeName, icon: d.placeIcon, color: d.placeColor, region: d.regionId
+            name: d.placeName,
+            icon: d.placeIcon,
+            color: d.placeColor,
+            region: d.regionId,
+            regionName: d.regionName,
+            address: d.placeAddress,
+            notes
         });
     });
 
     /* ────────── areas ────────── */
-    // 1) Draw & store all area polygons
+    // 1) Draw & store all area polygons with rich popups
     document.querySelectorAll('.area-list-item').forEach(li => {
         const areaId = li.dataset.areaId;
         const geom = JSON.parse(li.dataset.areaGeom || 'null');
@@ -303,19 +314,16 @@ const init = () => {
         if (!geom?.coordinates) return;
 
         const coords = geom.coordinates[0].map(([lon, lat]) => [lat, lon]);
-        const poly = L.polygon(coords, {
-            color: fill,
-            fillColor: fill,
-            weight: 1,
-            opacity: 0.7,
-            fillOpacity: 0.1,
-            renderer: isPrint ? canvasRenderer : undefined
-        }).addTo(map);
+        const name = li.dataset.areaName || li.querySelector('.area-name')?.textContent.trim();
+        const notes = li.dataset.areaNotes || '';
 
-        const name = li.querySelector('.area-name')?.textContent.trim();
-        if (name) poly.bindTooltip(name, {direction: 'right'});
+        const poly = addAreaPolygon(map, areaId, coords, {
+            name,
+            notes,
+            fill
+        });
 
-        _areas[areaId] = poly;
+        if (poly) _areas[areaId] = poly;
     });
 
     // 2) Wire each “.area-toggle” checkbox once
@@ -337,7 +345,16 @@ const init = () => {
         if (coords.length < 2 && d.fromLat && d.toLat) coords = [[+d.fromLat, +d.fromLon], [+d.toLat, +d.toLon]];
         if (coords.length >= 2) {
             const label = `From ${d.fromPlaceName} to ${d.toPlaceName}, ${d.estimatedDistance} km by ${d.transportMode} in ${d.estimatedDuration}`;
-            addSegment(map, d.segmentId, coords, label);
+            addSegment(map, d.segmentId, coords, label, {
+                fromPlace: d.fromPlaceName,
+                toPlace: d.toPlaceName,
+                fromRegion: d.fromPlaceregionName,
+                toRegion: d.toPlaceregionName,
+                mode: d.transportMode,
+                distance: d.estimatedDistance ? `${d.estimatedDistance} km` : null,
+                duration: d.estimatedDuration,
+                notes: d.segmentNotes
+            });
         }
     });
 

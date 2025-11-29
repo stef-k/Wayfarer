@@ -8,7 +8,7 @@
  */
 import { focusMapView } from './mapZoom.js'
 import { enhancePlaceForm, initPlaceHandlers } from './placeHandlers.js';
-import { getMapInstance, getRegionMarkerById, removeRegionMarker, selectMarker, clearSelectedMarker } from './mapManager.js';
+import { getMapInstance, getRegionMarkerById, removeRegionMarker, removePlaceMarker, removeAreaPolygon, selectMarker, clearSelectedMarker } from './mapManager.js';
 import { store } from './storeInstance.js';
 
 let cachedTripId = null;
@@ -152,11 +152,24 @@ export const initRegionHandlers = (tripId) => {
 const handleDeleteRegion = (regionId) => {
     wayfarer.showConfirmationModal({
         title: 'Delete Region?',
-        message: 'Are you sure you want to permanently delete this region and all its places?',
+        message: 'Are you sure you want to permanently delete this region and all its places and areas?',
         confirmText: 'Delete',
         onConfirm: async () => {
             const fd = new FormData();
             fd.set('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+
+            // Collect child place and area IDs before removing DOM element
+            const regionEl = document.getElementById(`region-item-${regionId}`);
+            const placeIds = [];
+            const areaIds = [];
+            if (regionEl) {
+                regionEl.querySelectorAll('.place-list-item').forEach(el => {
+                    if (el.dataset.placeId) placeIds.push(el.dataset.placeId);
+                });
+                regionEl.querySelectorAll('.area-list-item').forEach(el => {
+                    if (el.dataset.areaId) areaIds.push(el.dataset.areaId);
+                });
+            }
 
             const resp = await fetch(`/User/Regions/Delete/${regionId}`, {
                 method: 'POST',
@@ -164,7 +177,12 @@ const handleDeleteRegion = (regionId) => {
             });
 
             if (resp.ok) {
-                document.getElementById(`region-item-${regionId}`)?.remove();
+                // Remove child place markers from map
+                placeIds.forEach(id => removePlaceMarker(id));
+                // Remove child area polygons from map
+                areaIds.forEach(id => removeAreaPolygon(id));
+                // Remove region DOM element and marker
+                regionEl?.remove();
                 removeRegionMarker(regionId);
                 store.dispatch('clear-context');
                 const tripId = store.getState().tripId;

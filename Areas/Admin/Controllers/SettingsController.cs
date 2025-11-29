@@ -153,8 +153,9 @@ namespace Wayfarer.Areas.Admin.Controllers
 
                 return Ok(new
                 {
-                    success = true, message = "The map tile cache has been deleted successfully.",
-                    CacheStatus = cacheStatus
+                    success = true,
+                    message = "The map tile cache has been deleted successfully.",
+                    cacheStatus
                 });
             }
             catch (Exception e)
@@ -175,9 +176,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                 return Ok(new
                 {
                     success = true,
-                    message =
-                        "The map tile cache for zoom levels equal or greater of 9, has been deleted successfully.",
-                    CacheStatus = cacheStatus
+                    message = "The map tile cache for zoom levels equal or greater of 9, has been deleted successfully.",
+                    cacheStatus
                 });
             }
             catch (Exception e)

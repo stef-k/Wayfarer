@@ -97,20 +97,34 @@ function showConfirmationModal(options) {
     // Set up the modal content dynamically
     const modalTitle = modal.querySelector('.modal-title');
     const modalBody = modal.querySelector('.modal-body');
-    const confirmButton = modal.querySelector('.btn-danger'); // Assuming the confirm button has a 'btn-danger' class
+    const confirmButton = modal.querySelector('.btn-danger');
+    const cancelButton = modal.querySelector('.btn-secondary, [data-bs-dismiss="modal"]');
 
     // Set the default values if the options are not provided
     modalTitle.textContent = options.title || 'Confirm Action';
     modalBody.textContent = options.message || 'Are you sure you want to proceed?';
     confirmButton.textContent = options.confirmText || 'Confirm';
 
+    // Track if confirm was clicked to distinguish from cancel/dismiss
+    let confirmed = false;
+
     // Handle the confirmation action
     confirmButton.onclick = function () {
+        confirmed = true;
         if (options.onConfirm && typeof options.onConfirm === 'function') {
-            options.onConfirm(); // Execute the provided callback
+            options.onConfirm();
         }
-        modalInstance.hide(); // Close the modal after the action
+        modalInstance.hide();
     };
+
+    // Handle cancel via hidden event (covers cancel button, X button, backdrop click, Escape key)
+    const onHidden = () => {
+        modal.removeEventListener('hidden.bs.modal', onHidden);
+        if (!confirmed && options.onCancel && typeof options.onCancel === 'function') {
+            options.onCancel();
+        }
+    };
+    modal.addEventListener('hidden.bs.modal', onHidden);
 
     // Show the modal
     modalInstance.show();
@@ -207,16 +221,20 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch { /* ignore */ }
 
     // Optional SSE to refresh badge in real-time
+    // Skip invitation SSE on Invitations page (it has its own handler to avoid duplicates)
+    const isInvitationsPage = location.pathname.toLowerCase().includes('/user/invitations');
     try {
         if (window.__currentUserId && typeof EventSource !== 'undefined') {
-            // Invitations channel: alert on every new invite
-            const esInv = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
-            esInv.onmessage = (evt) => {
-                updateInvitesBadge();
-                let g = '';
-                try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (d && d.groupName) g = ` for ${d.groupName}`; } catch {}
-                if (typeof showAlert === 'function') showAlert('info', `You received a new invitation${g}. Open User → Invitations.`);
-            };
+            // Invitations channel: alert on every new invite (skip on Invitations page)
+            if (!isInvitationsPage) {
+                const esInv = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
+                esInv.onmessage = (evt) => {
+                    updateInvitesBadge();
+                    let g = '';
+                    try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (d && d.groupName) g = ` for ${d.groupName}`; } catch {}
+                    if (typeof showAlert === 'function') showAlert('info', `You received a new invitation${g}. Open User → Invitations.`);
+                };
+            }
 
             // Membership channel: removal/left/joined alerts
             const esMem = new EventSource(`/api/sse/stream/membership-update/${window.__currentUserId}`);
@@ -240,7 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch { /* ignore SSE errors */ }
 
     // User offline check: server-driven activity digest
+    // Session guard prevents showing same notifications multiple times per session
     const checkUserActivityDigest = async () => {
+        if (sessionStorage.getItem('user.activity.notified') === '1') return;
         try {
             const lastSeenRaw = localStorage.getItem('user.activity.lastSeenAt');
             const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
@@ -268,8 +288,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (joinedNames.length && typeof showAlert === 'function') showAlert('success', `You joined: ${joinedNames.join(', ')}`);
                 if (removedNames.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removedNames.join(', ')}`);
                 if (leftNames.length && typeof showAlert === 'function') showAlert('secondary', `You left: ${leftNames.join(', ')}`);
-                if (invites.length || joinedNames.length || removedNames.length || leftNames.length)
+                if (invites.length || joinedNames.length || removedNames.length || leftNames.length) {
                     localStorage.setItem('user.activity.lastSeenAt', new Date().toISOString());
+                    sessionStorage.setItem('user.activity.notified', '1');
+                }
             }
         } catch { /* ignore */ }
     };
@@ -299,8 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     checkJoinedGroups();
 
-    // Client-side fallback: pending invites diff
-    checkPendingInvitesDiff();
+    // Note: checkPendingInvitesDiff() is already called at line 170
 
     // Only initialize theme toggle if the toggle button is on this page
     if (!toggleButton) return;

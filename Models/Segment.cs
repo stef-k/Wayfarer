@@ -18,7 +18,7 @@ public class Segment
     public Guid TripId { get; set; }
 
     /// <summary>Navigation property to the parent trip.</summary>
-    [JsonIgnore] 
+    [JsonIgnore]
     public Trip Trip { get; set; } = null!;
 
     /// <summary>Optional foreign key to the starting place.</summary>

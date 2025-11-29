@@ -3,9 +3,15 @@
  *  • Leaflet bootstrap
  *  • region & place PNG markers
  *  • segment polylines + visibility
+ *  • Rich popups with Google Maps & Wikipedia links
  */
 
 import {addZoomLevelControl} from '../map-utils.js';
+import {
+    buildPlacePopup,
+    buildSegmentPopup,
+    buildAreaPopup
+} from './tripPopupBuilder.js';
 
 /* ---------- Wayfarer PNG marker URL ---------- */
 const png = (icon, bg) => `/icons/wayfarer-map-icons/dist/png/marker/${bg}/${icon}.png`;
@@ -121,8 +127,22 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
         iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'
     });
 
+    // Build rich tooltip content for hover
+    const tooltipContent = buildPlacePopup({
+        name: opts.name,
+        lat,
+        lon,
+        address: opts.address,
+        notes: opts.notes,
+        regionName: opts.regionName
+    });
+
     const m = L.marker([lat, lon], {icon: leafletIcon})
-        .bindTooltip(opts.name || '', {direction: 'right'})
+        .bindTooltip(tooltipContent, {
+            direction: 'right',
+            className: 'trip-rich-tooltip',
+            permanent: false
+        })
         .addTo(map);
 
     m.on('click', () => window.wayfarer?.openPlaceDetails?.(id));
@@ -130,13 +150,44 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
 };
 
 /* ---------- segment poly-line ---------- */
-export const addSegment = (map, id, coords = [], label = '') => {
+export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
     if (!Array.isArray(coords) || coords.length < 2) return;
 
+    // Build rich popup content if segment data provided
+    let popupContent = null;
+    if (opts.fromPlace || opts.toPlace) {
+        popupContent = buildSegmentPopup({
+            fromPlace: opts.fromPlace || 'Start',
+            toPlace: opts.toPlace || 'End',
+            fromRegion: opts.fromRegion,
+            toRegion: opts.toRegion,
+            mode: opts.mode,
+            distance: opts.distance,
+            duration: opts.duration,
+            notes: opts.notes,
+            fromLat: coords[0]?.[0],
+            fromLon: coords[0]?.[1],
+            toLat: coords[coords.length - 1]?.[0],
+            toLon: coords[coords.length - 1]?.[1]
+        });
+    }
+
     const pl = L.polyline(coords, {
-        color: '#0d6efd', weight: 3, className: 'segment-line', // Canvas renderer is needed for leaflet-image
+        color: '#0d6efd', weight: 3, className: 'segment-line',
         renderer: location.search.includes('print=1') ? canvasRenderer : undefined
-    }).bindTooltip(label, {sticky: true, direction: 'top'});
+    });
+
+    // Bind rich tooltip for hover if we have segment data
+    if (popupContent) {
+        pl.bindTooltip(popupContent, {
+            sticky: true,
+            direction: 'top',
+            className: 'trip-rich-tooltip'
+        });
+    } else {
+        // Fallback to simple label tooltip
+        pl.bindTooltip(label, {sticky: true, direction: 'top'});
+    }
 
     pl.addTo(map);
     _segments[id] = pl;
@@ -154,6 +205,37 @@ export const addSegment = (map, id, coords = [], label = '') => {
             map.removeLayer(pl);          // invisible but still in _segments
         }
     }
+};
+
+/* ---------- area polygon ---------- */
+export const addAreaPolygon = (map, id, coords = [], opts = {}) => {
+    if (!Array.isArray(coords) || coords.length < 3) return null;
+
+    const fill = opts.fill || '#3388ff';
+    const poly = L.polygon(coords, {
+        color: fill,
+        fillColor: fill,
+        weight: 1,
+        opacity: 0.7,
+        fillOpacity: 0.1,
+        renderer: location.search.includes('print=1') ? canvasRenderer : undefined
+    });
+
+    // Build rich tooltip content for hover if area data provided
+    if (opts.name) {
+        const tooltipContent = buildAreaPopup({
+            name: opts.name,
+            notes: opts.notes
+        });
+
+        poly.bindTooltip(tooltipContent, {
+            direction: 'right',
+            className: 'trip-rich-tooltip'
+        });
+    }
+
+    poly.addTo(map);
+    return poly;
 };
 
 /* ---------- visibility helpers ---------- */
