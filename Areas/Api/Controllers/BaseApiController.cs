@@ -37,17 +37,26 @@ namespace Wayfarer.Areas.Api.Controllers
 
                 ApiToken? apiToken = _dbContext.ApiTokens.FirstOrDefault(t => t.Token == token);
 
+                // Security: Log minimal token info for identification without exposing full secret
+                string tokenInfo = GetSecureTokenInfo(token);
+
                 if (apiToken?.UserId == null)
                 {
-                    // Security: Log minimal token info for identification without exposing full secret
-                    string tokenInfo = GetSecureTokenInfo(token);
                     _logger.LogWarning("Token does not match any user. Token info: {TokenInfo}", tokenInfo);
                     return null;
                 }
 
-                return _dbContext.Users
+                ApplicationUser? user = _dbContext.Users
                     .Include(u => u.ApiTokens)
                     .FirstOrDefault(u => u.Id == apiToken.UserId);
+
+                if (user != null)
+                {
+                    _logger.LogInformation("API request authenticated. Token info: {TokenInfo}, User: {UserName}",
+                        tokenInfo, user.UserName);
+                }
+
+                return user;
             }
             catch (Exception ex)
             {
