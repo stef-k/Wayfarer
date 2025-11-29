@@ -81,7 +81,7 @@ public class InvitationServiceTests : TestBase
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            invites.InviteUserAsync(g.Id, owner.Id, null, null, null));
+            invites.InviteUserAsync(g.Id, owner.Id, null!, null!, null!));
     }
 
     [Fact]

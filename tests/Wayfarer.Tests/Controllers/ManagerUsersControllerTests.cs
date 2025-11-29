@@ -43,7 +43,7 @@ public class ManagerUsersControllerTests : TestBase
         userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(manager);
         var controller = BuildController(db, userManager.Object);
 
-        var result = await controller.Index(search: null);
+        var result = await controller.Index(search: null!);
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<IEnumerable<UserViewModel>>(view.Model);
@@ -233,7 +233,7 @@ public class ManagerUsersControllerTests : TestBase
         var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
         var controller = BuildController(db, userManager.Object);
 
-        var result = await controller.Edit((string)null);
+        var result = await controller.Edit((string)null!);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -243,7 +243,7 @@ public class ManagerUsersControllerTests : TestBase
     {
         var db = CreateDbContext();
         var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
-        userManager.Setup(m => m.FindByIdAsync("missing")).ReturnsAsync((ApplicationUser)null);
+        userManager.Setup(m => m.FindByIdAsync("missing")).ReturnsAsync((ApplicationUser)null!);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.Edit("missing");
@@ -398,7 +398,7 @@ public class ManagerUsersControllerTests : TestBase
         var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
         var controller = BuildController(db, userManager.Object);
 
-        var result = await controller.ChangePassword((string)null);
+        var result = await controller.ChangePassword((string)null!);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -616,7 +616,7 @@ public class ManagerUsersControllerTests : TestBase
         }
         var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
         var userManager = MockUserManager(manager);
-        userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null);
+        userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null!);
         userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
             .ReturnsAsync(IdentityResult.Success)
             .Callback<ApplicationUser, string>((u, _) =>
@@ -691,7 +691,7 @@ public class ManagerUsersControllerTests : TestBase
         }
         var manager = TestDataFixtures.CreateUser(id: "mgr", username: "manager");
         var userManager = MockUserManager(manager);
-        userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null);
+        userManager.Setup(m => m.FindByNameAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser)null!);
         userManager.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
             .ReturnsAsync(IdentityResult.Failed(new IdentityError { Code = "PasswordTooWeak", Description = "Password is too weak" }));
         var controller = BuildController(db, userManager.Object);
@@ -753,7 +753,7 @@ public class ManagerUsersControllerTests : TestBase
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
         return mgr;
     }

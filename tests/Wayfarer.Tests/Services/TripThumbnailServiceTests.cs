@@ -47,7 +47,7 @@ public class TripThumbnailServiceTests
         var tripId = Guid.NewGuid();
 
         // Act
-        var result = service.GetThumbUrl(tripId, null, null, null, null);
+        var result = service.GetThumbUrl(tripId, null!, null!, null!, null!);
 
         // Assert
         Assert.NotNull(result);

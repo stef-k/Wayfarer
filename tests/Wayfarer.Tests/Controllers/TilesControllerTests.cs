@@ -98,7 +98,7 @@ public class TilesControllerTests : TestBase
         }
     }
 
-    private TilesController BuildController(TileCacheService? tileService = null, ApplicationDbContext? dbContext = null, string? cacheDir = null, HttpMessageHandler? handler = null)
+    private TilesController BuildController(TileCacheService? tileService = null, ApplicationDbContext? dbContext = null!, string? cacheDir = null, HttpMessageHandler? handler = null)
     {
         dbContext ??= CreateDbContext();
         cacheDir ??= Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

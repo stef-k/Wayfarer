@@ -191,7 +191,7 @@ public class UserApiTokenControllerTests : TestBase
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
         return mgr;
     }

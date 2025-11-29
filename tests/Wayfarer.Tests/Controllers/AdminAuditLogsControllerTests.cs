@@ -28,7 +28,7 @@ public class AdminAuditLogsControllerTests : TestBase
         await db.SaveChangesAsync();
         var controller = BuildController(db);
 
-        var result = await controller.Index(search: null, page: 1);
+        var result = await controller.Index(search: null!, page: 1);
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<IEnumerable<AuditLog>>(view.Model);

@@ -180,8 +180,8 @@ public class WayfarerKmlParserTests
         Assert.Equal("landmark", place.IconName);
         Assert.Equal("blue", place.MarkerColor);
         Assert.Equal("Times Square, NYC", place.Address);
-        Assert.Equal(40.7580, place.Location.Y, 4);
-        Assert.Equal(-73.9855, place.Location.X, 4);
+        Assert.Equal(40.7580, place.Location!.Y, 4);
+        Assert.Equal(-73.9855, place.Location!.X, 4);
     }
 
     [Fact]
@@ -415,8 +415,8 @@ public class WayfarerKmlParserTests
 
         // Assert
         var place = trip.Regions.First().Places.First();
-        Assert.Equal(-33.8568, place.Location.Y, 4);
-        Assert.Equal(151.2153, place.Location.X, 4);
+        Assert.Equal(-33.8568, place.Location!.Y, 4);
+        Assert.Equal(151.2153, place.Location!.X, 4);
     }
 
     [Fact]

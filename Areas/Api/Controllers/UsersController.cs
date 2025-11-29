@@ -175,7 +175,7 @@ public class UsersController : ControllerBase
 
         query = query.Trim();
         var users = _dbContext.Users
-            .Where(u => EF.Functions.ILike(u.UserName, $"%{query}%") || EF.Functions.ILike(u.DisplayName, $"%{query}%"));
+            .Where(u => EF.Functions.ILike(u.UserName ?? "", $"%{query}%") || EF.Functions.ILike(u.DisplayName, $"%{query}%"));
 
         if (groupId.HasValue)
         {

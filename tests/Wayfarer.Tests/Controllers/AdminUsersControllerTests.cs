@@ -187,7 +187,7 @@ public class AdminUsersControllerTests : TestBase
 
         var controller = BuildController(db, userManager.Object);
 
-        var result = await controller.Index(search: null);
+        var result = await controller.Index(search: null!);
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<IEnumerable<UserViewModel>>(view.Model);
@@ -354,7 +354,7 @@ public class AdminUsersControllerTests : TestBase
         var db = CreateDbContext();
         var controller = BuildController(db, MockUserManager(TestDataFixtures.CreateUser(id: "admin", username: "admin")).Object);
 
-        var result = await controller.Edit((string)null);
+        var result = await controller.Edit((string)null!);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -385,7 +385,7 @@ public class AdminUsersControllerTests : TestBase
         var db = CreateDbContext();
         var controller = BuildController(db, MockUserManager(TestDataFixtures.CreateUser(id: "admin", username: "admin")).Object);
 
-        var result = await controller.ChangePassword((string)null);
+        var result = await controller.ChangePassword((string)null!);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -537,14 +537,14 @@ public class AdminUsersControllerTests : TestBase
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        return new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        return new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
     }
 
     private static RoleManager<IdentityRole> MockRoleManager(IEnumerable<string>? roleNames = null)
     {
         var roles = roleNames ?? new[] { "Admin", "Manager", "User" };
         var store = new Mock<IRoleStore<IdentityRole>>();
-        var manager = new Mock<RoleManager<IdentityRole>>(store.Object, Array.Empty<IRoleValidator<IdentityRole>>(), null, null, null)
+        var manager = new Mock<RoleManager<IdentityRole>>(store.Object, Array.Empty<IRoleValidator<IdentityRole>>(), null!, null!, null!)
         {
             CallBase = false
         };
@@ -568,14 +568,14 @@ public class AdminUsersControllerTests : TestBase
         public void Dispose() { }
         public Task<IdentityRole?> FindByIdAsync(string roleId, CancellationToken cancellationToken) => Task.FromResult(_roles.FirstOrDefault(r => r.Id == roleId));
         public Task<IdentityRole?> FindByNameAsync(string normalizedRoleName, CancellationToken cancellationToken) => Task.FromResult(_roles.FirstOrDefault(r => r.NormalizedName == normalizedRoleName));
-        public Task<string> GetNormalizedRoleNameAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.NormalizedName);
+        public Task<string?> GetNormalizedRoleNameAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.NormalizedName);
         public Task<string> GetRoleIdAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.Id);
-        public Task<string> GetRoleNameAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.Name);
-        public Task SetNormalizedRoleNameAsync(IdentityRole role, string normalizedName, CancellationToken cancellationToken)
+        public Task<string?> GetRoleNameAsync(IdentityRole role, CancellationToken cancellationToken) => Task.FromResult(role.Name);
+        public Task SetNormalizedRoleNameAsync(IdentityRole role, string? normalizedName, CancellationToken cancellationToken)
         {
             role.NormalizedName = normalizedName; return Task.CompletedTask;
         }
-        public Task SetRoleNameAsync(IdentityRole role, string roleName, CancellationToken cancellationToken)
+        public Task SetRoleNameAsync(IdentityRole role, string? roleName, CancellationToken cancellationToken)
         {
             role.Name = roleName; return Task.CompletedTask;
         }
@@ -587,7 +587,7 @@ public class AdminUsersControllerTests : TestBase
         var contextAccessor = new Mock<IHttpContextAccessor>();
         contextAccessor.Setup(a => a.HttpContext).Returns(new DefaultHttpContext());
         var claimsFactory = new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>();
-        var signInManager = new Mock<SignInManager<ApplicationUser>>(userManager, contextAccessor.Object, claimsFactory.Object, null, null, null, null);
+        var signInManager = new Mock<SignInManager<ApplicationUser>>(userManager, contextAccessor.Object, claimsFactory.Object, null!, null!, null!, null!);
         signInManager.Setup(s => s.SignInAsync(It.IsAny<ApplicationUser>(), It.IsAny<bool>(), null)).Returns(Task.CompletedTask);
         signInManager.Setup(s => s.UpdateExternalAuthenticationTokensAsync(It.IsAny<ExternalLoginInfo>()))
             .ReturnsAsync(IdentityResult.Success);

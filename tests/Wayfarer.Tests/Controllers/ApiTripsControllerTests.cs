@@ -214,7 +214,7 @@ public class ApiTripsControllerTests : TestBase
         db.Trips.AddRange(publicTrip, privateTrip);
         db.SaveChanges();
 
-        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: "updated_desc", tags: null, tagMode: null);
+        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: "updated_desc", tags: null!, tagMode: null!);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = ok.Value!;
@@ -241,7 +241,7 @@ public class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, tagService: tagService.Object);
 
-        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: sort, tags: null, tagMode: null);
+        var result = await controller.GetPublicTrips(page: 1, pageSize: 10, sort: sort, tags: null!, tagMode: null!);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = ok.Value!;

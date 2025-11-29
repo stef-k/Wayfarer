@@ -268,4 +268,21 @@ public class GroupsControllerTests : TestBase
         var groupName = first.GetType().GetProperty("GroupName")?.GetValue(first) as string;
         Assert.Equal(group.Name, groupName);
     }
+
+    [Fact]
+    public async Task Query_ReturnsBadRequest_WhenRequestBodyIsNull()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        var group = new Group { Id = Guid.NewGuid(), Name = "Test", OwnerUserId = user.Id, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = user.Id, Status = GroupMember.MembershipStatuses.Active, Role = GroupMember.Roles.Owner });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, user.Id);
+
+        var result = await controller.Query(group.Id, null!, CancellationToken.None);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
 }

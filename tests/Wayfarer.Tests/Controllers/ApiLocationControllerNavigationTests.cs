@@ -19,7 +19,7 @@ namespace Wayfarer.Tests.Controllers;
 public class ApiLocationControllerNavigationTests : TestBase
 {
     [Fact]
-    public async Task CheckNavigationAvailability_Forbids_WhenInactive()
+    public void CheckNavigationAvailability_Forbids_WhenInactive()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");

@@ -98,7 +98,7 @@ public class ManagerUsersCreateControllerTests : TestBase
     {
         var roleStore = new Mock<IRoleStore<IdentityRole>>();
         var roles = new[] { new IdentityRole("User"), new IdentityRole("Admin") }.AsQueryable();
-        var roleManager = new Mock<RoleManager<IdentityRole>>(roleStore.Object, null, null, null, null);
+        var roleManager = new Mock<RoleManager<IdentityRole>>(roleStore.Object, null!, null!, null!, null!);
         roleManager.Setup(r => r.Roles).Returns(roles);
         return roleManager;
     }
@@ -106,7 +106,7 @@ public class ManagerUsersCreateControllerTests : TestBase
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser? user = null)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         if (user != null)
         {
             mgr.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);

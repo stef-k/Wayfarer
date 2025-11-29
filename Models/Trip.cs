@@ -52,10 +52,10 @@ namespace Wayfarer.Models
         public DateTime UpdatedAt { get; set; }
         
         /// <summary>Collection of regions (areas) included in this trip.</summary>
-        public ICollection<Region>? Regions { get; set; } = new List<Region>();
+        public ICollection<Region> Regions { get; set; } = new List<Region>();
 
         /// <summary>Collection of segments (travel legs) in this trip.</summary>
-        public ICollection<Segment>? Segments { get; set; } = new List<Segment>();
+        public ICollection<Segment> Segments { get; set; } = new List<Segment>();
 
         /// <summary>Collection of tags applied to this trip.</summary>
         public ICollection<Tag> Tags { get; set; } = new List<Tag>();

@@ -155,7 +155,7 @@ public class TripViewerControllerTests : TestBase
 
         var controller = BuildController(db, tagService: tagService.Object);
 
-        var result = await controller.Index(q: null, view: null, sort: null, tags: null, tagMode: null, page: 1, pageSize: 24);
+        var result = await controller.Index(q: null, view: null, sort: null, tags: null!, tagMode: null, page: 1, pageSize: 24);
 
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<PublicTripIndexVm>(view.Model);

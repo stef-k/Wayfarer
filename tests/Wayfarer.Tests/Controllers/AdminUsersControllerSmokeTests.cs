@@ -66,13 +66,13 @@ public class AdminUsersControllerSmokeTests : TestBase
             userManager,
             contextAccessor.Object,
             claimsFactory.Object,
-            null, null, null, null).Object;
+            null!, null!, null!, null!).Object;
     }
 
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync((string id) => id == user.Id ? user : null);
         return mgr;
     }
@@ -81,6 +81,6 @@ public class AdminUsersControllerSmokeTests : TestBase
     {
         var store = new Mock<IQueryableRoleStore<IdentityRole>>();
         store.As<IQueryableRoleStore<IdentityRole>>().Setup(s => s.Roles).Returns(Array.Empty<IdentityRole>().AsQueryable());
-        return new RoleManager<IdentityRole>(store.Object, Array.Empty<IRoleValidator<IdentityRole>>(), null, null, null);
+        return new RoleManager<IdentityRole>(store.Object, Array.Empty<IRoleValidator<IdentityRole>>(), null!, null!, null!);
     }
 }

@@ -173,7 +173,7 @@ public class LocationSseBroadcastsTests
         Assert.NotNull(ok.Value);
 
         var userChannel = $"location-update-{user.UserName}";
-        var userMessage = Assert.Single(sse.Messages.Where(m => m.Channel == userChannel));
+        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
 
         using (var payload = JsonDocument.Parse(userMessage.Data))
         {
@@ -241,7 +241,7 @@ public class LocationSseBroadcastsTests
         Assert.NotNull(ok.Value);
 
         var userChannel = $"location-update-{user.UserName}";
-        var userMessage = Assert.Single(sse.Messages.Where(m => m.Channel == userChannel));
+        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
 
         using (var payload = JsonDocument.Parse(userMessage.Data))
         {
@@ -254,7 +254,7 @@ public class LocationSseBroadcastsTests
             Assert.False(root.TryGetProperty("Type", out _));
         }
 
-        var groupMessage = Assert.Single(sse.Messages.Where(m => m.Channel.StartsWith("group-location-update-", StringComparison.Ordinal)));
+        var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-location-update-", StringComparison.Ordinal));
         Assert.Equal(userMessage.Data, groupMessage.Data);
     }
 }

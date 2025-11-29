@@ -247,7 +247,7 @@ public class ManagerGroupsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_Get_ReturnsView()
+    public void Create_Get_ReturnsView()
     {
         var db = CreateDbContext();
         var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db));

@@ -59,7 +59,7 @@ public class GroupMembersListingTests
                 // acceptable representation of 403
                 break;
             default:
-                Assert.True(false, $"Unexpected result type: {resp.GetType().Name}");
+                Assert.Fail($"Unexpected result type: {resp.GetType().Name}");
                 break;
         }
     }

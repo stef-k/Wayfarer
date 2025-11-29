@@ -40,7 +40,7 @@ public class Region
     
 
     /// <summary>Collection of places within this region.</summary>
-    public ICollection<Place>? Places { get; set; } =  new List<Place>();
+    public ICollection<Place> Places { get; set; } = new List<Place>();
     
     /// <summary>Collection of drawn areas within this region.</summary>
     public ICollection<Area> Areas { get; set; } = new List<Area>();

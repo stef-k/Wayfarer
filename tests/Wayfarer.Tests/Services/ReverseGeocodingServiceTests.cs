@@ -188,7 +188,7 @@ public class ReverseGeocodingServiceTests
                         FeatureType = "address",
                         Name = "Test Location",
                         FullAddress = "Test Full Address",
-                        Context = null // No context
+                        Context = null! // No context
                     }
                 }
             }

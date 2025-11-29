@@ -99,8 +99,8 @@ public class GroupTimelineServiceTests : TestBase
 
         // Assert
         Assert.NotNull(context);
-        Assert.True(context!.AllowedUserIds.Contains("friend-allowed"));
-        Assert.False(context.AllowedUserIds.Contains("friend-optout"));
+        Assert.Contains("friend-allowed", context!.AllowedUserIds);
+        Assert.DoesNotContain("friend-optout", context.AllowedUserIds);
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public class GroupTimelineServiceTests : TestBase
 
         // Assert
         Assert.NotNull(context);
-        Assert.True(context!.AllowedUserIds.Contains("friend-allowed"));
-        Assert.True(context.AllowedUserIds.Contains("friend-optout"));
+        Assert.Contains("friend-allowed", context!.AllowedUserIds);
+        Assert.Contains("friend-optout", context.AllowedUserIds);
     }
 }

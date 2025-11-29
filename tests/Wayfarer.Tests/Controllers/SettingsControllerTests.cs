@@ -35,7 +35,7 @@ public class SettingsControllerTests : TestBase
     private static Mock<UserManager<ApplicationUser>> BuildUserManager(ApplicationUser user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.GetUserId(It.IsAny<ClaimsPrincipal>())).Returns(user.Id);
         mgr.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
         return mgr;

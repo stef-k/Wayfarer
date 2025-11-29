@@ -80,7 +80,7 @@ public class TripControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         Assert.Equal("TripViewer", redirect.ControllerName);
-        Assert.Equal("Public", redirect.RouteValues["area"]);
+        Assert.Equal("Public", redirect.RouteValues!["area"]);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class TripControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Edit", redirect.ActionName);
-        Assert.Equal(trip.Id, redirect.RouteValues["id"]);
+        Assert.Equal(trip.Id, redirect.RouteValues!["id"]);
     }
 
     [Fact]
@@ -374,8 +374,8 @@ public class TripControllerTests : TestBase
         Assert.NotEqual(place1.Id, clonedSegment.FromPlaceId);
         Assert.NotEqual(place2.Id, clonedSegment.ToPlaceId);
         var clonedPlaceIds = clonedTrip.Regions.First().Places.Select(p => p.Id).ToList();
-        Assert.Contains(clonedSegment.FromPlaceId.Value, clonedPlaceIds);
-        Assert.Contains(clonedSegment.ToPlaceId.Value, clonedPlaceIds);
+        Assert.Contains(clonedSegment.FromPlaceId!.Value, clonedPlaceIds);
+        Assert.Contains(clonedSegment.ToPlaceId!.Value, clonedPlaceIds);
     }
 
     [Fact]
@@ -481,7 +481,7 @@ public class TripControllerTests : TestBase
         var controller = BuildControllerWithUser(db, user.Id);
         var model = new Trip { Id = Guid.NewGuid(), Name = "Changed" };
 
-        var result = await controller.Edit(trip.Id, model, submitAction: null);
+        var result = await controller.Edit(trip.Id, model, submitAction: null!);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(TripController.Index), redirect.ActionName);
@@ -503,7 +503,7 @@ public class TripControllerTests : TestBase
         var controller = BuildControllerWithUser(db, other.Id);
         var model = new Trip { Id = trip.Id, Name = "Attempted change" };
 
-        var result = await controller.Edit(trip.Id, model, submitAction: null);
+        var result = await controller.Edit(trip.Id, model, submitAction: null!);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(TripController.Index), redirect.ActionName);
@@ -542,7 +542,7 @@ public class TripControllerTests : TestBase
             CoverImageUrl = "http://new"
         };
 
-        var result = await controller.Edit(trip.Id, model, submitAction: null);
+        var result = await controller.Edit(trip.Id, model, submitAction: null!);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(TripController.Index), redirect.ActionName);
@@ -593,7 +593,7 @@ public class TripControllerTests : TestBase
         controller.ModelState.AddModelError("Name", "Required");
         var model = new Trip { Id = trip.Id, Name = string.Empty };
 
-        var result = await controller.Edit(trip.Id, model, submitAction: null);
+        var result = await controller.Edit(trip.Id, model, submitAction: null!);
 
         var view = Assert.IsType<ViewResult>(result);
         Assert.Same(model, view.Model);

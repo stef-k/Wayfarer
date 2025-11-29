@@ -61,8 +61,8 @@ public class ErrorControllerTests
 
     private sealed class StatusCodeReExecuteFeature : IStatusCodeReExecuteFeature
     {
-        public string? OriginalPath { get; set; }
-        public string? OriginalPathBase { get; set; }
+        public string OriginalPath { get; set; } = string.Empty;
+        public string OriginalPathBase { get; set; } = string.Empty;
         public string? OriginalQueryString { get; set; }
     }
 }

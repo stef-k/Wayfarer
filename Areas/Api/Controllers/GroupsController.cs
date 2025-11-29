@@ -193,6 +193,7 @@ public class GroupsController : ControllerBase
         CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
+        if (req is null) return BadRequest("Request body is required");
         var isMember = await _db.GroupMembers.AnyAsync(
             m => m.GroupId == groupId && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active,
             ct);
@@ -205,7 +206,7 @@ public class GroupsController : ControllerBase
             .Select(m => new { m.UserId, m.OrgPeerVisibilityAccessDisabled })
             .ToListAsync(ct);
         var activeMemberIds = activeMembers.Select(x => x.UserId).ToList();
-        var requested = req?.UserIds != null && req.UserIds.Count > 0
+        var requested = req.UserIds != null && req.UserIds.Count > 0
             ? req.UserIds.Distinct().ToList()
             : activeMemberIds;
         var allowed = new HashSet<string>(StringComparer.Ordinal);
@@ -231,21 +232,20 @@ public class GroupsController : ControllerBase
         // Performance guard: if multiple users are requested, enforce day-only queries
         // This limits the result size and keeps UI responsive even for large datasets.
         if (userIds.Count > 1)
-            if (req != null)
+        {
+            req.DateType = "day";
+            // If specific day not provided, default to today's UTC date
+            if (!req.Year.HasValue || !req.Month.HasValue || !req.Day.HasValue)
             {
-                req.DateType = "day";
-                // If specific day not provided, default to today's UTC date
-                if (!req.Year.HasValue || !req.Month.HasValue || !req.Day.HasValue)
-                {
-                    var today = DateTime.UtcNow;
-                    req.Year ??= today.Year;
-                    req.Month ??= today.Month;
-                    req.Day ??= today.Day;
-                }
+                var today = DateTime.UtcNow;
+                req.Year ??= today.Year;
+                req.Month ??= today.Month;
+                req.Day ??= today.Day;
             }
+        }
 
         // Fallback: if client sent no DateType at all, default to today's day view to avoid huge history loads
-        if (req != null && string.IsNullOrWhiteSpace(req.DateType))
+        if (string.IsNullOrWhiteSpace(req.DateType))
         {
             var today = DateTime.UtcNow;
             req.DateType = "day";

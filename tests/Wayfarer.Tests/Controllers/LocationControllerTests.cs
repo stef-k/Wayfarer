@@ -150,7 +150,7 @@ namespace Wayfarer.Tests.Controllers;
         };
 
         // Act
-        var result = await controller.Edit(model, saveAction: null);
+        var result = await controller.Edit(model, saveAction: null!);
 
         // Assert
         var redirect = Assert.IsType<RedirectToActionResult>(result);
@@ -262,8 +262,8 @@ namespace Wayfarer.Tests.Controllers;
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsType<AddLocationViewModel>(view.Model);
         Assert.Equal(user.Id, model.UserId);
-        Assert.Equal(2, model.ActivityTypes.Count);
-        Assert.NotNull(model.LocalTimestamp);
+        Assert.Equal(2, model.ActivityTypes!.Count);
+        Assert.NotEqual(default, model.LocalTimestamp);
     }
 
     [Fact]
@@ -480,7 +480,7 @@ namespace Wayfarer.Tests.Controllers;
         };
 
         // Act
-        var result = await controller.Edit(model, saveAction: null);
+        var result = await controller.Edit(model, saveAction: null!);
 
         // Assert
         var redirect = Assert.IsType<RedirectToActionResult>(result);

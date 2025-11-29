@@ -75,7 +75,7 @@ public class AdminApiTokenControllerSmokeTests : TestBase
     private ApiTokenController BuildController(ApplicationDbContext db)
     {
         var userStore = new Mock<IUserStore<ApplicationUser>>();
-        var userManager = new Mock<UserManager<ApplicationUser>>(userStore.Object, null, null, null, null, null, null, null, null);
+        var userManager = new Mock<UserManager<ApplicationUser>>(userStore.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         userManager.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync((string id) => db.Users.SingleOrDefault(u => u.Id == id));
 
         var svc = new ApiTokenService(db, userManager.Object);

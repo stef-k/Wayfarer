@@ -245,7 +245,7 @@ public class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task CheckNavigationAvailability_ReturnsUnauthorized_WhenTokenMissing()
+    public void CheckNavigationAvailability_ReturnsUnauthorized_WhenTokenMissing()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
@@ -260,7 +260,7 @@ public class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task CheckNavigationAvailability_ReturnsFlags_ForCurrentDay()
+    public void CheckNavigationAvailability_ReturnsFlags_ForCurrentDay()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
@@ -526,7 +526,7 @@ public class ApiLocationControllerTests : TestBase
         var controller = BuildApiController(db, user, includeAuthHeader: false);
         controller.ControllerContext.HttpContext.User = new ClaimsPrincipal();
 
-        var result = await controller.Search(null, null, null, null, null, null, null, null, null, null);
+        var result = await controller.Search(null, null!, null!, null!, null!, null!, null!, null!, null!, null!);
 
         Assert.IsType<UnauthorizedResult>(result);
     }

@@ -115,13 +115,13 @@ public class ApiTokenServiceTests : TestBase
         var token = service.GenerateToken();
 
         Assert.StartsWith("wf_", token);
-        Assert.True(Regex.IsMatch(token.Substring(3), @"^[A-Za-z0-9\-_]+$"));
+        Assert.Matches(@"^[A-Za-z0-9\-_]+$", token.Substring(3));
     }
 
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser? user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync(user);
         return mgr;
     }

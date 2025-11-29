@@ -123,8 +123,8 @@ public class GoogleMyMapsKmlParserTests
         var place = region.Places.First();
         Assert.Equal("Times Square", place.Name);
         Assert.Equal("Famous intersection", place.Notes);
-        Assert.Equal(40.7580, place.Location.Y, 4);
-        Assert.Equal(-73.9855, place.Location.X, 4);
+        Assert.Equal(40.7580, place.Location!.Y, 4);
+        Assert.Equal(-73.9855, place.Location!.X, 4);
         Assert.Equal("user1", place.UserId);
     }
 
@@ -421,8 +421,8 @@ public class GoogleMyMapsKmlParserTests
 
         // Assert
         var place = trip.Regions.First().Places.First();
-        Assert.Equal(-33.8568, place.Location.Y, 4);
-        Assert.Equal(151.2153, place.Location.X, 4);
+        Assert.Equal(-33.8568, place.Location!.Y, 4);
+        Assert.Equal(151.2153, place.Location!.X, 4);
     }
 
     [Fact]
@@ -508,7 +508,7 @@ public class GoogleMyMapsKmlParserTests
         var trip = GoogleMyMapsKmlParser.Parse(stream, "user1");
 
         // Assert
-        var lineString = (LineString)trip.Segments.First().RouteGeometry;
+        var lineString = (LineString)trip.Segments.First().RouteGeometry!;
         Assert.Equal(4, lineString.NumPoints);
     }
 

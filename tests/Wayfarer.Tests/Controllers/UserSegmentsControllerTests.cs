@@ -45,7 +45,7 @@ public class UserSegmentsControllerTests : TestBase
         var result = await controller.CreateOrUpdate(new Segment
         {
             Mode = "walk",
-            UserId = null
+            UserId = null!
         });
 
         Assert.IsType<UnauthorizedResult>(result);

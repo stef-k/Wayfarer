@@ -241,6 +241,51 @@ public class ApiUsersControllerTests : TestBase
         Assert.Empty(items);
     }
 
+    [Fact]
+    public async Task Search_ReturnsEmpty_WhenQueryIsNull()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext = CreateHttpContextWithUser("u1");
+
+        var result = await controller.Search(null, null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var items = Assert.IsAssignableFrom<IEnumerable<object>>(ok.Value);
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public async Task Search_ReturnsEmpty_WhenQueryIsWhitespace()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext = CreateHttpContextWithUser("u1");
+
+        var result = await controller.Search("   ", null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var items = Assert.IsAssignableFrom<IEnumerable<object>>(ok.Value);
+        Assert.Empty(items);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("x")]
+    public async Task Search_ReturnsEmpty_WhenQueryInvalid(string query)
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext = CreateHttpContextWithUser("u1");
+
+        var result = await controller.Search(query, null, CancellationToken.None);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var items = Assert.IsAssignableFrom<IEnumerable<object>>(ok.Value);
+        Assert.Empty(items);
+    }
+
     private UsersController BuildController(ApplicationDbContext db, ILocationStatsService? statsService = null)
     {
         return new UsersController(db, NullLogger<UsersController>.Instance, statsService ?? new LocationStatsService(db))
@@ -278,19 +323,20 @@ public class ApiUsersControllerTests : TestBase
                     .Property(l => l.Coordinates)
                     .HasConversion(
                         v => v == null ? null : v.AsText(),
-                        v => string.IsNullOrEmpty(v) ? null : (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read(v!))
+                        v => string.IsNullOrEmpty(v) ? null! : (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read(v!))
                     .HasColumnType("TEXT");
 
                 builder.Entity<TileCacheMetadata>()
                     .Property(t => t.TileLocation)
                     .HasConversion(
                         v => v == null ? null : v.AsText(),
-                        v => string.IsNullOrEmpty(v) ? null : (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read(v!))
+                        v => string.IsNullOrEmpty(v) ? null! : (NetTopologySuite.Geometries.Point)new NetTopologySuite.IO.WKTReader().Read(v!))
                     .HasColumnType("TEXT");
             }
         }
     }
 
+#pragma warning disable EF1001 // Internal EF Core API usage - necessary for SQLite geography type mapping in tests
     private sealed class SqliteGeographyTypeMappingSource : Microsoft.EntityFrameworkCore.Sqlite.Storage.Internal.SqliteTypeMappingSource
     {
         public SqliteGeographyTypeMappingSource(
@@ -312,4 +358,5 @@ public class ApiUsersControllerTests : TestBase
             return base.FindMapping(mappingInfo);
         }
     }
+#pragma warning restore EF1001
 }

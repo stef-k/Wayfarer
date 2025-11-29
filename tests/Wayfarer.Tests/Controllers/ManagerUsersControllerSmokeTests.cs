@@ -21,7 +21,7 @@ public class ManagerUsersControllerSmokeTests : TestBase
         var db = CreateDbContext();
         var controller = BuildController(db);
 
-        var result = await controller.Index(search: null, page: 1);
+        var result = await controller.Index(search: null!, page: 1);
 
         Assert.IsType<ViewResult>(result);
     }
@@ -43,7 +43,7 @@ public class ManagerUsersControllerSmokeTests : TestBase
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
-        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null, null, null, null, null, null, null, null);
+        var mgr = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync(user);
         return mgr;
     }
@@ -51,6 +51,6 @@ public class ManagerUsersControllerSmokeTests : TestBase
     private static Mock<RoleManager<IdentityRole>> MockRoleManager()
     {
         var store = new Mock<IRoleStore<IdentityRole>>();
-        return new Mock<RoleManager<IdentityRole>>(store.Object, null, null, null, null);
+        return new Mock<RoleManager<IdentityRole>>(store.Object, null!, null!, null!, null!);
     }
 }

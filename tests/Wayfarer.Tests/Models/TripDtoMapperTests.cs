@@ -85,7 +85,7 @@ public class TripDtoMapperTests
         Assert.Equal(new[] { 10d, 20d }, dto.Center);
         Assert.Equal("Place", dto.Places!.Single().Name);
         Assert.Equal("Area", dto.Areas!.Single().Name);
-        Assert.NotNull(dto.Areas.Single().GeometryGeoJson);
+        Assert.NotNull(dto.Areas!.Single().GeometryGeoJson);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public class TripDtoMapperTests
     [Fact]
     public void ToApiDto_Area_ReturnsEmptyDtoOnNull()
     {
-        var dto = TripDtoMapper.ToApiDto((Area)null);
+        var dto = TripDtoMapper.ToApiDto((Area)null!);
 
         Assert.NotNull(dto);
         Assert.Equal(Guid.Empty, dto.Id);
@@ -177,7 +177,7 @@ public class TripDtoMapperTests
     [Fact]
     public void ToApiDto_Segment_ReturnsEmptyDtoOnNull()
     {
-        var dto = TripDtoMapper.ToApiDto((Segment)null);
+        var dto = TripDtoMapper.ToApiDto((Segment)null!);
 
         Assert.NotNull(dto);
         Assert.Equal(Guid.Empty, dto.Id);
