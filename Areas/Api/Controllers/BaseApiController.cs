@@ -39,7 +39,9 @@ namespace Wayfarer.Areas.Api.Controllers
 
                 if (apiToken?.UserId == null)
                 {
-                    _logger.LogWarning("Token does not match any user.");
+                    // Security: Log minimal token info for identification without exposing full secret
+                    string tokenInfo = GetSecureTokenInfo(token);
+                    _logger.LogWarning("Token does not match any user. Token info: {TokenInfo}", tokenInfo);
                     return null;
                 }
 
@@ -70,6 +72,21 @@ namespace Wayfarer.Areas.Api.Controllers
                 .FirstOrDefault(c => c.UserId == user.Id && c.ClaimType == ClaimTypes.Role);
 
             return roleClaim?.ClaimValue;
+        }
+
+        /// <summary>
+        /// Gets a secure representation of a token for logging purposes.
+        /// Shows format type and partial identifier without exposing the full secret.
+        /// </summary>
+        /// <param name="token">The token to get info for.</param>
+        /// <returns>A safe string representation for logging.</returns>
+        private static string GetSecureTokenInfo(string? token)
+        {
+            if (string.IsNullOrEmpty(token))
+                return "empty";
+            if (token.StartsWith("wf_") && token.Length >= 7)
+                return $"{token.Substring(0, 7)}... (len={token.Length})";
+            return $"old-format (len={token.Length})";
         }
 
         /// <summary>
