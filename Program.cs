@@ -22,7 +22,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
-using IPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
+using IPNetwork = System.Net.IPNetwork;
 // for AddQuartz(), AddQuartzHostedService()
 // for UseMicrosoftDependencyInjectionJobFactory(), UsePersistentStore(), etc.
 // for IJobFactory
@@ -78,7 +78,7 @@ static void ConfigureForwardedHeaders(WebApplicationBuilder builder)
                                    ForwardedHeaders.XForwardedHost;
 
         // Clear defaults for explicit configuration
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
 
         // Trust nginx running on localhost (your setup)
@@ -86,19 +86,18 @@ static void ConfigureForwardedHeaders(WebApplicationBuilder builder)
         options.KnownProxies.Add(IPAddress.IPv6Loopback);
 
         // For nginx on same machine, trust loopback networks
-        // Using string-based network definition to avoid IPNetwork ambiguity
-        options.KnownNetworks.Add(new IPNetwork(
+        options.KnownIPNetworks.Add(new IPNetwork(
             IPAddress.Parse("127.0.0.0"), 8));
-        options.KnownNetworks.Add(new IPNetwork(
+        options.KnownIPNetworks.Add(new IPNetwork(
             IPAddress.Parse("::1"), 128));
 
         // Optional: Trust local network ranges if needed
         if (builder.Environment.IsDevelopment())
         {
             // In development, also trust local networks
-            options.KnownNetworks.Add(new IPNetwork(
+            options.KnownIPNetworks.Add(new IPNetwork(
                 IPAddress.Parse("192.168.0.0"), 16));
-            options.KnownNetworks.Add(new IPNetwork(
+            options.KnownIPNetworks.Add(new IPNetwork(
                 IPAddress.Parse("10.0.0.0"), 8));
         }
 
