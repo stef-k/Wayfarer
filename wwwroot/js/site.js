@@ -138,10 +138,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const navbar       = document.getElementById('mainNavbar');
     const footer       = document.querySelector('footer');
 
-    // Pending invitations badge updater
+    // Check if user is authenticated (set in _LoginPartial.cshtml when signed in)
+    const isAuthenticated = !!window.__currentUserId;
+
+    // Pending invitations badge updater (authenticated users only)
     const invitesBadge = document.getElementById('userInvitesBadge');
     const updateInvitesBadge = async () => {
-        if (!invitesBadge) return;
+        if (!invitesBadge || !isAuthenticated) return;
         try {
             const res = await fetch('/api/invitations');
             const list = res.ok ? await res.json() : [];
@@ -159,11 +162,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch { /* ignore */ }
     };
-    updateInvitesBadge();
-    setInterval(updateInvitesBadge, 60000);
+    if (isAuthenticated) {
+        updateInvitesBadge();
+        setInterval(updateInvitesBadge, 60000);
+    }
 
-    // User offline check for pending invitations: compare with last stored list
+    // User offline check for pending invitations: compare with last stored list (authenticated users only)
     const checkPendingInvitesDiff = async () => {
+        if (!isAuthenticated) return;
         try {
             const res = await fetch('/api/invitations');
             if (!res.ok) return;
@@ -181,12 +187,14 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('user.pending.invites', JSON.stringify(invites));
         } catch { /* ignore */ }
     };
-    checkPendingInvitesDiff();
+    if (isAuthenticated) {
+        checkPendingInvitesDiff();
+    }
 
-    // Manager: show recent activity digest + badge if present
+    // Manager: show recent activity digest + badge if present (authenticated managers only)
     const mgrBadge = document.getElementById('managerGroupsBadge');
     const updateManagerActivity = async () => {
-        if (!mgrBadge) return; // only on pages where Manager menu is present
+        if (!mgrBadge || !isAuthenticated) return; // only on pages where Manager menu is present
         try {
             const res = await fetch('/api/groups/managed/activity?sinceHours=24');
             if (!res.ok) return; // not a manager or not authorized
@@ -204,8 +212,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch { /* ignore */ }
     };
-    updateManagerActivity();
-    setInterval(updateManagerActivity, 60000);
+    if (isAuthenticated) {
+        updateManagerActivity();
+        setInterval(updateManagerActivity, 60000);
+    }
 
     try {
         document.querySelectorAll('div.dropdown > button.btn.dropdown-toggle').forEach(btn => {
@@ -257,10 +267,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch { /* ignore SSE errors */ }
 
-    // User offline check: server-driven activity digest
+    // User offline check: server-driven activity digest (authenticated users only)
     // Session guard prevents showing same notifications multiple times per session
     const checkUserActivityDigest = async () => {
-        if (sessionStorage.getItem('user.activity.notified') === '1') return;
+        if (!isAuthenticated || sessionStorage.getItem('user.activity.notified') === '1') return;
         try {
             const lastSeenRaw = localStorage.getItem('user.activity.lastSeenAt');
             const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
@@ -295,10 +305,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch { /* ignore */ }
     };
-    checkUserActivityDigest();
+    if (isAuthenticated) {
+        checkUserActivityDigest();
+    }
 
-    // Client-side fallback: compare joined count on session start
+    // Client-side fallback: compare joined count on session start (authenticated users only)
     const checkJoinedGroups = async () => {
+        if (!isAuthenticated) return;
         try {
             const res = await fetch('/api/groups?scope=joined');
             if (!res.ok) return;
@@ -319,7 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('user.joined.groups', JSON.stringify(joined));
         } catch { /* ignore */ }
     };
-    checkJoinedGroups();
+    if (isAuthenticated) {
+        checkJoinedGroups();
+    }
 
     // Note: checkPendingInvitesDiff() is already called at line 170
 
