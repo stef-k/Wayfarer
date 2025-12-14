@@ -2,6 +2,10 @@
 
 Check the following sections for rules and useful information.
 
+## Sub Agents
+
+Pick and use sub agents if their proficiency matches with the tasks at hand and their use adds value and efficiency to the task.
+
 ## Development environment
 
 * The project is developed in Windows 10 with .net 9 ASP.NET MVC. The database is PostgreSQL with PostGIS. Front end is plain modern JavaScript with preference in arrow functions. For tile services uses Open Street Map but with local cache in order to respect fair use policies and Leaflet library.
