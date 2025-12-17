@@ -112,15 +112,12 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("LocationDistanceThresholdMeters", currentSettings.LocationDistanceThresholdMeters, updatedSettings.LocationDistanceThresholdMeters);
                     Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
-                    Track("AutoDeleteEmptyGroups", currentSettings.AutoDeleteEmptyGroups, updatedSettings.AutoDeleteEmptyGroups);
 
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
-                    // Groups: auto-delete when empty toggle
-                    currentSettings.AutoDeleteEmptyGroups = updatedSettings.AutoDeleteEmptyGroups;
                     await _dbContext.SaveChangesAsync();
 
                     // Audit settings update with changed fields summary

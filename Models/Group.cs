@@ -39,13 +39,13 @@ public class Group
     public bool IsArchived { get; set; } = false;
 
     /// <summary>
-    /// Optional group type. Use "Organisation" for org-specific features.
+    /// Optional group type. Use "Organization" for org-specific features.
     /// </summary>
     [MaxLength(50)]
     public string? GroupType { get; set; }
 
     /// <summary>
-    /// When true, members of an Organisation can see each other's locations per policy.
+    /// When true, members of an Organization can see each other's locations per policy.
     /// Admin-only toggle. Defaults to false.
     /// </summary>
     public bool OrgPeerVisibilityEnabled { get; set; } = false;

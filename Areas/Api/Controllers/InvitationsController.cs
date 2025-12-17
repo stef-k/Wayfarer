@@ -116,10 +116,20 @@ public class InvitationsController : ControllerBase
         {
             return StatusCode(403);
         }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Invitation creation failed - business rule violation");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invitation creation failed - invalid argument");
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Invitation creation failed");
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { message = "Failed to create invitation." });
         }
     }
 
@@ -141,13 +151,26 @@ public class InvitationsController : ControllerBase
             await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "member-joined", userId = CurrentUserId, invitationId = id }));
             return Ok(new { message = "Accepted" });
         }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Invitation not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { message = "You are not authorized to accept this invitation" });
+        }
         catch (InvalidOperationException ex) when (ex.Message.Contains("expired") || ex.Message.Contains("not pending"))
         {
             return Conflict(new { message = ex.Message });
         }
     }
 
-    // POST /api/invitations/{id}/decline
+    /// <summary>
+    /// Declines a pending invitation. Only the designated invitee can decline.
+    /// </summary>
+    /// <param name="id">The invitation ID to decline.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>OK if successful, appropriate error status otherwise.</returns>
     [HttpPost("{id}/decline")]
     public async Task<IActionResult> Decline([FromRoute] Guid id, CancellationToken ct)
     {
@@ -155,10 +178,25 @@ public class InvitationsController : ControllerBase
         var inv = await _db.GroupInvitations.FirstOrDefaultAsync(i => i.Id == id, ct);
         if (inv == null) return NotFound();
 
-        await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
-        await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "declined", id }));
-        // Inform managers watching the group
-        await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-declined", userId = CurrentUserId, invitationId = id }));
-        return Ok(new { message = "Declined" });
+        try
+        {
+            await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
+            await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "declined", id }));
+            // Inform managers watching the group
+            await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-declined", userId = CurrentUserId, invitationId = id }));
+            return Ok(new { message = "Declined" });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Invitation not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { message = "You are not authorized to decline this invitation" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
     }
 }

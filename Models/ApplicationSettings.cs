@@ -38,15 +38,7 @@ public class ApplicationSettings
     public bool IsRegistrationOpen { get; set; } = false;
     
     // Application uploads file size limit in Megabytes, default is 100 MB
-    [Required] 
+    [Required]
     [Range(-1, 102400)]
     public int UploadSizeLimitMB { get; set; } = 100;
-
-    /// <summary>
-    /// When enabled, automatically delete a group when its last active member leaves
-    /// or is removed. Defaults to false (feature disabled).
-    /// </summary>
-    [Required]
-    public bool AutoDeleteEmptyGroups { get; set; } = true;
-    
 }

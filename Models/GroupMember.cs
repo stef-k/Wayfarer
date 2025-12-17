@@ -51,7 +51,7 @@ public class GroupMember
     public DateTime? LeftAt { get; set; }
 
     /// <summary>
-    /// For Organisation groups, a member can opt out of peer visibility.
+    /// For Organization groups, a member can opt out of peer visibility.
     /// </summary>
     public bool OrgPeerVisibilityAccessDisabled { get; set; } = false;
 

@@ -182,21 +182,23 @@ public class GroupsControllerTests : TestBase
         // Arrange
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(owner);
+        var member = TestDataFixtures.CreateUser(id: "member");
+        db.Users.AddRange(owner, member);
         await db.SaveChangesAsync();
 
         var svc = new GroupService(db);
         var g = await svc.CreateGroupAsync(owner.Id, "G2", null);
+        await svc.AddMemberAsync(g.Id, owner.Id, member.Id, GroupMember.Roles.Member);
 
-        var ctrl = CreateController(db, owner.Id);
+        var ctrl = CreateController(db, member.Id);
 
-        // Act
+        // Act - member (not owner) leaves
         var resp = await ctrl.Leave(g.Id, CancellationToken.None);
 
         // Assert
         var ok = Assert.IsType<OkObjectResult>(resp);
         Assert.True(await db.GroupMembers.AnyAsync(m =>
-            m.GroupId == g.Id && m.UserId == owner.Id && m.Status == GroupMember.MembershipStatuses.Left));
+            m.GroupId == g.Id && m.UserId == member.Id && m.Status == GroupMember.MembershipStatuses.Left));
     }
 
     [Fact]

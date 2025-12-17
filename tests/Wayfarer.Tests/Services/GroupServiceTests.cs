@@ -64,6 +64,142 @@ public class GroupServiceTests : TestBase
         Assert.True(await db.AuditLogs.AnyAsync(a => a.Action == "MemberAdd"));
     }
 
+    /// <summary>
+    /// Verifies that a Manager cannot assign Owner role - only Owners can do this.
+    /// This prevents privilege escalation attacks.
+    /// </summary>
+    [Fact]
+    public async Task AddMember_ManagerCannotAssignOwnerRole()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var manager = TestDataFixtures.CreateUser(id: "manager");
+        var newUser = TestDataFixtures.CreateUser(id: "newuser");
+        db.Users.AddRange(owner, manager, newUser);
+        await db.SaveChangesAsync();
+
+        var svc = new GroupService(db);
+        var g = await svc.CreateGroupAsync(owner.Id, "TestGroup", null);
+
+        // Make manager a Manager role member
+        var membership = TestDataFixtures.CreateGroupMember(g, manager, GroupMember.Roles.Manager);
+        db.GroupMembers.Add(membership);
+        await db.SaveChangesAsync();
+
+        // Act & Assert - Manager trying to assign Owner role should fail
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            svc.AddMemberAsync(g.Id, manager.Id, newUser.Id, GroupMember.Roles.Owner));
+
+        Assert.Contains("Managers can only assign the 'Member' role", ex.Message);
+    }
+
+    /// <summary>
+    /// Verifies that a Manager cannot assign Manager role - only Owners can do this.
+    /// This prevents privilege escalation attacks.
+    /// </summary>
+    [Fact]
+    public async Task AddMember_ManagerCannotAssignManagerRole()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var manager = TestDataFixtures.CreateUser(id: "manager");
+        var newUser = TestDataFixtures.CreateUser(id: "newuser");
+        db.Users.AddRange(owner, manager, newUser);
+        await db.SaveChangesAsync();
+
+        var svc = new GroupService(db);
+        var g = await svc.CreateGroupAsync(owner.Id, "TestGroup", null);
+
+        // Make manager a Manager role member
+        var membership = TestDataFixtures.CreateGroupMember(g, manager, GroupMember.Roles.Manager);
+        db.GroupMembers.Add(membership);
+        await db.SaveChangesAsync();
+
+        // Act & Assert - Manager trying to assign Manager role should fail
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            svc.AddMemberAsync(g.Id, manager.Id, newUser.Id, GroupMember.Roles.Manager));
+
+        Assert.Contains("Managers can only assign the 'Member' role", ex.Message);
+    }
+
+    /// <summary>
+    /// Verifies that the actual Owner (via Group.OwnerUserId) can assign Owner role.
+    /// </summary>
+    [Fact]
+    public async Task AddMember_ActualOwnerCanAssignOwnerRole()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var newUser = TestDataFixtures.CreateUser(id: "newuser");
+        db.Users.AddRange(owner, newUser);
+        await db.SaveChangesAsync();
+
+        var svc = new GroupService(db);
+        var g = await svc.CreateGroupAsync(owner.Id, "TestGroup", null);
+
+        // Act - Owner should be able to assign Owner role
+        var m = await svc.AddMemberAsync(g.Id, owner.Id, newUser.Id, GroupMember.Roles.Owner);
+
+        // Assert
+        Assert.Equal(GroupMember.Roles.Owner, m.Role);
+    }
+
+    /// <summary>
+    /// Verifies that the actual Owner (via Group.OwnerUserId) can assign Manager role.
+    /// </summary>
+    [Fact]
+    public async Task AddMember_ActualOwnerCanAssignManagerRole()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var newUser = TestDataFixtures.CreateUser(id: "newuser");
+        db.Users.AddRange(owner, newUser);
+        await db.SaveChangesAsync();
+
+        var svc = new GroupService(db);
+        var g = await svc.CreateGroupAsync(owner.Id, "TestGroup", null);
+
+        // Act - Owner should be able to assign Manager role
+        var m = await svc.AddMemberAsync(g.Id, owner.Id, newUser.Id, GroupMember.Roles.Manager);
+
+        // Assert
+        Assert.Equal(GroupMember.Roles.Manager, m.Role);
+    }
+
+    /// <summary>
+    /// Verifies that a user with Owner role in GroupMembers (but not the actual Group.OwnerUserId)
+    /// can assign Owner and Manager roles.
+    /// </summary>
+    [Fact]
+    public async Task AddMember_MemberWithOwnerRoleCanAssignManagerRole()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var actualOwner = TestDataFixtures.CreateUser(id: "actual-owner");
+        var delegatedOwner = TestDataFixtures.CreateUser(id: "delegated-owner");
+        var newUser = TestDataFixtures.CreateUser(id: "newuser");
+        db.Users.AddRange(actualOwner, delegatedOwner, newUser);
+        await db.SaveChangesAsync();
+
+        var svc = new GroupService(db);
+        var g = await svc.CreateGroupAsync(actualOwner.Id, "TestGroup", null);
+
+        // Add delegated owner with Owner role in GroupMembers
+        var delegatedOwnerMembership = TestDataFixtures.CreateGroupMember(g, delegatedOwner, GroupMember.Roles.Owner);
+        db.GroupMembers.Add(delegatedOwnerMembership);
+        await db.SaveChangesAsync();
+
+        // Act - Delegated owner should be able to assign Manager role
+        var m = await svc.AddMemberAsync(g.Id, delegatedOwner.Id, newUser.Id, GroupMember.Roles.Manager);
+
+        // Assert
+        Assert.Equal(GroupMember.Roles.Manager, m.Role);
+    }
+
     #region CreateGroupAsync Tests
 
     [Fact]
@@ -441,8 +577,12 @@ public class GroupServiceTests : TestBase
         Assert.Equal(GroupMember.MembershipStatuses.Removed, membership.Status);
     }
 
+    /// <summary>
+    /// Verifies that removing the owner from an Organization group when they are the LAST member
+    /// is allowed (no exception thrown). The group will be automatically deleted.
+    /// </summary>
     [Fact]
-    public async Task RemoveMemberAsync_ThrowsException_WhenRemovingLastManagerFromOrganization()
+    public async Task RemoveMemberAsync_AllowsRemovingOwner_WhenOwnerIsLastMemberInOrganization()
     {
         // Arrange
         var db = CreateDbContext();
@@ -473,7 +613,60 @@ public class GroupServiceTests : TestBase
 
         var service = new GroupService(db);
 
-        // Act & Assert
+        // Act - Should NOT throw because owner is the last member
+        await service.RemoveMemberAsync(group.Id, owner.Id, owner.Id);
+
+        // Assert - Group should be deleted since it's now empty
+        Assert.Null(await db.Groups.FindAsync(group.Id));
+    }
+
+    /// <summary>
+    /// Verifies that removing the owner from an Organization group throws an exception
+    /// when there are other members but no Manager to transfer ownership to.
+    /// </summary>
+    [Fact]
+    public async Task RemoveMemberAsync_ThrowsException_WhenRemovingOwnerWithoutManagerSuccessorInOrganization()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var regularMember = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, regularMember);
+
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Organization",
+            GroupType = "Organization",
+            OwnerUserId = owner.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+
+        db.GroupMembers.AddRange(
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = owner.Id,
+                Role = GroupMember.Roles.Owner,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = regularMember.Id,
+                Role = GroupMember.Roles.Member, // Regular member, not a Manager
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(1)
+            });
+        await db.SaveChangesAsync();
+
+        var service = new GroupService(db);
+
+        // Act & Assert - Should throw because there are other members but no Manager to transfer to
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.RemoveMemberAsync(group.Id, owner.Id, owner.Id));
     }
@@ -532,8 +725,12 @@ public class GroupServiceTests : TestBase
         Assert.Equal(GroupMember.MembershipStatuses.Left, membership.Status);
     }
 
+    /// <summary>
+    /// Verifies that the owner can leave an Organization group when they are the LAST member.
+    /// The group will be automatically deleted.
+    /// </summary>
     [Fact]
-    public async Task LeaveGroupAsync_ThrowsException_WhenLastManagerLeavesOrganization()
+    public async Task LeaveGroupAsync_AllowsOwnerToLeave_WhenOwnerIsLastMemberInOrganization()
     {
         // Arrange
         var db = CreateDbContext();
@@ -564,7 +761,60 @@ public class GroupServiceTests : TestBase
 
         var service = new GroupService(db);
 
-        // Act & Assert
+        // Act - Should NOT throw because owner is the last member
+        await service.LeaveGroupAsync(group.Id, owner.Id);
+
+        // Assert - Group should be deleted since it's now empty
+        Assert.Null(await db.Groups.FindAsync(group.Id));
+    }
+
+    /// <summary>
+    /// Verifies that the owner cannot leave an Organization group when there are other members
+    /// but no Manager to transfer ownership to.
+    /// </summary>
+    [Fact]
+    public async Task LeaveGroupAsync_ThrowsException_WhenOwnerLeavesWithoutManagerSuccessorInOrganization()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var regularMember = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, regularMember);
+
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Organization",
+            GroupType = "Organization",
+            OwnerUserId = owner.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+
+        db.GroupMembers.AddRange(
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = owner.Id,
+                Role = GroupMember.Roles.Owner,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = regularMember.Id,
+                Role = GroupMember.Roles.Member, // Regular member, not a Manager
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(1)
+            });
+        await db.SaveChangesAsync();
+
+        var service = new GroupService(db);
+
+        // Act & Assert - Should throw because there are other members but no Manager to transfer to
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.LeaveGroupAsync(group.Id, owner.Id));
     }
@@ -573,18 +823,15 @@ public class GroupServiceTests : TestBase
 
     #region Auto-Delete Empty Groups Tests
 
+    /// <summary>
+    /// Verifies that a group is automatically deleted when the last member leaves.
+    /// Empty groups are always deleted to prevent orphaned data.
+    /// </summary>
     [Fact]
-    public async Task LeaveGroupAsync_DeletesGroup_WhenLastMemberLeavesAndFeatureEnabled()
+    public async Task LeaveGroupAsync_DeletesGroup_WhenLastMemberLeaves()
     {
         // Arrange
         var db = CreateDbContext();
-        var settings = new ApplicationSettings
-        {
-            Id = 1,
-            AutoDeleteEmptyGroups = true
-        };
-        db.ApplicationSettings.Add(settings);
-
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
 
@@ -618,49 +865,256 @@ public class GroupServiceTests : TestBase
         Assert.Null(await db.Groups.FindAsync(group.Id));
     }
 
+    #endregion
+
+    #region Ownership Transfer Tests
+
+    /// <summary>
+    /// Verifies that ownership is transferred to a Manager when the owner leaves an Organization group.
+    /// </summary>
     [Fact]
-    public async Task LeaveGroupAsync_KeepsGroup_WhenFeatureDisabled()
+    public async Task LeaveGroupAsync_TransfersOwnershipToManager_WhenOwnerLeavesOrganization()
     {
         // Arrange
         var db = CreateDbContext();
-        var settings = new ApplicationSettings
-        {
-            Id = 1,
-            AutoDeleteEmptyGroups = false
-        };
-        db.ApplicationSettings.Add(settings);
-
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        var owner = TestDataFixtures.CreateUser();
+        var manager = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, manager);
 
         var group = new Group
         {
             Id = Guid.NewGuid(),
-            Name = "Should Keep",
-            OwnerUserId = user.Id,
+            Name = "Organization",
+            GroupType = "Organization",
+            OwnerUserId = owner.Id,
             CreatedAt = DateTime.UtcNow
         };
         db.Groups.Add(group);
 
-        var membership = new GroupMember
-        {
-            Id = Guid.NewGuid(),
-            GroupId = group.Id,
-            UserId = user.Id,
-            Role = GroupMember.Roles.Owner,
-            Status = GroupMember.MembershipStatuses.Active,
-            JoinedAt = DateTime.UtcNow
-        };
-        db.GroupMembers.Add(membership);
+        db.GroupMembers.AddRange(
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = owner.Id,
+                Role = GroupMember.Roles.Owner,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = manager.Id,
+                Role = GroupMember.Roles.Manager,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(1)
+            });
         await db.SaveChangesAsync();
 
         var service = new GroupService(db);
 
         // Act
-        await service.LeaveGroupAsync(group.Id, user.Id);
+        await service.LeaveGroupAsync(group.Id, owner.Id);
 
         // Assert
-        Assert.NotNull(await db.Groups.FindAsync(group.Id));
+        var updatedGroup = await db.Groups.FindAsync(group.Id);
+        Assert.NotNull(updatedGroup);
+        Assert.Equal(manager.Id, updatedGroup.OwnerUserId);
+
+        var ownerMembership = db.GroupMembers.FirstOrDefault(m => m.UserId == owner.Id && m.GroupId == group.Id);
+        Assert.NotNull(ownerMembership);
+        Assert.Equal(GroupMember.MembershipStatuses.Left, ownerMembership.Status);
+        Assert.Equal(GroupMember.Roles.Member, ownerMembership.Role);
+
+        var managerMembership = db.GroupMembers.FirstOrDefault(m => m.UserId == manager.Id && m.GroupId == group.Id);
+        Assert.NotNull(managerMembership);
+        Assert.Equal(GroupMember.Roles.Owner, managerMembership.Role);
+    }
+
+    /// <summary>
+    /// Verifies that ownership is transferred to the next member (by JoinedAt) when the owner leaves a Friends/Family group.
+    /// </summary>
+    [Fact]
+    public async Task LeaveGroupAsync_TransfersOwnershipToNextMember_WhenOwnerLeavesFriendsGroup()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var member1 = TestDataFixtures.CreateUser();
+        var member2 = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, member1, member2);
+
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Friends Group",
+            GroupType = "Friends",
+            OwnerUserId = owner.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+
+        db.GroupMembers.AddRange(
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = owner.Id,
+                Role = GroupMember.Roles.Owner,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = member1.Id,
+                Role = GroupMember.Roles.Member,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(1) // Joined first among non-owners
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = member2.Id,
+                Role = GroupMember.Roles.Member,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(2)
+            });
+        await db.SaveChangesAsync();
+
+        var service = new GroupService(db);
+
+        // Act
+        await service.LeaveGroupAsync(group.Id, owner.Id);
+
+        // Assert - Ownership should transfer to member1 (earliest JoinedAt among non-owners)
+        var updatedGroup = await db.Groups.FindAsync(group.Id);
+        Assert.NotNull(updatedGroup);
+        Assert.Equal(member1.Id, updatedGroup.OwnerUserId);
+
+        var member1Membership = db.GroupMembers.FirstOrDefault(m => m.UserId == member1.Id && m.GroupId == group.Id);
+        Assert.NotNull(member1Membership);
+        Assert.Equal(GroupMember.Roles.Owner, member1Membership.Role);
+    }
+
+    /// <summary>
+    /// Verifies that ownership is transferred when the owner is removed from an Organization group.
+    /// </summary>
+    [Fact]
+    public async Task RemoveMemberAsync_TransfersOwnershipToManager_WhenOwnerRemovedFromOrganization()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var manager = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, manager);
+
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Organization",
+            GroupType = "Organization",
+            OwnerUserId = owner.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+
+        db.GroupMembers.AddRange(
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = owner.Id,
+                Role = GroupMember.Roles.Owner,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = manager.Id,
+                Role = GroupMember.Roles.Manager,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(1)
+            });
+        await db.SaveChangesAsync();
+
+        var service = new GroupService(db);
+
+        // Act
+        await service.RemoveMemberAsync(group.Id, owner.Id, owner.Id);
+
+        // Assert
+        var updatedGroup = await db.Groups.FindAsync(group.Id);
+        Assert.NotNull(updatedGroup);
+        Assert.Equal(manager.Id, updatedGroup.OwnerUserId);
+
+        var ownerMembership = db.GroupMembers.FirstOrDefault(m => m.UserId == owner.Id && m.GroupId == group.Id);
+        Assert.NotNull(ownerMembership);
+        Assert.Equal(GroupMember.MembershipStatuses.Removed, ownerMembership.Status);
+
+        var managerMembership = db.GroupMembers.FirstOrDefault(m => m.UserId == manager.Id && m.GroupId == group.Id);
+        Assert.NotNull(managerMembership);
+        Assert.Equal(GroupMember.Roles.Owner, managerMembership.Role);
+    }
+
+    /// <summary>
+    /// Verifies that the ownership transfer creates an audit log entry.
+    /// </summary>
+    [Fact]
+    public async Task LeaveGroupAsync_CreatesAuditLog_WhenOwnershipTransferred()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var manager = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, manager);
+
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Group",
+            GroupType = "Organization",
+            OwnerUserId = owner.Id,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+
+        db.GroupMembers.AddRange(
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = owner.Id,
+                Role = GroupMember.Roles.Owner,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow
+            },
+            new GroupMember
+            {
+                Id = Guid.NewGuid(),
+                GroupId = group.Id,
+                UserId = manager.Id,
+                Role = GroupMember.Roles.Manager,
+                Status = GroupMember.MembershipStatuses.Active,
+                JoinedAt = DateTime.UtcNow.AddMinutes(1)
+            });
+        await db.SaveChangesAsync();
+
+        var service = new GroupService(db);
+
+        // Act
+        await service.LeaveGroupAsync(group.Id, owner.Id);
+
+        // Assert - Check for ownership transfer audit log
+        var transferAudit = db.AuditLogs.FirstOrDefault(a => a.Action == "OwnershipTransferOnLeave");
+        Assert.NotNull(transferAudit);
+        Assert.Contains(owner.Id, transferAudit.Details);
+        Assert.Contains(manager.Id, transferAudit.Details);
     }
 
     #endregion

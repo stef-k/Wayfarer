@@ -91,9 +91,7 @@ public class ApplicationDbContextSeed
                 LocationDistanceThresholdMeters = 15,
                 MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB,
                 UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB,
-                IsRegistrationOpen = false,
-                // Default: enabled per product decision
-                AutoDeleteEmptyGroups = true
+                IsRegistrationOpen = false
             });
         }
         else

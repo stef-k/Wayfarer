@@ -608,7 +608,7 @@ import {
     const el = document.getElementById('modalContent'); if (el) el.innerHTML = html; new bootstrap.Modal(document.getElementById('locationModal')).show();
   }
 
-  // Organisation peer visibility toggle (per-user)
+  // Organization peer visibility toggle (per-user)
   const groupType = (document.getElementById('groupType')?.value || '').toLowerCase();
   if (groupType === 'friends'){
     const toggle = document.getElementById('peerVisibilityToggle');
