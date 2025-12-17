@@ -18,7 +18,7 @@ namespace Wayfarer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.7")
+                .HasAnnotation("ProductVersion", "10.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
@@ -32,11 +32,6 @@ namespace Wayfarer.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("AutoDeleteEmptyGroups")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
 
                     b.Property<bool>("IsRegistrationOpen")
                         .ValueGeneratedOnAdd()
@@ -190,6 +185,23 @@ namespace Wayfarer.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("TripTags", b =>
+                {
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TripId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.HasIndex("TripId");
+
+                    b.ToTable("TripTags", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ActivityType", b =>
@@ -489,14 +501,17 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GroupId");
-
                     b.HasIndex("InviteeUserId");
 
                     b.HasIndex("InviterUserId");
 
                     b.HasIndex("Token")
                         .IsUnique();
+
+                    b.HasIndex("GroupId", "InviteeUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_GroupInvitation_GroupId_InviteeUserId_Pending")
+                        .HasFilter("\"Status\" = 'Pending' AND \"InviteeUserId\" IS NOT NULL");
 
                     b.ToTable("GroupInvitations");
                 });
@@ -540,6 +555,9 @@ namespace Wayfarer.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("GroupId", "Status")
+                        .HasDatabaseName("IX_GroupMember_GroupId_Status");
 
                     b.HasIndex("GroupId", "UserId")
                         .IsUnique();
@@ -981,23 +999,6 @@ namespace Wayfarer.Migrations
                     b.ToTable("Trips");
                 });
 
-            modelBuilder.Entity("Wayfarer.Models.TripTag", b =>
-                {
-                    b.Property<Guid>("TripId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TagId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("TripId", "TagId");
-
-                    b.HasIndex("TagId");
-
-                    b.HasIndex("TripId");
-
-                    b.ToTable("TripTags", (string)null);
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1045,6 +1046,21 @@ namespace Wayfarer.Migrations
                     b.HasOne("Wayfarer.Models.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TripTags", b =>
+                {
+                    b.HasOne("Wayfarer.Models.Tag", null)
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wayfarer.Models.Trip", null)
+                        .WithMany()
+                        .HasForeignKey("TripId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1222,25 +1238,6 @@ namespace Wayfarer.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Wayfarer.Models.TripTag", b =>
-                {
-                    b.HasOne("Wayfarer.Models.Tag", "Tag")
-                        .WithMany("TripTags")
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Wayfarer.Models.Trip", "Trip")
-                        .WithMany("TripTags")
-                        .HasForeignKey("TripId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Tag");
-
-                    b.Navigation("Trip");
-                });
-
             modelBuilder.Entity("Wayfarer.Models.ApplicationUser", b =>
                 {
                     b.Navigation("ApiTokens");
@@ -1276,18 +1273,11 @@ namespace Wayfarer.Migrations
                     b.Navigation("Places");
                 });
 
-            modelBuilder.Entity("Wayfarer.Models.Tag", b =>
-                {
-                    b.Navigation("TripTags");
-                });
-
             modelBuilder.Entity("Wayfarer.Models.Trip", b =>
                 {
                     b.Navigation("Regions");
 
                     b.Navigation("Segments");
-
-                    b.Navigation("TripTags");
                 });
 #pragma warning restore 612, 618
         }

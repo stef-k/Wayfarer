@@ -6,8 +6,8 @@ Each subtitle has a priority number with 1 being the first one to be implemented
 
 Implement a trusted user/manager mechanism to allow managers see user location data.
 
-1 Managers should initiate a request to add to an organisation or in a group of family members or friends and user must agree first.
-  The Name of the group should be dynamic from a predefined list, lets say for starters [Organisation, Family, Friends].
+1 Managers should initiate a request to add to an organization or in a group of family members or friends and user must agree first.
+  The Name of the group should be dynamic from a predefined list, lets say for starters [Organization, Family, Friends].
 2 Managers so there must be a solution where a manager can access such groups and users can accept to join and leave at any time.
 3 Managers and users should be able to see pending invitations.
 4 Managers and users should be able to see managed groups (Managers) and joined groups (Users)

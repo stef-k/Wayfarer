@@ -161,20 +161,23 @@ public class GroupsController : BaseController
         return View();
     }
 
-    // AJAX endpoints (User area)
+    /// <summary>
+    /// AJAX endpoint to invite a user to a group.
+    /// Permission check is delegated to InvitationService which validates Owner or Manager role.
+    /// </summary>
+    /// <param name="groupId">The group to invite the user to.</param>
+    /// <param name="inviteeUserId">The user ID to invite.</param>
+    /// <returns>JSON response with invitation details or error message.</returns>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> InviteAjax(Guid groupId, string inviteeUserId)
     {
         var actorId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
-        if (actorId == null) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Unauthorized();
+
         try
         {
-            // Owner-only for User area
-            var isOwner = await _dbContext.GroupMembers.AsNoTracking()
-                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId! && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
-            if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
-
             var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
             var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
             var gname = group?.Name;
@@ -185,9 +188,17 @@ public class GroupsController : BaseController
             await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "invite-created", id = inv.Id }));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
         }
-        catch (Exception ex)
+        catch (KeyNotFoundException)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return NotFound(new { success = false, message = "Group not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { success = false, message = "You do not have permission to invite users to this group" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
         }
     }
 

@@ -134,10 +134,6 @@ namespace Wayfarer.Models
                 .Property(x => x.IsRegistrationOpen)
                 .HasDefaultValue(false);
 
-            builder.Entity<ApplicationSettings>()
-                .Property(x => x.AutoDeleteEmptyGroups)
-                .HasDefaultValue(true);
-
             // Location Imports
             builder.Entity<LocationImport>()
                 .HasOne(li => li.User)
@@ -265,6 +261,11 @@ namespace Wayfarer.Models
                 .HasIndex(m => new { m.GroupId, m.UserId })
                 .IsUnique();
 
+            // Composite index for common query pattern: WHERE GroupId = x AND Status = y
+            builder.Entity<GroupMember>()
+                .HasIndex(m => new { m.GroupId, m.Status })
+                .HasDatabaseName("IX_GroupMember_GroupId_Status");
+
             builder.Entity<GroupMember>()
                 .Property(m => m.JoinedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -311,6 +312,13 @@ namespace Wayfarer.Models
                 .WithMany(u => u.GroupInvitationsReceived)
                 .HasForeignKey(i => i.InviteeUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Filtered unique index to prevent duplicate pending invitations for the same group and user
+            builder.Entity<GroupInvitation>()
+                .HasIndex(i => new { i.GroupId, i.InviteeUserId })
+                .HasFilter("\"Status\" = 'Pending' AND \"InviteeUserId\" IS NOT NULL")
+                .IsUnique()
+                .HasDatabaseName("IX_GroupInvitation_GroupId_InviteeUserId_Pending");
 
             builder.Entity<Tag>(b =>
             {
