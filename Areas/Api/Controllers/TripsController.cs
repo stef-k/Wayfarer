@@ -694,6 +694,88 @@ return Ok(dto);
     }
 
     /// <summary>
+    /// Updates an existing trip's metadata (name, notes) by ID.
+    /// </summary>
+    /// <param name="tripId">Trip ID (must belong to the token user)</param>
+    /// <param name="request">Partial update payload</param>
+    /// <remarks>
+    /// Requires a valid API token in the Authorization header.
+    /// Only fields that are provided will be updated.
+    ///
+    /// Example: PUT /api/trips/{tripId}
+    /// </remarks>
+    /// <response code="200">Returns success with updated trip info</response>
+    /// <response code="401">If the API token is missing, invalid, or user doesn't own the trip</response>
+    /// <response code="404">If the trip doesn't exist</response>
+    [HttpPut("{tripId}")]
+    public async Task<IActionResult> UpdateTrip(Guid tripId, [FromBody] TripUpdateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+        if (request == null) return BadRequest("Invalid request.");
+
+        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId);
+        if (trip == null) return NotFound("Trip not found.");
+        if (trip.UserId != user.Id) return Unauthorized("Not your trip.");
+
+        bool anyChange = false;
+
+        if (request.Name != null)
+        {
+            trip.Name = request.Name;
+            anyChange = true;
+        }
+
+        if (request.Notes != null)
+        {
+            trip.Notes = request.Notes;
+            anyChange = true;
+        }
+
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", trip = new { trip.Id, trip.Name, trip.Notes } });
+
+        trip.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, trip = new { trip.Id, trip.Name, trip.Notes } });
+    }
+
+    /// <summary>
+    /// Updates an existing segment's notes by ID.
+    /// </summary>
+    /// <param name="segmentId">Segment ID</param>
+    /// <param name="request">Update payload with notes field</param>
+    /// <remarks>
+    /// Requires a valid API token in the Authorization header.
+    /// User must own the segment's parent trip.
+    ///
+    /// Example: PUT /api/trips/segments/{segmentId}
+    /// </remarks>
+    /// <response code="200">Returns success with updated segment info</response>
+    /// <response code="401">If the API token is missing, invalid, or user doesn't own the segment</response>
+    /// <response code="404">If the segment doesn't exist</response>
+    [HttpPut("segments/{segmentId}")]
+    public async Task<IActionResult> UpdateSegmentNotes(Guid segmentId, [FromBody] SegmentUpdateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+        if (request == null) return BadRequest("Invalid request.");
+
+        var segment = await _dbContext.Segments
+            .Include(s => s.Trip)
+            .FirstOrDefaultAsync(s => s.Id == segmentId);
+        if (segment == null) return NotFound("Segment not found.");
+        if (segment.Trip.UserId != user.Id) return Unauthorized("Not your segment.");
+
+        if (request.Notes != null)
+        {
+            segment.Notes = request.Notes;
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, segment = new { segment.Id, segment.Notes } });
+    }
+
+    /// <summary>
     /// Updates an existing region by ID. Trip association cannot change.
     /// </summary>
     [HttpPut("regions/{regionId}")]
