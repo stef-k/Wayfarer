@@ -52,4 +52,38 @@ public class HtmlHelpersTests
         Assert.Contains("<a href=\"http://example.com\" target=\"_blank\" rel=\"noopener noreferrer\">http://example.com</a>", rendered);
         Assert.Contains("<a href=\"http://already.com\">existing</a>", rendered);
     }
+
+    #region HasVisibleContent Tests
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData("<p></p>", false)]
+    [InlineData("<p><br></p>", false)]
+    [InlineData("<p><br/></p>", false)]
+    [InlineData("<div></div>", false)]
+    [InlineData("<p>&nbsp;</p>", false)]
+    [InlineData("<p>&#160;</p>", false)]
+    [InlineData("<p>  </p>", false)]
+    public void HasVisibleContent_ReturnsFalse_ForEmptyContent(string? input, bool expected)
+    {
+        var result = HtmlHelpers.HasVisibleContent(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("<p>Hello</p>", true)]
+    [InlineData("<p>Some <strong>bold</strong> text</p>", true)]
+    [InlineData("<div><p>Nested content</p></div>", true)]
+    [InlineData("Plain text without tags", true)]
+    [InlineData("<p>Text with &nbsp; space</p>", true)]
+    [InlineData("<img src='test.jpg' alt='Image'>", false)] // Image without text returns false
+    public void HasVisibleContent_ReturnsTrue_ForContentWithText(string input, bool expected)
+    {
+        var result = HtmlHelpers.HasVisibleContent(input);
+        Assert.Equal(expected, result);
+    }
+
+    #endregion
 }

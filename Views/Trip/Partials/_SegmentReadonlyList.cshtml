@@ -90,6 +90,12 @@
                                 <div title="To: @toName (@toRegion)">
                                     <strong>To:</strong> @toName (@toRegion)
                                 </div>
+                                @if (HtmlHelpers.HasVisibleContent(seg?.Notes))
+                                {
+                                    <div class="text-muted mt-1 segment-notes-preview">
+                                        @Html.Raw(seg?.Notes)
+                                    </div>
+                                }
                             </div>
                         </div>
 

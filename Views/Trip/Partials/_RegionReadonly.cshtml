@@ -40,6 +40,13 @@
 
     <div id="reg-body-@Model.Id" class="accordion-collapse show">
         <div class="accordion-body p-0">
+            @* Region notes - shown if present *@
+            @if (HtmlHelpers.HasVisibleContent(Model.Notes))
+            {
+                <div class="small text-muted px-2 py-1 border-bottom">
+                    @Html.Raw(Model.Notes)
+                </div>
+            }
             <ul class="list-group list-group-flush">
 
                 @foreach (var p in Model.Places?.OrderBy(pl => pl.DisplayOrder)
@@ -108,10 +115,10 @@
                                     </div>
 
                                     <!-- second row: rich-text notes -->
-                                    @if (!string.IsNullOrWhiteSpace(area.Notes))
+                                    @if (HtmlHelpers.HasVisibleContent(area.Notes))
                                     {
                                         <div class="small text-muted">
-                                            @Html.Raw(area.Notes)     <!-- renders stored HTML instead of &lt;p&gt; -->
+                                            @Html.Raw(area.Notes)
                                         </div>
                                     }
                                 </div>

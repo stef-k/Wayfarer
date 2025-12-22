@@ -53,5 +53,31 @@ namespace Wayfarer.Util
 
             return new HtmlString(linked);
         }
+
+        // Regex to strip HTML tags for content detection
+        private static readonly Regex _htmlTagRegex = new Regex(
+            @"<[^>]+>",
+            RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// Checks if HTML content has actual visible text content.
+        /// Returns false for null, empty, whitespace-only, or Quill's empty states like &lt;p&gt;&lt;/p&gt; or &lt;p&gt;&lt;br&gt;&lt;/p&gt;.
+        /// </summary>
+        public static bool HasVisibleContent(string? htmlContent)
+        {
+            if (string.IsNullOrWhiteSpace(htmlContent))
+                return false;
+
+            // Strip all HTML tags and check if any visible text remains
+            var textOnly = _htmlTagRegex.Replace(htmlContent, "");
+
+            // Also handle HTML entities for whitespace
+            textOnly = textOnly
+                .Replace("&nbsp;", " ")
+                .Replace("&#160;", " ");
+
+            return !string.IsNullOrWhiteSpace(textOnly);
+        }
     }
 }
