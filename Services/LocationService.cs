@@ -433,6 +433,11 @@ namespace Wayfarer.Parsers
                     .OrderBy(l => l.LocalTimestamp)
                     .ToListAsync(cancellationToken);
 
+                // Find the latest location in this day's results by timestamp
+                int? dayLatestLocationId = dayLocations.Count > 0
+                    ? dayLocations.OrderByDescending(l => l.LocalTimestamp).First().Id
+                    : null;
+
                 var dayDtos = dayLocations.Select(l => new PublicLocationDto
                 {
                     Id = l.Id,
@@ -457,7 +462,7 @@ namespace Wayfarer.Parsers
                     Region = l.Region,
                     Country = l.Country,
                     Notes = l.Notes,
-                    IsLatestLocation = false,
+                    IsLatestLocation = dayLatestLocationId.HasValue && l.Id == dayLatestLocationId.Value,
                     LocationTimeThresholdMinutes = locationTimeThreshold
                 }).ToList();
 
@@ -516,6 +521,11 @@ namespace Wayfarer.Parsers
                     .ToListAsync(cancellationToken);
             }
 
+            // Find the latest location in this period's results by timestamp
+            int? latestLocationId = locations.Count > 0
+                ? locations.OrderByDescending(l => l.LocalTimestamp).First().Id
+                : null;
+
             var resultDtos = locations.Select(l => new PublicLocationDto
             {
                 Id = l.Id,
@@ -540,7 +550,7 @@ namespace Wayfarer.Parsers
                 Region = l.Region,
                 Country = l.Country,
                 Notes = l.Notes,
-                IsLatestLocation = false,
+                IsLatestLocation = latestLocationId.HasValue && l.Id == latestLocationId.Value,
                 LocationTimeThresholdMinutes = locationTimeThreshold
             }).ToList();
 
