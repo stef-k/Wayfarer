@@ -1397,14 +1397,9 @@ img.js-lazy[src] {
     }
 }
 
-/* Card hover effects for grid view */
+/* Card styles with subtle permanent shadow */
 .card {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
 }
 
 /* ============================================
