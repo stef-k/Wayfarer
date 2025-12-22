@@ -104,6 +104,7 @@ public class LogsController : BaseController
                 default:
                     // Read from position forward (for polling and "Next" button)
                     response.StartPosition = position;
+                    var newlineLen = await DetectNewlineLengthAsync(fs);
                     fs.Seek(position, SeekOrigin.Begin);
                     using (var reader = new StreamReader(fs, leaveOpen: true))
                     {
@@ -114,7 +115,7 @@ public class LogsController : BaseController
                         {
                             lines.Add(line);
                             lineCount++;
-                            bytesRead += System.Text.Encoding.UTF8.GetByteCount(line) + 1;
+                            bytesRead += System.Text.Encoding.UTF8.GetByteCount(line) + newlineLen;
                         }
                         response.NewPosition = position + bytesRead;
                     }
@@ -136,6 +137,34 @@ public class LogsController : BaseController
     }
 
     /// <summary>
+    /// Detects the line ending style (CRLF or LF) used in the file.
+    /// Reads a small buffer from the start to find the first line ending.
+    /// </summary>
+    /// <param name="fs">File stream to analyze.</param>
+    /// <returns>2 for CRLF (Windows), 1 for LF (Unix), defaults to 1 if no line ending found.</returns>
+    private static async Task<int> DetectNewlineLengthAsync(FileStream fs)
+    {
+        var originalPosition = fs.Position;
+        fs.Seek(0, SeekOrigin.Begin);
+
+        var buffer = new byte[4096];
+        var bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length);
+
+        for (var i = 0; i < bytesRead; i++)
+        {
+            if (buffer[i] == '\n')
+            {
+                fs.Seek(originalPosition, SeekOrigin.Begin);
+                // Check if preceded by \r (CRLF)
+                return (i > 0 && buffer[i - 1] == '\r') ? 2 : 1;
+            }
+        }
+
+        fs.Seek(originalPosition, SeekOrigin.Begin);
+        return 1; // Default to LF if no line ending found
+    }
+
+    /// <summary>
     /// Reads the last N lines from a file stream and returns the start position.
     /// Uses bounded backward scanning with incremental window expansion.
     /// </summary>
@@ -149,6 +178,7 @@ public class LogsController : BaseController
             return ([], 0);
         }
 
+        var newlineLen = await DetectNewlineLengthAsync(fs);
         const int avgLineBytes = 180;
         var windowSize = (long)lineCount * avgLineBytes;
 
@@ -163,7 +193,7 @@ public class LogsController : BaseController
             if (startPosition > 0)
             {
                 var partialLine = await reader.ReadLineAsync();
-                startPosition += System.Text.Encoding.UTF8.GetByteCount(partialLine ?? "") + 1;
+                startPosition += System.Text.Encoding.UTF8.GetByteCount(partialLine ?? "") + newlineLen;
             }
 
             // Read lines from current position to end
@@ -183,7 +213,7 @@ public class LogsController : BaseController
                     var skipCount = lines.Count - lineCount;
                     for (var i = 0; i < skipCount; i++)
                     {
-                        startPosition += System.Text.Encoding.UTF8.GetByteCount(lines[i]) + 1;
+                        startPosition += System.Text.Encoding.UTF8.GetByteCount(lines[i]) + newlineLen;
                     }
                     return (lines.Skip(skipCount).ToList(), startPosition);
                 }
@@ -210,6 +240,7 @@ public class LogsController : BaseController
             return ([], 0);
         }
 
+        var newlineLen = await DetectNewlineLengthAsync(fs);
         const int avgLineBytes = 180;
         var windowSize = (long)lineCount * avgLineBytes;
 
@@ -225,7 +256,7 @@ public class LogsController : BaseController
             if (startPosition > 0)
             {
                 var partialLine = await reader.ReadLineAsync();
-                actualStart += System.Text.Encoding.UTF8.GetByteCount(partialLine ?? "") + 1;
+                actualStart += System.Text.Encoding.UTF8.GetByteCount(partialLine ?? "") + newlineLen;
             }
 
             // Read lines until we reach endPosition
@@ -234,7 +265,7 @@ public class LogsController : BaseController
             string? line;
             while ((line = await reader.ReadLineAsync()) != null)
             {
-                var lineBytes = System.Text.Encoding.UTF8.GetByteCount(line) + 1;
+                var lineBytes = System.Text.Encoding.UTF8.GetByteCount(line) + newlineLen;
                 if (currentPos + lineBytes > endPosition)
                 {
                     break;
@@ -252,7 +283,7 @@ public class LogsController : BaseController
                     var skipCount = lines.Count - lineCount;
                     for (var i = 0; i < skipCount; i++)
                     {
-                        actualStart += System.Text.Encoding.UTF8.GetByteCount(lines[i]) + 1;
+                        actualStart += System.Text.Encoding.UTF8.GetByteCount(lines[i]) + newlineLen;
                     }
                     return (lines.Skip(skipCount).ToList(), actualStart);
                 }
