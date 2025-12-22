@@ -5,6 +5,7 @@
     var geomJson = Model.Geometry != null
         ? new GeoJsonWriter().Write(Model.Geometry)
         : "null";
+    var hasNotes = !string.IsNullOrWhiteSpace(Model.Notes);
 }
 
 <li class="area-list-item list-group-item d-flex align-items-center"
@@ -22,6 +23,16 @@
     </span>
 
     <div class="btn-group btn-group-sm ms-auto">
+        @if (hasNotes)
+        {
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#areaNotes-@Model.Id"
+                    title="View notes">
+                <i class="bi bi-info-circle"></i>
+            </button>
+        }
         <button type="button"
                 class="btn btn-outline-primary btn-edit-area"
                 data-area-id="@Model.Id"
@@ -36,3 +47,28 @@
         </button>
     </div>
 </li>
+
+@if (hasNotes)
+{
+    <div class="modal fade" id="areaNotes-@Model.Id" tabindex="-1"
+         aria-labelledby="areaNotesLabel-@Model.Id" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="areaNotesLabel-@Model.Id">
+                        Notes for <span class="fw-semibold">@Model.Name</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @Html.LinkifyHtml(Model.Notes)
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary"
+                            data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
