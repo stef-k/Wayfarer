@@ -113,12 +113,14 @@ public class LogsController : BaseController
     }
 
     /// <summary>
-    /// Reads the last N lines from a file stream efficiently.
-    /// Uses incremental backward scanning to avoid loading entire file into memory.
+    /// Reads the last N lines from a file stream using bounded backward scanning.
+    /// Expands the read window incrementally (doubling each time) until enough lines
+    /// are found or the start of file is reached. Never reads the entire file at once
+    /// to prevent OOM on large log files.
     /// </summary>
-    /// <param name="fs">File stream positioned at any location.</param>
+    /// <param name="fs">File stream to read from.</param>
     /// <param name="lineCount">Number of lines to read from the end.</param>
-    /// <returns>List of the last N lines.</returns>
+    /// <returns>List of the last N lines (or fewer if file has less than N lines).</returns>
     private static async Task<List<string>> ReadLastLinesAsync(FileStream fs, int lineCount)
     {
         if (fs.Length == 0)
@@ -126,12 +128,12 @@ public class LogsController : BaseController
             return [];
         }
 
-        // Start with estimated window, double if needed (but never read entire file at once)
+        // Start with estimated window based on average log line size
         const int avgLineBytes = 180;
-        var windowSize = lineCount * avgLineBytes;
-        const int maxIterations = 5; // Limit iterations to prevent runaway expansion
+        var windowSize = (long)lineCount * avgLineBytes;
 
-        for (var iteration = 0; iteration < maxIterations; iteration++)
+        // Expand window until we have enough lines or reach file start
+        while (true)
         {
             var startPosition = Math.Max(0, fs.Length - windowSize);
 
@@ -152,7 +154,7 @@ public class LogsController : BaseController
                 lines.Add(line);
             }
 
-            // If we have enough lines or we've reached the start of file, return
+            // Return if we have enough lines or we've reached the start of file
             if (lines.Count >= lineCount || startPosition == 0)
             {
                 return lines.Count > lineCount
@@ -163,20 +165,6 @@ public class LogsController : BaseController
             // Double the window for next iteration
             windowSize *= 2;
         }
-
-        // Fallback: if we still don't have enough after max iterations,
-        // read from beginning (this should rarely happen with reasonable log files)
-        fs.Seek(0, SeekOrigin.Begin);
-        using var finalReader = new StreamReader(fs, leaveOpen: true);
-        var allLines = new List<string>();
-        string? finalLine;
-        while ((finalLine = await finalReader.ReadLineAsync()) != null)
-        {
-            allLines.Add(finalLine);
-        }
-        return allLines.Count > lineCount
-            ? allLines.Skip(allLines.Count - lineCount).ToList()
-            : allLines;
     }
 
     /// <summary>
