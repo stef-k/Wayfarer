@@ -75,17 +75,19 @@
 
     /**
      * Loads log file content from the server.
-     * @param {boolean} append - If true, append to existing content (for polling).
+     * @param {string} mode - 'tail' for initial/refresh (last N lines), 'append' for polling (new lines).
      */
-    const loadLogContent = async (append = false) => {
+    const loadLogContent = async (mode = 'tail') => {
         if (!currentFileName) return;
 
         logViewer.classList.add('loading');
-        const maxLines = append ? MAX_LINES_POLL : MAX_LINES_INITIAL;
+        const isAppend = mode === 'append';
+        const maxLines = isAppend ? MAX_LINES_POLL : MAX_LINES_INITIAL;
+        const tailMode = !isAppend; // Use tail mode for initial load and refresh
 
         try {
             const response = await fetch(
-                `/Admin/Logs/GetLogContent?fileName=${encodeURIComponent(currentFileName)}&lastPosition=${currentPosition}&maxLines=${maxLines}`
+                `/Admin/Logs/GetLogContent?fileName=${encodeURIComponent(currentFileName)}&lastPosition=${currentPosition}&maxLines=${maxLines}&tailMode=${tailMode}`
             );
 
             if (!response.ok) {
@@ -97,19 +99,20 @@
             if (data.lineCount > 0) {
                 const wasAtBottom = isScrolledToBottom();
 
-                if (append) {
+                if (isAppend) {
                     logViewer.textContent += '\n' + data.content;
+                    totalLineCount += data.lineCount;
                 } else {
                     logViewer.textContent = data.content;
+                    totalLineCount = data.lineCount; // Reset count for tail mode
                 }
 
                 currentPosition = data.newPosition;
-                totalLineCount += data.lineCount;
 
-                if (wasAtBottom || !append) {
+                if (wasAtBottom || !isAppend) {
                     scrollToBottom();
                 }
-            } else if (!append) {
+            } else if (!isAppend) {
                 logViewer.textContent = '(Empty log file)';
             }
 
@@ -129,13 +132,11 @@
     };
 
     /**
-     * Refreshes the current log file content from the beginning.
+     * Refreshes the current log file content, showing the latest entries.
      */
     const refreshContent = async () => {
-        currentPosition = 0;
-        totalLineCount = 0;
         clearSearch();
-        await loadLogContent();
+        await loadLogContent('tail');
     };
 
     /**
@@ -164,7 +165,7 @@
      */
     const pollLogContent = async () => {
         if (!currentFileName || !autoRefreshEnabled) return;
-        await loadLogContent(true);
+        await loadLogContent('append');
     };
 
     /**
@@ -276,7 +277,8 @@
      * Updates the status bar with current stats.
      */
     const updateStatusBar = () => {
-        lineCount.textContent = `${totalLineCount} line${totalLineCount !== 1 ? 's' : ''}`;
+        const prefix = totalLineCount === MAX_LINES_INITIAL ? 'Last ' : '';
+        lineCount.textContent = `${prefix}${totalLineCount} line${totalLineCount !== 1 ? 's' : ''}`;
         lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
     };
 
