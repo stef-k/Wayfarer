@@ -133,8 +133,8 @@ public class AdminLogsControllerTests : TestBase, IDisposable
         CreateTestLogFile("wayfarer-20251222.log", content);
         var controller = BuildController();
 
-        // Act - First read (2 lines)
-        var result1 = await controller.GetLogContent("wayfarer-20251222.log", 0, 2);
+        // Act - First read (2 lines) using forward mode for incremental reading
+        var result1 = await controller.GetLogContent("wayfarer-20251222.log", 0, 2, mode: "forward");
         var json1 = Assert.IsType<JsonResult>(result1);
         var response1 = Assert.IsType<LogContentResponse>(json1.Value);
 
@@ -149,12 +149,142 @@ public class AdminLogsControllerTests : TestBase, IDisposable
         var controller2 = BuildController();
 
         // Read all remaining content to verify there's more
-        var result2 = await controller2.GetLogContent("wayfarer-20251222.log", response1.NewPosition, 100);
+        var result2 = await controller2.GetLogContent("wayfarer-20251222.log", response1.NewPosition, 100, mode: "forward");
         var json2 = Assert.IsType<JsonResult>(result2);
         var response2 = Assert.IsType<LogContentResponse>(json2.Value);
 
         // Assert second read has remaining content
         Assert.True(response2.LineCount > 0);
+    }
+
+    [Fact]
+    public async Task GetLogContent_TailMode_ReturnsLastNLines()
+    {
+        // Arrange - Create a log file with 20 lines
+        var lines = Enumerable.Range(1, 20).Select(i => $"Log entry {i}").ToList();
+        var content = string.Join("\n", lines);
+        CreateTestLogFile("wayfarer-20251222.log", content);
+        var controller = BuildController();
+
+        // Act - Request last 5 lines using tail mode
+        var result = await controller.GetLogContent("wayfarer-20251222.log", 0, 5, mode: "tail");
+
+        // Assert
+        var json = Assert.IsType<JsonResult>(result);
+        var response = Assert.IsType<LogContentResponse>(json.Value);
+        Assert.Equal(5, response.LineCount);
+        Assert.Contains("Log entry 16", response.Content);
+        Assert.Contains("Log entry 17", response.Content);
+        Assert.Contains("Log entry 18", response.Content);
+        Assert.Contains("Log entry 19", response.Content);
+        Assert.Contains("Log entry 20", response.Content);
+        Assert.DoesNotContain("Log entry 15", response.Content);
+    }
+
+    [Fact]
+    public async Task GetLogContent_TailMode_ReturnsAllLines_WhenFileIsSmallerThanMaxLines()
+    {
+        // Arrange - Create a small log file
+        var content = "Line 1\nLine 2\nLine 3";
+        CreateTestLogFile("wayfarer-20251222.log", content);
+        var controller = BuildController();
+
+        // Act - Request last 100 lines using tail mode (more than file has)
+        var result = await controller.GetLogContent("wayfarer-20251222.log", 0, 100, mode: "tail");
+
+        // Assert
+        var json = Assert.IsType<JsonResult>(result);
+        var response = Assert.IsType<LogContentResponse>(json.Value);
+        Assert.Equal(3, response.LineCount);
+        Assert.Contains("Line 1", response.Content);
+        Assert.Contains("Line 2", response.Content);
+        Assert.Contains("Line 3", response.Content);
+    }
+
+    [Fact]
+    public async Task GetLogContent_TailMode_SetsPositionToEndOfFile()
+    {
+        // Arrange
+        var content = "Line 1\nLine 2\nLine 3";
+        CreateTestLogFile("wayfarer-20251222.log", content);
+        var controller = BuildController();
+
+        // Act
+        var result = await controller.GetLogContent("wayfarer-20251222.log", 0, 100, mode: "tail");
+
+        // Assert
+        var json = Assert.IsType<JsonResult>(result);
+        var response = Assert.IsType<LogContentResponse>(json.Value);
+        // Position should be at end of file for subsequent polling
+        var fileInfo = new FileInfo(Path.Combine(_tempLogDir, "wayfarer-20251222.log"));
+        Assert.Equal(fileInfo.Length, response.NewPosition);
+    }
+
+    [Fact]
+    public async Task GetLogContent_BackwardMode_ReturnsLinesBeforePosition()
+    {
+        // Arrange - Create a log file with 20 lines
+        var lines = Enumerable.Range(1, 20).Select(i => $"Log entry {i}").ToList();
+        var content = string.Join("\n", lines);
+        CreateTestLogFile("wayfarer-20251222.log", content);
+        var controller = BuildController();
+
+        // First, get the end position using tail mode
+        var tailResult = await controller.GetLogContent("wayfarer-20251222.log", 0, 5, mode: "tail");
+        var tailJson = Assert.IsType<JsonResult>(tailResult);
+        var tailResponse = Assert.IsType<LogContentResponse>(tailJson.Value);
+
+        // Act - Request 5 lines before the start position (backward navigation)
+        var controller2 = BuildController();
+        var result = await controller2.GetLogContent("wayfarer-20251222.log", tailResponse.StartPosition, 5, mode: "backward");
+
+        // Assert
+        var json = Assert.IsType<JsonResult>(result);
+        var response = Assert.IsType<LogContentResponse>(json.Value);
+        Assert.Equal(5, response.LineCount);
+        // Should contain entries before the tail (entries 11-15 since tail has 16-20)
+        Assert.Contains("Log entry 11", response.Content);
+        Assert.Contains("Log entry 15", response.Content);
+        Assert.DoesNotContain("Log entry 16", response.Content);
+    }
+
+    [Fact]
+    public async Task GetLogContent_BackwardMode_ReturnsEmptyAtFileStart()
+    {
+        // Arrange
+        var content = "Line 1\nLine 2\nLine 3";
+        CreateTestLogFile("wayfarer-20251222.log", content);
+        var controller = BuildController();
+
+        // Act - Request backward from position 0 (start of file)
+        var result = await controller.GetLogContent("wayfarer-20251222.log", 0, 100, mode: "backward");
+
+        // Assert
+        var json = Assert.IsType<JsonResult>(result);
+        var response = Assert.IsType<LogContentResponse>(json.Value);
+        Assert.Equal(0, response.LineCount);
+        Assert.False(response.HasOlder);
+    }
+
+    [Fact]
+    public async Task GetLogContent_ReturnsNavigationFlags()
+    {
+        // Arrange - Create a larger log file
+        var lines = Enumerable.Range(1, 50).Select(i => $"Log line {i}").ToList();
+        var content = string.Join("\n", lines);
+        CreateTestLogFile("wayfarer-20251222.log", content);
+        var controller = BuildController();
+
+        // Act - Request only 10 lines using tail mode
+        var result = await controller.GetLogContent("wayfarer-20251222.log", 0, 10, mode: "tail");
+
+        // Assert
+        var json = Assert.IsType<JsonResult>(result);
+        var response = Assert.IsType<LogContentResponse>(json.Value);
+        Assert.True(response.HasOlder); // Should have older content before current view
+        Assert.False(response.HasMore); // At end of file, no newer content
+        Assert.True(response.FileSize > 0);
+        Assert.True(response.StartPosition > 0); // Not at beginning
     }
 
     [Fact]

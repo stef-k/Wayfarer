@@ -1,17 +1,21 @@
 /**
  * Admin Log Viewer - Client-side functionality for viewing application logs.
- * Provides file selection, content display, real-time polling, search, and download.
+ * Provides file selection, content display, navigation, real-time polling, search, and download.
  */
 
 (() => {
     // State management
     let currentFileName = '';
-    let currentPosition = 0;
+    let currentStartPosition = 0;  // Where current content begins
+    let currentEndPosition = 0;    // Where current content ends (for polling)
+    let currentFileSize = 0;
+    let hasOlderContent = false;
+    let hasNewerContent = false;
     let totalLineCount = 0;
     let autoRefreshEnabled = false;
     let pollIntervalId = null;
     const POLL_INTERVAL_MS = 2500;
-    const MAX_LINES_INITIAL = 1000;
+    const MAX_LINES_NAVIGATION = 1000;
     const MAX_LINES_POLL = 100;
 
     // DOM elements
@@ -28,6 +32,9 @@
     const searchResults = document.getElementById('searchResults');
     const lineCount = document.getElementById('lineCount');
     const lastUpdated = document.getElementById('lastUpdated');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const positionInfo = document.getElementById('positionInfo');
 
     /**
      * Initializes the log viewer on page load.
@@ -45,6 +52,8 @@
         refreshBtn.addEventListener('click', refreshContent);
         downloadBtn.addEventListener('click', downloadLog);
         clearBtn.addEventListener('click', clearDisplay);
+        prevBtn.addEventListener('click', loadPrevious);
+        nextBtn.addEventListener('click', loadNext);
     };
 
     /**
@@ -58,8 +67,7 @@
         }
 
         currentFileName = fileName;
-        currentPosition = 0;
-        totalLineCount = 0;
+        resetPositionState();
 
         // Enable controls
         enableControls(true);
@@ -70,22 +78,37 @@
         const modified = selectedOption.dataset.modified || '';
         fileInfo.textContent = `${fileName} - ${size} - Last modified: ${modified}`;
 
-        await loadLogContent();
+        await loadLogContent('tail');
+    };
+
+    /**
+     * Resets position tracking state.
+     */
+    const resetPositionState = () => {
+        currentStartPosition = 0;
+        currentEndPosition = 0;
+        currentFileSize = 0;
+        hasOlderContent = false;
+        hasNewerContent = false;
+        totalLineCount = 0;
     };
 
     /**
      * Loads log file content from the server.
-     * @param {boolean} append - If true, append to existing content (for polling).
+     * @param {string} mode - 'tail' (last N lines), 'forward' (from position), 'backward' (N lines before position).
+     * @param {number} position - Position parameter for forward/backward modes.
      */
-    const loadLogContent = async (append = false) => {
+    const loadLogContent = async (mode = 'tail', position = 0) => {
         if (!currentFileName) return;
 
         logViewer.classList.add('loading');
-        const maxLines = append ? MAX_LINES_POLL : MAX_LINES_INITIAL;
+        const maxLines = mode === 'forward' && position === currentEndPosition
+            ? MAX_LINES_POLL
+            : MAX_LINES_NAVIGATION;
 
         try {
             const response = await fetch(
-                `/Admin/Logs/GetLogContent?fileName=${encodeURIComponent(currentFileName)}&lastPosition=${currentPosition}&maxLines=${maxLines}`
+                `/Admin/Logs/GetLogContent?fileName=${encodeURIComponent(currentFileName)}&position=${position}&maxLines=${maxLines}&mode=${mode}`
             );
 
             if (!response.ok) {
@@ -94,26 +117,42 @@
 
             const data = await response.json();
 
-            if (data.lineCount > 0) {
-                const wasAtBottom = isScrolledToBottom();
+            // Update state from response
+            currentFileSize = data.fileSize;
+            hasOlderContent = data.hasOlder;
+            hasNewerContent = data.hasMore;
 
-                if (append) {
+            if (mode === 'forward' && position === currentEndPosition) {
+                // Polling mode - append new content
+                if (data.lineCount > 0) {
+                    const wasAtBottom = isScrolledToBottom();
                     logViewer.textContent += '\n' + data.content;
-                } else {
+                    totalLineCount += data.lineCount;
+                    currentEndPosition = data.newPosition;
+                    if (wasAtBottom) {
+                        scrollToBottom();
+                    }
+                }
+            } else {
+                // Navigation mode - replace content
+                currentStartPosition = data.startPosition;
+                currentEndPosition = data.newPosition;
+                totalLineCount = data.lineCount;
+
+                if (data.lineCount > 0) {
                     logViewer.textContent = data.content;
+                    if (mode === 'tail' || mode === 'forward') {
+                        scrollToBottom();
+                    } else {
+                        scrollToTop();
+                    }
+                } else {
+                    logViewer.textContent = '(Empty log file)';
                 }
-
-                currentPosition = data.newPosition;
-                totalLineCount += data.lineCount;
-
-                if (wasAtBottom || !append) {
-                    scrollToBottom();
-                }
-            } else if (!append) {
-                logViewer.textContent = '(Empty log file)';
             }
 
             updateStatusBar();
+            updateNavigationButtons();
 
         } catch (error) {
             console.error('Error loading log content:', error);
@@ -129,13 +168,35 @@
     };
 
     /**
-     * Refreshes the current log file content from the beginning.
+     * Loads previous (older) content.
+     */
+    const loadPrevious = async () => {
+        if (!currentFileName || !hasOlderContent) return;
+        clearSearch();
+
+        // Disable auto-refresh when navigating backward
+        if (autoRefreshEnabled) {
+            toggleAutoRefresh();
+        }
+
+        await loadLogContent('backward', currentStartPosition);
+    };
+
+    /**
+     * Loads next (newer) content.
+     */
+    const loadNext = async () => {
+        if (!currentFileName || !hasNewerContent) return;
+        clearSearch();
+        await loadLogContent('forward', currentEndPosition);
+    };
+
+    /**
+     * Refreshes to show the latest entries (tail mode).
      */
     const refreshContent = async () => {
-        currentPosition = 0;
-        totalLineCount = 0;
         clearSearch();
-        await loadLogContent();
+        await loadLogContent('tail');
     };
 
     /**
@@ -146,7 +207,10 @@
 
         if (autoRefreshEnabled) {
             autoRefreshBtn.classList.add('active');
-            pollIntervalId = setInterval(pollLogContent, POLL_INTERVAL_MS);
+            // First jump to tail, then start polling
+            loadLogContent('tail').then(() => {
+                pollIntervalId = setInterval(pollLogContent, POLL_INTERVAL_MS);
+            });
             if (wayfarer?.showToast) {
                 wayfarer.showToast('info', 'Auto-refresh enabled', 2000);
             }
@@ -164,7 +228,25 @@
      */
     const pollLogContent = async () => {
         if (!currentFileName || !autoRefreshEnabled) return;
-        await loadLogContent(true);
+        await loadLogContent('forward', currentEndPosition);
+    };
+
+    /**
+     * Updates navigation button states.
+     */
+    const updateNavigationButtons = () => {
+        prevBtn.disabled = !hasOlderContent;
+        nextBtn.disabled = !hasNewerContent;
+
+        // Show position info if we have content
+        if (currentFileSize > 0) {
+            const startPercent = Math.round((currentStartPosition / currentFileSize) * 100);
+            const endPercent = Math.round((currentEndPosition / currentFileSize) * 100);
+            positionInfo.textContent = `Position: ${startPercent}%-${endPercent}%`;
+            positionInfo.classList.remove('d-none');
+        } else {
+            positionInfo.classList.add('d-none');
+        }
     };
 
     /**
@@ -239,12 +321,12 @@
         logViewer.textContent = 'Select a log file from the dropdown above to view its contents.';
         logFileSelect.value = '';
         currentFileName = '';
-        currentPosition = 0;
-        totalLineCount = 0;
+        resetPositionState();
         enableControls(false);
         fileInfo.textContent = 'Select a log file to view';
         clearSearch();
         updateStatusBar();
+        updateNavigationButtons();
 
         if (autoRefreshEnabled) {
             toggleAutoRefresh();
@@ -270,13 +352,15 @@
         refreshBtn.disabled = !enabled;
         downloadBtn.disabled = !enabled;
         clearBtn.disabled = !enabled;
+        // Navigation buttons are controlled by updateNavigationButtons()
     };
 
     /**
      * Updates the status bar with current stats.
      */
     const updateStatusBar = () => {
-        lineCount.textContent = `${totalLineCount} line${totalLineCount !== 1 ? 's' : ''}`;
+        const prefix = hasOlderContent || hasNewerContent ? 'Showing ' : '';
+        lineCount.textContent = `${prefix}${totalLineCount} line${totalLineCount !== 1 ? 's' : ''}`;
         lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
     };
 
@@ -293,6 +377,13 @@
      */
     const scrollToBottom = () => {
         logViewer.scrollTop = logViewer.scrollHeight;
+    };
+
+    /**
+     * Scrolls the log viewer to the top.
+     */
+    const scrollToTop = () => {
+        logViewer.scrollTop = 0;
     };
 
     /**
