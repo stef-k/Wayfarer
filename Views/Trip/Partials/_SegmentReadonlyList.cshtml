@@ -92,7 +92,7 @@
                                 </div>
                                 @if (HtmlHelpers.HasVisibleContent(seg?.Notes))
                                 {
-                                    <div class="text-muted mt-1 segment-notes-preview">
+                                    <div class="text-muted mt-1 segment-notes-preview" style="max-height: 100px; overflow-y: auto;">
                                         @Html.Raw(seg?.Notes)
                                     </div>
                                 }
