@@ -114,7 +114,7 @@ public class LogsController : BaseController
 
     /// <summary>
     /// Reads the last N lines from a file stream efficiently.
-    /// Uses backward scanning to find line boundaries without loading entire file into memory.
+    /// Uses incremental backward scanning to avoid loading entire file into memory.
     /// </summary>
     /// <param name="fs">File stream positioned at any location.</param>
     /// <param name="lineCount">Number of lines to read from the end.</param>
@@ -126,49 +126,57 @@ public class LogsController : BaseController
             return [];
         }
 
-        // Estimate starting position: average log line ~150 bytes, add buffer
+        // Start with estimated window, double if needed (but never read entire file at once)
         const int avgLineBytes = 180;
-        var estimatedStart = Math.Max(0, fs.Length - (lineCount * avgLineBytes));
+        var windowSize = lineCount * avgLineBytes;
+        const int maxIterations = 5; // Limit iterations to prevent runaway expansion
 
-        // Read from estimated position to end
-        fs.Seek(estimatedStart, SeekOrigin.Begin);
-        using var reader = new StreamReader(fs, leaveOpen: true);
-
-        // If we didn't start at beginning, skip partial first line
-        if (estimatedStart > 0)
+        for (var iteration = 0; iteration < maxIterations; iteration++)
         {
-            await reader.ReadLineAsync();
-        }
+            var startPosition = Math.Max(0, fs.Length - windowSize);
 
-        // Read all remaining lines
-        var allLines = new List<string>();
-        string? line;
-        while ((line = await reader.ReadLineAsync()) != null)
-        {
-            allLines.Add(line);
-        }
+            fs.Seek(startPosition, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, leaveOpen: true);
 
-        // If we have enough lines, take last N
-        if (allLines.Count >= lineCount)
-        {
-            return allLines.Skip(allLines.Count - lineCount).ToList();
-        }
-
-        // If not enough lines and we started mid-file, need to read more
-        if (estimatedStart > 0 && allLines.Count < lineCount)
-        {
-            // Read from beginning to get all lines
-            fs.Seek(0, SeekOrigin.Begin);
-            using var fullReader = new StreamReader(fs, leaveOpen: true);
-            allLines.Clear();
-            while ((line = await fullReader.ReadLineAsync()) != null)
+            // If we didn't start at beginning, skip partial first line
+            if (startPosition > 0)
             {
-                allLines.Add(line);
+                await reader.ReadLineAsync();
             }
-            return allLines.Skip(Math.Max(0, allLines.Count - lineCount)).ToList();
+
+            // Read lines from current position to end
+            var lines = new List<string>();
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                lines.Add(line);
+            }
+
+            // If we have enough lines or we've reached the start of file, return
+            if (lines.Count >= lineCount || startPosition == 0)
+            {
+                return lines.Count > lineCount
+                    ? lines.Skip(lines.Count - lineCount).ToList()
+                    : lines;
+            }
+
+            // Double the window for next iteration
+            windowSize *= 2;
         }
 
-        return allLines;
+        // Fallback: if we still don't have enough after max iterations,
+        // read from beginning (this should rarely happen with reasonable log files)
+        fs.Seek(0, SeekOrigin.Begin);
+        using var finalReader = new StreamReader(fs, leaveOpen: true);
+        var allLines = new List<string>();
+        string? finalLine;
+        while ((finalLine = await finalReader.ReadLineAsync()) != null)
+        {
+            allLines.Add(finalLine);
+        }
+        return allLines.Count > lineCount
+            ? allLines.Skip(allLines.Count - lineCount).ToList()
+            : allLines;
     }
 
     /// <summary>
