@@ -64,11 +64,14 @@
                 </div>
             }
 
-            <div class="row">
-                <div class="col-12 mt-2">
-                    @Html.LinkifyHtml(Model.Notes)
+            @if (!string.IsNullOrWhiteSpace(Model.Notes))
+            {
+                <div class="row">
+                    <div class="col-12 mt-2">
+                        @Html.LinkifyHtml(Model.Notes)
+                    </div>
                 </div>
-            </div>
+            }
 
             <!-- Action buttons -->
             @if (Model.Name != "Unassigned Places")
