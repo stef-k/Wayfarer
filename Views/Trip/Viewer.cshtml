@@ -395,6 +395,13 @@
                         <div class="region-readable mb-4 pb-3 border-bottom">
                             <h5 class="mb-2">@region.Name</h5>
 
+                            @if (!string.IsNullOrWhiteSpace(region.CoverImageUrl))
+                            {
+                                <div class="mb-3">
+                                    <img src="@region.CoverImageUrl" alt="@region.Name" class="img-fluid rounded" style="max-height: 200px; object-fit: cover; width: 100%;" />
+                                </div>
+                            }
+
                             @if (!string.IsNullOrWhiteSpace(region.Notes))
                             {
                                 <div class="mb-3 text-muted">
