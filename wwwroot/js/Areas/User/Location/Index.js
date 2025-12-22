@@ -5,6 +5,7 @@ let mapBounds = null;
 let markerClusterGroup = null;
 let isSearchPanelOpen = false;
 let markerLayer, clusterLayer, highlightLayer;
+let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 import {
@@ -45,6 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
     getUserLocations();
     onZoomOrMoveChanges();
 
+    // Cleanup timers on page unload
+    window.addEventListener('beforeunload', () => {
+        if (markerTransitionTimer) {
+            clearTimeout(markerTransitionTimer);
+        }
+    });
 
     const selectAllCheckbox = document.getElementById("selectAll");
     const tableBody = document.querySelector("#locationsTable tbody");
@@ -331,7 +338,56 @@ const buildLayers = (locations) => {
     if (highlightLayer) {
         highlightLayer.addTo(mapContainer);
     }
-};// Display locations on the mapContainer with markers
+
+    // Schedule marker transition when live marker expires
+    scheduleMarkerTransition(locations);
+};
+
+/**
+ * Schedules a timer to re-render markers when the current live marker should transition to latest.
+ * Calculates when the earliest live location will age past its threshold and sets a timeout.
+ * @param {Array} locations - Array of location objects with localTimestamp and locationTimeThresholdMinutes
+ */
+const scheduleMarkerTransition = (locations) => {
+    // Clear any existing timer
+    if (markerTransitionTimer) {
+        clearTimeout(markerTransitionTimer);
+        markerTransitionTimer = null;
+    }
+
+    if (!locations || locations.length === 0) return;
+
+    const nowMs = Date.now();
+    let earliestTransitionMs = null;
+
+    // Find the earliest time when a live marker should transition
+    locations.forEach(location => {
+        const locMs = new Date(location.localTimestamp).getTime();
+        const thresholdMs = (location.locationTimeThresholdMinutes ?? 10) * 60 * 1000;
+        const ageMs = nowMs - locMs;
+
+        // If location is currently live (within threshold)
+        if (ageMs <= thresholdMs) {
+            // Calculate when it will expire
+            const expiresAtMs = locMs + thresholdMs;
+            const msUntilExpiry = expiresAtMs - nowMs;
+
+            if (msUntilExpiry > 0 && (earliestTransitionMs === null || msUntilExpiry < earliestTransitionMs)) {
+                earliestTransitionMs = msUntilExpiry;
+            }
+        }
+    });
+
+    // If there's a live marker that will expire, schedule re-render
+    if (earliestTransitionMs !== null) {
+        // Add small buffer (1 second) to ensure threshold has definitely passed
+        markerTransitionTimer = setTimeout(() => {
+            displayLocationsOnMap(mapContainer, locations);
+        }, earliestTransitionMs + 1000);
+    }
+};
+
+// Display locations on the mapContainer with markers
 const displayLocationsOnMap = (mapContainer, locations) => {
     if (!mapContainer) {
         mapContainer = initializeMap();
