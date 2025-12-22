@@ -1570,3 +1570,60 @@ img.js-lazy[src] {
     overflow-wrap: break-word;
     hyphens: auto;
 }
+
+/* ============================================
+   Readable View Modal - Font Size Overrides
+   Issue #13: Ensure imported Google MyMaps content is readable
+   ============================================ */
+
+/* Base content font size for readable modal - override inline styles from imports */
+#readableViewModal .modal-body {
+    font-size: 16px !important;
+}
+
+/* Trip notes section - ensure readable font size */
+#readableViewModal .trip-notes-readable,
+#readableViewModal .trip-notes-readable * {
+    font-size: 16px !important;
+}
+
+/* Region notes - override inline font-size from imported content */
+#readableViewModal .region-readable,
+#readableViewModal .region-readable > div {
+    font-size: 16px !important;
+}
+
+/* Place item notes - ensure minimum readable size */
+#readableViewModal .place-item .text-muted,
+#readableViewModal .place-item div,
+#readableViewModal .place-item p,
+#readableViewModal .place-item span {
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+}
+
+/* Preserve heading sizes - they should remain as designed */
+#readableViewModal h1,
+#readableViewModal h2,
+#readableViewModal h3,
+#readableViewModal h4,
+#readableViewModal h5,
+#readableViewModal h6 {
+    font-size: revert !important;
+}
+
+/* Preserve small metadata labels (like "Trip by:", "Updated:") */
+#readableViewModal .row.small,
+#readableViewModal .mb-3 > .small {
+    font-size: 0.875rem !important;
+}
+
+/* Preserve badge font sizes */
+#readableViewModal .badge {
+    font-size: 0.875rem !important;
+}
+
+/* Dark mode compatibility - ensure text remains readable */
+[data-bs-theme="dark"] #readableViewModal .modal-body {
+    color: var(--bs-body-color);
+}
