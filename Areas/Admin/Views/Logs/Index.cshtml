@@ -1,0 +1,138 @@
+@using Wayfarer.Models.ViewModels
+@model List<LogFileInfo>
+
+@{
+    ViewData["Title"] = "Application Logs";
+}
+
+<h1 class="text-center">@ViewData["Title"]</h1>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Control Panel -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-3 align-items-center">
+                        <!-- File Selector -->
+                        <div class="col-auto">
+                            <label for="logFileSelect" class="col-form-label">Log File:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select id="logFileSelect" class="form-select">
+                                <option value="">-- Select a log file --</option>
+                                @foreach (var file in Model)
+                                {
+                                    <option value="@file.FileName" data-size="@file.SizeFormatted" data-modified="@file.LastModified.ToString("g")">
+                                        @file.FileName @(file.IsCurrent ? "(Current)" : "") - @file.SizeFormatted
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Search Box -->
+                        <div class="col-auto">
+                            <div class="input-group">
+                                <input type="text" id="searchInput" class="form-control" placeholder="Search logs..." disabled />
+                                <button type="button" id="searchBtn" class="btn btn-outline-secondary" disabled>
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <button type="button" id="clearSearchBtn" class="btn btn-outline-secondary" disabled title="Clear search">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="col-auto ms-auto">
+                            <div class="btn-group" role="group">
+                                <button type="button" id="autoRefreshBtn" class="btn btn-outline-primary" disabled title="Toggle auto-refresh">
+                                    <i class="bi bi-arrow-repeat"></i> Auto-Refresh
+                                </button>
+                                <button type="button" id="refreshBtn" class="btn btn-outline-secondary" disabled title="Refresh content">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button type="button" id="downloadBtn" class="btn btn-outline-success" disabled title="Download log file">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button type="button" id="clearBtn" class="btn btn-outline-danger" disabled title="Clear display">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log Viewer -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <span id="fileInfo" class="text-muted small">Select a log file to view</span>
+                    <span id="searchResults" class="badge bg-secondary d-none"></span>
+                </div>
+                <div class="card-body p-0">
+                    <pre id="logViewer" class="log-viewer m-0 p-3">Select a log file from the dropdown above to view its contents.</pre>
+                </div>
+                <div class="card-footer py-2">
+                    <div class="d-flex justify-content-between align-items-center small text-muted">
+                        <span id="lineCount">0 lines</span>
+                        <span id="lastUpdated">-</span>
+                    </div>
+                </div>
+            </div>
+
+            @if (!Model.Any())
+            {
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No log files found. Log files are created when the application starts logging.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <style>
+        .log-viewer {
+            font-family: 'Courier New', Consolas, 'Liberation Mono', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            background-color: var(--bs-body-bg);
+            color: var(--bs-body-color);
+            border: none;
+            border-radius: 0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: calc(100vh - 320px);
+            min-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-viewer mark {
+            background-color: #fff3cd;
+            color: #000;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        [data-bs-theme="dark"] .log-viewer mark {
+            background-color: #664d03;
+            color: #fff;
+        }
+
+        #autoRefreshBtn.active {
+            background-color: var(--bs-primary);
+            color: white;
+        }
+
+        .log-viewer.loading {
+            opacity: 0.6;
+        }
+    </style>
+}
+
+@section Scripts {
+    <script src="~/js/Areas/Admin/Logs/Index.js" asp-append-version="true"></script>
+}
