@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
@@ -380,25 +382,24 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Optimize image using SkiaSharp - resize and compress while maintaining quality.
+    /// Optimize image using ImageSharp - resize and compress while maintaining quality.
     /// Preserves PNG transparency for icons, converts photos to JPEG.
+    /// Uses pure managed code with no native dependencies for cross-platform support.
     /// </summary>
     private byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
     {
         using var inputStream = new MemoryStream(imageBytes);
-        using var original = SkiaSharp.SKBitmap.Decode(inputStream);
-
-        if (original == null)
-            throw new InvalidOperationException("Failed to decode image");
+        using var image = SixLabors.ImageSharp.Image.Load(inputStream);
 
         // Check if image has transparency (alpha channel)
-        bool hasTransparency = original.ColorType == SkiaSharp.SKColorType.Rgba8888 ||
-                               original.ColorType == SkiaSharp.SKColorType.Bgra8888 ||
-                               original.AlphaType != SkiaSharp.SKAlphaType.Opaque;
+        // PNG and WebP formats typically have alpha, JPEG does not
+        bool hasTransparency = image.Metadata.DecodedImageFormat?.Name == "PNG" ||
+                               image.Metadata.DecodedImageFormat?.Name == "WEBP" ||
+                               image.Metadata.DecodedImageFormat?.Name == "GIF";
 
         // Calculate new dimensions maintaining aspect ratio
-        int targetWidth = original.Width;
-        int targetHeight = original.Height;
+        int targetWidth = image.Width;
+        int targetHeight = image.Height;
 
         if (maxWidth.HasValue && targetWidth > maxWidth.Value)
         {
@@ -415,39 +416,34 @@ public class TripViewerController : BaseController
         }
 
         // Resize if needed
-        SkiaSharp.SKBitmap resized;
-        if (targetWidth != original.Width || targetHeight != original.Height)
+        if (targetWidth != image.Width || targetHeight != image.Height)
         {
-            var imageInfo = new SkiaSharp.SKImageInfo(targetWidth, targetHeight);
-            var samplingOptions = new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear, SkiaSharp.SKMipmapMode.Linear);
-            resized = original.Resize(imageInfo, samplingOptions);
-        }
-        else
-        {
-            resized = original;
+            image.Mutate(x => x.Resize(targetWidth, targetHeight, SixLabors.ImageSharp.Processing.KnownResamplers.Lanczos3));
         }
 
         // Choose format based on transparency
-        using var image = SkiaSharp.SKImage.FromBitmap(resized);
-        SkiaSharp.SKData data;
+        using var outputStream = new MemoryStream();
 
         if (hasTransparency)
         {
             // Preserve transparency with PNG (for icons, logos, etc.)
-            data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, quality);
+            image.SaveAsPng(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder
+            {
+                CompressionLevel = SixLabors.ImageSharp.Formats.Png.PngCompressionLevel.BestCompression
+            });
             isPng = true;
         }
         else
         {
             // Use JPEG for photos (better compression)
-            data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, quality);
+            image.SaveAsJpeg(outputStream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
+            {
+                Quality = quality
+            });
             isPng = false;
         }
 
-        if (resized != original)
-            resized.Dispose();
-
-        return data.ToArray();
+        return outputStream.ToArray();
     }
 
     /// <summary>
