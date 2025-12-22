@@ -11,17 +11,46 @@
 const MAX_NOTES_LENGTH = 150;
 
 /**
- * Truncates HTML notes to a reasonable preview length
+ * Truncates HTML notes to a reasonable preview length.
+ * Handles content with images by indicating media presence and extracting
+ * text that follows images.
  * @param {string} html - The HTML notes content
- * @returns {string} - Truncated plain text with ellipsis if needed
+ * @returns {string} - Truncated plain text with ellipsis if needed, prefixed with media indicator
  */
 const truncateNotes = (html) => {
     if (!html) return '';
     const div = document.createElement('div');
     div.innerHTML = html;
+
+    // Check for images or other media elements
+    const hasMedia = div.querySelector('img, video, audio, iframe') !== null;
+
+    // Extract all text content (includes text after images)
     const text = div.textContent?.trim() || '';
-    if (text.length <= MAX_NOTES_LENGTH) return text;
-    return text.substring(0, MAX_NOTES_LENGTH).trim() + '…';
+
+    // Build preview with optional media indicator
+    let preview = '';
+    if (hasMedia && text.length === 0) {
+        // Only media, no text
+        preview = '[Contains media]';
+    } else if (hasMedia && text.length > 0) {
+        // Media + text: show indicator and text preview
+        const availableLength = MAX_NOTES_LENGTH - 10; // Reserve space for indicator
+        if (text.length <= availableLength) {
+            preview = '[Media] ' + text;
+        } else {
+            preview = '[Media] ' + text.substring(0, availableLength).trim() + '…';
+        }
+    } else if (text.length > 0) {
+        // Text only
+        if (text.length <= MAX_NOTES_LENGTH) {
+            preview = text;
+        } else {
+            preview = text.substring(0, MAX_NOTES_LENGTH).trim() + '…';
+        }
+    }
+
+    return preview;
 };
 
 /**
