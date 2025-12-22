@@ -70,15 +70,21 @@ public class LogsController : BaseController
             using var reader = new StreamReader(fs);
 
             var lineCount = 0;
+            long bytesRead = 0;
             string? line;
             while (lineCount < maxLines && (line = await reader.ReadLineAsync()) != null)
             {
                 lines.Add(line);
                 lineCount++;
+                // Track bytes: line content + newline character
+                bytesRead += System.Text.Encoding.UTF8.GetByteCount(line) + 1;
             }
 
-            response.NewPosition = fs.Position;
-            response.HasMore = await reader.ReadLineAsync() != null;
+            // Calculate new position based on actual bytes read (avoids StreamReader buffer issues)
+            response.NewPosition = lastPosition + bytesRead;
+
+            // Check if there's more content by comparing position to file length
+            response.HasMore = response.NewPosition < fs.Length;
         }
         catch (Exception ex)
         {
