@@ -42,7 +42,17 @@
     if (!btn) return;
     const gid = btn.getAttribute('data-group-id');
     if (!gid) return;
-    if (confirm('Leave this group?')) leaveGroup(gid);
+
+    if (wayfarer.showConfirmationModal) {
+      wayfarer.showConfirmationModal({
+        title: 'Leave Group',
+        message: 'Are you sure you want to leave this group?',
+        confirmText: 'Leave',
+        onConfirm: () => leaveGroup(gid)
+      });
+    } else if (confirm('Leave this group?')) {
+      leaveGroup(gid);
+    }
   });
 
   loadJoined();
