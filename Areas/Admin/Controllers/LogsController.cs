@@ -40,16 +40,16 @@ public class LogsController : BaseController
     }
 
     /// <summary>
-    /// Retrieves log file content with position tracking for incremental reads.
-    /// Supports tail-mode for reading the last N lines (typical log viewer behavior).
+    /// Retrieves log file content with position tracking for navigation and polling.
+    /// Supports tail-mode, forward reading, and backward reading for pagination.
     /// </summary>
     /// <param name="fileName">Name of the log file to read.</param>
-    /// <param name="lastPosition">File position to start reading from (for incremental polling).</param>
+    /// <param name="position">File position for navigation (start position for forward, end position for backward).</param>
     /// <param name="maxLines">Maximum number of lines to return.</param>
-    /// <param name="tailMode">When true, reads last N lines from end of file (initial/refresh). When false, reads from lastPosition (polling).</param>
-    /// <returns>JSON with content, new position, and metadata.</returns>
+    /// <param name="mode">Read mode: "tail" (last N lines), "forward" (from position), "backward" (N lines before position).</param>
+    /// <returns>JSON with content, positions, and navigation metadata.</returns>
     [HttpGet]
-    public async Task<IActionResult> GetLogContent(string fileName, long lastPosition = 0, int maxLines = 1000, bool tailMode = false)
+    public async Task<IActionResult> GetLogContent(string fileName, long position = 0, int maxLines = 1000, string mode = "tail")
     {
         if (!IsValidLogFile(fileName))
         {
@@ -68,36 +68,59 @@ public class LogsController : BaseController
         try
         {
             await using var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            // Capture file size at start to avoid race condition with concurrent writes.
+            // This ensures any lines appended during our read will be picked up by the next poll.
+            var initialFileSize = fs.Length;
+            response.FileSize = initialFileSize;
 
-            if (tailMode)
+            switch (mode.ToLowerInvariant())
             {
-                // Tail mode: read last N lines from end of file
-                lines = await ReadLastLinesAsync(fs, maxLines);
-                response.NewPosition = fs.Length;
-                response.HasMore = false; // We're showing the latest
-            }
-            else
-            {
-                // Incremental mode: read from last position (for polling)
-                fs.Seek(lastPosition, SeekOrigin.Begin);
-                using var reader = new StreamReader(fs);
+                case "tail":
+                    // Read last N lines from end of file
+                    (lines, response.StartPosition) = await ReadLastLinesWithPositionAsync(fs, maxLines);
+                    response.NewPosition = initialFileSize;
+                    response.HasMore = false;
+                    response.HasOlder = response.StartPosition > 0;
+                    break;
 
-                var lineCount = 0;
-                long bytesRead = 0;
-                string? line;
-                while (lineCount < maxLines && (line = await reader.ReadLineAsync()) != null)
-                {
-                    lines.Add(line);
-                    lineCount++;
-                    // Track bytes: line content + newline character
-                    bytesRead += System.Text.Encoding.UTF8.GetByteCount(line) + 1;
-                }
+                case "backward":
+                    // Read N lines before the given position (for "Previous" button)
+                    if (position <= 0)
+                    {
+                        // Already at start, return empty
+                        response.StartPosition = 0;
+                        response.NewPosition = 0;
+                        response.HasOlder = false;
+                        response.HasMore = initialFileSize > 0;
+                        break;
+                    }
+                    (lines, response.StartPosition) = await ReadLinesBeforePositionAsync(fs, position, maxLines);
+                    response.NewPosition = position;
+                    response.HasOlder = response.StartPosition > 0;
+                    response.HasMore = position < initialFileSize;
+                    break;
 
-                // Calculate new position based on actual bytes read (avoids StreamReader buffer issues)
-                response.NewPosition = lastPosition + bytesRead;
-
-                // Check if there's more content by comparing position to file length
-                response.HasMore = response.NewPosition < fs.Length;
+                case "forward":
+                default:
+                    // Read from position forward (for polling and "Next" button)
+                    response.StartPosition = position;
+                    fs.Seek(position, SeekOrigin.Begin);
+                    using (var reader = new StreamReader(fs, leaveOpen: true))
+                    {
+                        var lineCount = 0;
+                        long bytesRead = 0;
+                        string? line;
+                        while (lineCount < maxLines && (line = await reader.ReadLineAsync()) != null)
+                        {
+                            lines.Add(line);
+                            lineCount++;
+                            bytesRead += System.Text.Encoding.UTF8.GetByteCount(line) + 1;
+                        }
+                        response.NewPosition = position + bytesRead;
+                    }
+                    response.HasMore = response.NewPosition < initialFileSize;
+                    response.HasOlder = position > 0;
+                    break;
             }
         }
         catch (Exception ex)
@@ -110,6 +133,135 @@ public class LogsController : BaseController
         response.LineCount = lines.Count;
 
         return Json(response);
+    }
+
+    /// <summary>
+    /// Reads the last N lines from a file stream and returns the start position.
+    /// Uses bounded backward scanning with incremental window expansion.
+    /// </summary>
+    /// <param name="fs">File stream to read from.</param>
+    /// <param name="lineCount">Number of lines to read from the end.</param>
+    /// <returns>Tuple of (lines, startPosition where content begins).</returns>
+    private static async Task<(List<string> Lines, long StartPosition)> ReadLastLinesWithPositionAsync(FileStream fs, int lineCount)
+    {
+        if (fs.Length == 0)
+        {
+            return ([], 0);
+        }
+
+        const int avgLineBytes = 180;
+        var windowSize = (long)lineCount * avgLineBytes;
+
+        while (true)
+        {
+            var startPosition = Math.Max(0, fs.Length - windowSize);
+
+            fs.Seek(startPosition, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, leaveOpen: true);
+
+            // If we didn't start at beginning, skip partial first line
+            if (startPosition > 0)
+            {
+                var partialLine = await reader.ReadLineAsync();
+                startPosition += System.Text.Encoding.UTF8.GetByteCount(partialLine ?? "") + 1;
+            }
+
+            // Read lines from current position to end
+            var lines = new List<string>();
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                lines.Add(line);
+            }
+
+            // Return if we have enough lines or we've reached the start of file
+            if (lines.Count >= lineCount || startPosition == 0)
+            {
+                if (lines.Count > lineCount)
+                {
+                    // Calculate how many lines to skip and adjust start position
+                    var skipCount = lines.Count - lineCount;
+                    for (var i = 0; i < skipCount; i++)
+                    {
+                        startPosition += System.Text.Encoding.UTF8.GetByteCount(lines[i]) + 1;
+                    }
+                    return (lines.Skip(skipCount).ToList(), startPosition);
+                }
+                return (lines, startPosition);
+            }
+
+            // Double the window for next iteration
+            windowSize *= 2;
+        }
+    }
+
+    /// <summary>
+    /// Reads N lines before a given position in the file.
+    /// Used for backward navigation (Previous button).
+    /// </summary>
+    /// <param name="fs">File stream to read from.</param>
+    /// <param name="endPosition">Position to read before.</param>
+    /// <param name="lineCount">Number of lines to read.</param>
+    /// <returns>Tuple of (lines, startPosition where content begins).</returns>
+    private static async Task<(List<string> Lines, long StartPosition)> ReadLinesBeforePositionAsync(FileStream fs, long endPosition, int lineCount)
+    {
+        if (endPosition <= 0)
+        {
+            return ([], 0);
+        }
+
+        const int avgLineBytes = 180;
+        var windowSize = (long)lineCount * avgLineBytes;
+
+        while (true)
+        {
+            var startPosition = Math.Max(0, endPosition - windowSize);
+
+            fs.Seek(startPosition, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, leaveOpen: true);
+
+            // If we didn't start at beginning, skip partial first line
+            long actualStart = startPosition;
+            if (startPosition > 0)
+            {
+                var partialLine = await reader.ReadLineAsync();
+                actualStart += System.Text.Encoding.UTF8.GetByteCount(partialLine ?? "") + 1;
+            }
+
+            // Read lines until we reach endPosition
+            var lines = new List<string>();
+            long currentPos = actualStart;
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                var lineBytes = System.Text.Encoding.UTF8.GetByteCount(line) + 1;
+                if (currentPos + lineBytes > endPosition)
+                {
+                    break;
+                }
+                lines.Add(line);
+                currentPos += lineBytes;
+            }
+
+            // Return if we have enough lines or we've reached the start of file
+            if (lines.Count >= lineCount || startPosition == 0)
+            {
+                if (lines.Count > lineCount)
+                {
+                    // Take only the last N lines and adjust start position
+                    var skipCount = lines.Count - lineCount;
+                    for (var i = 0; i < skipCount; i++)
+                    {
+                        actualStart += System.Text.Encoding.UTF8.GetByteCount(lines[i]) + 1;
+                    }
+                    return (lines.Skip(skipCount).ToList(), actualStart);
+                }
+                return (lines, actualStart);
+            }
+
+            // Double the window for next iteration
+            windowSize *= 2;
+        }
     }
 
     /// <summary>
