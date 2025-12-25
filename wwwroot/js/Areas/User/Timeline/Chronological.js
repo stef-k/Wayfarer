@@ -21,18 +21,100 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
     sourceTimeZone: getLocationSourceTimeZone(location),
     viewerTimeZone,
 });
-const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
-const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
+const buildEditUrl = id => {
+    const returnUrl = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+    return `/User/Location/Edit/${id}?returnUrl=${returnUrl}`;
+};
 // Current view state
 let currentDate = new Date();
 let currentViewType = 'day'; // 'day', 'month', or 'year'
+
+/**
+ * Reads date state from URL query parameters.
+ * Expected parameters: viewType (day|month|year), year, month (1-12), day (1-31)
+ * @returns {boolean} True if valid date state was found in URL
+ */
+const readDateFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    const viewType = params.get('viewType');
+    const year = parseInt(params.get('year'), 10);
+    const month = parseInt(params.get('month'), 10);
+    const day = parseInt(params.get('day'), 10);
+
+    // Validate viewType
+    if (!viewType || !['day', 'month', 'year'].includes(viewType)) {
+        return false;
+    }
+
+    // Year is always required
+    if (isNaN(year) || year < 1900 || year > 2100) {
+        return false;
+    }
+
+    // Build the date based on view type
+    let parsedDate;
+    switch (viewType) {
+        case 'year':
+            parsedDate = new Date(year, 0, 1);
+            break;
+        case 'month':
+            if (isNaN(month) || month < 1 || month > 12) return false;
+            parsedDate = new Date(year, month - 1, 1);
+            break;
+        case 'day':
+            if (isNaN(month) || month < 1 || month > 12) return false;
+            if (isNaN(day) || day < 1 || day > 31) return false;
+            parsedDate = new Date(year, month - 1, day);
+            // Validate the day is valid for the month
+            if (parsedDate.getMonth() !== month - 1) return false;
+            break;
+        default:
+            return false;
+    }
+
+    // Don't allow future dates
+    if (parsedDate > new Date()) {
+        return false;
+    }
+
+    currentDate = parsedDate;
+    currentViewType = viewType;
+    return true;
+};
+
+/**
+ * Updates the URL query parameters to reflect current date state.
+ * Uses replaceState to avoid polluting browser history on every navigation.
+ */
+const updateUrlWithDate = () => {
+    const params = new URLSearchParams();
+    params.set('viewType', currentViewType);
+    params.set('year', currentDate.getFullYear().toString());
+
+    if (currentViewType === 'month' || currentViewType === 'day') {
+        params.set('month', (currentDate.getMonth() + 1).toString());
+    }
+
+    if (currentViewType === 'day') {
+        params.set('day', currentDate.getDate().toString());
+    }
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the map
     mapContainer = initializeMap();
 
-    // Set today's date as default
-    setDateToToday();
+    // Restore date from URL or default to today
+    if (!readDateFromUrl()) {
+        setDateToToday();
+    } else {
+        // Update UI to match restored state
+        updateViewTypeUI();
+        updateDatePickerValues();
+    }
 
     // Load initial data
     loadChronologicalData();
@@ -125,6 +207,7 @@ const setupEventListeners = () => {
             currentDate = selectedDate;
             currentViewType = 'day';
             updateViewTypeUI();
+            updateUrlWithDate();
             loadChronologicalData();
         }
     });
@@ -134,6 +217,7 @@ const setupEventListeners = () => {
         currentDate = new Date(year, month - 1, 1);
         currentViewType = 'month';
         updateViewTypeUI();
+        updateUrlWithDate();
         loadChronologicalData();
     });
 
@@ -143,6 +227,7 @@ const setupEventListeners = () => {
             currentDate = new Date(year, 0, 1);
             currentViewType = 'year';
             updateViewTypeUI();
+            updateUrlWithDate();
             loadChronologicalData();
         }
     });
@@ -152,6 +237,7 @@ const setupEventListeners = () => {
         radio.addEventListener('change', (e) => {
             currentViewType = e.target.value;
             updateViewTypeUI();
+            updateUrlWithDate();
             loadChronologicalData();
         });
     });
@@ -206,6 +292,7 @@ const navigateDate = (direction, unit) => {
     currentDate = newDate;
     updateViewTypeUI();
     updateDatePickerValues();
+    updateUrlWithDate();
     loadChronologicalData();
 };
 
@@ -217,6 +304,7 @@ const setDateToToday = () => {
     currentViewType = 'day';
     updateViewTypeUI();
     updateDatePickerValues();
+    updateUrlWithDate();
 };
 
 /**
