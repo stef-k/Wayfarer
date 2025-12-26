@@ -299,6 +299,19 @@ public class LocationController : BaseApiController
         var isLive = thresholdWindow == TimeSpan.Zero ||
                      DateTime.UtcNow - location.Timestamp <= thresholdWindow;
 
+        // Per-user broadcast for timeline views (User/Timeline, Public/Timeline, Embed)
+        // Note: Timeline views refresh all data on any event, so payload content is informational
+        var userPayload = new
+        {
+            locationId = location.Id,
+            timestampUtc = location.Timestamp,
+            userId = user.Id,
+            userName = user.UserName ?? string.Empty,
+            isLive,
+            type = isCheckIn ? "check-in" : (string?)null
+        };
+        await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(userPayload));
+
         // Broadcast to all group channels
         var groupPayload = GroupSseEventDto.Location(
             location.Id,
