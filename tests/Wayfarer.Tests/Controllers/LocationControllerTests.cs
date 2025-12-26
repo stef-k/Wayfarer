@@ -142,9 +142,10 @@ namespace Wayfarer.Tests.Controllers;
         Assert.Equal(model.Longitude, saved.Coordinates.X);
         Assert.Equal("Test note", saved.Notes);
 
-        // Verify broadcast goes to group channel only
-        var message = Assert.Single(sse.Messages);
-        Assert.Equal($"group-{group.Id}", message.Channel);
+        // Verify broadcasts go to both per-user (for timeline views) and group channels
+        Assert.Equal(2, sse.Messages.Count);
+        Assert.Single(sse.Messages, m => m.Channel == $"location-update-{currentUser.UserName}");
+        Assert.Single(sse.Messages, m => m.Channel == $"group-{group.Id}");
     }
 
     [Fact]

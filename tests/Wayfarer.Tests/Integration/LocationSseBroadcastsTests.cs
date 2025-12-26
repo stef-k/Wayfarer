@@ -124,7 +124,7 @@ public class LocationSseBroadcastsTests
 
     [Fact]
     [Trait("Category", "LocationSseBroadcasts")]
-    public async Task LocationSseBroadcasts_CheckInBroadcastsToGroupChannels()
+    public async Task LocationSseBroadcasts_CheckInBroadcastsToUserAndGroupChannels()
     {
         using var db = CreateDb();
         var token = "token-checkin";
@@ -172,10 +172,26 @@ public class LocationSseBroadcastsTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(ok.Value);
 
-        // All broadcasts should be to group channels only
+        // Should have 1 per-user broadcast + 2 group broadcasts = 3 total
+        Assert.Equal(3, sse.Messages.Count);
+
+        // Verify per-user broadcast for timeline views
+        var userChannel = $"location-update-{user.UserName}";
+        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
+        using (var payload = JsonDocument.Parse(userMessage.Data))
+        {
+            var root = payload.RootElement;
+            Assert.True(root.TryGetProperty("locationId", out _));
+            Assert.True(root.TryGetProperty("timestampUtc", out _));
+            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
+            Assert.Equal(user.UserName, root.GetProperty("userName").GetString());
+            Assert.True(root.GetProperty("isLive").GetBoolean());
+            Assert.Equal("check-in", root.GetProperty("type").GetString());
+        }
+
+        // Verify group broadcasts
         var groupMessages = sse.Messages.Where(m => m.Channel.StartsWith("group-", StringComparison.Ordinal)).ToList();
         Assert.Equal(2, groupMessages.Count);
-        Assert.Equal(2, sse.Messages.Count); // No legacy per-user broadcasts
 
         foreach (var message in groupMessages)
         {
@@ -231,10 +247,26 @@ public class LocationSseBroadcastsTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(ok.Value);
 
-        // Only group channel broadcast, no legacy per-user broadcast
-        Assert.Equal(1, sse.Messages.Count);
-        var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-", StringComparison.Ordinal));
+        // Should have 1 per-user broadcast + 1 group broadcast = 2 total
+        Assert.Equal(2, sse.Messages.Count);
 
+        // Verify per-user broadcast for timeline views
+        var userChannel = $"location-update-{user.UserName}";
+        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
+        using (var payload = JsonDocument.Parse(userMessage.Data))
+        {
+            var root = payload.RootElement;
+            Assert.True(root.TryGetProperty("locationId", out _));
+            Assert.True(root.TryGetProperty("timestampUtc", out _));
+            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
+            Assert.Equal(user.UserName, root.GetProperty("userName").GetString());
+            Assert.True(root.GetProperty("isLive").GetBoolean());
+            // type should be null for non-check-in locations
+            Assert.True(root.TryGetProperty("type", out var typeVal) && typeVal.ValueKind == JsonValueKind.Null);
+        }
+
+        // Verify group broadcast
+        var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-", StringComparison.Ordinal));
         using (var groupPayload = JsonDocument.Parse(groupMessage.Data))
         {
             var root = groupPayload.RootElement;
