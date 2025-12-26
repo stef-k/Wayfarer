@@ -3,6 +3,7 @@ let locations = [];
 let mapContainer = null;
 let markerLayer, clusterLayer;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
+let stream = null; // SSE stream for live updates
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 import {
@@ -122,6 +123,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wire up event listeners
     setupEventListeners();
 
+    // Subscribe to SSE for live location updates
+    const username = document.getElementById('username')?.dataset?.username;
+    if (username) {
+        try {
+            stream = new EventSource(`/api/sse/stream/location-update/${username}`);
+            stream.onmessage = () => {
+                // Refresh data when a location update is received
+                loadChronologicalData();
+            };
+        } catch (e) {
+            console.error('Could not connect to SSE stream:', e);
+        }
+    }
+
     // Wire up the Bootstrap "shown" event for Wikipedia hover cards
     const modalEl = document.getElementById('locationModal');
     if (!modalEl) {
@@ -132,10 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Cleanup timers on page unload
+    // Cleanup timers and streams on page unload
     window.addEventListener('beforeunload', () => {
         if (markerTransitionTimer) {
             clearTimeout(markerTransitionTimer);
+        }
+        if (stream) {
+            stream.close();
         }
     });
 
