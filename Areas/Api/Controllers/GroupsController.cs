@@ -341,10 +341,9 @@ public class GroupsController : ControllerBase
             $"Group {group.Id}, User {userId}, Disabled={member.OrgPeerVisibilityAccessDisabled}", ct);
         await _db.SaveChangesAsync(ct);
 
-        // Broadcast visibility change to all group members via SSE
-        await _sse.BroadcastAsync($"group-membership-update-{id}",
-            JsonSerializer.Serialize(new
-                { action = "peer-visibility-changed", userId, disabled = member.OrgPeerVisibilityAccessDisabled }));
+        // Broadcast visibility change to all group members via SSE (consolidated group channel)
+        await _sse.BroadcastAsync($"group-{id}",
+            JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(userId, member.OrgPeerVisibilityAccessDisabled)));
 
         return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
     }
@@ -456,8 +455,10 @@ public class GroupsController : ControllerBase
             var gname = group?.Name;
 
             await _groups.LeaveGroupAsync(groupId, CurrentUserId, ct);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}",
-                JsonSerializer.Serialize(new { action = "member-left", userId = CurrentUserId }));
+            // Consolidated group channel
+            await _sse.BroadcastAsync($"group-{groupId}",
+                JsonSerializer.Serialize(GroupSseEventDto.MemberLeft(CurrentUserId)));
+            // Per-user membership notification (unchanged)
             await _sse.BroadcastAsync($"membership-update-{CurrentUserId}",
                 JsonSerializer.Serialize(new { action = "left", groupId, groupName = gname }));
             return Ok(new { message = "Left group" });
@@ -489,8 +490,10 @@ public class GroupsController : ControllerBase
             var gname = group?.Name;
 
             await _groups.RemoveMemberAsync(groupId, CurrentUserId, userId, ct);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}",
-                JsonSerializer.Serialize(new { action = "member-removed", userId }));
+            // Consolidated group channel
+            await _sse.BroadcastAsync($"group-{groupId}",
+                JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
+            // Per-user membership notification (unchanged)
             await _sse.BroadcastAsync($"membership-update-{userId}",
                 JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
             return Ok(new { message = "Member removed" });

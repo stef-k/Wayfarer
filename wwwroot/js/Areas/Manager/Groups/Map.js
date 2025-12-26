@@ -255,25 +255,32 @@ import {
   }
   subscribeSseForUsers(selectedUsers());
 
-  // Subscribe to group membership updates (member visibility changes, etc.)
+  // Subscribe to consolidated group stream (location + membership events)
   /**
-   * Handles SSE events for group membership changes
+   * Handles SSE events for group changes (visibility, membership, etc.)
+   * Uses the new consolidated endpoint with type discriminator.
    */
   function subscribeToGroupMembership() {
     if (groupMembershipSubscription) {
       groupMembershipSubscription.close();
     }
     try {
-      const es = new EventSource('/api/sse/stream/group-membership-update/' + groupId);
+      const es = new EventSource('/api/sse/group/' + groupId);
       es.onmessage = (ev) => {
         try {
           const payload = JSON.parse(ev.data);
-          if (payload && payload.action === 'peer-visibility-changed') {
-            // Update member UI to reflect visibility change
+          if (!payload || !payload.type) return;
+          // Handle visibility change events
+          if (payload.type === 'visibility-changed') {
             updateMemberVisibility(payload.userId, payload.disabled);
           }
+          // Handle location deletion events
+          else if (payload.type === 'location-deleted') {
+            handleLocationDeleted(payload.locationId, payload.userId);
+          }
+          // Location update events are handled by per-user subscriptions
         } catch(e) {
-          console.error('Error processing group membership SSE event:', e);
+          console.error('Error processing group SSE event:', e);
         }
       };
       es.onerror = () => {
@@ -281,7 +288,7 @@ import {
       };
       groupMembershipSubscription = es;
     } catch(e) {
-      console.error('Error subscribing to group membership updates:', e);
+      console.error('Error subscribing to group updates:', e);
     }
   }
 
@@ -331,6 +338,39 @@ import {
         }
       }
     }
+  }
+
+  /**
+   * Handles location-deleted SSE events by removing markers and reloading latest locations
+   * @param {number} locationId - The deleted location ID
+   * @param {string} userId - The user ID whose location was deleted
+   */
+  function handleLocationDeleted(locationId, userId) {
+    // Check if the deleted location is the current latest marker for this user
+    const latestMarker = latestMarkers.get(userId);
+    if (latestMarker) {
+      // Reload latest location for this user to get the new latest
+      const checkbox = document.querySelector(`#userSidebar input.user-select[data-user-id="${userId}"]`);
+      if (checkbox && checkbox.checked) {
+        loadLatest([userId], true).then(() => {
+          console.log(`Reloaded latest location for user ${userId} after deletion`);
+        }).catch(err => {
+          console.error(`Failed to reload latest location for user ${userId}:`, err);
+        });
+      }
+    }
+
+    // Remove from cluster groups if present
+    restClusters.forEach((cluster) => {
+      cluster.eachLayer(layer => {
+        // Note: We can't easily identify markers by locationId in clusters
+        // A full viewport reload handles this case
+      });
+    });
+
+    // Reload viewport to refresh historical locations display
+    loadViewport().catch(() => {});
+    console.log(`Handled location deletion: locationId=${locationId}, userId=${userId}`);
   }
 
   subscribeToGroupMembership();

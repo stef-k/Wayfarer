@@ -262,16 +262,11 @@ public class MobileGroupsController : MobileApiController
 
         Logger.LogInformation($"User {user?.Id} set peer visibility in group {groupId}: disabled={request.Disabled}");
 
-        // Broadcast visibility change to all group members via SSE
+        // Broadcast visibility change to all group members via SSE (consolidated group channel)
         var sseService = HttpContext.RequestServices.GetRequiredService<SseService>();
         await sseService.BroadcastAsync(
-            $"group-membership-update-{groupId}",
-            JsonSerializer.Serialize(new
-            {
-                action = "peer-visibility-changed",
-                userId = user?.Id,
-                disabled = member.OrgPeerVisibilityAccessDisabled
-            }));
+            $"group-{groupId}",
+            JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(user!.Id, member.OrgPeerVisibilityAccessDisabled)));
 
         return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
     }
