@@ -42,11 +42,6 @@ public class GroupMemberDto
     public bool IsSelf { get; set; }
 
     /// <summary>
-    ///     SSE channel identifier for per-user location updates, if available.
-    /// </summary>
-    public string? SseChannel { get; set; }
-
-    /// <summary>
     ///     Indicates if a member has changed his visibility.
     /// </summary>
     public bool OrgPeerVisibilityAccessDisabled { get; set; }

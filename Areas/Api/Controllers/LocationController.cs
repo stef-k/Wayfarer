@@ -299,19 +299,7 @@ public class LocationController : BaseApiController
         var isLive = thresholdWindow == TimeSpan.Zero ||
                      DateTime.UtcNow - location.Timestamp <= thresholdWindow;
 
-        // Per-user location stream (legacy format for backwards compatibility)
-        var legacyPayload = new MobileLocationSseEventDto
-        {
-            LocationId = location.Id,
-            TimeStamp = location.Timestamp,
-            UserId = user.Id,
-            UserName = user.UserName ?? string.Empty,
-            IsLive = isLive,
-            Type = isCheckIn ? "check-in" : null
-        };
-        await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(legacyPayload));
-
-        // Consolidated group stream (new unified format with type discriminator)
+        // Broadcast to all group channels
         var groupPayload = GroupSseEventDto.Location(
             location.Id,
             location.Timestamp,

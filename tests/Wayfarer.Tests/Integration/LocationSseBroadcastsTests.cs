@@ -124,7 +124,7 @@ public class LocationSseBroadcastsTests
 
     [Fact]
     [Trait("Category", "LocationSseBroadcasts")]
-    public async Task LocationSseBroadcasts_CheckInBroadcastsEnrichedPayload()
+    public async Task LocationSseBroadcasts_CheckInBroadcastsToGroupChannels()
     {
         using var db = CreateDb();
         var token = "token-checkin";
@@ -172,29 +172,11 @@ public class LocationSseBroadcastsTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(ok.Value);
 
-        var userChannel = $"location-update-{user.UserName}";
-        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
-
-        using (var payload = JsonDocument.Parse(userMessage.Data))
-        {
-            var root = payload.RootElement;
-            Assert.True(root.TryGetProperty("LocationId", out var legacyId));
-            Assert.True(root.TryGetProperty("locationId", out var modernId));
-            Assert.Equal(legacyId.GetInt32(), modernId.GetInt32());
-
-            Assert.True(root.TryGetProperty("TimeStamp", out var legacyTimestamp));
-            Assert.True(root.TryGetProperty("timestampUtc", out var modernTimestamp));
-            Assert.Equal(legacyTimestamp.GetDateTime(), modernTimestamp.GetDateTime());
-
-            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
-            Assert.Equal(user.UserName, root.GetProperty("userName").GetString());
-            Assert.True(root.GetProperty("isLive").GetBoolean());
-            Assert.Equal("check-in", root.GetProperty("Type").GetString());
-        }
-
-        // Group messages now use consolidated channel with new format including type discriminator
+        // All broadcasts should be to group channels only
         var groupMessages = sse.Messages.Where(m => m.Channel.StartsWith("group-", StringComparison.Ordinal)).ToList();
         Assert.Equal(2, groupMessages.Count);
+        Assert.Equal(2, sse.Messages.Count); // No legacy per-user broadcasts
+
         foreach (var message in groupMessages)
         {
             using var groupPayload = JsonDocument.Parse(message.Data);
@@ -211,7 +193,7 @@ public class LocationSseBroadcastsTests
 
     [Fact]
     [Trait("Category", "LocationSseBroadcasts")]
-    public async Task LocationSseBroadcasts_LogLocationOmitsCheckInType()
+    public async Task LocationSseBroadcasts_LogLocationBroadcastsToGroupChannel()
     {
         using var db = CreateDb();
         var token = "token-log";
@@ -249,29 +231,20 @@ public class LocationSseBroadcastsTests
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(ok.Value);
 
-        var userChannel = $"location-update-{user.UserName}";
-        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
-
-        using (var payload = JsonDocument.Parse(userMessage.Data))
-        {
-            var root = payload.RootElement;
-            Assert.Equal(root.GetProperty("LocationId").GetInt32(), root.GetProperty("locationId").GetInt32());
-            Assert.Equal(root.GetProperty("TimeStamp").GetDateTime(), root.GetProperty("timestampUtc").GetDateTime());
-            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
-            Assert.Equal(user.UserName, root.GetProperty("userName").GetString());
-            Assert.True(root.GetProperty("isLive").GetBoolean());
-            Assert.False(root.TryGetProperty("Type", out _));
-        }
-
-        // Group message uses consolidated channel with new format (no locationType for non-check-in)
+        // Only group channel broadcast, no legacy per-user broadcast
+        Assert.Equal(1, sse.Messages.Count);
         var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-", StringComparison.Ordinal));
+
         using (var groupPayload = JsonDocument.Parse(groupMessage.Data))
         {
             var root = groupPayload.RootElement;
             Assert.Equal("location", root.GetProperty("type").GetString());
             Assert.True(root.TryGetProperty("locationId", out _));
             Assert.Equal(user.Id, root.GetProperty("userId").GetString());
-            Assert.False(root.TryGetProperty("locationType", out _) && root.GetProperty("locationType").ValueKind != JsonValueKind.Null);
+            Assert.Equal(user.UserName, root.GetProperty("userName").GetString());
+            Assert.True(root.GetProperty("isLive").GetBoolean());
+            // locationType should be null for non-check-in locations
+            Assert.False(root.TryGetProperty("locationType", out var lt) && lt.ValueKind != JsonValueKind.Null);
         }
     }
 }

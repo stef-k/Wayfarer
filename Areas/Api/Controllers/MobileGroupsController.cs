@@ -185,7 +185,6 @@ public class MobileGroupsController : MobileApiController
                     Status = x.Member.Status,
                     ColorHex = color,
                     IsSelf = isSelf,
-                    SseChannel = string.IsNullOrWhiteSpace(username) ? null : $"location-update-{username}",
                     OrgPeerVisibilityAccessDisabled = x.Member.OrgPeerVisibilityAccessDisabled
                 };
             })

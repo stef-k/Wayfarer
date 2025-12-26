@@ -189,14 +189,7 @@ namespace Wayfarer.Areas.User.Controllers
                 LogAction("CreateLocation", $"Location added for user {model.UserId}");
                 SetAlert("The location has been successfully created.", "success");
 
-                // Legacy per-user broadcast (for webapp)
-                await _sse.BroadcastAsync($"location-update-{user?.UserName ?? model.UserId}", JsonSerializer.Serialize(new
-                {
-                    LocationId = location.Id,
-                    TimeStamp = location.Timestamp,
-                }));
-
-                // Broadcast to all group channels (for mobile app)
+                // Broadcast to all group channels
                 var groupIds = await _dbContext.GroupMembers
                     .Where(m => m.UserId == model.UserId && m.Status == GroupMember.MembershipStatuses.Active)
                     .Join(
