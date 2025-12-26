@@ -279,4 +279,88 @@ public class LocationSseBroadcastsTests
             Assert.False(root.TryGetProperty("locationType", out var lt) && lt.ValueKind != JsonValueKind.Null);
         }
     }
+
+    [Fact]
+    [Trait("Category", "LocationSseBroadcasts")]
+    public async Task LocationSseBroadcasts_BulkDeleteBroadcastsToUserAndGroupChannels()
+    {
+        using var db = CreateDb();
+        var token = "token-delete";
+        var user = new ApplicationUser
+        {
+            Id = "user-delete",
+            UserName = "charlie",
+            DisplayName = "Charlie",
+            Email = "charlie@example.com",
+            IsActive = true,
+            EmailConfirmed = true
+        };
+
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "DeleteTest",
+            GroupType = "Friends",
+            OwnerUserId = user.Id,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await SeedUserAsync(db, user, token, group);
+
+        // Create a location to delete
+        var location = new Location
+        {
+            UserId = user.Id,
+            Coordinates = new NetTopologySuite.Geometries.Point(23.72, 37.978) { SRID = 4326 },
+            Timestamp = DateTime.UtcNow,
+            TimeZoneId = "Europe/Athens"
+        };
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        var (controller, sse) = CreateController(db, token);
+
+        // Set up claims for the controller (BulkDelete uses ClaimsPrincipal)
+        var claims = new[]
+        {
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id),
+            new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, user.UserName!)
+        };
+        controller.ControllerContext.HttpContext!.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(claims, "TestAuth"));
+
+        var request = new LocationController.BulkDeleteRequest
+        {
+            LocationIds = new List<int> { location.Id }
+        };
+
+        var result = await controller.BulkDelete(request);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.NotNull(ok.Value);
+
+        // Should have 1 per-user broadcast + 1 group broadcast = 2 total
+        Assert.Equal(2, sse.Messages.Count);
+
+        // Verify per-user broadcast for timeline views
+        var userChannel = $"location-update-{user.UserName}";
+        var userMessage = Assert.Single(sse.Messages, m => m.Channel == userChannel);
+        using (var payload = JsonDocument.Parse(userMessage.Data))
+        {
+            var root = payload.RootElement;
+            Assert.Equal("location-deleted", root.GetProperty("type").GetString());
+            Assert.Equal(location.Id, root.GetProperty("locationId").GetInt32());
+            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
+        }
+
+        // Verify group broadcast
+        var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-", StringComparison.Ordinal));
+        using (var groupPayload = JsonDocument.Parse(groupMessage.Data))
+        {
+            var root = groupPayload.RootElement;
+            Assert.Equal("location-deleted", root.GetProperty("type").GetString());
+            Assert.Equal(location.Id, root.GetProperty("locationId").GetInt32());
+            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
+        }
+    }
 }

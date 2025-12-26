@@ -339,7 +339,7 @@ public class LocationController : BaseApiController
     }
 
     /// <summary>
-    /// Broadcasts location deletion events to all groups the user is a member of.
+    /// Broadcasts location deletion events to per-user channel (for timeline views) and all groups the user is a member of.
     /// </summary>
     private async Task BroadcastLocationDeletionAsync(
         string userId,
@@ -347,8 +347,31 @@ public class LocationController : BaseApiController
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(userId)) return;
-        if (locationIds == null || !locationIds.Any()) return;
+        var idList = locationIds?.ToList();
+        if (idList == null || idList.Count == 0) return;
 
+        // Get user for per-user broadcast
+        var user = await _dbContext.Users
+            .Where(u => u.Id == userId)
+            .Select(u => new { u.UserName })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Broadcast to per-user channel for timeline views
+        if (!string.IsNullOrEmpty(user?.UserName))
+        {
+            foreach (var locationId in idList)
+            {
+                var userPayload = new
+                {
+                    type = "location-deleted",
+                    locationId,
+                    userId
+                };
+                await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(userPayload));
+            }
+        }
+
+        // Broadcast to group channels
         var groupIds = await _dbContext.GroupMembers
             .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active)
             .Join(
@@ -363,7 +386,7 @@ public class LocationController : BaseApiController
 
         if (groupIds.Count == 0) return;
 
-        foreach (var locationId in locationIds)
+        foreach (var locationId in idList)
         {
             var payload = GroupSseEventDto.LocationDeleted(locationId, userId);
             var serializedPayload = JsonSerializer.Serialize(payload);
