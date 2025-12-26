@@ -169,8 +169,11 @@ public class MobileIntegrationTests
         ctx.HttpContext.Request.Headers["Authorization"] = "Bearer token";
         ctx.HttpContext.Response.Body = new MemoryStream();
 
+        // Get the group ID from the seeded data
+        var group = await ctx.Db.Groups.FirstAsync();
+
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(400));
-        var subscribeTask = ctx.SseController.SubscribeToUserAsync("caller", cts.Token);
+        var subscribeTask = ctx.SseController.SubscribeToGroupAsync(group.Id, cts.Token);
         await Task.Delay(50);
 
         var checkInDto = new GpsLoggerLocationDto
@@ -191,11 +194,13 @@ public class MobileIntegrationTests
         var text = await new StreamReader(ctx.HttpContext.Response.Body).ReadToEndAsync();
         // SSE heartbeat: ":" followed by blank line - accept both LF and CRLF line endings
         Assert.Matches(@":\r?\n\r?\n", text);
+        // Group channel uses consolidated format with type discriminator
+        Assert.Contains("\"type\":\"location\"", text);
         Assert.Contains("\"userId\":\"caller\"", text);
         Assert.Contains("\"userName\":\"caller\"", text);
         Assert.Contains("\"locationId\"", text);
         Assert.Contains("\"timestampUtc\"", text);
-        Assert.Contains("\"Type\":\"check-in\"", text);
+        Assert.Contains("\"locationType\":\"check-in\"", text);
     }
 
     private sealed class FakeMessageHandler : HttpMessageHandler

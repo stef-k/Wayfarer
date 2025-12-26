@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Util;
@@ -188,12 +189,36 @@ namespace Wayfarer.Areas.User.Controllers
                 LogAction("CreateLocation", $"Location added for user {model.UserId}");
                 SetAlert("The location has been successfully created.", "success");
 
-                await _sse.BroadcastAsync($"location-update-{user?.UserName ?? model.UserId}", JsonSerializer.Serialize(new
+                // Broadcast to all group channels
+                var groupIds = await _dbContext.GroupMembers
+                    .Where(m => m.UserId == model.UserId && m.Status == GroupMember.MembershipStatuses.Active)
+                    .Join(
+                        _dbContext.Groups,
+                        member => member.GroupId,
+                        group => group.Id,
+                        (member, group) => new { member.GroupId, group.IsArchived })
+                    .Where(x => !x.IsArchived)
+                    .Select(x => x.GroupId)
+                    .Distinct()
+                    .ToListAsync();
+
+                if (groupIds.Count > 0)
                 {
-                    LocationId = location.Id,
-                    TimeStamp = location.Timestamp,
-                }));
-                
+                    var groupPayload = GroupSseEventDto.Location(
+                        location.Id,
+                        location.Timestamp,
+                        model.UserId,
+                        user?.UserName ?? string.Empty,
+                        isLive: true,
+                        locationType: null);
+                    var serializedPayload = JsonSerializer.Serialize(groupPayload);
+
+                    foreach (var groupId in groupIds)
+                    {
+                        await _sse.BroadcastAsync($"group-{groupId}", serializedPayload);
+                    }
+                }
+
                 return RedirectToAction("Edit", new { location.Id });
             }
             catch (Exception ex)

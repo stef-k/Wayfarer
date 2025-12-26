@@ -71,12 +71,31 @@ namespace Wayfarer.Tests.Controllers;
         }
 
         [Fact]
-    public async Task Create_ValidModel_PersistsLocationAndBroadcasts()
+    public async Task Create_ValidModel_PersistsLocationAndBroadcastsToGroupChannel()
     {
         // Arrange
         var db = CreateDbContext();
         var currentUser = TestDataFixtures.CreateUser(id: "user-create", username: "alice");
         db.ApplicationUsers.Add(currentUser);
+
+        // Create a group for the user so broadcasts happen
+        var group = new Group
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Group",
+            GroupType = "Friends",
+            OwnerUserId = currentUser.Id,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(new GroupMember
+        {
+            GroupId = group.Id,
+            UserId = currentUser.Id,
+            Status = GroupMember.MembershipStatuses.Active,
+            JoinedAt = DateTime.UtcNow
+        });
         await db.SaveChangesAsync();
 
         var reverseGeocoding = new ReverseGeocodingService(
@@ -122,8 +141,10 @@ namespace Wayfarer.Tests.Controllers;
         Assert.Equal(model.Latitude, saved.Coordinates.Y);
         Assert.Equal(model.Longitude, saved.Coordinates.X);
         Assert.Equal("Test note", saved.Notes);
+
+        // Verify broadcast goes to group channel only
         var message = Assert.Single(sse.Messages);
-        Assert.Equal($"location-update-{currentUser.UserName}", message.Channel);
+        Assert.Equal($"group-{group.Id}", message.Channel);
     }
 
     [Fact]

@@ -50,8 +50,7 @@ import {
 
   const latestMarkers = new Map();
   let restClusters = new Map(); // userId -> MarkerClusterGroup
-  let subscriptions = new Map();
-  let groupMembershipSubscription = null;
+  let groupSseSubscription = null;
 
   /**
    * Checks if we're currently viewing today's date in day view
@@ -245,21 +244,14 @@ import {
   // move refresh
   let pending; map.on('moveend', ()=>{ clearTimeout(pending); pending=setTimeout(()=> loadViewport().catch(()=>{}), 200); });
 
-  // SSE
-  function subscribeSseForUsers(users){
-    subscriptions.forEach(es=>es.close()); subscriptions.clear();
-    users.forEach(u=>{ try { const es=new EventSource('/api/sse/stream/location-update/' + encodeURIComponent(u.username)); es.onmessage=(ev)=>{ try { const payload=JSON.parse(ev.data); if (payload && (payload.locationId || payload.LocationId)) { loadLatest([u.id], true).catch(()=>{}); loadViewport().catch(()=>{}); } } catch(e){} }; es.onerror=()=>{ es.close(); }; subscriptions.set(u.username, es);} catch(e){} });
-  }
-  subscribeSseForUsers(selectedUsers());
-
-  // Subscribe to consolidated group stream (location + membership events)
+  // Subscribe to consolidated group SSE stream (all group events: locations, membership, visibility)
   /**
-   * Handles SSE events for group changes (visibility, membership, etc.)
-   * Uses the new consolidated endpoint with type discriminator.
+   * Handles all SSE events for the group using the consolidated endpoint.
+   * Event types: location, location-deleted, visibility-changed, member-joined, member-left, etc.
    */
-  function subscribeToGroupMembership() {
-    if (groupMembershipSubscription) {
-      groupMembershipSubscription.close();
+  function subscribeToGroupSse() {
+    if (groupSseSubscription) {
+      groupSseSubscription.close();
     }
     try {
       const es = new EventSource('/api/sse/group/' + groupId);
@@ -267,23 +259,36 @@ import {
         try {
           const payload = JSON.parse(ev.data);
           if (!payload || !payload.type) return;
-          // Handle visibility change events
-          if (payload.type === 'visibility-changed') {
-            updateMemberVisibility(payload.userId, payload.disabled);
+
+          // Handle location update events
+          if (payload.type === 'location') {
+            // Check if this user is currently selected
+            const selected = selectedUsers();
+            const isSelected = selected.some(u => u.id === payload.userId);
+            if (isSelected) {
+              loadLatest([payload.userId], true).catch(() => {});
+              loadViewport().catch(() => {});
+            }
           }
           // Handle location deletion events
           else if (payload.type === 'location-deleted') {
             handleLocationDeleted(payload.locationId, payload.userId);
           }
-          // Location update events are handled by per-user subscriptions
+          // Handle visibility change events
+          else if (payload.type === 'visibility-changed') {
+            updateMemberVisibility(payload.userId, payload.disabled);
+          }
+          // Membership events (member-joined, member-left, etc.) could trigger UI updates
         } catch(e) {
           console.error('Error processing group SSE event:', e);
         }
       };
       es.onerror = () => {
         es.close();
+        // Attempt to reconnect after a delay
+        setTimeout(() => subscribeToGroupSse(), 5000);
       };
-      groupMembershipSubscription = es;
+      groupSseSubscription = es;
     } catch(e) {
       console.error('Error subscribing to group updates:', e);
     }
@@ -384,21 +389,19 @@ import {
     console.log(`Handled location deletion: locationId=${locationId}, userId=${userId}`);
   }
 
-  subscribeToGroupMembership();
+  subscribeToGroupSse();
 
   // sidebar toggles - consolidated event listeners with enforceMultiUserDayOnly
   document.getElementById('selectAllUsers')?.addEventListener('change', function(){
     const checked=this.checked;
     document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{el.checked=checked;});
     enforceMultiUserDayOnly();
-    subscribeSseForUsers(selectedUsers());
     loadLatest().catch(()=>{});
     loadViewport().catch(()=>{});
   });
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       enforceMultiUserDayOnly();
-      subscribeSseForUsers(selectedUsers());
       loadLatest().catch(()=>{});
       loadViewport().catch(()=>{});
     });
@@ -410,7 +413,6 @@ import {
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true);
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = true;
       enforceMultiUserDayOnly();
-      subscribeSseForUsers(selectedUsers());
       loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
   }
@@ -419,7 +421,6 @@ import {
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = false);
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
       enforceMultiUserDayOnly();
-      subscribeSseForUsers(selectedUsers());
       loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
   }
@@ -604,7 +605,7 @@ import {
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{ el.checked = (el.getAttribute('data-user-id') === targetId); });
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
       enforceMultiUserDayOnly();
-      subscribeSseForUsers(selectedUsers()); loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+      loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
   });
 

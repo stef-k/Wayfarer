@@ -33,26 +33,6 @@ public class MobileSseController : MobileApiController
         _options = options;
     }
 
-    [HttpGet("location-update/{userName}")]
-    public async Task<IActionResult> SubscribeToUserAsync(string userName, CancellationToken cancellationToken)
-    {
-        var (caller, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
-        if (error != null) return error;
-
-        if (!await CanViewUserAsync(caller!, userName, cancellationToken))
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-
-        await _sseService.SubscribeAsync(
-            $"location-update-{userName}",
-            Response,
-            cancellationToken,
-            enableHeartbeat: true,
-            heartbeatInterval: _options.HeartbeatInterval);
-        return new EmptyResult();
-    }
-
     /// <summary>
     /// Consolidated SSE endpoint for all group events (locations + membership changes).
     /// Replaces the separate group-location-update and group-membership-update streams.
@@ -78,57 +58,5 @@ public class MobileSseController : MobileApiController
             enableHeartbeat: true,
             heartbeatInterval: _options.HeartbeatInterval);
         return new EmptyResult();
-    }
-
-    private async Task<bool> CanViewUserAsync(ApplicationUser caller, string targetUserName, CancellationToken cancellationToken)
-    {
-        if (string.Equals(caller.UserName, targetUserName, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (string.IsNullOrWhiteSpace(targetUserName))
-        {
-            return false;
-        }
-
-        var normalizedTarget = targetUserName.Trim();
-        var target = await DbContext.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.UserName != null && u.UserName.ToLower() == normalizedTarget.ToLower(), cancellationToken);
-
-        if (target == null)
-        {
-            return false;
-        }
-
-        var sharedGroups = await (from callerMember in DbContext.GroupMembers
-                                  join targetMember in DbContext.GroupMembers on callerMember.GroupId equals targetMember.GroupId
-                                  join grp in DbContext.Groups on callerMember.GroupId equals grp.Id
-                                  where callerMember.UserId == caller.Id
-                                        && callerMember.Status == GroupMember.MembershipStatuses.Active
-                                        && targetMember.UserId == target.Id
-                                        && targetMember.Status == GroupMember.MembershipStatuses.Active
-                                        && !grp.IsArchived
-                                  select new
-                                  {
-                                      grp.GroupType,
-                                      targetMember.OrgPeerVisibilityAccessDisabled
-                                  }).ToListAsync(cancellationToken);
-
-        foreach (var entry in sharedGroups)
-        {
-            if (!string.Equals(entry.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (!entry.OrgPeerVisibilityAccessDisabled)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
