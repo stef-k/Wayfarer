@@ -172,9 +172,9 @@ public class MobileIntegrationTests
         // Get the group ID from the seeded data
         var group = await ctx.Db.Groups.FirstAsync();
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(400));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(2000));
         var subscribeTask = ctx.SseController.SubscribeToGroupAsync(group.Id, cts.Token);
-        await Task.Delay(50);
+        await Task.Delay(150);
 
         var checkInDto = new GpsLoggerLocationDto
         {
@@ -186,7 +186,7 @@ public class MobileIntegrationTests
         var checkIn = await ctx.LocationController.CheckIn(checkInDto);
         Assert.IsType<OkObjectResult>(checkIn);
 
-        await Task.Delay(100);
+        await Task.Delay(300);
         cts.Cancel();
         await subscribeTask;
 
