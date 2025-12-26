@@ -108,8 +108,8 @@ public class InvitationsController : ControllerBase
             {
                 await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", JsonSerializer.Serialize(new { action = "created", id = inv.Id, groupId = inv.GroupId, groupName = gname }));
             }
-            // Inform managers of new pending invite
-            await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-created", id = inv.Id }));
+            // Inform managers of new pending invite (consolidated group channel)
+            await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { inv.Id, inv.GroupId, inv.Status, inv.InviteeUserId, inv.InviteeEmail });
         }
         catch (UnauthorizedAccessException)
@@ -145,10 +145,11 @@ public class InvitationsController : ControllerBase
             await _invites.AcceptAsync(inv.Token, CurrentUserId, ct);
             var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == inv.GroupId, ct);
             var gname = group?.Name;
+            // Per-user notifications (unchanged)
             await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "accepted", id, groupId = inv.GroupId, groupName = gname }));
             await _sse.BroadcastAsync($"membership-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "joined", groupId = inv.GroupId, groupName = gname }));
-            // Inform managers watching the group
-            await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "member-joined", userId = CurrentUserId, invitationId = id }));
+            // Consolidated group channel
+            await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberJoined(CurrentUserId, id)));
             return Ok(new { message = "Accepted" });
         }
         catch (KeyNotFoundException)
@@ -181,9 +182,10 @@ public class InvitationsController : ControllerBase
         try
         {
             await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
+            // Per-user notification (unchanged)
             await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "declined", id }));
-            // Inform managers watching the group
-            await _sse.BroadcastAsync($"group-membership-update-{inv.GroupId}", JsonSerializer.Serialize(new { action = "invite-declined", userId = CurrentUserId, invitationId = id }));
+            // Consolidated group channel
+            await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteDeclined(CurrentUserId, id)));
             return Ok(new { message = "Declined" });
         }
         catch (KeyNotFoundException)

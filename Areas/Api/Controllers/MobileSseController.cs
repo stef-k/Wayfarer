@@ -53,7 +53,15 @@ public class MobileSseController : MobileApiController
         return new EmptyResult();
     }
 
-    [HttpGet("group-location-update/{groupId:guid}")]
+    /// <summary>
+    /// Consolidated SSE endpoint for all group events (locations + membership changes).
+    /// Replaces the separate group-location-update and group-membership-update streams.
+    /// Requires authentication via Bearer token (mobile) or cookie (webapp).
+    /// </summary>
+    /// <param name="groupId">The group to subscribe to.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>SSE stream with typed events.</returns>
+    [HttpGet("group/{groupId:guid}")]
     public async Task<IActionResult> SubscribeToGroupAsync(Guid groupId, CancellationToken cancellationToken)
     {
         var (caller, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
@@ -64,7 +72,7 @@ public class MobileSseController : MobileApiController
         if (!context.IsMember) return StatusCode(StatusCodes.Status403Forbidden);
 
         await _sseService.SubscribeAsync(
-            $"group-location-update-{groupId}",
+            $"group-{groupId}",
             Response,
             cancellationToken,
             enableHeartbeat: true,

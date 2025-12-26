@@ -192,11 +192,20 @@ public class LocationSseBroadcastsTests
             Assert.Equal("check-in", root.GetProperty("Type").GetString());
         }
 
-        var groupMessages = sse.Messages.Where(m => m.Channel.StartsWith("group-location-update-", StringComparison.Ordinal)).ToList();
+        // Group messages now use consolidated channel with new format including type discriminator
+        var groupMessages = sse.Messages.Where(m => m.Channel.StartsWith("group-", StringComparison.Ordinal)).ToList();
         Assert.Equal(2, groupMessages.Count);
         foreach (var message in groupMessages)
         {
-            Assert.Equal(userMessage.Data, message.Data);
+            using var groupPayload = JsonDocument.Parse(message.Data);
+            var root = groupPayload.RootElement;
+            Assert.Equal("location", root.GetProperty("type").GetString());
+            Assert.True(root.TryGetProperty("locationId", out _));
+            Assert.True(root.TryGetProperty("timestampUtc", out _));
+            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
+            Assert.Equal(user.UserName, root.GetProperty("userName").GetString());
+            Assert.True(root.GetProperty("isLive").GetBoolean());
+            Assert.Equal("check-in", root.GetProperty("locationType").GetString());
         }
     }
 
@@ -254,7 +263,15 @@ public class LocationSseBroadcastsTests
             Assert.False(root.TryGetProperty("Type", out _));
         }
 
-        var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-location-update-", StringComparison.Ordinal));
-        Assert.Equal(userMessage.Data, groupMessage.Data);
+        // Group message uses consolidated channel with new format (no locationType for non-check-in)
+        var groupMessage = Assert.Single(sse.Messages, m => m.Channel.StartsWith("group-", StringComparison.Ordinal));
+        using (var groupPayload = JsonDocument.Parse(groupMessage.Data))
+        {
+            var root = groupPayload.RootElement;
+            Assert.Equal("location", root.GetProperty("type").GetString());
+            Assert.True(root.TryGetProperty("locationId", out _));
+            Assert.Equal(user.Id, root.GetProperty("userId").GetString());
+            Assert.False(root.TryGetProperty("locationType", out _) && root.GetProperty("locationType").ValueKind != JsonValueKind.Null);
+        }
     }
 }

@@ -299,7 +299,8 @@ public class LocationController : BaseApiController
         var isLive = thresholdWindow == TimeSpan.Zero ||
                      DateTime.UtcNow - location.Timestamp <= thresholdWindow;
 
-        var payload = new MobileLocationSseEventDto
+        // Per-user location stream (legacy format for backwards compatibility)
+        var legacyPayload = new MobileLocationSseEventDto
         {
             LocationId = location.Id,
             TimeStamp = location.Timestamp,
@@ -308,9 +309,17 @@ public class LocationController : BaseApiController
             IsLive = isLive,
             Type = isCheckIn ? "check-in" : null
         };
+        await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(legacyPayload));
 
-        var serializedPayload = JsonSerializer.Serialize(payload);
-        await _sse.BroadcastAsync($"location-update-{user.UserName}", serializedPayload);
+        // Consolidated group stream (new unified format with type discriminator)
+        var groupPayload = GroupSseEventDto.Location(
+            location.Id,
+            location.Timestamp,
+            user.Id,
+            user.UserName ?? string.Empty,
+            isLive,
+            isCheckIn ? "check-in" : null);
+        var serializedGroupPayload = JsonSerializer.Serialize(groupPayload);
 
         var groupIds = await _dbContext.GroupMembers
             .Where(m => m.UserId == user.Id && m.Status == GroupMember.MembershipStatuses.Active)
@@ -325,7 +334,42 @@ public class LocationController : BaseApiController
             .ToListAsync(cancellationToken);
 
         foreach (var groupId in groupIds)
-            await _sse.BroadcastAsync($"group-location-update-{groupId}", serializedPayload);
+            await _sse.BroadcastAsync($"group-{groupId}", serializedGroupPayload);
+    }
+
+    /// <summary>
+    /// Broadcasts location deletion events to all groups the user is a member of.
+    /// </summary>
+    private async Task BroadcastLocationDeletionAsync(
+        string userId,
+        IEnumerable<int> locationIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+        if (locationIds == null || !locationIds.Any()) return;
+
+        var groupIds = await _dbContext.GroupMembers
+            .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active)
+            .Join(
+                _dbContext.Groups,
+                member => member.GroupId,
+                group => group.Id,
+                (member, group) => new { member.GroupId, group.IsArchived })
+            .Where(x => !x.IsArchived)
+            .Select(x => x.GroupId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (groupIds.Count == 0) return;
+
+        foreach (var locationId in locationIds)
+        {
+            var payload = GroupSseEventDto.LocationDeleted(locationId, userId);
+            var serializedPayload = JsonSerializer.Serialize(payload);
+
+            foreach (var groupId in groupIds)
+                await _sse.BroadcastAsync($"group-{groupId}", serializedPayload);
+        }
     }
 
     [HttpPost]
@@ -629,9 +673,15 @@ public class LocationController : BaseApiController
             if (locationsToDelete.Count == 0)
                 return NotFound(new { success = false, message = "No locations found for deletion." });
 
+            // Capture IDs before deletion for broadcast
+            var deletedIds = locationsToDelete.Select(l => l.Id).ToList();
+
             // Delete the locations
             _dbContext.Locations.RemoveRange(locationsToDelete);
             await _dbContext.SaveChangesAsync();
+
+            // Broadcast deletions to group members
+            await BroadcastLocationDeletionAsync(currentUserId, deletedIds);
 
             return Ok(new
                 { success = true, message = $"{locationsToDelete.Count} locations deleted successfully." });
@@ -667,6 +717,9 @@ public class LocationController : BaseApiController
 
             _dbContext.Locations.Remove(location);
             await _dbContext.SaveChangesAsync();
+
+            // Broadcast deletion to group members
+            await BroadcastLocationDeletionAsync(user.Id, new[] { id });
 
             _logger.LogInformation("Deleted location {LocationId} for user {UserId}", id, user.Id);
             return Ok(new { success = true, message = "Location deleted.", id });

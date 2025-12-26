@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Services;
 
@@ -185,7 +187,7 @@ public class GroupsController : BaseController
             {
                 await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", System.Text.Json.JsonSerializer.Serialize(new { action = "created", id = inv.Id, groupId = groupId, groupName = gname }));
             }
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "invite-created", id = inv.Id }));
+            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
         }
         catch (KeyNotFoundException)
@@ -220,7 +222,7 @@ public class GroupsController : BaseController
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
             await _groupService.RemoveMemberAsync(groupId, actorId!, userIdNonNull);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "member-removed", userId = userIdNonNull }));
+            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userIdNonNull)));
             var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
             var gname = group?.Name;
             await _sse.BroadcastAsync($"membership-update-{userIdNonNull}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
@@ -245,7 +247,8 @@ public class GroupsController : BaseController
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
             await _invitationService.RevokeAsync(inviteId, actorId);
-            await _sse.BroadcastAsync($"group-membership-update-{groupId}", System.Text.Json.JsonSerializer.Serialize(new { action = "invite-revoked", inviteId }));
+            // Consolidated group channel
+            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
             return Ok(new { success = true, inviteId });
         }
         catch (Exception ex)

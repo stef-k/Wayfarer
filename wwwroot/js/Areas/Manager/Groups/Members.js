@@ -284,35 +284,34 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
     }
   }
 
-  // SSE: react to membership changes without full reload
+  // SSE: react to membership changes without full reload (consolidated group endpoint)
   document.addEventListener('DOMContentLoaded', function() {
     try {
       const gidInput = document.querySelector('#inviteForm input[name="groupId"]');
       const gid = gidInput ? gidInput.value : '';
       if (!gid || typeof EventSource === 'undefined') return;
-      const es = new EventSource('/api/sse/stream/group-membership-update/' + gid);
+      const es = new EventSource('/api/sse/group/' + gid);
       es.onmessage = function(evt) {
         try {
           const d = evt && evt.data ? JSON.parse(evt.data) : null;
-          if (!d || !d.action) return;
-          if (d.action === 'member-joined' && d.userId) {
+          if (!d || !d.type) return;
+          if (d.type === 'member-joined' && d.userId) {
             if (wayfarer.showAlert) wayfarer.showAlert('success', 'A user joined the group.');
             addRosterRow(d.userId);
             if (d.invitationId) removeInviteRow(d.invitationId);
-          } else if (d.action === 'member-left' && d.userId) {
+          } else if (d.type === 'member-left' && d.userId) {
             if (wayfarer.showAlert) wayfarer.showAlert('warning', 'A user left the group.');
             removeRosterRow(d.userId);
-          } else if (d.action === 'member-removed' && d.userId) {
+          } else if (d.type === 'member-removed' && d.userId) {
             if (wayfarer.showAlert) wayfarer.showAlert('info', 'A user was removed from the group.');
             removeRosterRow(d.userId);
-          } else if (d.action === 'invite-declined' && d.invitationId) {
+          } else if (d.type === 'invite-declined' && d.invitationId) {
             if (wayfarer.showAlert) wayfarer.showAlert('secondary', 'An invite was declined.');
             removeInviteRow(d.invitationId);
-          } else if (d.action === 'invite-revoked' && d.inviteId) {
+          } else if (d.type === 'invite-revoked' && d.inviteId) {
             removeInviteRow(d.inviteId);
-          } else if (d.action === 'invite-created') {
-            if (wayfarer.showAlert) wayfarer.showAlert('info', 'New invite created.');
           }
+          // Location events are ignored here (handled elsewhere)
         } catch { /* ignore parse errors */ }
       };
     } catch { /* ignore SSE errors */ }

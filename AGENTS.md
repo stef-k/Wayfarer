@@ -12,7 +12,7 @@
 ## Project Paths
 
 - Backend (this repo): `C:\Users\stef\source\repos\Wayfarer`
-- Mobile app (separate repo): `C:\Users\stef\source\repos\Wayfarer.Mobile`
+- Mobile app (separate repo): `C:\Users\stef\source\repos\WayfarerMobile`
 
 ## Development Environment
 
