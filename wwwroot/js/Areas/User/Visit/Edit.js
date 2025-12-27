@@ -42,9 +42,9 @@ const initMap = () => {
 
     map = L.map('mapContainer').setView([lat, lon], 15);
 
-    L.tileLayer('/tiles/{z}/{x}/{y}', {
+    L.tileLayer('/Public/tiles/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     // Add initial marker
@@ -126,6 +126,20 @@ const initIconColorSync = () => {
 };
 
 /**
+ * Proxy external image URLs for display
+ * @param {HTMLElement} root - Container element with images to proxy
+ */
+const proxyImages = (root) => {
+    root.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !src.startsWith('data:') && !src.startsWith('/Public/ProxyImage') && !img.dataset.original) {
+            img.dataset.original = src;
+            img.setAttribute('src', `/Public/ProxyImage?url=${encodeURIComponent(src)}`);
+        }
+    });
+};
+
+/**
  * Initialize Quill rich text editor for notes
  */
 const initQuill = () => {
@@ -145,11 +159,17 @@ const initQuill = () => {
         }
     });
 
-    // Load existing content
+    // Load existing content and proxy images
     const existingContent = notesContainer.dataset.notesContent;
     if (existingContent) {
         quill.root.innerHTML = existingContent;
+        proxyImages(quill.root);
     }
+
+    // Proxy images on text changes (for newly inserted images)
+    quill.on('text-change', () => {
+        proxyImages(quill.root);
+    });
 
     // Sync to hidden input on form submit
     const form = document.getElementById('visitForm');

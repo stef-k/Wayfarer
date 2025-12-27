@@ -94,29 +94,31 @@ public class VisitController : BaseApiController
             // Get total count before pagination
             var totalItems = await query.CountAsync();
 
-            // Apply ordering and pagination
-            var visits = await query
+            // Apply ordering and pagination - fetch entities first
+            var visitEntities = await query
                 .OrderByDescending(v => v.ArrivedAtUtc)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(v => new
-                {
-                    v.Id,
-                    v.PlaceId,
-                    v.PlaceNameSnapshot,
-                    v.TripIdSnapshot,
-                    v.TripNameSnapshot,
-                    v.RegionNameSnapshot,
-                    v.ArrivedAtUtc,
-                    v.EndedAtUtc,
-                    v.LastSeenAtUtc,
-                    Latitude = v.PlaceLocationSnapshot != null ? v.PlaceLocationSnapshot.Y : (double?)null,
-                    Longitude = v.PlaceLocationSnapshot != null ? v.PlaceLocationSnapshot.X : (double?)null,
-                    v.IconNameSnapshot,
-                    v.MarkerColorSnapshot,
-                    v.NotesHtml
-                })
                 .ToListAsync();
+
+            // Project to DTOs in-memory (avoids EF Core geography translation issues)
+            var visits = visitEntities.Select(v => new
+            {
+                v.Id,
+                v.PlaceId,
+                v.PlaceNameSnapshot,
+                v.TripIdSnapshot,
+                v.TripNameSnapshot,
+                v.RegionNameSnapshot,
+                v.ArrivedAtUtc,
+                v.EndedAtUtc,
+                v.LastSeenAtUtc,
+                Latitude = v.PlaceLocationSnapshot?.Y,
+                Longitude = v.PlaceLocationSnapshot?.X,
+                v.IconNameSnapshot,
+                v.MarkerColorSnapshot,
+                v.NotesHtml
+            }).ToList();
 
             return Ok(new
             {

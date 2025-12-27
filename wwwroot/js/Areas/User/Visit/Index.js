@@ -20,6 +20,24 @@ const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.l
 const buildEditUrl = id => `/User/Visit/Edit/${id}?returnUrl=${returnUrlParam}`;
 
 /**
+ * Proxy external image URLs in HTML content for display
+ * @param {string} html - HTML content with potential external images
+ * @returns {string} - HTML with image sources proxied
+ */
+const proxyImagesInHtml = (html) => {
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !src.startsWith('data:') && !src.startsWith('/Public/ProxyImage')) {
+            img.setAttribute('src', `/Public/ProxyImage?url=${encodeURIComponent(src)}`);
+        }
+    });
+    return div.innerHTML;
+};
+
+/**
  * Format dwell time for display
  */
 const formatDwellTime = (arrivedAt, endedAt) => {
@@ -198,6 +216,12 @@ const loadVisits = async (page = 1) => {
 
     try {
         const response = await fetch(`/api/Visit/search?${params.toString()}`, { credentials: 'include' });
+
+        if (!response.ok) {
+            console.error('Visit API error:', response.status, response.statusText);
+            return;
+        }
+
         const res = await response.json();
 
         visits = res.data || [];
@@ -209,7 +233,7 @@ const loadVisits = async (page = 1) => {
         selectAll.checked = false;
         selectAll.indeterminate = false;
     } catch (err) {
-        console.error('Failed to load visits:', err);
+        console.error('[Visit] Failed to load visits:', err);
     }
 };
 
@@ -414,7 +438,7 @@ const generateVisitModalContent = (v) => {
             <div class="row mb-2">
                 <div class="col-12">
                     <strong>Notes:</strong>
-                    <div class="border p-2 mt-1">${v.notesHtml}</div>
+                    <div class="border p-2 mt-1">${proxyImagesInHtml(v.notesHtml)}</div>
                 </div>
             </div>
             ` : ''}
