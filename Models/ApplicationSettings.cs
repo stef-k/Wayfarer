@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 /// <summary>
 /// Application settings, everything here is available to be updated at admin dashboard
@@ -41,4 +42,78 @@ public class ApplicationSettings
     [Required]
     [Range(-1, 102400)]
     public int UploadSizeLimitMB { get; set; } = 100;
+
+    // === Trip Place Auto-Visited Settings ===
+
+    /// <summary>
+    /// Number of location pings required within the hit window to confirm a visit.
+    /// </summary>
+    [Required]
+    [Range(2, 5, ErrorMessage = "Required hits must be between 2 and 5.")]
+    public int VisitedRequiredHits { get; set; } = 2;
+
+    /// <summary>
+    /// Minimum detection radius in meters, used when GPS accuracy is good.
+    /// </summary>
+    [Required]
+    [Range(10, 200, ErrorMessage = "Min radius must be between 10 and 200 meters.")]
+    public int VisitedMinRadiusMeters { get; set; } = 35;
+
+    /// <summary>
+    /// Maximum detection radius in meters, ceiling for poor GPS accuracy.
+    /// </summary>
+    [Required]
+    [Range(50, 500, ErrorMessage = "Max radius must be between 50 and 500 meters.")]
+    public int VisitedMaxRadiusMeters { get; set; } = 100;
+
+    /// <summary>
+    /// Multiplier applied to reported GPS accuracy to calculate effective radius.
+    /// </summary>
+    [Required]
+    [Range(0.5, 5.0, ErrorMessage = "Accuracy multiplier must be between 0.5 and 5.0.")]
+    public double VisitedAccuracyMultiplier { get; set; } = 2.0;
+
+    /// <summary>
+    /// Skip visit detection if GPS accuracy exceeds this value. Set to 0 to disable.
+    /// </summary>
+    [Required]
+    [Range(0, 1000, ErrorMessage = "Accuracy reject must be between 0 and 1000 meters.")]
+    public int VisitedAccuracyRejectMeters { get; set; } = 200;
+
+    /// <summary>
+    /// Maximum radius for PostGIS database query to find nearby places.
+    /// </summary>
+    [Required]
+    [Range(50, 2000, ErrorMessage = "Search radius must be between 50 and 2000 meters.")]
+    public int VisitedMaxSearchRadiusMeters { get; set; } = 150;
+
+    /// <summary>
+    /// Maximum HTML characters for notes snapshot when creating a visit event.
+    /// </summary>
+    [Required]
+    [Range(1000, 200000, ErrorMessage = "Notes max chars must be between 1000 and 200000.")]
+    public int VisitedPlaceNotesSnapshotMaxHtmlChars { get; set; } = 20000;
+
+    // === Derived Properties (computed from LocationTimeThresholdMinutes) ===
+
+    /// <summary>
+    /// Time window in minutes for consecutive hit confirmation.
+    /// Derived: LocationTimeThresholdMinutes × 1.6
+    /// </summary>
+    [NotMapped]
+    public int VisitedHitWindowMinutes => (int)(LocationTimeThresholdMinutes * 1.6);
+
+    /// <summary>
+    /// Minutes after which stale candidates are cleaned up.
+    /// Derived: LocationTimeThresholdMinutes × 12
+    /// </summary>
+    [NotMapped]
+    public int VisitedCandidateStaleMinutes => LocationTimeThresholdMinutes * 12;
+
+    /// <summary>
+    /// Minutes of inactivity after which a visit is considered ended.
+    /// Derived: LocationTimeThresholdMinutes × 9
+    /// </summary>
+    [NotMapped]
+    public int VisitedEndVisitAfterMinutes => LocationTimeThresholdMinutes * 9;
 }

@@ -12,6 +12,7 @@ using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Tests.Mocks;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -104,7 +105,8 @@ public class ApiLocationControllerCheckInTests : TestBase
             locationService,
             sse,
             stats,
-            locationService);
+            locationService,
+            new NullPlaceVisitDetectionService());
 
         var httpContext = new DefaultHttpContext();
         if (includeAuth)

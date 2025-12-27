@@ -89,6 +89,19 @@ namespace Wayfarer.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Update(ApplicationSettings updatedSettings)
         {
+            // Cross-field validation for Trip Place Auto-Visited settings
+            if (updatedSettings.VisitedMaxRadiusMeters < updatedSettings.VisitedMinRadiusMeters)
+            {
+                ModelState.AddModelError("VisitedMaxRadiusMeters",
+                    "Max radius must be greater than or equal to min radius.");
+            }
+
+            if (updatedSettings.VisitedMaxSearchRadiusMeters < updatedSettings.VisitedMaxRadiusMeters)
+            {
+                ModelState.AddModelError("VisitedMaxSearchRadiusMeters",
+                    "Search radius must be greater than or equal to max radius.");
+            }
+
             if (!ValidateModelState())
             {
                 return View("Index", updatedSettings);
@@ -113,11 +126,30 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
 
+                    // Trip Place Auto-Visited settings
+                    Track("VisitedRequiredHits", currentSettings.VisitedRequiredHits, updatedSettings.VisitedRequiredHits);
+                    Track("VisitedMinRadiusMeters", currentSettings.VisitedMinRadiusMeters, updatedSettings.VisitedMinRadiusMeters);
+                    Track("VisitedMaxRadiusMeters", currentSettings.VisitedMaxRadiusMeters, updatedSettings.VisitedMaxRadiusMeters);
+                    Track("VisitedAccuracyMultiplier", currentSettings.VisitedAccuracyMultiplier, updatedSettings.VisitedAccuracyMultiplier);
+                    Track("VisitedAccuracyRejectMeters", currentSettings.VisitedAccuracyRejectMeters, updatedSettings.VisitedAccuracyRejectMeters);
+                    Track("VisitedMaxSearchRadiusMeters", currentSettings.VisitedMaxSearchRadiusMeters, updatedSettings.VisitedMaxSearchRadiusMeters);
+                    Track("VisitedPlaceNotesSnapshotMaxHtmlChars", currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars, updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars);
+
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
+
+                    // Trip Place Auto-Visited settings
+                    currentSettings.VisitedRequiredHits = updatedSettings.VisitedRequiredHits;
+                    currentSettings.VisitedMinRadiusMeters = updatedSettings.VisitedMinRadiusMeters;
+                    currentSettings.VisitedMaxRadiusMeters = updatedSettings.VisitedMaxRadiusMeters;
+                    currentSettings.VisitedAccuracyMultiplier = updatedSettings.VisitedAccuracyMultiplier;
+                    currentSettings.VisitedAccuracyRejectMeters = updatedSettings.VisitedAccuracyRejectMeters;
+                    currentSettings.VisitedMaxSearchRadiusMeters = updatedSettings.VisitedMaxSearchRadiusMeters;
+                    currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars = updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars;
+
                     await _dbContext.SaveChangesAsync();
 
                     // Audit settings update with changed fields summary

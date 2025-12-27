@@ -50,6 +50,27 @@ namespace Wayfarer.Migrations
                     b.Property<int>("UploadSizeLimitMB")
                         .HasColumnType("integer");
 
+                    b.Property<double>("VisitedAccuracyMultiplier")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("VisitedAccuracyRejectMeters")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VisitedMaxRadiusMeters")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VisitedMaxSearchRadiusMeters")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VisitedMinRadiusMeters")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VisitedPlaceNotesSnapshotMaxHtmlChars")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VisitedRequiredHits")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.ToTable("ApplicationSettings");
@@ -795,6 +816,105 @@ namespace Wayfarer.Migrations
                     b.ToTable("Places");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.PlaceVisitCandidate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConsecutiveHits")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("FirstHitUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastHitUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PlaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastHitUtc")
+                        .HasDatabaseName("IX_PlaceVisitCandidate_LastHitUtc");
+
+                    b.HasIndex("PlaceId");
+
+                    b.HasIndex("UserId", "PlaceId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PlaceVisitCandidate_UserId_PlaceId");
+
+                    b.ToTable("PlaceVisitCandidates");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.PlaceVisitEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ArrivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EndedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IconNameSnapshot")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MarkerColorSnapshot")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NotesHtml")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("PlaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Point>("PlaceLocationSnapshot")
+                        .HasColumnType("geography(Point,4326)");
+
+                    b.Property<string>("PlaceNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RegionNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TripIdSnapshot")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TripNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArrivedAtUtc")
+                        .HasDatabaseName("IX_PlaceVisitEvent_ArrivedAtUtc");
+
+                    b.HasIndex("PlaceId")
+                        .HasDatabaseName("IX_PlaceVisitEvent_PlaceId");
+
+                    b.HasIndex("UserId", "EndedAtUtc")
+                        .HasDatabaseName("IX_PlaceVisitEvent_UserId_EndedAtUtc");
+
+                    b.ToTable("PlaceVisitEvents");
+                });
+
             modelBuilder.Entity("Wayfarer.Models.Region", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1189,6 +1309,27 @@ namespace Wayfarer.Migrations
                         .IsRequired();
 
                     b.Navigation("Region");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.PlaceVisitCandidate", b =>
+                {
+                    b.HasOne("Wayfarer.Models.Place", "Place")
+                        .WithMany()
+                        .HasForeignKey("PlaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Place");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.PlaceVisitEvent", b =>
+                {
+                    b.HasOne("Wayfarer.Models.Place", "Place")
+                        .WithMany()
+                        .HasForeignKey("PlaceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Place");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Region", b =>
