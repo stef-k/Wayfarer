@@ -11,18 +11,23 @@
     ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0";
     ViewBag.Title = Model.Name;
 
-    // Visit progress (owner only)
+    // Visit progress
     var totalPlaces = (int)(ViewBag.TotalPlaces ?? 0);
     var visitedPlaces = (int)(ViewBag.VisitedPlaces ?? 0);
     var progressPercent = totalPlaces > 0 ? (int)Math.Round((double)visitedPlaces / totalPlaces * 100) : 0;
+    var shareProgressEnabled = ViewBag.ShareProgressEnabled as bool? ?? false;
+    var showProgress = owner || (shareProgressEnabled && visitedPlaces > 0);
 
-    // Get visit events and group by place
+    // Get visit events and group by place (only available to owner)
     var rawVisitEvents = ViewBag.VisitEvents;
     var visitEventsList = rawVisitEvents != null ? (List<PlaceVisitEvent>)rawVisitEvents : new List<PlaceVisitEvent>();
     var visitsByPlace = visitEventsList
         .Where(v => v.PlaceId.HasValue)
         .GroupBy(v => v.PlaceId!.Value)
         .ToDictionary(g => g.Key, g => g.ToList());
+
+    // Place visit counts for public progress display
+    var placeVisitCounts = ViewBag.PlaceVisitCounts as Dictionary<Guid, int> ?? new Dictionary<Guid, int>();
 }
 
 <!-- wrapper that stretches between navbar & footer -->
@@ -252,8 +257,8 @@
                        placeholder="Search regions, places, areas, segments" autocomplete="off" />
             </div>
 
-            @* Visit progress - owner only *@
-            @if (owner && totalPlaces > 0)
+            @* Visit progress - shown for owner OR when ShareProgressEnabled *@
+            @if (showProgress && totalPlaces > 0)
             {
                 <div class="px-2 pb-2">
                     <div class="d-flex justify-content-between align-items-center mb-1">
@@ -261,9 +266,12 @@
                             <i class="bi bi-check2-circle"></i> @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "Place" : "Places") visited
                         </small>
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="btn btn-outline-secondary py-0 px-1" style="font-size: 0.7rem;" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View detailed visit history">
-                                <i class="bi bi-clock-history me-1"></i>Visits
-                            </button>
+                            @if (owner)
+                            {
+                                <button type="button" class="btn btn-outline-secondary py-0 px-1" style="font-size: 0.7rem;" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View detailed visit history">
+                                    <i class="bi bi-clock-history me-1"></i>Visits
+                                </button>
+                            }
                             <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") badge-sm">@progressPercent%</span>
                         </div>
                     </div>

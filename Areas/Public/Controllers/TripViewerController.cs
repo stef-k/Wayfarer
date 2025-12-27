@@ -231,8 +231,9 @@ public class TripViewerController : BaseController
 
         ViewBag.IsOwner = owner;
         ViewBag.IsEmbed = embed;             // not an iframe here
+        ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
 
-        // Get visit progress data for owner
+        // Get visit progress data
         var allPlaceIds = trip.Regions?
             .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
             .Select(p => p.Id)
@@ -243,11 +244,16 @@ public class TripViewerController : BaseController
         ViewBag.PlaceVisitCounts = new Dictionary<Guid, int>();
         ViewBag.VisitEvents = new List<PlaceVisitEvent>(); // Default empty list
 
-        if (owner && !string.IsNullOrEmpty(userId) && allPlaceIds.Count > 0)
+        // Owner always sees their visit data
+        // Non-owner sees visit progress only if ShareProgressEnabled is true
+        var showVisitData = owner || trip.ShareProgressEnabled;
+
+        if (showVisitData && allPlaceIds.Count > 0)
         {
             // Get visit events per place (a place can be visited multiple times)
+            // Uses trip owner's userId, not the viewer's
             var visitEvents = await _dbContext.PlaceVisitEvents
-                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .Where(v => v.UserId == trip.UserId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
                 .OrderByDescending(v => v.ArrivedAtUtc)
                 .ToListAsync();
 
@@ -257,7 +263,8 @@ public class TripViewerController : BaseController
 
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
-            ViewBag.VisitEvents = visitEvents;
+            // Only pass visit events to owner (non-owner doesn't see dates/times)
+            ViewBag.VisitEvents = owner ? visitEvents : new List<PlaceVisitEvent>();
         }
 
         return View("~/Views/Trip/Viewer.cshtml", trip);

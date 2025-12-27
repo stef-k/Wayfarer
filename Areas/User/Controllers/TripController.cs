@@ -74,6 +74,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             ViewBag.IsOwner = true;
             ViewBag.IsEmbed = false;             // not an iframe here
+            ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
 
             // Calculate visit progress for owner's view
             var allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
@@ -281,6 +282,8 @@ namespace Wayfarer.Areas.User.Controllers
                 // Update editable fields only
                 trip.Name = model.Name;
                 trip.IsPublic = model.IsPublic;
+                // Reset ShareProgressEnabled when making trip private
+                trip.ShareProgressEnabled = model.IsPublic && model.ShareProgressEnabled;
                 trip.Notes = model.Notes;
                 trip.CenterLat = model.CenterLat;
                 trip.CenterLon = model.CenterLon;

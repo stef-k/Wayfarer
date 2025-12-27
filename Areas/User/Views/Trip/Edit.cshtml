@@ -119,6 +119,19 @@
                 <div class="invalid-feedback" asp-validation-for="IsPublic"></div>
               </div>
             </div>
+            <div class="col-md-6 align-self-end @(Model.IsPublic ? "" : "d-none")" id="shareProgressContainer">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="shareProgressSwitch" asp-for="ShareProgressEnabled">
+                <label class="form-check-label" for="shareProgressSwitch">
+                  <i class="bi bi-share me-1"></i>Share Visit Progress
+                </label>
+                <div class="invalid-feedback" asp-validation-for="ShareProgressEnabled"></div>
+              </div>
+              <small class="text-muted">Show your visit progress to public viewers</small>
+              <div id="shareProgressStatus" class="mt-1 @(Model.ShareProgressEnabled ? "" : "d-none")">
+                <span class="badge bg-success"><i class="bi bi-broadcast me-1"></i>Progress visible to public</span>
+              </div>
+            </div>
             <div class="col-md-12">
               <label for="notes">Notes</label>
               <div id="notes" data-notes-content="@Model.Notes"></div>
@@ -576,6 +589,71 @@
         img.src              = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
       });
     });
+
+    // Show/hide Share Progress toggle when IsPublic changes
+    const isPublicSwitch = document.getElementById('isPublicSwitch');
+    const shareProgressContainer = document.getElementById('shareProgressContainer');
+    const shareProgressSwitch = document.getElementById('shareProgressSwitch');
+    const shareProgressStatus = document.getElementById('shareProgressStatus');
+
+    // Update status badge visibility based on switch
+    const updateStatusBadge = () => {
+      if (shareProgressStatus) {
+        if (shareProgressSwitch?.checked) {
+          shareProgressStatus.classList.remove('d-none');
+        } else {
+          shareProgressStatus.classList.add('d-none');
+        }
+      }
+    };
+
+    if (isPublicSwitch && shareProgressContainer) {
+      isPublicSwitch.addEventListener('change', () => {
+        if (isPublicSwitch.checked) {
+          shareProgressContainer.classList.remove('d-none');
+        } else {
+          shareProgressContainer.classList.add('d-none');
+          // Also uncheck share progress when making trip private
+          if (shareProgressSwitch) {
+            shareProgressSwitch.checked = false;
+            updateStatusBadge();
+          }
+        }
+      });
+    }
+
+    // Toggle status badge when share progress switch changes
+    if (shareProgressSwitch) {
+      shareProgressSwitch.addEventListener('change', updateStatusBadge);
+    }
+
+    // Share Progress button in modal - toggles the switch and shows feedback
+    const btnShareVisits = document.getElementById('btn-share-visits');
+    if (btnShareVisits && shareProgressSwitch) {
+      // Update button state based on current switch value
+      const updateShareButton = () => {
+        if (shareProgressSwitch.checked) {
+          btnShareVisits.classList.remove('btn-outline-primary');
+          btnShareVisits.classList.add('btn-success');
+          btnShareVisits.innerHTML = '<i class="bi bi-check-circle me-1"></i>Progress Shared';
+        } else {
+          btnShareVisits.classList.remove('btn-success');
+          btnShareVisits.classList.add('btn-outline-primary');
+          btnShareVisits.innerHTML = '<i class="bi bi-share me-1"></i>Share Progress';
+        }
+        btnShareVisits.disabled = false;
+      };
+
+      updateShareButton();
+
+      btnShareVisits.addEventListener('click', () => {
+        shareProgressSwitch.checked = !shareProgressSwitch.checked;
+        // Trigger change event so form knows it's dirty
+        shareProgressSwitch.dispatchEvent(new Event('change', { bubbles: true }));
+        updateShareButton();
+        updateStatusBadge();
+      });
+    }
 
     // Visit History Modal filter buttons
     document.querySelectorAll('#visitHistoryModal [data-filter]').forEach(btn => {

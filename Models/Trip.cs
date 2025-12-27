@@ -34,7 +34,13 @@ namespace Wayfarer.Models
 
         /// <summary>Whether this trip is publicly shareable.</summary>
         public bool IsPublic { get; set; } = false;
-        
+
+        /// <summary>
+        /// Whether to show visit progress in public view.
+        /// Only effective when IsPublic is true.
+        /// </summary>
+        public bool ShareProgressEnabled { get; set; } = false;
+
         // Lat, Lon and Zoom for Trip set views and permalinks
         // Trip URL latitude
         public double? CenterLat { get; set; }
