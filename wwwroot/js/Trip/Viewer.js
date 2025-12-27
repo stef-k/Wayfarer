@@ -79,12 +79,14 @@ const getUrlParam = key => {
 };
 
 // Helper to check if notesHtml is "visibly empty"
+// Returns true only if there's no text AND no media elements (images, videos, etc.)
 const isHtmlEmpty = html => {
     if (!html) return true;
     const div = document.createElement('div');
     div.innerHTML = html;
     const text = div.textContent?.trim() ?? '';
-    return text === '';
+    const hasMedia = div.querySelector('img, video, audio, iframe') !== null;
+    return text === '' && !hasMedia;
 };
 
 

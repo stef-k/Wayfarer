@@ -1,0 +1,171 @@
+@model Wayfarer.Models.ViewModels.VisitEditViewModel
+@{
+    ViewData["BodyClass"] = "container-fluid";
+    ViewData["LoadLeaflet"] = true;
+    ViewData["LoadQuill"] = true;
+}
+
+<h1 class="fs-3 text-center">@ViewData["Title"]</h1>
+
+<div class="row">
+    <!-- Visit Form Column -->
+    <div class="col-md-5">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header text-bg-primary">
+                <h2 class="fs-4">Edit Visit</h2>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post" id="visitForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="Id" />
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <input type="hidden" asp-for="PlaceNameSnapshot" />
+                    <input type="hidden" asp-for="TripNameSnapshot" />
+                    <input type="hidden" asp-for="RegionNameSnapshot" />
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                    <!-- Readonly Context Info -->
+                    <div class="mb-3 p-2 bg-body-secondary rounded">
+                        <div class="row">
+                            <div class="col-12 mb-1">
+                                <strong>Place:</strong> @Model.PlaceNameSnapshot
+                                @if (Model.PlaceId.HasValue)
+                                {
+                                    <a href="@Url.Action("Edit", "Trip", new { area = "User", id = Model.TripId })"
+                                       class="ms-2 text-decoration-none" title="Go to trip">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                }
+                            </div>
+                            <div class="col-6">
+                                <strong>Trip:</strong> @Model.TripNameSnapshot
+                            </div>
+                            <div class="col-6">
+                                <strong>Region:</strong> @Model.RegionNameSnapshot
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timestamps -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="ArrivedAtUtc" class="form-label">Arrived At (UTC) <span class="text-danger">*</span></label>
+                            <input type="datetime-local" class="form-control" asp-for="ArrivedAtUtc"
+                                   value="@Model.ArrivedAtUtc.ToString("yyyy-MM-ddTHH:mm")" required />
+                            <span asp-validation-for="ArrivedAtUtc" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="EndedAtUtc" class="form-label">Ended At (UTC)</label>
+                            <input type="datetime-local" class="form-control" asp-for="EndedAtUtc"
+                                   value="@(Model.EndedAtUtc?.ToString("yyyy-MM-ddTHH:mm") ?? "")" />
+                            <small class="text-muted">Leave empty if visit is still open</small>
+                            <span asp-validation-for="EndedAtUtc" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <!-- Dwell Time Display -->
+                    @if (Model.DwellTime.HasValue)
+                    {
+                        <div class="mb-3">
+                            <strong>Dwell Time:</strong>
+                            <span class="badge bg-info">
+                                @if (Model.DwellTime.Value.TotalHours >= 1)
+                                {
+                                    @($"{(int)Model.DwellTime.Value.TotalHours}h {Model.DwellTime.Value.Minutes}m")
+                                }
+                                else
+                                {
+                                    @($"{(int)Model.DwellTime.Value.TotalMinutes} min")
+                                }
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <span class="badge bg-warning text-dark">Visit still open</span>
+                        </div>
+                    }
+
+                    <!-- Location -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Latitude" class="form-label">Latitude <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="Latitude" asp-for="Latitude" required />
+                            <span asp-validation-for="Latitude" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Longitude" class="form-label">Longitude <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="Longitude" asp-for="Longitude" required />
+                            <span asp-validation-for="Longitude" class="text-danger"></span>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted mb-3 d-block">
+                        Click on the map to update the location.
+                    </small>
+
+                    <!-- Appearance -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="IconNameSnapshot" class="form-label">Icon</label>
+                            <select asp-for="IconNameSnapshot" class="form-select" asp-items="Model.IconOptions"></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="MarkerColorSnapshot" class="form-label">Marker Color</label>
+                            <select asp-for="MarkerColorSnapshot" class="form-select" asp-items="Model.ColorOptions"></select>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-3">
+                        <label asp-for="NotesHtml" class="form-label">Notes</label>
+                        <div id="notes" data-notes-content="@Model.NotesHtml"></div>
+                        <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@Model.NotesHtml" />
+                        <small class="text-muted">
+                            You cannot paste images here. Use the image button from the toolbar to insert an image from a URL.
+                        </small>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" name="saveAction" value="save"
+                                title="Save your changes and keep editing">Save</button>
+                        <button type="submit" class="btn btn-outline-secondary" name="saveAction" value="return"
+                                title="Save your changes and go back">Save &amp; Return</button>
+                        <a href="@Model.ReturnUrl" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+
+                <!-- Delete Button -->
+                <hr />
+                <form asp-action="Delete" method="post" id="deleteForm" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+                    <button type="button" class="btn btn-outline-danger" id="btnDelete">
+                        <i class="bi bi-trash me-1"></i>Delete Visit
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Column -->
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-header text-bg-primary">
+                <h2 class="fs-4">Visit Location</h2>
+            </div>
+            <div class="card-body p-1">
+                <div id="mapContainer" style="height: 575px;"
+                     data-lat="@Model.Latitude"
+                     data-lon="@Model.Longitude"
+                     data-icon="@(Model.IconNameSnapshot ?? "marker")"
+                     data-color="@(Model.MarkerColorSnapshot ?? "bg-blue")"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @Html.FrontendViewScripts()
+}
