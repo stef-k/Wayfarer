@@ -16,6 +16,7 @@ using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -106,7 +107,8 @@ namespace Wayfarer.Tests.Controllers;
             NullLogger<BaseController>.Instance,
             db,
             reverseGeocoding,
-            sse);
+            sse,
+            Mock.Of<IPlaceVisitDetectionService>());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext
@@ -557,7 +559,8 @@ namespace Wayfarer.Tests.Controllers;
             NullLogger<BaseController>.Instance,
             db,
             reverseGeocoding,
-            Mock.Of<SseService>());
+            Mock.Of<SseService>(),
+            Mock.Of<IPlaceVisitDetectionService>());
         var httpContext = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]

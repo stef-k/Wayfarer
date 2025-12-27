@@ -8,6 +8,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Util;
 using Location = Wayfarer.Models.Location;
 
@@ -28,6 +29,7 @@ public class LocationController : BaseApiController
     private readonly IMemoryCache _cache;
     private readonly LocationService _chronologicalLocationService;
     private readonly LocationService _locationService;
+    private readonly IPlaceVisitDetectionService _placeVisitDetectionService;
     private readonly ReverseGeocodingService _reverseGeocodingService;
     private readonly IApplicationSettingsService _settingsService;
     private readonly SseService _sse;
@@ -36,7 +38,8 @@ public class LocationController : BaseApiController
     public LocationController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger,
         IMemoryCache cache, IApplicationSettingsService settingsService,
         ReverseGeocodingService reverseGeocodingService, LocationService locationService, SseService sse,
-        ILocationStatsService statsService, LocationService chronologicalLocationService)
+        ILocationStatsService statsService, LocationService chronologicalLocationService,
+        IPlaceVisitDetectionService placeVisitDetectionService)
         : base(dbContext, logger)
     {
         _cache = cache;
@@ -46,6 +49,7 @@ public class LocationController : BaseApiController
         _sse = sse;
         _statsService = statsService;
         _chronologicalLocationService = chronologicalLocationService;
+        _placeVisitDetectionService = placeVisitDetectionService;
     }
 
     /// <summary>
@@ -177,6 +181,21 @@ public class LocationController : BaseApiController
             {
                 _logger.LogError(ex, "Failed to save check-in location for user.");
                 return StatusCode(500, "Internal server error while saving check-in location.");
+            }
+
+            // Process visit detection for check-ins (manual confirmation is strong signal)
+            try
+            {
+                await _placeVisitDetectionService.ProcessPingAsync(
+                    user.Id,
+                    coordinates,
+                    dto.Accuracy,
+                    HttpContext?.RequestAborted ?? CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // Visit detection is non-critical - log and continue
+                _logger.LogWarning(ex, "Visit detection failed for check-in user {UserId}", user.Id);
             }
 
             // Update cache with latest location (same as log-location)
@@ -462,6 +481,22 @@ public class LocationController : BaseApiController
 
 
             var coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+
+            // Process visit detection (side-effect only, does not affect response)
+            // Called before threshold checks so every ping is evaluated for visits
+            try
+            {
+                await _placeVisitDetectionService.ProcessPingAsync(
+                    user.Id,
+                    coordinates,
+                    dto.Accuracy,
+                    HttpContext.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                // Log but do not fail the request - visit detection is non-critical
+                _logger.LogWarning(ex, "Visit detection failed for user {UserId}", user.Id);
+            }
 
             var cacheKey = $"lastLocation_{user.Id}";
             if (!_cache.TryGetValue(cacheKey, out Location? lastLocation))

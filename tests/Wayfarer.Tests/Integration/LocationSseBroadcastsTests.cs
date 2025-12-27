@@ -17,6 +17,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Tests.Mocks;
 using Xunit;
 
 namespace Wayfarer.Tests.Integration;
@@ -110,7 +111,8 @@ public class LocationSseBroadcastsTests
             locationService,
             sse,
             statsService,
-            locationService)
+            locationService,
+            new NullPlaceVisitDetectionService())
         {
             ControllerContext = new ControllerContext
             {

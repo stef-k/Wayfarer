@@ -20,6 +20,7 @@ using Wayfarer.Models.Dtos;
 using Wayfarer.Models.Options;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Tests.Mocks;
 using Xunit;
 using LocationEntity = Wayfarer.Models.Location;
 
@@ -89,7 +90,8 @@ public class MobileIntegrationTests
             locationService,
             sse,
             statsService,
-            locationService)
+            locationService,
+            new NullPlaceVisitDetectionService())
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };

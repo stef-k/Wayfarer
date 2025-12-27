@@ -480,6 +480,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // User location stats service
     builder.Services.AddScoped<ILocationStatsService, LocationStatsService>();
 
+    // Place visit detection service (auto-visited trip places)
+    builder.Services.AddScoped<IPlaceVisitDetectionService, PlaceVisitDetectionService>();
+
     // Trip export service (PDF, KML, Google MyMaps KML)
     builder.Services.AddScoped<ITripExportService, TripExportService>();
 

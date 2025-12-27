@@ -8,6 +8,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers
@@ -18,13 +19,16 @@ namespace Wayfarer.Areas.User.Controllers
     {
         private readonly ReverseGeocodingService _reverseGeocodingService;
         private readonly SseService _sse;
+        private readonly IPlaceVisitDetectionService _placeVisitDetectionService;
 
         public LocationController(ILogger<BaseController> logger, ApplicationDbContext dbContext,
-            ReverseGeocodingService reverseGeocodingService, SseService sse)
+            ReverseGeocodingService reverseGeocodingService, SseService sse,
+            IPlaceVisitDetectionService placeVisitDetectionService)
             : base(logger, dbContext)
         {
             _reverseGeocodingService = reverseGeocodingService;
             _sse = sse;
+            _placeVisitDetectionService = placeVisitDetectionService;
         }
 
         /// <summary>
@@ -185,6 +189,21 @@ namespace Wayfarer.Areas.User.Controllers
                 // Save the location to the database
                 _dbContext.Locations.Add(location);
                 await _dbContext.SaveChangesAsync();
+
+                // Process visit detection for web app location entries
+                try
+                {
+                    await _placeVisitDetectionService.ProcessPingAsync(
+                        model.UserId,
+                        location.Coordinates,
+                        model.Accuracy,
+                        HttpContext?.RequestAborted ?? CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    // Visit detection is non-critical - log and continue
+                    _logger.LogWarning(ex, "Visit detection failed for web app location user {UserId}", model.UserId);
+                }
 
                 LogAction("CreateLocation", $"Location added for user {model.UserId}");
                 SetAlert("The location has been successfully created.", "success");

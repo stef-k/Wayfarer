@@ -39,6 +39,11 @@ namespace Wayfarer.Models
         public DbSet<Tag> Tags { get; set; }
 
         public DbSet<Area> Areas { get; set; }
+
+        // Place visit tracking
+        public DbSet<PlaceVisitEvent> PlaceVisitEvents { get; set; }
+        public DbSet<PlaceVisitCandidate> PlaceVisitCandidates { get; set; }
+
         public DbSet<Group> Groups { get; set; }
         public DbSet<GroupMember> GroupMembers { get; set; }
         public DbSet<GroupInvitation> GroupInvitations { get; set; }
@@ -232,6 +237,52 @@ namespace Wayfarer.Models
                 .WithMany(r => r.Areas)
                 .HasForeignKey(a => a.RegionId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // === Place Visit Tracking ===
+
+            // PlaceVisitEvent configuration
+            builder.Entity<PlaceVisitEvent>()
+                .HasOne(e => e.Place)
+                .WithMany()
+                .HasForeignKey(e => e.PlaceId)
+                .OnDelete(DeleteBehavior.SetNull); // Preserve visit history when place is deleted
+
+            builder.Entity<PlaceVisitEvent>()
+                .Property(e => e.PlaceLocationSnapshot)
+                .HasColumnType("geography(Point,4326)");
+
+            // Index for finding open visits for a user
+            builder.Entity<PlaceVisitEvent>()
+                .HasIndex(e => new { e.UserId, e.EndedAtUtc })
+                .HasDatabaseName("IX_PlaceVisitEvent_UserId_EndedAtUtc");
+
+            // Index for querying visits by place
+            builder.Entity<PlaceVisitEvent>()
+                .HasIndex(e => e.PlaceId)
+                .HasDatabaseName("IX_PlaceVisitEvent_PlaceId");
+
+            // Index for date range queries
+            builder.Entity<PlaceVisitEvent>()
+                .HasIndex(e => e.ArrivedAtUtc)
+                .HasDatabaseName("IX_PlaceVisitEvent_ArrivedAtUtc");
+
+            // PlaceVisitCandidate configuration
+            builder.Entity<PlaceVisitCandidate>()
+                .HasOne(c => c.Place)
+                .WithMany()
+                .HasForeignKey(c => c.PlaceId)
+                .OnDelete(DeleteBehavior.Cascade); // Candidates are ephemeral, delete with place
+
+            // Unique constraint: one candidate per user per place
+            builder.Entity<PlaceVisitCandidate>()
+                .HasIndex(c => new { c.UserId, c.PlaceId })
+                .IsUnique()
+                .HasDatabaseName("IX_PlaceVisitCandidate_UserId_PlaceId");
+
+            // Index for cleanup queries
+            builder.Entity<PlaceVisitCandidate>()
+                .HasIndex(c => c.LastHitUtc)
+                .HasDatabaseName("IX_PlaceVisitCandidate_LastHitUtc");
 
             // Groups
             builder.Entity<Group>()
