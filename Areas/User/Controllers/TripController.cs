@@ -90,13 +90,6 @@ namespace Wayfarer.Areas.User.Controllers
                 .GroupBy(v => v.PlaceId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
-            _logger.LogInformation("View: Trip {TripId} has {PlaceCount} places, {VisitCount} visit events, {UniqueVisited} unique visited places",
-                id, allPlaceIds.Count, visitEvents.Count, placeVisitCounts.Count);
-            foreach (var kvp in placeVisitCounts)
-            {
-                _logger.LogInformation("  Place {PlaceId} visited {Count} times", kvp.Key, kvp.Value);
-            }
-
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
@@ -236,13 +229,6 @@ namespace Wayfarer.Areas.User.Controllers
             var placeVisitCounts = visitEvents
                 .GroupBy(v => v.PlaceId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
-
-            _logger.LogInformation("Edit: Trip {TripId} has {PlaceCount} places, {VisitCount} visit events, {UniqueVisited} unique visited places",
-                id, allPlaceIds.Count, visitEvents.Count, placeVisitCounts.Count);
-            foreach (var kvp in placeVisitCounts)
-            {
-                _logger.LogInformation("  Place {PlaceId} visited {Count} times", kvp.Key, kvp.Value);
-            }
 
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;

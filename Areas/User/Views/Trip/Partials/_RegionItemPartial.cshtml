@@ -112,7 +112,7 @@
                                 data-place-color="@place.MarkerColor" data-place-name="@place.Name?.Trim()"
                                 data-place-address="@place.Address"
                                 data-region-name="@Model.Name"
-                                @(visitCount > 0 ? $"data-place-visit-count=\"{visitCount}\"" : "")>
+                                data-place-visit-count="@visitCount">
                                 <i class="bi bi-grip-vertical drag-handle me-1"></i>
                                 @* Hidden div for notes - used by popup builder *@
                                 <div class="d-none place-notes">@Html.LinkifyHtml(place.Notes)</div>
