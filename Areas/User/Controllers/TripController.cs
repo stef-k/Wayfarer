@@ -65,8 +65,8 @@ namespace Wayfarer.Areas.User.Controllers
                 .Include(t => t.Tags)
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
-            if (trip == null) return NotFound(); 
-            
+            if (trip == null) return NotFound();
+
             /* ---- layout flags ---- */
             ViewData["LoadLeaflet"] = true;      // needs map
             ViewData["LoadQuill"]   = false;     // no editor
@@ -74,6 +74,21 @@ namespace Wayfarer.Areas.User.Controllers
 
             ViewBag.IsOwner = true;
             ViewBag.IsEmbed = false;             // not an iframe here
+
+            // Calculate visit progress for owner's view
+            var allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
+                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+                .Select(p => p.Id)
+                .ToList();
+
+            var visitedPlaceIds = await _dbContext.PlaceVisitEvents
+                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .Select(v => v.PlaceId)
+                .Distinct()
+                .CountAsync();
+
+            ViewBag.TotalPlaces = allPlaceIds.Count;
+            ViewBag.VisitedPlaces = visitedPlaceIds;
 
             return View("~/Views/Trip/Viewer.cshtml", trip);
         }
@@ -195,6 +210,21 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             trip.Segments = trip.Segments?.ToList() ?? new List<Segment>();
+
+            // 3) Calculate visit progress for this trip
+            var allPlaceIds = trip.Regions
+                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+                .Select(p => p.Id)
+                .ToList();
+
+            var visitedPlaceIds = await _dbContext.PlaceVisitEvents
+                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .Select(v => v.PlaceId)
+                .Distinct()
+                .CountAsync();
+
+            ViewBag.TotalPlaces = allPlaceIds.Count;
+            ViewBag.VisitedPlaces = visitedPlaceIds;
 
             return View(trip);
         }
