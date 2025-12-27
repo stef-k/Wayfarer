@@ -604,12 +604,21 @@
                     </div>
                 </div>
                 <div class="modal-footer justify-content-between">
-                    <div>
+                    <div class="d-flex align-items-center gap-2">
                         @if (Model.IsPublic)
                         {
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-share-visits" disabled title="Coming soon">
-                                <i class="bi bi-share me-1"></i>Share Progress
-                            </button>
+                            @if (shareProgressEnabled)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-broadcast me-1"></i>Progress visible to public</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Progress private</span>
+                            }
+                            <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@Model.Id"
+                               class="btn btn-outline-secondary btn-sm" title="Change in trip settings">
+                                <i class="bi bi-gear me-1"></i>Settings
+                            </a>
                         }
                         else
                         {

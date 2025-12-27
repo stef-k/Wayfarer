@@ -553,12 +553,18 @@
         </div>
       </div>
       <div class="modal-footer justify-content-between">
-        <div>
+        <div class="d-flex align-items-center gap-3">
           @if (Model.IsPublic)
           {
-              <button type="button" class="btn btn-outline-primary btn-sm" id="btn-share-visits" disabled title="Coming soon">
-                <i class="bi bi-share me-1"></i>Share Progress
-              </button>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="modalShareProgressSwitch" @(Model.ShareProgressEnabled ? "checked" : "")>
+                <label class="form-check-label" for="modalShareProgressSwitch">
+                  <i class="bi bi-broadcast me-1"></i>Share Progress
+                </label>
+              </div>
+              <span id="modalShareStatus" class="badge @(Model.ShareProgressEnabled ? "bg-success" : "bg-secondary") small">
+                @(Model.ShareProgressEnabled ? "Visible to public" : "Private")
+              </span>
           }
           else
           {
@@ -627,31 +633,35 @@
       shareProgressSwitch.addEventListener('change', updateStatusBadge);
     }
 
-    // Share Progress button in modal - toggles the switch and shows feedback
-    const btnShareVisits = document.getElementById('btn-share-visits');
-    if (btnShareVisits && shareProgressSwitch) {
-      // Update button state based on current switch value
-      const updateShareButton = () => {
-        if (shareProgressSwitch.checked) {
-          btnShareVisits.classList.remove('btn-outline-primary');
-          btnShareVisits.classList.add('btn-success');
-          btnShareVisits.innerHTML = '<i class="bi bi-check-circle me-1"></i>Progress Shared';
+    // Sync modal toggle with form toggle
+    const modalShareSwitch = document.getElementById('modalShareProgressSwitch');
+    const modalShareStatus = document.getElementById('modalShareStatus');
+
+    const updateModalStatus = () => {
+      if (modalShareStatus) {
+        if (modalShareSwitch?.checked) {
+          modalShareStatus.className = 'badge bg-success small';
+          modalShareStatus.textContent = 'Visible to public';
         } else {
-          btnShareVisits.classList.remove('btn-success');
-          btnShareVisits.classList.add('btn-outline-primary');
-          btnShareVisits.innerHTML = '<i class="bi bi-share me-1"></i>Share Progress';
+          modalShareStatus.className = 'badge bg-secondary small';
+          modalShareStatus.textContent = 'Private';
         }
-        btnShareVisits.disabled = false;
-      };
+      }
+    };
 
-      updateShareButton();
-
-      btnShareVisits.addEventListener('click', () => {
-        shareProgressSwitch.checked = !shareProgressSwitch.checked;
-        // Trigger change event so form knows it's dirty
+    if (modalShareSwitch && shareProgressSwitch) {
+      // When modal toggle changes, sync to form toggle
+      modalShareSwitch.addEventListener('change', () => {
+        shareProgressSwitch.checked = modalShareSwitch.checked;
         shareProgressSwitch.dispatchEvent(new Event('change', { bubbles: true }));
-        updateShareButton();
         updateStatusBadge();
+        updateModalStatus();
+      });
+
+      // When form toggle changes, sync to modal toggle
+      shareProgressSwitch.addEventListener('change', () => {
+        modalShareSwitch.checked = shareProgressSwitch.checked;
+        updateModalStatus();
       });
     }
 
