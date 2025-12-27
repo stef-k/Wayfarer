@@ -223,7 +223,7 @@ public class TripViewerController : BaseController
         }
 
         var owner = trip.UserId == userId;
-        
+
         /* ---- layout flags ---- */
         ViewData["LoadLeaflet"] = true;      // needs map
         ViewData["LoadQuill"]   = false;     // no editor
@@ -231,6 +231,34 @@ public class TripViewerController : BaseController
 
         ViewBag.IsOwner = owner;
         ViewBag.IsEmbed = embed;             // not an iframe here
+
+        // Get visit progress data for owner
+        var allPlaceIds = trip.Regions?
+            .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+            .Select(p => p.Id)
+            .ToList() ?? new List<Guid>();
+
+        ViewBag.TotalPlaces = allPlaceIds.Count;
+        ViewBag.VisitedPlaces = 0;
+        ViewBag.PlaceVisitCounts = new Dictionary<Guid, int>();
+        ViewBag.VisitEvents = new List<PlaceVisitEvent>(); // Default empty list
+
+        if (owner && !string.IsNullOrEmpty(userId) && allPlaceIds.Count > 0)
+        {
+            // Get visit events per place (a place can be visited multiple times)
+            var visitEvents = await _dbContext.PlaceVisitEvents
+                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .OrderByDescending(v => v.ArrivedAtUtc)
+                .ToListAsync();
+
+            var placeVisitCounts = visitEvents
+                .GroupBy(v => v.PlaceId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            ViewBag.VisitedPlaces = placeVisitCounts.Count;
+            ViewBag.PlaceVisitCounts = placeVisitCounts;
+            ViewBag.VisitEvents = visitEvents;
+        }
 
         return View("~/Views/Trip/Viewer.cshtml", trip);
     }

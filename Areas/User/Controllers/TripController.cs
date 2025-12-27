@@ -93,6 +93,7 @@ namespace Wayfarer.Areas.User.Controllers
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
+            ViewBag.VisitEvents = visitEvents; // Pass flat list for modal
 
             return View("~/Views/Trip/Viewer.cshtml", trip);
         }
@@ -221,9 +222,10 @@ namespace Wayfarer.Areas.User.Controllers
                 .Select(p => p.Id)
                 .ToList();
 
-            // Get visit counts per place (a place can be visited multiple times)
+            // Get visit events per place (a place can be visited multiple times)
             var visitEvents = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .OrderByDescending(v => v.ArrivedAtUtc)
                 .ToListAsync();
 
             var placeVisitCounts = visitEvents
@@ -233,6 +235,7 @@ namespace Wayfarer.Areas.User.Controllers
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
+            ViewBag.VisitEvents = visitEvents; // Pass flat list, group in view
 
             return View(trip);
         }
