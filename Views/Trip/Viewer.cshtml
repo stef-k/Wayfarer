@@ -236,6 +236,31 @@
                 <input id="legend-search" type="search" class="form-control form-control-sm"
                        placeholder="Search regions, places, areas, segments" autocomplete="off" />
             </div>
+
+            @* Visit progress - owner only *@
+            @if (owner)
+            {
+                var totalPlaces = (int)(ViewBag.TotalPlaces ?? 0);
+                var visitedPlaces = (int)(ViewBag.VisitedPlaces ?? 0);
+                var progressPercent = totalPlaces > 0 ? (int)Math.Round((double)visitedPlaces / totalPlaces * 100) : 0;
+
+                if (totalPlaces > 0)
+                {
+                    <div class="px-2 pb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted">
+                                <i class="bi bi-check2-circle"></i> @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "Place" : "Places") visited
+                            </small>
+                            <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") badge-sm">@progressPercent%</span>
+                        </div>
+                        <div class="progress" style="height: 6px;" role="progressbar"
+                             aria-valuenow="@visitedPlaces" aria-valuemin="0" aria-valuemax="@totalPlaces">
+                            <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")"
+                                 style="width: @progressPercent%;"></div>
+                        </div>
+                    </div>
+                }
+            }
         </header>
 
         <!-- Trip meta: notes (scroll-safe) -->

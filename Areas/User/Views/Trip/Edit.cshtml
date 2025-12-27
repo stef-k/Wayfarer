@@ -13,19 +13,44 @@
   var visibleRegions = regions
     .Where(r => r.Name != "Unassigned Places" || (r.Places != null && r.Places.Any()))
     .ToList();
-  
+
   var shadowRegion = regions.FirstOrDefault(r => r.Name == "Unassigned Places");
   var tagSeed = (Model.Tags ?? Enumerable.Empty<Tag>())
       .OrderBy(t => t.Name)
       .Select(t => new { t.Id, t.Name, t.Slug })
       .ToList();
   var tagJson = JsonSerializer.Serialize(tagSeed, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+  // Visit progress
+  var totalPlaces = (int)(ViewBag.TotalPlaces ?? 0);
+  var visitedPlaces = (int)(ViewBag.VisitedPlaces ?? 0);
+  var progressPercent = totalPlaces > 0 ? (int)Math.Round((double)visitedPlaces / totalPlaces * 100) : 0;
 }
 
 <div class="row">
   <div class="col-3">
 
     <div id="sidebar" class="show collapse-horizontal d-flex flex-column">
+      <!-- Trip Progress Header -->
+      @if (totalPlaces > 0)
+      {
+        <div id="tripProgressHeader" class="p-3 border-bottom bg-light">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold text-truncate" style="max-width: 70%;" title="@Model.Name">@Model.Name</span>
+            <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary")">@progressPercent%</span>
+          </div>
+          <div class="progress" style="height: 8px;" role="progressbar"
+               aria-valuenow="@visitedPlaces" aria-valuemin="0" aria-valuemax="@totalPlaces"
+               title="@visitedPlaces of @totalPlaces places visited">
+            <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")"
+                 style="width: @progressPercent%;"></div>
+          </div>
+          <div class="small text-muted mt-1">
+            <i class="bi bi-check2-circle"></i> @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "Place" : "Places") visited
+          </div>
+        </div>
+      }
+
       <!-- Sidebar Header -->
       <div id="sidebarHeader" class="p-3 border-bottom d-flex align-items-center justify-content-between">
         <h5 class="mb-0">Trip Settings</h5>
