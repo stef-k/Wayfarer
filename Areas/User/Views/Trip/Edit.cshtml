@@ -36,8 +36,13 @@
       {
         <div id="tripProgressHeader" class="p-3 border-bottom bg-light">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold text-truncate" style="max-width: 70%;" title="@Model.Name">@Model.Name</span>
-            <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary")">@progressPercent%</span>
+            <span class="fw-semibold text-truncate" style="max-width: 60%;" title="@Model.Name">@Model.Name</span>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary")">@progressPercent%</span>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View visit history">
+                <i class="bi bi-clock-history"></i>
+              </button>
+            </div>
           </div>
           <div class="progress" style="height: 8px;" role="progressbar"
                aria-valuenow="@visitedPlaces" aria-valuemin="0" aria-valuemax="@totalPlaces"
@@ -417,6 +422,106 @@
         <button type="button" id="btn-confirm-add-place" class="btn btn-success">
           <i class="bi bi-plus-circle me-1"></i>Add
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Visit History Modal -->
+@{
+    var visitsByPlace = ViewBag.VisitsByPlace as Dictionary<Guid, List<Wayfarer.Models.PlaceVisitEvent>> ?? new Dictionary<Guid, List<Wayfarer.Models.PlaceVisitEvent>>();
+}
+<div class="modal fade" id="visitHistoryModal" tabindex="-1" aria-labelledby="visitHistoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="visitHistoryModalLabel">
+          <i class="bi bi-clock-history me-2"></i>Trip Visit History
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Progress Summary -->
+        <div class="mb-4 p-3 bg-light rounded">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold">Overall Progress</span>
+            <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") fs-6">@progressPercent%</span>
+          </div>
+          <div class="progress" style="height: 12px;">
+            <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")" style="width: @progressPercent%;"></div>
+          </div>
+          <div class="text-muted mt-2">
+            <i class="bi bi-check2-circle"></i> @visitedPlaces of @totalPlaces @(totalPlaces == 1 ? "place" : "places") visited
+          </div>
+        </div>
+
+        <!-- Region-by-Region Breakdown -->
+        @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Wayfarer.Models.Region>())
+        {
+            var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Wayfarer.Models.Place>();
+            var regionVisitedCount = regionPlaces.Count(p => visitsByPlace.ContainsKey(p.Id));
+            var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-semibold">@region.Name</span>
+                <span class="text-muted small">@regionVisitedCount / @regionPlaces.Count</span>
+              </div>
+              <div class="progress mb-2" style="height: 6px;">
+                <div class="progress-bar @(regionPercent == 100 ? "bg-success" : "bg-info")" style="width: @regionPercent%;"></div>
+              </div>
+              <ul class="list-group list-group-flush">
+                @foreach (var place in regionPlaces)
+                {
+                    var placeVisits = visitsByPlace.TryGetValue(place.Id, out var visits) ? visits : new List<Wayfarer.Models.PlaceVisitEvent>();
+                    var isVisited = placeVisits.Count > 0;
+                    <li class="list-group-item py-2 @(isVisited ? "" : "text-muted")">
+                      <div class="d-flex align-items-start">
+                        <span class="me-2">@(isVisited ? "✓" : "○")</span>
+                        <div class="flex-grow-1">
+                          <div class="fw-medium">@place.Name</div>
+                          @if (isVisited)
+                          {
+                              <div class="small text-muted">
+                                @foreach (var visit in placeVisits.OrderByDescending(v => v.ArrivedAtUtc))
+                                {
+                                    var duration = visit.EndedAtUtc.HasValue
+                                        ? (visit.EndedAtUtc.Value - visit.ArrivedAtUtc)
+                                        : (TimeSpan?)null;
+                                    var durationStr = duration.HasValue
+                                        ? (duration.Value.TotalHours >= 1
+                                            ? $"{(int)duration.Value.TotalHours}h {duration.Value.Minutes}min"
+                                            : $"{(int)duration.Value.TotalMinutes}min")
+                                        : "ongoing";
+                                    <div>
+                                      <i class="bi bi-calendar3 me-1"></i>@visit.ArrivedAtUtc.ToString("MMM d, yyyy")
+                                      <span class="ms-2"><i class="bi bi-stopwatch me-1"></i>@durationStr</span>
+                                    </div>
+                                }
+                              </div>
+                          }
+                        </div>
+                        @if (isVisited)
+                        {
+                            <span class="badge bg-success">@placeVisits.Count</span>
+                        }
+                      </div>
+                    </li>
+                }
+              </ul>
+            </div>
+        }
+      </div>
+      <div class="modal-footer justify-content-between">
+        <div>
+          @if (Model.IsPublic)
+          {
+              <button type="button" class="btn btn-outline-primary" id="btn-share-visits">
+                <i class="bi bi-share me-1"></i>Share Progress
+              </button>
+          }
+        </div>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>

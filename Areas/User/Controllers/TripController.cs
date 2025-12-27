@@ -221,18 +221,25 @@ namespace Wayfarer.Areas.User.Controllers
                 .Select(p => p.Id)
                 .ToList();
 
-            // Get visit counts per place (a place can be visited multiple times)
+            // Get visit events per place (a place can be visited multiple times)
             var visitEvents = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .OrderByDescending(v => v.ArrivedAtUtc)
                 .ToListAsync();
 
             var placeVisitCounts = visitEvents
                 .GroupBy(v => v.PlaceId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
+            // Group visits by place for the modal
+            var visitsByPlace = visitEvents
+                .GroupBy(v => v.PlaceId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
+            ViewBag.VisitsByPlace = visitsByPlace;
 
             return View(trip);
         }
