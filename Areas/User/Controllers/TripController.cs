@@ -74,6 +74,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             ViewBag.IsOwner = true;
             ViewBag.IsEmbed = false;             // not an iframe here
+            ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
 
             // Calculate visit progress for owner's view
             var allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
@@ -281,6 +282,8 @@ namespace Wayfarer.Areas.User.Controllers
                 // Update editable fields only
                 trip.Name = model.Name;
                 trip.IsPublic = model.IsPublic;
+                // Reset ShareProgressEnabled when making trip private
+                trip.ShareProgressEnabled = model.IsPublic && model.ShareProgressEnabled;
                 trip.Notes = model.Notes;
                 trip.CenterLat = model.CenterLat;
                 trip.CenterLon = model.CenterLon;
@@ -344,6 +347,35 @@ namespace Wayfarer.Areas.User.Controllers
                 HandleError(ex);
                 return RedirectToAction(nameof(Index));
             }
+        }
+
+        /// <summary>
+        /// Toggle the ShareProgressEnabled setting for a trip via AJAX.
+        /// Only works if trip is already public.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleShareProgress(Guid id, bool enabled)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var trip = await _dbContext.Trips.FindAsync(id);
+
+            if (trip == null || trip.UserId != userId)
+            {
+                return Json(new { success = false, error = "Trip not found or unauthorized" });
+            }
+
+            // Only allow enabling share progress if trip is public
+            if (enabled && !trip.IsPublic)
+            {
+                return Json(new { success = false, error = "Trip must be public to share progress" });
+            }
+
+            trip.ShareProgressEnabled = enabled;
+            trip.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync();
+
+            return Json(new { success = true, enabled = trip.ShareProgressEnabled });
         }
 
         /// <summary>

@@ -1100,6 +1100,9 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<bool>("ShareProgressEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
