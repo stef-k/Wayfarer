@@ -12,6 +12,7 @@ Timeline
 Trips
 - Organize a trip into Regions, Places (points), Areas (polygons), and Segments (routes).
 - Add notes, colors, and travel modes. Export to PDF or KML.
+- **Automatic visit detection** — when GPS pings arrive near a planned place, the system records a visit event with timestamps and place snapshot data.
 
 Groups
 - Share live or recent locations among trusted members. Joining is by invitation.
