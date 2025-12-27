@@ -83,12 +83,14 @@ public class VisitController : BaseApiController
 
             if (!string.IsNullOrEmpty(placeName))
             {
-                query = query.Where(v => v.PlaceNameSnapshot.Contains(placeName));
+                var loweredPlaceName = placeName.ToLower();
+                query = query.Where(v => v.PlaceNameSnapshot != null && v.PlaceNameSnapshot.ToLower().Contains(loweredPlaceName));
             }
 
             if (!string.IsNullOrEmpty(regionName))
             {
-                query = query.Where(v => v.RegionNameSnapshot.Contains(regionName));
+                var loweredRegionName = regionName.ToLower();
+                query = query.Where(v => v.RegionNameSnapshot != null && v.RegionNameSnapshot.ToLower().Contains(loweredRegionName));
             }
 
             // Get total count before pagination
