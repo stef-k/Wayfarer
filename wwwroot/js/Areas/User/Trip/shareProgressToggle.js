@@ -10,9 +10,10 @@ let shareProgressSwitch = null;
 let shareProgressStatus = null;
 let modalShareSwitch = null;
 let modalShareStatus = null;
+let btnCopyProgressLink = null;
 
 /**
- * Update all status badges to reflect current state
+ * Update all status badges and copy link button visibility
  * @param {boolean} enabled - Whether share progress is enabled
  */
 const updateAllBadges = (enabled) => {
@@ -23,6 +24,10 @@ const updateAllBadges = (enabled) => {
     if (modalShareStatus) {
         modalShareStatus.className = enabled ? 'badge bg-success small' : 'badge bg-secondary small';
         modalShareStatus.textContent = enabled ? 'Visible to public' : 'Private';
+    }
+    // Show/hide copy link button based on enabled state
+    if (btnCopyProgressLink) {
+        btnCopyProgressLink.classList.toggle('d-none', !enabled);
     }
 };
 
@@ -76,6 +81,29 @@ const saveShareProgress = async (enabled) => {
 };
 
 /**
+ * Copy text to clipboard with fallback for older browsers
+ * @param {string} text - Text to copy
+ * @returns {Promise<boolean>} - Success status
+ */
+const copyToClipboard = async (text) => {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return success;
+    }
+};
+
+/**
  * Initialize the share progress toggle functionality
  */
 export const initShareProgressToggle = () => {
@@ -85,6 +113,7 @@ export const initShareProgressToggle = () => {
     shareProgressStatus = document.getElementById('shareProgressStatus');
     modalShareSwitch = document.getElementById('modalShareProgressSwitch');
     modalShareStatus = document.getElementById('modalShareStatus');
+    btnCopyProgressLink = document.getElementById('btnCopyProgressLink');
 
     // Handle share progress toggle change (auto-saves)
     if (shareProgressSwitch) {
@@ -97,6 +126,33 @@ export const initShareProgressToggle = () => {
     if (modalShareSwitch) {
         modalShareSwitch.addEventListener('change', () => {
             saveShareProgress(modalShareSwitch.checked);
+        });
+    }
+
+    // Copy Link button - copies public URL with progress param
+    if (btnCopyProgressLink) {
+        btnCopyProgressLink.addEventListener('click', async () => {
+            const baseUrl = btnCopyProgressLink.dataset.publicUrl;
+            if (!baseUrl) return;
+
+            // Build full URL with progress param
+            const url = new URL(baseUrl, window.location.origin);
+            url.searchParams.set('progress', '1');
+            const fullUrl = url.toString();
+
+            const success = await copyToClipboard(fullUrl);
+            if (success) {
+                // Show feedback
+                const originalHtml = btnCopyProgressLink.innerHTML;
+                btnCopyProgressLink.innerHTML = '<i class="bi bi-check me-1"></i>Copied!';
+                btnCopyProgressLink.classList.remove('btn-outline-success');
+                btnCopyProgressLink.classList.add('btn-success');
+                setTimeout(() => {
+                    btnCopyProgressLink.innerHTML = originalHtml;
+                    btnCopyProgressLink.classList.remove('btn-success');
+                    btnCopyProgressLink.classList.add('btn-outline-success');
+                }, 2000);
+            }
         });
     }
 

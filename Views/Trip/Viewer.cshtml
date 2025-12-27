@@ -930,6 +930,24 @@
             `);
             printWindow.document.close();
         });
+
+        // Auto-open progress modal if ?progress=1 param is present
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('progress') === '1') {
+                // Try public progress modal first (for non-owners), then owner's modal
+                const publicModal = document.getElementById('publicProgressModal');
+                const ownerModal = document.getElementById('visitHistoryModal');
+                const modal = publicModal || ownerModal;
+                if (modal) {
+                    // Small delay to ensure page is fully loaded
+                    setTimeout(() => {
+                        const bsModal = new bootstrap.Modal(modal);
+                        bsModal.show();
+                    }, 500);
+                }
+            }
+        })();
     </script>
 }
 

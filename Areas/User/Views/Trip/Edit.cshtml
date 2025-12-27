@@ -122,10 +122,16 @@
               <div id="shareProgressContainer" class="ms-4 mt-2 ps-2 border-start @(Model.IsPublic ? "" : "d-none")">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch"
-                           id="shareProgressSwitch"
-                           data-trip-id="@Model.Id"
-                           @(Model.ShareProgressEnabled ? "checked" : "")>
+                    @if (Model.ShareProgressEnabled)
+                    {
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="shareProgressSwitch" data-trip-id="@Model.Id" checked>
+                    }
+                    else
+                    {
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="shareProgressSwitch" data-trip-id="@Model.Id">
+                    }
                     <label class="form-check-label" for="shareProgressSwitch">
                       <i class="bi bi-broadcast me-1"></i>Share Visit Progress
                     </label>
@@ -558,7 +564,7 @@
         </div>
       </div>
       <div class="modal-footer justify-content-between">
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
           @if (Model.IsPublic)
           {
               <div class="form-check form-switch mb-0">
@@ -570,6 +576,12 @@
               <span id="modalShareStatus" class="badge @(Model.ShareProgressEnabled ? "bg-success" : "bg-secondary") small">
                 @(Model.ShareProgressEnabled ? "Visible to public" : "Private")
               </span>
+              <button type="button" id="btnCopyProgressLink"
+                      class="btn btn-outline-success btn-sm @(Model.ShareProgressEnabled ? "" : "d-none")"
+                      data-public-url="@Url.Action("View", "TripViewer", new { area = "Public", id = Model.Id })"
+                      title="Copy shareable link to clipboard">
+                  <i class="bi bi-link-45deg me-1"></i>Copy Link
+              </button>
           }
           else
           {
