@@ -25,6 +25,14 @@
   var totalPlaces = (int)(ViewBag.TotalPlaces ?? 0);
   var visitedPlaces = (int)(ViewBag.VisitedPlaces ?? 0);
   var progressPercent = totalPlaces > 0 ? (int)Math.Round((double)visitedPlaces / totalPlaces * 100) : 0;
+
+  // Get visit events and group by place
+  var rawVisitEvents = ViewBag.VisitEvents;
+  var visitEventsList = rawVisitEvents != null ? (List<PlaceVisitEvent>)rawVisitEvents : new List<PlaceVisitEvent>();
+  var visitsByPlace = visitEventsList
+      .Where(v => v.PlaceId.HasValue)
+      .GroupBy(v => v.PlaceId!.Value)
+      .ToDictionary(g => g.Key, g => g.ToList());
 }
 
 <div class="row">
@@ -38,10 +46,10 @@
           <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold text-truncate" style="max-width: 60%;" title="@Model.Name">@Model.Name</span>
             <div class="d-flex align-items-center gap-2">
-              <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary")">@progressPercent%</span>
-              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View visit history">
-                <i class="bi bi-clock-history"></i>
+              <button type="button" class="btn btn-outline-secondary py-0 px-1" style="font-size: 0.7rem;" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View detailed visit history">
+                <i class="bi bi-clock-history me-1"></i>Visits
               </button>
+              <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary")">@progressPercent%</span>
             </div>
           </div>
           <div class="progress" style="height: 8px;" role="progressbar"
@@ -428,23 +436,20 @@
 </div>
 
 <!-- Visit History Modal -->
-@{
-    var visitsByPlace = ViewBag.VisitsByPlace as Dictionary<Guid, List<Wayfarer.Models.PlaceVisitEvent>> ?? new Dictionary<Guid, List<Wayfarer.Models.PlaceVisitEvent>>();
-}
 <div class="modal fade" id="visitHistoryModal" tabindex="-1" aria-labelledby="visitHistoryModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="visitHistoryModalLabel">
-          <i class="bi bi-clock-history me-2"></i>Trip Visit History
+        <h5 class="modal-title text-wrap" id="visitHistoryModalLabel">
+          <i class="bi bi-clock-history me-2"></i>@Model.Name <span class="text-muted fw-normal">- Visit History</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <!-- Progress Summary -->
-        <div class="mb-4 p-3 bg-light rounded">
+        <div class="mb-4 p-3 bg-body-secondary rounded">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">Overall Progress</span>
+            <span class="fw-semibold">Your Overall Trip Progress</span>
             <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") fs-6">@progressPercent%</span>
           </div>
           <div class="progress" style="height: 12px;">
@@ -455,70 +460,96 @@
           </div>
         </div>
 
-        <!-- Region-by-Region Breakdown -->
-        @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Wayfarer.Models.Region>())
-        {
-            var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Wayfarer.Models.Place>();
-            var regionVisitedCount = regionPlaces.Count(p => visitsByPlace.ContainsKey(p.Id));
-            var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
+        <!-- Filter Buttons -->
+        <div class="mb-3 btn-group" role="group" aria-label="Filter places">
+          <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all">
+            <i class="bi bi-list-ul me-1"></i>Show All
+          </button>
+          <button type="button" class="btn btn-outline-success btn-sm" data-filter="visited">
+            <i class="bi bi-check-circle-fill me-1"></i>Visited
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="not-visited">
+            <i class="bi bi-circle me-1"></i>Not Visited
+          </button>
+        </div>
 
-            <div class="mb-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="fw-semibold">@region.Name</span>
-                <span class="text-muted small">@regionVisitedCount / @regionPlaces.Count</span>
-              </div>
-              <div class="progress mb-2" style="height: 6px;">
-                <div class="progress-bar @(regionPercent == 100 ? "bg-success" : "bg-info")" style="width: @regionPercent%;"></div>
-              </div>
-              <ul class="list-group list-group-flush">
-                @foreach (var place in regionPlaces)
-                {
-                    var placeVisits = visitsByPlace.TryGetValue(place.Id, out var visits) ? visits : new List<Wayfarer.Models.PlaceVisitEvent>();
-                    var isVisited = placeVisits.Count > 0;
-                    <li class="list-group-item py-2 @(isVisited ? "" : "text-muted")">
-                      <div class="d-flex align-items-start">
-                        <span class="me-2">@(isVisited ? "✓" : "○")</span>
-                        <div class="flex-grow-1">
-                          <div class="fw-medium">@place.Name</div>
+        <!-- Region-by-Region Breakdown -->
+        <div id="visitHistoryRegions">
+          @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Region>())
+          {
+              var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Place>();
+              var regionVisitedCount = regionPlaces.Count(p => visitsByPlace.ContainsKey(p.Id));
+              var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
+
+              <div class="mb-3 visit-region-block">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="fw-semibold">@region.Name</span>
+                  <span class="text-muted small">@regionVisitedCount / @regionPlaces.Count</span>
+                </div>
+                <div class="progress mb-2" style="height: 6px;">
+                  <div class="progress-bar @(regionPercent == 100 ? "bg-success" : "bg-info")" style="width: @regionPercent%;"></div>
+                </div>
+                <ul class="list-group list-group-flush">
+                  @foreach (var place in regionPlaces)
+                  {
+                      var placeVisits = visitsByPlace.TryGetValue(place.Id, out var visits) ? visits : new List<PlaceVisitEvent>();
+                      var isVisited = placeVisits.Count > 0;
+                      <li class="list-group-item py-2 visit-place-item @(isVisited ? "" : "text-muted")" data-visited="@isVisited.ToString().ToLower()">
+                        <div class="d-flex align-items-start">
                           @if (isVisited)
                           {
-                              <div class="small text-muted">
-                                @foreach (var visit in placeVisits.OrderByDescending(v => v.ArrivedAtUtc))
-                                {
-                                    var duration = visit.EndedAtUtc.HasValue
-                                        ? (visit.EndedAtUtc.Value - visit.ArrivedAtUtc)
-                                        : (TimeSpan?)null;
-                                    var durationStr = duration.HasValue
-                                        ? (duration.Value.TotalHours >= 1
-                                            ? $"{(int)duration.Value.TotalHours}h {duration.Value.Minutes}min"
-                                            : $"{(int)duration.Value.TotalMinutes}min")
-                                        : "ongoing";
-                                    <div>
-                                      <i class="bi bi-calendar3 me-1"></i>@visit.ArrivedAtUtc.ToString("MMM d, yyyy")
-                                      <span class="ms-2"><i class="bi bi-stopwatch me-1"></i>@durationStr</span>
-                                    </div>
-                                }
-                              </div>
+                              <i class="bi bi-check-circle-fill text-success me-2"></i>
+                          }
+                          else
+                          {
+                              <i class="bi bi-circle text-muted me-2"></i>
+                          }
+                          <div class="flex-grow-1">
+                            <div class="fw-medium">@place.Name</div>
+                            @if (isVisited)
+                            {
+                                <div class="small text-muted" style="max-height: 80px; overflow-y: auto;">
+                                  @foreach (var visit in placeVisits.OrderByDescending(v => v.ArrivedAtUtc))
+                                  {
+                                      var duration = visit.EndedAtUtc.HasValue
+                                          ? (visit.EndedAtUtc.Value - visit.ArrivedAtUtc)
+                                          : (TimeSpan?)null;
+                                      var durationStr = duration.HasValue
+                                          ? (duration.Value.TotalHours >= 1
+                                              ? $"{(int)duration.Value.TotalHours}h {duration.Value.Minutes}min"
+                                              : $"{(int)duration.Value.TotalMinutes}min")
+                                          : "ongoing";
+                                      <div>
+                                        <i class="bi bi-calendar3 me-1"></i>@visit.ArrivedAtUtc.ToString("MMM d, yyyy")
+                                        <span class="ms-2"><i class="bi bi-stopwatch me-1"></i>@durationStr</span>
+                                      </div>
+                                  }
+                                </div>
+                            }
+                          </div>
+                          @if (isVisited)
+                          {
+                              <span class="badge bg-success">@placeVisits.Count</span>
                           }
                         </div>
-                        @if (isVisited)
-                        {
-                            <span class="badge bg-success">@placeVisits.Count</span>
-                        }
-                      </div>
-                    </li>
-                }
-              </ul>
-            </div>
-        }
+                      </li>
+                  }
+                </ul>
+              </div>
+          }
+        </div>
       </div>
       <div class="modal-footer justify-content-between">
         <div>
           @if (Model.IsPublic)
           {
-              <button type="button" class="btn btn-outline-primary" id="btn-share-visits">
+              <button type="button" class="btn btn-outline-primary btn-sm" id="btn-share-visits" disabled title="Coming soon">
                 <i class="bi bi-share me-1"></i>Share Progress
               </button>
+          }
+          else
+          {
+              <small class="text-muted"><i class="bi bi-lock me-1"></i>Make trip public to share progress</small>
           }
         </div>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -543,6 +574,35 @@
         img.dataset.proxied  = 'true';
         img.dataset.original = orig;
         img.src              = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
+      });
+    });
+
+    // Visit History Modal filter buttons
+    document.querySelectorAll('#visitHistoryModal [data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Update active state
+        document.querySelectorAll('#visitHistoryModal [data-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const filter = btn.dataset.filter;
+        const items = document.querySelectorAll('#visitHistoryModal .visit-place-item');
+
+        items.forEach(item => {
+          const isVisited = item.dataset.visited === 'true';
+          if (filter === 'all') {
+            item.style.display = '';
+          } else if (filter === 'visited') {
+            item.style.display = isVisited ? '' : 'none';
+          } else if (filter === 'not-visited') {
+            item.style.display = isVisited ? 'none' : '';
+          }
+        });
+
+        // Hide empty region blocks when filtering
+        document.querySelectorAll('#visitHistoryModal .visit-region-block').forEach(block => {
+          const visibleItems = block.querySelectorAll('.visit-place-item:not([style*="display: none"])');
+          block.style.display = visibleItems.length > 0 ? '' : 'none';
+        });
       });
     });
   </script>

@@ -93,6 +93,7 @@ namespace Wayfarer.Areas.User.Controllers
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
+            ViewBag.VisitEvents = visitEvents; // Pass flat list for modal
 
             return View("~/Views/Trip/Viewer.cshtml", trip);
         }
@@ -231,15 +232,10 @@ namespace Wayfarer.Areas.User.Controllers
                 .GroupBy(v => v.PlaceId!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
-            // Group visits by place for the modal
-            var visitsByPlace = visitEvents
-                .GroupBy(v => v.PlaceId!.Value)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
-            ViewBag.VisitsByPlace = visitsByPlace;
+            ViewBag.VisitEvents = visitEvents; // Pass flat list, group in view
 
             return View(trip);
         }
