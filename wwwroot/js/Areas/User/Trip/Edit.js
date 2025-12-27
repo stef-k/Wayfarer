@@ -343,6 +343,10 @@ const loadPersistedMarkers = () => {
     /* places */
     document.querySelectorAll('.place-list-item').forEach(el => {
         const d = el.dataset;
+        // Debug: log visit count data
+        if (d.placeVisitCount) {
+            console.log(`[Visit] Place ${d.placeId} (${d.placeName}) has visitCount: ${d.placeVisitCount}`);
+        }
         if (d.placeLat && d.placeLon) {
             renderPlaceMarker({
                 Id: d.placeId,

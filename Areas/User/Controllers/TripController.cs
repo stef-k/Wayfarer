@@ -82,11 +82,20 @@ namespace Wayfarer.Areas.User.Controllers
                 .ToList();
 
             // Get visit counts per place (a place can be visited multiple times)
-            var placeVisitCounts = await _dbContext.PlaceVisitEvents
+            var visitEvents = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .ToListAsync();
+
+            var placeVisitCounts = visitEvents
                 .GroupBy(v => v.PlaceId!.Value)
-                .Select(g => new { PlaceId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.PlaceId, x => x.Count);
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            _logger.LogInformation("View: Trip {TripId} has {PlaceCount} places, {VisitCount} visit events, {UniqueVisited} unique visited places",
+                id, allPlaceIds.Count, visitEvents.Count, placeVisitCounts.Count);
+            foreach (var kvp in placeVisitCounts)
+            {
+                _logger.LogInformation("  Place {PlaceId} visited {Count} times", kvp.Key, kvp.Value);
+            }
 
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
@@ -220,11 +229,20 @@ namespace Wayfarer.Areas.User.Controllers
                 .ToList();
 
             // Get visit counts per place (a place can be visited multiple times)
-            var placeVisitCounts = await _dbContext.PlaceVisitEvents
+            var visitEvents = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                .ToListAsync();
+
+            var placeVisitCounts = visitEvents
                 .GroupBy(v => v.PlaceId!.Value)
-                .Select(g => new { PlaceId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.PlaceId, x => x.Count);
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            _logger.LogInformation("Edit: Trip {TripId} has {PlaceCount} places, {VisitCount} visit events, {UniqueVisited} unique visited places",
+                id, allPlaceIds.Count, visitEvents.Count, placeVisitCounts.Count);
+            foreach (var kvp in placeVisitCounts)
+            {
+                _logger.LogInformation("  Place {PlaceId} visited {Count} times", kvp.Key, kvp.Value);
+            }
 
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
