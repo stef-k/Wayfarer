@@ -119,9 +119,13 @@
 
                                 @if (place.Location != null)
                                 {
-                                    <span title="This place has coordinates set, click to see which marker is on map">
+                                    <span class="sidebar-place-icon" title="This place has coordinates set, click to see which marker is on map">
                                         @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml",
                                         (place.IconName, place.MarkerColor))
+                                        @if (visitCount > 0)
+                                        {
+                                            <span class="sidebar-visit-badge" title="@(visitCount == 1 ? "Visited" : $"Visited {visitCount} times")">@(visitCount == 1 ? "✓" : visitCount)</span>
+                                        }
                                     </span>
                                 }
 

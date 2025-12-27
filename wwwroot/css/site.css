@@ -1656,3 +1656,32 @@ img.js-lazy[src] {
     box-shadow: 0 1px 2px rgba(0,0,0,0.3);
     z-index: 10;
 }
+
+/* ─────────────────────────────────────────────────────────
+   Sidebar Place Visit Badge
+   Displays a small green checkmark/count badge on sidebar icons
+───────────────────────────────────────────────────────── */
+.sidebar-place-icon {
+    position: relative;
+    display: inline-block;
+}
+
+.sidebar-visit-badge {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 2px;
+    background: #198754;
+    color: white;
+    border-radius: 7px;
+    font-size: 9px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    z-index: 10;
+}

@@ -94,8 +94,14 @@
                             }
                             title="Click to view details">
 
-                            @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml",
-                                (iconName, bgClass))
+                            <span class="sidebar-place-icon">
+                                @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml",
+                                    (iconName, bgClass))
+                                @if (visitCount > 0)
+                                {
+                                    <span class="sidebar-visit-badge" title="@(visitCount == 1 ? "Visited" : $"Visited {visitCount} times")">@(visitCount == 1 ? "✓" : visitCount)</span>
+                                }
+                            </span>
                             <span class="flex-grow-1">@p.Name</span>
 
                             <div class="d-none place-notes">
