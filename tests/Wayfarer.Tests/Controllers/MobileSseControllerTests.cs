@@ -161,4 +161,46 @@ public class MobileSseControllerTests : TestBase
         // Assert
         Assert.IsType<EmptyResult>(result);
     }
+
+    #region Visit SSE Endpoint Tests
+
+    [Fact]
+    public async Task VisitsStream_ReturnsUnauthorized_WhenNoToken()
+    {
+        // Arrange
+        var (_, controller, _) = CreateController();
+
+        // Act
+        var result = await controller.SubscribeToVisitsAsync(CancellationToken.None);
+
+        // Assert
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task VisitsStream_AllowsAuthenticatedUser()
+    {
+        // Arrange
+        var (db, controller, _) = CreateController("token");
+        var user = TestDataFixtures.CreateUser(id: "user", username: "visitor");
+        db.Users.Add(user);
+
+        var token = TestDataFixtures.CreateApiToken(user, "token");
+        db.ApiTokens.Add(token);
+        await db.SaveChangesAsync();
+
+        // Use a timeout to allow subscription to start before cancellation
+        using var cts = new CancellationTokenSource(500);
+
+        // Act
+        var task = controller.SubscribeToVisitsAsync(cts.Token);
+        await Task.Delay(100);
+        cts.Cancel();
+        var result = await task;
+
+        // Assert
+        Assert.IsType<EmptyResult>(result);
+    }
+
+    #endregion
 }

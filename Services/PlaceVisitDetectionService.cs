@@ -1,8 +1,10 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using Npgsql;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 
 namespace Wayfarer.Services;
@@ -36,15 +38,18 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IApplicationSettingsService _settingsService;
+    private readonly SseService _sseService;
     private readonly ILogger<PlaceVisitDetectionService> _logger;
 
     public PlaceVisitDetectionService(
         ApplicationDbContext dbContext,
         IApplicationSettingsService settingsService,
+        SseService sseService,
         ILogger<PlaceVisitDetectionService> logger)
     {
         _dbContext = dbContext;
         _settingsService = settingsService;
+        _sseService = sseService;
         _logger = logger;
     }
 
@@ -406,6 +411,12 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
 
         _dbContext.PlaceVisitEvents.Add(visitEvent);
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Broadcast SSE notification for visit started
+        var sseEvent = VisitSseEventDto.FromVisitEvent(visitEvent);
+        await _sseService.BroadcastAsync(
+            $"user-visits-{candidate.UserId}",
+            JsonSerializer.Serialize(sseEvent));
 
         _logger.LogInformation(
             "Created visit event {VisitId} for user {UserId}, place {PlaceName} in trip {TripName}",
