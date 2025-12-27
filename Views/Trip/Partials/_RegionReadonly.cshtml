@@ -9,6 +9,10 @@
     string SafeIcon(string? icon) => string.IsNullOrWhiteSpace(icon) ? "marker" : icon.Trim();
     string SafeBg(string? color) => string.IsNullOrWhiteSpace(color) ? "bg-blue" : color.Trim();
     string Png(string ic, string bg) => $"/icons/wayfarer-map-icons/dist/png/marker/{bg}/{ic}.png";
+
+    /* visit counts per place for owner - privacy: only owner sees visit status */
+    var placeVisitCounts = ViewBag.PlaceVisitCounts as Dictionary<Guid, int> ?? new Dictionary<Guid, int>();
+    var isOwner = ViewBag.IsOwner == true;
 }
 
 <div class="accordion-item"
@@ -65,6 +69,8 @@
 
                     var pLat = p.Location?.Y;
                     var pLon = p.Location?.X;
+                    placeVisitCounts.TryGetValue(p.Id, out var vc);
+                    var visitCount = isOwner ? vc : 0;
                     <text>
                         <li class="list-group-item place-list-item d-flex align-items-center gap-2 py-1 px-2 pe-clickable"
                             data-place-id="@p.Id"
@@ -74,6 +80,10 @@
                             data-place-color="@bgClass"
                             data-region-id="@Model.Id"
                             data-region-name="@Model.Name"
+                            @if (visitCount > 0)
+                            {
+                            <text> data-place-visit-count="@visitCount" </text>
+                            }
                             @if (pLat is not null)
                             {
                             <text> data-place-lat="@pLat" </text>

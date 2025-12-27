@@ -284,7 +284,8 @@ const attachListeners = () => {
                                     Longitude: d.placeLon,
                                     IconName: d.placeIcon,
                                     MarkerColor: d.placeColor,
-                                    RegionId: d.regionId
+                                    RegionId: d.regionId,
+                                    VisitCount: parseInt(d.placeVisitCount, 10) || 0
                                 });
                             }
                         }
@@ -350,7 +351,8 @@ const loadPersistedMarkers = () => {
                 Longitude: d.placeLon,
                 IconName: d.placeIcon,
                 MarkerColor: d.placeColor,
-                RegionId: d.regionId
+                RegionId: d.regionId,
+                VisitCount: parseInt(d.placeVisitCount, 10) || 0
             });
         }
     });

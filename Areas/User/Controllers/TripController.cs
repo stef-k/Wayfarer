@@ -81,14 +81,18 @@ namespace Wayfarer.Areas.User.Controllers
                 .Select(p => p.Id)
                 .ToList();
 
-            var visitedPlaceIds = await _dbContext.PlaceVisitEvents
+            // Get visit counts per place (a place can be visited multiple times)
+            var visitEvents = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
-                .Select(v => v.PlaceId)
-                .Distinct()
-                .CountAsync();
+                .ToListAsync();
+
+            var placeVisitCounts = visitEvents
+                .GroupBy(v => v.PlaceId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
 
             ViewBag.TotalPlaces = allPlaceIds.Count;
-            ViewBag.VisitedPlaces = visitedPlaceIds;
+            ViewBag.VisitedPlaces = placeVisitCounts.Count;
+            ViewBag.PlaceVisitCounts = placeVisitCounts;
 
             return View("~/Views/Trip/Viewer.cshtml", trip);
         }
@@ -217,14 +221,18 @@ namespace Wayfarer.Areas.User.Controllers
                 .Select(p => p.Id)
                 .ToList();
 
-            var visitedPlaceIds = await _dbContext.PlaceVisitEvents
+            // Get visit counts per place (a place can be visited multiple times)
+            var visitEvents = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
-                .Select(v => v.PlaceId)
-                .Distinct()
-                .CountAsync();
+                .ToListAsync();
+
+            var placeVisitCounts = visitEvents
+                .GroupBy(v => v.PlaceId!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
 
             ViewBag.TotalPlaces = allPlaceIds.Count;
-            ViewBag.VisitedPlaces = visitedPlaceIds;
+            ViewBag.VisitedPlaces = placeVisitCounts.Count;
+            ViewBag.PlaceVisitCounts = placeVisitCounts;
 
             return View(trip);
         }

@@ -348,9 +348,30 @@ export const renderPlaceMarker = async (p) => {
     removePlaceMarker(p.Id); // 🔥 remove any stale marker
 
     const iconUrl = buildPngIconUrl(p.IconName || 'marker', p.MarkerColor || 'bg-blue');
-    const marker = L.marker([lat, lon], {
-        icon: L.icon({iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'})
-    }).addTo(mapContainer);
+
+    // Use divIcon with visited badge when place has been visited
+    let leafletIcon;
+    const visitCount = p.VisitCount || 0;
+    if (visitCount > 0) {
+        // Show checkmark for 1 visit, show count for multiple visits
+        const badgeContent = visitCount === 1 ? '✓' : visitCount;
+        const badgeTitle = visitCount === 1 ? 'Visited' : `Visited ${visitCount} times`;
+        leafletIcon = L.divIcon({
+            className: 'place-marker-wrapper',
+            html: `<div class="place-marker visited">
+                     <img src="${iconUrl}" width="${WF_WIDTH}" height="${WF_HEIGHT}" alt="">
+                     <span class="visit-badge" title="${badgeTitle}">${badgeContent}</span>
+                   </div>`,
+            iconSize: [WF_WIDTH, WF_HEIGHT],
+            iconAnchor: WF_ANCHOR
+        });
+    } else {
+        leafletIcon = L.icon({
+            iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'
+        });
+    }
+
+    const marker = L.marker([lat, lon], { icon: leafletIcon }).addTo(mapContainer);
 
     // Build and bind rich tooltip for hover
     const tooltipContent = buildPlacePopup({
@@ -553,6 +574,7 @@ store.subscribe(({type, payload}) => {
             const color = el.dataset.placeColor;
             const name = el.dataset.placeName;
             const address = el.dataset.placeAddress || '';
+            const visitCount = parseInt(el.dataset.placeVisitCount, 10) || 0;
             // Get notes from hidden div
             const notesEl = el.querySelector('.place-notes');
             const notes = notesEl?.innerHTML || '';
@@ -568,7 +590,8 @@ store.subscribe(({type, payload}) => {
                     RegionId: payload.regionId,
                     RegionName: regionName,
                     Address: address,
-                    Notes: notes
+                    Notes: notes,
+                    VisitCount: visitCount
                 });
             }
         }
