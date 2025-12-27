@@ -645,11 +645,11 @@
                         <i class="bi bi-trophy me-2 text-warning"></i>
                         @if (!string.IsNullOrEmpty(Model.User?.DisplayName))
                         {
-                            <span>@Model.User.DisplayName's Trip Progress</span>
+                            <span>@Model.User.DisplayName's @Model.Name - Trip Progress</span>
                         }
                         else
                         {
-                            <span>Trip Progress</span>
+                            <span>@Model.Name - Trip Progress</span>
                         }
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
