@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -13,7 +12,6 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Area("Api")]
 [Route("api/[controller]")]
 [ApiController]
-[Authorize]
 public class VisitController : BaseApiController
 {
     public VisitController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger)
