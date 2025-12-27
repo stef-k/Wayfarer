@@ -122,16 +122,9 @@
               <div id="shareProgressContainer" class="ms-4 mt-2 ps-2 border-start @(Model.IsPublic ? "" : "d-none")">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <div class="form-check form-switch mb-0">
-                    @if (Model.ShareProgressEnabled)
-                    {
-                        <input class="form-check-input" type="checkbox" role="switch"
-                               id="shareProgressSwitch" data-trip-id="@Model.Id" checked>
-                    }
-                    else
-                    {
-                        <input class="form-check-input" type="checkbox" role="switch"
-                               id="shareProgressSwitch" data-trip-id="@Model.Id">
-                    }
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="shareProgressSwitch" data-trip-id="@Model.Id"
+                           @Html.Raw(Model.ShareProgressEnabled ? "checked=\"checked\"" : "")>
                     <label class="form-check-label" for="shareProgressSwitch">
                       <i class="bi bi-broadcast me-1"></i>Share Visit Progress
                     </label>
@@ -568,7 +561,8 @@
           @if (Model.IsPublic)
           {
               <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" role="switch" id="modalShareProgressSwitch" @(Model.ShareProgressEnabled ? "checked" : "")>
+                <input class="form-check-input" type="checkbox" role="switch" id="modalShareProgressSwitch"
+                       @Html.Raw(Model.ShareProgressEnabled ? "checked=\"checked\"" : "")>
                 <label class="form-check-label" for="modalShareProgressSwitch">
                   <i class="bi bi-broadcast me-1"></i>Share Progress
                 </label>
