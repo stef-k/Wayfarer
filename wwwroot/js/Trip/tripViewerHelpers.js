@@ -123,9 +123,28 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
     if (lat === null || lon === null) return;
 
     const iconUrl = png(icon(opts.icon), bg(opts.color));
-    const leafletIcon = L.icon({
-        iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'
-    });
+
+    // Use divIcon with visited badge when place has been visited
+    let leafletIcon;
+    const visitCount = opts.visitCount || 0;
+    if (visitCount > 0) {
+        // Show checkmark for 1 visit, show count for multiple visits
+        const badgeContent = visitCount === 1 ? '✓' : visitCount;
+        const badgeTitle = visitCount === 1 ? 'Visited' : `Visited ${visitCount} times`;
+        leafletIcon = L.divIcon({
+            className: 'place-marker-wrapper',
+            html: `<div class="place-marker visited">
+                     <img src="${iconUrl}" width="${WF_WIDTH}" height="${WF_HEIGHT}" alt="">
+                     <span class="visit-badge" title="${badgeTitle}">${badgeContent}</span>
+                   </div>`,
+            iconSize: [WF_WIDTH, WF_HEIGHT],
+            iconAnchor: WF_ANCHOR
+        });
+    } else {
+        leafletIcon = L.icon({
+            iconUrl, iconSize: [WF_WIDTH, WF_HEIGHT], iconAnchor: WF_ANCHOR, className: 'map-icon'
+        });
+    }
 
     // Build rich tooltip content for hover
     const tooltipContent = buildPlacePopup({

@@ -301,7 +301,8 @@ const init = () => {
             region: d.regionId,
             regionName: d.regionName,
             address: d.placeAddress,
-            notes
+            notes,
+            visitCount: parseInt(d.placeVisitCount, 10) || 0
         });
     });
 

@@ -72,7 +72,7 @@ const attachPlaceFormHandlers = () => {
                     return;
                 }
                 const name = getPlaceName(item);
-                const { placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color } = item.dataset;
+                const { placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color, placeVisitCount } = item.dataset;
                 if (lat && lon) {
                     renderPlaceMarker({
                         Id: placeId,
@@ -81,7 +81,8 @@ const attachPlaceFormHandlers = () => {
                         Longitude: lon,
                         IconName: icon,
                         MarkerColor: color,
-                        RegionId: regionId
+                        RegionId: regionId,
+                        VisitCount: parseInt(placeVisitCount, 10) || 0
                     });
                 }
                 store.dispatch('set-context', {
@@ -247,7 +248,7 @@ const attachPlaceFormHandlers = () => {
      * ─────────────────────────────────────────────────────────────── */
     document.querySelectorAll('.place-list-item').forEach(li => {
         li.onclick = () => {
-            const { placeId, regionId, placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color } = li.dataset;
+            const { placeId, regionId, placeLat: lat, placeLon: lon, placeIcon: icon, placeColor: color, placeVisitCount } = li.dataset;
             const name = getPlaceName(li);
             if (!placeId || !regionId) return;
 
@@ -267,7 +268,8 @@ const attachPlaceFormHandlers = () => {
                     Longitude: lon,
                     IconName: icon,
                     MarkerColor: color,
-                    RegionId: regionId
+                    RegionId: regionId,
+                    VisitCount: parseInt(placeVisitCount, 10) || 0
                 });
                 const map = getMapInstance();
                 focusMapView('place', [lat, lon], map);
