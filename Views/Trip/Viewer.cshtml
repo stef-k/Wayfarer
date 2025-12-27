@@ -263,15 +263,20 @@
                 <div class="px-2 pb-2">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <small class="text-muted">
-                            <i class="bi bi-check2-circle"></i> @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "Place" : "Places") visited
+                            <i class="bi bi-check2-circle"></i>
+                            @if (!owner && !string.IsNullOrEmpty(Model.User?.DisplayName))
+                            {
+                                <span>@Model.User.DisplayName visited</span>
+                            }
+                            @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "place" : "places")
                         </small>
                         <div class="d-flex align-items-center gap-2">
-                            @if (owner)
-                            {
-                                <button type="button" class="btn btn-outline-secondary py-0 px-1" style="font-size: 0.7rem;" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View detailed visit history">
-                                    <i class="bi bi-clock-history me-1"></i>Visits
-                                </button>
-                            }
+                            <button type="button" class="btn btn-outline-secondary py-0 px-1" style="font-size: 0.7rem;"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="@(owner ? "#visitHistoryModal" : "#publicProgressModal")"
+                                    title="@(owner ? "View detailed visit history" : "View trip progress")">
+                                <i class="bi bi-bar-chart me-1"></i>Details
+                            </button>
                             <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") badge-sm">@progressPercent%</span>
                         </div>
                     </div>
@@ -625,6 +630,67 @@
                             <small class="text-muted"><i class="bi bi-lock me-1"></i>Make trip public to share progress</small>
                         }
                     </div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Public Progress Modal - shown to non-owners when ShareProgressEnabled *@
+@if (!owner && shareProgressEnabled && totalPlaces > 0)
+{
+    <div class="modal fade" id="publicProgressModal" tabindex="-1" aria-labelledby="publicProgressModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-wrap" id="publicProgressModalLabel">
+                        <i class="bi bi-trophy me-2 text-warning"></i>
+                        @if (!string.IsNullOrEmpty(Model.User?.DisplayName))
+                        {
+                            <span>@Model.User.DisplayName's Trip Progress</span>
+                        }
+                        else
+                        {
+                            <span>Trip Progress</span>
+                        }
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Progress Summary -->
+                    <div class="mb-4 p-3 bg-body-secondary rounded text-center">
+                        <div class="display-4 fw-bold @(progressPercent == 100 ? "text-success" : "text-primary")">@progressPercent%</div>
+                        <div class="text-muted">
+                            <i class="bi bi-check2-circle"></i> @visitedPlaces of @totalPlaces @(totalPlaces == 1 ? "place" : "places") visited
+                        </div>
+                        <div class="progress mt-3" style="height: 12px;">
+                            <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")" style="width: @progressPercent%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Region-by-Region Breakdown (counts only, no dates) -->
+                    <h6 class="text-muted mb-3">Progress by Region</h6>
+                    @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Region>())
+                    {
+                        var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Place>();
+                        var regionVisitedCount = regionPlaces.Count(p => placeVisitCounts.ContainsKey(p.Id));
+                        var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
+
+                        if (regionPlaces.Count == 0) { continue; }
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold">@region.Name</span>
+                                <span class="text-muted small">@regionVisitedCount / @regionPlaces.Count</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar @(regionPercent == 100 ? "bg-success" : "bg-info")" style="width: @regionPercent%;"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
