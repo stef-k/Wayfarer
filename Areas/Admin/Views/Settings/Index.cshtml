@@ -12,20 +12,28 @@
                 </div>
                 <div class="card-body">
                     <h3 class="text-center fs-4">Location Logging</h3>
-                    <p>These settings used to handle how much data will be recorded on database.
+                    <p>These settings control how often mobile devices send location pings and how much data is recorded.
                         The app ignores incoming requests that may be too frequent or
-                        do not meet the minimum instance change from the previous recorded location. <br/>
-                        <strong>Caution! setting the threshold level too low will result to increased records in
-                            database stored.</strong><br/>
-                        At 5 minutes/15 meters threshold (application default), about 105,120 locations will be recorded
-                        yearly per user,
-                        based in a worst case scenario that a user is always moving (24/7) meeting the distance
-                        threshold.<br/>
-                        Possible other worst case scenario values:<br/>
-                        <code>2</code> minutes: <code>262,800</code> records per user per year<br/>
-                        <code>5</code> minutes: <code>105,120</code> records per user per year<br/>
-                        <code>10</code> minutes: <code>52,560</code> records per user per year<br/>
-                        <code>15</code> minutes: <code>35,040</code> records per user per year<br/>
+                        do not meet the minimum distance change from the previous recorded location.</p>
+
+                    <div class="alert alert-warning">
+                        <strong><i class="bi bi-battery-half me-1"></i>Mobile Battery Impact:</strong>
+                        Lower time thresholds require more frequent GPS wake-ups, increasing battery drain.
+                        Mobile devices wake ~60s before each ping for GPS acquisition.
+                        <ul class="mb-0 mt-2">
+                            <li><code>2 min</code>: <strong>High battery drain</strong> – continuous GPS, no sleep possible</li>
+                            <li><code>5 min</code>: Moderate – ~4 min sleep, ~1 min active per cycle</li>
+                            <li><code>10 min</code>: Good – ~9 min sleep, ~1 min active per cycle</li>
+                            <li><code>15 min</code>: <strong>Best battery life</strong> – ~14 min sleep, ~1 min active per cycle</li>
+                        </ul>
+                    </div>
+
+                    <p>
+                        <strong>Database storage (worst-case yearly per user):</strong><br/>
+                        <code>2</code> minutes: <code>262,800</code> records/year<br/>
+                        <code>5</code> minutes: <code>105,120</code> records/year (default)<br/>
+                        <code>10</code> minutes: <code>52,560</code> records/year<br/>
+                        <code>15</code> minutes: <code>35,040</code> records/year
                     </p>
                     <form asp-action="Update" method="post">
                         @Html.AntiForgeryToken()
@@ -67,38 +75,70 @@
                                 the Location Time Threshold above.
                             </p>
 
+                            <div class="alert alert-info">
+                                <strong><i class="bi bi-clock-history me-1"></i>Visit Confirmation Timing:</strong>
+                                A visit is confirmed when the required number of pings arrive within the time threshold,
+                                spanning at least the threshold duration.<br/>
+                                <strong>Formula:</strong> <code>Time Threshold × Required Hits = Minimum Confirmation Time</code><br/>
+                                <ul class="mb-0 mt-2">
+                                    <li>2 min threshold × 2 hits = <strong>4 min</strong> minimum to confirm visit</li>
+                                    <li>5 min threshold × 2 hits = <strong>10 min</strong> minimum to confirm visit</li>
+                                    <li>10 min threshold × 2 hits = <strong>20 min</strong> minimum to confirm visit</li>
+                                    <li>15 min threshold × 2 hits = <strong>30 min</strong> minimum to confirm visit</li>
+                                </ul>
+                                <small class="text-muted d-block mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>Lower thresholds detect visits faster but drain more battery.
+                                    Higher hit counts increase accuracy but require longer dwell times.
+                                </small>
+                            </div>
+
                             <div class="col-md-4 mb-3">
                                 <label asp-for="VisitedRequiredHits" class="form-label">Required Hits</label>
                                 <input asp-for="VisitedRequiredHits" class="form-control" type="number" min="2" max="5" />
-                                <small class="form-text text-muted">Number of pings needed to confirm a visit (2-5)</small>
+                                <small class="form-text text-muted">
+                                    Number of pings needed to confirm a visit (2-5).<br/>
+                                    <em>Current: @Model.LocationTimeThresholdMinutes min × @Model.VisitedRequiredHits hits = @(Model.LocationTimeThresholdMinutes * Model.VisitedRequiredHits) min confirmation</em>
+                                </small>
                                 <span asp-validation-for="VisitedRequiredHits" class="text-danger"></span>
                             </div>
 
                             <div class="col-md-4 mb-3">
                                 <label asp-for="VisitedMinRadiusMeters" class="form-label">Min Radius (meters)</label>
                                 <input asp-for="VisitedMinRadiusMeters" class="form-control" type="number" min="10" max="200" />
-                                <small class="form-text text-muted">Minimum detection radius for good GPS (10-200)</small>
+                                <small class="form-text text-muted">
+                                    Minimum detection radius for good GPS (10-200).<br/>
+                                    <em>Smaller = more precise, but may miss visits with GPS drift.</em>
+                                </small>
                                 <span asp-validation-for="VisitedMinRadiusMeters" class="text-danger"></span>
                             </div>
 
                             <div class="col-md-4 mb-3">
                                 <label asp-for="VisitedMaxRadiusMeters" class="form-label">Max Radius (meters)</label>
                                 <input asp-for="VisitedMaxRadiusMeters" class="form-control" type="number" min="50" max="500" />
-                                <small class="form-text text-muted">Maximum radius ceiling for poor GPS (50-500)</small>
+                                <small class="form-text text-muted">
+                                    Maximum radius ceiling for poor GPS (50-500).<br/>
+                                    <em>Larger = more forgiving, but increases false positives.</em>
+                                </small>
                                 <span asp-validation-for="VisitedMaxRadiusMeters" class="text-danger"></span>
                             </div>
 
                             <div class="col-md-4 mb-3">
                                 <label asp-for="VisitedAccuracyMultiplier" class="form-label">Accuracy Multiplier</label>
                                 <input asp-for="VisitedAccuracyMultiplier" class="form-control" type="number" step="0.1" min="0.5" max="5.0" />
-                                <small class="form-text text-muted">Multiplier applied to GPS accuracy (0.5-5.0)</small>
+                                <small class="form-text text-muted">
+                                    Multiplier applied to GPS accuracy (0.5-5.0).<br/>
+                                    <em>Lower = stricter matching, higher = more lenient.</em>
+                                </small>
                                 <span asp-validation-for="VisitedAccuracyMultiplier" class="text-danger"></span>
                             </div>
 
                             <div class="col-md-4 mb-3">
                                 <label asp-for="VisitedAccuracyRejectMeters" class="form-label">Accuracy Reject (meters)</label>
                                 <input asp-for="VisitedAccuracyRejectMeters" class="form-control" type="number" min="0" max="1000" />
-                                <small class="form-text text-muted">Skip if accuracy exceeds this (0 = disabled)</small>
+                                <small class="form-text text-muted">
+                                    Skip pings with accuracy worse than this (0 = disabled).<br/>
+                                    <em>Filters out unreliable indoor/urban canyon readings.</em>
+                                </small>
                                 <span asp-validation-for="VisitedAccuracyRejectMeters" class="text-danger"></span>
                             </div>
 
@@ -118,10 +158,15 @@
 
                             <div class="col-md-6 mb-3">
                                 <div class="alert alert-info mb-0">
-                                    <strong>Derived from Time Threshold (@Model.LocationTimeThresholdMinutes min):</strong><br/>
-                                    • Hit Window: <code>@Model.VisitedHitWindowMinutes min</code><br/>
-                                    • Candidate Stale: <code>@Model.VisitedCandidateStaleMinutes min</code><br/>
-                                    • End Visit After: <code>@Model.VisitedEndVisitAfterMinutes min</code>
+                                    <strong>Derived from Time Threshold (@Model.LocationTimeThresholdMinutes min):</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Hit Window: <code>@Model.LocationTimeThresholdMinutes × 1.6 = @Model.VisitedHitWindowMinutes min</code>
+                                            <br/><small class="text-muted">Max time between pings to count as consecutive hits</small></li>
+                                        <li>Candidate Stale: <code>@Model.LocationTimeThresholdMinutes × 12 = @Model.VisitedCandidateStaleMinutes min</code>
+                                            <br/><small class="text-muted">Cleanup incomplete visit candidates after this</small></li>
+                                        <li>End Visit After: <code>@Model.LocationTimeThresholdMinutes × 9 = @Model.VisitedEndVisitAfterMinutes min</code>
+                                            <br/><small class="text-muted">Close active visit after no pings for this duration</small></li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
