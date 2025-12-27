@@ -572,7 +572,7 @@
               </span>
               <button type="button" id="btnCopyProgressLink"
                       class="btn btn-outline-success btn-sm @(Model.ShareProgressEnabled ? "" : "d-none")"
-                      data-public-url="@Url.Action("View", "TripViewer", new { area = "Public", id = Model.Id })"
+                      data-public-url="/Public/Trips/@Model.Id"
                       title="Copy shareable link to clipboard">
                   <i class="bi bi-link-45deg me-1"></i>Copy Link
               </button>
