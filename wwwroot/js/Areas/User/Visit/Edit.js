@@ -3,9 +3,9 @@
  * Allows editing timestamps, location (via map click), appearance, and notes.
  */
 
-// Wayfarer marker icon dimensions
-const WF_WIDTH = 48;
-const WF_HEIGHT = 64;
+// Wayfarer marker icon dimensions (matches Trip mapManager)
+const WF_WIDTH = 28;
+const WF_HEIGHT = 45;
 const WF_ANCHOR = [WF_WIDTH / 2, WF_HEIGHT];
 
 /**
