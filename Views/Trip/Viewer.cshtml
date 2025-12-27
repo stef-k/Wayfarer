@@ -620,10 +620,7 @@
                             {
                                 <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i>Progress private</span>
                             }
-                            <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@Model.Id"
-                               class="btn btn-outline-secondary btn-sm" title="Change in trip settings">
-                                <i class="bi bi-gear me-1"></i>Settings
-                            </a>
+                            <small class="text-muted">Change in <a asp-area="User" asp-controller="Trip" asp-action="Edit" asp-route-id="@Model.Id">Edit</a></small>
                         }
                         else
                         {

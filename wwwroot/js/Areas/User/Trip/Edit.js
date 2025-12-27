@@ -25,6 +25,7 @@ import {setupQuill} from './quillNotes.js';
 import {store} from './storeInstance.js';
 import {initOrdering} from './regionsOrder.js';
 import {initTripTagEditor} from './tagEditor.js';
+import {initShareProgressToggle} from './shareProgressToggle.js';
 
 
 let currentTripId = null;
@@ -767,6 +768,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSegmentHandlers(currentTripId);
     initAreaHandlers(currentTripId);
     initTripTagEditor();
+    initShareProgressToggle();
 
     await setupQuill();
     attachListeners();

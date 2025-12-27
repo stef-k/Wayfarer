@@ -118,11 +118,14 @@
                 <label class="form-check-label" for="isPublicSwitch">Make Trip Public</label>
                 <div class="invalid-feedback" asp-validation-for="IsPublic"></div>
               </div>
-              <!-- Share Progress option - only visible when trip is public -->
+              <!-- Share Progress option - only visible when trip is public, auto-saves -->
               <div id="shareProgressContainer" class="ms-4 mt-2 ps-2 border-start @(Model.IsPublic ? "" : "d-none")">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                   <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch" id="shareProgressSwitch" asp-for="ShareProgressEnabled">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="shareProgressSwitch"
+                           data-trip-id="@Model.Id"
+                           @(Model.ShareProgressEnabled ? "checked" : "")>
                     <label class="form-check-label" for="shareProgressSwitch">
                       <i class="bi bi-broadcast me-1"></i>Share Visit Progress
                     </label>
@@ -131,7 +134,7 @@
                     @(Model.ShareProgressEnabled ? "Visible to public" : "Private")
                   </span>
                 </div>
-                <small class="text-muted">Allow public viewers to see your visit progress</small>
+                <small class="text-muted">Allow public viewers to see your visit progress (auto-saves)</small>
               </div>
             </div>
             <div class="col-md-12">
@@ -597,77 +600,6 @@
         img.src              = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
       });
     });
-
-    // Show/hide Share Progress toggle when IsPublic changes
-    const isPublicSwitch = document.getElementById('isPublicSwitch');
-    const shareProgressContainer = document.getElementById('shareProgressContainer');
-    const shareProgressSwitch = document.getElementById('shareProgressSwitch');
-    const shareProgressStatus = document.getElementById('shareProgressStatus');
-
-    // Update status badge based on switch
-    const updateStatusBadge = () => {
-      if (shareProgressStatus) {
-        if (shareProgressSwitch?.checked) {
-          shareProgressStatus.className = 'badge bg-success';
-          shareProgressStatus.textContent = 'Visible to public';
-        } else {
-          shareProgressStatus.className = 'badge bg-secondary';
-          shareProgressStatus.textContent = 'Private';
-        }
-      }
-    };
-
-    if (isPublicSwitch && shareProgressContainer) {
-      isPublicSwitch.addEventListener('change', () => {
-        if (isPublicSwitch.checked) {
-          shareProgressContainer.classList.remove('d-none');
-        } else {
-          shareProgressContainer.classList.add('d-none');
-          // Also uncheck share progress when making trip private
-          if (shareProgressSwitch) {
-            shareProgressSwitch.checked = false;
-            updateStatusBadge();
-          }
-        }
-      });
-    }
-
-    // Toggle status badge when share progress switch changes
-    if (shareProgressSwitch) {
-      shareProgressSwitch.addEventListener('change', updateStatusBadge);
-    }
-
-    // Sync modal toggle with form toggle
-    const modalShareSwitch = document.getElementById('modalShareProgressSwitch');
-    const modalShareStatus = document.getElementById('modalShareStatus');
-
-    const updateModalStatus = () => {
-      if (modalShareStatus) {
-        if (modalShareSwitch?.checked) {
-          modalShareStatus.className = 'badge bg-success small';
-          modalShareStatus.textContent = 'Visible to public';
-        } else {
-          modalShareStatus.className = 'badge bg-secondary small';
-          modalShareStatus.textContent = 'Private';
-        }
-      }
-    };
-
-    if (modalShareSwitch && shareProgressSwitch) {
-      // When modal toggle changes, sync to form toggle
-      modalShareSwitch.addEventListener('change', () => {
-        shareProgressSwitch.checked = modalShareSwitch.checked;
-        shareProgressSwitch.dispatchEvent(new Event('change', { bubbles: true }));
-        updateStatusBadge();
-        updateModalStatus();
-      });
-
-      // When form toggle changes, sync to modal toggle
-      shareProgressSwitch.addEventListener('change', () => {
-        modalShareSwitch.checked = shareProgressSwitch.checked;
-        updateModalStatus();
-      });
-    }
 
     // Visit History Modal filter buttons
     document.querySelectorAll('#visitHistoryModal [data-filter]').forEach(btn => {

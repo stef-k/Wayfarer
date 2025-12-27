@@ -350,6 +350,35 @@ namespace Wayfarer.Areas.User.Controllers
         }
 
         /// <summary>
+        /// Toggle the ShareProgressEnabled setting for a trip via AJAX.
+        /// Only works if trip is already public.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleShareProgress(Guid id, bool enabled)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var trip = await _dbContext.Trips.FindAsync(id);
+
+            if (trip == null || trip.UserId != userId)
+            {
+                return Json(new { success = false, error = "Trip not found or unauthorized" });
+            }
+
+            // Only allow enabling share progress if trip is public
+            if (enabled && !trip.IsPublic)
+            {
+                return Json(new { success = false, error = "Trip must be public to share progress" });
+            }
+
+            trip.ShareProgressEnabled = enabled;
+            trip.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync();
+
+            return Json(new { success = true, enabled = trip.ShareProgressEnabled });
+        }
+
+        /// <summary>
         /// Clones a public trip to the current user's account.
         /// Creates a deep copy including all regions, places, areas, and segments.
         /// </summary>
