@@ -483,7 +483,7 @@ public class LocationController : BaseApiController
                     _logger.LogInformation(
                         "Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
                         timeDifference.TotalMinutes);
-                    return Ok(new { Message = "Location skipped. Time threshold not met." });
+                    return Ok(new { success = true, skipped = true, locationId = (int?)null });
                 }
 
                 var distanceDifference = DistanceChecker.HaversineDistance(lastLocation.Coordinates.Y,
@@ -495,7 +495,7 @@ public class LocationController : BaseApiController
                     _logger.LogInformation(
                         "Location skipped due to distance threshold. DistanceDifference: {DistanceDiff} meters",
                         distanceDifference);
-                    return Ok(new { Message = "Location skipped. Distance threshold not met." });
+                    return Ok(new { success = true, skipped = true, locationId = (int?)null });
                 }
             }
 
@@ -558,7 +558,7 @@ public class LocationController : BaseApiController
                 false,
                 cancellationToken);
 
-            return Ok(new { Message = "Location logged successfully", Location = location });
+            return Ok(new { success = true, skipped = false, locationId = location.Id });
         }
     }
 

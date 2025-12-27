@@ -50,6 +50,86 @@ public class ApiLocationControllerLogTests : TestBase
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(1, db.Locations.Count());
+
+        // Verify response format: { success: true, skipped: false, locationId: <id> }
+        var response = ok.Value;
+        var responseType = response!.GetType();
+        Assert.True((bool)responseType.GetProperty("success")!.GetValue(response)!);
+        Assert.False((bool)responseType.GetProperty("skipped")!.GetValue(response)!);
+        var locationId = (int)responseType.GetProperty("locationId")!.GetValue(response)!;
+        Assert.Equal(db.Locations.First().Id, locationId);
+    }
+
+    [Fact]
+    public async Task LogLocation_ReturnsSkipped_WhenTimeThresholdNotMet()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        // First location - should succeed
+        var firstResult = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+        });
+        Assert.IsType<OkObjectResult>(firstResult);
+        Assert.Equal(1, db.Locations.Count());
+
+        // Second location - same time, different place (more than 15m away) but within time threshold
+        // Should be skipped due to time threshold (default 5 minutes)
+        var secondResult = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 11,
+            Longitude = 21,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow.AddMinutes(1), DateTimeKind.Utc)
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(secondResult);
+        Assert.Equal(1, db.Locations.Count()); // No new location created
+
+        // Verify response format: { success: true, skipped: true, locationId: null }
+        var response = ok.Value;
+        var responseType = response!.GetType();
+        Assert.True((bool)responseType.GetProperty("success")!.GetValue(response)!);
+        Assert.True((bool)responseType.GetProperty("skipped")!.GetValue(response)!);
+        Assert.Null(responseType.GetProperty("locationId")!.GetValue(response));
+    }
+
+    [Fact]
+    public async Task LogLocation_ReturnsSkipped_WhenDistanceThresholdNotMet()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        // First location - should succeed
+        var firstResult = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+        });
+        Assert.IsType<OkObjectResult>(firstResult);
+        Assert.Equal(1, db.Locations.Count());
+
+        // Second location - after time threshold (6 mins) but same place (within 15m)
+        // Should be skipped due to distance threshold
+        var secondResult = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10.0001,  // ~11 meters difference
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow.AddMinutes(6), DateTimeKind.Utc)
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(secondResult);
+        Assert.Equal(1, db.Locations.Count()); // No new location created
+
+        // Verify response format: { success: true, skipped: true, locationId: null }
+        var response = ok.Value;
+        var responseType = response!.GetType();
+        Assert.True((bool)responseType.GetProperty("success")!.GetValue(response)!);
+        Assert.True((bool)responseType.GetProperty("skipped")!.GetValue(response)!);
+        Assert.Null(responseType.GetProperty("locationId")!.GetValue(response));
     }
 
     [Fact]
