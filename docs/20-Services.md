@@ -17,6 +17,11 @@ Selected Services and Responsibilities
 - `SseService` — server‑sent events for progress/notifications (e.g., imports).
 - `RegistrationService` — registration controls, depending on `ApplicationSettings.IsRegistrationOpen`.
 - `LocationService`, `LocationStatsService` — location data access and analytics.
+- `PlaceVisitDetectionService` — detects when users visit planned trip places based on GPS pings.
+  - Uses PostGIS spatial queries (ST_DWithin) with a GiST index for efficient lookup at scale.
+  - Two-hit candidate confirmation reduces false positives from GPS noise.
+  - Creates `PlaceVisitEvent` records with snapshot data (place name, location, notes) preserved even if the place is later deleted.
+  - Event-driven cleanup of stale visits and candidates on each ping.
 - `GroupService`, `GroupTimelineService` — groups, access context, and timeline queries.
 - `RazorViewRenderer` — render Razor views to string (e.g., PDF export).
 - `MobileCurrentUserAccessor` — resolves current user in mobile/API contexts.

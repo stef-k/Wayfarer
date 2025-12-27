@@ -23,6 +23,13 @@ Exporting a Trip
   - Cancel export at any time during generation
 - **KML** — Wayfarer or Google MyMaps compatible formats.
 
+Automatic Visit Detection
+- When you receive GPS pings (from the mobile app or API), the system checks if you're near any planned places in your trips.
+- After two consecutive pings within a configurable radius, a **visit event** is recorded automatically.
+- Visit events capture arrival time, departure time, and a snapshot of the place details (name, location, notes) at the time of visit.
+- This works with all location sources: mobile app tracking, manual check-ins, and web app location entries.
+- Settings like detection radius, accuracy thresholds, and confirmation requirements can be adjusted in Admin > Settings.
+
 Tips
 - Keep names concise for cleaner export filenames.
 - Use Areas for boundaries and Segments for movement between Places.

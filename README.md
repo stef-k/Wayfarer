@@ -7,7 +7,7 @@ Wayfarer is a self-hosted travel companion that lets you keep a private location
 ## What you get
 
 - **Your own location journal** – record live points, import historical data, and publish a public view with hidden-area privacy controls if you choose.
-- **Trip planning tools** – organise places, areas, and routes, add notes and colours, and export itineraries to PDF or KML.
+- **Trip planning tools** – organise places, areas, and routes, add notes and colours, and export itineraries to PDF or KML. Automatic visit detection records when you arrive at planned places.
 - **Trusted sharing** – managers you approve can follow your latest positions; shared dashboards update instantly via server-sent events.
 - **Offline-friendly maps** – tile caching keeps base maps fast and respects tile provider limits; higher zoom levels are pruned automatically.
 - **Admin controls** – manage users, thresholds, caches, jobs, audit logs, and reverse-geocoding tokens from a dedicated admin area.
