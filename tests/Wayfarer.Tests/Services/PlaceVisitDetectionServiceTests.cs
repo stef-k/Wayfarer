@@ -24,7 +24,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
     /// <summary>
     /// Creates a test service with default settings.
     /// </summary>
-    private (PlaceVisitDetectionService Service, ApplicationDbContext Db) CreateService(
+    private (PlaceVisitDetectionService Service, ApplicationDbContext Db, SseService Sse) CreateService(
         ApplicationSettings? settings = null)
     {
         var db = CreateDbContext();
@@ -35,10 +35,11 @@ public class PlaceVisitDetectionServiceTests : TestBase
         db.SaveChanges();
 
         var settingsService = new ApplicationSettingsService(db, cache);
+        var sseService = new SseService();
         var logger = NullLogger<PlaceVisitDetectionService>.Instance;
-        var service = new PlaceVisitDetectionService(db, settingsService, logger);
+        var service = new PlaceVisitDetectionService(db, settingsService, sseService, logger);
 
-        return (service, db);
+        return (service, db, sseService);
     }
 
     /// <summary>
@@ -70,7 +71,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
         // Arrange
         var settings = CreateDefaultSettings();
         settings.VisitedAccuracyRejectMeters = 100; // 100m threshold
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
@@ -93,7 +94,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
         // Arrange
         var settings = CreateDefaultSettings();
         settings.VisitedAccuracyRejectMeters = 100;
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
@@ -116,7 +117,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
         // Arrange
         var settings = CreateDefaultSettings();
         settings.VisitedAccuracyRejectMeters = 0; // Disabled
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
@@ -138,7 +139,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
         // Arrange
         var settings = CreateDefaultSettings();
         settings.VisitedAccuracyRejectMeters = 100;
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
@@ -164,7 +165,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
         // Arrange
         var settings = CreateDefaultSettings();
         // With LocationTimeThresholdMinutes=5, VisitedEndVisitAfterMinutes = 5 * 9 = 45
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
@@ -203,7 +204,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
     {
         // Arrange
         var settings = CreateDefaultSettings();
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
@@ -246,7 +247,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
         // Arrange
         var settings = CreateDefaultSettings();
         // With LocationTimeThresholdMinutes=5, VisitedCandidateStaleMinutes = 5 * 12 = 60
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         var trip = TestDataFixtures.CreateTrip(user);
@@ -288,7 +289,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
     {
         // Arrange
         var settings = CreateDefaultSettings();
-        var (service, db) = CreateService(settings);
+        var (service, db, _) = CreateService(settings);
 
         var user = TestDataFixtures.CreateUser();
         var trip = TestDataFixtures.CreateTrip(user);
@@ -443,7 +444,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
     public void Constructor_InitializesSuccessfully()
     {
         // Arrange & Act
-        var (service, _) = CreateService();
+        var (service, _, _) = CreateService();
 
         // Assert
         Assert.NotNull(service);

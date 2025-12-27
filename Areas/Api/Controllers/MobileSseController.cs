@@ -34,6 +34,28 @@ public class MobileSseController : MobileApiController
     }
 
     /// <summary>
+    /// SSE endpoint for visit notifications.
+    /// Broadcasts when the authenticated user's visit to a planned place is confirmed.
+    /// Requires authentication via Bearer token (mobile) or cookie (webapp).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>SSE stream with visit_started events.</returns>
+    [HttpGet("visits")]
+    public async Task<IActionResult> SubscribeToVisitsAsync(CancellationToken cancellationToken)
+    {
+        var (caller, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
+        if (error != null) return error;
+
+        await _sseService.SubscribeAsync(
+            $"user-visits-{caller!.Id}",
+            Response,
+            cancellationToken,
+            enableHeartbeat: true,
+            heartbeatInterval: _options.HeartbeatInterval);
+        return new EmptyResult();
+    }
+
+    /// <summary>
     /// Consolidated SSE endpoint for all group events (locations + membership changes).
     /// Replaces the separate group-location-update and group-membership-update streams.
     /// Requires authentication via Bearer token (mobile) or cookie (webapp).

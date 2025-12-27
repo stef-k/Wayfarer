@@ -61,6 +61,7 @@ public class PlaceVisitDetectionIntegrationTests : TestBase
         var visitDetectionService = new PlaceVisitDetectionService(
             db,
             settingsService,
+            sseService,
             NullLogger<PlaceVisitDetectionService>.Instance);
 
         var controller = new LocationController(
