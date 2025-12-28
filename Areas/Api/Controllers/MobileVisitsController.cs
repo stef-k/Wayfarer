@@ -43,7 +43,9 @@ public class MobileVisitsController : MobileApiController
     /// </summary>
     /// <param name="since">
     /// Time window in seconds to look back for visits (default: 30, max: 300).
-    /// Returns visits where ArrivedAtUtc >= (now - since seconds).
+    /// Returns visits where LastSeenAtUtc >= (now - since seconds).
+    /// Uses LastSeenAtUtc because it reflects when the visit was confirmed/created,
+    /// whereas ArrivedAtUtc is the first hit time which may predate confirmation.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>List of recent visit events in the same format as SSE broadcasts.</returns>
@@ -64,8 +66,8 @@ public class MobileVisitsController : MobileApiController
         var cutoffUtc = DateTime.UtcNow.AddSeconds(-clampedSince);
 
         var visitEntities = await DbContext.PlaceVisitEvents
-            .Where(v => v.UserId == caller!.Id && v.ArrivedAtUtc >= cutoffUtc)
-            .OrderByDescending(v => v.ArrivedAtUtc)
+            .Where(v => v.UserId == caller!.Id && v.LastSeenAtUtc >= cutoffUtc)
+            .OrderByDescending(v => v.LastSeenAtUtc)
             .ToListAsync(cancellationToken);
 
         // Map to DTO using the same factory method as SSE broadcasts

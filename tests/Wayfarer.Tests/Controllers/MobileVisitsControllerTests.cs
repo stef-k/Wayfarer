@@ -80,8 +80,8 @@ public class MobileVisitsControllerTests : TestBase
         db.Users.Add(user);
         db.ApiTokens.Add(TestDataFixtures.CreateApiToken(user, "token"));
 
-        // Create a visit that arrived 10 seconds ago (within default 30s window)
-        var recentVisit = CreateVisit(user.Id, "Recent Place", DateTime.UtcNow.AddSeconds(-10));
+        // Create a visit confirmed 10 seconds ago (within default 30s window)
+        var recentVisit = CreateVisit(user.Id, "Recent Place", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-10));
         db.PlaceVisitEvents.Add(recentVisit);
         await db.SaveChangesAsync();
 
@@ -105,8 +105,8 @@ public class MobileVisitsControllerTests : TestBase
         db.Users.Add(user);
         db.ApiTokens.Add(TestDataFixtures.CreateApiToken(user, "token"));
 
-        // Create a visit that arrived 60 seconds ago (outside default 30s window)
-        var oldVisit = CreateVisit(user.Id, "Old Place", DateTime.UtcNow.AddSeconds(-60));
+        // Create a visit confirmed 60 seconds ago (outside default 30s window)
+        var oldVisit = CreateVisit(user.Id, "Old Place", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-60));
         db.PlaceVisitEvents.Add(oldVisit);
         await db.SaveChangesAsync();
 
@@ -129,8 +129,8 @@ public class MobileVisitsControllerTests : TestBase
         db.Users.Add(user);
         db.ApiTokens.Add(TestDataFixtures.CreateApiToken(user, "token"));
 
-        // Create a visit that arrived 90 seconds ago
-        var visit = CreateVisit(user.Id, "Place", DateTime.UtcNow.AddSeconds(-90));
+        // Create a visit confirmed 90 seconds ago
+        var visit = CreateVisit(user.Id, "Place", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-90));
         db.PlaceVisitEvents.Add(visit);
         await db.SaveChangesAsync();
 
@@ -161,8 +161,8 @@ public class MobileVisitsControllerTests : TestBase
 
         // Create visits for both users
         db.PlaceVisitEvents.AddRange(
-            CreateVisit(user1.Id, "My Place", DateTime.UtcNow.AddSeconds(-5)),
-            CreateVisit(user2.Id, "Other Place", DateTime.UtcNow.AddSeconds(-5)));
+            CreateVisit(user1.Id, "My Place", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-5)),
+            CreateVisit(user2.Id, "Other Place", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-5)));
         await db.SaveChangesAsync();
 
         // Act
@@ -188,8 +188,8 @@ public class MobileVisitsControllerTests : TestBase
         db.Users.Add(user);
         db.ApiTokens.Add(TestDataFixtures.CreateApiToken(user, "token"));
 
-        // Create a visit 400 seconds ago (beyond max 300s)
-        var oldVisit = CreateVisit(user.Id, "Very Old Place", DateTime.UtcNow.AddSeconds(-400));
+        // Create a visit confirmed 400 seconds ago (beyond max 300s)
+        var oldVisit = CreateVisit(user.Id, "Very Old Place", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-400));
         db.PlaceVisitEvents.Add(oldVisit);
         await db.SaveChangesAsync();
 
@@ -278,12 +278,41 @@ public class MobileVisitsControllerTests : TestBase
         Assert.Equal("#8B4513", dto.MarkerColor);
     }
 
+    [Fact]
+    public async Task GetRecentVisits_IncludesVisit_WhenArrivedAtIsOldButLastSeenAtIsRecent()
+    {
+        // Arrange - This tests the reviewer's scenario:
+        // Visit first hit (ArrivedAtUtc) was 2 minutes ago, but confirmation (LastSeenAtUtc) was 5 seconds ago
+        var (db, controller) = CreateController("token");
+        var user = TestDataFixtures.CreateUser(id: "user1");
+        db.Users.Add(user);
+        db.ApiTokens.Add(TestDataFixtures.CreateApiToken(user, "token"));
+
+        // ArrivedAtUtc is 2 minutes old (outside 30s window), but LastSeenAtUtc is 5 seconds ago (within window)
+        var visit = CreateVisit(
+            user.Id,
+            "Delayed Confirmation Place",
+            lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-5),
+            arrivedAtUtc: DateTime.UtcNow.AddMinutes(-2));
+        db.PlaceVisitEvents.Add(visit);
+        await db.SaveChangesAsync();
+
+        // Act - with default 30s window
+        var result = await controller.GetRecentVisitsAsync(since: 30);
+
+        // Assert - should be included because LastSeenAtUtc (confirmation time) is within window
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var response = Assert.IsType<RecentVisitsResponse>(ok.Value);
+        Assert.Single(response.Visits);
+        Assert.Equal("Delayed Confirmation Place", response.Visits[0].PlaceName);
+    }
+
     #endregion
 
     #region Ordering Tests
 
     [Fact]
-    public async Task GetRecentVisits_ReturnsVisitsOrderedByArrivedAtDescending()
+    public async Task GetRecentVisits_ReturnsVisitsOrderedByLastSeenAtDescending()
     {
         // Arrange
         var (db, controller) = CreateController("token");
@@ -292,9 +321,9 @@ public class MobileVisitsControllerTests : TestBase
         db.ApiTokens.Add(TestDataFixtures.CreateApiToken(user, "token"));
 
         db.PlaceVisitEvents.AddRange(
-            CreateVisit(user.Id, "First", DateTime.UtcNow.AddSeconds(-20)),
-            CreateVisit(user.Id, "Third", DateTime.UtcNow.AddSeconds(-5)),
-            CreateVisit(user.Id, "Second", DateTime.UtcNow.AddSeconds(-10)));
+            CreateVisit(user.Id, "First", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-20)),
+            CreateVisit(user.Id, "Third", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-5)),
+            CreateVisit(user.Id, "Second", lastSeenAtUtc: DateTime.UtcNow.AddSeconds(-10)));
         await db.SaveChangesAsync();
 
         // Act
@@ -341,10 +370,13 @@ public class MobileVisitsControllerTests : TestBase
     private static PlaceVisitEvent CreateVisit(
         string userId,
         string placeName,
-        DateTime arrivedAtUtc,
+        DateTime lastSeenAtUtc,
+        DateTime? arrivedAtUtc = null,
         Guid? tripId = null)
     {
         var tid = tripId ?? Guid.NewGuid();
+        // ArrivedAtUtc defaults to LastSeenAtUtc if not specified
+        var arrived = arrivedAtUtc ?? lastSeenAtUtc;
         return new PlaceVisitEvent
         {
             Id = Guid.NewGuid(),
@@ -355,8 +387,8 @@ public class MobileVisitsControllerTests : TestBase
             TripNameSnapshot = "Test Trip",
             RegionNameSnapshot = "Test Region",
             PlaceLocationSnapshot = new Point(-74.0, 40.0) { SRID = 4326 },
-            ArrivedAtUtc = arrivedAtUtc,
-            LastSeenAtUtc = arrivedAtUtc,
+            ArrivedAtUtc = arrived,
+            LastSeenAtUtc = lastSeenAtUtc,
             IconNameSnapshot = "marker",
             MarkerColorSnapshot = "bg-blue"
         };
