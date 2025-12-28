@@ -10,6 +10,21 @@
 <div class="container">
     <div class="row">
         <div class="col-md-10 offset-md-1">
+            @if (TempData["Message"] != null)
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    @TempData["Message"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+            @if (TempData["Error"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @TempData["Error"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            }
+
             <!-- Search Form -->
             <form method="get" asp-action="Index" class="mb-4">
                 <div class="input-group">
@@ -47,14 +62,81 @@
                                         <span>Not yet run</span>
                                     }
                                 </td>
-                                <td>@job.NextFireTime?.ToString("f")</td>
-                                <td>@job.Status</td>
                                 <td>
-                                    <form method="post" asp-action="StartJob" asp-controller="Jobs">
-                                        <input type="hidden" name="jobName" value="@job.JobName" />
-                                        <input type="hidden" name="jobGroup" value="@job.JobGroup" />
-                                        <button type="submit" class="btn btn-primary">Start/Retry Job</button>
-                                    </form>
+                                    @if (job.IsPaused)
+                                    {
+                                        <span class="text-muted">Paused</span>
+                                    }
+                                    else
+                                    {
+                                        @job.NextFireTime?.ToString("f")
+                                    }
+                                </td>
+                                <td>
+                                    @if (job.IsRunning)
+                                    {
+                                        <span class="badge bg-success">Running</span>
+                                    }
+                                    else if (job.IsPaused)
+                                    {
+                                        <span class="badge bg-warning text-dark">Paused</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">@job.Status</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        @if (job.IsRunning)
+                                        {
+                                            @if (job.IsInterruptable)
+                                            {
+                                                <form method="post" asp-action="CancelJob" class="d-inline">
+                                                    <input type="hidden" name="jobName" value="@job.JobName" />
+                                                    <input type="hidden" name="jobGroup" value="@job.JobGroup" />
+                                                    <button type="submit" class="btn btn-danger btn-sm"
+                                                            onclick="return confirm('Cancel this running job?')">
+                                                        Cancel
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-secondary btn-sm" disabled
+                                                        title="Job does not support cancellation">
+                                                    Cancel
+                                                </button>
+                                            }
+                                        }
+                                        else if (job.IsPaused)
+                                        {
+                                            <form method="post" asp-action="ResumeJob" class="d-inline">
+                                                <input type="hidden" name="jobName" value="@job.JobName" />
+                                                <input type="hidden" name="jobGroup" value="@job.JobGroup" />
+                                                <button type="submit" class="btn btn-success btn-sm">
+                                                    Resume
+                                                </button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <form method="post" asp-action="StartJob" class="d-inline">
+                                                <input type="hidden" name="jobName" value="@job.JobName" />
+                                                <input type="hidden" name="jobGroup" value="@job.JobGroup" />
+                                                <button type="submit" class="btn btn-primary btn-sm">
+                                                    Start
+                                                </button>
+                                            </form>
+                                            <form method="post" asp-action="PauseJob" class="d-inline ms-1">
+                                                <input type="hidden" name="jobName" value="@job.JobName" />
+                                                <input type="hidden" name="jobGroup" value="@job.JobGroup" />
+                                                <button type="submit" class="btn btn-warning btn-sm">
+                                                    Pause
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
                                 </td>
                             </tr>
                         }

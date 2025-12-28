@@ -1,21 +1,37 @@
-﻿using Quartz;
+﻿using Microsoft.EntityFrameworkCore;
+using Quartz;
 using Wayfarer.Models;
 
-public class AuditLogCleanupJob : IJob
+namespace Wayfarer.Jobs
 {
-    private readonly ApplicationDbContext _dbContext;
-
-    public AuditLogCleanupJob(ApplicationDbContext dbContext)
+    /// <summary>
+    /// Quartz job that removes audit log entries older than two years.
+    /// Supports cancellation via CancellationToken.
+    /// </summary>
+    public class AuditLogCleanupJob : IJob
     {
-        _dbContext = dbContext;
-    }
+        private readonly ApplicationDbContext _dbContext;
 
-    public async Task Execute(IJobExecutionContext context)
-    {
-        DateTime cutoffDate = DateTime.UtcNow.AddYears(-2); // Adjust retention period as needed
-        IQueryable<AuditLog> oldLogs = _dbContext.AuditLogs.Where(log => log.Timestamp < cutoffDate);
+        public AuditLogCleanupJob(ApplicationDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
 
-        _dbContext.AuditLogs.RemoveRange(oldLogs);
-        await _dbContext.SaveChangesAsync();
+        public async Task Execute(IJobExecutionContext context)
+        {
+            CancellationToken cancellationToken = context.CancellationToken;
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            DateTime cutoffDate = DateTime.UtcNow.AddYears(-2);
+            List<AuditLog> oldLogs = await _dbContext.AuditLogs
+                .Where(log => log.Timestamp < cutoffDate)
+                .ToListAsync(cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            _dbContext.AuditLogs.RemoveRange(oldLogs);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 }

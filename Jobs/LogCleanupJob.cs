@@ -2,6 +2,10 @@
 
 namespace Wayfarer.Jobs
 {
+    /// <summary>
+    /// Quartz job that cleans up log files older than one month.
+    /// Supports cancellation via CancellationToken.
+    /// </summary>
     public class LogCleanupJob : IJob
     {
         private readonly IConfiguration _configuration;
@@ -15,6 +19,7 @@ namespace Wayfarer.Jobs
 
         public Task Execute(IJobExecutionContext context)
         {
+            CancellationToken cancellationToken = context.CancellationToken;
             JobDataMap jobDataMap = context.JobDetail.JobDataMap;
 
             // Set the initial status to "Scheduled" when the job is first triggered
@@ -22,8 +27,10 @@ namespace Wayfarer.Jobs
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 _logger.LogInformation("LogCleanupJob started.");
-                jobDataMap["Status"] = "In Progress"; // Update to In Progress when the job starts
+                jobDataMap["Status"] = "In Progress";
 
                 string? logDirectory = Path.GetDirectoryName(_configuration["Logging:LogFilePath:Default"]);
 
@@ -38,6 +45,8 @@ namespace Wayfarer.Jobs
 
                 foreach (string logFile in logFiles)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     FileInfo fileInfo = new FileInfo(logFile);
                     if (fileInfo.CreationTime < DateTime.Now.AddMonths(-1))
                     {
@@ -54,16 +63,20 @@ namespace Wayfarer.Jobs
                 }
 
                 _logger.LogInformation("LogCleanupJob completed successfully.");
-                jobDataMap["Status"] = "Completed"; // Update status to Completed
+                jobDataMap["Status"] = "Completed";
+            }
+            catch (OperationCanceledException)
+            {
+                jobDataMap["Status"] = "Cancelled";
+                _logger.LogInformation("LogCleanupJob was cancelled.");
             }
             catch (Exception ex)
             {
-                jobDataMap["Status"] = "Failed"; // Set to Failed if an error occurs
+                jobDataMap["Status"] = "Failed";
                 _logger.LogError(ex, "Error executing LogCleanupJob");
             }
 
             return Task.CompletedTask;
         }
-
     }
 }
