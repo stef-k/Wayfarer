@@ -1,8 +1,15 @@
-﻿using Quartz;
+﻿using System.Text.Json;
+using Quartz;
+using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.DTOs;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Jobs
 {
+    /// <summary>
+    /// Quartz job listener that logs job execution history and broadcasts SSE events.
+    /// </summary>
     public class JobExecutionListener : IJobListener
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
@@ -14,34 +21,43 @@ namespace Wayfarer.Jobs
 
         public string Name => "JobExecutionListener";
 
-        // Called before the job is executed
-        public Task JobToBeExecuted(IJobExecutionContext context, CancellationToken cancellationToken)
+        /// <summary>
+        /// Called before the job is executed. Broadcasts job_started event.
+        /// </summary>
+        public async Task JobToBeExecuted(IJobExecutionContext context, CancellationToken cancellationToken)
         {
-            // Optionally, you can perform pre-execution tasks here
-            return Task.CompletedTask;
+            await BroadcastJobStatusAsync("job_started", context, "Running", null);
         }
 
-        // Called if the job execution is vetoed
+        /// <summary>
+        /// Called if the job execution is vetoed.
+        /// </summary>
         public Task JobExecutionVetoed(IJobExecutionContext context, CancellationToken cancellationToken)
         {
-            // Optionally, you can log or perform some tasks here
             return Task.CompletedTask;
         }
 
-        // Called after the job is executed
+        /// <summary>
+        /// Called after the job is executed. Logs history and broadcasts completion event.
+        /// </summary>
         public async Task JobWasExecuted(IJobExecutionContext context, JobExecutionException? jobException, CancellationToken cancellationToken)
         {
             // Create a new scope to resolve services
             using IServiceScope scope = _serviceScopeFactory.CreateScope();
-            // Resolve the scoped services here
             ApplicationDbContext dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             // Extract job execution details
             string jobName = context.JobDetail.Key.Name;
             string jobGroup = context.JobDetail.Key.Group;
-            string jobStatus = jobException == null ? "Completed" : "Failed";
 
-            // Log the job execution status and other details to the database
+            // Determine status from JobDataMap (jobs may set Cancelled status) or exception
+            string jobStatus = context.JobDetail.JobDataMap["Status"]?.ToString() ?? "Completed";
+            if (jobException != null)
+            {
+                jobStatus = "Failed";
+            }
+
+            // Log the job execution status to the database
             JobHistory jobHistory = new JobHistory
             {
                 JobName = jobName,
@@ -49,9 +65,44 @@ namespace Wayfarer.Jobs
                 Status = jobStatus
             };
 
-            // Add the job history to the database
             dbContext.JobHistories.Add(jobHistory);
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            // Broadcast SSE event
+            string eventType = jobStatus switch
+            {
+                "Failed" => "job_failed",
+                "Cancelled" => "job_cancelled",
+                _ => "job_completed"
+            };
+
+            await BroadcastJobStatusAsync(eventType, context, jobStatus, jobException?.Message);
+        }
+
+        /// <summary>
+        /// Broadcasts a job status event to SSE subscribers.
+        /// </summary>
+        private async Task BroadcastJobStatusAsync(string eventType, IJobExecutionContext context, string status, string? errorMessage)
+        {
+            using IServiceScope scope = _serviceScopeFactory.CreateScope();
+            SseService sseService = scope.ServiceProvider.GetRequiredService<SseService>();
+
+            var dto = new JobStatusSseEventDto
+            {
+                EventType = eventType,
+                JobName = context.JobDetail.Key.Name,
+                JobGroup = context.JobDetail.Key.Group,
+                Status = status,
+                TimestampUtc = DateTime.UtcNow,
+                ErrorMessage = errorMessage
+            };
+
+            string json = JsonSerializer.Serialize(dto, new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            await sseService.BroadcastAsync(JobsController.JobStatusChannel, json);
         }
     }
 }

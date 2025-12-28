@@ -165,8 +165,10 @@ public class JobTests : TestBase
     public async Task JobExecutionListener_WritesJobHistory_OnCompletion()
     {
         var db = CreateDbContext();
+        var sseService = new SseService();
         var providerMock = new Mock<IServiceProvider>();
         providerMock.Setup(p => p.GetService(typeof(ApplicationDbContext))).Returns(db);
+        providerMock.Setup(p => p.GetService(typeof(SseService))).Returns(sseService);
         var scope = Mock.Of<IServiceScope>(s => s.ServiceProvider == providerMock.Object);
         var scopeFactory = Mock.Of<IServiceScopeFactory>(f => f.CreateScope() == scope);
         var listener = new JobExecutionListener(scopeFactory);
