@@ -242,6 +242,12 @@ namespace Wayfarer.Models
 
             // PlaceVisitEvent configuration
             builder.Entity<PlaceVisitEvent>()
+                .HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade); // Delete visit history when user is deleted
+
+            builder.Entity<PlaceVisitEvent>()
                 .HasOne(e => e.Place)
                 .WithMany()
                 .HasForeignKey(e => e.PlaceId)
@@ -267,6 +273,12 @@ namespace Wayfarer.Models
                 .HasDatabaseName("IX_PlaceVisitEvent_ArrivedAtUtc");
 
             // PlaceVisitCandidate configuration
+            builder.Entity<PlaceVisitCandidate>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade); // Delete candidates when user is deleted
+
             builder.Entity<PlaceVisitCandidate>()
                 .HasOne(c => c.Place)
                 .WithMany()

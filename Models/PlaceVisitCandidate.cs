@@ -18,6 +18,11 @@ public class PlaceVisitCandidate
     [BindNever, ValidateNever]
     public string UserId { get; set; } = string.Empty;
 
+    /// <summary>Navigation property to the user.</summary>
+    [ValidateNever]
+    [JsonIgnore]
+    public ApplicationUser? User { get; set; }
+
     /// <summary>Foreign key to the place being tracked.</summary>
     public Guid PlaceId { get; set; }
 

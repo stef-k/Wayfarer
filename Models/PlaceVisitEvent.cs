@@ -20,6 +20,11 @@ public class PlaceVisitEvent
     [BindNever, ValidateNever]
     public string UserId { get; set; } = string.Empty;
 
+    /// <summary>Navigation property to the user.</summary>
+    [ValidateNever]
+    [JsonIgnore]
+    public ApplicationUser? User { get; set; }
+
     /// <summary>
     /// Optional foreign key to the place. Nullable to support ON DELETE SET NULL,
     /// allowing visit history to survive trip/place deletion.
