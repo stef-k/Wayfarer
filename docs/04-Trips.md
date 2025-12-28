@@ -1,36 +1,145 @@
 # Trips
 
-Overview
-- A Trip contains Regions. Regions contain Places and Areas. Trips can also have Segments (routes) that connect Places.
-- Trips are private by default; you can make them public to share.
+Trips are the core trip planning feature in Wayfarer, allowing you to organize destinations, routes, and detailed travel information.
 
-Creating a Trip
-1) Open Trips and click New.
-2) Name your trip and save. You can toggle public/private at any time.
+---
 
-Regions and Places
-- Add a Region to organize related places. Add Places as points with coordinates and notes.
-- Areas (polygons) highlight zones; draw them on the map.
+## Trip Structure
 
-Segments (Routes)
-- Add Segments between Places. Choose travel mode and add notes and route geometry if available.
+A Trip contains a hierarchy of elements:
 
-Exporting a Trip
-- **PDF Guide** — printable trip guide with interactive features:
-  - Place names link to Google search
-  - Coordinates link to Google Maps
-  - Includes map snapshots and complete trip details
-  - Cancel export at any time during generation
-- **KML** — Wayfarer or Google MyMaps compatible formats.
+- **Regions** — logical groupings of places (e.g., cities, areas of interest)
+- **Places** — specific points of interest with coordinates and notes
+- **Areas** — polygonal zones drawn on the map
+- **Segments** — routes connecting places with travel mode information
 
-Automatic Visit Detection
-- When you receive GPS pings (from the mobile app or API), the system checks if you're near any planned places in your trips.
-- After two consecutive pings within a configurable radius, a **visit event** is recorded automatically.
-- Visit events capture arrival time, departure time, and a snapshot of the place details (name, location, notes) at the time of visit.
-- This works with all location sources: mobile app tracking, manual check-ins, and web app location entries.
-- Settings like detection radius, accuracy thresholds, and confirmation requirements can be adjusted in Admin > Settings.
+Trips are **private by default**; you can make them public to share with others.
 
-Tips
+---
+
+## Creating a Trip
+
+1. Open **Trips** and click **New**.
+2. Name your trip and save.
+3. Toggle **public/private** at any time.
+4. Add a **cover image** for visual identification in trip lists.
+
+---
+
+## Regions and Places
+
+- Add a **Region** to organize related places.
+- Add **Places** as points with:
+  - Coordinates (lat/lon)
+  - Notes (rich HTML supported)
+  - Icon and marker color
+  - Travel mode
+- **Areas** (polygons) highlight zones; draw them directly on the map.
+
+---
+
+## Segments (Routes)
+
+- Add **Segments** between Places.
+- Choose **travel mode** (walking, driving, transit, etc.).
+- Add notes and route geometry if available.
+- Segments display as connected lines on the map.
+
+---
+
+## Trip Tags
+
+- Add **tags** to trips for organization and discovery.
+- Tags use case-insensitive matching.
+- Public trips can be browsed by tag.
+- Manage tags from the trip edit page.
+
+---
+
+## Trip Thumbnails
+
+- Trips automatically generate **map thumbnail previews**.
+- Thumbnails appear in trip lists and cards.
+- Generated using Playwright browser automation.
+- Thumbnails update when trip content changes.
+
+---
+
+## Importing Trips
+
+Import trips from external sources:
+
+- **Google MyMaps KML** — import your Google MyMaps designs directly.
+- **Wayfarer KML** — reimport trips exported from Wayfarer.
+- Duplicate detection with configurable handling modes.
+- Imports preserve regions, places, areas, and segments.
+
+---
+
+## Exporting Trips
+
+### PDF Guide
+
+Printable trip guide with interactive features:
+
+- **Clickable place names** — link to Google search
+- **Clickable coordinates** — link to Google Maps
+- Map snapshots for overview, regions, places, and segments
+- Complete trip details including notes, travel modes, distances
+- **Cancel export** at any time during generation
+- SSE progress updates during generation
+
+### KML Export
+
+- **Wayfarer format** — preserves all metadata for reimport
+- **Google MyMaps format** — compatible with Google MyMaps
+
+---
+
+## Automatic Visit Detection
+
+When you receive GPS pings (from the mobile app, API, or manual entries), the system automatically detects visits to your planned places.
+
+### How It Works
+
+1. GPS ping arrives within configured radius of a trip place.
+2. **Two-hit confirmation** — a second ping confirms the visit (reduces GPS noise false positives).
+3. A **PlaceVisitEvent** is recorded with:
+   - Arrival time (UTC)
+   - Departure time (when you leave or timeout)
+   - Place snapshot (name, location, notes preserved even if place deleted)
+   - Trip and region context
+
+### Visit Management
+
+- View visit history from **User > Visits**.
+- Search by place name, region name, date range.
+- Edit or delete individual visits.
+- Visit data persists independently of trip changes.
+
+### Configuration
+
+Adjust in **Admin > Settings**:
+
+- Detection radius (meters)
+- Accuracy thresholds
+- Confirmation window (derived from location threshold)
+- End-visit timeout
+
+---
+
+## Public Trip Sharing
+
+- Make trips public to share via URL.
+- Public trips display **visit progress** showing which places you've visited.
+- Viewers see your journey progress in real-time via SSE updates.
+
+---
+
+## Tips
+
 - Keep names concise for cleaner export filenames.
-- Use Areas for boundaries and Segments for movement between Places.
+- Use **Areas** for boundaries and **Segments** for movement between Places.
+- Add cover images for visual organization.
+- Use tags to group related trips.
 
