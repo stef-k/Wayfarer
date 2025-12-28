@@ -42,6 +42,7 @@ namespace Wayfarer.Jobs
                 }
 
                 string[] logFiles = Directory.GetFiles(logDirectory, "wayfarer-*.log");
+                int deletedCount = 0;
 
                 foreach (string logFile in logFiles)
                 {
@@ -53,6 +54,7 @@ namespace Wayfarer.Jobs
                         try
                         {
                             fileInfo.Delete();
+                            deletedCount++;
                             _logger.LogInformation("Deleted old log file: {LogFile}", logFile);
                         }
                         catch (Exception ex)
@@ -62,8 +64,9 @@ namespace Wayfarer.Jobs
                     }
                 }
 
-                _logger.LogInformation("LogCleanupJob completed successfully.");
+                _logger.LogInformation("LogCleanupJob completed successfully. Deleted {DeletedCount} files.", deletedCount);
                 jobDataMap["Status"] = "Completed";
+                jobDataMap["StatusMessage"] = $"Deleted {deletedCount} old log files";
             }
             catch (OperationCanceledException)
             {

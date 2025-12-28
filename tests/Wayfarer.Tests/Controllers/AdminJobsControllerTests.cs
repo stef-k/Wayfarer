@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
@@ -220,7 +221,8 @@ public class AdminJobsControllerTests : TestBase
             scheduler,
             services ?? new ServiceCollection().BuildServiceProvider(),
             db,
-            NullLogger<UsersController>.Instance);
+            NullLogger<UsersController>.Instance,
+            new SseService());
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]

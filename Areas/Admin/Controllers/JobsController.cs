@@ -5,6 +5,7 @@ using Quartz;
 using Quartz.Impl.Matchers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Areas.Admin.Controllers
 {
@@ -13,16 +14,24 @@ namespace Wayfarer.Areas.Admin.Controllers
     /// </summary>
     [Area("Admin")]
     [Authorize(Roles = "Admin")]
+    [Route("Admin/[controller]/[action]")]
     public class JobsController : BaseController
     {
+        /// <summary>
+        /// SSE channel name for job status updates.
+        /// </summary>
+        public const string JobStatusChannel = "admin-job-status";
+
         private readonly IScheduler _scheduler;
         private readonly IServiceProvider _serviceProvider;
+        private readonly SseService _sseService;
 
         public JobsController(IScheduler scheduler, IServiceProvider serviceProvider,
-            ApplicationDbContext dbContext, ILogger<UsersController> logger) : base(logger, dbContext)
+            ApplicationDbContext dbContext, ILogger<UsersController> logger, SseService sseService) : base(logger, dbContext)
         {
             _scheduler = scheduler;
             _serviceProvider = serviceProvider;
+            _sseService = sseService;
         }
 
         /// <summary>
@@ -64,6 +73,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     .FirstOrDefaultAsync();
 
                 string status = DetermineStatus(isRunning, isPaused, jobDetail, lastRunTime);
+                string? statusMessage = jobDetail?.JobDataMap["StatusMessage"]?.ToString();
 
                 jobs.Add(new JobMonitoringViewModel
                 {
@@ -72,6 +82,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     NextFireTime = nextFireTime,
                     LastRunTime = lastRunTime?.ToLocalTime(),
                     Status = status,
+                    StatusMessage = statusMessage,
                     IsRunning = isRunning,
                     IsPaused = isPaused,
                     IsInterruptable = isInterruptable
@@ -210,6 +221,24 @@ namespace Wayfarer.Areas.Admin.Controllers
             }
 
             return RedirectToAction("Index");
+        }
+
+        /// <summary>
+        /// SSE endpoint for real-time job status updates.
+        /// Broadcasts job_started, job_completed, job_failed, job_cancelled events.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>SSE stream with job status events.</returns>
+        [HttpGet]
+        public async Task<IActionResult> Sse(CancellationToken cancellationToken)
+        {
+            await _sseService.SubscribeAsync(
+                JobStatusChannel,
+                Response,
+                cancellationToken,
+                enableHeartbeat: true,
+                heartbeatInterval: TimeSpan.FromSeconds(30));
+            return new EmptyResult();
         }
     }
 }

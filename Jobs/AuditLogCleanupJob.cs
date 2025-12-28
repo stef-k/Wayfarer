@@ -20,18 +20,36 @@ namespace Wayfarer.Jobs
         public async Task Execute(IJobExecutionContext context)
         {
             CancellationToken cancellationToken = context.CancellationToken;
+            JobDataMap jobDataMap = context.JobDetail.JobDataMap;
 
-            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                jobDataMap["Status"] = "In Progress";
 
-            DateTime cutoffDate = DateTime.UtcNow.AddYears(-2);
-            List<AuditLog> oldLogs = await _dbContext.AuditLogs
-                .Where(log => log.Timestamp < cutoffDate)
-                .ToListAsync(cancellationToken);
+                DateTime cutoffDate = DateTime.UtcNow.AddYears(-2);
+                List<AuditLog> oldLogs = await _dbContext.AuditLogs
+                    .Where(log => log.Timestamp < cutoffDate)
+                    .ToListAsync(cancellationToken);
 
-            cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken.ThrowIfCancellationRequested();
 
-            _dbContext.AuditLogs.RemoveRange(oldLogs);
-            await _dbContext.SaveChangesAsync(cancellationToken);
+                _dbContext.AuditLogs.RemoveRange(oldLogs);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+
+                jobDataMap["Status"] = "Completed";
+                jobDataMap["StatusMessage"] = $"Deleted {oldLogs.Count} audit logs older than 2 years";
+            }
+            catch (OperationCanceledException)
+            {
+                jobDataMap["Status"] = "Cancelled";
+                throw;
+            }
+            catch (Exception)
+            {
+                jobDataMap["Status"] = "Failed";
+                throw;
+            }
         }
     }
 }

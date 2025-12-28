@@ -2,8 +2,26 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
+/// <summary>
+/// Handles Quartz schema installation and migrations.
+/// </summary>
 public static class QuartzSchemaInstaller
 {
+    /// <summary>
+    /// Job type name mappings from short names to fully qualified names.
+    /// Used to fix legacy entries that were stored with incorrect type names.
+    /// </summary>
+    private static readonly Dictionary<string, string> JobTypeNameMappings = new()
+    {
+        ["LogCleanupJob, Wayfarer"] = "Wayfarer.Jobs.LogCleanupJob, Wayfarer",
+        ["AuditLogCleanupJob, Wayfarer"] = "Wayfarer.Jobs.AuditLogCleanupJob, Wayfarer",
+        ["VisitCleanupJob, Wayfarer"] = "Wayfarer.Jobs.VisitCleanupJob, Wayfarer",
+        ["LocationImportJob, Wayfarer"] = "Wayfarer.Jobs.LocationImportJob, Wayfarer"
+    };
+
+    /// <summary>
+    /// Ensures Quartz tables exist and migrates any legacy job type names.
+    /// </summary>
     public static async Task EnsureQuartzTablesExistAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
@@ -40,6 +58,44 @@ public static class QuartzSchemaInstaller
                         throw;
                     }
                 }
+            }
+        }
+        else
+        {
+            // Tables exist - run migration to fix any legacy job type names
+            await MigrateJobTypeNamesAsync(connection);
+        }
+    }
+
+    /// <summary>
+    /// Migrates legacy job type names (short names) to fully qualified names.
+    /// This fixes issues where jobs were stored with names like "AuditLogCleanupJob, Wayfarer"
+    /// instead of "Wayfarer.Jobs.AuditLogCleanupJob, Wayfarer".
+    /// </summary>
+    private static async Task MigrateJobTypeNamesAsync(System.Data.Common.DbConnection connection)
+    {
+        foreach (var mapping in JobTypeNameMappings)
+        {
+            using var updateCommand = connection.CreateCommand();
+            updateCommand.CommandText = @"
+                UPDATE qrtz_job_details
+                SET job_class_name = @newName
+                WHERE job_class_name = @oldName";
+
+            var oldNameParam = updateCommand.CreateParameter();
+            oldNameParam.ParameterName = "@oldName";
+            oldNameParam.Value = mapping.Key;
+            updateCommand.Parameters.Add(oldNameParam);
+
+            var newNameParam = updateCommand.CreateParameter();
+            newNameParam.ParameterName = "@newName";
+            newNameParam.Value = mapping.Value;
+            updateCommand.Parameters.Add(newNameParam);
+
+            var rowsAffected = await updateCommand.ExecuteNonQueryAsync();
+            if (rowsAffected > 0)
+            {
+                Console.WriteLine($"[QuartzMigration] Updated {rowsAffected} job(s): '{mapping.Key}' -> '{mapping.Value}'");
             }
         }
     }

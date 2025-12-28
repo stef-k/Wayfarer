@@ -35,14 +35,18 @@ public class VisitCleanupJob : IJob
 
     /// <summary>
     /// Execute the visit cleanup job.
+    /// Supports cancellation via CancellationToken.
     /// </summary>
     public async Task Execute(IJobExecutionContext context)
     {
+        var cancellationToken = context.CancellationToken;
         var jobDataMap = context.JobDetail.JobDataMap;
         jobDataMap["Status"] = "Scheduled";
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _logger.LogInformation("VisitCleanupJob started");
             jobDataMap["Status"] = "In Progress";
 
@@ -50,16 +54,24 @@ public class VisitCleanupJob : IJob
             var now = DateTime.UtcNow;
 
             // 1. Close stale open visits
-            var closedVisits = await CloseStaleVisitsAsync(now, settings);
+            var closedVisits = await CloseStaleVisitsAsync(now, settings, cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             // 2. Delete stale candidates
-            var deletedCandidates = await DeleteStaleCandidatesAsync(now, settings);
+            var deletedCandidates = await DeleteStaleCandidatesAsync(now, settings, cancellationToken);
 
             _logger.LogInformation(
                 "VisitCleanupJob completed: closed {ClosedVisits} open visits, deleted {DeletedCandidates} stale candidates",
                 closedVisits, deletedCandidates);
 
             jobDataMap["Status"] = "Completed";
+            jobDataMap["StatusMessage"] = $"Closed {closedVisits} visits, deleted {deletedCandidates} candidates";
+        }
+        catch (OperationCanceledException)
+        {
+            jobDataMap["Status"] = "Cancelled";
+            _logger.LogInformation("VisitCleanupJob was cancelled");
         }
         catch (Exception ex)
         {
@@ -74,17 +86,19 @@ public class VisitCleanupJob : IJob
     /// Sets EndedAtUtc = LastSeenAtUtc for stale visits.
     /// </summary>
     /// <returns>Number of visits closed.</returns>
-    private async Task<int> CloseStaleVisitsAsync(DateTime now, ApplicationSettings settings)
+    private async Task<int> CloseStaleVisitsAsync(DateTime now, ApplicationSettings settings, CancellationToken cancellationToken)
     {
         var cutoff = now.AddMinutes(-settings.VisitedEndVisitAfterMinutes);
 
         var staleVisits = await _dbContext.PlaceVisitEvents
             .Where(v => v.EndedAtUtc == null)
             .Where(v => v.LastSeenAtUtc < cutoff)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         foreach (var visit in staleVisits)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             visit.EndedAtUtc = visit.LastSeenAtUtc;
 
             _logger.LogDebug(
@@ -94,7 +108,7 @@ public class VisitCleanupJob : IJob
 
         if (staleVisits.Count > 0)
         {
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
         return staleVisits.Count;
@@ -105,18 +119,18 @@ public class VisitCleanupJob : IJob
     /// These are candidates that were never confirmed as visits.
     /// </summary>
     /// <returns>Number of candidates deleted.</returns>
-    private async Task<int> DeleteStaleCandidatesAsync(DateTime now, ApplicationSettings settings)
+    private async Task<int> DeleteStaleCandidatesAsync(DateTime now, ApplicationSettings settings, CancellationToken cancellationToken)
     {
         var cutoff = now.AddMinutes(-settings.VisitedCandidateStaleMinutes);
 
         var staleCandidates = await _dbContext.PlaceVisitCandidates
             .Where(c => c.LastHitUtc < cutoff)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (staleCandidates.Count > 0)
         {
             _dbContext.PlaceVisitCandidates.RemoveRange(staleCandidates);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug(
                 "Deleted {Count} stale visit candidates",
