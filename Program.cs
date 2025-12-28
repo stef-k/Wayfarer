@@ -313,8 +313,9 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     // 0) Register your job implementations in DI
     //    So JobFactory can resolve them by type
     builder.Services.AddTransient<LogCleanupJob>();
-    builder.Services.AddTransient<AuditLogCleanupJob>(); // if you have a separate class
-    // ...and any other IJob implementations you’ll use
+    builder.Services.AddTransient<AuditLogCleanupJob>();
+    builder.Services.AddTransient<VisitCleanupJob>();
+    // ...and any other IJob implementations you'll use
 
     // 1) Register your JobFactory & Listeners
     // builder.Services.AddSingleton<IJobFactory, JobFactory>();
@@ -379,6 +380,25 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
             var trigger = TriggerBuilder.Create()
                 .ForJob(job)
                 .WithIdentity("AuditLogCleanupTrigger", "Maintenance")
+                .StartNow()
+                .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
+                .Build();
+
+            scheduler.ScheduleJob(job, trigger).Wait();
+        }
+
+        // Visit cleanup job - closes stale open visits and deletes stale candidates
+        var visitJobKey = new JobKey("VisitCleanupJob", "Maintenance");
+        if (!scheduler.CheckExists(visitJobKey).Result)
+        {
+            var job = JobBuilder.Create<VisitCleanupJob>()
+                .WithIdentity(visitJobKey)
+                .StoreDurably()
+                .Build();
+
+            var trigger = TriggerBuilder.Create()
+                .ForJob(job)
+                .WithIdentity("VisitCleanupTrigger", "Maintenance")
                 .StartNow()
                 .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
                 .Build();

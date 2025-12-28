@@ -1322,7 +1322,15 @@ namespace Wayfarer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Wayfarer.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Place");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.PlaceVisitEvent", b =>
@@ -1332,7 +1340,15 @@ namespace Wayfarer.Migrations
                         .HasForeignKey("PlaceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Wayfarer.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Place");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Region", b =>

@@ -3,15 +3,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using NetTopologySuite.Geometries;
 using Quartz;
 using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -127,4 +129,216 @@ public class JobTests : TestBase
         Assert.Equal("Completed", history.Status);
         Assert.True(history.LastRunTime.HasValue);
     }
+
+    #region VisitCleanupJob Tests
+
+    [Fact]
+    public async Task VisitCleanupJob_ClosesStaleOpenVisits()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+
+        // Add settings with VisitedEndVisitAfterMinutes = 45 (via LocationTimeThresholdMinutes = 5)
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            LocationTimeThresholdMinutes = 5 // VisitedEndVisitAfterMinutes = 5 * 9 = 45 min
+        });
+
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+
+        // Stale open visit - LastSeenAtUtc over 45 min ago
+        var staleVisit = new PlaceVisitEvent
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            ArrivedAtUtc = DateTime.UtcNow.AddHours(-2),
+            LastSeenAtUtc = DateTime.UtcNow.AddHours(-1), // 60 min ago > 45 min threshold
+            EndedAtUtc = null, // Open
+            TripIdSnapshot = Guid.NewGuid(),
+            TripNameSnapshot = "Trip",
+            RegionNameSnapshot = "Region",
+            PlaceNameSnapshot = "Stale Place"
+        };
+
+        // Recent open visit - LastSeenAtUtc within 45 min
+        var recentVisit = new PlaceVisitEvent
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            ArrivedAtUtc = DateTime.UtcNow.AddMinutes(-30),
+            LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-10), // 10 min ago < 45 min threshold
+            EndedAtUtc = null, // Open
+            TripIdSnapshot = Guid.NewGuid(),
+            TripNameSnapshot = "Trip",
+            RegionNameSnapshot = "Region",
+            PlaceNameSnapshot = "Recent Place"
+        };
+
+        db.PlaceVisitEvents.AddRange(staleVisit, recentVisit);
+        await db.SaveChangesAsync();
+
+        var settingsService = new ApplicationSettingsService(db, cache);
+        var job = new VisitCleanupJob(db, settingsService, NullLogger<VisitCleanupJob>.Instance);
+
+        var jobDetail = JobBuilder.Create<VisitCleanupJob>().WithIdentity("visitCleanup", "tests").Build();
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.JobDetail).Returns(jobDetail);
+
+        // Act
+        await job.Execute(context.Object);
+
+        // Assert
+        var staleResult = await db.PlaceVisitEvents.FindAsync(staleVisit.Id);
+        var recentResult = await db.PlaceVisitEvents.FindAsync(recentVisit.Id);
+
+        Assert.NotNull(staleResult!.EndedAtUtc); // Should be closed
+        Assert.Equal(staleVisit.LastSeenAtUtc, staleResult.EndedAtUtc); // EndedAtUtc = LastSeenAtUtc
+        Assert.Null(recentResult!.EndedAtUtc); // Should still be open
+        Assert.Equal("Completed", jobDetail.JobDataMap["Status"]);
+    }
+
+    [Fact]
+    public async Task VisitCleanupJob_DeletesStaleCandidates()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+
+        // Add settings with VisitedCandidateStaleMinutes = 60 (via LocationTimeThresholdMinutes = 5)
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            LocationTimeThresholdMinutes = 5 // VisitedCandidateStaleMinutes = 5 * 12 = 60 min
+        });
+
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+
+        var trip = new Trip
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Trip",
+            UserId = user.Id,
+            IsPublic = false
+        };
+        db.Trips.Add(trip);
+
+        var region = new Region { Id = Guid.NewGuid(), Name = "Region", TripId = trip.Id };
+        db.Regions.Add(region);
+
+        var place = new Place
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Place",
+            RegionId = region.Id,
+            Location = new Point(23.72, 37.97) { SRID = 4326 }
+        };
+        db.Places.Add(place);
+
+        // Stale candidate - LastHitUtc over 60 min ago
+        var staleCandidate = new PlaceVisitCandidate
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            PlaceId = place.Id,
+            FirstHitUtc = DateTime.UtcNow.AddHours(-2),
+            LastHitUtc = DateTime.UtcNow.AddMinutes(-90), // 90 min ago > 60 min threshold
+            ConsecutiveHits = 1
+        };
+
+        // Recent candidate - LastHitUtc within 60 min
+        var recentCandidate = new PlaceVisitCandidate
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            PlaceId = place.Id,
+            FirstHitUtc = DateTime.UtcNow.AddMinutes(-20),
+            LastHitUtc = DateTime.UtcNow.AddMinutes(-10), // 10 min ago < 60 min threshold
+            ConsecutiveHits = 1
+        };
+
+        // Need unique constraint workaround - use different places
+        var place2 = new Place
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Place 2",
+            RegionId = region.Id,
+            Location = new Point(23.73, 37.98) { SRID = 4326 }
+        };
+        db.Places.Add(place2);
+        recentCandidate.PlaceId = place2.Id;
+
+        db.PlaceVisitCandidates.AddRange(staleCandidate, recentCandidate);
+        await db.SaveChangesAsync();
+
+        var settingsService = new ApplicationSettingsService(db, cache);
+        var job = new VisitCleanupJob(db, settingsService, NullLogger<VisitCleanupJob>.Instance);
+
+        var jobDetail = JobBuilder.Create<VisitCleanupJob>().WithIdentity("visitCleanup", "tests").Build();
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.JobDetail).Returns(jobDetail);
+
+        // Act
+        await job.Execute(context.Object);
+
+        // Assert
+        var candidates = db.PlaceVisitCandidates.ToList();
+        Assert.Single(candidates);
+        Assert.Equal(recentCandidate.Id, candidates[0].Id); // Only recent remains
+        Assert.Equal("Completed", jobDetail.JobDataMap["Status"]);
+    }
+
+    [Fact]
+    public async Task VisitCleanupJob_ReadsSettingsDynamically()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+
+        // Add settings with different threshold
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            LocationTimeThresholdMinutes = 10 // VisitedEndVisitAfterMinutes = 10 * 9 = 90 min
+        });
+
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+
+        // Visit that is 60 min stale - would be closed with 5-min threshold, but not with 10-min
+        var visit = new PlaceVisitEvent
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            ArrivedAtUtc = DateTime.UtcNow.AddHours(-2),
+            LastSeenAtUtc = DateTime.UtcNow.AddMinutes(-60), // 60 min ago < 90 min threshold
+            EndedAtUtc = null,
+            TripIdSnapshot = Guid.NewGuid(),
+            TripNameSnapshot = "Trip",
+            RegionNameSnapshot = "Region",
+            PlaceNameSnapshot = "Place"
+        };
+
+        db.PlaceVisitEvents.Add(visit);
+        await db.SaveChangesAsync();
+
+        var settingsService = new ApplicationSettingsService(db, cache);
+        var job = new VisitCleanupJob(db, settingsService, NullLogger<VisitCleanupJob>.Instance);
+
+        var jobDetail = JobBuilder.Create<VisitCleanupJob>().WithIdentity("visitCleanup", "tests").Build();
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.JobDetail).Returns(jobDetail);
+
+        // Act
+        await job.Execute(context.Object);
+
+        // Assert - visit should NOT be closed because threshold is 90 min
+        var result = await db.PlaceVisitEvents.FindAsync(visit.Id);
+        Assert.Null(result!.EndedAtUtc); // Should still be open
+    }
+
+    #endregion
 }
