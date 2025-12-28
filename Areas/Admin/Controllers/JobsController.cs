@@ -14,6 +14,7 @@ namespace Wayfarer.Areas.Admin.Controllers
     /// </summary>
     [Area("Admin")]
     [Authorize(Roles = "Admin")]
+    [Route("Admin/[controller]/[action]")]
     public class JobsController : BaseController
     {
         /// <summary>
@@ -72,6 +73,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     .FirstOrDefaultAsync();
 
                 string status = DetermineStatus(isRunning, isPaused, jobDetail, lastRunTime);
+                string? statusMessage = jobDetail?.JobDataMap["StatusMessage"]?.ToString();
 
                 jobs.Add(new JobMonitoringViewModel
                 {
@@ -80,6 +82,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     NextFireTime = nextFireTime,
                     LastRunTime = lastRunTime?.ToLocalTime(),
                     Status = status,
+                    StatusMessage = statusMessage,
                     IsRunning = isRunning,
                     IsPaused = isPaused,
                     IsInterruptable = isInterruptable
@@ -226,8 +229,8 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// </summary>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>SSE stream with job status events.</returns>
-        [HttpGet("sse")]
-        public async Task<IActionResult> SubscribeToJobStatusAsync(CancellationToken cancellationToken)
+        [HttpGet]
+        public async Task<IActionResult> Sse(CancellationToken cancellationToken)
         {
             await _sseService.SubscribeAsync(
                 JobStatusChannel,

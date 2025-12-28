@@ -15,6 +15,11 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class LocationImportController : BaseController
     {
+        /// <summary>
+        /// Quartz job group for location import jobs.
+        /// </summary>
+        private const string ImportJobGroup = "Imports";
+
         private readonly IWebHostEnvironment _environment;
         private readonly IScheduler        _scheduler;
 
@@ -84,7 +89,7 @@ namespace Wayfarer.Areas.User.Controllers
 
         private async Task StartImportJob(LocationImport import)
         {
-            var jobKey = new JobKey($"LocationImportJob_{import.Id}");
+            var jobKey = new JobKey($"LocationImportJob_{import.Id}", ImportJobGroup);
 
             _logger.LogInformation("Attempting to schedule LocationImportJob for import ID {ImportId}", import.Id);
 
@@ -95,7 +100,7 @@ namespace Wayfarer.Areas.User.Controllers
                 .Build();
 
             var trigger = TriggerBuilder.Create()
-                .WithIdentity($"LocationImportTrigger_{import.Id}")
+                .WithIdentity($"LocationImportTrigger_{import.Id}", ImportJobGroup)
                 .StartNow()
                 .Build();
             
@@ -149,7 +154,7 @@ namespace Wayfarer.Areas.User.Controllers
 
         private async Task StopImportJob(LocationImport import)
         {
-            var jobKey = new JobKey($"LocationImportJob_{import.Id}");
+            var jobKey = new JobKey($"LocationImportJob_{import.Id}", ImportJobGroup);
 
             _logger.LogInformation("Attempting to stop job with key {JobKey}", jobKey);
             

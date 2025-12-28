@@ -82,14 +82,17 @@ public class JobTests : TestBase
         });
         await db.SaveChangesAsync();
 
+        var jobDetail = JobBuilder.Create<AuditLogCleanupJob>().WithIdentity("auditCleanup", "tests").Build();
         var context = new Mock<IJobExecutionContext>();
         context.SetupGet(c => c.CancellationToken).Returns(CancellationToken.None);
+        context.SetupGet(c => c.JobDetail).Returns(jobDetail);
 
         var job = new AuditLogCleanupJob(db);
         await job.Execute(context.Object);
 
         var remaining = Assert.Single(db.AuditLogs);
         Assert.Equal("recent", remaining.UserId);
+        Assert.Equal("Completed", jobDetail.JobDataMap["Status"]);
     }
 
     [Fact]
@@ -99,12 +102,15 @@ public class JobTests : TestBase
         var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        var jobDetail = JobBuilder.Create<AuditLogCleanupJob>().WithIdentity("auditCleanup", "tests").Build();
         var context = new Mock<IJobExecutionContext>();
         context.SetupGet(c => c.CancellationToken).Returns(cts.Token);
+        context.SetupGet(c => c.JobDetail).Returns(jobDetail);
 
         var job = new AuditLogCleanupJob(db);
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => job.Execute(context.Object));
+        Assert.Equal("Cancelled", jobDetail.JobDataMap["Status"]);
     }
 
     [Fact]

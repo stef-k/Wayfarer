@@ -66,6 +66,7 @@ public class VisitCleanupJob : IJob
                 closedVisits, deletedCandidates);
 
             jobDataMap["Status"] = "Completed";
+            jobDataMap["StatusMessage"] = $"Closed {closedVisits} visits, deleted {deletedCandidates} candidates";
         }
         catch (OperationCanceledException)
         {

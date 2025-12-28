@@ -17,6 +17,9 @@
         /// <summary>Current status text (Running, Paused, Scheduled, etc.).</summary>
         public string Status { get; set; } = string.Empty;
 
+        /// <summary>Optional status message with details about the last run.</summary>
+        public string? StatusMessage { get; set; }
+
         /// <summary>When the job last ran.</summary>
         public DateTimeOffset? LastRunTime { get; set; }
 

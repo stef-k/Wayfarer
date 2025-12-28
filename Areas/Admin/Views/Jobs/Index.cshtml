@@ -88,6 +88,7 @@
                             <th>Last Run Time</th>
                             <th>Next Fire Time</th>
                             <th>Status</th>
+                            <th>Last Result</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -129,6 +130,16 @@
                                     else
                                     {
                                         <span class="badge bg-secondary">@job.Status</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(job.StatusMessage))
+                                    {
+                                        <small class="text-muted">@job.StatusMessage</small>
+                                    }
+                                    else
+                                    {
+                                        <small class="text-muted">-</small>
                                     }
                                 </td>
                                 <td>
