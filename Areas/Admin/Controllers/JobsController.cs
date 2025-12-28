@@ -8,6 +8,9 @@ using Wayfarer.Models.ViewModels;
 
 namespace Wayfarer.Areas.Admin.Controllers
 {
+    /// <summary>
+    /// Admin controller for monitoring and controlling scheduled Quartz jobs.
+    /// </summary>
     [Area("Admin")]
     [Authorize(Roles = "Admin")]
     public class JobsController : BaseController
@@ -23,29 +26,44 @@ namespace Wayfarer.Areas.Admin.Controllers
         }
 
         /// <summary>
-        /// Display all jobs
+        /// Display all jobs with their current state (running, paused, scheduled).
         /// </summary>
-        /// <returns></returns>
         public async Task<IActionResult> Index()
         {
             IReadOnlyCollection<JobKey> jobKeys = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.AnyGroup());
+            IReadOnlyCollection<IJobExecutionContext> currentlyExecuting = await _scheduler.GetCurrentlyExecutingJobs();
+            HashSet<JobKey> runningJobKeys = currentlyExecuting.Select(c => c.JobDetail.Key).ToHashSet();
+
             List<JobMonitoringViewModel> jobs = new List<JobMonitoringViewModel>();
 
             foreach (JobKey jobKey in jobKeys)
             {
                 IJobDetail? jobDetail = await _scheduler.GetJobDetail(jobKey);
                 IReadOnlyCollection<ITrigger> triggers = await _scheduler.GetTriggersOfJob(jobKey);
+                ITrigger? trigger = triggers.FirstOrDefault();
 
-                DateTimeOffset? nextFireTime = triggers.FirstOrDefault()?.GetNextFireTimeUtc()?.ToLocalTime();
+                // Check if paused by examining trigger state
+                bool isPaused = false;
+                if (trigger != null)
+                {
+                    TriggerState triggerState = await _scheduler.GetTriggerState(trigger.Key);
+                    isPaused = triggerState == TriggerState.Paused;
+                }
+
+                // Check if currently running
+                bool isRunning = runningJobKeys.Contains(jobKey);
+
+                // All our jobs support CancellationToken pattern
+                bool isInterruptable = true;
+
+                DateTimeOffset? nextFireTime = trigger?.GetNextFireTimeUtc()?.ToLocalTime();
                 DateTime? lastRunTime = await _dbContext.JobHistories
                     .Where(jh => jh.JobName == jobKey.Name)
                     .OrderByDescending(jh => jh.LastRunTime)
                     .Select(jh => jh.LastRunTime)
                     .FirstOrDefaultAsync();
 
-                string status = lastRunTime.HasValue
-                    ? jobDetail?.JobDataMap["Status"]?.ToString() ?? "In Progress"
-                    : "Not Started";
+                string status = DetermineStatus(isRunning, isPaused, jobDetail, lastRunTime);
 
                 jobs.Add(new JobMonitoringViewModel
                 {
@@ -53,11 +71,25 @@ namespace Wayfarer.Areas.Admin.Controllers
                     JobGroup = jobKey.Group,
                     NextFireTime = nextFireTime,
                     LastRunTime = lastRunTime?.ToLocalTime(),
-                    Status = status
+                    Status = status,
+                    IsRunning = isRunning,
+                    IsPaused = isPaused,
+                    IsInterruptable = isInterruptable
                 });
             }
             SetPageTitle("Scheduled Jobs");
             return View("Index", jobs);
+        }
+
+        /// <summary>
+        /// Determines the display status based on job state.
+        /// </summary>
+        private static string DetermineStatus(bool isRunning, bool isPaused, IJobDetail? jobDetail, DateTime? lastRunTime)
+        {
+            if (isRunning) return "Running";
+            if (isPaused) return "Paused";
+            if (!lastRunTime.HasValue) return "Not Started";
+            return jobDetail?.JobDataMap["Status"]?.ToString() ?? "Scheduled";
         }
 
 
@@ -121,16 +153,63 @@ namespace Wayfarer.Areas.Admin.Controllers
             return RedirectToAction("Index");
         }
 
-
-
-
-        private Task<string> GetJobStatusFromDb(string jobName)
+        /// <summary>
+        /// Pause a job's scheduled execution. The job won't fire while paused.
+        /// If the job is currently running, it will continue until completion.
+        /// </summary>
+        /// <param name="jobName">Job name</param>
+        /// <param name="jobGroup">Job group</param>
+        [HttpPost]
+        public async Task<IActionResult> PauseJob(string jobName, string jobGroup)
         {
-            // Retrieve the job status from the database (e.g., 'Failed', 'Pending', etc.)
-            // Example: Return "Failed" if the job was previously marked as failed.
-            return Task.FromResult("Failed"); // This is just an example, you can replace it with real logic
+            JobKey jobKey = new JobKey(jobName, jobGroup);
+            await _scheduler.PauseJob(jobKey);
+
+            _logger.LogInformation("Admin paused job {JobName} in group {JobGroup}", jobName, jobGroup);
+            TempData["Message"] = $"Job '{jobName}' paused. It will not run until resumed.";
+            return RedirectToAction("Index");
         }
 
-    }
+        /// <summary>
+        /// Resume a paused job, allowing it to fire on its schedule again.
+        /// </summary>
+        /// <param name="jobName">Job name</param>
+        /// <param name="jobGroup">Job group</param>
+        [HttpPost]
+        public async Task<IActionResult> ResumeJob(string jobName, string jobGroup)
+        {
+            JobKey jobKey = new JobKey(jobName, jobGroup);
+            await _scheduler.ResumeJob(jobKey);
 
+            _logger.LogInformation("Admin resumed job {JobName} in group {JobGroup}", jobName, jobGroup);
+            TempData["Message"] = $"Job '{jobName}' resumed.";
+            return RedirectToAction("Index");
+        }
+
+        /// <summary>
+        /// Request cancellation of a currently running job.
+        /// The job must cooperate by checking CancellationToken.
+        /// </summary>
+        /// <param name="jobName">Job name</param>
+        /// <param name="jobGroup">Job group</param>
+        [HttpPost]
+        public async Task<IActionResult> CancelJob(string jobName, string jobGroup)
+        {
+            JobKey jobKey = new JobKey(jobName, jobGroup);
+            bool interrupted = await _scheduler.Interrupt(jobKey);
+
+            if (interrupted)
+            {
+                _logger.LogInformation("Admin requested cancellation of job {JobName} in group {JobGroup}", jobName, jobGroup);
+                TempData["Message"] = $"Job '{jobName}' cancellation requested.";
+            }
+            else
+            {
+                _logger.LogWarning("Could not interrupt job {JobName} in group {JobGroup} - not running or not interruptable", jobName, jobGroup);
+                TempData["Error"] = $"Job '{jobName}' could not be cancelled (not running or not interruptable).";
+            }
+
+            return RedirectToAction("Index");
+        }
+    }
 }

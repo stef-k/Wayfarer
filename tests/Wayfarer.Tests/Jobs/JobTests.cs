@@ -82,11 +82,64 @@ public class JobTests : TestBase
         });
         await db.SaveChangesAsync();
 
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.CancellationToken).Returns(CancellationToken.None);
+
         var job = new AuditLogCleanupJob(db);
-        await job.Execute(new Mock<IJobExecutionContext>().Object);
+        await job.Execute(context.Object);
 
         var remaining = Assert.Single(db.AuditLogs);
         Assert.Equal("recent", remaining.UserId);
+    }
+
+    [Fact]
+    public async Task AuditLogCleanupJob_RespectsCanellationToken()
+    {
+        var db = CreateDbContext();
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.CancellationToken).Returns(cts.Token);
+
+        var job = new AuditLogCleanupJob(db);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => job.Execute(context.Object));
+    }
+
+    [Fact]
+    public async Task LogCleanupJob_RespectsCanellationToken()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"wf-logs-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Logging:LogFilePath:Default"] = Path.Combine(tempDir, "wayfarer-current.log")
+            })
+            .Build();
+
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var jobDetail = JobBuilder.Create<LogCleanupJob>().WithIdentity("logCleanup", "tests").Build();
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.JobDetail).Returns(jobDetail);
+        context.SetupGet(c => c.CancellationToken).Returns(cts.Token);
+
+        var job = new LogCleanupJob(config, NullLogger<LogCleanupJob>.Instance);
+
+        try
+        {
+            await job.Execute(context.Object);
+
+            Assert.Equal("Cancelled", jobDetail.JobDataMap["Status"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
     }
 
     [Fact]
