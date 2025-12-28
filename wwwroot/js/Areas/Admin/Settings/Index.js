@@ -13,6 +13,26 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         deleteMbtilesCache();
     });
+
+    // Time threshold warning for 2-minute option
+    const timeThresholdSelect = document.getElementById('timeThresholdSelect');
+    const timeThresholdWarning = document.getElementById('timeThresholdWarning');
+
+    if (timeThresholdSelect && timeThresholdWarning) {
+        const updateWarningVisibility = () => {
+            if (timeThresholdSelect.value === '2') {
+                timeThresholdWarning.classList.remove('d-none');
+            } else {
+                timeThresholdWarning.classList.add('d-none');
+            }
+        };
+
+        // Check on page load
+        updateWarningVisibility();
+
+        // Check on change
+        timeThresholdSelect.addEventListener('change', updateWarningVisibility);
+    }
 });
 
 /**

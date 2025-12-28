@@ -21,8 +21,9 @@
                         Lower time thresholds require more frequent GPS wake-ups, increasing battery drain.
                         Mobile devices wake ~60s before each ping for GPS acquisition.
                         <ul class="mb-0 mt-2">
-                            <li><code>2 min</code>: <strong>High battery drain</strong> – continuous GPS, no sleep possible</li>
-                            <li><code>5 min</code>: Moderate – ~4 min sleep, ~1 min active per cycle</li>
+                            <li><code>2 min</code>: <strong class="text-danger">High battery drain</strong> – continuous GPS, no sleep possible</li>
+                            <li><code>3 min</code>: High – ~2 min sleep, ~1 min active per cycle</li>
+                            <li><code>5 min</code>: Moderate – ~4 min sleep, ~1 min active per cycle (recommended)</li>
                             <li><code>10 min</code>: Good – ~9 min sleep, ~1 min active per cycle</li>
                             <li><code>15 min</code>: <strong>Best battery life</strong> – ~14 min sleep, ~1 min active per cycle</li>
                         </ul>
@@ -30,8 +31,9 @@
 
                     <p>
                         <strong>Database storage (worst-case yearly per user):</strong><br/>
-                        <code>2</code> minutes: <code>262,800</code> records/year<br/>
-                        <code>5</code> minutes: <code>105,120</code> records/year (default)<br/>
+                        <code>2</code> minutes: <code class="text-danger">262,800</code> records/year<br/>
+                        <code>3</code> minutes: <code>175,200</code> records/year<br/>
+                        <code>5</code> minutes: <code>105,120</code> records/year (recommended)<br/>
                         <code>10</code> minutes: <code>52,560</code> records/year<br/>
                         <code>15</code> minutes: <code>35,040</code> records/year
                     </p>
@@ -43,12 +45,18 @@
                             <div class="col-md-6">
                                 <label for="LocationTimeThresholdMinutes" class="form-label">Time Threshold (in
                                     minutes):</label>
-                                <select asp-for="LocationTimeThresholdMinutes" class="form-control">
-                                    <option value="2">2</option>
-                                    <option value="5">5</option>
+                                <select asp-for="LocationTimeThresholdMinutes" class="form-control" id="timeThresholdSelect">
+                                    <option value="2" class="text-danger fw-bold">2 ⚠️ (High resource usage)</option>
+                                    <option value="3">3</option>
+                                    <option value="5">5 (Recommended)</option>
                                     <option value="10">10</option>
                                     <option value="15">15</option>
                                 </select>
+                                <small id="timeThresholdWarning" class="form-text text-danger d-none">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                    <strong>Warning:</strong> 2-minute threshold provides highest location detail but significantly
+                                    increases database storage and drains mobile device battery (continuous GPS, no sleep possible).
+                                </small>
                                 <span asp-validation-for="LocationTimeThresholdMinutes" class="text-danger"></span>
                             </div>
 
@@ -82,6 +90,7 @@
                                 <strong>Formula:</strong> <code>Time Threshold × Required Hits = Minimum Confirmation Time</code><br/>
                                 <ul class="mb-0 mt-2">
                                     <li>2 min threshold × 2 hits = <strong>4 min</strong> minimum to confirm visit</li>
+                                    <li>3 min threshold × 2 hits = <strong>6 min</strong> minimum to confirm visit</li>
                                     <li>5 min threshold × 2 hits = <strong>10 min</strong> minimum to confirm visit</li>
                                     <li>10 min threshold × 2 hits = <strong>20 min</strong> minimum to confirm visit</li>
                                     <li>15 min threshold × 2 hits = <strong>30 min</strong> minimum to confirm visit</li>

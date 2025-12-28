@@ -88,9 +88,9 @@ public class VisitSseEventDtoTests
             UserId = "user1",
             PlaceId = Guid.NewGuid(),
             TripIdSnapshot = Guid.NewGuid(),
-            TripNameSnapshot = null,
-            RegionNameSnapshot = null,
-            PlaceNameSnapshot = null,
+            TripNameSnapshot = null!,
+            RegionNameSnapshot = null!,
+            PlaceNameSnapshot = null!,
             ArrivedAtUtc = DateTime.UtcNow,
             IconNameSnapshot = null,
             MarkerColorSnapshot = null
