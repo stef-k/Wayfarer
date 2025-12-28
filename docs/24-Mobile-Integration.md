@@ -24,10 +24,19 @@ Mobile-Specific API (Groups & SSE)
   - `POST /api/mobile/groups/{groupId}/locations/latest` — latest points per member.
   - `POST /api/mobile/groups/{groupId}/locations/query` — bounding-box/time filtered query with pagination.
 - SSE client (`SseLocationClient`):
-  - `GET /api/mobile/sse/location-update/{userName}` — per-user channel.
-  - `GET /api/mobile/sse/group-location-update/{groupId}` — group channel.
+  - `GET /api/mobile/sse/visits` — visit notifications for authenticated user.
+  - `GET /api/mobile/sse/group/{groupId}` — consolidated group events (locations + membership).
   - Adds `Authorization: Bearer <token>` and `Accept: text/event-stream`.
   - Auto-reconnect with backoff (1s, 2s, 5s), heartbeat comments handled.
+
+Visit Notifications
+- **Real-time (foreground)**: Subscribe to `/api/mobile/sse/visits` for instant `visit_started` events when arriving at planned places.
+- **Background polling (fallback)**: iOS/Android kill SSE connections when backgrounded. Poll `/api/mobile/visits/recent?since=30` after each location log to catch visits.
+- **Recommended pattern**:
+  1. `POST /api/location/log-location` — log GPS position
+  2. If backgrounded: `GET /api/mobile/visits/recent?since=30` — poll for new visits
+  3. Display local notification for any new visits
+- **Response fields**: `visitId`, `tripId`, `tripName`, `placeId`, `placeName`, `regionName`, `arrivedAtUtc`, `latitude`, `longitude`, `iconName`, `markerColor`.
 
 Auth & Configuration
 - Token: per-user API token from the web app; stored in `SettingsStore.ApiToken`.
