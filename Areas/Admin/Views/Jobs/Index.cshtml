@@ -7,9 +7,9 @@
 
 <h1 class="text-center">@ViewData["Title"]</h1>
 
-<div class="container">
+<div class="container-fluid px-4">
     <div class="row">
-        <div class="col-md-10 offset-md-1">
+        <div class="col-12">
             <!-- Help Section -->
             <div class="accordion mb-4" id="jobHelpAccordion">
                 <div class="accordion-item">
@@ -83,39 +83,39 @@
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th>Job Name</th>
-                            <th>Job Group</th>
-                            <th>Last Run Time</th>
-                            <th>Next Fire Time</th>
+                            <th class="text-nowrap">Job Name</th>
+                            <th class="text-nowrap">Job Group</th>
+                            <th class="text-nowrap">Last Run Time</th>
+                            <th class="text-nowrap">Next Fire Time</th>
                             <th>Status</th>
                             <th>Last Result</th>
-                            <th>Actions</th>
+                            <th class="text-nowrap">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var job in Model)
                         {
                             <tr>
-                                <td>@job.JobName</td>
-                                <td>@job.JobGroup</td>
-                                <td>
+                                <td class="text-nowrap">@job.JobName</td>
+                                <td class="text-nowrap">@job.JobGroup</td>
+                                <td class="text-nowrap">
                                     @if (job.LastRunTime != null)
                                     {
-                                        <span>@job.LastRunTime?.ToString("f")</span>
+                                        <span>@job.LastRunTime?.ToString("g")</span>
                                     }
                                     else
                                     {
-                                        <span>Not yet run</span>
+                                        <span class="text-muted">Not yet run</span>
                                     }
                                 </td>
-                                <td>
+                                <td class="text-nowrap">
                                     @if (job.IsPaused)
                                     {
                                         <span class="text-muted">Paused</span>
                                     }
                                     else
                                     {
-                                        @job.NextFireTime?.ToString("f")
+                                        @job.NextFireTime?.ToString("g")
                                     }
                                 </td>
                                 <td>
