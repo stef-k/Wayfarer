@@ -87,12 +87,15 @@ The Wayfarer API provides RESTful endpoints for mobile app integration and exter
 | GET | `/api/mobile/groups/{groupId}/members` | Group members |
 | POST | `/api/mobile/groups/{groupId}/locations/latest` | Latest location per member |
 | POST | `/api/mobile/groups/{groupId}/locations/query` | Spatial/time filtered query |
+| GET | `/api/mobile/visits/recent?since=30` | Recent visits for polling (see below) |
 
 ---
 
 ## SSE (Server-Sent Events)
 
-Real-time streaming endpoints for live updates:
+Real-time streaming endpoints for live updates.
+
+### Web App SSE Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
@@ -104,18 +107,106 @@ Real-time streaming endpoints for live updates:
 | `/api/sse/stream/job-status` | Background job status updates |
 | `/api/sse/stream/import-progress` | Import progress updates |
 
+### Mobile SSE Endpoints
+
+Mobile endpoints use Bearer token authentication:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/api/mobile/sse/visits` | Visit notifications for authenticated user |
+| `/api/mobile/sse/group/{groupId}` | Consolidated group events (locations + membership) |
+
 ### SSE Event Types
 
 ```json
 // Location update
 { "type": "location", "userId": "...", "latitude": 37.97, "longitude": 23.72 }
 
-// Visit started
-{ "type": "visit_started", "visitId": "...", "placeName": "...", "arrivedAtUtc": "..." }
+// Visit started (broadcast when user arrives at a planned trip place)
+{
+  "type": "visit_started",
+  "visitId": "guid",
+  "tripId": "guid",
+  "tripName": "NYC Trip",
+  "placeId": "guid",
+  "placeName": "Coffee Shop",
+  "regionName": "Manhattan",
+  "arrivedAtUtc": "2025-01-15T10:30:00Z",
+  "latitude": 40.7128,
+  "longitude": -74.0060,
+  "iconName": "coffee",
+  "markerColor": "#8B4513"
+}
 
 // Job status
 { "type": "job_status", "jobName": "...", "status": "Completed" }
 ```
+
+---
+
+## Visit Notifications (Mobile)
+
+The mobile app receives notifications when users arrive at planned trip places.
+
+### Real-Time (SSE)
+
+When the app is in the foreground, subscribe to SSE for instant notifications:
+
+```
+GET /api/mobile/sse/visits
+Authorization: Bearer <token>
+Accept: text/event-stream
+```
+
+### Background Polling (Fallback)
+
+iOS and Android kill SSE connections when apps are backgrounded. Use API polling as a fallback after each location log:
+
+```
+GET /api/mobile/visits/recent?since=30
+Authorization: Bearer <token>
+```
+
+**Parameters:**
+
+| Parameter | Default | Max | Description |
+|-----------|---------|-----|-------------|
+| `since` | 30 | 300 | Seconds to look back for newly confirmed visits |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "visits": [
+    {
+      "type": "visit_started",
+      "visitId": "guid",
+      "tripId": "guid",
+      "tripName": "NYC Trip",
+      "placeId": "guid",
+      "placeName": "Coffee Shop",
+      "regionName": "Manhattan",
+      "arrivedAtUtc": "2025-01-15T10:30:00Z",
+      "latitude": 40.7128,
+      "longitude": -74.0060,
+      "iconName": "coffee",
+      "markerColor": "#8B4513"
+    }
+  ]
+}
+```
+
+### Recommended Mobile Pattern
+
+```
+1. POST /api/location/log-location  → Log GPS position
+2. If backgrounded (SSE unavailable):
+   GET /api/mobile/visits/recent?since=30  → Poll for new visits
+3. Display local notification for any new visits
+```
+
+This ensures visit notifications work reliably regardless of app state.
 
 ---
 
