@@ -10,6 +10,51 @@
 <div class="container">
     <div class="row">
         <div class="col-md-10 offset-md-1">
+            <!-- Help Section -->
+            <div class="accordion mb-4" id="jobHelpAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed py-2" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#jobHelpContent"
+                                aria-expanded="false" aria-controls="jobHelpContent">
+                            <i class="bi bi-question-circle me-2"></i> Job Control Help
+                        </button>
+                    </h2>
+                    <div id="jobHelpContent" class="accordion-collapse collapse" data-bs-parent="#jobHelpAccordion">
+                        <div class="accordion-body small">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6><span class="badge bg-primary">Start</span></h6>
+                                    <p>Triggers the job to run immediately, regardless of its schedule.</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6><span class="badge bg-warning text-dark">Pause</span></h6>
+                                    <p>Stops <strong>future</strong> scheduled runs. If the job is currently running, it will complete normally. The job remains paused until resumed, even after app restart.</p>
+                                </div>
+                                <div class="col-md-4">
+                                    <h6><span class="badge bg-success">Resume</span></h6>
+                                    <p>Resumes a paused job, allowing it to run on its normal schedule again.</p>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-4">
+                                    <h6><span class="badge bg-danger">Cancel</span></h6>
+                                    <p>Requests cancellation of a <strong>currently running</strong> job. The job will stop at its next checkpoint. Fast jobs may complete before cancellation takes effect.</p>
+                                </div>
+                                <div class="col-md-8">
+                                    <h6>Status Indicators</h6>
+                                    <ul class="mb-0">
+                                        <li><span class="badge bg-success">Running</span> - Job is currently executing</li>
+                                        <li><span class="badge bg-warning text-dark">Paused</span> - Job won't run until resumed</li>
+                                        <li><span class="badge bg-secondary">Scheduled</span> - Job is waiting for next scheduled run</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             @if (TempData["Message"] != null)
             {
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -96,7 +141,8 @@
                                                     <input type="hidden" name="jobName" value="@job.JobName" />
                                                     <input type="hidden" name="jobGroup" value="@job.JobGroup" />
                                                     <button type="submit" class="btn btn-danger btn-sm"
-                                                            onclick="return confirm('Cancel this running job?')">
+                                                            onclick="return confirm('Cancel this running job?')"
+                                                            title="Request cancellation of this running job">
                                                         Cancel
                                                     </button>
                                                 </form>
@@ -114,7 +160,8 @@
                                             <form method="post" asp-action="ResumeJob" class="d-inline">
                                                 <input type="hidden" name="jobName" value="@job.JobName" />
                                                 <input type="hidden" name="jobGroup" value="@job.JobGroup" />
-                                                <button type="submit" class="btn btn-success btn-sm">
+                                                <button type="submit" class="btn btn-success btn-sm"
+                                                        title="Resume scheduled execution">
                                                     Resume
                                                 </button>
                                             </form>
@@ -124,14 +171,16 @@
                                             <form method="post" asp-action="StartJob" class="d-inline">
                                                 <input type="hidden" name="jobName" value="@job.JobName" />
                                                 <input type="hidden" name="jobGroup" value="@job.JobGroup" />
-                                                <button type="submit" class="btn btn-primary btn-sm">
+                                                <button type="submit" class="btn btn-primary btn-sm"
+                                                        title="Run this job immediately">
                                                     Start
                                                 </button>
                                             </form>
                                             <form method="post" asp-action="PauseJob" class="d-inline ms-1">
                                                 <input type="hidden" name="jobName" value="@job.JobName" />
                                                 <input type="hidden" name="jobGroup" value="@job.JobGroup" />
-                                                <button type="submit" class="btn btn-warning btn-sm">
+                                                <button type="submit" class="btn btn-warning btn-sm"
+                                                        title="Stop future scheduled runs (does not stop a running job)">
                                                     Pause
                                                 </button>
                                             </form>
