@@ -58,7 +58,7 @@ public class MobileIntegrationTests
         SeedData(db);
 
         var httpContext = new DefaultHttpContext();
-        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
+        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         var userColor = new UserColorService();
         var locationService = new LocationService(db);

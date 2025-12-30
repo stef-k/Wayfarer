@@ -354,7 +354,8 @@ public class MobileVisitsControllerTests : TestBase
 
         var accessor = new MobileCurrentUserAccessor(
             new HttpContextAccessor { HttpContext = httpContext },
-            db);
+            db,
+            NullLogger<MobileCurrentUserAccessor>.Instance);
 
         var controller = new MobileVisitsController(
             db,

@@ -36,7 +36,7 @@ public class MobileGroupsControllerTests
     private static MobileGroupsController MakeController(ApplicationDbContext db, string? token = null, IConfiguration? configuration = null)
     {
         var httpContext = CreateContext(token);
-        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
+        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
         configuration ??= new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
         var timeline = new GroupTimelineService(db, new LocationService(db), configuration);
         var color = new UserColorService();

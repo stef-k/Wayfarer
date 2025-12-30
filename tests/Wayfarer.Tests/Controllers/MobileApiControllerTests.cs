@@ -46,7 +46,7 @@ public class MobileApiControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var httpContext = CreateHttpContext("token-123");
-        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
+        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
         var controller = new TestController(db, accessor);
         controller.SetHttpContext(httpContext);
 
@@ -64,7 +64,7 @@ public class MobileApiControllerTests : TestBase
         // Arrange
         var db = CreateDbContext();
         var httpContext = CreateHttpContext();
-        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
+        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
         var controller = new TestController(db, accessor);
         controller.SetHttpContext(httpContext);
 
@@ -88,7 +88,7 @@ public class MobileApiControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var httpContext = CreateHttpContext("inactive-token");
-        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
+        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
         var controller = new TestController(db, accessor);
         controller.SetHttpContext(httpContext);
 
