@@ -136,6 +136,31 @@ dotnet publish Wayfarer.csproj -c Release -o "$OUT_DIR" --no-build
 #   dotnet tool install -g dotnet-ef
 echo "[6/8] Applying EF Core migrations..."
 export PATH="$PATH:$HOME/.dotnet/tools"
+
+# Read connection string from systemd service file (secrets are stored there, not in appsettings.json)
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+if [ -f "$SERVICE_FILE" ]; then
+    # Extract the connection string from Environment="ConnectionStrings__DefaultConnection=..."
+    CONN_LINE=$(sudo grep 'ConnectionStrings__DefaultConnection' "$SERVICE_FILE" 2>/dev/null || true)
+    if [ -n "$CONN_LINE" ]; then
+        # Parse: Environment="ConnectionStrings__DefaultConnection=value" → export the variable
+        # Handle both quoted and unquoted formats
+        CONN_VALUE=$(echo "$CONN_LINE" | sed -n 's/^[[:space:]]*Environment="\?\(ConnectionStrings__DefaultConnection=[^"]*\)"\?$/\1/p')
+        if [ -n "$CONN_VALUE" ]; then
+            export "$CONN_VALUE"
+            echo "  → Using connection string from $SERVICE_FILE"
+        fi
+    fi
+fi
+
+# Verify connection string is available
+if [ -z "$ConnectionStrings__DefaultConnection" ]; then
+    echo "  ⚠ Warning: ConnectionStrings__DefaultConnection not found in $SERVICE_FILE"
+    echo "    Migrations will use appsettings.json (may have placeholder password)"
+    echo "    To fix: ensure your systemd service file has:"
+    echo "      Environment=\"ConnectionStrings__DefaultConnection=Host=...;Password=...\""
+fi
+
 DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update --project Wayfarer.csproj
 
 # Step 5.5: Pre-install Playwright browsers (optional, recommended)

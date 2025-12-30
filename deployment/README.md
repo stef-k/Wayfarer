@@ -229,6 +229,10 @@ The `install.sh` script automatically:
 - Writes the connection string to the systemd service file
 - Reloads systemd to apply changes
 
+The `deploy.sh` script automatically:
+- Reads the connection string from the systemd service file before running migrations
+- No need to manually export environment variables
+
 ### Manual Configuration
 
 If configuring manually, add this line to `/etc/systemd/system/wayfarer.service` under `[Service]`:
