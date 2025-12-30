@@ -66,23 +66,16 @@ namespace Wayfarer.Areas.Identity.Pages.Account
 
             if (ModelState.IsValid)
             {
+                // Check if user exists and is active before attempting sign-in
                 ApplicationUser? user = await _userManager.FindByNameAsync(Input.Username);
-
-                // Check if the user exists and is active
-                if (user == null || !(await _userManager.CheckPasswordAsync(user, Input.Password)))
-                {
-                    ModelState.AddModelError(string.Empty, "Invalid login attempt.");
-                    return Page();
-                }
-
-                // Check if the user is active
-                if (!user.IsActive)
+                if (user != null && !user.IsActive)
                 {
                     ModelState.AddModelError(string.Empty, "Your account is inactive. Please contact support.");
                     return Page();
                 }
 
                 // Sign the user in (lockoutOnFailure enables account lockout after failed attempts)
+                // Note: PasswordSignInAsync handles password validation AND lockout tracking
                 Microsoft.AspNetCore.Identity.SignInResult result = await _signInManager.PasswordSignInAsync(Input.Username, Input.Password, Input.RememberMe, lockoutOnFailure: true);
                 if (result.Succeeded)
                 {
