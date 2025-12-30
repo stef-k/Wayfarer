@@ -7,7 +7,14 @@ Files
 
 ConnectionStrings
 - `DefaultConnection` — PostgreSQL connection string with PostGIS‑enabled database.
-- Do not check real credentials into source control. Prefer environment variables or user‑secrets.
+- The `appsettings.json` files contain **placeholder passwords** (`CHANGE_ME_BEFORE_DEPLOY`).
+- **Production:** Configure via systemd environment variable (overrides JSON):
+  ```ini
+  # In /etc/systemd/system/wayfarer.service under [Service]:
+  Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=user;Password=SECRET"
+  ```
+- **Development:** Use `dotnet user-secrets` or edit `appsettings.Development.json` locally.
+- The `install.sh` deployment script configures this automatically.
 
 Logging
 - `Logging:LogLevel:*` — log verbosity per category.

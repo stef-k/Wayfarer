@@ -11,7 +11,10 @@ Passwords
 - Policy: minimum eight characters with at least one upper-case letter, one lower-case letter, one digit, and one special character.
 
 API Tokens
-- Stored per‑user; used for mobile and API access. Rotate regularly.
+- **Wayfarer API tokens** (used for mobile app and API authentication) are stored as SHA-256 hashes—never in plain text. If the database is compromised, the tokens cannot be recovered or reused.
+- Tokens are shown **only once** when created or regenerated. Users must copy and store them securely.
+- **Third-party tokens** (e.g., Mapbox API keys) are stored as provided since the application needs them for outgoing API calls. Use scoped/restricted keys from providers when possible.
+- Rotate API tokens regularly and revoke any that may have been exposed.
 
 Authorization
 - Admin/Manager areas require roles.

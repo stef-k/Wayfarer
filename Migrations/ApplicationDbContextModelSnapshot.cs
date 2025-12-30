@@ -263,7 +263,9 @@ namespace Wayfarer.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Token")
-                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenHash")
                         .HasColumnType("text");
 
                     b.Property<string>("UserId")

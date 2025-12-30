@@ -202,6 +202,45 @@ REF=v1.3.0 ./deployment/deploy.sh
 
 ---
 
+## Secrets Management
+
+**Database credentials are configured via systemd environment variables**, not in appsettings.json files.
+
+The `appsettings.json` files contain **placeholder passwords** (`CHANGE_ME_BEFORE_DEPLOY`). These are overridden at runtime by the systemd service configuration.
+
+### How It Works
+
+1. **appsettings.json** (committed to repo) contains placeholder:
+   ```json
+   "DefaultConnection": "Host=localhost;...;Password=CHANGE_ME_BEFORE_DEPLOY"
+   ```
+
+2. **wayfarer.service** (on production server) contains real credentials:
+   ```ini
+   Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=REAL_SECRET"
+   ```
+
+3. ASP.NET Core automatically uses the environment variable, ignoring the JSON placeholder.
+
+### Automatic Configuration
+
+The `install.sh` script automatically:
+- Prompts for database password during installation
+- Writes the connection string to the systemd service file
+- Reloads systemd to apply changes
+
+### Manual Configuration
+
+If configuring manually, add this line to `/etc/systemd/system/wayfarer.service` under `[Service]`:
+
+```ini
+Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD"
+```
+
+Then reload: `sudo systemctl daemon-reload && sudo systemctl restart wayfarer`
+
+---
+
 ## Customization Required
 
 All files use **placeholders** that must be customized for your deployment:
@@ -209,7 +248,7 @@ All files use **placeholders** that must be customized for your deployment:
 | File | What to Customize |
 |------|-------------------|
 | `deploy.sh` | `APP_DIR`, `DEPLOY_DIR`, `APP_USER`, `SERVICE_NAME` |
-| `wayfarer.service` | `User`, `WorkingDirectory`, port in `--urls` |
+| `wayfarer.service` | `User`, `WorkingDirectory`, port in `--urls`, **connection string** |
 | `nginx-ratelimit.conf` | Domain name, SSL paths, Kestrel port, log paths |
 | `fail2ban-wayfarer-jail.conf` | `logpath` (must match your actual log location) |
 

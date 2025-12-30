@@ -317,7 +317,34 @@ sudo systemctl reload postgresql
 
 ## Application Configuration
 
-### 1. Edit Connection String
+### 1. Configure Connection String
+
+The `appsettings.json` file contains a **placeholder password** (`CHANGE_ME_BEFORE_DEPLOY`). For production, configure your database credentials via **systemd environment variable** (recommended) or by editing the config file.
+
+#### Option A: Systemd Environment Variable (Recommended)
+
+This approach keeps secrets out of config files and is configured automatically by `install.sh`.
+
+Edit the systemd service file:
+
+```bash
+sudo nano /etc/systemd/system/wayfarer.service
+```
+
+Add under `[Service]`:
+
+```ini
+Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfareruser;Password=your-secure-password-here"
+```
+
+Reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart wayfarer
+```
+
+#### Option B: Edit appsettings.json (Alternative)
 
 ```bash
 # Switch to wayfarer user
@@ -328,7 +355,7 @@ cd /var/www/wayfarer
 nano appsettings.json
 ```
 
-Update the following sections:
+Update the connection string:
 
 ```json
 {

@@ -3,6 +3,7 @@ using NetTopologySuite.Geometries;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers
 {
@@ -21,6 +22,7 @@ namespace Wayfarer.Areas.Api.Controllers
 
         /// <summary>
         /// Gets the authenticated user from the token.
+        /// Supports both hashed (Wayfarer) and plain text (third-party) tokens.
         /// </summary>
         /// <returns>The ApplicationUser or null if not found.</returns>
         protected ApplicationUser? GetUserFromToken()
@@ -35,7 +37,12 @@ namespace Wayfarer.Areas.Api.Controllers
                     return null;
                 }
 
-                ApiToken? apiToken = _dbContext.ApiTokens.FirstOrDefault(t => t.Token == token);
+                // Hash the incoming token for comparison with stored hashes
+                string tokenHash = ApiTokenService.HashToken(token);
+
+                // Check for hashed token first, then fall back to plain text (third-party tokens)
+                ApiToken? apiToken = _dbContext.ApiTokens
+                    .FirstOrDefault(t => t.TokenHash == tokenHash || t.Token == token);
 
                 // Security: Log minimal token info for identification without exposing full secret
                 string tokenInfo = GetSecureTokenInfo(token);

@@ -57,6 +57,11 @@ Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
 # HOME is required for Playwright's Chromium runtime profiles (PDF export)
 Environment=HOME=/home/wayfarer
 
+# DATABASE CONNECTION STRING
+# This overrides the placeholder in appsettings.json - REQUIRED for production!
+# The install.sh script will set this automatically, or configure it manually:
+# Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD"
+
 # Resource limits (file descriptors)
 LimitNOFILE=65536
 
