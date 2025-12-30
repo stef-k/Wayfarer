@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using Moq;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -24,7 +26,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -42,7 +44,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -61,7 +63,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -80,7 +82,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -99,7 +101,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -133,7 +135,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -169,7 +171,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -204,7 +206,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -247,7 +249,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -287,7 +289,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result1 = await accessor.GetCurrentUserAsync();
@@ -309,7 +311,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result1 = await accessor.GetCurrentUserAsync();
@@ -365,7 +367,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result1 = await accessor.GetCurrentUserAsync();
@@ -416,7 +418,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result1 = await accessor.GetCurrentUserAsync();
@@ -432,6 +434,156 @@ public class MobileCurrentUserAccessorTests : TestBase
         Assert.NotNull(result2);
         Assert.Equal(user1.Id, result1.Id);
         Assert.Equal(user2.Id, result2.Id);
+    }
+
+    #endregion
+
+    #region Hashed Token Tests
+
+    [Fact]
+    public async Task GetCurrentUserAsync_ReturnsUser_WithHashedWayfarerToken()
+    {
+        // Arrange - Wayfarer tokens have TokenHash set and Token is null
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var plainToken = "wf_test-hashed-token-abc123";
+        var apiToken = new ApiToken
+        {
+            UserId = user.Id,
+            User = user,
+            Token = null, // Wayfarer tokens don't store plain text
+            TokenHash = ApiTokenService.HashToken(plainToken),
+            Name = "Wayfarer Mobile Token",
+            CreatedAt = DateTime.UtcNow
+        };
+        user.ApiTokens = new List<ApiToken> { apiToken };
+
+        db.Users.Add(user);
+        db.ApiTokens.Add(apiToken);
+        await db.SaveChangesAsync();
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["Authorization"] = $"Bearer {plainToken}";
+        var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+        mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
+
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
+
+        // Act
+        var result = await accessor.GetCurrentUserAsync();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
+        Assert.Equal(user.UserName, result.UserName);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_ReturnsNull_WhenHashedTokenDoesNotMatch()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var apiToken = new ApiToken
+        {
+            UserId = user.Id,
+            User = user,
+            Token = null,
+            TokenHash = ApiTokenService.HashToken("wf_correct-token"),
+            Name = "Hashed Token",
+            CreatedAt = DateTime.UtcNow
+        };
+        user.ApiTokens = new List<ApiToken> { apiToken };
+
+        db.Users.Add(user);
+        db.ApiTokens.Add(apiToken);
+        await db.SaveChangesAsync();
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["Authorization"] = "Bearer wf_wrong-token";
+        var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+        mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
+
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
+
+        // Act
+        var result = await accessor.GetCurrentUserAsync();
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_PrefersHashedTokenOverPlainText()
+    {
+        // Arrange - Token has both Token and TokenHash set (edge case during migration)
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var plainToken = "wf_dual-token";
+        var apiToken = new ApiToken
+        {
+            UserId = user.Id,
+            User = user,
+            Token = "different-plain-value", // Different plain value
+            TokenHash = ApiTokenService.HashToken(plainToken), // Hash matches what client sends
+            Name = "Dual Token",
+            CreatedAt = DateTime.UtcNow
+        };
+        user.ApiTokens = new List<ApiToken> { apiToken };
+
+        db.Users.Add(user);
+        db.ApiTokens.Add(apiToken);
+        await db.SaveChangesAsync();
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["Authorization"] = $"Bearer {plainToken}";
+        var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+        mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
+
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
+
+        // Act
+        var result = await accessor.GetCurrentUserAsync();
+
+        // Assert - Should match via TokenHash
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
+    }
+
+    [Fact]
+    public async Task GetCurrentUserAsync_FallsBackToPlainToken_WhenHashNotSet()
+    {
+        // Arrange - Third-party tokens only have Token set (no hash)
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var apiToken = new ApiToken
+        {
+            UserId = user.Id,
+            User = user,
+            Token = "third-party-api-key-123",
+            TokenHash = null, // No hash for third-party tokens
+            Name = "Mapbox",
+            CreatedAt = DateTime.UtcNow
+        };
+        user.ApiTokens = new List<ApiToken> { apiToken };
+
+        db.Users.Add(user);
+        db.ApiTokens.Add(apiToken);
+        await db.SaveChangesAsync();
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["Authorization"] = "Bearer third-party-api-key-123";
+        var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+        mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
+
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
+
+        // Act
+        var result = await accessor.GetCurrentUserAsync();
+
+        // Assert - Should match via plain Token
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
     }
 
     #endregion
@@ -464,7 +616,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();
@@ -503,7 +655,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         mockHttpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
-        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db);
+        var accessor = new MobileCurrentUserAccessor(mockHttpContextAccessor.Object, db, NullLogger<MobileCurrentUserAccessor>.Instance);
 
         // Act
         var result = await accessor.GetCurrentUserAsync();

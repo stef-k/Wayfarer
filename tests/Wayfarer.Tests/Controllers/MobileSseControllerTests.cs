@@ -39,7 +39,7 @@ public class MobileSseControllerTests : TestBase
             httpContext.Request.Headers["Authorization"] = $"Bearer {token}";
         }
 
-        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db);
+        var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
         var controller = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timeline, sseOptions)
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
