@@ -138,6 +138,8 @@ Edit `appsettings.json`:
 }
 ```
 
+> ⚠️ **Important:** The connection strings in `appsettings.json` and `appsettings.Development.json` contain **placeholder passwords** (e.g., `CHANGE_ME_BEFORE_DEPLOY`). You **must** replace these with your own secure database credentials before running the application. Never use the placeholder values in production.
+
 ### Important Settings
 
 - **`Logging:LogFilePath:Default`** - Where application logs are written (ensure directory exists and is writable)
