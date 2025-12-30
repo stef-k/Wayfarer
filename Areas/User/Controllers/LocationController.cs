@@ -170,7 +170,7 @@ namespace Wayfarer.Areas.User.Controllers
                 };
 
 
-                if (apiToken != null)
+                if (apiToken?.Token != null)
                 {
                     ReverseLocationResults locationInfo =
                         await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,
@@ -391,7 +391,7 @@ namespace Wayfarer.Areas.User.Controllers
                 .FirstOrDefaultAsync(u => u.Id == model.UserId);
             ApiToken? apiToken = user?.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
 
-            if (apiToken != null)
+            if (apiToken?.Token != null)
             {
                 ReverseLocationResults locationInfo =
                     await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,

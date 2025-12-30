@@ -107,7 +107,7 @@ public class PlacesController : BaseController
                     .FirstOrDefaultAsync(u => u.Id == userId);
 
                 var apiToken = user?.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
-                if (apiToken != null)
+                if (apiToken?.Token != null)
                 {
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                         lat.Value, lon.Value, apiToken.Token, apiToken.Name);
@@ -132,7 +132,7 @@ public class PlacesController : BaseController
                     .FirstOrDefaultAsync(u => u.Id == userId);
 
                 var apiToken = user?.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
-                if (apiToken != null)
+                if (apiToken?.Token != null)
                 {
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                         lat.Value, lon.Value, apiToken.Token, apiToken.Name);
