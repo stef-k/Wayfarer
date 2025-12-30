@@ -10,6 +10,11 @@ Passwords
 - Admin seeding creates a protected admin account; change credentials immediately after first run.
 - Policy: minimum eight characters with at least one upper-case letter, one lower-case letter, one digit, and one special character.
 
+Account Lockout
+- Accounts are locked after 5 failed login attempts to protect against brute-force attacks.
+- Lockout duration: 15 minutes.
+- Applies to all users including new accounts.
+
 API Tokens
 - **Wayfarer API tokens** (used for mobile app and API authentication) are stored as SHA-256 hashes—never in plain text. If the database is compromised, the tokens cannot be recovered or reused.
 - Tokens are shown **only once** when created or regenerated. Users must copy and store them securely.
