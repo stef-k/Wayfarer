@@ -146,6 +146,55 @@ public class ApiTokenServiceTests : TestBase
         Assert.Matches(@"^[A-Za-z0-9\-_]+$", token.Substring(3));
     }
 
+    [Fact]
+    public void HashToken_ProducesConsistentSha256Hash()
+    {
+        // Same input should always produce same hash
+        var hash1 = ApiTokenService.HashToken("test-token");
+        var hash2 = ApiTokenService.HashToken("test-token");
+
+        Assert.Equal(hash1, hash2);
+        Assert.Equal(64, hash1.Length); // SHA-256 = 64 hex chars
+        Assert.Matches(@"^[a-f0-9]+$", hash1); // Lowercase hex
+
+        // Different input should produce different hash
+        var hash3 = ApiTokenService.HashToken("different-token");
+        Assert.NotEqual(hash1, hash3);
+    }
+
+    [Fact]
+    public async Task CreateAndValidate_RoundTrip_WorksWithReturnedPlainToken()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u7", username: "grace");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var service = new ApiTokenService(db, MockUserManager(user).Object);
+
+        // Create token - get back plain token for one-time display
+        var (apiToken, plainToken) = await service.CreateApiTokenAsync(user.Id, "mobile-app");
+
+        // The returned plain token should validate successfully
+        var isValid = await service.ValidateApiTokenAsync(user.Id, plainToken);
+
+        Assert.True(isValid);
+        // Verify hash matches
+        Assert.Equal(ApiTokenService.HashToken(plainToken), apiToken.TokenHash);
+    }
+
+    [Fact]
+    public async Task RegenerateTokenAsync_Throws_WhenTokenNotFound()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u8", username: "henry");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var service = new ApiTokenService(db, MockUserManager(user).Object);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.RegenerateTokenAsync(user.Id, "nonexistent-token"));
+    }
+
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser? user)
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
