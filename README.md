@@ -63,6 +63,8 @@ dotnet run                  # launch locally (reads appsettings.Development.json
 3. Invite users or enable open registration; managers only see data from users who trust them.
 4. (Optional) Add a personal Mapbox token on your account to enrich locations with addresses.
 
+> **Note:** The `appsettings.json` files contain placeholder database passwords. For production, configure credentials via systemd environment variables—see the [Deployment Guide](https://stef-k.github.io/Wayfarer/#/developer/26-Deployment).
+
 ## Documentation
 
 Full documentation available via GitHub Pages:

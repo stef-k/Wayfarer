@@ -565,33 +565,47 @@ else
 fi
 
 # ------------------------------
-# 10. Connection string helper
+# 10. Connection string - configure via systemd environment variable
 # ------------------------------
 CONN_STR="Host=localhost;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}"
 
 echo ""
 echo "========================================="
-echo " Connection string for appsettings.Production.json"
+echo " Configuring database connection string"
 echo "========================================="
 echo ""
-echo "Suggested connection string:"
-echo ""
-echo "  \"ConnectionStrings\": {"
-echo "    \"DefaultConnection\": \"${CONN_STR}\""
-echo "  }"
-echo ""
-echo "Place this into:"
-echo "  ${APP_DIR}/appsettings.Production.json"
+echo "The connection string will be set via systemd environment variable."
+echo "This is more secure than storing passwords in appsettings.json files."
 echo ""
 
-if [[ $NONINTERACTIVE -eq 0 ]]; then
-  read -rp "Open appsettings.Production.json in \$EDITOR now? [y/N]: " EDIT_CFG
-  EDIT_CFG="${EDIT_CFG:-N}"
-  if [[ "$EDIT_CFG" =~ ^[Yy]$ ]]; then
-    EDITOR_CMD="${EDITOR:-nano}"
-    "$EDITOR_CMD" "${APP_DIR}/appsettings.Production.json"
+# Add the connection string to the systemd service file
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+if [[ -f "$SERVICE_FILE" ]]; then
+  # Check if connection string line already exists (commented or not)
+  if grep -q "ConnectionStrings__DefaultConnection" "$SERVICE_FILE"; then
+    # Replace the existing line (whether commented or not)
+    sudo sed -i "s|^#*\s*Environment=ConnectionStrings__DefaultConnection=.*|Environment=ConnectionStrings__DefaultConnection=${CONN_STR}|" "$SERVICE_FILE"
+    echo "✓ Updated connection string in $SERVICE_FILE"
+  else
+    # Add the connection string after the HOME environment variable
+    sudo sed -i "/^Environment=HOME=/a Environment=ConnectionStrings__DefaultConnection=${CONN_STR}" "$SERVICE_FILE"
+    echo "✓ Added connection string to $SERVICE_FILE"
   fi
+
+  # Reload systemd to pick up the changes
+  sudo systemctl daemon-reload
+  echo "✓ Systemd configuration reloaded"
+else
+  echo "⚠ Service file not found at $SERVICE_FILE"
+  echo "  You will need to manually configure the connection string."
+  echo ""
+  echo "  Add this line to your systemd service file under [Service]:"
+  echo "  Environment=ConnectionStrings__DefaultConnection=${CONN_STR}"
 fi
+
+echo ""
+echo "Note: The appsettings.json files contain placeholder passwords."
+echo "      The systemd environment variable overrides these at runtime."
 
 # ------------------------------
 # 11. Initial deployment via deploy.sh
