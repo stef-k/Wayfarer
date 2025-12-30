@@ -214,8 +214,10 @@ static async Task HandlePasswordResetCommand(string[] args)
 static void ConfigureConfiguration(WebApplicationBuilder builder)
 {
     // Adding JSON configuration files to the app's configuration pipeline
+    // Environment variables are added last to ensure they override JSON settings (e.g., connection strings from systemd)
     builder.Configuration.AddJsonFile("appsettings.json", false, true)
-        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true, true);
+        .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true, true)
+        .AddEnvironmentVariables();
 
     // Retrieving the log file path from the configuration
     var logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
