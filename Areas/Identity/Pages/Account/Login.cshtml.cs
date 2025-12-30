@@ -82,8 +82,8 @@ namespace Wayfarer.Areas.Identity.Pages.Account
                     return Page();
                 }
 
-                // Sign the user in
-                Microsoft.AspNetCore.Identity.SignInResult result = await _signInManager.PasswordSignInAsync(Input.Username, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+                // Sign the user in (lockoutOnFailure enables account lockout after failed attempts)
+                Microsoft.AspNetCore.Identity.SignInResult result = await _signInManager.PasswordSignInAsync(Input.Username, Input.Password, Input.RememberMe, lockoutOnFailure: true);
                 if (result.Succeeded)
                 {
                     //IList<System.Security.Claims.Claim> claims = await _userManager.GetClaimsAsync(user);
