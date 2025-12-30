@@ -300,6 +300,11 @@ static void ConfigureIdentity(WebApplicationBuilder builder)
         {
             options.SignIn.RequireConfirmedAccount = false; // Disables confirmed email requirement
             options.User.RequireUniqueEmail = false; // Allows non-unique email addresses
+
+            // Account lockout settings to protect against brute-force attacks
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.AllowedForNewUsers = true;
         })
         .AddRoles<IdentityRole>() // Adds role-based authorization
         .AddEntityFrameworkStores<ApplicationDbContext>() // Uses EF Core for user store
