@@ -552,7 +552,7 @@ public class LocationController : BaseApiController
             try
             {
                 var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
-                if (apiToken != null)
+                if (apiToken?.Token != null)
                 {
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                         dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
@@ -914,7 +914,7 @@ public class LocationController : BaseApiController
                 try
                 {
                     var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
-                    if (apiToken != null)
+                    if (apiToken?.Token != null)
                     {
                         var lat = location.Coordinates.Y;
                         var lon = location.Coordinates.X;
