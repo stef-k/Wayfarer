@@ -217,7 +217,7 @@ The `appsettings.json` files contain **placeholder passwords** (`CHANGE_ME_BEFOR
 
 2. **wayfarer.service** (on production server) contains real credentials:
    ```ini
-   Environment=ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=REAL_SECRET
+   Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=REAL_SECRET"
    ```
 
 3. ASP.NET Core automatically uses the environment variable, ignoring the JSON placeholder.
@@ -234,7 +234,7 @@ The `install.sh` script automatically:
 If configuring manually, add this line to `/etc/systemd/system/wayfarer.service` under `[Service]`:
 
 ```ini
-Environment=ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD
+Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD"
 ```
 
 Then reload: `sudo systemctl daemon-reload && sudo systemctl restart wayfarer`

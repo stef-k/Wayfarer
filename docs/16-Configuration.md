@@ -11,7 +11,7 @@ ConnectionStrings
 - **Production:** Configure via systemd environment variable (overrides JSON):
   ```ini
   # In /etc/systemd/system/wayfarer.service under [Service]:
-  Environment=ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=user;Password=SECRET
+  Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=user;Password=SECRET"
   ```
 - **Development:** Use `dotnet user-secrets` or edit `appsettings.Development.json` locally.
 - The `install.sh` deployment script configures this automatically.

@@ -579,16 +579,17 @@ echo "This is more secure than storing passwords in appsettings.json files."
 echo ""
 
 # Add the connection string to the systemd service file
+# Note: Value must be quoted because it contains semicolons
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 if [[ -f "$SERVICE_FILE" ]]; then
   # Check if connection string line already exists (commented or not)
   if grep -q "ConnectionStrings__DefaultConnection" "$SERVICE_FILE"; then
     # Replace the existing line (whether commented or not)
-    sudo sed -i "s|^#*\s*Environment=ConnectionStrings__DefaultConnection=.*|Environment=ConnectionStrings__DefaultConnection=${CONN_STR}|" "$SERVICE_FILE"
+    sudo sed -i "s|^#*\s*Environment=\"*ConnectionStrings__DefaultConnection=.*|Environment=\"ConnectionStrings__DefaultConnection=${CONN_STR}\"|" "$SERVICE_FILE"
     echo "✓ Updated connection string in $SERVICE_FILE"
   else
     # Add the connection string after the HOME environment variable
-    sudo sed -i "/^Environment=HOME=/a Environment=ConnectionStrings__DefaultConnection=${CONN_STR}" "$SERVICE_FILE"
+    sudo sed -i "/^Environment=HOME=/a Environment=\"ConnectionStrings__DefaultConnection=${CONN_STR}\"" "$SERVICE_FILE"
     echo "✓ Added connection string to $SERVICE_FILE"
   fi
 

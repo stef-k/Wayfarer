@@ -334,7 +334,7 @@ sudo nano /etc/systemd/system/wayfarer.service
 Add under `[Service]`:
 
 ```ini
-Environment=ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfareruser;Password=your-secure-password-here
+Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfareruser;Password=your-secure-password-here"
 ```
 
 Reload and restart:
