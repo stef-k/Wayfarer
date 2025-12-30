@@ -1,10 +1,14 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using System.Text;
 using Wayfarer.Models;
 
 namespace Wayfarer.Util
 {
+    /// <summary>
+    /// Service for managing API tokens with secure hashing for Wayfarer-generated tokens.
+    /// </summary>
     public class ApiTokenService
     {
         private readonly ApplicationDbContext _dbContext;
@@ -14,6 +18,18 @@ namespace Wayfarer.Util
         {
             _dbContext = dbContext;
             _userManager = userManager;
+        }
+
+        /// <summary>
+        /// Computes SHA-256 hash of a token for secure storage and comparison.
+        /// </summary>
+        /// <param name="token">The plain text token to hash</param>
+        /// <returns>Lowercase hexadecimal hash string</returns>
+        public static string HashToken(string token)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(token);
+            byte[] hash = SHA256.HashData(bytes);
+            return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
         /// <summary>
@@ -28,13 +44,15 @@ namespace Wayfarer.Util
         }
 
         /// <summary>
-        /// Creates a new API Token for the specified user
+        /// Creates a new API Token for the specified user.
+        /// The token is stored as a hash for security. The plain token is returned
+        /// separately and should be shown to the user only once.
         /// </summary>
-        /// <param name="userId"></param>
+        /// <param name="userId">The user ID to create the token for</param>
         /// <param name="name">Name of the service/purpose the token will be used</param>
-        /// <returns>Generated API Token</returns>
+        /// <returns>Tuple of (ApiToken entity, plain text token for one-time display)</returns>
         /// <exception cref="ArgumentException">If user is not found in DB</exception>
-        public async Task<ApiToken> CreateApiTokenAsync(string userId, string name)
+        public async Task<(ApiToken apiToken, string plainToken)> CreateApiTokenAsync(string userId, string name)
         {
             ApplicationUser? user = await _userManager.FindByIdAsync(userId);
             if (user == null)
@@ -42,20 +60,23 @@ namespace Wayfarer.Util
                 throw new ArgumentException("User not found.");
             }
 
-            string token = GenerateToken();
+            string plainToken = GenerateToken();
+            string tokenHash = HashToken(plainToken);
+
             ApiToken apiToken = new ApiToken
             {
                 UserId = userId,
                 User = user,
                 Name = name,
-                Token = token,
+                Token = null, // Don't store plain token for Wayfarer-generated tokens
+                TokenHash = tokenHash,
                 CreatedAt = DateTime.UtcNow
             };
 
             _dbContext.ApiTokens.Add(apiToken);
             await _dbContext.SaveChangesAsync();
 
-            return apiToken;
+            return (apiToken, plainToken);
         }
 
         public async Task<ApiToken> StoreThirdPartyToken(string userId, string thirdPartyServiceName, string thirdPartyToken)
@@ -81,27 +102,33 @@ namespace Wayfarer.Util
         }
 
         /// <summary>
-        /// Validates the API Token for the specified user
+        /// Validates the API Token for the specified user.
+        /// Supports both hashed (Wayfarer) and plain text (third-party) tokens.
         /// </summary>
-        /// <param name="userId"></param>
+        /// <param name="userId">The user ID to validate against</param>
         /// <param name="token">The API token to validate</param>
         /// <returns>True if API token is found and valid for current User</returns>
         public async Task<bool> ValidateApiTokenAsync(string userId, string token)
         {
+            string tokenHash = HashToken(token);
+
+            // Check for hashed token first, then fall back to plain text (third-party tokens)
             ApiToken? apiToken = await _dbContext.ApiTokens
-                .FirstOrDefaultAsync(t => t.UserId == userId && t.Token == token);
+                .FirstOrDefaultAsync(t => t.UserId == userId &&
+                    (t.TokenHash == tokenHash || t.Token == token));
 
             return apiToken != null;
         }
 
         /// <summary>
-        /// Regenerates the API Token for the specified user and token name
+        /// Regenerates the API Token for the specified user and token name.
+        /// The new token is stored as a hash. The plain token is returned for one-time display.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="name"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException"></exception>
-        public async Task<ApiToken> RegenerateTokenAsync(string userId, string name)
+        /// <param name="userId">The user ID</param>
+        /// <param name="name">The token name to regenerate</param>
+        /// <returns>Tuple of (ApiToken entity, plain text token for one-time display)</returns>
+        /// <exception cref="ArgumentException">If token not found</exception>
+        public async Task<(ApiToken apiToken, string plainToken)> RegenerateTokenAsync(string userId, string name)
         {
             ApiToken? apiToken = await _dbContext.ApiTokens
                 .FirstOrDefaultAsync(t => t.UserId == userId && t.Name == name);
@@ -111,14 +138,16 @@ namespace Wayfarer.Util
                 throw new ArgumentException($"Token with Name '{name}' does not exist for the user.");
             }
 
-            // Generate a new token
-            apiToken.Token = GenerateToken();
+            // Generate a new token and store only the hash
+            string plainToken = GenerateToken();
+            apiToken.Token = null;
+            apiToken.TokenHash = HashToken(plainToken);
             apiToken.CreatedAt = DateTime.UtcNow;
 
             _dbContext.ApiTokens.Update(apiToken);
             await _dbContext.SaveChangesAsync();
 
-            return apiToken;
+            return (apiToken, plainToken);
         }
 
         /// <summary>

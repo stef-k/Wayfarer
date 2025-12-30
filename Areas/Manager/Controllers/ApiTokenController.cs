@@ -68,8 +68,11 @@ namespace Wayfarer.Areas.Manager.Controllers
                     return RedirectToAction("Index", new { id });
                 }
 
-                ApiToken apiToken = await _apiTokenService.CreateApiTokenAsync(id, name);
-                SetAlert($"New token '{name}' created for {apiToken.User.UserName}.", "success");
+                (ApiToken apiToken, string plainToken) = await _apiTokenService.CreateApiTokenAsync(id, name);
+                // Store plain token in TempData for one-time display
+                TempData["NewToken"] = plainToken;
+                TempData["NewTokenName"] = name;
+                SetAlert($"New token '{name}' created for {apiToken.User.UserName}. Copy it now - it won't be shown again.", "success");
             }
             catch (ArgumentException ex)
             {
@@ -94,9 +97,12 @@ namespace Wayfarer.Areas.Manager.Controllers
 
             try
             {
-                ApiToken apiToken = await _apiTokenService.RegenerateTokenAsync(id, name);
+                (ApiToken apiToken, string plainToken) = await _apiTokenService.RegenerateTokenAsync(id, name);
                 ApplicationUser? user = await _dbContext.ApplicationUsers.FindAsync(id);
-                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}.", "success");
+                // Store plain token in TempData for one-time display
+                TempData["NewToken"] = plainToken;
+                TempData["NewTokenName"] = name;
+                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}. Copy it now - it won't be shown again.", "success");
             }
             catch (ArgumentException ex)
             {

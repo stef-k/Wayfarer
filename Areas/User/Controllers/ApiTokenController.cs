@@ -64,9 +64,13 @@ namespace Wayfarer.Areas.User.Controllers
                 return RedirectToAction("Index");
             }
 
-            ApiToken token = await _apiTokenService.CreateApiTokenAsync(userId, name); // Use direct ApiTokenService call
+            (ApiToken _, string plainToken) = await _apiTokenService.CreateApiTokenAsync(userId, name);
 
-            SetAlert("API token created successfully!", "success");  // Example of using SetAlert from BaseController
+            // Store plain token in TempData for one-time display
+            TempData["NewToken"] = plainToken;
+            TempData["NewTokenName"] = name;
+
+            SetAlert("API token created successfully! Copy it now - it won't be shown again.", "success");
             return RedirectToAction("Index");
         }
         
@@ -109,7 +113,7 @@ namespace Wayfarer.Areas.User.Controllers
 
         /// <summary>
         /// Regenerates the API token for the specified token name.
-        /// Returns JSON for AJAX requests with the new token.
+        /// Returns JSON for AJAX requests with the new token (shown once only).
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Regenerate(string name)
@@ -121,13 +125,13 @@ namespace Wayfarer.Areas.User.Controllers
                 return Json(new { success = false, message = "User not authenticated." });
             }
 
-            ApiToken regeneratedToken = await _apiTokenService.RegenerateTokenAsync(userId, name);
+            (ApiToken _, string plainToken) = await _apiTokenService.RegenerateTokenAsync(userId, name);
 
-            // Return JSON for AJAX requests
+            // Return JSON for AJAX requests - this is the only time the plain token is shown
             return Json(new {
                 success = true,
-                token = regeneratedToken.Token,
-                message = "API token regenerated successfully! Make sure to update your mobile app and any third-party clients with the new token."
+                token = plainToken,
+                message = "API token regenerated successfully! Copy it now - it won't be shown again. Update your mobile app and any third-party clients with the new token."
             });
         }
 

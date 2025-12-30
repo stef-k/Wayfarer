@@ -126,6 +126,46 @@
 
 <h1 class="text-center">@ViewData["Title"] for @Model.UserName</h1>
 
+@{
+    // Check for newly created/regenerated token from TempData (one-time display)
+    var newToken = TempData["NewToken"] as string;
+    var newTokenName = TempData["NewTokenName"] as string;
+}
+
+@if (!string.IsNullOrEmpty(newToken))
+{
+    <div class="container">
+        <div class="row">
+            <div class="col-md-10 offset-1">
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <h4 class="alert-heading"><i class="bi bi-exclamation-triangle-fill me-2"></i>Important: Copy Your New Token Now!</h4>
+                    <p>Your new API token for <strong>@newTokenName</strong> has been created. <strong>This is the only time it will be displayed.</strong></p>
+                    <hr>
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <code id="new-token-display" class="border p-3 rounded bg-light user-select-all flex-grow-1" style="font-size: 1.1em;">@newToken</code>
+                        <button type="button" class="btn btn-primary" onclick="copyNewToken()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                    <p class="mb-0"><small>Make sure to save this token securely. You will need to update it in your Wayfarer Mobile app and any other integrations.</small></p>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function copyNewToken() {
+            const tokenText = document.getElementById('new-token-display').textContent;
+            navigator.clipboard.writeText(tokenText).then(() => {
+                wayfarer.showToast('success', 'Token copied to clipboard!', 3000);
+            }).catch(err => {
+                console.error('Failed to copy token:', err);
+                wayfarer.showToast('danger', 'Failed to copy token. Please select and copy manually.', 3000);
+            });
+        }
+    </script>
+}
+
 <div class="container">
     <div class="row">
         <div class="col-md-10 offset-1">
@@ -166,7 +206,11 @@
                                                         <p class="d-flex align-items-center justify-content-between">
                                                             <span>
                                                                 <strong>Token:</strong> <code id="wayfarer-token"
-                                                                    class="border p-2 rounded bg-light user-select-all">@token.Token</code>
+                                                                    class="border p-2 rounded bg-light user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code>
+                                                                @if (token.IsHashedToken)
+                                                                {
+                                                                    <small class="text-warning ms-2" title="Token is securely hashed. Regenerate to get a new token."><i class="bi bi-shield-lock"></i></small>
+                                                                }
                                                             </span>
                                                             <button type="button"
                                                                     class="btn btn-warning btn-sm ms-2"
@@ -251,7 +295,7 @@
                                             <p class="mb-2"><strong>Content-Type:</strong> <code>application/json</code>
                                             </p>
                                             <p class="mb-3"><strong>Authorization:</strong>
-                                                <code>Bearer @token.Token</code></p>
+                                                <code>Bearer @(token.IsHashedToken ? "<your-token>" : token.Token)</code></p>
 
                                             <p class="mb-2">
                                                 <strong>Required parameters:</strong> <code>latitude, longitude,
@@ -270,7 +314,7 @@
                                                 <li>Add the following headers:</li>
                                                 <ul>
                                                     <li><code>Content-Type: application/json</code></li>
-                                                    <li><code>Authorization: Bearer @token.Token</code></li>
+                                                    <li><code>Authorization: Bearer @(token.IsHashedToken ? "<your-token>" : token.Token)</code></li>
                                                 </ul>
                                                 <li>Use the following JSON Template:</li>
                                             </ol>
@@ -316,7 +360,7 @@
                                     <p class="mb-1"><strong>Service:</strong> @token.Name</p>
                                     <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
                                     <p class="mb-0"><strong>Token:</strong> <code
-                                            class="border p-2 rounded bg-light user-select-all">@token.Token</code></p>
+                                            class="border p-2 rounded bg-light user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code></p>
                                 </div>
                                 <div class="text-end">
                                     <!-- NO REGENERATE BUTTON - only delete -->
@@ -576,37 +620,66 @@
             var token = Model.Tokens.FirstOrDefault(t => t.Name.Equals("Wayfarer Incoming Location Data API Token"));
             if (token != null)
             {
+                // Output JavaScript variables from Razor
+                @:var newTokenFromTempData = "@Html.Raw(newToken ?? "")";
+                @:var newTokenNameFromTempData = "@Html.Raw(newTokenName ?? "")";
+                @:var isHashedToken = @(token.IsHashedToken ? "true" : "false");
+                @:var plainToken = "@Html.Raw(token.Token ?? "")";
+                @:var serverBaseUrl = "@serverBaseUrl";
+                @:var userName = "@Model.UserName";
+                @:var serverName = "@Context.Request.Host.Host";
+
                 <text>
-                    // Generate single Mobile Configuration QR Code with automatic URL detection
-                    try {
-                        var mobileConfig = {
-                            serverUrl: '@serverBaseUrl',
-                        apiToken: '</text>
-                @token.Token<text>',
-                                    userName: '@Model.UserName',
-                                    serverName: '@Context.Request.Host.Host',
-                                    version: '1.0'
-                                };
+                    // Determine which token to use for QR code
+                    var tokenForQr = '';
 
-                                    // Debug logging for QR generation
-                                    console.log('🔍 Auto-detected server URL for QR code:', '@serverBaseUrl');
-                                    console.log('📱 Generating QR code with config:', mobileConfig);
+                    if (newTokenFromTempData && newTokenNameFromTempData === 'Wayfarer Incoming Location Data API Token') {
+                        // Use the new token from TempData (just created/regenerated)
+                        tokenForQr = newTokenFromTempData;
+                    } else if (!isHashedToken && plainToken) {
+                        // Use the plain token (legacy unhashed token)
+                        tokenForQr = plainToken;
+                    }
 
-                                    new QRCode(document.getElementById('qr-mobile-config'), {
-                                        text: JSON.stringify(mobileConfig),
-                                        width: 150,
-                                        height: 150,
-                                        colorDark: "#000000",
-                                        colorLight: "#ffffff",
-                                        correctLevel: QRCode.CorrectLevel.M
-                                    });
+                    if (tokenForQr) {
+                        // Generate single Mobile Configuration QR Code with automatic URL detection
+                        try {
+                            var mobileConfig = {
+                                serverUrl: serverBaseUrl,
+                                apiToken: tokenForQr,
+                                userName: userName,
+                                serverName: serverName,
+                                version: '1.0'
+                            };
 
-                                    console.log('✅ QR code generated successfully');
-                                } catch (error) {
-                                    document.getElementById('qr-mobile-config').innerHTML = '<div class="text-danger small">❌ Error generating QR code</div>';
-                                    console.error('❌ Error generating mobile configuration QR code:', error);
-                                }
-                            </text>
+                            // Debug logging for QR generation
+                            console.log('🔍 Auto-detected server URL for QR code:', serverBaseUrl);
+                            console.log('📱 Generating QR code with config:', mobileConfig);
+
+                            new QRCode(document.getElementById('qr-mobile-config'), {
+                                text: JSON.stringify(mobileConfig),
+                                width: 150,
+                                height: 150,
+                                colorDark: "#000000",
+                                colorLight: "#ffffff",
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
+
+                            console.log('✅ QR code generated successfully');
+                        } catch (error) {
+                            document.getElementById('qr-mobile-config').innerHTML = '<div class="text-danger small">❌ Error generating QR code</div>';
+                            console.error('❌ Error generating mobile configuration QR code:', error);
+                        }
+                    } else {
+                        // Token is hashed and no new token available - show regenerate prompt
+                        document.getElementById('qr-mobile-config').innerHTML =
+                            '<div class="alert alert-info text-center py-4">' +
+                            '<i class="bi bi-shield-lock fs-1 d-block mb-2"></i>' +
+                            '<p class="mb-2"><strong>Token is securely stored</strong></p>' +
+                            '<p class="small mb-3">For security, your token is hashed and cannot be displayed. Click "Regenerate" below to create a new token and QR code.</p>' +
+                            '</div>';
+                    }
+                </text>
             }
         }
     });
