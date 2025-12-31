@@ -117,7 +117,7 @@ const initializeMap = () => {
     addZoomLevelControl(mapContainer);
 
     if (!highlightLayer) {
-        highlightLayer = L.layerGroup();
+        highlightLayer = L.featureGroup();
     } else {
         highlightLayer.clearLayers();
     }
