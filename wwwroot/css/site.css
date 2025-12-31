@@ -1918,9 +1918,9 @@ html[data-bs-theme="dark"] .ql-editor a {
 
 /* Fix alert-info in dark mode for better contrast */
 [data-bs-theme="dark"] .alert-info {
-    background-color: rgba(13, 202, 240, 0.15);
-    border-color: rgba(13, 202, 240, 0.3);
-    color: #9eeaf9;
+    background-color: #164e63; /* Darker teal background */
+    border-color: #0e7490;
+    color: #e0f2fe; /* Light blue-gray text for good contrast */
 }
 
 /* Fix bg-body-tertiary code blocks text color */
