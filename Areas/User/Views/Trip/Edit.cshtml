@@ -42,7 +42,7 @@
       <!-- Trip Progress Header -->
       @if (totalPlaces > 0)
       {
-        <div id="tripProgressHeader" class="p-3 border-bottom bg-light">
+        <div id="tripProgressHeader" class="p-3 border-bottom bg-body-tertiary">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold text-truncate" style="max-width: 60%;" title="@Model.Name">@Model.Name</span>
             <div class="d-flex align-items-center gap-2">
@@ -230,7 +230,7 @@
               <a asp-area="User"
                  asp-controller="Trip"
                  asp-action="Index"
-                 class="btn btn-sm btn-outline-dark">
+                 class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-left-circle"></i> Back to Trips
               </a>
             </div>
@@ -337,7 +337,7 @@
       <div class="col-lg-6 col-md-12">
         <label for="place-search" class="form-label visually-hidden">Search</label>
         <div class="position-relative">
-          <div class="input-group flex-grow-1 bg-white shadow rounded p-2 trip-searchbar">
+          <div class="input-group flex-grow-1 bg-body shadow rounded p-2 trip-searchbar">
             <input id="place-search" type="text" class="form-control" placeholder="Search for places…"
                    title="Search any location. Click a result to preview it on the map."/>
             <button id="btn-clear-search" class="btn btn-sm btn-outline-secondary" type="button"
@@ -353,7 +353,7 @@
       <!-- 🧭 Latitude -->
       <div class="col-sm-3 col-6">
         <label for="contextLat" class="form-label visually-hidden">Lat</label>
-        <div class="input-group bg-white shadow rounded p-2">
+        <div class="input-group bg-body shadow rounded p-2">
           <input type="number"
                  step="0.0000000000001"
                  class="form-control"
@@ -367,7 +367,7 @@
       <!-- 🧭 Longitude -->
       <div class="col-sm-3 col-6">
         <label for="contextLon" class="form-label visually-hidden">Lon</label>
-        <div class="input-group bg-white shadow rounded p-2">
+        <div class="input-group bg-body shadow rounded p-2">
           <input type="number"
                  step="0.0000000000001"
                  class="form-control"

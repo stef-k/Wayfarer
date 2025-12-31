@@ -60,16 +60,16 @@ footer {
 
 [data-bs-theme="dark"] {
     --bs-body-bg: #212529!important; /* Dark theme background */
-    --bs-body-color: #f8f9fa!important; /* Dark theme text */
+    --bs-body-color: #c9d1d9!important; /* Dark theme text - softer gray, easier on eyes */
 }
 
 [data-bs-theme="dark"] .dropdown-menu {
     background-color: #343a40!important; /* Dark background */
-    color: #f8f9fa!important; /* Light text */
+    color: #c9d1d9!important; /* Softer text */
 }
 
 [data-bs-theme="dark"] .dropdown-menu .dropdown-item {
-    color: #f8f9fa!important;
+    color: #c9d1d9!important;
 }
 
 [data-bs-theme="dark"] .dropdown-menu .dropdown-item:hover,
@@ -88,7 +88,7 @@ footer {
 
 /* Dark Theme - Identity Nav Links */
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link {
-    color: #f8f9fa; /* Light text for nav links in dark theme */
+    color: #c9d1d9; /* Softer text for nav links in dark theme */
 }
 
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link:hover {
@@ -98,7 +98,7 @@ footer {
 /* Adjust the active link color */
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link.active,
 .navbar-light .navbar-nav .nav-link.active {
-    color: #f8f9fa; /* Light text for active links in dark mode */
+    color: #c9d1d9; /* Softer text for active links in dark mode */
 }
 
 /* Adjust the active link hover color */
@@ -107,7 +107,7 @@ footer {
     color: #0056b3; /* Same as hover color for active link */
 }
 [data-bs-theme="dark"] footer > * {
-    color: #f8f9fa!important;
+    color: #c9d1d9!important;
 }
 
 [data-bs-theme="dark"] footer  {
@@ -131,7 +131,7 @@ footer {
 }
 
 [data-bs-theme="dark"] #themeIcon {
-    color: #f8f9fa;
+    color: #c9d1d9;
 }
 
 /* Theme Toggle Button Hover Effect */
@@ -434,7 +434,7 @@ thead th {
 
 [data-bs-theme="dark"] .landing-container {
     background: linear-gradient(to bottom right, #2c2f36, #1f2228);
-    color: #f8f9fa;
+    color: #c9d1d9;
 }
 
 
@@ -468,12 +468,12 @@ thead th {
 [data-bs-theme="dark"] #sidebarHeader {
     background-color: #343a40 !important; /* or another dark shade consistent with your theme */
     border-bottom: 1px solid #495057 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
 }
 
 [data-bs-theme="dark"] #sidebar {
     background-color: #2b3035 !important; /* Dark background for sidebar */
-    color: #f8f9fa !important; /* Light text for sidebar content */
+    color: #c9d1d9 !important; /* Softer text for sidebar content */
     border-color: #495057 !important; /* Adjust border color for dark mode */
     box-shadow: 2px 0 5px rgba(0, 0, 0, 0.4); /* Darker shadow for contrast */
 }
@@ -482,12 +482,12 @@ thead th {
 [data-bs-theme="dark"] #sidebar .accordion-item {
     background-color: #2b3035 !important;
     border-color: #495057 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
 }
 
 [data-bs-theme="dark"] #sidebar .accordion-button {
     background-color: #343a40 !important; /* Slightly lighter header for accordion */
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
     border-color: #495057 !important;
 }
 
@@ -503,7 +503,7 @@ thead th {
 /* Adjust list group items within sidebar for dark mode */
 [data-bs-theme="dark"] #sidebar .list-group-item {
     background-color: #2b3035 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
     border-color: #495057 !important;
 }
 
@@ -511,7 +511,7 @@ thead th {
 [data-bs-theme="dark"] #sidebar .form-control,
 [data-bs-theme="dark"] #sidebar .form-check-input {
     background-color: #343a40 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
     border-color: #495057 !important;
 }
 
@@ -523,7 +523,7 @@ thead th {
 
 /* Adjust labels for dark mode */
 [data-bs-theme="dark"] #sidebar label.form-label {
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
 }
 
 /* Ensure the hr divider is visible in dark mode */
@@ -553,13 +553,13 @@ thead th {
 
 [data-bs-theme="dark"] .trip-searchbar {
     background-color: #2b3035 !important; /* Dark background for the search bar */
-    color: #f8f9fa !important; /* Light text color for any direct text */
+    color: #c9d1d9 !important; /* Softer text color for any direct text */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important; /* Darker shadow */
 }
 
 [data-bs-theme="dark"] .trip-searchbar .form-control {
     background-color: #343a40 !important; /* Darker background for the input */
-    color: #f8f9fa !important; /* Light text for input content */
+    color: #c9d1d9 !important; /* Softer text for input content */
     border-color: #495057 !important; /* Darker border for input */
 }
 
@@ -575,7 +575,7 @@ thead th {
 
 [data-bs-theme="dark"] .trip-searchbar .btn-outline-secondary {
     background-color: #343a40 !important; /* Dark background for outline buttons */
-    color: #f8f9fa !important; /* Light text/icon color */
+    color: #c9d1d9 !important; /* Softer text/icon color */
     border-color: #495057 !important; /* Dark border color */
 }
 
@@ -1684,4 +1684,246 @@ img.js-lazy[src] {
     border: 1.5px solid white;
     box-shadow: 0 1px 2px rgba(0,0,0,0.3);
     z-index: 10;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: Place.Notes and Rich Text Content
+   Override inline styles from Quill editor that cause
+   dark text on dark background or white highlights
+───────────────────────────────────────────────────────── */
+
+/* Target ALL elements with inline color/background styles in dark mode */
+/* This is aggressive but necessary because Quill saves inline styles */
+/* Include .ql-editor to target Quill's content area directly */
+[data-bs-theme="dark"] .modal-body span[style*="color"],
+[data-bs-theme="dark"] .modal-body p[style*="color"],
+[data-bs-theme="dark"] .modal-body div[style*="color"],
+[data-bs-theme="dark"] .modal-body strong[style*="color"],
+[data-bs-theme="dark"] .trip-notes span[style*="color"],
+[data-bs-theme="dark"] .trip-notes p[style*="color"],
+[data-bs-theme="dark"] .trip-notes div[style*="color"],
+[data-bs-theme="dark"] .trip-notes strong[style*="color"],
+[data-bs-theme="dark"] .place-notes span[style*="color"],
+[data-bs-theme="dark"] .place-notes p[style*="color"],
+[data-bs-theme="dark"] .place-notes div[style*="color"],
+[data-bs-theme="dark"] .place-notes strong[style*="color"],
+[data-bs-theme="dark"] .notes-content span[style*="color"],
+[data-bs-theme="dark"] .notes-content div[style*="color"],
+[data-bs-theme="dark"] .notes-content strong[style*="color"],
+[data-bs-theme="dark"] .accordion-body span[style*="color"],
+[data-bs-theme="dark"] .accordion-body p[style*="color"],
+[data-bs-theme="dark"] .accordion-body strong[style*="color"],
+[data-bs-theme="dark"] .ql-editor span[style*="color"],
+[data-bs-theme="dark"] .ql-editor p[style*="color"],
+[data-bs-theme="dark"] .ql-editor div[style*="color"],
+[data-bs-theme="dark"] .ql-editor strong[style*="color"],
+[data-bs-theme="dark"] .ql-editor h1[style*="color"],
+[data-bs-theme="dark"] .ql-editor h2[style*="color"],
+[data-bs-theme="dark"] .ql-editor h3[style*="color"],
+[data-bs-theme="dark"] .ql-editor li[style*="color"] {
+    color: var(--bs-body-color) !important;
+}
+
+/* Remove white/light background highlights in dark mode */
+[data-bs-theme="dark"] .modal-body span[style*="background"],
+[data-bs-theme="dark"] .modal-body p[style*="background"],
+[data-bs-theme="dark"] .modal-body div[style*="background"],
+[data-bs-theme="dark"] .modal-body strong[style*="background"],
+[data-bs-theme="dark"] .trip-notes span[style*="background"],
+[data-bs-theme="dark"] .trip-notes p[style*="background"],
+[data-bs-theme="dark"] .trip-notes div[style*="background"],
+[data-bs-theme="dark"] .trip-notes strong[style*="background"],
+[data-bs-theme="dark"] .place-notes span[style*="background"],
+[data-bs-theme="dark"] .place-notes p[style*="background"],
+[data-bs-theme="dark"] .place-notes div[style*="background"],
+[data-bs-theme="dark"] .place-notes strong[style*="background"],
+[data-bs-theme="dark"] .notes-content span[style*="background"],
+[data-bs-theme="dark"] .notes-content div[style*="background"],
+[data-bs-theme="dark"] .notes-content strong[style*="background"],
+[data-bs-theme="dark"] .accordion-body span[style*="background"],
+[data-bs-theme="dark"] .accordion-body p[style*="background"],
+[data-bs-theme="dark"] .accordion-body strong[style*="background"],
+[data-bs-theme="dark"] .ql-editor span[style*="background"],
+[data-bs-theme="dark"] .ql-editor p[style*="background"],
+[data-bs-theme="dark"] .ql-editor div[style*="background"],
+[data-bs-theme="dark"] .ql-editor strong[style*="background"],
+[data-bs-theme="dark"] .ql-editor h1[style*="background"],
+[data-bs-theme="dark"] .ql-editor h2[style*="background"],
+[data-bs-theme="dark"] .ql-editor h3[style*="background"],
+[data-bs-theme="dark"] .ql-editor li[style*="background"] {
+    background-color: transparent !important;
+}
+
+/* Also target rgb() style values specifically */
+[data-bs-theme="dark"] .modal-body [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .modal-body [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .ql-editor [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .ql-editor [style*="rgb(0,0,0)"] {
+    color: var(--bs-body-color) !important;
+}
+
+[data-bs-theme="dark"] .modal-body [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .modal-body [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .ql-editor [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .ql-editor [style*="rgb(255,255,255)"] {
+    background-color: transparent !important;
+}
+
+/* Ultra-aggressive catch-all for Quill editor and trip-notes inline styles in dark mode */
+/* This ensures ALL elements with inline color styles are overridden */
+/* Target any element with style attribute */
+[data-bs-theme="dark"] .ql-editor [style],
+[data-bs-theme="dark"] .trip-notes [style],
+[data-bs-theme="dark"] .place-notes [style],
+[data-bs-theme="dark"] .notes-content [style] {
+    color: var(--bs-body-color) !important;
+    background-color: transparent !important;
+}
+
+/* Explicitly target common elements used in rich text content */
+[data-bs-theme="dark"] .ql-editor span,
+[data-bs-theme="dark"] .ql-editor strong,
+[data-bs-theme="dark"] .ql-editor em,
+[data-bs-theme="dark"] .ql-editor u,
+[data-bs-theme="dark"] .ql-editor s,
+[data-bs-theme="dark"] .ql-editor p,
+[data-bs-theme="dark"] .ql-editor h1,
+[data-bs-theme="dark"] .ql-editor h2,
+[data-bs-theme="dark"] .ql-editor h3,
+[data-bs-theme="dark"] .ql-editor li,
+[data-bs-theme="dark"] .trip-notes span,
+[data-bs-theme="dark"] .trip-notes strong,
+[data-bs-theme="dark"] .trip-notes em,
+[data-bs-theme="dark"] .trip-notes u,
+[data-bs-theme="dark"] .trip-notes s,
+[data-bs-theme="dark"] .trip-notes p,
+[data-bs-theme="dark"] .trip-notes h1,
+[data-bs-theme="dark"] .trip-notes h2,
+[data-bs-theme="dark"] .trip-notes h3,
+[data-bs-theme="dark"] .trip-notes li,
+[data-bs-theme="dark"] .place-notes span,
+[data-bs-theme="dark"] .place-notes strong,
+[data-bs-theme="dark"] .place-notes em,
+[data-bs-theme="dark"] .place-notes p,
+[data-bs-theme="dark"] .place-notes h1,
+[data-bs-theme="dark"] .place-notes h2,
+[data-bs-theme="dark"] .place-notes h3,
+[data-bs-theme="dark"] .place-notes li,
+[data-bs-theme="dark"] .notes-content span,
+[data-bs-theme="dark"] .notes-content strong,
+[data-bs-theme="dark"] .notes-content em,
+[data-bs-theme="dark"] .notes-content p,
+[data-bs-theme="dark"] .notes-content li {
+    color: var(--bs-body-color) !important;
+    background-color: transparent !important;
+}
+
+/* Preserve link colors in dark mode - must come after the catch-all */
+[data-bs-theme="dark"] .ql-editor a,
+[data-bs-theme="dark"] .ql-editor a[style],
+[data-bs-theme="dark"] .trip-notes a,
+[data-bs-theme="dark"] .trip-notes a[style],
+[data-bs-theme="dark"] .place-notes a,
+[data-bs-theme="dark"] .place-notes a[style],
+[data-bs-theme="dark"] .notes-content a,
+[data-bs-theme="dark"] .notes-content a[style] {
+    color: #6ea8fe !important; /* Bootstrap link color for dark mode */
+}
+
+/* FINAL FALLBACK: Use highest specificity selectors with html prefix */
+/* This ensures inline styles are always overridden in dark mode */
+html[data-bs-theme="dark"] .trip-notes *,
+html[data-bs-theme="dark"] .place-notes *,
+html[data-bs-theme="dark"] .notes-content *,
+html[data-bs-theme="dark"] .ql-editor * {
+    color: var(--bs-body-color) !important;
+    background-color: transparent !important;
+}
+
+/* Re-apply link colors after the wildcard reset */
+html[data-bs-theme="dark"] .trip-notes a,
+html[data-bs-theme="dark"] .place-notes a,
+html[data-bs-theme="dark"] .notes-content a,
+html[data-bs-theme="dark"] .ql-editor a {
+    color: #6ea8fe !important;
+}
+
+/* Trip.Place details headers dark theme fix */
+[data-bs-theme="dark"] .place-details-header,
+[data-bs-theme="dark"] .trip-place-header,
+[data-bs-theme="dark"] #sidebar-secondary .card-header,
+[data-bs-theme="dark"] #placeDetailsHeader {
+    background-color: #2c3034 !important;
+    color: var(--bs-body-color) !important;
+    border-color: #495057 !important;
+}
+
+/* Fix place details panel background */
+[data-bs-theme="dark"] #sidebar-secondary,
+[data-bs-theme="dark"] .place-details-panel {
+    background-color: var(--bs-body-bg) !important;
+    color: var(--bs-body-color) !important;
+}
+
+/* Fix any remaining text-bg-light usage in trip views */
+[data-bs-theme="dark"] .text-bg-light {
+    background-color: #2c3034 !important;
+    color: var(--bs-body-color) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: ApiToken View Fixes
+   Ensure cards, code blocks, and panels are properly themed
+───────────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .card {
+    background-color: var(--bs-body-bg);
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .card-body {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+/* Fix text-bg-secondary card headers in dark mode */
+[data-bs-theme="dark"] .card-header.text-bg-secondary {
+    background-color: #495057 !important;
+    color: #e9ecef !important; /* Slightly brighter for headers but not pure white */
+    border-color: #6c757d !important;
+}
+
+/* Fix text-bg-primary card headers in dark mode */
+[data-bs-theme="dark"] .card-header.text-bg-primary {
+    background-color: #0d6efd !important;
+    color: #fff !important;
+}
+
+/* Fix inline code elements in dark mode */
+[data-bs-theme="dark"] code:not([class*="bg-"]):not(.bg-body-tertiary) {
+    background-color: #343a40;
+    color: #e9ecef;
+}
+
+/* Fix alert-info in dark mode for better contrast */
+[data-bs-theme="dark"] .alert-info {
+    background-color: rgba(13, 202, 240, 0.15);
+    border-color: rgba(13, 202, 240, 0.3);
+    color: #9eeaf9;
+}
+
+/* Fix bg-body-tertiary code blocks text color */
+[data-bs-theme="dark"] code.bg-body-tertiary {
+    color: var(--bs-body-color) !important;
 }
