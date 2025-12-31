@@ -723,7 +723,7 @@ const initializeMap = () => {
 
     // Create highlight layer for live/latest markers (always visible, not clustered)
     if (!highlightLayer) {
-        highlightLayer = L.layerGroup();
+        highlightLayer = L.featureGroup();
     } else {
         highlightLayer.clearLayers();
     }
