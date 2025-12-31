@@ -663,7 +663,8 @@ import {
     const nowMin = Math.floor(Date.now()/60000);
     const locMin = Math.floor(new Date(location.localTimestamp).getTime()/60000);
     const isLive = (nowMin - locMin) <= (location.locationTimeThresholdMinutes||10);
-    const isLatest = !!location.isLatestLocation;
+    // In group map context, displayed locations are always the latest for each user
+    const isLatest = !isLive;
     const badge = isLive ? '<span class=\"badge bg-danger float-end ms-2\">LIVE LOCATION</span>' : (isLatest ? '<span class=\"badge bg-success float-end ms-2\">LATEST LOCATION</span>' : '');
     const notes = location.notes || '';
     const hasNotes = !!notes && notes.length>0;

@@ -734,6 +734,17 @@ const buildLayers = (locations) => {
         chunkedLoading: true
     });
 
+    // Find the most recent location (latest by timestamp)
+    let latestLocationId = null;
+    let latestLocMin = -Infinity;
+    locations.forEach(location => {
+        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+        if (locMin > latestLocMin) {
+            latestLocMin = locMin;
+            latestLocationId = location.id;
+        }
+    });
+
     locations.forEach(location => {
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
 
@@ -741,7 +752,7 @@ const buildLayers = (locations) => {
         const nowMin = Math.floor(Date.now() / 60000);
         const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
         const isLiveIcon = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
-        const isLatestIcon = location.isLatestLocation;
+        const isLatestIcon = location.id === latestLocationId;
 
         const markerOptions = {};
         if (isLiveIcon) markerOptions.icon = liveMarker;
@@ -762,7 +773,7 @@ const buildLayers = (locations) => {
             const now2 = Math.floor(Date.now() / 60000);
             const loc2 = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
             const isLiveM = (now2 - loc2) <= location.locationTimeThresholdMinutes;
-            const isLatestM = location.isLatestLocation;
+            const isLatestM = location.id === latestLocationId;
 
             document.getElementById('modalContent').innerHTML =
                 generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});

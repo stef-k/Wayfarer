@@ -275,10 +275,11 @@ const buildLayers = (locations) => {
             if (!liveCandidate || locMin > liveCandidate.locMin) {
                 liveCandidate = { location, locMin };
             }
-        } else if (location.isLatestLocation) {
-            if (!latestCandidate || locMin > latestCandidate.locMin) {
-                latestCandidate = { location, locMin };
-            }
+        }
+
+        // Track the most recent location overall for "latest" marker when no live location exists
+        if (!latestCandidate || locMin > latestCandidate.locMin) {
+            latestCandidate = { location, locMin };
         }
     });
 
@@ -298,7 +299,8 @@ const buildLayers = (locations) => {
                 const now2  = Math.floor(Date.now() / 60000);
                 const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
                 const isLiveM   = (now2 - loc2) <= thresholdFor(location);
-                const isLatestM = location.isLatestLocation;
+                // Recalculate if this is the latest location at click time
+                const isLatestM = latestCandidate?.location?.id === location.id;
 
                 document.getElementById('modalContent').innerHTML =
                     generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
@@ -406,7 +408,7 @@ const displayLocationsOnMap = (mapContainer, locations) => {
 };
 
 // Generate the content for the modal when a marker is clicked
-const generateLocationModalContent = location => {
+const generateLocationModalContent = (location, {isLive, isLatest}) => {
     let dynamicMinHeight;
     let style;
     let charCount = location?.notes ? location.notes.length : 0;
@@ -420,10 +422,6 @@ const generateLocationModalContent = location => {
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
     const timestamps = getLocationTimestampInfo(location);
-    const nowMinutes = Math.floor(Date.now() / 60000);
-    const locationMinutes = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-    const isLive = (nowMinutes - locationMinutes) <= (location.locationTimeThresholdMinutes || 10);
-    const isLatest = !!location.isLatestLocation;
     const badge = isLive
         ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>'
         : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');
