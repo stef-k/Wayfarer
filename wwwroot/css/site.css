@@ -1842,6 +1842,24 @@ img.js-lazy[src] {
     color: #6ea8fe !important; /* Bootstrap link color for dark mode */
 }
 
+/* FINAL FALLBACK: Use highest specificity selectors with html prefix */
+/* This ensures inline styles are always overridden in dark mode */
+html[data-bs-theme="dark"] .trip-notes *,
+html[data-bs-theme="dark"] .place-notes *,
+html[data-bs-theme="dark"] .notes-content *,
+html[data-bs-theme="dark"] .ql-editor * {
+    color: var(--bs-body-color) !important;
+    background-color: transparent !important;
+}
+
+/* Re-apply link colors after the wildcard reset */
+html[data-bs-theme="dark"] .trip-notes a,
+html[data-bs-theme="dark"] .place-notes a,
+html[data-bs-theme="dark"] .notes-content a,
+html[data-bs-theme="dark"] .ql-editor a {
+    color: #6ea8fe !important;
+}
+
 /* Trip.Place details headers dark theme fix */
 [data-bs-theme="dark"] .place-details-header,
 [data-bs-theme="dark"] .trip-place-header,

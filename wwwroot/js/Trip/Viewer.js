@@ -486,7 +486,7 @@ const init = () => {
         const notesHtml = notesDiv?.innerHTML || '';
 
         return `
-  <div class="d-flex align-items-center gap-2 border-bottom px-2 py-2 text-bg-light ">
+  <div class="d-flex align-items-center gap-2 border-bottom px-2 py-2 bg-body-tertiary">
     <button class="btn btn-outline-secondary btn-sm btn-back" title="Back">
       <i class="bi bi-arrow-left"></i></button>
           <img src="${iconUrl}" width="24" height="38" alt="">
