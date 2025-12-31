@@ -1781,6 +1781,35 @@ img.js-lazy[src] {
     background-color: transparent !important;
 }
 
+/* Ultra-aggressive catch-all for Quill editor inline styles in dark mode */
+/* This ensures ALL elements with inline color styles are overridden */
+/* Target any element with style attribute containing color */
+[data-bs-theme="dark"] .ql-editor [style] {
+    color: var(--bs-body-color) !important;
+    background-color: transparent !important;
+}
+
+/* Explicitly target common elements Quill uses */
+[data-bs-theme="dark"] .ql-editor span,
+[data-bs-theme="dark"] .ql-editor strong,
+[data-bs-theme="dark"] .ql-editor em,
+[data-bs-theme="dark"] .ql-editor u,
+[data-bs-theme="dark"] .ql-editor s,
+[data-bs-theme="dark"] .ql-editor p,
+[data-bs-theme="dark"] .ql-editor h1,
+[data-bs-theme="dark"] .ql-editor h2,
+[data-bs-theme="dark"] .ql-editor h3,
+[data-bs-theme="dark"] .ql-editor li {
+    color: var(--bs-body-color) !important;
+    background-color: transparent !important;
+}
+
+/* Preserve link colors in dark mode - must come after the catch-all */
+[data-bs-theme="dark"] .ql-editor a,
+[data-bs-theme="dark"] .ql-editor a[style] {
+    color: #6ea8fe !important; /* Bootstrap link color for dark mode */
+}
+
 /* Trip.Place details headers dark theme fix */
 [data-bs-theme="dark"] .place-details-header,
 [data-bs-theme="dark"] .trip-place-header,
