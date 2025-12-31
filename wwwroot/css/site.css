@@ -1685,3 +1685,117 @@ img.js-lazy[src] {
     box-shadow: 0 1px 2px rgba(0,0,0,0.3);
     z-index: 10;
 }
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: Place.Notes and Rich Text Content
+   Override inline styles from Quill editor that cause
+   dark text on dark background or white highlights
+───────────────────────────────────────────────────────── */
+
+/* Target ALL elements with inline color/background styles in dark mode */
+/* This is aggressive but necessary because Quill saves inline styles */
+[data-bs-theme="dark"] .modal-body span[style*="color"],
+[data-bs-theme="dark"] .modal-body p[style*="color"],
+[data-bs-theme="dark"] .modal-body div[style*="color"],
+[data-bs-theme="dark"] .place-notes span[style*="color"],
+[data-bs-theme="dark"] .place-notes p[style*="color"],
+[data-bs-theme="dark"] .notes-content span[style*="color"],
+[data-bs-theme="dark"] .accordion-body span[style*="color"],
+[data-bs-theme="dark"] .accordion-body p[style*="color"] {
+    color: var(--bs-body-color) !important;
+}
+
+/* Remove white/light background highlights in dark mode */
+[data-bs-theme="dark"] .modal-body span[style*="background"],
+[data-bs-theme="dark"] .modal-body p[style*="background"],
+[data-bs-theme="dark"] .modal-body div[style*="background"],
+[data-bs-theme="dark"] .place-notes span[style*="background"],
+[data-bs-theme="dark"] .place-notes p[style*="background"],
+[data-bs-theme="dark"] .notes-content span[style*="background"],
+[data-bs-theme="dark"] .accordion-body span[style*="background"],
+[data-bs-theme="dark"] .accordion-body p[style*="background"] {
+    background-color: transparent !important;
+}
+
+/* Also target rgb() style values specifically */
+[data-bs-theme="dark"] .modal-body [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .modal-body [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(0,0,0)"] {
+    color: var(--bs-body-color) !important;
+}
+
+[data-bs-theme="dark"] .modal-body [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .modal-body [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .accordion-body [style*="rgb(255,255,255)"] {
+    background-color: transparent !important;
+}
+
+/* Trip.Place details headers dark theme fix */
+[data-bs-theme="dark"] .place-details-header,
+[data-bs-theme="dark"] .trip-place-header,
+[data-bs-theme="dark"] #sidebar-secondary .card-header,
+[data-bs-theme="dark"] #placeDetailsHeader {
+    background-color: #2c3034 !important;
+    color: var(--bs-body-color) !important;
+    border-color: #495057 !important;
+}
+
+/* Fix place details panel background */
+[data-bs-theme="dark"] #sidebar-secondary,
+[data-bs-theme="dark"] .place-details-panel {
+    background-color: var(--bs-body-bg) !important;
+    color: var(--bs-body-color) !important;
+}
+
+/* Fix any remaining text-bg-light usage in trip views */
+[data-bs-theme="dark"] .text-bg-light {
+    background-color: #2c3034 !important;
+    color: var(--bs-body-color) !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: ApiToken View Fixes
+   Ensure cards, code blocks, and panels are properly themed
+───────────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .card {
+    background-color: var(--bs-body-bg);
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .card-body {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+/* Fix text-bg-secondary card headers in dark mode */
+[data-bs-theme="dark"] .card-header.text-bg-secondary {
+    background-color: #495057 !important;
+    color: #f8f9fa !important;
+    border-color: #6c757d !important;
+}
+
+/* Fix text-bg-primary card headers in dark mode */
+[data-bs-theme="dark"] .card-header.text-bg-primary {
+    background-color: #0d6efd !important;
+    color: #fff !important;
+}
+
+/* Fix inline code elements in dark mode */
+[data-bs-theme="dark"] code:not([class*="bg-"]):not(.bg-body-tertiary) {
+    background-color: #343a40;
+    color: #e9ecef;
+}
+
+/* Fix alert-info in dark mode for better contrast */
+[data-bs-theme="dark"] .alert-info {
+    background-color: rgba(13, 202, 240, 0.15);
+    border-color: rgba(13, 202, 240, 0.3);
+    color: #9eeaf9;
+}
+
+/* Fix bg-body-tertiary code blocks text color */
+[data-bs-theme="dark"] code.bg-body-tertiary {
+    color: var(--bs-body-color) !important;
+}
