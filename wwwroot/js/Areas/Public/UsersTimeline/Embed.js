@@ -206,6 +206,7 @@ const buildLayers = (locations) => {
 
     if (highlightLayer) {
         highlightLayer.addTo(mapContainer);
+        highlightLayer.bringToFront(); // Ensure live/latest marker is always on top
     }
 
     // Schedule marker transition when live marker expires
@@ -512,7 +513,12 @@ const onZoomOrMoveChanges = () => {
                 mapContainer.addLayer(clusterLayer);
             }
         }
-        
+
+        // Keep highlight layer on top after layer changes
+        if (highlightLayer) {
+            highlightLayer.bringToFront();
+        }
+
         mapBounds = mapContainer.getBounds();
         zoomLevel = mapContainer.getZoom();
         debouncedGetUserLocations();

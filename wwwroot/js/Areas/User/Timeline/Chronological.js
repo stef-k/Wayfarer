@@ -1,7 +1,7 @@
 // Chronological Timeline - allows navigation by day, month, or year
 let locations = [];
 let mapContainer = null;
-let markerLayer, clusterLayer;
+let markerLayer, clusterLayer, highlightLayer;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 let stream = null; // SSE stream for live updates
 const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
@@ -721,61 +721,92 @@ const initializeMap = () => {
     mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
     addZoomLevelControl(mapContainer);
 
+    // Create highlight layer for live/latest markers (always visible, not clustered)
+    if (!highlightLayer) {
+        highlightLayer = L.layerGroup();
+    } else {
+        highlightLayer.clearLayers();
+    }
+    highlightLayer.addTo(mapContainer);
+
     return mapContainer;
 };
 
 /**
  * Build marker layers (flat and clustered)
+ * Live and latest markers are added to highlightLayer (always visible, not clustered)
  */
 const buildLayers = (locations) => {
+    // Clear highlight layer for live/latest markers
+    if (highlightLayer) {
+        highlightLayer.clearLayers();
+    }
+
     markerLayer = L.layerGroup();
     clusterLayer = L.markerClusterGroup({
         maxClusterRadius: 50,
         chunkedLoading: true
     });
 
+    // Find the backend-designated latest location and determine if it's currently live
+    const latestLocation = locations.find(loc => loc.isLatestLocation);
+    let highlightCandidate = null;
+    if (latestLocation) {
+        const nowMin = Math.floor(Date.now() / 60000);
+        const locMin = Math.floor(new Date(latestLocation.localTimestamp).getTime() / 60000);
+        const isLive = (nowMin - locMin) <= latestLocation.locationTimeThresholdMinutes;
+        highlightCandidate = { location: latestLocation, type: isLive ? 'live' : 'latest' };
+    }
+    const highlightId = highlightCandidate?.location?.id ?? null;
+
     locations.forEach(location => {
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
+        const isHighlight = highlightId !== null && location.id === highlightId;
 
-        // Decide icon
-        const nowMin = Math.floor(Date.now() / 60000);
-        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-        const isLiveIcon = (nowMin - locMin) <= location.locationTimeThresholdMinutes;
-        const isLatestIcon = location.isLatestLocation;
+        // Click handler for modal
+        const bindInteractions = (markerInstance) => {
+            markerInstance.on('click', () => {
+                const now2 = Math.floor(Date.now() / 60000);
+                const loc2 = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
+                const isLiveM = (now2 - loc2) <= location.locationTimeThresholdMinutes;
+                const isLatestM = location.isLatestLocation;
 
-        const markerOptions = {};
-        if (isLiveIcon) markerOptions.icon = liveMarker;
-        else if (isLatestIcon) markerOptions.icon = latestLocationMarker;
+                document.getElementById('modalContent').innerHTML =
+                    generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});
 
-        const marker = L.marker(coords, markerOptions);
-
-        // Only show "latest" tooltip if not live
-        if (isLatestIcon && !isLiveIcon) {
-            marker.bindTooltip("User's latest location.", {
-                direction: "top",
-                offset: [0, -25]
+                new bootstrap.Modal(document.getElementById('locationModal')).show();
             });
+        };
+
+        if (isHighlight && highlightLayer) {
+            // Add live/latest marker to separate highlight layer (not clustered)
+            const icon = highlightCandidate?.type === 'live' ? liveMarker : latestLocationMarker;
+            const highlightMarker = L.marker(coords, { icon });
+            if (highlightCandidate?.type === 'latest') {
+                highlightMarker.bindTooltip("User's latest location.", {
+                    direction: "top",
+                    offset: [0, -25]
+                });
+            }
+            bindInteractions(highlightMarker);
+            highlightMarker.addTo(highlightLayer);
+            highlightMarker.setZIndexOffset(1000); // Ensure it's always on top
+        } else {
+            // Regular markers go to both flat and cluster layers
+            const marker = L.marker(coords, {});
+            bindInteractions(marker);
+            markerLayer.addLayer(marker);
+            clusterLayer.addLayer(marker);
         }
-
-        // Click => fill & show modal
-        marker.on('click', () => {
-            const now2 = Math.floor(Date.now() / 60000);
-            const loc2 = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-            const isLiveM = (now2 - loc2) <= location.locationTimeThresholdMinutes;
-            const isLatestM = location.isLatestLocation;
-
-            document.getElementById('modalContent').innerHTML =
-                generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});
-
-            new bootstrap.Modal(document.getElementById('locationModal')).show();
-        });
-
-        markerLayer.addLayer(marker);
-        clusterLayer.addLayer(marker);
     });
 
     // Use clustering for better performance
     mapContainer.addLayer(clusterLayer);
+
+    // Ensure highlight layer is on top
+    if (highlightLayer) {
+        highlightLayer.bringToFront();
+    }
 
     // Schedule marker transition when live marker expires
     scheduleMarkerTransition(locations);
