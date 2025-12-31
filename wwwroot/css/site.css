@@ -60,16 +60,16 @@ footer {
 
 [data-bs-theme="dark"] {
     --bs-body-bg: #212529!important; /* Dark theme background */
-    --bs-body-color: #f8f9fa!important; /* Dark theme text */
+    --bs-body-color: #c9d1d9!important; /* Dark theme text - softer gray, easier on eyes */
 }
 
 [data-bs-theme="dark"] .dropdown-menu {
     background-color: #343a40!important; /* Dark background */
-    color: #f8f9fa!important; /* Light text */
+    color: #c9d1d9!important; /* Softer text */
 }
 
 [data-bs-theme="dark"] .dropdown-menu .dropdown-item {
-    color: #f8f9fa!important;
+    color: #c9d1d9!important;
 }
 
 [data-bs-theme="dark"] .dropdown-menu .dropdown-item:hover,
@@ -88,7 +88,7 @@ footer {
 
 /* Dark Theme - Identity Nav Links */
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link {
-    color: #f8f9fa; /* Light text for nav links in dark theme */
+    color: #c9d1d9; /* Softer text for nav links in dark theme */
 }
 
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link:hover {
@@ -98,7 +98,7 @@ footer {
 /* Adjust the active link color */
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link.active,
 .navbar-light .navbar-nav .nav-link.active {
-    color: #f8f9fa; /* Light text for active links in dark mode */
+    color: #c9d1d9; /* Softer text for active links in dark mode */
 }
 
 /* Adjust the active link hover color */
@@ -107,7 +107,7 @@ footer {
     color: #0056b3; /* Same as hover color for active link */
 }
 [data-bs-theme="dark"] footer > * {
-    color: #f8f9fa!important;
+    color: #c9d1d9!important;
 }
 
 [data-bs-theme="dark"] footer  {
@@ -131,7 +131,7 @@ footer {
 }
 
 [data-bs-theme="dark"] #themeIcon {
-    color: #f8f9fa;
+    color: #c9d1d9;
 }
 
 /* Theme Toggle Button Hover Effect */
@@ -434,7 +434,7 @@ thead th {
 
 [data-bs-theme="dark"] .landing-container {
     background: linear-gradient(to bottom right, #2c2f36, #1f2228);
-    color: #f8f9fa;
+    color: #c9d1d9;
 }
 
 
@@ -468,12 +468,12 @@ thead th {
 [data-bs-theme="dark"] #sidebarHeader {
     background-color: #343a40 !important; /* or another dark shade consistent with your theme */
     border-bottom: 1px solid #495057 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
 }
 
 [data-bs-theme="dark"] #sidebar {
     background-color: #2b3035 !important; /* Dark background for sidebar */
-    color: #f8f9fa !important; /* Light text for sidebar content */
+    color: #c9d1d9 !important; /* Softer text for sidebar content */
     border-color: #495057 !important; /* Adjust border color for dark mode */
     box-shadow: 2px 0 5px rgba(0, 0, 0, 0.4); /* Darker shadow for contrast */
 }
@@ -482,12 +482,12 @@ thead th {
 [data-bs-theme="dark"] #sidebar .accordion-item {
     background-color: #2b3035 !important;
     border-color: #495057 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
 }
 
 [data-bs-theme="dark"] #sidebar .accordion-button {
     background-color: #343a40 !important; /* Slightly lighter header for accordion */
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
     border-color: #495057 !important;
 }
 
@@ -503,7 +503,7 @@ thead th {
 /* Adjust list group items within sidebar for dark mode */
 [data-bs-theme="dark"] #sidebar .list-group-item {
     background-color: #2b3035 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
     border-color: #495057 !important;
 }
 
@@ -511,7 +511,7 @@ thead th {
 [data-bs-theme="dark"] #sidebar .form-control,
 [data-bs-theme="dark"] #sidebar .form-check-input {
     background-color: #343a40 !important;
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
     border-color: #495057 !important;
 }
 
@@ -523,7 +523,7 @@ thead th {
 
 /* Adjust labels for dark mode */
 [data-bs-theme="dark"] #sidebar label.form-label {
-    color: #f8f9fa !important;
+    color: #c9d1d9 !important;
 }
 
 /* Ensure the hr divider is visible in dark mode */
@@ -553,13 +553,13 @@ thead th {
 
 [data-bs-theme="dark"] .trip-searchbar {
     background-color: #2b3035 !important; /* Dark background for the search bar */
-    color: #f8f9fa !important; /* Light text color for any direct text */
+    color: #c9d1d9 !important; /* Softer text color for any direct text */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important; /* Darker shadow */
 }
 
 [data-bs-theme="dark"] .trip-searchbar .form-control {
     background-color: #343a40 !important; /* Darker background for the input */
-    color: #f8f9fa !important; /* Light text for input content */
+    color: #c9d1d9 !important; /* Softer text for input content */
     border-color: #495057 !important; /* Darker border for input */
 }
 
@@ -575,7 +575,7 @@ thead th {
 
 [data-bs-theme="dark"] .trip-searchbar .btn-outline-secondary {
     background-color: #343a40 !important; /* Dark background for outline buttons */
-    color: #f8f9fa !important; /* Light text/icon color */
+    color: #c9d1d9 !important; /* Softer text/icon color */
     border-color: #495057 !important; /* Dark border color */
 }
 
@@ -1900,7 +1900,7 @@ html[data-bs-theme="dark"] .ql-editor a {
 /* Fix text-bg-secondary card headers in dark mode */
 [data-bs-theme="dark"] .card-header.text-bg-secondary {
     background-color: #495057 !important;
-    color: #f8f9fa !important;
+    color: #e9ecef !important; /* Slightly brighter for headers but not pure white */
     border-color: #6c757d !important;
 }
 
