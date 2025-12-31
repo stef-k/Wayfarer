@@ -1697,11 +1697,19 @@ img.js-lazy[src] {
 [data-bs-theme="dark"] .modal-body span[style*="color"],
 [data-bs-theme="dark"] .modal-body p[style*="color"],
 [data-bs-theme="dark"] .modal-body div[style*="color"],
+[data-bs-theme="dark"] .trip-notes span[style*="color"],
+[data-bs-theme="dark"] .trip-notes p[style*="color"],
+[data-bs-theme="dark"] .trip-notes div[style*="color"],
 [data-bs-theme="dark"] .place-notes span[style*="color"],
 [data-bs-theme="dark"] .place-notes p[style*="color"],
+[data-bs-theme="dark"] .place-notes div[style*="color"],
 [data-bs-theme="dark"] .notes-content span[style*="color"],
+[data-bs-theme="dark"] .notes-content div[style*="color"],
 [data-bs-theme="dark"] .accordion-body span[style*="color"],
-[data-bs-theme="dark"] .accordion-body p[style*="color"] {
+[data-bs-theme="dark"] .accordion-body p[style*="color"],
+[data-bs-theme="dark"] .quill-notes-box span[style*="color"],
+[data-bs-theme="dark"] .quill-notes-box p[style*="color"],
+[data-bs-theme="dark"] .quill-notes-box div[style*="color"] {
     color: var(--bs-body-color) !important;
 }
 
@@ -1709,26 +1717,46 @@ img.js-lazy[src] {
 [data-bs-theme="dark"] .modal-body span[style*="background"],
 [data-bs-theme="dark"] .modal-body p[style*="background"],
 [data-bs-theme="dark"] .modal-body div[style*="background"],
+[data-bs-theme="dark"] .trip-notes span[style*="background"],
+[data-bs-theme="dark"] .trip-notes p[style*="background"],
+[data-bs-theme="dark"] .trip-notes div[style*="background"],
 [data-bs-theme="dark"] .place-notes span[style*="background"],
 [data-bs-theme="dark"] .place-notes p[style*="background"],
+[data-bs-theme="dark"] .place-notes div[style*="background"],
 [data-bs-theme="dark"] .notes-content span[style*="background"],
+[data-bs-theme="dark"] .notes-content div[style*="background"],
 [data-bs-theme="dark"] .accordion-body span[style*="background"],
-[data-bs-theme="dark"] .accordion-body p[style*="background"] {
+[data-bs-theme="dark"] .accordion-body p[style*="background"],
+[data-bs-theme="dark"] .quill-notes-box span[style*="background"],
+[data-bs-theme="dark"] .quill-notes-box p[style*="background"],
+[data-bs-theme="dark"] .quill-notes-box div[style*="background"] {
     background-color: transparent !important;
 }
 
 /* Also target rgb() style values specifically */
 [data-bs-theme="dark"] .modal-body [style*="rgb(0, 0, 0)"],
 [data-bs-theme="dark"] .modal-body [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(0,0,0)"],
 [data-bs-theme="dark"] .accordion-body [style*="rgb(0, 0, 0)"],
-[data-bs-theme="dark"] .accordion-body [style*="rgb(0,0,0)"] {
+[data-bs-theme="dark"] .accordion-body [style*="rgb(0,0,0)"],
+[data-bs-theme="dark"] .quill-notes-box [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .quill-notes-box [style*="rgb(0,0,0)"] {
     color: var(--bs-body-color) !important;
 }
 
 [data-bs-theme="dark"] .modal-body [style*="rgb(255, 255, 255)"],
 [data-bs-theme="dark"] .modal-body [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .trip-notes [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .place-notes [style*="rgb(255,255,255)"],
 [data-bs-theme="dark"] .accordion-body [style*="rgb(255, 255, 255)"],
-[data-bs-theme="dark"] .accordion-body [style*="rgb(255,255,255)"] {
+[data-bs-theme="dark"] .accordion-body [style*="rgb(255,255,255)"],
+[data-bs-theme="dark"] .quill-notes-box [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .quill-notes-box [style*="rgb(255,255,255)"] {
     background-color: transparent !important;
 }
 
