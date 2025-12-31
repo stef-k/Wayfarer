@@ -148,29 +148,14 @@ const buildLayers = (locations) => {
     const nowMinGlobal = Math.floor(Date.now() / 60000);
     const thresholdFor = (location) => location.locationTimeThresholdMinutes ?? 10;
 
-    let liveCandidate = null;
-    let latestCandidate = null;
-
-    locations.forEach(location => {
-        const locMin = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-        const isLive = (nowMinGlobal - locMin) <= thresholdFor(location);
-
-        if (isLive) {
-            if (!liveCandidate || locMin > liveCandidate.locMin) {
-                liveCandidate = { location, locMin };
-            }
-        } else if (location.isLatestLocation) {
-            if (!latestCandidate || locMin > latestCandidate.locMin) {
-                latestCandidate = { location, locMin };
-            }
-        }
-    });
-
-    const highlightCandidate = liveCandidate
-        ? { location: liveCandidate.location, type: 'live' }
-        : latestCandidate
-            ? { location: latestCandidate.location, type: 'latest' }
-            : null;
+    // Find the backend-designated latest location and determine if it's currently live
+    const latestLocation = locations.find(loc => loc.isLatestLocation);
+    let highlightCandidate = null;
+    if (latestLocation) {
+        const locMin = Math.floor(new Date(latestLocation.localTimestamp).getTime() / 60000);
+        const isLive = (nowMinGlobal - locMin) <= thresholdFor(latestLocation);
+        highlightCandidate = { location: latestLocation, type: isLive ? 'live' : 'latest' };
+    }
     const highlightId = highlightCandidate?.location?.id ?? null;
 
     locations.forEach(location => {
