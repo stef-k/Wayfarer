@@ -228,8 +228,9 @@ const displayLocationsInTable = (locations) => {
         </td>
         <td>${loc.coordinates.latitude}</td>
         <td>${loc.coordinates.longitude}</td>
-        <td class="text-center">${loc.accuracy ?? '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
-        <td class="text-center">${loc.altitude ?? '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
+        <td class="text-center">${loc.accuracy != null ? loc.accuracy : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
+        <td class="text-center">${loc.speed != null ? loc.speed : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</td>
+        <td class="text-center">${loc.altitude != null ? loc.altitude : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
         <td>${loc.activityType || loc.activity || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</td>
         <td>${loc.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'}</td>
         <td>${loc.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
