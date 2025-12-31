@@ -1927,3 +1927,25 @@ html[data-bs-theme="dark"] .ql-editor a {
 [data-bs-theme="dark"] code.bg-body-tertiary {
     color: var(--bs-body-color) !important;
 }
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: Marker Cluster Count Fix
+   Cluster backgrounds are light green, so text must be dark
+───────────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .marker-cluster div,
+[data-bs-theme="dark"] .marker-cluster span {
+    color: #212529 !important; /* Dark text for light cluster backgrounds */
+}
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: Location Statistics Modal Fix
+   Fix bg-light highlight and headings in stats modal
+───────────────────────────────────────────────────────── */
+[data-bs-theme="dark"] #statsModal .bg-light {
+    background-color: #2c3034 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] #statsModal h6 {
+    color: var(--bs-body-color) !important;
+}
