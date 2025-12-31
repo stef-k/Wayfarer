@@ -1781,15 +1781,18 @@ img.js-lazy[src] {
     background-color: transparent !important;
 }
 
-/* Ultra-aggressive catch-all for Quill editor inline styles in dark mode */
+/* Ultra-aggressive catch-all for Quill editor and trip-notes inline styles in dark mode */
 /* This ensures ALL elements with inline color styles are overridden */
-/* Target any element with style attribute containing color */
-[data-bs-theme="dark"] .ql-editor [style] {
+/* Target any element with style attribute */
+[data-bs-theme="dark"] .ql-editor [style],
+[data-bs-theme="dark"] .trip-notes [style],
+[data-bs-theme="dark"] .place-notes [style],
+[data-bs-theme="dark"] .notes-content [style] {
     color: var(--bs-body-color) !important;
     background-color: transparent !important;
 }
 
-/* Explicitly target common elements Quill uses */
+/* Explicitly target common elements used in rich text content */
 [data-bs-theme="dark"] .ql-editor span,
 [data-bs-theme="dark"] .ql-editor strong,
 [data-bs-theme="dark"] .ql-editor em,
@@ -1799,14 +1802,43 @@ img.js-lazy[src] {
 [data-bs-theme="dark"] .ql-editor h1,
 [data-bs-theme="dark"] .ql-editor h2,
 [data-bs-theme="dark"] .ql-editor h3,
-[data-bs-theme="dark"] .ql-editor li {
+[data-bs-theme="dark"] .ql-editor li,
+[data-bs-theme="dark"] .trip-notes span,
+[data-bs-theme="dark"] .trip-notes strong,
+[data-bs-theme="dark"] .trip-notes em,
+[data-bs-theme="dark"] .trip-notes u,
+[data-bs-theme="dark"] .trip-notes s,
+[data-bs-theme="dark"] .trip-notes p,
+[data-bs-theme="dark"] .trip-notes h1,
+[data-bs-theme="dark"] .trip-notes h2,
+[data-bs-theme="dark"] .trip-notes h3,
+[data-bs-theme="dark"] .trip-notes li,
+[data-bs-theme="dark"] .place-notes span,
+[data-bs-theme="dark"] .place-notes strong,
+[data-bs-theme="dark"] .place-notes em,
+[data-bs-theme="dark"] .place-notes p,
+[data-bs-theme="dark"] .place-notes h1,
+[data-bs-theme="dark"] .place-notes h2,
+[data-bs-theme="dark"] .place-notes h3,
+[data-bs-theme="dark"] .place-notes li,
+[data-bs-theme="dark"] .notes-content span,
+[data-bs-theme="dark"] .notes-content strong,
+[data-bs-theme="dark"] .notes-content em,
+[data-bs-theme="dark"] .notes-content p,
+[data-bs-theme="dark"] .notes-content li {
     color: var(--bs-body-color) !important;
     background-color: transparent !important;
 }
 
 /* Preserve link colors in dark mode - must come after the catch-all */
 [data-bs-theme="dark"] .ql-editor a,
-[data-bs-theme="dark"] .ql-editor a[style] {
+[data-bs-theme="dark"] .ql-editor a[style],
+[data-bs-theme="dark"] .trip-notes a,
+[data-bs-theme="dark"] .trip-notes a[style],
+[data-bs-theme="dark"] .place-notes a,
+[data-bs-theme="dark"] .place-notes a[style],
+[data-bs-theme="dark"] .notes-content a,
+[data-bs-theme="dark"] .notes-content a[style] {
     color: #6ea8fe !important; /* Bootstrap link color for dark mode */
 }
 
