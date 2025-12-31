@@ -1694,22 +1694,33 @@ img.js-lazy[src] {
 
 /* Target ALL elements with inline color/background styles in dark mode */
 /* This is aggressive but necessary because Quill saves inline styles */
+/* Include .ql-editor to target Quill's content area directly */
 [data-bs-theme="dark"] .modal-body span[style*="color"],
 [data-bs-theme="dark"] .modal-body p[style*="color"],
 [data-bs-theme="dark"] .modal-body div[style*="color"],
+[data-bs-theme="dark"] .modal-body strong[style*="color"],
 [data-bs-theme="dark"] .trip-notes span[style*="color"],
 [data-bs-theme="dark"] .trip-notes p[style*="color"],
 [data-bs-theme="dark"] .trip-notes div[style*="color"],
+[data-bs-theme="dark"] .trip-notes strong[style*="color"],
 [data-bs-theme="dark"] .place-notes span[style*="color"],
 [data-bs-theme="dark"] .place-notes p[style*="color"],
 [data-bs-theme="dark"] .place-notes div[style*="color"],
+[data-bs-theme="dark"] .place-notes strong[style*="color"],
 [data-bs-theme="dark"] .notes-content span[style*="color"],
 [data-bs-theme="dark"] .notes-content div[style*="color"],
+[data-bs-theme="dark"] .notes-content strong[style*="color"],
 [data-bs-theme="dark"] .accordion-body span[style*="color"],
 [data-bs-theme="dark"] .accordion-body p[style*="color"],
-[data-bs-theme="dark"] .quill-notes-box span[style*="color"],
-[data-bs-theme="dark"] .quill-notes-box p[style*="color"],
-[data-bs-theme="dark"] .quill-notes-box div[style*="color"] {
+[data-bs-theme="dark"] .accordion-body strong[style*="color"],
+[data-bs-theme="dark"] .ql-editor span[style*="color"],
+[data-bs-theme="dark"] .ql-editor p[style*="color"],
+[data-bs-theme="dark"] .ql-editor div[style*="color"],
+[data-bs-theme="dark"] .ql-editor strong[style*="color"],
+[data-bs-theme="dark"] .ql-editor h1[style*="color"],
+[data-bs-theme="dark"] .ql-editor h2[style*="color"],
+[data-bs-theme="dark"] .ql-editor h3[style*="color"],
+[data-bs-theme="dark"] .ql-editor li[style*="color"] {
     color: var(--bs-body-color) !important;
 }
 
@@ -1717,19 +1728,29 @@ img.js-lazy[src] {
 [data-bs-theme="dark"] .modal-body span[style*="background"],
 [data-bs-theme="dark"] .modal-body p[style*="background"],
 [data-bs-theme="dark"] .modal-body div[style*="background"],
+[data-bs-theme="dark"] .modal-body strong[style*="background"],
 [data-bs-theme="dark"] .trip-notes span[style*="background"],
 [data-bs-theme="dark"] .trip-notes p[style*="background"],
 [data-bs-theme="dark"] .trip-notes div[style*="background"],
+[data-bs-theme="dark"] .trip-notes strong[style*="background"],
 [data-bs-theme="dark"] .place-notes span[style*="background"],
 [data-bs-theme="dark"] .place-notes p[style*="background"],
 [data-bs-theme="dark"] .place-notes div[style*="background"],
+[data-bs-theme="dark"] .place-notes strong[style*="background"],
 [data-bs-theme="dark"] .notes-content span[style*="background"],
 [data-bs-theme="dark"] .notes-content div[style*="background"],
+[data-bs-theme="dark"] .notes-content strong[style*="background"],
 [data-bs-theme="dark"] .accordion-body span[style*="background"],
 [data-bs-theme="dark"] .accordion-body p[style*="background"],
-[data-bs-theme="dark"] .quill-notes-box span[style*="background"],
-[data-bs-theme="dark"] .quill-notes-box p[style*="background"],
-[data-bs-theme="dark"] .quill-notes-box div[style*="background"] {
+[data-bs-theme="dark"] .accordion-body strong[style*="background"],
+[data-bs-theme="dark"] .ql-editor span[style*="background"],
+[data-bs-theme="dark"] .ql-editor p[style*="background"],
+[data-bs-theme="dark"] .ql-editor div[style*="background"],
+[data-bs-theme="dark"] .ql-editor strong[style*="background"],
+[data-bs-theme="dark"] .ql-editor h1[style*="background"],
+[data-bs-theme="dark"] .ql-editor h2[style*="background"],
+[data-bs-theme="dark"] .ql-editor h3[style*="background"],
+[data-bs-theme="dark"] .ql-editor li[style*="background"] {
     background-color: transparent !important;
 }
 
@@ -1742,8 +1763,8 @@ img.js-lazy[src] {
 [data-bs-theme="dark"] .place-notes [style*="rgb(0,0,0)"],
 [data-bs-theme="dark"] .accordion-body [style*="rgb(0, 0, 0)"],
 [data-bs-theme="dark"] .accordion-body [style*="rgb(0,0,0)"],
-[data-bs-theme="dark"] .quill-notes-box [style*="rgb(0, 0, 0)"],
-[data-bs-theme="dark"] .quill-notes-box [style*="rgb(0,0,0)"] {
+[data-bs-theme="dark"] .ql-editor [style*="rgb(0, 0, 0)"],
+[data-bs-theme="dark"] .ql-editor [style*="rgb(0,0,0)"] {
     color: var(--bs-body-color) !important;
 }
 
@@ -1755,8 +1776,8 @@ img.js-lazy[src] {
 [data-bs-theme="dark"] .place-notes [style*="rgb(255,255,255)"],
 [data-bs-theme="dark"] .accordion-body [style*="rgb(255, 255, 255)"],
 [data-bs-theme="dark"] .accordion-body [style*="rgb(255,255,255)"],
-[data-bs-theme="dark"] .quill-notes-box [style*="rgb(255, 255, 255)"],
-[data-bs-theme="dark"] .quill-notes-box [style*="rgb(255,255,255)"] {
+[data-bs-theme="dark"] .ql-editor [style*="rgb(255, 255, 255)"],
+[data-bs-theme="dark"] .ql-editor [style*="rgb(255,255,255)"] {
     background-color: transparent !important;
 }
 
