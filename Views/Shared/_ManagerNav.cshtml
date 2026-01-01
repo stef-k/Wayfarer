@@ -1,6 +1,14 @@
-﻿<div class="dropdown" style="margin-top: 2px;">
-    <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        Manager Menu
+@model string
+@{
+    /// <summary>
+    /// Manager navigation dropdown partial view.
+    /// Receives the user's display name as the model to show in the dropdown button.
+    /// </summary>
+}
+<div class="dropdown" style="margin-top: 2px;">
+    <button class="btn dropdown-toggle text-truncate" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+            style="max-width: 200px;" title="@Model (Manager)">
+        <i class="bi bi-people me-1"></i>@Model
     </button>
     <ul class="dropdown-menu user-menu">
         <li>
