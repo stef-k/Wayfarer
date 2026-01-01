@@ -2,6 +2,18 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 
+@{
+    // Fetch user display name once for all nav partials
+    string? userDisplayName = null;
+    if (SignInManager.IsSignedIn(User))
+    {
+        var currentUser = await UserManager.GetUserAsync(User);
+        userDisplayName = !string.IsNullOrWhiteSpace(currentUser?.DisplayName)
+            ? currentUser.DisplayName
+            : currentUser?.UserName ?? "Menu";
+    }
+}
+
 <ul class="navbar-nav">
     <!-- Theme Toggle Button -->
     <button id="themeToggle" class="btn btn-outline-secondary rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
@@ -15,15 +27,15 @@
         </script>
         @if (User.IsInRole("Admin"))
         {
-            <partial name="_AdminNav" />
+            <partial name="_AdminNav" model="userDisplayName" />
         }
         @if (User.IsInRole("Manager"))
         {
-            <partial name="_ManagerNav" />
+            <partial name="_ManagerNav" model="userDisplayName" />
         }
         @if (User.IsInRole("User"))
         {
-            <partial name="_UserNav" />
+            <partial name="_UserNav" model="userDisplayName" />
         }
         <li class="nav-item">
             <form class="form-inline" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home", new { area = "" })">

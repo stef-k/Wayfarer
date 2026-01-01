@@ -1949,3 +1949,32 @@ html[data-bs-theme="dark"] .ql-editor a {
 [data-bs-theme="dark"] #statsModal h6 {
     color: var(--bs-body-color) !important;
 }
+
+/* ─────────────────────────────────────────────────────────
+   User Nav Menu Button - Responsive Width
+   Shows user display name with adaptive truncation
+───────────────────────────────────────────────────────── */
+.nav-user-btn {
+    max-width: 180px; /* Mobile/collapsed: compact */
+}
+
+/* Tablet landscape and small desktop */
+@media (min-width: 768px) {
+    .nav-user-btn {
+        max-width: 220px;
+    }
+}
+
+/* Desktop: more generous width for longer names */
+@media (min-width: 992px) {
+    .nav-user-btn {
+        max-width: 280px;
+    }
+}
+
+/* Large desktop: even more room */
+@media (min-width: 1200px) {
+    .nav-user-btn {
+        max-width: 320px;
+    }
+}

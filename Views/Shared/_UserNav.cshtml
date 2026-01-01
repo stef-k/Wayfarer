@@ -1,6 +1,14 @@
-﻿<div class="dropdown" style="margin-top: 2px;">
-    <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        User Menu
+@model string
+@{
+    /// <summary>
+    /// User navigation dropdown partial view.
+    /// Receives the user's display name as the model to show in the dropdown button.
+    /// </summary>
+}
+<div class="dropdown" style="margin-top: 2px;">
+    <button class="btn dropdown-toggle text-truncate nav-user-btn" type="button" data-bs-toggle="dropdown"
+            aria-expanded="false" title="@Model">
+        <i class="bi bi-person me-1"></i>@Model
     </button>
     <ul class="dropdown-menu user-menu">
 
