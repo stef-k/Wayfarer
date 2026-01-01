@@ -97,7 +97,7 @@ public class PlaceVisitDetectionIntegrationTests : TestBase
         db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
-        return (user, token.Token);
+        return (user, token.Token!);
     }
 
     /// <summary>

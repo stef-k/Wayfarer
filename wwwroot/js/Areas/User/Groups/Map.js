@@ -147,7 +147,7 @@ import {
       });
     }
     const data = await postJson(url, { includeUserIds: include });
-    (Array.isArray(data)?data:[]).forEach((loc,idx)=>{ const uid=include[idx]; if (uid) upsertLatestForUser(uid, loc); });
+    (Array.isArray(data)?data:[]).forEach(loc=>{ const uid=loc.userId; if (uid) upsertLatestForUser(uid, loc); });
     // Only fit bounds when loading all users, not for single-user SSE updates
     if (!skipMarkerCleanup) {
       const latlngs=Array.from(latestMarkers.values()).map(m=>m.getLatLng()); if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding:[20,20] });
