@@ -24,7 +24,7 @@ public class LocationController : BaseApiController
     private const double DefaultLocationDistanceThresholdMeters = 15; // Default to 15 meters
 
     // Constants for check-in rate limiting
-    private const int CheckInMinIntervalSeconds = 30; // Minimum 30 seconds between check-ins
+    private const int CheckInMinIntervalSeconds = 10; // Minimum 10 seconds between check-ins
     private const int CheckInMaxPerHour = 60; // Maximum 60 check-ins per hour per user
     private readonly IMemoryCache _cache;
     private readonly LocationService _chronologicalLocationService;
