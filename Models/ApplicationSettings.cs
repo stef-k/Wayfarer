@@ -19,7 +19,7 @@ public class ApplicationSettings
     public int LocationTimeThresholdMinutes { get; set; } = 5;
 
     [Required]
-    [Range(1, 500, ErrorMessage = "Distance threshold must be between 1 and 500 meters.")]
+    [Range(1, 100000, ErrorMessage = "Distance threshold must be between 1 and 100,000 meters.")]
     public int LocationDistanceThresholdMeters { get; set; } = 15;
 
     /// <summary>
