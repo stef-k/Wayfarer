@@ -15,7 +15,7 @@ namespace Wayfarer.Migrations
                 table: "ApplicationSettings",
                 type: "integer",
                 nullable: false,
-                defaultValue: 100);
+                defaultValue: 50);
         }
 
         /// <inheritdoc />

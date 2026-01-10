@@ -123,6 +123,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("IsRegistrationOpen", currentSettings.IsRegistrationOpen, updatedSettings.IsRegistrationOpen);
                     Track("LocationTimeThresholdMinutes", currentSettings.LocationTimeThresholdMinutes, updatedSettings.LocationTimeThresholdMinutes);
                     Track("LocationDistanceThresholdMeters", currentSettings.LocationDistanceThresholdMeters, updatedSettings.LocationDistanceThresholdMeters);
+                    Track("LocationAccuracyThresholdMeters", currentSettings.LocationAccuracyThresholdMeters, updatedSettings.LocationAccuracyThresholdMeters);
                     Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
 
@@ -138,6 +139,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
+                    currentSettings.LocationAccuracyThresholdMeters = updatedSettings.LocationAccuracyThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
 
