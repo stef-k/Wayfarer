@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -9,9 +10,11 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class SettingsController(ApplicationDbContext dbContext,
         ILogger<SettingsController> logger,
-        UserManager<ApplicationUser> userManager) : BaseController(logger, dbContext)
+        UserManager<ApplicationUser> userManager,
+        IApplicationSettingsService settingsService) : BaseController(logger, dbContext)
     {
         private readonly UserManager<ApplicationUser> _userManager = userManager;
+        private readonly IApplicationSettingsService _settingsService = settingsService;
 
         public async Task<IActionResult> Index()
         {
@@ -28,6 +31,10 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 return RedirectWithAlert("Login", "Account", "User not found", "error", null, null);
             }
+
+            var settings = _settingsService.GetSettings();
+            ViewData["LocationTimeThresholdMinutes"] = settings.LocationTimeThresholdMinutes;
+            ViewData["LocationDistanceThresholdMeters"] = settings.LocationDistanceThresholdMeters;
 
             SetPageTitle("Settings Management");
             return View(user);

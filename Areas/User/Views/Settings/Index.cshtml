@@ -60,8 +60,57 @@
                     <div class="d-grid gap-2 mt-3">
                         <a class="btn btn-outline-primary" asp-area="User" asp-controller="Timeline" asp-action="Settings">Manage Timeline Settings</a>
                     </div>
-                    
-                    <div class="card-header  text-bg-primary my-4">
+
+                    <div class="card-header text-bg-info my-4">
+                        <h2>Location Logging Thresholds</h2>
+                    </div>
+
+                    <p class="text-muted mb-3">
+                        The server applies these thresholds to incoming location data. They help reduce
+                        battery drain on mobile devices and avoid storing redundant location points.
+                    </p>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-body-tertiary h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-clock me-2"></i>Time Threshold
+                                    </h6>
+                                    <p class="display-6 mb-2 text-primary">@ViewData["LocationTimeThresholdMinutes"] min</p>
+                                    <p class="small text-muted mb-0">
+                                        Locations sent within <strong>@ViewData["LocationTimeThresholdMinutes"] minutes</strong>
+                                        of the previous logged location are skipped.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-body-tertiary h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-geo-alt me-2"></i>Distance Threshold
+                                    </h6>
+                                    <p class="display-6 mb-2 text-primary">@ViewData["LocationDistanceThresholdMeters"] m</p>
+                                    <p class="small text-muted mb-0">
+                                        Locations within <strong>@ViewData["LocationDistanceThresholdMeters"] meters</strong>
+                                        of the previous logged location are skipped.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-secondary mb-3">
+                        <small>
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>Note:</strong> Both thresholds must be exceeded for a new location to be logged.
+                            The <strong>Check-in</strong> endpoint bypasses these thresholds for manual location logging.
+                            These settings are configured by the server administrator.
+                        </small>
+                    </div>
+
+                    <div class="card-header text-bg-primary my-4">
                         <h2>API Token Settings</h2>
                     </div>
                     
