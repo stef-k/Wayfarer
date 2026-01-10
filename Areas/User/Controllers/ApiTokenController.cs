@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers
@@ -12,12 +13,18 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class ApiTokenController : BaseController
     {
-        private readonly ApiTokenService _apiTokenService;  // Directly use ApiTokenService
+        private readonly ApiTokenService _apiTokenService;
+        private readonly IApplicationSettingsService _settingsService;
 
-        public ApiTokenController(ApiTokenService apiTokenService, ILogger<BaseController> logger, ApplicationDbContext dbContext)
-            : base(logger, dbContext) // Pass dependencies to the base controller
+        public ApiTokenController(
+            ApiTokenService apiTokenService,
+            ILogger<BaseController> logger,
+            ApplicationDbContext dbContext,
+            IApplicationSettingsService settingsService)
+            : base(logger, dbContext)
         {
-            _apiTokenService = apiTokenService;  // Initialize ApiTokenService directly
+            _apiTokenService = apiTokenService;
+            _settingsService = settingsService;
         }
 
         // GET: ApiToken/Index
@@ -31,12 +38,16 @@ namespace Wayfarer.Areas.User.Controllers
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
-            List<ApiToken> tokens = await _apiTokenService.GetTokensForUserAsync(userId); // Fetch tokens for the logged-in user
+            List<ApiToken> tokens = await _apiTokenService.GetTokensForUserAsync(userId);
+            ApplicationSettings settings = _settingsService.GetSettings();
+
             ApiTokenViewModel viewModel = new ApiTokenViewModel
             {
                 UserName = User.Identity?.Name ?? string.Empty,
                 UserId = userId,
-                Tokens = tokens
+                Tokens = tokens,
+                LocationTimeThresholdMinutes = settings.LocationTimeThresholdMinutes,
+                LocationDistanceThresholdMeters = settings.LocationDistanceThresholdMeters
             };
 
             SetPageTitle("API Token Management");
