@@ -8,6 +8,7 @@ using Moq;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
@@ -36,6 +37,9 @@ public class UserApiTokenControllerTests : TestBase
         var vm = Assert.IsType<ApiTokenViewModel>(view.Model);
         Assert.Equal("alice", vm.UserName);
         Assert.Equal(2, vm.Tokens.Count);
+        // Verify threshold values are populated from settings
+        Assert.Equal(5, vm.LocationTimeThresholdMinutes);
+        Assert.Equal(15, vm.LocationDistanceThresholdMeters);
     }
 
     [Fact]
@@ -174,7 +178,12 @@ public class UserApiTokenControllerTests : TestBase
     {
         var userManager = MockUserManager(user);
         var apiTokenService = new ApiTokenService(db, userManager.Object);
-        var controller = new ApiTokenController(apiTokenService, NullLogger<BaseController>.Instance, db);
+        var settingsService = MockSettingsService();
+        var controller = new ApiTokenController(
+            apiTokenService,
+            NullLogger<BaseController>.Instance,
+            db,
+            settingsService.Object);
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
@@ -186,6 +195,18 @@ public class UserApiTokenControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    private static Mock<IApplicationSettingsService> MockSettingsService()
+    {
+        var settings = new ApplicationSettings
+        {
+            LocationTimeThresholdMinutes = 5,
+            LocationDistanceThresholdMeters = 15
+        };
+        var mock = new Mock<IApplicationSettingsService>();
+        mock.Setup(m => m.GetSettings()).Returns(settings);
+        return mock;
     }
 
     private static Mock<UserManager<ApplicationUser>> MockUserManager(ApplicationUser user)

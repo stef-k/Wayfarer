@@ -342,6 +342,59 @@
                 </div>
             </div>
 
+            <!-- Location Logging Thresholds Information -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-info">
+                    <h2>⚙️ Location Logging Thresholds</h2>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">
+                        The server applies the following thresholds to incoming location data. These settings help reduce
+                        battery drain on mobile devices and avoid storing redundant location points.
+                    </p>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-body-tertiary h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-clock me-2"></i>Time Threshold
+                                    </h6>
+                                    <p class="display-6 mb-2 text-primary">@Model.LocationTimeThresholdMinutes min</p>
+                                    <p class="small text-muted mb-0">
+                                        Locations sent within <strong>@Model.LocationTimeThresholdMinutes minutes</strong>
+                                        of the previous logged location are skipped.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-body-tertiary h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-geo-alt me-2"></i>Distance Threshold
+                                    </h6>
+                                    <p class="display-6 mb-2 text-primary">@Model.LocationDistanceThresholdMeters m</p>
+                                    <p class="small text-muted mb-0">
+                                        Locations within <strong>@Model.LocationDistanceThresholdMeters meters</strong>
+                                        of the previous logged location are skipped.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-secondary mb-0">
+                        <small>
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>Note:</strong> Both thresholds must be exceeded for a new location to be logged.
+                            The <strong>Check-in</strong> endpoint bypasses these thresholds for manual location logging.
+                            These settings are configured by the server administrator.
+                        </small>
+                    </div>
+                </div>
+            </div>
+
             <!-- Third Party Tokens Section (if any exist) -->
             @{
                 var thirdPartyTokens = Model.Tokens?.Where(t => !t.Name.Equals("Wayfarer Incoming Location Data API Token")).ToList();
