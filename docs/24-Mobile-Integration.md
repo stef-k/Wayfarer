@@ -8,10 +8,10 @@ HTTP Clients
 - Base URL comes from `SettingsStore.GetApiBaseUrl()` which appends `/api` to the configured `ServerUrl`.
 - Refit interfaces:
   - `IWayfarerApiService` (base `/api/`):
-    - `GET /settings` — fetch server thresholds (time/distance) for logging guidance.
+    - `GET /settings` — fetch server thresholds (time/distance/accuracy) for logging guidance.
     - `GET /activity` — list activity types.
-    - `POST /location/log-location` — log background location (Bearer token).
-    - `POST /location/check-in` — manual check-in with rate limits (Bearer token).
+    - `POST /location/log-location` — log background location with filtering (time, distance, accuracy, duplicates).
+    - `POST /location/check-in` — manual check-in with rate limits (bypasses time/distance thresholds).
   - `ITripContentApiService` (explicit `/api/trips/...`):
     - `GET /api/trips` — current user trips.
     - `GET /api/trips/{tripId}` — full trip content (public or owner).

@@ -38,6 +38,9 @@ namespace Wayfarer.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<int>("LocationAccuracyThresholdMeters")
+                        .HasColumnType("integer");
+
                     b.Property<int>("LocationDistanceThresholdMeters")
                         .HasColumnType("integer");
 

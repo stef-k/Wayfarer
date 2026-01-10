@@ -911,7 +911,7 @@ Open your browser and navigate to:
 Navigate to **Admin Dashboard** → **Settings**:
 
 - **Registration:** Enable/disable user registration
-- **Location Thresholds:** Adjust time/distance thresholds for location tracking
+- **Location Thresholds:** Adjust time/distance/accuracy thresholds for location tracking
 - **Upload Limits:** Set max file upload size
 - **Tile Cache Size:** Configure map tile cache limits
 - **Group Settings:** Enable/disable auto-deletion of empty groups

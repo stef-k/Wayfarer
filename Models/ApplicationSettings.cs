@@ -23,6 +23,16 @@ public class ApplicationSettings
     public int LocationDistanceThresholdMeters { get; set; } = 15;
 
     /// <summary>
+    /// Maximum acceptable GPS accuracy in meters for location logging.
+    /// Locations with accuracy worse (higher) than this value are rejected.
+    /// This helps filter out unreliable GPS readings from poor signal conditions.
+    /// Default is 100 meters.
+    /// </summary>
+    [Required]
+    [Range(10, 1000, ErrorMessage = "Accuracy threshold must be between 10 and 1000 meters.")]
+    public int LocationAccuracyThresholdMeters { get; set; } = 100;
+
+    /// <summary>
     /// The max tile cache size (in MegaBytes [MB]) to store in file system for zoom levels >= 9.
     /// Zoom levels <= 8 are about 1 GB and have no relation to this setting.
     /// Tiles are calculated 10 - 20 KB each.

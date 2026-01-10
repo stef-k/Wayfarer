@@ -14,4 +14,9 @@ public class ApiSettingsDto
     /// Ignore locations if they are less than this many meters apart.
     /// </summary>
     public int LocationDistanceThresholdMeters { get; set; }
+
+    /// <summary>
+    /// Reject locations with GPS accuracy worse (higher) than this value in meters.
+    /// </summary>
+    public int LocationAccuracyThresholdMeters { get; set; }
 }

@@ -156,6 +156,93 @@ public class ApiLocationControllerLogTests : TestBase
     }
 
     /// <summary>
+    /// Tests that a location request is skipped when GPS accuracy exceeds the threshold.
+    /// </summary>
+    [Fact]
+    public async Task LogLocation_ReturnsSkipped_WhenAccuracyExceedsThreshold()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        // Send location with accuracy of 150m (default threshold is 100m)
+        var result = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+            Accuracy = 150  // Exceeds default threshold of 100m
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(0, db.Locations.Count()); // No location created
+
+        // Verify response format: { success: true, skipped: true, locationId: null }
+        var response = ok.Value;
+        var responseType = response!.GetType();
+        Assert.True((bool)responseType.GetProperty("success")!.GetValue(response)!);
+        Assert.True((bool)responseType.GetProperty("skipped")!.GetValue(response)!);
+        Assert.Null(responseType.GetProperty("locationId")!.GetValue(response));
+    }
+
+    /// <summary>
+    /// Tests that a location request is accepted when GPS accuracy is within the threshold.
+    /// </summary>
+    [Fact]
+    public async Task LogLocation_CreatesLocation_WhenAccuracyWithinThreshold()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        // Send location with accuracy of 50m (default threshold is 100m)
+        var result = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+            Accuracy = 50  // Within default threshold of 100m
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(1, db.Locations.Count()); // Location created
+
+        // Verify response format: { success: true, skipped: false, locationId: <id> }
+        var response = ok.Value;
+        var responseType = response!.GetType();
+        Assert.True((bool)responseType.GetProperty("success")!.GetValue(response)!);
+        Assert.False((bool)responseType.GetProperty("skipped")!.GetValue(response)!);
+        Assert.NotNull(responseType.GetProperty("locationId")!.GetValue(response));
+    }
+
+    /// <summary>
+    /// Tests that a location request is accepted when no accuracy is provided.
+    /// </summary>
+    [Fact]
+    public async Task LogLocation_CreatesLocation_WhenNoAccuracyProvided()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+
+        // Send location without accuracy
+        var result = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+            Accuracy = null  // No accuracy provided
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(1, db.Locations.Count()); // Location created
+
+        // Verify response format: { success: true, skipped: false, locationId: <id> }
+        var response = ok.Value;
+        var responseType = response!.GetType();
+        Assert.True((bool)responseType.GetProperty("success")!.GetValue(response)!);
+        Assert.False((bool)responseType.GetProperty("skipped")!.GetValue(response)!);
+        Assert.NotNull(responseType.GetProperty("locationId")!.GetValue(response));
+    }
+
+    /// <summary>
     /// Tests that a location request is skipped when a record with the same
     /// LocalTimestamp already exists for the user (duplicate detection).
     /// </summary>
@@ -229,8 +316,8 @@ public class ApiLocationControllerLogTests : TestBase
         Assert.Equal(1, locationCount);
 
         // Both requests should return success (one saved, one skipped)
-        var result1 = Assert.IsType<OkObjectResult>(task1.Result);
-        var result2 = Assert.IsType<OkObjectResult>(task2.Result);
+        var result1 = Assert.IsType<OkObjectResult>(await task1);
+        var result2 = Assert.IsType<OkObjectResult>(await task2);
 
         var response1 = result1.Value!.GetType();
         var response2 = result2.Value!.GetType();

@@ -71,7 +71,7 @@
                     </p>
 
                     <div class="row mb-3">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <div class="card bg-body-tertiary h-100">
                                 <div class="card-body">
                                     <h6 class="card-title">
@@ -85,7 +85,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <div class="card bg-body-tertiary h-100">
                                 <div class="card-body">
                                     <h6 class="card-title">
@@ -99,13 +99,28 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card bg-body-tertiary h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="bi bi-bullseye me-2"></i>Accuracy Threshold
+                                    </h6>
+                                    <p class="display-6 mb-2 text-primary">@ViewData["LocationAccuracyThresholdMeters"] m</p>
+                                    <p class="small text-muted mb-0">
+                                        Locations with GPS accuracy worse than <strong>@ViewData["LocationAccuracyThresholdMeters"] meters</strong>
+                                        are rejected.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="alert alert-secondary mb-3">
                         <small>
                             <i class="bi bi-info-circle me-1"></i>
-                            <strong>Note:</strong> Both thresholds must be exceeded for a new location to be logged.
-                            The <strong>Check-in</strong> endpoint bypasses these thresholds for manual location logging.
+                            <strong>Note:</strong> Time and distance thresholds must be exceeded for a new location to be logged.
+                            Additionally, the GPS accuracy must be within the accuracy threshold.
+                            The <strong>Check-in</strong> endpoint bypasses time/distance thresholds for manual location logging.
                             These settings are configured by the server administrator.
                         </small>
                     </div>

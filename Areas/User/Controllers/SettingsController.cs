@@ -35,6 +35,7 @@ namespace Wayfarer.Areas.User.Controllers
             var settings = _settingsService.GetSettings();
             ViewData["LocationTimeThresholdMinutes"] = settings.LocationTimeThresholdMinutes;
             ViewData["LocationDistanceThresholdMeters"] = settings.LocationDistanceThresholdMeters;
+            ViewData["LocationAccuracyThresholdMeters"] = settings.LocationAccuracyThresholdMeters;
 
             SetPageTitle("Settings Management");
             return View(user);

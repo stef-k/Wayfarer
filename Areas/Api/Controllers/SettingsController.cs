@@ -31,7 +31,8 @@ public class SettingsController : BaseApiController
         var dto = new ApiSettingsDto
         {
             LocationTimeThresholdMinutes = settings?.LocationTimeThresholdMinutes ?? 5,
-            LocationDistanceThresholdMeters = settings?.LocationDistanceThresholdMeters ?? 15
+            LocationDistanceThresholdMeters = settings?.LocationDistanceThresholdMeters ?? 15,
+            LocationAccuracyThresholdMeters = settings?.LocationAccuracyThresholdMeters ?? 100
         };
 
         return Ok(dto);
