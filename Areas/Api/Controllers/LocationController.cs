@@ -534,6 +534,20 @@ public class LocationController : BaseApiController
                 }
             }
 
+            // Check for duplicate LocalTimestamp to prevent race condition duplicates.
+            // This handles the case where concurrent requests pass the cache-based threshold
+            // checks before either one saves, resulting in duplicate records.
+            var duplicateExists = await _dbContext.Locations
+                .AnyAsync(l => l.UserId == user.Id && l.LocalTimestamp == utcTimestamp);
+
+            if (duplicateExists)
+            {
+                _logger.LogInformation(
+                    "Location skipped due to duplicate LocalTimestamp. UserId: {UserId}, Timestamp: {Timestamp}",
+                    user.Id, utcTimestamp);
+                return Ok(new { success = true, skipped = true, locationId = (int?)null });
+            }
+
             var location = new Location
             {
                 UserId = user.Id,
