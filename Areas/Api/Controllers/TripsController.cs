@@ -826,6 +826,58 @@ return Ok(dto);
     }
 
     /// <summary>
+    /// Updates an existing area by ID. Region association cannot change.
+    /// </summary>
+    /// <param name="areaId">The area ID to update.</param>
+    /// <param name="request">The update request containing fields to modify.</param>
+    /// <returns>The updated area on success.</returns>
+    [HttpPut("areas/{areaId}")]
+    public async Task<IActionResult> UpdateArea(Guid areaId, [FromBody] AreaUpdateRequestDto request)
+    {
+        var user = GetUserFromToken();
+        if (user == null) return Unauthorized("Missing or invalid API token.");
+        if (request == null) return BadRequest("Invalid request.");
+
+        var area = await _dbContext.Areas
+            .Include(a => a.Region)
+            .ThenInclude(r => r.Trip)
+            .FirstOrDefaultAsync(a => a.Id == areaId);
+        if (area == null) return NotFound("Area not found.");
+        if (area.Region.Trip.UserId != user.Id) return Unauthorized("Not your area.");
+
+        bool anyChange = false;
+
+        if (request.Name != null)
+        {
+            area.Name = request.Name.Trim();
+            anyChange = true;
+        }
+
+        if (request.Notes != null)
+        {
+            area.Notes = request.Notes;
+            anyChange = true;
+        }
+
+        if (request.FillHex != null)
+        {
+            area.FillHex = request.FillHex;
+            anyChange = true;
+        }
+
+        if (request.DisplayOrder.HasValue)
+        {
+            area.DisplayOrder = request.DisplayOrder.Value;
+            anyChange = true;
+        }
+
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", id = area.Id, notes = area.Notes });
+
+        await _dbContext.SaveChangesAsync();
+        return Ok(new { success = true, id = area.Id, notes = area.Notes });
+    }
+
+    /// <summary>
     /// Deletes a region by ID and all its children (places, areas). The reserved
     /// "Unassigned Places" region cannot be deleted.
     /// </summary>
