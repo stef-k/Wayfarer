@@ -39,6 +39,12 @@ The Wayfarer API provides RESTful endpoints for mobile app integration and exter
 | GET | `/api/trips/{id}` | Full trip structure (public or owner) |
 | GET | `/api/trips/{id}/boundary` | Bounding box for tile prefetch |
 
+### Trip Areas
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | `/api/trips/areas/{areaId}` | Update area properties (name, notes, color, etc.) |
+
 ### Trip Tags
 
 | Method | Endpoint | Description |
@@ -51,8 +57,8 @@ The Wayfarer API provides RESTful endpoints for mobile app integration and exter
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/location/log-location` | Background GPS logging (threshold-aware) |
-| POST | `/api/location/check-in` | Manual check-in (rate-limited) |
+| POST | `/api/location/log-location` | Background GPS logging (filters: time, distance, accuracy, duplicates) |
+| POST | `/api/location/check-in` | Manual check-in (rate-limited, bypasses time/distance thresholds) |
 | GET | `/api/location/stats` | User location statistics |
 
 ### Visits
