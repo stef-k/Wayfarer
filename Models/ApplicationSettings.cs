@@ -15,7 +15,7 @@ public class ApplicationSettings
     public int Id { get; set; } = 1;
 
     [Required]
-    [Range(1, 60, ErrorMessage = "Time threshold must be between 1 and 60 minutes.")]
+    [Range(1, 1440, ErrorMessage = "Time threshold must be between 1 and 1440 minutes (24 hours).")]
     public int LocationTimeThresholdMinutes { get; set; } = 5;
 
     [Required]
