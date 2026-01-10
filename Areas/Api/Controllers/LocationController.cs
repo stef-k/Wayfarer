@@ -22,7 +22,7 @@ public class LocationController : BaseApiController
     // Constants for default threshold settings
     private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
     private const double DefaultLocationDistanceThresholdMeters = 15; // Default to 15 meters
-    private const int DefaultLocationAccuracyThresholdMeters = 100; // Default to 100 meters
+    private const int DefaultLocationAccuracyThresholdMeters = 50; // Default to 50 meters
 
     // Constants for check-in rate limiting
     private const int CheckInMinIntervalSeconds = 10; // Minimum 10 seconds between check-ins
