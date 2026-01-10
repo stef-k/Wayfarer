@@ -46,11 +46,32 @@
                                 <label for="LocationTimeThresholdMinutes" class="form-label">Time Threshold (in
                                     minutes):</label>
                                 <select asp-for="LocationTimeThresholdMinutes" class="form-control" id="timeThresholdSelect">
-                                    <option value="2" class="text-danger fw-bold">2 ⚠️ (High resource usage)</option>
-                                    <option value="3">3</option>
-                                    <option value="5">5 (Recommended)</option>
-                                    <option value="10">10</option>
-                                    <option value="15">15</option>
+                                    <optgroup label="Frequent (2-5 min) - High battery usage">
+                                        <option value="2" class="text-danger fw-bold">2 min ⚠️ (High resource usage)</option>
+                                        <option value="3">3 min</option>
+                                        <option value="4">4 min</option>
+                                        <option value="5">5 min (Recommended)</option>
+                                    </optgroup>
+                                    <optgroup label="Moderate (10-15 min) - Balanced">
+                                        <option value="10">10 min</option>
+                                        <option value="15">15 min</option>
+                                    </optgroup>
+                                    <optgroup label="Hourly (30-60 min) - Low power">
+                                        <option value="30">30 min (twice per hour)</option>
+                                        <option value="45">45 min</option>
+                                        <option value="60">60 min (1 hour)</option>
+                                    </optgroup>
+                                    <optgroup label="Multi-hour (2-6 hours) - Minimal tracking">
+                                        <option value="120">120 min (2 hours)</option>
+                                        <option value="180">180 min (3 hours)</option>
+                                        <option value="240">240 min (4 hours)</option>
+                                        <option value="300">300 min (5 hours)</option>
+                                        <option value="360">360 min (6 hours / 4× daily)</option>
+                                    </optgroup>
+                                    <optgroup label="Daily (12-24 hours) - Check-in only">
+                                        <option value="720">720 min (12 hours / twice daily)</option>
+                                        <option value="1440">1440 min (24 hours / once daily)</option>
+                                    </optgroup>
                                 </select>
                                 <small id="timeThresholdWarning" class="form-text text-danger d-none">
                                     <i class="bi bi-exclamation-triangle-fill me-1"></i>
