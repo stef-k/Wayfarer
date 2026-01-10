@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
-using Wayfarer.Parsers;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers
@@ -14,23 +13,20 @@ namespace Wayfarer.Areas.User.Controllers
     public class ApiTokenController : BaseController
     {
         private readonly ApiTokenService _apiTokenService;
-        private readonly IApplicationSettingsService _settingsService;
 
         public ApiTokenController(
             ApiTokenService apiTokenService,
             ILogger<BaseController> logger,
-            ApplicationDbContext dbContext,
-            IApplicationSettingsService settingsService)
+            ApplicationDbContext dbContext)
             : base(logger, dbContext)
         {
             _apiTokenService = apiTokenService;
-            _settingsService = settingsService;
         }
 
         // GET: ApiToken/Index
         public async Task<IActionResult> Index()
         {
-            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get current logged-in user ID
+            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrEmpty(userId))
             {
@@ -39,15 +35,12 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             List<ApiToken> tokens = await _apiTokenService.GetTokensForUserAsync(userId);
-            ApplicationSettings settings = _settingsService.GetSettings();
 
             ApiTokenViewModel viewModel = new ApiTokenViewModel
             {
                 UserName = User.Identity?.Name ?? string.Empty,
                 UserId = userId,
-                Tokens = tokens,
-                LocationTimeThresholdMinutes = settings.LocationTimeThresholdMinutes,
-                LocationDistanceThresholdMeters = settings.LocationDistanceThresholdMeters
+                Tokens = tokens
             };
 
             SetPageTitle("API Token Management");
