@@ -22,6 +22,7 @@ public class LocationController : BaseApiController
     // Constants for default threshold settings
     private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
     private const double DefaultLocationDistanceThresholdMeters = 15; // Default to 15 meters
+    private const int DefaultLocationAccuracyThresholdMeters = 100; // Default to 100 meters
 
     // Constants for check-in rate limiting
     private const int CheckInMinIntervalSeconds = 10; // Minimum 10 seconds between check-ins
@@ -453,6 +454,17 @@ public class LocationController : BaseApiController
                 settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
             var locationDistanceThreshold =
                 settings?.LocationDistanceThresholdMeters ?? DefaultLocationDistanceThresholdMeters;
+            var locationAccuracyThreshold =
+                settings?.LocationAccuracyThresholdMeters ?? DefaultLocationAccuracyThresholdMeters;
+
+            // Check accuracy threshold - reject locations with GPS accuracy worse than threshold
+            if (dto.Accuracy.HasValue && dto.Accuracy.Value > locationAccuracyThreshold)
+            {
+                _logger.LogInformation(
+                    "Location skipped due to poor GPS accuracy. Accuracy: {Accuracy}m, Threshold: {Threshold}m",
+                    dto.Accuracy.Value, locationAccuracyThreshold);
+                return Ok(new { success = true, skipped = true, locationId = (int?)null });
+            }
 
             DateTime utcTimestamp;
             string timeZoneId;

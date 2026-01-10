@@ -168,6 +168,69 @@
                             </div>
 
                         </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label for="LocationAccuracyThresholdMeters" class="form-label">
+                                    <i class="bi bi-bullseye me-1"></i>GPS Accuracy Threshold (in meters):
+                                </label>
+                                <select asp-for="LocationAccuracyThresholdMeters" class="form-control">
+                                    <optgroup label="High Precision (10-25m) - Strict filtering">
+                                        <option value="10">10 m</option>
+                                        <option value="15">15 m</option>
+                                        <option value="20">20 m</option>
+                                        <option value="25">25 m</option>
+                                    </optgroup>
+                                    <optgroup label="Good Precision (30-50m)">
+                                        <option value="30">30 m</option>
+                                        <option value="35">35 m</option>
+                                        <option value="40">40 m</option>
+                                        <option value="45">45 m</option>
+                                        <option value="50">50 m</option>
+                                    </optgroup>
+                                    <optgroup label="Moderate Precision (55-100m) - Recommended">
+                                        <option value="55">55 m</option>
+                                        <option value="60">60 m</option>
+                                        <option value="65">65 m</option>
+                                        <option value="70">70 m</option>
+                                        <option value="75">75 m</option>
+                                        <option value="80">80 m</option>
+                                        <option value="85">85 m</option>
+                                        <option value="90">90 m</option>
+                                        <option value="95">95 m</option>
+                                        <option value="100">100 m (Default)</option>
+                                    </optgroup>
+                                    <optgroup label="Relaxed (105-200m) - Accept more data">
+                                        <option value="105">105 m</option>
+                                        <option value="110">110 m</option>
+                                        <option value="120">120 m</option>
+                                        <option value="130">130 m</option>
+                                        <option value="140">140 m</option>
+                                        <option value="150">150 m</option>
+                                        <option value="160">160 m</option>
+                                        <option value="170">170 m</option>
+                                        <option value="180">180 m</option>
+                                        <option value="190">190 m</option>
+                                        <option value="200">200 m</option>
+                                    </optgroup>
+                                    <optgroup label="Very Relaxed (250-500m) - Poor GPS accepted">
+                                        <option value="250">250 m</option>
+                                        <option value="300">300 m</option>
+                                        <option value="400">400 m</option>
+                                        <option value="500">500 m</option>
+                                    </optgroup>
+                                    <optgroup label="Maximum (1000m) - Accept almost everything">
+                                        <option value="1000">1000 m</option>
+                                    </optgroup>
+                                </select>
+                                <small class="form-text text-muted">
+                                    Reject location pings with GPS accuracy worse than this value.
+                                    Lower values = stricter filtering (more rejections, better data quality).
+                                    Higher values = accept poor GPS readings (fewer rejections, lower data quality).
+                                </small>
+                                <span asp-validation-for="LocationAccuracyThresholdMeters" class="text-danger"></span>
+                            </div>
+                        </div>
                         <hr/>
                         <div class="row">
                             <h3 class="text-center fs-4">Trip Place Auto-Visited</h3>
