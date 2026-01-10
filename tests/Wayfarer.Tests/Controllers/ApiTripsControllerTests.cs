@@ -978,6 +978,236 @@ public class ApiTripsControllerTests : TestBase
 
     #endregion
 
+    #region UpdateArea Tests
+
+    [Fact]
+    public async Task UpdateArea_ReturnsUnauthorized_WhenNoToken()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = await controller.UpdateArea(Guid.NewGuid(), new AreaUpdateRequestDto());
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateArea_ReturnsNotFound_WhenAreaDoesNotExist()
+    {
+        var db = CreateDbContext();
+        SeedUserWithToken(db, "tok");
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(Guid.NewGuid(), new AreaUpdateRequestDto { Notes = "New" });
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateArea_ReturnsUnauthorized_ForDifferentOwner()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = owner.Id, Name = "R1" };
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area1",
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        db.Users.Add(owner);
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Areas.Add(area);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "New" });
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateArea_UpdatesNotes_ForOwner()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area1",
+            Notes = "Old notes",
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Areas.Add(area);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "<p>New notes</p>" });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Areas.First(a => a.Id == area.Id);
+        Assert.Equal("<p>New notes</p>", updated.Notes);
+    }
+
+    [Fact]
+    public async Task UpdateArea_UpdatesMultipleFields_ForOwner()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area1",
+            FillHex = "#000000",
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Areas.Add(area);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto
+        {
+            Name = "Updated Area",
+            Notes = "Updated notes",
+            FillHex = "#ff6600",
+            DisplayOrder = 5
+        });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Areas.First(a => a.Id == area.Id);
+        Assert.Equal("Updated Area", updated.Name);
+        Assert.Equal("Updated notes", updated.Notes);
+        Assert.Equal("#ff6600", updated.FillHex);
+        Assert.Equal(5, updated.DisplayOrder);
+    }
+
+    [Fact]
+    public async Task UpdateArea_ReturnsNoChanges_WhenEmptyRequest()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area1",
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Areas.Add(area);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto());
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var message = payload.GetType().GetProperty("message")?.GetValue(payload) as string;
+        Assert.Equal("No changes applied.", message);
+    }
+
+    [Fact]
+    public async Task UpdateArea_ReturnsSuccessResponse_WithIdAndNotes()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area1",
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Areas.Add(area);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "Test notes" });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var payload = ok.Value!;
+        var success = payload.GetType().GetProperty("success")?.GetValue(payload) as bool?;
+        var id = payload.GetType().GetProperty("id")?.GetValue(payload) as Guid?;
+        var notes = payload.GetType().GetProperty("notes")?.GetValue(payload) as string;
+        Assert.True(success);
+        Assert.Equal(area.Id, id);
+        Assert.Equal("Test notes", notes);
+    }
+
+    [Fact]
+    public async Task UpdateArea_ClearsNotes_WhenEmptyString()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area1",
+            Notes = "Some notes",
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        db.Trips.Add(trip);
+        db.Regions.Add(region);
+        db.Areas.Add(area);
+        db.SaveChanges();
+        var controller = BuildController(db, token: "tok");
+
+        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "" });
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var updated = db.Areas.First(a => a.Id == area.Id);
+        Assert.Equal("", updated.Notes);
+    }
+
+    #endregion
+
     [Fact]
     public async Task CreateRegion_ReturnsBadRequest_WhenReservedName()
     {
