@@ -316,8 +316,8 @@ public class ApiLocationControllerLogTests : TestBase
         Assert.Equal(1, locationCount);
 
         // Both requests should return success (one saved, one skipped)
-        var result1 = Assert.IsType<OkObjectResult>(task1.Result);
-        var result2 = Assert.IsType<OkObjectResult>(task2.Result);
+        var result1 = Assert.IsType<OkObjectResult>(await task1);
+        var result2 = Assert.IsType<OkObjectResult>(await task2);
 
         var response1 = result1.Value!.GetType();
         var response2 = result2.Value!.GetType();
