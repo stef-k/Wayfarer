@@ -12,6 +12,7 @@ HTTP Clients
     - `GET /activity` — list activity types.
     - `POST /location/log-location` — log background location with filtering (time, distance, accuracy, duplicates).
     - `POST /location/check-in` — manual check-in with rate limits (bypasses time/distance thresholds).
+  - Send `Idempotency-Key: <guid>` for `log-location` and `check-in` to dedupe retries. Reuse the key only for retries of the same queued location.
   - `ITripContentApiService` (explicit `/api/trips/...`):
     - `GET /api/trips` — current user trips.
     - `GET /api/trips/{tripId}` — full trip content (public or owner).
@@ -47,7 +48,7 @@ Auth & Configuration
 Tracking & Permissions
 - `TrackingCoordinator` manages GPS permission prompts and background capability; platform-specific trackers implement `IBackgroundTracker`.
 - Tracking is independent of GPS activation: GPS may run while timeline logging is disabled (user toggle).
-- Manual check-in uses `/api/location/check-in` with rate limiting (30s min interval, 60/hour) and returns standard responses.
+- Manual check-in uses `/api/location/check-in` with rate limiting (10s min interval, 60/hour) and returns standard responses.
 
 Offline Tiles & Caching
 - Services: `LiveTileCacheService`, `TripTileCacheService`, `UnifiedTileCacheService`, with progress and notifications.
