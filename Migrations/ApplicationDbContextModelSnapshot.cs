@@ -678,6 +678,9 @@ namespace Wayfarer.Migrations
                     b.Property<string>("FullAddress")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("IdempotencyKey")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("LocalTimestamp")
                         .HasColumnType("timestamp with time zone");
 
@@ -722,7 +725,9 @@ namespace Wayfarer.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Coordinates"), "GIST");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Location_UserId_IdempotencyKey");
 
                     b.ToTable("Locations");
                 });

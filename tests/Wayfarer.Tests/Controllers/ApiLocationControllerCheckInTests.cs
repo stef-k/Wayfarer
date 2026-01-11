@@ -55,6 +55,42 @@ public class ApiLocationControllerCheckInTests : TestBase
         Assert.Equal(1, db.Locations.Count());
     }
 
+    /// <summary>
+    /// Tests that repeated idempotency keys bypass rate limits and reuse the original location.
+    /// </summary>
+    [Fact]
+    public async Task CheckIn_ReturnsExisting_WhenIdempotencyKeyRepeated()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+        var idempotencyKey = Guid.NewGuid();
+        controller.ControllerContext.HttpContext.Request.Headers["Idempotency-Key"] = idempotencyKey.ToString();
+
+        var firstResult = await controller.CheckIn(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+        });
+
+        var firstOk = Assert.IsType<OkObjectResult>(firstResult);
+        Assert.Equal(1, db.Locations.Count());
+
+        var secondResult = await controller.CheckIn(new GpsLoggerLocationDto
+        {
+            Latitude = 11,
+            Longitude = 21,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow.AddSeconds(1), DateTimeKind.Utc)
+        });
+
+        var secondOk = Assert.IsType<OkObjectResult>(secondResult);
+        Assert.Equal(1, db.Locations.Count());
+
+        var firstLocation = (Location)firstOk.Value!.GetType().GetProperty("Location")!.GetValue(firstOk.Value)!;
+        var secondLocation = (Location)secondOk.Value!.GetType().GetProperty("Location")!.GetValue(secondOk.Value)!;
+        Assert.Equal(firstLocation.Id, secondLocation.Id);
+    }
+
     [Fact]
     public async Task CheckIn_ReturnsTooManyRequests_WhenRateLimitedByTime()
     {

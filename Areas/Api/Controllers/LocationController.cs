@@ -23,6 +23,7 @@ public class LocationController : BaseApiController
     private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
     private const double DefaultLocationDistanceThresholdMeters = 15; // Default to 15 meters
     private const int DefaultLocationAccuracyThresholdMeters = 50; // Default to 50 meters
+    private const string IdempotencyKeyHeaderName = "Idempotency-Key"; // Idempotency header for retries.
 
     // Constants for check-in rate limiting
     private const int CheckInMinIntervalSeconds = 10; // Minimum 10 seconds between check-ins
@@ -80,6 +81,30 @@ public class LocationController : BaseApiController
                        { ["RequestId"] = requestId, ["UserId"] = user.Id, ["RequestType"] = "CHECK_IN" }))
         {
             _logger.LogInformation("Received check-in request.");
+
+            // Idempotency short-circuit to return prior success before rate limiting/validation.
+            Guid? idempotencyKey = null;
+            var idempotencyKeyHeader = Request.Headers[IdempotencyKeyHeaderName].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(idempotencyKeyHeader))
+            {
+                if (!Guid.TryParse(idempotencyKeyHeader, out var parsedKey))
+                {
+                    _logger.LogWarning("Invalid Idempotency-Key header for check-in. UserId: {UserId}", user.Id);
+                    return BadRequest("Invalid Idempotency-Key header.");
+                }
+
+                idempotencyKey = parsedKey;
+                var existingLocation = await _dbContext.Locations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
+
+                if (existingLocation != null)
+                {
+                    _logger.LogInformation("Check-in idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
+                        user.Id, idempotencyKey);
+                    return Ok(new { Message = "Check-in logged successfully", Location = existingLocation });
+                }
+            }
 
             // Basic validation (same as log-location)
             if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
@@ -139,6 +164,7 @@ public class LocationController : BaseApiController
                 UserId = user.Id,
                 Timestamp = DateTime.UtcNow, // Server timestamp (same as log-location)
                 LocalTimestamp = utcTimestamp, // Client timestamp converted to UTC (same as log-location)
+                IdempotencyKey = idempotencyKey,
                 TimeZoneId = timeZoneId,
                 Coordinates = coordinates,
                 Accuracy = dto.Accuracy,
@@ -177,6 +203,23 @@ public class LocationController : BaseApiController
 
                 _logger.LogInformation("Check-in location saved with ID {LocationId} at {Timestamp}", location.Id,
                     location.Timestamp);
+            }
+            catch (DbUpdateException ex) when (idempotencyKey.HasValue)
+            {
+                var existingLocation = await _dbContext.Locations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
+
+                if (existingLocation != null)
+                {
+                    _logger.LogInformation(ex,
+                        "Check-in idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey}",
+                        user.Id, idempotencyKey);
+                    return Ok(new { Message = "Check-in logged successfully", Location = existingLocation });
+                }
+
+                _logger.LogError(ex, "Failed to save check-in location for user.");
+                return StatusCode(500, "Internal server error while saving check-in location.");
             }
             catch (Exception ex)
             {
@@ -436,6 +479,30 @@ public class LocationController : BaseApiController
         {
             _logger.LogInformation("Received location update request.");
 
+            // Idempotency short-circuit to return prior success before threshold checks.
+            Guid? idempotencyKey = null;
+            var idempotencyKeyHeader = Request.Headers[IdempotencyKeyHeaderName].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(idempotencyKeyHeader))
+            {
+                if (!Guid.TryParse(idempotencyKeyHeader, out var parsedKey))
+                {
+                    _logger.LogWarning("Invalid Idempotency-Key header for log-location. UserId: {UserId}", user.Id);
+                    return BadRequest("Invalid Idempotency-Key header.");
+                }
+
+                idempotencyKey = parsedKey;
+                var existingLocation = await _dbContext.Locations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
+
+                if (existingLocation != null)
+                {
+                    _logger.LogInformation("Log-location idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
+                        user.Id, idempotencyKey);
+                    return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
+                }
+            }
+
             if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
             {
                 _logger.LogWarning("Invalid location data received.");
@@ -565,6 +632,7 @@ public class LocationController : BaseApiController
                 UserId = user.Id,
                 Timestamp = DateTime.UtcNow,
                 LocalTimestamp = utcTimestamp,
+                IdempotencyKey = idempotencyKey,
                 TimeZoneId = timeZoneId,
                 Coordinates = coordinates,
                 Accuracy = dto.Accuracy,
@@ -601,6 +669,23 @@ public class LocationController : BaseApiController
 
                 _logger.LogInformation("Location saved with ID {LocationId} at {Timestamp}", location.Id,
                     location.Timestamp);
+            }
+            catch (DbUpdateException ex) when (idempotencyKey.HasValue)
+            {
+                var existingLocation = await _dbContext.Locations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
+
+                if (existingLocation != null)
+                {
+                    _logger.LogInformation(ex,
+                        "Log-location idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey}",
+                        user.Id, idempotencyKey);
+                    return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
+                }
+
+                _logger.LogError(ex, "Failed to save location for user.");
+                return StatusCode(500, "Internal server error while saving location.");
             }
             catch (Exception ex)
             {
