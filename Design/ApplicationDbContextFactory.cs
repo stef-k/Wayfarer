@@ -11,20 +11,20 @@ public class ApplicationDbContextFactory
 {
     public ApplicationDbContext CreateDbContext(string[] args)
     {
-        var cfg  = new ConfigurationBuilder()
+        var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
+                              Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
+                              "Production";
+
+        var cfg = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: false)
+            .AddJsonFile($"appsettings.{environmentName}.json", optional: true)
             .AddEnvironmentVariables()
             .Build();
 
         var conn = cfg.GetConnectionString("DefaultConnection")
                    ?? throw new InvalidOperationException("Missing DefaultConnection");
 
-        if (OperatingSystem.IsWindows() && conn.StartsWith("Host=/"))
-        {
-            conn = "Host=localhost;Port=5432;Database=wayfarer;Username=postgres;Password=mesaboogie";
-        }
-        
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(conn, o => o.UseNetTopologySuite()) 
             .Options;
