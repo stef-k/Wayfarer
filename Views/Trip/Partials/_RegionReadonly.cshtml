@@ -131,7 +131,8 @@
                                 data-area-name="@area.Name"
                                 data-area-notes="@(area.Notes ?? "")">
 
-                                <div class="d-flex flex-column align-items-start">
+                                @* Layout fix: let the area content column stretch so notes fill available width. *@
+                                <div class="d-flex flex-column flex-grow-1 me-2">
                                     <!-- first row: icon + name -->
                                     <div class="d-flex align-items-center">
                                         @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_CircleIcon.cshtml",
