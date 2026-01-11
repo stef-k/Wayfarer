@@ -14,6 +14,11 @@ namespace Wayfarer.Models
         // Local timestamp transmitted from the gps app when the location was logged
         public DateTime LocalTimestamp { get; set; }
 
+        /// <summary>
+        /// Client-supplied idempotency key used to deduplicate location retries.
+        /// </summary>
+        public Guid? IdempotencyKey { get; set; }
+
         public required string TimeZoneId { get; set; } // Time zone ID (e.g., "America/New_York")
 
         // PostGIS Point type to store LonLat in a single field

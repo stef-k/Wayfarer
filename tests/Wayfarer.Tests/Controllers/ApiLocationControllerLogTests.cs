@@ -61,6 +61,48 @@ public class ApiLocationControllerLogTests : TestBase
         Assert.Equal(db.Locations.First().Id, locationId);
     }
 
+    /// <summary>
+    /// Tests that repeated idempotency keys return the original location without creating a new row.
+    /// </summary>
+    [Fact]
+    public async Task LogLocation_ReturnsExisting_WhenIdempotencyKeyRepeated()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db);
+        var idempotencyKey = Guid.NewGuid();
+        controller.ControllerContext.HttpContext.Request.Headers["Idempotency-Key"] = idempotencyKey.ToString();
+
+        var firstResult = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 10,
+            Longitude = 20,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+        });
+
+        var firstOk = Assert.IsType<OkObjectResult>(firstResult);
+        var firstResponse = firstOk.Value;
+        var firstResponseType = firstResponse!.GetType();
+        var firstLocationId = (int)firstResponseType.GetProperty("locationId")!.GetValue(firstResponse)!;
+        Assert.Equal(1, db.Locations.Count());
+
+        var secondResult = await controller.LogLocation(new GpsLoggerLocationDto
+        {
+            Latitude = 45,
+            Longitude = 30,
+            Timestamp = DateTime.SpecifyKind(DateTime.UtcNow.AddMinutes(10), DateTimeKind.Utc)
+        });
+
+        var secondOk = Assert.IsType<OkObjectResult>(secondResult);
+        Assert.Equal(1, db.Locations.Count());
+
+        var secondResponse = secondOk.Value;
+        var secondResponseType = secondResponse!.GetType();
+        Assert.True((bool)secondResponseType.GetProperty("success")!.GetValue(secondResponse)!);
+        Assert.False((bool)secondResponseType.GetProperty("skipped")!.GetValue(secondResponse)!);
+        var secondLocationId = (int)secondResponseType.GetProperty("locationId")!.GetValue(secondResponse)!;
+        Assert.Equal(firstLocationId, secondLocationId);
+    }
+
     [Fact]
     public async Task LogLocation_ReturnsSkipped_WhenTimeThresholdNotMet()
     {

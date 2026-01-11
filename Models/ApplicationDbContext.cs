@@ -65,6 +65,12 @@ namespace Wayfarer.Models
                 .HasMethod("GIST") // ?? this forces GiST for faster Gis spatial queries
                 .HasDatabaseName("IX_Location_Coordinates");
 
+            // Enforce per-user idempotency key uniqueness for location retries.
+            builder.Entity<Location>()
+                .HasIndex(l => new { l.UserId, l.IdempotencyKey })
+                .IsUnique()
+                .HasDatabaseName("IX_Location_UserId_IdempotencyKey");
+
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)
                 .IsRequired();

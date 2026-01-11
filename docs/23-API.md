@@ -61,6 +61,13 @@ The Wayfarer API provides RESTful endpoints for mobile app integration and exter
 | POST | `/api/location/check-in` | Manual check-in (rate-limited, bypasses time/distance thresholds) |
 | GET | `/api/location/stats` | User location statistics |
 
+#### Idempotency
+
+- Optional header: `Idempotency-Key: <guid>`
+- Applies to `/api/location/log-location` and `/api/location/check-in`.
+- Repeat the same key to safely retry a request; the server returns the original success response.
+- Keys are shared across both endpoints per user.
+
 ### Visits
 
 | Method | Endpoint | Description |
