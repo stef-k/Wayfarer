@@ -1116,6 +1116,56 @@ thead th {
     margin-right: 0.2rem;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Dark Theme: Trip Tooltips and Popups
+   Fix for issue #101 - popup hovers on trips dark/light theme
+   ───────────────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .leaflet-tooltip.trip-rich-tooltip {
+    background: #2c3034;
+    border-color: #495057;
+    color: var(--bs-body-color);
+}
+[data-bs-theme="dark"] .leaflet-tooltip.trip-rich-tooltip::before {
+    border-right-color: #2c3034;
+}
+
+/* Dark theme for trip popup content */
+[data-bs-theme="dark"] .trip-popup {
+    color: var(--bs-body-color);
+}
+[data-bs-theme="dark"] .trip-popup .popup-header strong {
+    color: #6ea8fe; /* Bootstrap link blue for dark mode */
+}
+[data-bs-theme="dark"] .trip-popup .popup-coords,
+[data-bs-theme="dark"] .trip-popup .popup-address,
+[data-bs-theme="dark"] .trip-popup .popup-details,
+[data-bs-theme="dark"] .trip-popup .popup-region {
+    color: #adb5bd;
+}
+[data-bs-theme="dark"] .trip-popup .popup-notes {
+    background: #343a40;
+    color: var(--bs-body-color);
+}
+[data-bs-theme="dark"] .trip-popup .popup-footer {
+    border-top-color: #495057;
+    color: #adb5bd;
+}
+
+/* Dark theme for Leaflet popup wrapper and tip (affects all Leaflet popups) */
+[data-bs-theme="dark"] .leaflet-popup-content-wrapper,
+[data-bs-theme="dark"] .leaflet-popup-tip {
+    background: #2c3034;
+    color: var(--bs-body-color);
+}
+[data-bs-theme="dark"] .leaflet-popup-content-wrapper {
+    border: 1px solid #495057;
+}
+
+/* Dark theme for segment tooltip */
+[data-bs-theme="dark"] .leaflet-tooltip.segment-tooltip {
+    background-color: #0a58ca; /* Slightly darker blue for dark mode */
+}
+
 .segment-highlight {
     animation: flash-border 1s ease-in-out;
     border: 2px solid var(--bs-primary);
