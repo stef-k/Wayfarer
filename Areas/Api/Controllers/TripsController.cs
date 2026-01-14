@@ -526,7 +526,23 @@ return Ok(dto);
 
         _dbContext.Places.Add(place);
         await _dbContext.SaveChangesAsync();
-        return Ok(new { success = true, place });
+
+        // Return DTO to ensure consistent serialization (location as double[] not GeoJSON)
+        var placeDto = new ApiTripPlaceDto
+        {
+            Id = place.Id,
+            Name = place.Name,
+            Notes = place.Notes,
+            DisplayOrder = place.DisplayOrder,
+            IconName = place.IconName,
+            MarkerColor = place.MarkerColor,
+            Address = place.Address,
+            Location = place.Location != null
+                ? new[] { place.Location.X, place.Location.Y }
+                : null
+        };
+
+        return Ok(new { success = true, place = placeDto });
     }
 
     /// <summary>
@@ -620,10 +636,25 @@ return Ok(dto);
             anyChange = true;
         }
 
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", place });
+        // Return DTO to ensure consistent serialization (location as double[] not GeoJSON)
+        var placeDto = new ApiTripPlaceDto
+        {
+            Id = place.Id,
+            Name = place.Name,
+            Notes = place.Notes,
+            DisplayOrder = place.DisplayOrder,
+            IconName = place.IconName,
+            MarkerColor = place.MarkerColor,
+            Address = place.Address,
+            Location = place.Location != null
+                ? new[] { place.Location.X, place.Location.Y }
+                : null
+        };
+
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", place = placeDto });
 
         await _dbContext.SaveChangesAsync();
-        return Ok(new { success = true, place });
+        return Ok(new { success = true, place = placeDto });
     }
 
     /// <summary>
@@ -690,7 +721,21 @@ return Ok(dto);
 
         _dbContext.Regions.Add(region);
         await _dbContext.SaveChangesAsync();
-        return Ok(new { success = true, region });
+
+        // Return DTO to ensure consistent serialization (center as double[] not GeoJSON)
+        var regionDto = new ApiTripRegionDto
+        {
+            Id = region.Id,
+            Name = region.Name,
+            Notes = region.Notes,
+            DisplayOrder = region.DisplayOrder,
+            CoverImageUrl = region.CoverImageUrl,
+            Center = region.Center != null
+                ? new[] { region.Center.X, region.Center.Y }
+                : null
+        };
+
+        return Ok(new { success = true, region = regionDto });
     }
 
     /// <summary>
@@ -819,10 +864,23 @@ return Ok(dto);
             anyChange = true;
         }
 
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", region });
+        // Return DTO to ensure consistent serialization (center as double[] not GeoJSON)
+        var regionDto = new ApiTripRegionDto
+        {
+            Id = region.Id,
+            Name = region.Name,
+            Notes = region.Notes,
+            DisplayOrder = region.DisplayOrder,
+            CoverImageUrl = region.CoverImageUrl,
+            Center = region.Center != null
+                ? new[] { region.Center.X, region.Center.Y }
+                : null
+        };
+
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", region = regionDto });
 
         await _dbContext.SaveChangesAsync();
-        return Ok(new { success = true, region });
+        return Ok(new { success = true, region = regionDto });
     }
 
     /// <summary>
