@@ -47,7 +47,7 @@ chmod +x install.sh deploy.sh uninstall.sh
 ./install.sh
 
 
-# Deploy from master
+# Deploy from main
 ./deployment/deploy.sh
 
 # Deploy specific branch/tag

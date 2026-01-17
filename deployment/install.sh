@@ -32,7 +32,7 @@ done
 APP_USER="${APP_USER:-wayfarer}"
 DEPLOY_DIR="${DEPLOY_DIR:-/var/www/wayfarer}"
 SERVICE_NAME="${SERVICE_NAME:-wayfarer}"
-REF="${REF:-master}"
+REF="${REF:-main}"
 
 DB_NAME="${DB_NAME:-wayfarer}"
 DB_USER="${DB_USER:-wayfarer_user}"
@@ -240,7 +240,7 @@ prompt_default "SERVICE_NAME" "Systemd service name" "wayfarer"
 
 echo ""
 echo "We need to know which Git ref (branch or tag) to deploy."
-prompt_default "REF" "Git ref to deploy (branch or tag)" "master"
+prompt_default "REF" "Git ref to deploy (branch or tag)" "main"
 
 # ------------------------------
 # 2. Database configuration
