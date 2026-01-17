@@ -967,7 +967,7 @@ nano deployment/deploy.sh
 # Update APP_DIR, DEPLOY_DIR, APP_USER, SERVICE_NAME if needed
 ```
 
-**Deploy latest from master:**
+**Deploy latest from main:**
 
 ```bash
 cd /home/youruser/Wayfarer
@@ -1020,7 +1020,7 @@ cd /home/youruser/Wayfarer  # Your repository clone location
 git stash
 
 # Pull latest changes
-git pull origin master
+git pull origin main
 
 # Or checkout specific release
 # git fetch --tags

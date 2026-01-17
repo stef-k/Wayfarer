@@ -15,7 +15,7 @@
 # - Ensure your system user has sudo privileges for systemctl
 #
 # USAGE:
-#   # Deploy from master branch:
+#   # Deploy from main branch:
 #   ./deploy.sh
 #
 #   # Deploy from a specific branch:
@@ -67,7 +67,7 @@ APP_USER="${APP_USER:-wayfarer}"
 DOTNET_ENVIRONMENT="${DOTNET_ENVIRONMENT:-Production}"
 
 # Git branch/tag to deploy (can be overridden with REF env variable)
-REF="${REF:-master}"
+REF="${REF:-main}"
 
 # ============================================================================
 # DEPLOYMENT PROCESS
