@@ -331,6 +331,9 @@ namespace Wayfarer.Areas.Admin.Controllers
                 updatedSettings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
             }
 
+            // Sanitize attribution HTML to prevent XSS attacks.
+            updatedSettings.TileProviderAttribution = HtmlSanitization.SanitizeAttribution(updatedSettings.TileProviderAttribution);
+
             if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderAttribution))
             {
                 ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAttribution), "Attribution is required.");

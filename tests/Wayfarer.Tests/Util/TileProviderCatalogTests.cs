@@ -113,4 +113,62 @@ public class TileProviderCatalogTests
         Assert.True(string.IsNullOrWhiteSpace(url));
         Assert.False(string.IsNullOrWhiteSpace(error));
     }
+
+    [Fact]
+    public void RedactApiKey_RedactsApiKeyParameter()
+    {
+        var url = "https://tiles.example.com/1/2/3.png?apikey=secret123";
+
+        var result = TileProviderCatalog.RedactApiKey(url);
+
+        Assert.Equal("https://tiles.example.com/1/2/3.png?apikey=[REDACTED]", result);
+    }
+
+    [Fact]
+    public void RedactApiKey_RedactsMultipleKeyFormats()
+    {
+        var url = "https://tiles.example.com/tile.png?api_key=secret&token=abc123";
+
+        var result = TileProviderCatalog.RedactApiKey(url);
+
+        Assert.Equal("https://tiles.example.com/tile.png?api_key=[REDACTED]&token=[REDACTED]", result);
+    }
+
+    [Fact]
+    public void RedactApiKey_IsCaseInsensitive()
+    {
+        var url = "https://tiles.example.com/tile.png?APIKEY=SECRET&Token=abc";
+
+        var result = TileProviderCatalog.RedactApiKey(url);
+
+        Assert.Equal("https://tiles.example.com/tile.png?APIKEY=[REDACTED]&Token=[REDACTED]", result);
+    }
+
+    [Fact]
+    public void RedactApiKey_PreservesUrlWithoutApiKey()
+    {
+        var url = "https://tiles.example.com/1/2/3.png";
+
+        var result = TileProviderCatalog.RedactApiKey(url);
+
+        Assert.Equal(url, result);
+    }
+
+    [Fact]
+    public void RedactApiKey_ReturnsEmptyForNull()
+    {
+        var result = TileProviderCatalog.RedactApiKey(null);
+
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Fact]
+    public void RedactApiKey_HandlesAccessToken()
+    {
+        var url = "https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=pk.eyJ1secret";
+
+        var result = TileProviderCatalog.RedactApiKey(url);
+
+        Assert.Equal("https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=[REDACTED]", result);
+    }
 }

@@ -151,6 +151,28 @@ public static class TileProviderCatalog
         return template.Contains("{apiKey}", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Redacts API key values from a tile URL for safe logging.
+    /// Replaces common API key query parameter values with [REDACTED].
+    /// </summary>
+    /// <param name="url">The tile URL that may contain an API key.</param>
+    /// <returns>The URL with API key values redacted.</returns>
+    public static string RedactApiKey(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return string.Empty;
+        }
+
+        // Match common API key parameter patterns: apikey=xxx, api_key=xxx, key=xxx, token=xxx, access_token=xxx
+        // Handles both ?param=value and &param=value cases
+        return System.Text.RegularExpressions.Regex.Replace(
+            url,
+            @"([?&])(apikey|api_key|key|token|access_token)=([^&\s]+)",
+            "$1$2=[REDACTED]",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
     private static bool ContainsRequiredPlaceholders(string template)
     {
         return template.Contains("{z}", StringComparison.OrdinalIgnoreCase)

@@ -9,6 +9,13 @@
 - Added admin tile provider settings with presets, custom templates, and API key support
 - Added tile provider validation and cache purge on provider change
 - Added dynamic map attribution from the active tile provider
+- Added tile request rate limiting for anonymous users (configurable, default 500/min per IP)
+- Added X-Forwarded-For support for correct IP detection behind reverse proxies
+- Added tile coordinate validation (z: 0-22, x/y: non-negative)
+- Fixed XSS vulnerability in tile provider attribution via HTML sanitization (#115)
+- Fixed race condition in tile cache size tracking with Interlocked operations (#115)
+- Fixed API key exposure in tile service logs via URL redaction (#115)
+- Security: Added HtmlSanitizer for safe attribution rendering
 
 ### 2026-01-17
 - Added CHANGELOG.md
