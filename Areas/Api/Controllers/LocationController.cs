@@ -911,7 +911,7 @@ public class LocationController : BaseApiController
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] LocationUpdateRequestDto request)
     {
-        var user = GetUserFromToken();
+        var user = GetUserFromTokenOrCookie();
         if (user == null)
             return Unauthorized("Invalid or missing API token.");
 
