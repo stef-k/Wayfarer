@@ -22,6 +22,7 @@
 - Fixed tile cache size not initialized from database on startup (#115)
 - Fixed file read race condition after CacheTileAsync (#115)
 - Fixed synchronous DB query in GetLruCachedInMbFilesAsync (#115)
+- Fixed group map selection filters to honor Show/Hide All and historical visibility (#117)
 - Security: Added HtmlSanitizer for safe attribution rendering
 - Security: Added CSRF protection to cache deletion endpoints (#115)
 - Security: Added anti-forgery tokens to cache deletion AJAX calls (#115)
