@@ -111,6 +111,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <param name="jobGroup">Job Group</param>
         /// <returns></returns>
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> StartJob(string jobName, string jobGroup)
         {
             JobKey jobKey = new JobKey(jobName, jobGroup);
@@ -171,6 +172,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <param name="jobName">Job name</param>
         /// <param name="jobGroup">Job group</param>
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> PauseJob(string jobName, string jobGroup)
         {
             JobKey jobKey = new JobKey(jobName, jobGroup);
@@ -187,6 +189,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <param name="jobName">Job name</param>
         /// <param name="jobGroup">Job group</param>
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResumeJob(string jobName, string jobGroup)
         {
             JobKey jobKey = new JobKey(jobName, jobGroup);
@@ -204,6 +207,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <param name="jobName">Job name</param>
         /// <param name="jobGroup">Job group</param>
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> CancelJob(string jobName, string jobGroup)
         {
             JobKey jobKey = new JobKey(jobName, jobGroup);

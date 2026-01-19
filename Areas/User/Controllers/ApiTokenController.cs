@@ -49,6 +49,7 @@ namespace Wayfarer.Areas.User.Controllers
 
         // POST: ApiToken/Create
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(string name)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -85,6 +86,7 @@ namespace Wayfarer.Areas.User.Controllers
         /// <param name="token">Token</param>
         /// <returns></returns>
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> StoreThirdPartyToken(string thirdPartyServiceName, string thirdPartyToken)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -120,6 +122,7 @@ namespace Wayfarer.Areas.User.Controllers
         /// Returns JSON for AJAX requests with the new token (shown once only).
         /// </summary>
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Regenerate(string name)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -176,6 +179,7 @@ namespace Wayfarer.Areas.User.Controllers
 
         // POST: ApiToken/Delete
         [HttpPost("Delete")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int tokenId)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier); // Get current user's ID

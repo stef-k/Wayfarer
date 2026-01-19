@@ -29,20 +29,24 @@
                                     </p>
                                 </div>
                                 <div class="btn-group">
-                                    <a asp-action="Regenerate"
-                                       asp-controller="ApiToken"
-                                       asp-area="Admin"
-                                       asp-route-id="@Model.UserId"
-                                       asp-route-name="@token.Name"
-                                       class="btn btn-success btn-sm">Regenerate</a>
+                                    <form method="post" asp-action="Regenerate" asp-controller="ApiToken" asp-area="Admin" class="d-inline">
+                                        <input type="hidden" name="id" value="@Model.UserId" />
+                                        <input type="hidden" name="name" value="@token.Name" />
+                                        <button type="submit" class="btn btn-success btn-sm"
+                                                onclick="return confirm('Regenerate this token? The old token will stop working immediately.')">
+                                            Regenerate
+                                        </button>
+                                    </form>
                                     @if (!token.Name.Equals("Wayfarer Incoming Location Data API Token"))
                                     {
-                                        <a asp-action="Delete"
-                                           asp-controller="ApiToken"
-                                           asp-area="Admin"
-                                           asp-route-id="@Model.UserId"
-                                           asp-route-tokenId="@token.Id"
-                                           class="btn btn-danger btn-sm">Delete</a>
+                                        <form method="post" asp-action="Delete" asp-controller="ApiToken" asp-area="Admin" class="d-inline ms-1">
+                                            <input type="hidden" name="id" value="@Model.UserId" />
+                                            <input type="hidden" name="tokenId" value="@token.Id" />
+                                            <button type="submit" class="btn btn-danger btn-sm"
+                                                    onclick="return confirm('Delete this token? This action cannot be undone.')">
+                                                Delete
+                                            </button>
+                                        </form>
                                     }
                                 </div>
                             </div>
