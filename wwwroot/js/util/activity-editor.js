@@ -21,7 +21,7 @@ export const generateActivityEditorHtml = (location) => {
     return `
         <div class="activity-editor" data-location-id="${location.id}">
             <strong>Activity:</strong>
-            <div class="activity-view d-flex align-items-center gap-2 mt-1">
+            <span class="activity-view align-items-center gap-2 mt-1 d-inline-flex flex-wrap">
                 <a href="#"
                    class="activity-edit-toggle activity-current-link ${hasActivity ? '' : 'd-none'}"
                    data-location-id="${location.id}">
@@ -35,7 +35,7 @@ export const generateActivityEditorHtml = (location) => {
                    data-location-id="${location.id}">
                     Edit
                 </a>
-            </div>
+            </span>
             <div class="activity-edit d-none">
                 <div class="d-flex align-items-center gap-2 mt-1">
                     <select id="activitySelect-${location.id}"
