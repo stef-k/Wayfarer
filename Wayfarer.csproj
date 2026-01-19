@@ -10,6 +10,7 @@
     <ItemGroup>
         <PackageReference Include="CsvHelper" Version="33.1.0" />
         <PackageReference Include="GeoTimeZone" Version="6.0.0" />
+        <PackageReference Include="HtmlSanitizer" Version="8.1.870" />
 
 
         <!-- EF Core packages for .NET 10 -->

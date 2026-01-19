@@ -8,6 +8,11 @@ import {
   getViewerTimeZone,
 } from '../../../util/datetime.js';
 
+// Map tiles config (proxy URL + attribution) injected by layout.
+const tilesConfig = window.wayfarerTileConfig || {};
+const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
+
 (() => {
   const viewerTimeZone = getViewerTimeZone();
   const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
@@ -33,7 +38,7 @@ import {
   if (!mapEl || !groupId) return;
 
   const map = L.map('groupMap').setView([0, 0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  L.tileLayer(tilesUrl, { maxZoom: 19, attribution: tilesAttribution }).addTo(map);
   if (map.attributionControl && typeof map.attributionControl.setPrefix === 'function') {
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
   }

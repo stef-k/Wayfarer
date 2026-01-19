@@ -63,6 +63,22 @@ namespace Wayfarer.Parsers
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
             }
 
+            // Resolve tile provider defaults when fields are missing.
+            if (string.IsNullOrWhiteSpace(settings.TileProviderKey))
+            {
+                settings.TileProviderKey = ApplicationSettings.DefaultTileProviderKey;
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.TileProviderUrlTemplate))
+            {
+                settings.TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate;
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.TileProviderAttribution))
+            {
+                settings.TileProviderAttribution = ApplicationSettings.DefaultTileProviderAttribution;
+            }
+
             return settings;
         }
         

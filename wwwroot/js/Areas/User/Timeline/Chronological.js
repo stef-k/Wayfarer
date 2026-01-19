@@ -1,10 +1,13 @@
-// Chronological Timeline - allows navigation by day, month, or year
+﻿// Chronological Timeline - allows navigation by day, month, or year
 let locations = [];
 let mapContainer = null;
 let markerLayer, clusterLayer, highlightLayer;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 let stream = null; // SSE stream for live updates
-const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+// Map tiles config (proxy URL + attribution) injected by layout.
+const tilesConfig = window.wayfarerTileConfig || {};
+const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 import {
     formatViewerAndSourceTimes,
@@ -716,7 +719,7 @@ const formatDateDisplay = (date, viewType) => {
 };
 
 /**
- * Initialize map with OpenStreetMap layer
+ * Initialize map with tile layer from the cache proxy.
  */
 const initializeMap = () => {
     if (mapContainer !== undefined && mapContainer !== null) {
@@ -730,7 +733,7 @@ const initializeMap = () => {
 
     L.tileLayer(tilesUrl, {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
+        attribution: tilesAttribution
     }).addTo(mapContainer);
 
     mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');

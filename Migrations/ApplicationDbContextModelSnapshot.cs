@@ -50,6 +50,31 @@ namespace Wayfarer.Migrations
                     b.Property<int>("MaxCacheTileSizeInMB")
                         .HasColumnType("integer");
 
+                    b.Property<string>("TileProviderApiKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TileProviderAttribution")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("TileProviderKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("TileProviderUrlTemplate")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("TileRateLimitEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("TileRateLimitPerMinute")
+                        .HasColumnType("integer");
+
                     b.Property<int>("UploadSizeLimitMB")
                         .HasColumnType("integer");
 

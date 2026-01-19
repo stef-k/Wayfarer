@@ -495,8 +495,12 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Tile Cache service
     builder.Services.AddScoped<TileCacheService>();
 
-    // add the Http client to the Tile Cache service
-    builder.Services.AddHttpClient<TileCacheService>();
+    // add the Http client to the Tile Cache service (manual redirects handled in service)
+    builder.Services.AddHttpClient<TileCacheService>()
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            AllowAutoRedirect = false
+        });
 
     // Location service, handles location results per zoom and bounds levels
     builder.Services.AddScoped<LocationService>();

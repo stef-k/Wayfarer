@@ -1,9 +1,11 @@
 using System.Net.Http.Headers;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Util;
 
 public class TileCacheService
 {
@@ -13,7 +15,12 @@ public class TileCacheService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly IApplicationSettingsService _applicationSettings;
-    private readonly SemaphoreSlim _cacheLock = new(1, 1);
+
+    /// <summary>
+    /// Lock for serializing file system operations across all service instances.
+    /// Static because TileCacheService is scoped (per-request) but file operations must be synchronized globally.
+    /// </summary>
+    private static readonly SemaphoreSlim _cacheLock = new(1, 1);
 
     /// <summary>
     /// How many tiles to delete from LRU cached storage when the limit has been reached.
@@ -25,8 +32,22 @@ public class TileCacheService
     // 1 GB maximum cache size for zoom levels >= 9.
     private readonly int _maxCacheSizeInMB;
 
-    // Tracks the total size of cached tiles in Bytes (for zoom >= 9)
-    private long _currentCacheSize = 0;
+    /// <summary>
+    /// Tracks the total size of cached tiles in bytes (for zoom >= 9).
+    /// Static because cache size must be tracked across all scoped service instances.
+    /// Initialized from database on first access via Initialize().
+    /// </summary>
+    private static long _currentCacheSize = 0;
+
+    /// <summary>
+    /// Indicates whether _currentCacheSize has been initialized from the database.
+    /// </summary>
+    private static bool _cacheSizeInitialized = false;
+
+    /// <summary>
+    /// Lock object for one-time cache size initialization.
+    /// </summary>
+    private static readonly object _initLock = new();
 
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
         ApplicationDbContext dbContext, IApplicationSettingsService applicationSettings,
@@ -78,10 +99,41 @@ public class TileCacheService
                 Directory.CreateDirectory(_cacheDirectory);
                 _logger.LogInformation("TileCache directory created at {CacheDirectory}.", _cacheDirectory);
             }
+
+            // Initialize cache size from database only once across all instances
+            InitializeCacheSizeFromDb();
         }
         catch (UnauthorizedAccessException uae)
         {
             _logger.LogError(uae, "Insufficient permissions to create TileCache directory.");
+        }
+    }
+
+    /// <summary>
+    /// Initializes the _currentCacheSize from the database on first access.
+    /// Uses double-checked locking to ensure thread-safe one-time initialization.
+    /// </summary>
+    private void InitializeCacheSizeFromDb()
+    {
+        if (_cacheSizeInitialized) return;
+
+        lock (_initLock)
+        {
+            if (_cacheSizeInitialized) return;
+
+            try
+            {
+                var totalSize = _dbContext.TileCacheMetadata.Sum(t => (long)t.Size);
+                Interlocked.Exchange(ref _currentCacheSize, totalSize);
+                _cacheSizeInitialized = true;
+                _logger.LogInformation("Initialized tile cache size from database: {SizeInMB:F2} MB",
+                    totalSize / 1024.0 / 1024.0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize cache size from database. Starting with 0.");
+                _cacheSizeInitialized = true; // Mark as initialized to prevent repeated failures
+            }
         }
     }
 
@@ -110,6 +162,68 @@ public class TileCacheService
     }
 
     /// <summary>
+    /// Sends a tile request and applies a same-host redirect policy.
+    /// </summary>
+    private async Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl)
+    {
+        const int maxRedirects = 3;
+        var initialUri = new Uri(tileUrl);
+        var currentUri = initialUri;
+
+        for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+            var response = await _httpClient.SendAsync(request);
+
+            if (IsRedirectStatus(response.StatusCode))
+            {
+                var location = response.Headers.Location;
+                if (location == null)
+                {
+                    _logger.LogWarning("Tile response redirected without a Location header: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+                    response.Dispose();
+                    return null;
+                }
+
+                var nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+
+                if (!string.Equals(nextUri.Host, initialUri.Host, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Rejected tile redirect to a different host: {RedirectHost}", nextUri.Host);
+                    response.Dispose();
+                    return null;
+                }
+
+                if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Rejected tile redirect to non-HTTPS URL: {RedirectUrl}", TileProviderCatalog.RedactApiKey(nextUri.ToString()));
+                    response.Dispose();
+                    return null;
+                }
+
+                response.Dispose();
+                currentUri = nextUri;
+                continue;
+            }
+
+            return response;
+        }
+
+        _logger.LogWarning("Rejected tile redirect chain exceeding {MaxRedirects} for {TileUrl}", maxRedirects, TileProviderCatalog.RedactApiKey(tileUrl));
+        return null;
+    }
+
+    private static bool IsRedirectStatus(HttpStatusCode statusCode)
+    {
+        return statusCode is HttpStatusCode.MovedPermanently
+            or HttpStatusCode.Redirect
+            or HttpStatusCode.RedirectMethod
+            or HttpStatusCode.RedirectKeepVerb
+            or HttpStatusCode.SeeOther
+            or HttpStatusCode.PermanentRedirect;
+    }
+
+    /// <summary>
     /// Downloads a tile from the given URL and caches it on the file system.
     /// For zoom levels >= 9, metadata is stored (or updated) in the database.
     /// </summary>
@@ -129,7 +243,14 @@ public class TileCacheService
             byte[]? tileData = null;
             while (retryCount > 0)
             {
-                var response = await _httpClient.GetAsync(tileUrl);
+                using var response = await SendTileRequestAsync(tileUrl);
+                if (response == null)
+                {
+                    _logger.LogWarning("Tile request was rejected for URL: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+                    retryCount--;
+                    continue;
+                }
+
                 if (response.IsSuccessStatusCode)
                 {
                     tileData = await response.Content.ReadAsByteArrayAsync();
@@ -156,11 +277,11 @@ public class TileCacheService
                 }
 
                 _logger.LogWarning("Attempt failed with status code {StatusCode} for URL: {TileUrl}",
-                    response.StatusCode, tileUrl);
+                    response.StatusCode, TileProviderCatalog.RedactApiKey(tileUrl));
                 retryCount--;
                 if (retryCount == 0)
                 {
-                    _logger.LogError("Failed to download tile after multiple attempts: {TileUrl}", tileUrl);
+                    _logger.LogError("Failed to download tile after multiple attempts: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
                     return;
                 }
 
@@ -175,8 +296,8 @@ public class TileCacheService
                     .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
                 if (existingMetadata == null)
                 {
-                    // If adding a new tile would exceed the cache limit in Gibabytes, evict tiles.
-                    if ((_currentCacheSize + (tileData?.Length ?? 0)) > (_maxCacheSizeInMB * 1024 * 1024))
+                    // If adding a new tile would exceed the cache limit in Gigabytes, evict tiles.
+                    if ((Interlocked.Read(ref _currentCacheSize) + (tileData?.Length ?? 0)) > (_maxCacheSizeInMB * 1024L * 1024L))
                     {
                         await EvictDbTilesAsync();
                     }
@@ -196,7 +317,7 @@ public class TileCacheService
 
                     _dbContext.TileCacheMetadata.Add(tileMetadata);
                     await _dbContext.SaveChangesAsync();
-                    _currentCacheSize += tileData?.Length ?? 0;
+                    Interlocked.Add(ref _currentCacheSize, tileData?.Length ?? 0);
                     _logger.LogInformation("Tile metadata stored in database.");
                 }
                 else
@@ -249,13 +370,13 @@ public class TileCacheService
                     }
 
                     // Adjust the in-memory cache size using the previously saved value.
-                    _currentCacheSize = _currentCacheSize - oldSize + (tileData?.Length ?? 0);
+                    Interlocked.Add(ref _currentCacheSize, (tileData?.Length ?? 0) - oldSize);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error caching tile from {TileUrl}.", tileUrl);
+            _logger.LogError(ex, "Error caching tile from {TileUrl}.", TileProviderCatalog.RedactApiKey(tileUrl));
         }
     }
 
@@ -274,7 +395,7 @@ public class TileCacheService
         foreach (var tile in tilesToEvict)
         {
             _dbContext.TileCacheMetadata.Remove(tile);
-            _currentCacheSize -= tile.Size;
+            Interlocked.Add(ref _currentCacheSize, -tile.Size);
 
             // Remove the corresponding file.
             var tileFilePath = Path.Combine(_cacheDirectory, $"{tile.Zoom}_{tile.X}_{tile.Y}.png");
@@ -288,7 +409,16 @@ public class TileCacheService
             {
                 if (File.Exists(tileFilePath))
                 {
-                    File.Delete(tileFilePath);
+                    await _cacheLock.WaitAsync();
+                    try
+                    {
+                        // Serialize file deletes with cache reads/writes.
+                        File.Delete(tileFilePath);
+                    }
+                    finally
+                    {
+                        _cacheLock.Release();
+                    }
                     _logger.LogInformation("Tile file deleted: {TileFilePath}", tileFilePath);
                 }
             }
@@ -318,30 +448,23 @@ public class TileCacheService
             // 1. Check the file system first.
             if (File.Exists(tileFilePath))
             {
-                _logger.LogInformation("Tile found in cache: {TileFilePath}", tileFilePath);
-                // for zoom levels >= 9
-                if (zoomLvl >= 9)
+                _logger.LogDebug("Tile found in cache: {TileFilePath}", tileFilePath);
+                byte[]? cachedTileData = null;
+                await _cacheLock.WaitAsync();
+                try
                 {
-                    await UpdateTileLastAccessedAsync(zoomLevel, xCoordinate, yCoordinate);
+                    // Serialize file reads with purge/write operations.
+                    if (File.Exists(tileFilePath))
+                    {
+                        cachedTileData = await File.ReadAllBytesAsync(tileFilePath);
+                    }
+                }
+                finally
+                {
+                    _cacheLock.Release();
                 }
 
-                return await File.ReadAllBytesAsync(tileFilePath);
-            }
-
-            // 2. If the tile is not on disk, but we have a URL, attempt to fetch it.
-            if (string.IsNullOrEmpty(tileUrl))
-            {
-                _logger.LogError("Tile URL is missing for retrieval attempt.");
-                return null;
-            }
-
-            if (!string.IsNullOrEmpty(tileUrl))
-            {
-                _logger.LogInformation("Tile file not found. Attempting to fetch from: {TileUrl}", tileUrl);
-                await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
-
-                // After fetching, check again.
-                if (File.Exists(tileFilePath))
+                if (cachedTileData != null)
                 {
                     // for zoom levels >= 9
                     if (zoomLvl >= 9)
@@ -349,20 +472,47 @@ public class TileCacheService
                         await UpdateTileLastAccessedAsync(zoomLevel, xCoordinate, yCoordinate);
                     }
 
-                    return await File.ReadAllBytesAsync(tileFilePath);
+                    return cachedTileData;
                 }
-                else
-                {
-                    _logger.LogWarning("Tile was not fetched successfully from {TileUrl}", tileUrl);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Tile not found and no tileUrl was provided to fetch it: {TileFilePath}",
-                    tileFilePath);
             }
 
-            // 3. If we get here, the tile is not available.
+            // 2. If the tile is not on disk, but we have a URL, attempt to fetch it.
+            if (string.IsNullOrEmpty(tileUrl))
+            {
+                _logger.LogWarning("Tile not found and no URL provided: {TileFilePath}", tileFilePath);
+                return null;
+            }
+
+            _logger.LogDebug("Tile not in cache. Fetching from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+            await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
+
+            // After fetching, read the file while holding the lock to prevent race with eviction.
+            byte[]? fetchedTileData = null;
+            await _cacheLock.WaitAsync();
+            try
+            {
+                if (File.Exists(tileFilePath))
+                {
+                    fetchedTileData = await File.ReadAllBytesAsync(tileFilePath);
+                }
+            }
+            finally
+            {
+                _cacheLock.Release();
+            }
+
+            if (fetchedTileData != null)
+            {
+                // for zoom levels >= 9
+                if (zoomLvl >= 9)
+                {
+                    await UpdateTileLastAccessedAsync(zoomLevel, xCoordinate, yCoordinate);
+                }
+
+                return fetchedTileData;
+            }
+
+            _logger.LogWarning("Tile fetch failed from {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
             return null;
         }
         catch (Exception ex)
@@ -428,20 +578,20 @@ public class TileCacheService
     }
 
     /// <summary>
-    /// Gets the total tile LRU (Least Recently Used) cache size store in file system.
+    /// Gets the total tile LRU (Least Recently Used) cache size stored in the database.
     /// LRU cache is cached tiles with zoom levels >= 9.
     /// </summary>
-    /// <returns></returns>
-    public Task<double> GetLruCachedInMbFilesAsync()
+    /// <returns>The total LRU cache size in megabytes.</returns>
+    public async Task<double> GetLruCachedInMbFilesAsync()
     {
-        var lruSize = _dbContext.TileCacheMetadata.Sum(t => t.Size);
+        var lruSize = await _dbContext.TileCacheMetadata.SumAsync(t => (long)t.Size);
 
         if (lruSize <= 0)
         {
-            return Task.FromResult(0.0);
+            return 0.0;
         }
 
-        return Task.FromResult(lruSize / 1024.0 / 1024.0);
+        return lruSize / 1024.0 / 1024.0;
     }
 
     public async Task<int> GetLruTotalFilesInDbAsync()
@@ -479,8 +629,17 @@ public class TileCacheService
 
                 if (File.Exists(file))
                 {
-                    File.Delete(file); // Delete the file from disk
-                    _currentCacheSize -= fileSize; // Update cache size tracker
+                    await _cacheLock.WaitAsync();
+                    try
+                    {
+                        // Serialize file deletes with cache reads/writes.
+                        File.Delete(file); // Delete the file from disk
+                        Interlocked.Add(ref _currentCacheSize, -fileSize); // Update cache size tracker
+                    }
+                    finally
+                    {
+                        _cacheLock.Release();
+                    }
 
                     if (fileToPurge != null)
                     {
@@ -596,9 +755,7 @@ public class TileCacheService
                     // Use RetryOperationAsync for file deletion logic
                     await RetryOperationAsync(() =>
                     {
-                        File.Delete(file.TileFilePath);
-                        _currentCacheSize -= file.Size;
-                        return Task.CompletedTask;
+                        return DeleteCacheFileAsync(file.TileFilePath, file.Size);
                     }, 3, 500); // 3 retries, 500ms delay between retries
                 }
                 else
@@ -627,6 +784,26 @@ public class TileCacheService
         else
         {
             await transaction.RollbackAsync();
+        }
+    }
+
+    /// <summary>
+    /// Deletes a cache file while holding the cache lock to avoid read/write races.
+    /// </summary>
+    private async Task DeleteCacheFileAsync(string tileFilePath, long tileSize)
+    {
+        await _cacheLock.WaitAsync();
+        try
+        {
+            if (File.Exists(tileFilePath))
+            {
+                File.Delete(tileFilePath);
+                Interlocked.Add(ref _currentCacheSize, -tileSize);
+            }
+        }
+        finally
+        {
+            _cacheLock.Release();
         }
     }
 }

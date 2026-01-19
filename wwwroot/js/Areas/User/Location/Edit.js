@@ -1,6 +1,9 @@
 ﻿let mapContainer = null;
 let data = null;
-const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+// Map tiles config (proxy URL + attribution) injected by layout.
+const tilesConfig = window.wayfarerTileConfig || {};
+const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -13,9 +16,9 @@ document.addEventListener("DOMContentLoaded", function () {
         // Initialize the map with the latitude and longitude from the location
         const mapContainer = L.map('mapContainer').setView([latitude, longitude], 13); // Center map at the location
 
-        // Add the OpenStreetMap tile layer
+        // Add the tile layer from the cache proxy.
         L.tileLayer(tilesUrl, {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
+            attribution: tilesAttribution,
             zoomAnimation: true
         }).addTo(mapContainer);
         mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');

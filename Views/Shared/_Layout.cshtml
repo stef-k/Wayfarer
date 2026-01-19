@@ -1,4 +1,7 @@
-﻿@{
+﻿@using System.Text.Json
+@using Wayfarer.Models
+@inject Wayfarer.Parsers.IApplicationSettingsService ApplicationSettingsService
+@{
     bool embed = ViewBag.IsEmbed as bool? ?? false;
 }
 <!DOCTYPE html>
@@ -171,6 +174,19 @@
         {
             <script src="~/lib/tom-select/tom-select.complete.min.js"></script>
         }
+
+        @{
+            var tileSettings = ApplicationSettingsService.GetSettings();
+            var tileAttribution = tileSettings?.TileProviderAttribution ?? ApplicationSettings.DefaultTileProviderAttribution;
+        }
+        <script>
+            // Expose tile attribution for Leaflet maps that use the tile cache proxy.
+            window.wayfarerTileConfig = @Html.Raw(JsonSerializer.Serialize(new
+            {
+                tilesUrl = "/Public/tiles/{z}/{x}/{y}.png",
+                attribution = tileAttribution
+            }));
+        </script>
 
         @Html.FrontendGlobalScripts()
         @if (!embed)

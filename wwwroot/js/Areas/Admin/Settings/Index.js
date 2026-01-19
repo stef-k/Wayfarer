@@ -33,7 +33,77 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check on change
         timeThresholdSelect.addEventListener('change', updateWarningVisibility);
     }
+
+    // Tile provider UI: toggle preset details, custom inputs, and API key visibility.
+    const tileProviderKey = document.getElementById('TileProviderKey');
+    const tileProviderTemplate = document.getElementById('TileProviderUrlTemplate');
+    const tileProviderAttribution = document.getElementById('TileProviderAttribution');
+    const tileProviderApiKeyRow = document.getElementById('tileProviderApiKeyRow');
+    const tileProviderApiKey = document.getElementById('TileProviderApiKey');
+
+    if (tileProviderKey && tileProviderTemplate && tileProviderAttribution && tileProviderApiKeyRow && tileProviderApiKey) {
+        const customKey = tileProviderKey.dataset.customKey || 'custom';
+        const customState = {
+            template: tileProviderTemplate.value,
+            attribution: tileProviderAttribution.value
+        };
+
+        const setApiKeyVisibility = (requiresApiKey) => {
+            tileProviderApiKeyRow.classList.toggle('d-none', !requiresApiKey);
+            if (!requiresApiKey) {
+                tileProviderApiKey.value = '';
+            }
+        };
+
+        const applyTileProviderSelection = () => {
+            const selectedOption = tileProviderKey.options[tileProviderKey.selectedIndex];
+            const isCustom = selectedOption?.value === customKey;
+            const presetTemplate = selectedOption?.dataset.template || '';
+            const presetAttribution = selectedOption?.dataset.attribution || '';
+            const presetRequiresKey = selectedOption?.dataset.requiresKey === 'true';
+
+            if (isCustom) {
+                tileProviderTemplate.readOnly = false;
+                tileProviderAttribution.readOnly = false;
+                tileProviderTemplate.value = customState.template;
+                tileProviderAttribution.value = customState.attribution;
+            } else {
+                tileProviderTemplate.readOnly = true;
+                tileProviderAttribution.readOnly = true;
+                tileProviderTemplate.value = presetTemplate;
+                tileProviderAttribution.value = presetAttribution;
+            }
+
+            const requiresApiKey = isCustom
+                ? tileProviderTemplate.value.includes('{apiKey}')
+                : presetRequiresKey;
+            setApiKeyVisibility(requiresApiKey);
+        };
+
+        tileProviderKey.addEventListener('change', applyTileProviderSelection);
+        tileProviderTemplate.addEventListener('input', () => {
+            if (tileProviderKey.value === customKey) {
+                customState.template = tileProviderTemplate.value;
+                applyTileProviderSelection();
+            }
+        });
+        tileProviderAttribution.addEventListener('input', () => {
+            if (tileProviderKey.value === customKey) {
+                customState.attribution = tileProviderAttribution.value;
+            }
+        });
+
+        applyTileProviderSelection();
+    }
 });
+
+/**
+ * Gets the anti-forgery token from the page for AJAX POST requests.
+ * @returns {string} The anti-forgery token value or empty string if not found.
+ */
+const getAntiForgeryToken = () => {
+    return document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+};
 
 /**
  * Deletes all map tile cache from zoom level 1 to max from file system and database.
@@ -46,7 +116,10 @@ const deleteAllMapTileCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/DeleteAllMapTileCache", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getAntiForgeryToken()
+                }
             })
                 .then(response => response.json())
                 .then(data => {
@@ -81,7 +154,10 @@ const deleteLruCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/DeleteLruCache", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getAntiForgeryToken()
+                }
             })
                 .then(response => response.json())
                 .then(data => {
@@ -116,7 +192,10 @@ const deleteMbtilesCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/ClearMbtilesCache", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getAntiForgeryToken()
+                }
             })
                 .then(response => {
                     if (response.ok) {

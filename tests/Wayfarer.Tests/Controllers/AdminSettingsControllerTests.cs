@@ -53,7 +53,8 @@ public class AdminSettingsControllerTests : TestBase
             settingsMock.Object,
             Mock.Of<IServiceScopeFactory>());
 
-        var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, env.Object);
+        var scopeFactory = BuildScopeFactory(tileCache);
+        var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, env.Object, scopeFactory);
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("admin", "Admin") };
 
         var result = await controller.Index();
@@ -69,6 +70,7 @@ public class AdminSettingsControllerTests : TestBase
 
         var result = await controller.Update(new ApplicationSettings { Id = 1 });
 
+        // Missing settings should return the index view with validation errors.
         var view = Assert.IsType<ViewResult>(result);
         Assert.Equal("Index", view.ViewName);
     }
@@ -136,8 +138,9 @@ public class AdminSettingsControllerTests : TestBase
 
         var result = await controller.Update(new ApplicationSettings { Id = 1 });
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        settingsMock.Verify(s => s.RefreshSettings(), Times.Once);
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+        settingsMock.Verify(s => s.RefreshSettings(), Times.Never);
     }
 
     [Fact]
@@ -216,18 +219,32 @@ public class AdminSettingsControllerTests : TestBase
             settingsService ?? settingsMock!.Object,
             Mock.Of<IServiceScopeFactory>());
 
+        var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(
             NullLogger<BaseController>.Instance,
             db,
             settingsService ?? settingsMock!.Object,
             tileCache,
-            env.Object);
+            env.Object,
+            scopeFactory);
 
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
 
         return (controller, settingsMock!, tileCache);
+    }
+
+    private IServiceScopeFactory BuildScopeFactory(TileCacheService tileCache)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(tileCache)
+            .BuildServiceProvider();
+        var scope = new Mock<IServiceScope>();
+        scope.SetupGet(s => s.ServiceProvider).Returns(services);
+        var scopeFactory = new Mock<IServiceScopeFactory>();
+        scopeFactory.Setup(s => s.CreateScope()).Returns(scope.Object);
+        return scopeFactory.Object;
     }
 
     private sealed class FakeHandler : HttpMessageHandler

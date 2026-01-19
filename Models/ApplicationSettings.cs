@@ -9,6 +9,10 @@ public class ApplicationSettings
     public const int DefaultMaxCacheTileSizeInMB = 1024;
     public const int DefaultMaxCacheMbtilesSizeInMB = 6144;
     public const int DefaultUploadSizeLimitMB = 100;
+    public const string DefaultTileProviderKey = "osm";
+    public const string DefaultTileProviderUrlTemplate = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
+    public const int DefaultTileRateLimitPerMinute = 500;
 
     
     [Key]
@@ -41,7 +45,49 @@ public class ApplicationSettings
     [Required]
     [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or a positive size up to 100 GB.")]
     public int MaxCacheTileSizeInMB { get; set; } = 1024;
-    
+
+    /// <summary>
+    /// Selected tile provider key (preset name or "custom").
+    /// </summary>
+    [Required]
+    [MaxLength(40)]
+    public string TileProviderKey { get; set; } = DefaultTileProviderKey;
+
+    /// <summary>
+    /// Tile provider URL template with {z}/{x}/{y} placeholders and optional {apiKey}.
+    /// </summary>
+    [Required]
+    [MaxLength(500)]
+    public string TileProviderUrlTemplate { get; set; } = DefaultTileProviderUrlTemplate;
+
+    /// <summary>
+    /// Attribution HTML displayed in Leaflet maps for the active provider.
+    /// </summary>
+    [Required]
+    [MaxLength(300)]
+    public string TileProviderAttribution { get; set; } = DefaultTileProviderAttribution;
+
+    /// <summary>
+    /// Optional API key for paid tile providers or custom templates.
+    /// </summary>
+    [MaxLength(200)]
+    public string? TileProviderApiKey { get; set; }
+
+    /// <summary>
+    /// Whether to rate limit anonymous tile requests to prevent abuse.
+    /// Authenticated users are never rate limited.
+    /// </summary>
+    [Required]
+    public bool TileRateLimitEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Maximum tile requests per minute per IP address for anonymous users.
+    /// Default is 500 which is generous for normal map viewing but blocks scrapers.
+    /// </summary>
+    [Required]
+    [Range(50, 10000, ErrorMessage = "Rate limit must be between 50 and 10,000 requests per minute.")]
+    public int TileRateLimitPerMinute { get; set; } = DefaultTileRateLimitPerMinute;
+
     /// <summary>
     /// Flag to control whether user registration is open or closed.
     /// </summary>
