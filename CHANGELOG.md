@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 2026-01-19
+- Added inline activity view/edit mode for location modals and tables
+- Added table activity editing with preselected activity values
+- Added cookie-auth fallback for location activity updates
+
 ### 2026-01-17
 - Added CHANGELOG.md
 
