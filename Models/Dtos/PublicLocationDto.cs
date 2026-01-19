@@ -17,6 +17,7 @@ public class PublicLocationDto
     public double? Speed { get; set; }
     public string? LocationType { get; set; }
     public string? ActivityType { get; set; }
+    public int? ActivityTypeId { get; set; }
     public string? Address { get; set; }
     public string? FullAddress { get; set; }
     public string? StreetName { get; set; }

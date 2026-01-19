@@ -15,6 +15,11 @@ import {
     currentYearInputValue,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
+import {
+    generateActivityEditorHtml,
+    initActivitySelect,
+    setupActivityEditorEvents,
+} from '../../../util/activity-editor.js';
 
 const viewerTimeZone = getViewerTimeZone();
 const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
@@ -138,15 +143,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Wire up the Bootstrap "shown" event for Wikipedia hover cards
+    // Wire up the Bootstrap "shown" event for Wikipedia hover cards and activity editor
     const modalEl = document.getElementById('locationModal');
     if (!modalEl) {
         console.error('Modal element not found!');
     } else {
         modalEl.addEventListener('shown.bs.modal', () => {
             initWikipediaPopovers(modalEl);
+            // Initialize TomSelect on activity dropdown if present
+            const activityEditor = modalEl.querySelector('.activity-editor');
+            if (activityEditor) {
+                const locationId = activityEditor.dataset.locationId;
+                initActivitySelect(locationId);
+            }
         });
     }
+
+    // Set up activity editor event handlers
+    setupActivityEditorEvents('#modalContent');
 
     // Cleanup timers and streams on page unload
     window.addEventListener('beforeunload', () => {
@@ -945,9 +959,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Activity:</strong>
-            <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType :
-        '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
+            <div class="col-6">${generateActivityEditorHtml(location)}</div>
             <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">

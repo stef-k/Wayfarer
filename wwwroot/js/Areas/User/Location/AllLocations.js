@@ -6,6 +6,11 @@ import {
     currentDateInputValue,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
+import {
+    generateActivityEditorHtml,
+    initActivitySelect,
+    setupActivityEditorEvents,
+} from '../../../util/activity-editor.js';
 
 let locations = [];
 let currentPage = 1;
@@ -21,6 +26,16 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
 });
 const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
 const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
+const syncLocationActivity = (locationId, activityType) => {
+    // Keep in-memory location data aligned with table/modal edits.
+    const target = locations.find(loc => loc.id === locationId);
+    if (!target) return;
+
+    target.activityType = activityType || null;
+    if (Object.prototype.hasOwnProperty.call(target, 'activity')) {
+        target.activity = activityType || null;
+    }
+};
 
 const renderTimestampBlock = location => {
     const info = getLocationTimestampInfo(location);
@@ -128,13 +143,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // PAGINATION (dynamic links)
     window.goToPage = (page) => loadLocations(page);
 
-    // INIT MODAL WIKI POP-OVERS
+    // INIT MODAL WIKI POP-OVERS and ACTIVITY EDITOR
     const modalEl = document.getElementById('locationModal');
     if (modalEl) {
         modalEl.addEventListener('shown.bs.modal', () => {
             initWikipediaPopovers(modalEl);
+            // Initialize TomSelect for activity editor if present
+            const activityEditor = modalEl.querySelector('.activity-editor');
+            if (activityEditor) {
+                const locationId = activityEditor.dataset.locationId;
+                initActivitySelect(locationId);
+            }
         });
     }
+
+    // Set up event delegation for activity editor save/clear buttons.
+    setupActivityEditorEvents('#modalContent', syncLocationActivity);
+    setupActivityEditorEvents('#locationsTable', syncLocationActivity);
 
     // BULK DELETE
     document.getElementById('deleteSelected').addEventListener('click', () => {
@@ -220,6 +245,8 @@ const displayLocationsInTable = (locations) => {
     }
     for (const loc of locations) {
         const timestampHtml = renderTimestampBlock(loc);
+        // Embed the inline activity editor for table rows.
+        const activityEditorHtml = generateActivityEditorHtml(loc, { showLabel: false, compact: true });
         tbody.insertAdjacentHTML('beforeend', `
       <tr>
         <td><input type="checkbox" name="locationCheckbox" value="${loc.id}"></td>
@@ -232,7 +259,7 @@ const displayLocationsInTable = (locations) => {
         <td class="text-center">${formatDecimal(loc.accuracy) != null ? formatDecimal(loc.accuracy) : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
         <td class="text-center">${formatDecimal(loc.speed) != null ? formatDecimal(loc.speed) : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</td>
         <td class="text-center">${formatDecimal(loc.altitude) != null ? formatDecimal(loc.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
-        <td>${loc.activityType || loc.activity || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</td>
+        <td>${activityEditorHtml}</td>
         <td>${loc.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'}</td>
         <td>${loc.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
         <td>${loc.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
@@ -373,9 +400,7 @@ const generateLocationModalContent = (location) => {
         </div>
       </div>
       <div class="row mb-2">
-        <div class="col-6">
-            <strong>Activity:</strong> ${location.activityType || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}
-        </div>
+        <div class="col-6">${generateActivityEditorHtml(location)}</div>
         <div class="col-6">
             <strong>Altitude:</strong> ${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}
         </div>

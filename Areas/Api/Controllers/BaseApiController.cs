@@ -73,6 +73,28 @@ namespace Wayfarer.Areas.Api.Controllers
         }
 
         /// <summary>
+        /// Gets the authenticated user from cookie identity when present, otherwise falls back to API token.
+        /// </summary>
+        /// <returns>The ApplicationUser or null if not found.</returns>
+        protected ApplicationUser? GetUserFromTokenOrCookie()
+        {
+            if (User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return null;
+                }
+
+                return _dbContext.Users
+                    .Include(u => u.ApiTokens)
+                    .FirstOrDefault(u => u.Id == userId);
+            }
+
+            return GetUserFromToken();
+        }
+
+        /// <summary>
         /// Gets the role of the authenticated user.
         /// </summary>
         /// <returns>The role or null if no user is found.</returns>
