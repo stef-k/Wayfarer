@@ -49,6 +49,8 @@ namespace Wayfarer.Areas.Manager.Controllers
         /// </summary>
         /// <param name="id">The ID of the user for whom the token will be generated.</param>
         /// <param name="name">The name or purpose of the token.</param>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(string id, string name)
         {
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name))
@@ -87,6 +89,8 @@ namespace Wayfarer.Areas.Manager.Controllers
         /// </summary>
         /// <param name="id">The ID of the user for whom the token will be regenerated.</param>
         /// <param name="name">The name of the token to regenerate.</param>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Regenerate(string id, string name)
         {
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name))
@@ -117,6 +121,8 @@ namespace Wayfarer.Areas.Manager.Controllers
         /// </summary>
         /// <param name="id">The ID of the user for whom the token will be deleted.</param>
         /// <param name="tokenId">The ID of the token to delete.</param>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(string id, int tokenId)
         {
             if (string.IsNullOrEmpty(id) || tokenId == 0)
