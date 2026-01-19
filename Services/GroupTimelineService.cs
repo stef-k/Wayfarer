@@ -248,6 +248,7 @@ public class GroupTimelineService : IGroupTimelineService
             Speed = location.Speed,
             LocationType = location.LocationType,
             ActivityType = location.ActivityType?.Name,
+            ActivityTypeId = location.ActivityTypeId,
             Address = location.Address,
             FullAddress = location.FullAddress,
             StreetName = location.StreetName,

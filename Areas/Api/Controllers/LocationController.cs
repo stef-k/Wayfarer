@@ -1194,6 +1194,7 @@ public class LocationController : BaseApiController
                             : l.LocalTimestamp,
                         l.TimeZoneId,
                         Activity = l.ActivityType?.Name,
+                        ActivityTypeId = l.ActivityTypeId,
                         l.Address,
                         l.Country,
                         l.Place,
