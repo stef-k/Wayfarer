@@ -448,7 +448,7 @@ public class TileCacheService
             // 1. Check the file system first.
             if (File.Exists(tileFilePath))
             {
-                _logger.LogInformation("Tile found in cache: {TileFilePath}", tileFilePath);
+                _logger.LogDebug("Tile found in cache: {TileFilePath}", tileFilePath);
                 byte[]? cachedTileData = null;
                 await _cacheLock.WaitAsync();
                 try
@@ -479,52 +479,40 @@ public class TileCacheService
             // 2. If the tile is not on disk, but we have a URL, attempt to fetch it.
             if (string.IsNullOrEmpty(tileUrl))
             {
-                _logger.LogError("Tile URL is missing for retrieval attempt.");
+                _logger.LogWarning("Tile not found and no URL provided: {TileFilePath}", tileFilePath);
                 return null;
             }
 
-            if (!string.IsNullOrEmpty(tileUrl))
+            _logger.LogDebug("Tile not in cache. Fetching from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+            await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
+
+            // After fetching, read the file while holding the lock to prevent race with eviction.
+            byte[]? fetchedTileData = null;
+            await _cacheLock.WaitAsync();
+            try
             {
-                _logger.LogInformation("Tile file not found. Attempting to fetch from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
-                await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
-
-                // After fetching, read the file while holding the lock to prevent race with eviction.
-                byte[]? fetchedTileData = null;
-                await _cacheLock.WaitAsync();
-                try
+                if (File.Exists(tileFilePath))
                 {
-                    if (File.Exists(tileFilePath))
-                    {
-                        fetchedTileData = await File.ReadAllBytesAsync(tileFilePath);
-                    }
-                }
-                finally
-                {
-                    _cacheLock.Release();
-                }
-
-                if (fetchedTileData != null)
-                {
-                    // for zoom levels >= 9
-                    if (zoomLvl >= 9)
-                    {
-                        await UpdateTileLastAccessedAsync(zoomLevel, xCoordinate, yCoordinate);
-                    }
-
-                    return fetchedTileData;
-                }
-                else
-                {
-                    _logger.LogWarning("Tile was not fetched successfully from {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+                    fetchedTileData = await File.ReadAllBytesAsync(tileFilePath);
                 }
             }
-            else
+            finally
             {
-                _logger.LogWarning("Tile not found and no tileUrl was provided to fetch it: {TileFilePath}",
-                    tileFilePath);
+                _cacheLock.Release();
             }
 
-            // 3. If we get here, the tile is not available.
+            if (fetchedTileData != null)
+            {
+                // for zoom levels >= 9
+                if (zoomLvl >= 9)
+                {
+                    await UpdateTileLastAccessedAsync(zoomLevel, xCoordinate, yCoordinate);
+                }
+
+                return fetchedTileData;
+            }
+
+            _logger.LogWarning("Tile fetch failed from {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
             return null;
         }
         catch (Exception ex)
