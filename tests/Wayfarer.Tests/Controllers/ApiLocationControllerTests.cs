@@ -62,11 +62,23 @@ public class ApiLocationControllerTests : TestBase
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
-        var controller = BuildApiController(db, user, includeAuthHeader: false);
+        var controller = BuildApiController(db, user, includeAuthHeader: false, includeUserPrincipal: false);
 
         var result = await controller.Update(1, new LocationUpdateRequestDto());
 
         Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsNotFound_WhenCookieAuthWithoutToken()
+    {
+        var db = CreateDbContext();
+        var user = SeedUserWithToken(db, "tok");
+        var controller = BuildApiController(db, user, includeAuthHeader: false, includeUserPrincipal: true);
+
+        var result = await controller.Update(1, new LocationUpdateRequestDto());
+
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     [Fact]
@@ -590,7 +602,13 @@ public class ApiLocationControllerTests : TestBase
         return user;
     }
 
-    private static LocationController BuildApiController(ApplicationDbContext db, ApplicationUser user, bool includeAuthHeader = true, string? tokenOverride = null, ILocationStatsService? statsService = null)
+    private static LocationController BuildApiController(
+        ApplicationDbContext db,
+        ApplicationUser user,
+        bool includeAuthHeader = true,
+        string? tokenOverride = null,
+        ILocationStatsService? statsService = null,
+        bool includeUserPrincipal = true)
     {
         var token = tokenOverride ?? $"token-{user.Id}";
         if (!db.ApiTokens.Any(t => t.Token == token))
@@ -630,10 +648,17 @@ public class ApiLocationControllerTests : TestBase
         {
             httpContext.Request.Headers["Authorization"] = $"Bearer {token}";
         }
-        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        if (includeUserPrincipal)
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id)
-        }, "TestAuth"));
+            httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id)
+            }, "TestAuth"));
+        }
+        else
+        {
+            httpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        }
 
         controller.ControllerContext = new ControllerContext
         {
