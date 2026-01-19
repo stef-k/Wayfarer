@@ -33,6 +33,7 @@ import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../ma
 import {
     formatViewerAndSourceTimes,
     formatDate,
+    formatDecimal,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
 
@@ -330,11 +331,11 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
             <div class="col-6"><strong>Activity:</strong>
             <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType :
         '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${location.altitude != null ? location.altitude + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
+            <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Accuracy:</strong> <span>${location.accuracy != null ? location.accuracy + ' m' : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</span></div>
-            <div class="col-6"><strong>Speed:</strong> <span>${location.speed != null ? location.speed + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
+            <div class="col-6"><strong>Accuracy:</strong> <span>${formatDecimal(location.accuracy) != null ? formatDecimal(location.accuracy) + ' m' : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</span></div>
+            <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
         </div>
         <div class="row mb-2">
             <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span><br/>
