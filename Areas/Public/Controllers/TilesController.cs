@@ -1,5 +1,5 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
 using Wayfarer.Parsers;
 using Wayfarer.Util;
 
@@ -26,13 +26,48 @@ public class TilesController : Controller
     private const int MaxZoomLevel = 22;
 
     /// <summary>
-    /// In-memory cache for rate limiting anonymous tile requests by IP address.
-    /// Static to persist across requests; uses sliding expiration for cleanup.
+    /// Maximum number of IPs to track for rate limiting to prevent memory exhaustion.
     /// </summary>
-    private static readonly MemoryCache RateLimitCache = new(new MemoryCacheOptions
+    private const int MaxTrackedIps = 100000;
+
+    /// <summary>
+    /// Thread-safe dictionary for rate limiting anonymous tile requests by IP address.
+    /// Uses atomic operations to prevent race conditions between check and increment.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, RateLimitEntry> RateLimitCache = new();
+
+    /// <summary>
+    /// Tracks the request count and window expiration for rate limiting.
+    /// </summary>
+    private sealed class RateLimitEntry
     {
-        SizeLimit = 100000 // Max tracked IPs to prevent memory issues
-    });
+        private int _count;
+        private long _expirationTicks;
+
+        public RateLimitEntry(long expirationTicks)
+        {
+            _count = 0; // Starts at 0, IncrementAndGet will return 1 for first request
+            _expirationTicks = expirationTicks;
+        }
+
+        /// <summary>
+        /// Atomically increments the counter and returns the new count.
+        /// If the window has expired, resets the counter to 1 and updates expiration.
+        /// </summary>
+        public int IncrementAndGet(long currentTicks, long newExpirationTicks)
+        {
+            // Check if window expired - reset if so
+            if (currentTicks > Interlocked.Read(ref _expirationTicks))
+            {
+                Interlocked.Exchange(ref _expirationTicks, newExpirationTicks);
+                Interlocked.Exchange(ref _count, 0);
+            }
+
+            return Interlocked.Increment(ref _count);
+        }
+
+        public bool IsExpired(long currentTicks) => currentTicks > Interlocked.Read(ref _expirationTicks);
+    }
 
     private readonly ILogger<TilesController> _logger;
     private readonly TileCacheService _tileCacheService;
@@ -190,35 +225,43 @@ public class TilesController : Controller
     }
 
     /// <summary>
-    /// Checks if the given IP has exceeded the rate limit and increments the counter.
-    /// Uses a sliding window approach with 1-minute expiration.
+    /// Checks if the given IP has exceeded the rate limit and atomically increments the counter.
+    /// Uses a fixed window approach with 1-minute expiration.
+    /// Thread-safe: uses atomic operations to prevent race conditions.
     /// </summary>
     /// <param name="clientIp">The client IP address to check.</param>
     /// <param name="maxRequestsPerMinute">Maximum allowed requests per minute.</param>
     /// <returns>True if rate limit is exceeded, false otherwise.</returns>
     private static bool IsRateLimitExceeded(string clientIp, int maxRequestsPerMinute)
     {
-        var cacheKey = $"tile_rate_{clientIp}";
+        var currentTicks = DateTime.UtcNow.Ticks;
+        var expirationTicks = currentTicks + TimeSpan.FromMinutes(1).Ticks;
 
-        var currentCount = RateLimitCache.GetOrCreate(cacheKey, entry =>
+        // Periodically clean up expired entries to prevent unbounded growth
+        // Only clean up when cache gets large (amortized cost)
+        if (RateLimitCache.Count > MaxTrackedIps)
         {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1);
-            entry.Size = 1; // Each entry counts as 1 toward the size limit
-            return 0;
-        });
-
-        if (currentCount >= maxRequestsPerMinute)
-        {
-            return true;
+            CleanupExpiredEntries(currentTicks);
         }
 
-        // Increment the counter
-        RateLimitCache.Set(cacheKey, currentCount + 1, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1),
-            Size = 1
-        });
+        var entry = RateLimitCache.GetOrAdd(clientIp, _ => new RateLimitEntry(expirationTicks));
+        var count = entry.IncrementAndGet(currentTicks, expirationTicks);
 
-        return false;
+        return count > maxRequestsPerMinute;
+    }
+
+    /// <summary>
+    /// Removes expired entries from the rate limit cache to prevent memory growth.
+    /// Called periodically when cache exceeds size threshold.
+    /// </summary>
+    private static void CleanupExpiredEntries(long currentTicks)
+    {
+        foreach (var kvp in RateLimitCache)
+        {
+            if (kvp.Value.IsExpired(currentTicks))
+            {
+                RateLimitCache.TryRemove(kvp.Key, out _);
+            }
+        }
     }
 }

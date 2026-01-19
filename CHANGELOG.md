@@ -16,6 +16,7 @@
 - Fixed race condition in tile cache size tracking with Interlocked operations (#115)
 - Fixed API key exposure in tile service logs via URL redaction (#115)
 - Fixed X-Forwarded-For spoofing by only trusting header from localhost/private IPs (#115)
+- Fixed race condition in rate limiter with atomic ConcurrentDictionary operations (#115)
 - Security: Added HtmlSanitizer for safe attribution rendering
 - Security: Added CSRF protection to cache deletion endpoints (#115)
 
