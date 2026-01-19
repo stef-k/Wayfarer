@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Parsers;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Public.Controllers;
 
@@ -15,11 +17,13 @@ public class TilesController : Controller
 {
     private readonly ILogger<TilesController> _logger;
     private readonly TileCacheService _tileCacheService;
+    private readonly IApplicationSettingsService _settingsService;
 
-    public TilesController(ILogger<TilesController> logger, TileCacheService tileCacheService)
+    public TilesController(ILogger<TilesController> logger, TileCacheService tileCacheService, IApplicationSettingsService settingsService)
     {
         _logger = logger;
         _tileCacheService = tileCacheService;
+        _settingsService = settingsService;
     }
 
     /// <summary>
@@ -37,8 +41,17 @@ public class TilesController : Controller
             return Unauthorized("Unauthorized request.");
         }
 
-        // Construct the OSM tile URL. (Customize subdomain logic if desired.)
-        string tileUrl = $"https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
+        // Resolve the tile provider template from settings or presets.
+        var settings = _settingsService.GetSettings();
+        var preset = TileProviderCatalog.FindPreset(settings.TileProviderKey);
+        var template = preset?.UrlTemplate ?? settings.TileProviderUrlTemplate;
+        var apiKey = TileProviderCatalog.RequiresApiKey(template) ? settings.TileProviderApiKey : null;
+
+        if (!TileProviderCatalog.TryBuildTileUrl(template, apiKey, z, x, y, out var tileUrl, out var error))
+        {
+            _logger.LogError("Tile provider configuration error: {Error}", error);
+            return StatusCode(500, "Tile provider misconfigured.");
+        }
 
         // Call the tile cache service to retrieve the tile.
         // The service will either return the cached tile data or (if missing) download, cache, and then return it.

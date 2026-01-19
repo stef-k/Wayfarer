@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Admin.Controllers
 {
@@ -81,6 +82,9 @@ namespace Wayfarer.Areas.Admin.Controllers
             ViewData["CombinedStorageMB"] = Math.Round(combinedTotalMB, 2);
             ViewData["CombinedStorageGB"] = Math.Round(combinedTotalGB, 3);
 
+            // Tile provider presets for admin UI.
+            SetTileProviderViewData();
+
             SetPageTitle("Application Settings");
             return View(settings);
         }
@@ -89,6 +93,12 @@ namespace Wayfarer.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Update(ApplicationSettings updatedSettings)
         {
+            ApplicationSettings? currentSettings = _dbContext.ApplicationSettings.Find(1);
+            if (currentSettings == null)
+            {
+                ModelState.AddModelError(string.Empty, "Application settings could not be loaded.");
+            }
+
             // Cross-field validation for Trip Place Auto-Visited settings
             if (updatedSettings.VisitedMaxRadiusMeters < updatedSettings.VisitedMinRadiusMeters)
             {
@@ -102,14 +112,20 @@ namespace Wayfarer.Areas.Admin.Controllers
                     "Search radius must be greater than or equal to max radius.");
             }
 
+            if (currentSettings != null)
+            {
+                // Validate tile provider settings before model validation.
+                NormalizeTileProviderSettings(currentSettings, updatedSettings);
+            }
+
             if (!ValidateModelState())
             {
+                SetTileProviderViewData();
                 return View("Index", updatedSettings);
             }
 
             try
             {
-                ApplicationSettings? currentSettings = _dbContext.ApplicationSettings.Find(1);
                 if (currentSettings != null)
                 {
                     // Track changes for auditing
@@ -126,6 +142,13 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("LocationAccuracyThresholdMeters", currentSettings.LocationAccuracyThresholdMeters, updatedSettings.LocationAccuracyThresholdMeters);
                     Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
+                    Track("TileProviderKey", currentSettings.TileProviderKey, updatedSettings.TileProviderKey);
+                    Track("TileProviderUrlTemplate", currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate);
+                    Track("TileProviderAttribution", currentSettings.TileProviderAttribution, updatedSettings.TileProviderAttribution);
+                    if (!string.Equals(currentSettings.TileProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal))
+                    {
+                        changes.Add("TileProviderApiKey: [updated]");
+                    }
 
                     // Trip Place Auto-Visited settings
                     Track("VisitedRequiredHits", currentSettings.VisitedRequiredHits, updatedSettings.VisitedRequiredHits);
@@ -136,12 +159,22 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("VisitedMaxSearchRadiusMeters", currentSettings.VisitedMaxSearchRadiusMeters, updatedSettings.VisitedMaxSearchRadiusMeters);
                     Track("VisitedPlaceNotesSnapshotMaxHtmlChars", currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars, updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars);
 
+                    var shouldPurgeTileCache =
+                        !string.Equals(currentSettings.TileProviderKey, updatedSettings.TileProviderKey, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate, StringComparison.Ordinal) ||
+                        !string.Equals(currentSettings.TileProviderAttribution, updatedSettings.TileProviderAttribution, StringComparison.Ordinal) ||
+                        !string.Equals(currentSettings.TileProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal);
+
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
                     currentSettings.LocationAccuracyThresholdMeters = updatedSettings.LocationAccuracyThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
+                    currentSettings.TileProviderKey = updatedSettings.TileProviderKey;
+                    currentSettings.TileProviderUrlTemplate = updatedSettings.TileProviderUrlTemplate;
+                    currentSettings.TileProviderAttribution = updatedSettings.TileProviderAttribution;
+                    currentSettings.TileProviderApiKey = updatedSettings.TileProviderApiKey;
 
                     // Trip Place Auto-Visited settings
                     currentSettings.VisitedRequiredHits = updatedSettings.VisitedRequiredHits;
@@ -153,6 +186,11 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars = updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars;
 
                     await _dbContext.SaveChangesAsync();
+
+                    if (shouldPurgeTileCache)
+                    {
+                        await _tileCacheService.PurgeAllCacheAsync();
+                    }
 
                     // Audit settings update with changed fields summary
                     if (changes.Count > 0)
@@ -169,6 +207,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             catch (Exception ex)
             {
                 HandleError(ex);
+                SetTileProviderViewData();
                 return View("Index", updatedSettings);
             }
         }
@@ -241,6 +280,70 @@ namespace Wayfarer.Areas.Admin.Controllers
             cacheStatus.TotalLruGB = Math.Round(lru / 1024, 3);
 
             return cacheStatus;
+        }
+
+        /// <summary>
+        /// Normalizes and validates tile provider settings, applying presets when selected.
+        /// </summary>
+        private void NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
+        {
+            var providerKey = updatedSettings.TileProviderKey?.Trim();
+            var preset = TileProviderCatalog.FindPreset(providerKey);
+            var isCustom = string.Equals(providerKey, TileProviderCatalog.CustomProviderKey, StringComparison.OrdinalIgnoreCase);
+
+            if (preset == null && !isCustom)
+            {
+                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderKey), "Unknown tile provider selection.");
+                return;
+            }
+
+            if (preset != null)
+            {
+                updatedSettings.TileProviderKey = preset.Key;
+                updatedSettings.TileProviderUrlTemplate = preset.UrlTemplate;
+                updatedSettings.TileProviderAttribution = preset.Attribution;
+            }
+            else
+            {
+                updatedSettings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
+            }
+
+            if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderAttribution))
+            {
+                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAttribution), "Attribution is required.");
+            }
+
+            if (!TileProviderCatalog.TryValidateTemplate(updatedSettings.TileProviderUrlTemplate, out var templateError))
+            {
+                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderUrlTemplate), templateError);
+            }
+
+            if (TileProviderCatalog.RequiresApiKey(updatedSettings.TileProviderUrlTemplate))
+            {
+                if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderApiKey))
+                {
+                    updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
+                }
+
+                if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderApiKey))
+                {
+                    ModelState.AddModelError(nameof(ApplicationSettings.TileProviderApiKey),
+                        "API key is required for the selected tile provider.");
+                }
+            }
+            else
+            {
+                updatedSettings.TileProviderApiKey = null;
+            }
+        }
+
+        /// <summary>
+        /// Adds tile provider preset metadata needed by the settings view.
+        /// </summary>
+        private void SetTileProviderViewData()
+        {
+            ViewData["TileProviderPresets"] = TileProviderCatalog.Presets;
+            ViewData["TileProviderCustomKey"] = TileProviderCatalog.CustomProviderKey;
         }
 
         /// <summary>
