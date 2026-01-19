@@ -46,12 +46,21 @@ public class TileProviderCatalogTests
     }
 
     [Fact]
-    public void TryValidateTemplate_ReturnsFalse_WhenHostIsPrivate()
+    public void TryValidateTemplate_AllowsPrivateHost()
     {
         var ok = TileProviderCatalog.TryValidateTemplate("https://192.168.1.10/{z}/{x}/{y}.png", out var error);
 
-        Assert.False(ok);
-        Assert.False(string.IsNullOrWhiteSpace(error));
+        Assert.True(ok);
+        Assert.True(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public void TryValidateTemplate_AllowsSubdomainPlaceholder()
+    {
+        var ok = TileProviderCatalog.TryValidateTemplate("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", out var error);
+
+        Assert.True(ok);
+        Assert.True(string.IsNullOrWhiteSpace(error));
     }
 
     [Fact]
@@ -69,6 +78,23 @@ public class TileProviderCatalogTests
         Assert.True(ok);
         Assert.True(string.IsNullOrWhiteSpace(error));
         Assert.Equal("https://tiles.example.com/1/2/3.png?apikey=abc123", url);
+    }
+
+    [Fact]
+    public void TryBuildTileUrl_EncodesApiKey()
+    {
+        var ok = TileProviderCatalog.TryBuildTileUrl(
+            "https://tiles.example.com/{z}/{x}/{y}.png?apikey={apiKey}",
+            "a+b&c#d",
+            1,
+            2,
+            3,
+            out var url,
+            out var error);
+
+        Assert.True(ok);
+        Assert.True(string.IsNullOrWhiteSpace(error));
+        Assert.Equal("https://tiles.example.com/1/2/3.png?apikey=a%2Bb%26c%23d", url);
     }
 
     [Fact]

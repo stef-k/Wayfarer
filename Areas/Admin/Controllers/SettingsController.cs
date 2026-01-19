@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Util;
@@ -14,18 +15,21 @@ namespace Wayfarer.Areas.Admin.Controllers
         private readonly IApplicationSettingsService _settingsService;
         private readonly TileCacheService _tileCacheService;
         private readonly IWebHostEnvironment _env;
+        private readonly IServiceScopeFactory _scopeFactory;
 
         public SettingsController(
             ILogger<BaseController> logger,
             ApplicationDbContext dbContext,
             IApplicationSettingsService settingsService,
             TileCacheService tileCacheService,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IServiceScopeFactory scopeFactory)
             : base(logger, dbContext)
         {
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _tileCacheService = tileCacheService ?? throw new ArgumentNullException(nameof(tileCacheService));
             _env = env ?? throw new ArgumentNullException(nameof(env));
+            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         }
 
         [HttpGet]
@@ -166,9 +170,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                     var currentProviderTemplate = string.IsNullOrWhiteSpace(currentSettings.TileProviderUrlTemplate)
                         ? ApplicationSettings.DefaultTileProviderUrlTemplate
                         : currentSettings.TileProviderUrlTemplate;
-                    var currentProviderAttribution = string.IsNullOrWhiteSpace(currentSettings.TileProviderAttribution)
-                        ? ApplicationSettings.DefaultTileProviderAttribution
-                        : currentSettings.TileProviderAttribution;
                     var currentProviderApiKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderApiKey)
                         ? null
                         : currentSettings.TileProviderApiKey;
@@ -176,7 +177,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                     var shouldPurgeTileCache =
                         !string.Equals(currentProviderKey, updatedSettings.TileProviderKey, StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(currentProviderTemplate, updatedSettings.TileProviderUrlTemplate, StringComparison.Ordinal) ||
-                        !string.Equals(currentProviderAttribution, updatedSettings.TileProviderAttribution, StringComparison.Ordinal) ||
                         !string.Equals(currentProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal);
 
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
@@ -203,7 +203,7 @@ namespace Wayfarer.Areas.Admin.Controllers
 
                     if (shouldPurgeTileCache)
                     {
-                        await _tileCacheService.PurgeAllCacheAsync();
+                        QueueTileCachePurge();
                     }
 
                     // Audit settings update with changed fields summary
@@ -367,6 +367,26 @@ namespace Wayfarer.Areas.Admin.Controllers
         {
             ViewData["TileProviderPresets"] = TileProviderCatalog.Presets;
             ViewData["TileProviderCustomKey"] = TileProviderCatalog.CustomProviderKey;
+        }
+
+        /// <summary>
+        /// Purges the tile cache in the background to avoid blocking the settings update.
+        /// </summary>
+        private void QueueTileCachePurge()
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+                    await tileCacheService.PurgeAllCacheAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to purge tile cache in background.");
+                }
+            });
         }
 
         /// <summary>

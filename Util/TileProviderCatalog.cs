@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.IO;
-using System.Net;
 using Wayfarer.Models;
 
 namespace Wayfarer.Util;
@@ -66,7 +65,7 @@ public static class TileProviderCatalog
     }
 
     /// <summary>
-    /// Validates a tile URL template and ensures it points to a public HTTPS host.
+    /// Validates a tile URL template and ensures it points to a HTTPS PNG tile endpoint.
     /// </summary>
     public static bool TryValidateTemplate(string template, out string error)
     {
@@ -101,12 +100,6 @@ public static class TileProviderCatalog
             return false;
         }
 
-        if (!IsPublicHost(templateUri.Host))
-        {
-            error = "Tile URL template host must be public (localhost and private ranges are not allowed).";
-            return false;
-        }
-
         return true;
     }
 
@@ -128,13 +121,16 @@ public static class TileProviderCatalog
         }
 
         tileUrl = template
+            .Replace("{s}", "a", StringComparison.OrdinalIgnoreCase)
             .Replace("{z}", z.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase)
             .Replace("{x}", x.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase)
             .Replace("{y}", y.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
 
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
-            tileUrl = tileUrl.Replace("{apiKey}", apiKey, StringComparison.OrdinalIgnoreCase);
+            // Encode API key before injecting it into query templates.
+            var encodedApiKey = Uri.EscapeDataString(apiKey);
+            tileUrl = tileUrl.Replace("{apiKey}", encodedApiKey, StringComparison.OrdinalIgnoreCase);
         }
 
         if (!Uri.TryCreate(tileUrl, UriKind.Absolute, out _))
@@ -165,6 +161,7 @@ public static class TileProviderCatalog
     private static bool TryCreateTemplateUri(string template, out Uri uri, out string error)
     {
         var sample = template
+            .Replace("{s}", "a", StringComparison.OrdinalIgnoreCase)
             .Replace("{z}", "0", StringComparison.OrdinalIgnoreCase)
             .Replace("{x}", "0", StringComparison.OrdinalIgnoreCase)
             .Replace("{y}", "0", StringComparison.OrdinalIgnoreCase)
@@ -180,73 +177,6 @@ public static class TileProviderCatalog
         return true;
     }
 
-    private static bool IsPublicHost(string host)
-    {
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            return false;
-        }
-
-        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!IPAddress.TryParse(host, out var ip))
-        {
-            return true;
-        }
-
-        if (IPAddress.IsLoopback(ip))
-        {
-            return false;
-        }
-
-        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-        {
-            var bytes = ip.GetAddressBytes();
-            if (bytes[0] == 10)
-            {
-                return false;
-            }
-
-            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
-            {
-                return false;
-            }
-
-            if (bytes[0] == 192 && bytes[1] == 168)
-            {
-                return false;
-            }
-
-            if (bytes[0] == 169 && bytes[1] == 254)
-            {
-                return false;
-            }
-        }
-
-        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
-        {
-            var bytes = ip.GetAddressBytes();
-            if ((bytes[0] & 0xFE) == 0xFC)
-            {
-                return false;
-            }
-
-            if (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }
 
 /// <summary>
