@@ -1,4 +1,4 @@
-// mapManager.js – refactored to use store
+﻿// mapManager.js – refactored to use store
 import {addZoomLevelControl} from '../../../map-utils.js';
 import {store} from './storeInstance.js';
 import {buildPlacePopup, buildAreaPopup} from '../../../Trip/tripPopupBuilder.js';
@@ -6,7 +6,10 @@ import {buildPlacePopup, buildAreaPopup} from '../../../Trip/tripPopupBuilder.js
 /* ------------------------------------------------------------------ *
  *  Private state
  * ------------------------------------------------------------------ */
-const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+// Map tiles config (proxy URL + attribution) injected by layout.
+const tilesConfig = window.wayfarerTileConfig || {};
+const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 let mapContainer = null;
 let drawControl = null;
 let drawnLayerGroup = null;
@@ -169,7 +172,7 @@ export const initAreaMap = (areaId, geometry, fillColor) => {
     // 2️⃣ Create the Leaflet map
     const map = L.map(container, {zoomAnimation: true}).setView([0, 0], 2);
     L.tileLayer(tilesUrl, {
-        attribution: '&copy; OpenStreetMap contributors'
+        attribution: tilesAttribution
     }).addTo(map);
 
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
@@ -426,9 +429,9 @@ export const initializeMap = (center = [20, 0], zoom = 3) => {
         editable: true
     }).setView(center, zoom);
 
-    L.tileLayer(`${location.origin}/Public/tiles/{z}/{x}/{y}.png`, {
+    L.tileLayer(tilesUrl, {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
+        attribution: tilesAttribution
     }).addTo(mapContainer);
 
     mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');

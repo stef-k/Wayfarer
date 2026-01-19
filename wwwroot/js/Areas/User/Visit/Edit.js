@@ -7,6 +7,10 @@
 const WF_WIDTH = 28;
 const WF_HEIGHT = 45;
 const WF_ANCHOR = [WF_WIDTH / 2, WF_HEIGHT];
+// Map tiles config (proxy URL + attribution) injected by layout.
+const tilesConfig = window.wayfarerTileConfig || {};
+const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 
 /**
  * Build PNG icon URL for wayfarer markers
@@ -42,9 +46,9 @@ const initMap = () => {
 
     map = L.map('mapContainer').setView([lat, lon], 15);
 
-    L.tileLayer('/Public/tiles/{z}/{x}/{y}.png', {
+    L.tileLayer(tilesUrl, {
         maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+        attribution: tilesAttribution
     }).addTo(map);
 
     // Add initial marker

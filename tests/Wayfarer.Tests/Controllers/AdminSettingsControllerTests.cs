@@ -69,6 +69,7 @@ public class AdminSettingsControllerTests : TestBase
 
         var result = await controller.Update(new ApplicationSettings { Id = 1 });
 
+        // Missing settings should return the index view with validation errors.
         var view = Assert.IsType<ViewResult>(result);
         Assert.Equal("Index", view.ViewName);
     }
@@ -136,8 +137,9 @@ public class AdminSettingsControllerTests : TestBase
 
         var result = await controller.Update(new ApplicationSettings { Id = 1 });
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        settingsMock.Verify(s => s.RefreshSettings(), Times.Once);
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+        settingsMock.Verify(s => s.RefreshSettings(), Times.Never);
     }
 
     [Fact]

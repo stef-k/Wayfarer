@@ -6,6 +6,9 @@
 - Added inline activity view/edit mode for location modals and tables
 - Added table activity editing with preselected activity values
 - Added cookie-auth fallback for location activity updates
+- Added admin tile provider settings with presets, custom templates, and API key support
+- Added tile provider validation and cache purge on provider change
+- Added dynamic map attribution from the active tile provider
 
 ### 2026-01-17
 - Added CHANGELOG.md

@@ -1,6 +1,10 @@
 @model ApplicationSettings
+@using Wayfarer.Util
 @{
     var isRegistrationOpen = (ViewData["IsRegistrationOpen"] as bool?) ?? false;
+    var tileProviderPresets = ViewData["TileProviderPresets"] as IReadOnlyList<TileProviderDefinition> ?? Array.Empty<TileProviderDefinition>();
+    var tileProviderCustomKey = ViewData["TileProviderCustomKey"]?.ToString() ?? TileProviderCatalog.CustomProviderKey;
+    var hasTileProviderApiKey = !string.IsNullOrWhiteSpace(Model.TileProviderApiKey);
 }
 
 <div class="container">
@@ -404,6 +408,70 @@
                                 <code>@ApplicationSettings.DefaultUploadSizeLimitMB MB</code>.<br/>
                             </div>
                         </div>
+                        <hr/>
+
+                        <!-- Map tile provider configuration (preset or custom). -->
+                        <div class="row">
+                            <h3 class="text-center fs-4">Map Tile Provider</h3>
+                            <p class="text-muted">
+                                Choose a preset or provide a custom tile provider template. Tiles are still served through
+                                the local cache proxy at <code>/Public/tiles/{z}/{x}/{y}.png</code>.
+                            </p>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="TileProviderKey" class="form-label">Provider</label>
+                                <select asp-for="TileProviderKey" class="form-control" data-custom-key="@tileProviderCustomKey">
+                                    @foreach (var preset in tileProviderPresets)
+                                    {
+                                        <option value="@preset.Key"
+                                                data-template="@preset.UrlTemplate"
+                                                data-attribution="@preset.Attribution"
+                                                data-requires-key="@(preset.RequiresApiKey.ToString().ToLowerInvariant())">
+                                            @preset.Name
+                                        </option>
+                                    }
+                                    <option value="@tileProviderCustomKey" data-template="" data-attribution="" data-requires-key="false">Custom provider</option>
+                                </select>
+                                <small class="form-text text-muted">
+                                    Presets apply their template and attribution automatically; custom providers must use HTTPS and .png tiles.
+                                </small>
+                                <span asp-validation-for="TileProviderKey" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="alert alert-info mb-0">
+                                    <strong>Cache note:</strong> Changing providers or API keys purges cached tiles so new imagery can load.
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="TileProviderUrlTemplate" class="form-label">Tile URL Template</label>
+                                <input asp-for="TileProviderUrlTemplate" class="form-control" />
+                                <small class="form-text text-muted">
+                                    Must include <code>{z}</code>, <code>{x}</code>, <code>{y}</code>, and optional <code>{apiKey}</code>.
+                                </small>
+                                <span asp-validation-for="TileProviderUrlTemplate" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="TileProviderAttribution" class="form-label">Attribution HTML</label>
+                                <input asp-for="TileProviderAttribution" class="form-control" />
+                                <small class="form-text text-muted">
+                                    This text appears in the map footer for all users.
+                                </small>
+                                <span asp-validation-for="TileProviderAttribution" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3" id="tileProviderApiKeyRow" data-has-key="@(hasTileProviderApiKey.ToString().ToLowerInvariant())">
+                                <label for="TileProviderApiKey" class="form-label">API Key</label>
+                                <input class="form-control" id="TileProviderApiKey" name="TileProviderApiKey" type="password" autocomplete="off" />
+                                <small class="form-text text-muted" id="tileProviderApiKeyHelp">
+                                    @(hasTileProviderApiKey ? "A key is saved. Leave blank to keep it unchanged." : "Enter the provider API key if required.")
+                                </small>
+                                <span asp-validation-for="TileProviderApiKey" class="text-danger"></span>
+                            </div>
+                        </div>
+
                         <hr/>
                         <div class="row">
                             <h3 class="text-center fs-4">Map Tile Cache Management</h3>

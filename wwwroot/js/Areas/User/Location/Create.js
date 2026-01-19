@@ -1,4 +1,7 @@
-﻿const tilesUrl = `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+﻿// Map tiles config (proxy URL + attribution) injected by layout.
+const tilesConfig = window.wayfarerTileConfig || {};
+const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -8,9 +11,9 @@ document.addEventListener("DOMContentLoaded", function () {
             zoomAnimation: true
         }).setView([51.505, -0.09], 2); // Default view (Global zoom)
 
-        // Add the OpenStreetMap tile layer
+        // Add the tile layer from the cache proxy.
         L.tileLayer(tilesUrl, {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+            attribution: tilesAttribution
         }).addTo(mapContainer);
         mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
         // Marker variable to store the placed marker

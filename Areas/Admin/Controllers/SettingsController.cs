@@ -159,11 +159,25 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("VisitedMaxSearchRadiusMeters", currentSettings.VisitedMaxSearchRadiusMeters, updatedSettings.VisitedMaxSearchRadiusMeters);
                     Track("VisitedPlaceNotesSnapshotMaxHtmlChars", currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars, updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars);
 
+                    // Treat empty stored values as defaults to avoid purging on upgrade.
+                    var currentProviderKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderKey)
+                        ? ApplicationSettings.DefaultTileProviderKey
+                        : currentSettings.TileProviderKey;
+                    var currentProviderTemplate = string.IsNullOrWhiteSpace(currentSettings.TileProviderUrlTemplate)
+                        ? ApplicationSettings.DefaultTileProviderUrlTemplate
+                        : currentSettings.TileProviderUrlTemplate;
+                    var currentProviderAttribution = string.IsNullOrWhiteSpace(currentSettings.TileProviderAttribution)
+                        ? ApplicationSettings.DefaultTileProviderAttribution
+                        : currentSettings.TileProviderAttribution;
+                    var currentProviderApiKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderApiKey)
+                        ? null
+                        : currentSettings.TileProviderApiKey;
+
                     var shouldPurgeTileCache =
-                        !string.Equals(currentSettings.TileProviderKey, updatedSettings.TileProviderKey, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate, StringComparison.Ordinal) ||
-                        !string.Equals(currentSettings.TileProviderAttribution, updatedSettings.TileProviderAttribution, StringComparison.Ordinal) ||
-                        !string.Equals(currentSettings.TileProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal);
+                        !string.Equals(currentProviderKey, updatedSettings.TileProviderKey, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(currentProviderTemplate, updatedSettings.TileProviderUrlTemplate, StringComparison.Ordinal) ||
+                        !string.Equals(currentProviderAttribution, updatedSettings.TileProviderAttribution, StringComparison.Ordinal) ||
+                        !string.Equals(currentProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal);
 
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
@@ -288,6 +302,15 @@ namespace Wayfarer.Areas.Admin.Controllers
         private void NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
         {
             var providerKey = updatedSettings.TileProviderKey?.Trim();
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                // Preserve existing settings when tile provider fields are not posted.
+                updatedSettings.TileProviderKey = currentSettings.TileProviderKey;
+                updatedSettings.TileProviderUrlTemplate = currentSettings.TileProviderUrlTemplate;
+                updatedSettings.TileProviderAttribution = currentSettings.TileProviderAttribution;
+                updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
+                return;
+            }
             var preset = TileProviderCatalog.FindPreset(providerKey);
             var isCustom = string.Equals(providerKey, TileProviderCatalog.CustomProviderKey, StringComparison.OrdinalIgnoreCase);
 

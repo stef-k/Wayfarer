@@ -1,0 +1,90 @@
+using Wayfarer.Models;
+using Wayfarer.Util;
+using Xunit;
+
+namespace Wayfarer.Tests.Util;
+
+/// <summary>
+/// Tests for the tile provider catalog validation helpers.
+/// </summary>
+public class TileProviderCatalogTests
+{
+    [Fact]
+    public void FindPreset_IgnoresCase()
+    {
+        var preset = TileProviderCatalog.FindPreset(ApplicationSettings.DefaultTileProviderKey.ToUpperInvariant());
+
+        Assert.NotNull(preset);
+        Assert.Equal(ApplicationSettings.DefaultTileProviderKey, preset?.Key);
+    }
+
+    [Fact]
+    public void TryValidateTemplate_ReturnsFalse_WhenMissingPlaceholders()
+    {
+        var ok = TileProviderCatalog.TryValidateTemplate("https://tiles.example.com/tiles.png", out var error);
+
+        Assert.False(ok);
+        Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public void TryValidateTemplate_ReturnsFalse_WhenNotHttps()
+    {
+        var ok = TileProviderCatalog.TryValidateTemplate("http://tiles.example.com/{z}/{x}/{y}.png", out var error);
+
+        Assert.False(ok);
+        Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public void TryValidateTemplate_ReturnsFalse_WhenNotPng()
+    {
+        var ok = TileProviderCatalog.TryValidateTemplate("https://tiles.example.com/{z}/{x}/{y}.jpg", out var error);
+
+        Assert.False(ok);
+        Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public void TryValidateTemplate_ReturnsFalse_WhenHostIsPrivate()
+    {
+        var ok = TileProviderCatalog.TryValidateTemplate("https://192.168.1.10/{z}/{x}/{y}.png", out var error);
+
+        Assert.False(ok);
+        Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public void TryBuildTileUrl_InsertsCoordinatesAndApiKey()
+    {
+        var ok = TileProviderCatalog.TryBuildTileUrl(
+            "https://tiles.example.com/{z}/{x}/{y}.png?apikey={apiKey}",
+            "abc123",
+            1,
+            2,
+            3,
+            out var url,
+            out var error);
+
+        Assert.True(ok);
+        Assert.True(string.IsNullOrWhiteSpace(error));
+        Assert.Equal("https://tiles.example.com/1/2/3.png?apikey=abc123", url);
+    }
+
+    [Fact]
+    public void TryBuildTileUrl_ReturnsFalse_WhenApiKeyMissing()
+    {
+        var ok = TileProviderCatalog.TryBuildTileUrl(
+            "https://tiles.example.com/{z}/{x}/{y}.png?apikey={apiKey}",
+            string.Empty,
+            1,
+            2,
+            3,
+            out var url,
+            out var error);
+
+        Assert.False(ok);
+        Assert.True(string.IsNullOrWhiteSpace(url));
+        Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+}

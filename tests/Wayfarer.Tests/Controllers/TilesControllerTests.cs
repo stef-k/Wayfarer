@@ -98,15 +98,17 @@ public class TilesControllerTests : TestBase
         }
     }
 
-    private TilesController BuildController(TileCacheService? tileService = null, ApplicationDbContext? dbContext = null!, string? cacheDir = null, HttpMessageHandler? handler = null)
+    private TilesController BuildController(TileCacheService? tileService = null, ApplicationDbContext? dbContext = null!, string? cacheDir = null, HttpMessageHandler? handler = null, IApplicationSettingsService? settingsService = null)
     {
         dbContext ??= CreateDbContext();
         cacheDir ??= Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDir);
         handler ??= new FakeHttpMessageHandler(HttpStatusCode.NotFound);
+        settingsService ??= BuildSettingsService();
         var controller = new TilesController(
             NullLogger<TilesController>.Instance,
-            tileService ?? CreateTileService(dbContext, handler, cacheDir));
+            tileService ?? CreateTileService(dbContext, handler, cacheDir, settingsService),
+            settingsService);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -115,7 +117,7 @@ public class TilesControllerTests : TestBase
         return controller;
     }
 
-    private TileCacheService CreateTileService(ApplicationDbContext dbContext, HttpMessageHandler handler, string cacheDir)
+    private TileCacheService CreateTileService(ApplicationDbContext dbContext, HttpMessageHandler handler, string cacheDir, IApplicationSettingsService settingsService)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -123,12 +125,6 @@ public class TilesControllerTests : TestBase
                 ["CacheSettings:TileCacheDirectory"] = cacheDir
             })
             .Build();
-
-        var appSettings = new Mock<IApplicationSettingsService>();
-        appSettings.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
-        {
-            MaxCacheTileSizeInMB = 128
-        });
 
         var httpClient = new HttpClient(handler)
         {
@@ -140,8 +136,22 @@ public class TilesControllerTests : TestBase
             config,
             httpClient,
             dbContext,
-            appSettings.Object,
+            settingsService,
             Mock.Of<IServiceScopeFactory>());
+    }
+
+    private IApplicationSettingsService BuildSettingsService()
+    {
+        // Use a consistent settings instance for controller + cache service tests.
+        var appSettings = new Mock<IApplicationSettingsService>();
+        appSettings.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            MaxCacheTileSizeInMB = 128,
+            TileProviderKey = ApplicationSettings.DefaultTileProviderKey,
+            TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate,
+            TileProviderAttribution = ApplicationSettings.DefaultTileProviderAttribution
+        });
+        return appSettings.Object;
     }
 
     private sealed class FakeHttpMessageHandler : HttpMessageHandler
