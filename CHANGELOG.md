@@ -15,7 +15,9 @@
 - Fixed XSS vulnerability in tile provider attribution via HTML sanitization (#115)
 - Fixed race condition in tile cache size tracking with Interlocked operations (#115)
 - Fixed API key exposure in tile service logs via URL redaction (#115)
+- Fixed X-Forwarded-For spoofing by only trusting header from localhost/private IPs (#115)
 - Security: Added HtmlSanitizer for safe attribution rendering
+- Security: Added CSRF protection to cache deletion endpoints (#115)
 
 ### 2026-01-17
 - Added CHANGELOG.md

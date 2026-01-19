@@ -227,6 +227,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteAllMapTileCache()
         {
             try
@@ -249,6 +250,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteLruCache()
         {
             try
