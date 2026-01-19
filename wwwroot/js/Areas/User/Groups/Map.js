@@ -93,10 +93,26 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
     const boxes = document.querySelectorAll('#userSidebar input.user-select:checked');
     return Array.from(boxes).map(b => ({ id: b.getAttribute('data-user-id'), username: b.getAttribute('data-username') }));
   }
+  // Keep the "Select All" checkbox aligned with the current selection state.
+  function updateSelectAllState() {
+    const selectAll = document.getElementById('selectAllUsers');
+    if (!selectAll) return;
+    const boxes = Array.from(document.querySelectorAll('#userSidebar input.user-select'));
+    const checkedCount = boxes.filter(cb => cb.checked).length;
+    selectAll.checked = boxes.length > 0 && checkedCount === boxes.length;
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+  }
   function idToInfoMap() {
     const m = new Map();
     document.querySelectorAll('#userSidebar input.user-select').forEach(b => m.set(b.getAttribute('data-user-id'), { username: b.getAttribute('data-username'), display: b.getAttribute('data-display') }));
     return m;
+  }
+  // Clear all selection-driven layers to reflect an empty selection.
+  function clearSelectionLayers() {
+    latestMarkers.forEach(marker => map.removeLayer(marker));
+    latestMarkers.clear();
+    restClusters.forEach(group => map.removeLayer(group));
+    restClusters.clear();
   }
   function toBBox() {
     const b = map.getBounds(); const sw = b.getSouthWest(), ne = b.getNorthEast();
@@ -141,6 +157,11 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
   async function loadLatest(userIds, skipMarkerCleanup = false) {
     const url='/api/groups/' + groupId + '/locations/latest';
     const include = userIds && userIds.length ? userIds : selectedUsers().map(u=>u.id);
+    // Avoid fetching all members when nothing is selected.
+    if (!include.length) {
+      clearSelectionLayers();
+      return;
+    }
     // Remove markers for users that are no longer selected (skip when updating a single user via SSE)
     if (!skipMarkerCleanup) {
       const includeSet = new Set(include);
@@ -163,7 +184,13 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
    */
   async function loadViewport() {
     const url='/api/groups/' + groupId + '/locations/query';
-    const body=toBBox(); body.UserIds=selectedUsers().map(u=>u.id);
+    const selectedIds = selectedUsers().map(u=>u.id);
+    // Avoid fetching all members when nothing is selected.
+    if (!selectedIds.length) {
+      clearSelectionLayers();
+      return;
+    }
+    const body=toBBox(); body.UserIds=selectedIds;
     // include optional date filters
     const dt = document.querySelector('input[name="viewType"]:checked');
     const y = document.getElementById('yearPicker');
@@ -241,6 +268,8 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
     }
   }
   enforceMultiUserDayOnly();
+  // Sync select-all state on initial load.
+  updateSelectAllState();
   // Initialize historical toggle visibility
   updateHistoricalToggleVisibility();
   // Load latest and viewport immediately
@@ -400,12 +429,14 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
   document.getElementById('selectAllUsers')?.addEventListener('change', function(){
     const checked=this.checked;
     document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{el.checked=checked;});
+    updateSelectAllState();
     enforceMultiUserDayOnly();
     loadLatest().catch(()=>{});
     loadViewport().catch(()=>{});
   });
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{
     cb.addEventListener('change', ()=>{
+      updateSelectAllState();
       enforceMultiUserDayOnly();
       loadLatest().catch(()=>{});
       loadViewport().catch(()=>{});
@@ -417,6 +448,7 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
     showAllBtn.addEventListener('click', ()=>{
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = true);
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = true;
+      updateSelectAllState();
       enforceMultiUserDayOnly();
       loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
@@ -425,6 +457,7 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
     hideAllBtn.addEventListener('click', ()=>{
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=> el.checked = false);
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
+      updateSelectAllState();
       enforceMultiUserDayOnly();
       loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
@@ -533,6 +566,7 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
       if (searchActive || wasSearchActive) {
         loadLatest().catch(() => {});
       }
+      updateSelectAllState();
 
       console.log(`Search: "${q}" - ${visibleCount} members visible`);
     });
@@ -609,6 +643,7 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
       const targetId = this.getAttribute('data-user-id');
       document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{ el.checked = (el.getAttribute('data-user-id') === targetId); });
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
+      updateSelectAllState();
       enforceMultiUserDayOnly();
       loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
     });
