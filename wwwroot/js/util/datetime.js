@@ -1,7 +1,22 @@
 /**
- * Shared helpers for formatting location timestamps.
+ * Shared helpers for formatting location timestamps and numeric values.
  * Provides deterministic output (YYYY-MM-DD HH:mm) regardless of navigator language.
  */
+
+/**
+ * Formats a numeric value to a specified number of decimal places for display.
+ * Coordinates should NOT use this function - they need full precision.
+ * Use for: accuracy, speed, altitude, and other float/double display values.
+ * @param {number|string|null|undefined} value - The value to format
+ * @param {number} [decimals=2] - Number of decimal places (default: 2)
+ * @returns {string|null} Formatted number string, or null if value is null/undefined
+ */
+export const formatDecimal = (value, decimals = 2) => {
+    if (value == null) return null;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (Number.isNaN(num)) return null;
+    return num.toFixed(decimals);
+};
 
 const DEFAULT_LOCALE = 'en-GB';
 const DEFAULT_DATETIME_PARTS = {
