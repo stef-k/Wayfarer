@@ -52,15 +52,23 @@ public class TilesController : Controller
 
         /// <summary>
         /// Atomically increments the counter and returns the new count.
-        /// If the window has expired, resets the counter to 1 and updates expiration.
+        /// If the window has expired, resets the counter and updates expiration using
+        /// compare-and-swap to avoid TOCTOU race conditions.
         /// </summary>
         public int IncrementAndGet(long currentTicks, long newExpirationTicks)
         {
-            // Check if window expired - reset if so
-            if (currentTicks > Interlocked.Read(ref _expirationTicks))
+            // Atomically check and reset if window has expired.
+            // Only the thread that wins the CompareExchange should reset the counter.
+            var currentExpiration = Interlocked.Read(ref _expirationTicks);
+            if (currentTicks > currentExpiration)
             {
-                Interlocked.Exchange(ref _expirationTicks, newExpirationTicks);
-                Interlocked.Exchange(ref _count, 0);
+                // Try to atomically update the expiration. If another thread already did it,
+                // the CompareExchange returns the new value and we skip the reset.
+                if (Interlocked.CompareExchange(ref _expirationTicks, newExpirationTicks, currentExpiration) == currentExpiration)
+                {
+                    // We won the race - reset the counter
+                    Interlocked.Exchange(ref _count, 0);
+                }
             }
 
             return Interlocked.Increment(ref _count);
@@ -96,7 +104,16 @@ public class TilesController : Controller
         }
 
         // Validate tile coordinates are within acceptable bounds.
-        if (z < 0 || z > MaxZoomLevel || x < 0 || y < 0)
+        // First check zoom level to safely calculate max tile index.
+        if (z < 0 || z > MaxZoomLevel)
+        {
+            _logger.LogWarning("Invalid tile coordinates requested: z={Z}, x={X}, y={Y}", z, x, y);
+            return BadRequest("Invalid tile coordinates.");
+        }
+
+        // At zoom level z, valid tile coordinates are 0 to 2^z - 1.
+        var maxTileIndex = (1 << z) - 1; // 2^z - 1
+        if (x < 0 || y < 0 || x > maxTileIndex || y > maxTileIndex)
         {
             _logger.LogWarning("Invalid tile coordinates requested: z={Z}, x={X}, y={Y}", z, x, y);
             return BadRequest("Invalid tile coordinates.");

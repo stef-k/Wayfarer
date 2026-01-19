@@ -54,7 +54,8 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(handler: handler, cacheDir: cacheDir);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        var result = await controller.GetTile(1, 2, 3);
+        // Use valid coordinates: at z=10, max tile index is 1023
+        var result = await controller.GetTile(10, 100, 100);
 
         try
         {
@@ -75,13 +76,14 @@ public class TilesControllerTests : TestBase
     {
         var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDir);
-        var tilePath = Path.Combine(cacheDir, "1_2_3.png");
+        // Use valid coordinates: at z=10, max tile index is 1023
+        var tilePath = Path.Combine(cacheDir, "10_100_100.png");
         await File.WriteAllBytesAsync(tilePath, new byte[] { 1, 2, 3 });
         var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, new byte[] { 9, 9, 9 });
         var controller = BuildController(handler: handler, cacheDir: cacheDir);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        var result = await controller.GetTile(1, 2, 3);
+        var result = await controller.GetTile(10, 100, 100);
 
         try
         {
@@ -172,14 +174,15 @@ public class TilesControllerTests : TestBase
         try
         {
             // First two requests should succeed (rate limit is 2)
-            var result1 = await controller.GetTile(1, 1, 1);
+            // Use valid coordinates: at z=10, max tile index is 1023
+            var result1 = await controller.GetTile(10, 0, 0);
             Assert.IsNotType<ObjectResult>(result1);
 
-            var result2 = await controller.GetTile(1, 1, 2);
+            var result2 = await controller.GetTile(10, 0, 1);
             Assert.IsNotType<ObjectResult>(result2);
 
             // Third request should be rate limited
-            var result3 = await controller.GetTile(1, 1, 3);
+            var result3 = await controller.GetTile(10, 0, 2);
             var statusResult = Assert.IsType<ObjectResult>(result3);
             Assert.Equal(429, statusResult.StatusCode);
         }
@@ -210,9 +213,10 @@ public class TilesControllerTests : TestBase
         try
         {
             // Even with rate limit of 1, should not be limited because it's disabled
-            var result1 = await controller.GetTile(1, 1, 1);
-            var result2 = await controller.GetTile(1, 1, 2);
-            var result3 = await controller.GetTile(1, 1, 3);
+            // Use valid coordinates: at z=10, max tile index is 1023
+            var result1 = await controller.GetTile(10, 0, 0);
+            var result2 = await controller.GetTile(10, 0, 1);
+            var result3 = await controller.GetTile(10, 0, 2);
 
             // None should be 429
             Assert.IsNotType<ObjectResult>(result1);
@@ -249,17 +253,18 @@ public class TilesControllerTests : TestBase
         try
         {
             // First request from client 1
+            // Use valid coordinates: at z=10, max tile index is 1023
             controller.ControllerContext.HttpContext.Request.Headers["X-Forwarded-For"] = clientIp1;
-            var result1 = await controller.GetTile(1, 1, 1);
+            var result1 = await controller.GetTile(10, 0, 0);
 
             // Second request from client 1 should be rate limited
-            var result2 = await controller.GetTile(1, 1, 2);
+            var result2 = await controller.GetTile(10, 0, 1);
             var statusResult = Assert.IsType<ObjectResult>(result2);
             Assert.Equal(429, statusResult.StatusCode);
 
             // Request from different client IP should succeed
             controller.ControllerContext.HttpContext.Request.Headers["X-Forwarded-For"] = clientIp2;
-            var result3 = await controller.GetTile(1, 1, 3);
+            var result3 = await controller.GetTile(10, 0, 2);
             Assert.IsNotType<ObjectResult>(result3);
         }
         finally

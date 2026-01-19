@@ -15,7 +15,12 @@ public class TileCacheService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly IApplicationSettingsService _applicationSettings;
-    private readonly SemaphoreSlim _cacheLock = new(1, 1);
+
+    /// <summary>
+    /// Lock for serializing file system operations across all service instances.
+    /// Static because TileCacheService is scoped (per-request) but file operations must be synchronized globally.
+    /// </summary>
+    private static readonly SemaphoreSlim _cacheLock = new(1, 1);
 
     /// <summary>
     /// How many tiles to delete from LRU cached storage when the limit has been reached.
@@ -27,8 +32,22 @@ public class TileCacheService
     // 1 GB maximum cache size for zoom levels >= 9.
     private readonly int _maxCacheSizeInMB;
 
-    // Tracks the total size of cached tiles in Bytes (for zoom >= 9)
-    private long _currentCacheSize = 0;
+    /// <summary>
+    /// Tracks the total size of cached tiles in bytes (for zoom >= 9).
+    /// Static because cache size must be tracked across all scoped service instances.
+    /// Initialized from database on first access via Initialize().
+    /// </summary>
+    private static long _currentCacheSize = 0;
+
+    /// <summary>
+    /// Indicates whether _currentCacheSize has been initialized from the database.
+    /// </summary>
+    private static bool _cacheSizeInitialized = false;
+
+    /// <summary>
+    /// Lock object for one-time cache size initialization.
+    /// </summary>
+    private static readonly object _initLock = new();
 
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
         ApplicationDbContext dbContext, IApplicationSettingsService applicationSettings,
@@ -80,10 +99,41 @@ public class TileCacheService
                 Directory.CreateDirectory(_cacheDirectory);
                 _logger.LogInformation("TileCache directory created at {CacheDirectory}.", _cacheDirectory);
             }
+
+            // Initialize cache size from database only once across all instances
+            InitializeCacheSizeFromDb();
         }
         catch (UnauthorizedAccessException uae)
         {
             _logger.LogError(uae, "Insufficient permissions to create TileCache directory.");
+        }
+    }
+
+    /// <summary>
+    /// Initializes the _currentCacheSize from the database on first access.
+    /// Uses double-checked locking to ensure thread-safe one-time initialization.
+    /// </summary>
+    private void InitializeCacheSizeFromDb()
+    {
+        if (_cacheSizeInitialized) return;
+
+        lock (_initLock)
+        {
+            if (_cacheSizeInitialized) return;
+
+            try
+            {
+                var totalSize = _dbContext.TileCacheMetadata.Sum(t => (long)t.Size);
+                Interlocked.Exchange(ref _currentCacheSize, totalSize);
+                _cacheSizeInitialized = true;
+                _logger.LogInformation("Initialized tile cache size from database: {SizeInMB:F2} MB",
+                    totalSize / 1024.0 / 1024.0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to initialize cache size from database. Starting with 0.");
+                _cacheSizeInitialized = true; // Mark as initialized to prevent repeated failures
+            }
         }
     }
 
@@ -438,8 +488,22 @@ public class TileCacheService
                 _logger.LogInformation("Tile file not found. Attempting to fetch from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
                 await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
 
-                // After fetching, check again.
-                if (File.Exists(tileFilePath))
+                // After fetching, read the file while holding the lock to prevent race with eviction.
+                byte[]? fetchedTileData = null;
+                await _cacheLock.WaitAsync();
+                try
+                {
+                    if (File.Exists(tileFilePath))
+                    {
+                        fetchedTileData = await File.ReadAllBytesAsync(tileFilePath);
+                    }
+                }
+                finally
+                {
+                    _cacheLock.Release();
+                }
+
+                if (fetchedTileData != null)
                 {
                     // for zoom levels >= 9
                     if (zoomLvl >= 9)
@@ -447,7 +511,7 @@ public class TileCacheService
                         await UpdateTileLastAccessedAsync(zoomLevel, xCoordinate, yCoordinate);
                     }
 
-                    return await File.ReadAllBytesAsync(tileFilePath);
+                    return fetchedTileData;
                 }
                 else
                 {
@@ -526,20 +590,20 @@ public class TileCacheService
     }
 
     /// <summary>
-    /// Gets the total tile LRU (Least Recently Used) cache size store in file system.
+    /// Gets the total tile LRU (Least Recently Used) cache size stored in the database.
     /// LRU cache is cached tiles with zoom levels >= 9.
     /// </summary>
-    /// <returns></returns>
-    public Task<double> GetLruCachedInMbFilesAsync()
+    /// <returns>The total LRU cache size in megabytes.</returns>
+    public async Task<double> GetLruCachedInMbFilesAsync()
     {
-        var lruSize = _dbContext.TileCacheMetadata.Sum(t => t.Size);
+        var lruSize = await _dbContext.TileCacheMetadata.SumAsync(t => (long)t.Size);
 
         if (lruSize <= 0)
         {
-            return Task.FromResult(0.0);
+            return 0.0;
         }
 
-        return Task.FromResult(lruSize / 1024.0 / 1024.0);
+        return lruSize / 1024.0 / 1024.0;
     }
 
     public async Task<int> GetLruTotalFilesInDbAsync()

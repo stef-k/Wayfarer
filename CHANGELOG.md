@@ -11,14 +11,20 @@
 - Added dynamic map attribution from the active tile provider
 - Added tile request rate limiting for anonymous users (configurable, default 500/min per IP)
 - Added X-Forwarded-For support for correct IP detection behind reverse proxies
-- Added tile coordinate validation (z: 0-22, x/y: non-negative)
+- Added tile coordinate validation (z: 0-22, x/y: 0 to 2^z-1)
 - Fixed XSS vulnerability in tile provider attribution via HTML sanitization (#115)
 - Fixed race condition in tile cache size tracking with Interlocked operations (#115)
 - Fixed API key exposure in tile service logs via URL redaction (#115)
 - Fixed X-Forwarded-For spoofing by only trusting header from localhost/private IPs (#115)
 - Fixed race condition in rate limiter with atomic ConcurrentDictionary operations (#115)
+- Fixed rate limiter TOCTOU on window reset with CompareExchange (#115)
+- Fixed tile cache lock not being shared across scoped service instances (#115)
+- Fixed tile cache size not initialized from database on startup (#115)
+- Fixed file read race condition after CacheTileAsync (#115)
+- Fixed synchronous DB query in GetLruCachedInMbFilesAsync (#115)
 - Security: Added HtmlSanitizer for safe attribution rendering
 - Security: Added CSRF protection to cache deletion endpoints (#115)
+- Security: Added anti-forgery tokens to cache deletion AJAX calls (#115)
 
 ### 2026-01-17
 - Added CHANGELOG.md

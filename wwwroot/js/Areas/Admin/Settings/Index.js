@@ -98,6 +98,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * Gets the anti-forgery token from the page for AJAX POST requests.
+ * @returns {string} The anti-forgery token value or empty string if not found.
+ */
+const getAntiForgeryToken = () => {
+    return document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+};
+
+/**
  * Deletes all map tile cache from zoom level 1 to max from file system and database.
  */
 const deleteAllMapTileCache = () => {
@@ -108,7 +116,10 @@ const deleteAllMapTileCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/DeleteAllMapTileCache", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getAntiForgeryToken()
+                }
             })
                 .then(response => response.json())
                 .then(data => {
@@ -143,7 +154,10 @@ const deleteLruCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/DeleteLruCache", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getAntiForgeryToken()
+                }
             })
                 .then(response => response.json())
                 .then(data => {
@@ -178,7 +192,10 @@ const deleteMbtilesCache = () => {
         onConfirm: () => {
             fetch("/Admin/Settings/ClearMbtilesCache", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: {
+                    "Content-Type": "application/json",
+                    "RequestVerificationToken": getAntiForgeryToken()
+                }
             })
                 .then(response => {
                     if (response.ok) {
