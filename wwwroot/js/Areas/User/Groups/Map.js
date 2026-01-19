@@ -562,9 +562,10 @@ const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contri
         originalLabelHTML.clear();
       }
 
-      // Reload map with filtered selection
+      // Reload map with filtered selection (latest + historical).
       if (searchActive || wasSearchActive) {
         loadLatest().catch(() => {});
+        loadViewport().catch(() => {});
       }
       updateSelectAllState();
 
