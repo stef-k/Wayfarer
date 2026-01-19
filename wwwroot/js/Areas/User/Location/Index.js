@@ -15,6 +15,11 @@ import {
     currentDateInputValue,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
+import {
+    generateActivityEditorHtml,
+    initActivitySelect,
+    setupActivityEditorEvents,
+} from '../../../util/activity-editor.js';
 
 // permalink setup
 const urlParams = new URLSearchParams(window.location.search);
@@ -171,15 +176,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Wire up the Bootstrap “shown” event for Wikipedia hover cards
+    // Wire up the Bootstrap "shown" event for Wikipedia hover cards and activity editor
     const modalEl = document.getElementById('locationModal');
     if (!modalEl) {
         console.error('Modal element not found!');
     } else {
         modalEl.addEventListener('shown.bs.modal', () => {
             initWikipediaPopovers(modalEl);
+            // Initialize TomSelect for activity editor if present
+            const activityEditor = modalEl.querySelector('.activity-editor');
+            if (activityEditor) {
+                const locationId = activityEditor.dataset.locationId;
+                initActivitySelect(locationId);
+            }
         });
     }
+
+    // Set up event delegation for activity editor save/clear buttons
+    setupActivityEditorEvents('#modalContent');
 
     getUserStats();
 });
@@ -441,11 +455,7 @@ const generateLocationModalContent = location => {
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Activity:</strong> <span>${
-        (location.activityType && location.activityType !== 'Unknown')
-            ? location.activityType
-            : '<i class="bi bi-patch-question" title="No available data for Activity"></i>'
-    }</span></div>
+            <div class="col-6">${generateActivityEditorHtml(location)}</div>
             <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
         </div>
         <div class="row mb-2">

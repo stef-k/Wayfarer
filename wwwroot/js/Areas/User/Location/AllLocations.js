@@ -6,6 +6,11 @@ import {
     currentDateInputValue,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
+import {
+    generateActivityEditorHtml,
+    initActivitySelect,
+    setupActivityEditorEvents,
+} from '../../../util/activity-editor.js';
 
 let locations = [];
 let currentPage = 1;
@@ -128,13 +133,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // PAGINATION (dynamic links)
     window.goToPage = (page) => loadLocations(page);
 
-    // INIT MODAL WIKI POP-OVERS
+    // INIT MODAL WIKI POP-OVERS and ACTIVITY EDITOR
     const modalEl = document.getElementById('locationModal');
     if (modalEl) {
         modalEl.addEventListener('shown.bs.modal', () => {
             initWikipediaPopovers(modalEl);
+            // Initialize TomSelect for activity editor if present
+            const activityEditor = modalEl.querySelector('.activity-editor');
+            if (activityEditor) {
+                const locationId = activityEditor.dataset.locationId;
+                initActivitySelect(locationId);
+            }
         });
     }
+
+    // Set up event delegation for activity editor save/clear buttons
+    setupActivityEditorEvents('#modalContent');
 
     // BULK DELETE
     document.getElementById('deleteSelected').addEventListener('click', () => {
@@ -373,9 +387,7 @@ const generateLocationModalContent = (location) => {
         </div>
       </div>
       <div class="row mb-2">
-        <div class="col-6">
-            <strong>Activity:</strong> ${location.activityType || '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}
-        </div>
+        <div class="col-6">${generateActivityEditorHtml(location)}</div>
         <div class="col-6">
             <strong>Altitude:</strong> ${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}
         </div>
