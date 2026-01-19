@@ -9,19 +9,25 @@
  * @param {number} location.id - The location ID
  * @param {number|null} location.activityTypeId - Current activity type ID (if any)
  * @param {string|null} location.activityType - Current activity type name (if any)
+ * @param {Object} [options] - Rendering options for the editor
+ * @param {boolean} [options.showLabel=true] - Whether to show the "Activity" label
+ * @param {boolean} [options.compact=false] - Whether to use compact spacing for tables
  * @returns {string} HTML string for the activity editor
  */
-export const generateActivityEditorHtml = (location) => {
-    const currentActivity = location.activityType && location.activityType !== 'Unknown'
-        ? location.activityType
+export const generateActivityEditorHtml = (location, options = {}) => {
+    const { showLabel = true, compact = false } = options;
+    const activityName = location.activityType || location.activity || null;
+    const currentActivity = activityName && activityName !== 'Unknown'
+        ? activityName
         : null;
     const currentActivityId = location.activityTypeId || '';
     const hasActivity = Boolean(currentActivity);
+    const spacingClass = compact ? '' : 'mt-1';
 
     return `
         <div class="activity-editor" data-location-id="${location.id}">
-            <strong>Activity:</strong>
-            <span class="activity-view align-items-center gap-2 mt-1 d-inline-flex flex-wrap">
+            ${showLabel ? '<strong>Activity:</strong>' : ''}
+            <span class="activity-view align-items-center gap-2 ${spacingClass} d-inline-flex flex-wrap">
                 <a href="#"
                    class="activity-edit-toggle activity-current-link ${hasActivity ? '' : 'd-none'}"
                    data-location-id="${location.id}">
@@ -37,7 +43,7 @@ export const generateActivityEditorHtml = (location) => {
                 </a>
             </span>
             <div class="activity-edit d-none">
-                <div class="d-flex align-items-center gap-2 mt-1">
+                <div class="d-flex align-items-center gap-2 ${spacingClass}">
                     <select id="activitySelect-${location.id}"
                             class="form-select form-select-sm activity-select"
                             data-api-url="/api/activity"
