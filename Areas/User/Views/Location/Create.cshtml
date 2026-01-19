@@ -4,6 +4,7 @@
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     ViewData["LoadQuill"] = true;
+    ViewData["LoadTomSelect"] = true;
 }
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
@@ -44,7 +45,8 @@
                         <div class="col-md-9">
                             <div class="form-group">
                                 <label for="SelectedActivityId" class="form-label">Activity Type</label>
-                                <select asp-for="SelectedActivityId" class="form-select" asp-items="Model.ActivityTypes">
+                                <select asp-for="SelectedActivityId" id="activitySelect" class="form-select"
+                                        data-api-url="/api/activity">
                                     <option value="">Select an Activity</option>
                                 </select>
 

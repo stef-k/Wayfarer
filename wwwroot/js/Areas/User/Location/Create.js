@@ -121,6 +121,34 @@ document.addEventListener("DOMContentLoaded", function () {
         notes.value = quill.root.innerHTML; // Save HTML content of the editor
     });
 
+    // Initialize TomSelect on Activity dropdown with API-based loading
+    if (typeof TomSelect !== 'undefined') {
+        const activitySelect = document.getElementById('activitySelect');
+        if (activitySelect) {
+            const apiUrl = activitySelect.dataset.apiUrl || '/api/activity';
+            new TomSelect(activitySelect, {
+                valueField: 'id',
+                labelField: 'name',
+                searchField: ['name', 'description'],
+                create: false,
+                sortField: { field: 'name', direction: 'asc' },
+                placeholder: 'Search for an activity...',
+                allowEmptyOption: true,
+                preload: 'focus',
+                load: function(query, callback) {
+                    fetch(apiUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            callback(data);
+                        })
+                        .catch(() => {
+                            callback();
+                        });
+                }
+            });
+        }
+    }
+
 });
 
 

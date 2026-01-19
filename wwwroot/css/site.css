@@ -2028,3 +2028,60 @@ html[data-bs-theme="dark"] .ql-editor a {
         max-width: 320px;
     }
 }
+
+/* ─────────────────────────────────────────────────────────
+   Dark Theme: TomSelect Searchable Dropdown
+   Ensure TomSelect controls match Bootstrap dark theme
+───────────────────────────────────────────────────────── */
+[data-bs-theme="dark"] .ts-wrapper.single .ts-control,
+[data-bs-theme="dark"] .ts-wrapper.multi .ts-control {
+    background-color: #212529 !important;
+    color: #c9d1d9 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .ts-wrapper .ts-control input,
+[data-bs-theme="dark"] .ts-wrapper .ts-control input::placeholder {
+    color: #c9d1d9 !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown {
+    background-color: #212529 !important;
+    border-color: #495057 !important;
+    color: #c9d1d9 !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown .option {
+    color: #c9d1d9 !important;
+    background-color: #212529 !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown .option:hover,
+[data-bs-theme="dark"] .ts-dropdown .option.active {
+    background-color: #495057 !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .ts-dropdown .option.selected {
+    background-color: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .ts-wrapper.focus .ts-control {
+    border-color: #6c757d !important;
+    box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25) !important;
+}
+
+/* TomSelect dropdown header/empty state */
+[data-bs-theme="dark"] .ts-dropdown .no-results {
+    color: #adb5bd !important;
+}
+
+/* TomSelect clear button */
+[data-bs-theme="dark"] .ts-wrapper .clear-button {
+    color: #c9d1d9 !important;
+}
+
+[data-bs-theme="dark"] .ts-wrapper .clear-button:hover {
+    color: #ffffff !important;
+}
