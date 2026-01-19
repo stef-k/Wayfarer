@@ -5,6 +5,7 @@
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     ViewData["LoadQuill"] = true;
+    ViewData["LoadTomSelect"] = true;
 }
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
@@ -46,8 +47,16 @@
                         <div class="col-md-9">
                             <div class="form-group">
                                 <label for="SelectedActivityId" class="form-label">Activity Type</label>
-                                <select asp-for="SelectedActivityId" class="form-select" asp-items="Model.ActivityTypes">
+                                @{
+                                    var selectedActivity = Model.ActivityTypes?.FirstOrDefault(a => a.Selected);
+                                }
+                                <select asp-for="SelectedActivityId" id="activitySelect" class="form-select"
+                                        data-api-url="/api/activity">
                                     <option value="">Select an Activity</option>
+                                    @if (selectedActivity != null)
+                                    {
+                                        <option value="@selectedActivity.Value" selected>@selectedActivity.Text</option>
+                                    }
                                 </select>
                                 @Html.ValidationMessageFor(m => m.SelectedActivityId, "", new { @class = "text-danger" })
                             </div>
