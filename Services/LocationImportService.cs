@@ -112,10 +112,10 @@ namespace Wayfarer.Parsers
                         .Take(batchSize)
                         .ToList();
 
-                    // Set Source field on all locations in batch
+                    // Set Source field on locations that don't already have one (preserve from file if present)
                     foreach (var loc in batch)
                     {
-                        loc.Source = "queue-import";
+                        loc.Source ??= "queue-import";
                     }
 
                     // 2) Reverse‑geocode only if we have a key AND the record truly needs it (not having a full address data)

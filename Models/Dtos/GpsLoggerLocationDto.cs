@@ -20,6 +20,12 @@ public class GpsLoggerLocationDto
     #region Metadata Fields
 
     /// <summary>
+    /// Source/origin of the location data (e.g., "mobile-log", "mobile-checkin").
+    /// If not provided, backend defaults based on endpoint.
+    /// </summary>
+    public string? Source { get; set; }
+
+    /// <summary>
     /// Whether this location was manually invoked by user (check-in) or automatic.
     /// For check-in endpoint, this is implicitly true.
     /// </summary>

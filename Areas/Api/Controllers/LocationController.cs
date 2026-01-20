@@ -175,8 +175,8 @@ public class LocationController : BaseApiController
                 ActivityTypeId = dto.ActivityTypeId,
 
                 // Metadata fields
-                Source = "api-checkin",
-                IsUserInvoked = true, // Always true for check-ins
+                Source = dto.Source ?? "api-checkin",
+                IsUserInvoked = dto.IsUserInvoked ?? true, // Default true for check-ins
                 Provider = dto.Provider,
                 Bearing = dto.Bearing,
                 AppVersion = dto.AppVersion,
@@ -655,7 +655,7 @@ public class LocationController : BaseApiController
                 ActivityTypeId = dto.ActivityTypeId,
 
                 // Metadata fields
-                Source = "api-log",
+                Source = dto.Source ?? "api-log",
                 IsUserInvoked = dto.IsUserInvoked ?? false,
                 Provider = dto.Provider,
                 Bearing = dto.Bearing,
