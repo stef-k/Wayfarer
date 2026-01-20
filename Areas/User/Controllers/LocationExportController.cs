@@ -64,6 +64,17 @@ public class LocationExportController : Controller
                 { "Region", loc.Region },
                 { "Country", loc.Country },
                 { "Notes", loc.Notes },
+                // Metadata fields
+                { "Source", loc.Source },
+                { "IsUserInvoked", loc.IsUserInvoked },
+                { "Provider", loc.Provider },
+                { "Bearing", loc.Bearing },
+                { "AppVersion", loc.AppVersion },
+                { "AppBuild", loc.AppBuild },
+                { "DeviceModel", loc.DeviceModel },
+                { "OsVersion", loc.OsVersion },
+                { "BatteryLevel", loc.BatteryLevel },
+                { "IsCharging", loc.IsCharging },
             };
             features.Add(new Feature(loc.Coordinates, attrs));
         }
@@ -108,7 +119,18 @@ public class LocationExportController : Controller
             Place = l.Place,
             Region = l.Region,
             Country = l.Country,
-            Notes = l.Notes
+            Notes = l.Notes,
+            // Metadata fields
+            l.Source,
+            l.IsUserInvoked,
+            l.Provider,
+            l.Bearing,
+            l.AppVersion,
+            l.AppBuild,
+            l.DeviceModel,
+            l.OsVersion,
+            l.BatteryLevel,
+            l.IsCharging
         });
 
         var ms = new MemoryStream();
@@ -154,7 +176,18 @@ public class LocationExportController : Controller
                    || loc.Accuracy.HasValue
                    || loc.Speed.HasValue
                    || !string.IsNullOrWhiteSpace(loc.ActivityType?.Name)
-                   || !string.IsNullOrWhiteSpace(loc.Notes);
+                   || !string.IsNullOrWhiteSpace(loc.Notes)
+                   // Metadata fields
+                   || !string.IsNullOrWhiteSpace(loc.Source)
+                   || loc.IsUserInvoked.HasValue
+                   || !string.IsNullOrWhiteSpace(loc.Provider)
+                   || loc.Bearing.HasValue
+                   || !string.IsNullOrWhiteSpace(loc.AppVersion)
+                   || !string.IsNullOrWhiteSpace(loc.AppBuild)
+                   || !string.IsNullOrWhiteSpace(loc.DeviceModel)
+                   || !string.IsNullOrWhiteSpace(loc.OsVersion)
+                   || loc.BatteryLevel.HasValue
+                   || loc.IsCharging.HasValue;
         }
 
         var ms = new MemoryStream();
@@ -198,6 +231,17 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "region", loc.Region);
                     WriteGpxExtension(xw, "country", loc.Country);
                     WriteGpxExtension(xw, "notes", loc.Notes);
+                    // Metadata fields
+                    WriteGpxExtension(xw, "source", loc.Source);
+                    WriteGpxExtension(xw, "isUserInvoked", loc.IsUserInvoked?.ToString().ToLowerInvariant());
+                    WriteGpxExtension(xw, "provider", loc.Provider);
+                    WriteGpxExtension(xw, "bearing", loc.Bearing?.ToString(CultureInfo.InvariantCulture));
+                    WriteGpxExtension(xw, "appVersion", loc.AppVersion);
+                    WriteGpxExtension(xw, "appBuild", loc.AppBuild);
+                    WriteGpxExtension(xw, "deviceModel", loc.DeviceModel);
+                    WriteGpxExtension(xw, "osVersion", loc.OsVersion);
+                    WriteGpxExtension(xw, "batteryLevel", loc.BatteryLevel?.ToString(CultureInfo.InvariantCulture));
+                    WriteGpxExtension(xw, "isCharging", loc.IsCharging?.ToString().ToLowerInvariant());
                     xw.WriteEndElement(); // extensions
                 }
 
@@ -270,6 +314,17 @@ public class LocationExportController : Controller
                 WriteKmlData(xw, "Place", loc.Place);
                 WriteKmlData(xw, "Region", loc.Region);
                 WriteKmlData(xw, "Country", loc.Country);
+                // Metadata fields
+                WriteKmlData(xw, "Source", loc.Source);
+                WriteKmlData(xw, "IsUserInvoked", loc.IsUserInvoked?.ToString());
+                WriteKmlData(xw, "Provider", loc.Provider);
+                WriteKmlData(xw, "Bearing", loc.Bearing?.ToString(CultureInfo.InvariantCulture));
+                WriteKmlData(xw, "AppVersion", loc.AppVersion);
+                WriteKmlData(xw, "AppBuild", loc.AppBuild);
+                WriteKmlData(xw, "DeviceModel", loc.DeviceModel);
+                WriteKmlData(xw, "OsVersion", loc.OsVersion);
+                WriteKmlData(xw, "BatteryLevel", loc.BatteryLevel?.ToString(CultureInfo.InvariantCulture));
+                WriteKmlData(xw, "IsCharging", loc.IsCharging?.ToString());
                 xw.WriteEndElement(); // ExtendedData
 
                 xw.WriteStartElement("Point");
