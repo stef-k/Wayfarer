@@ -107,6 +107,71 @@
                 </form>
             </div>
         </div>
+
+        @if (Model.HasCaptureMetadata)
+        {
+            <details class="card shadow-sm">
+                <summary class="card-header text-bg-secondary" style="cursor: pointer;">
+                    <span class="fs-6">Capture Details</span>
+                </summary>
+                <div class="card-body">
+                    <dl class="row small mb-0">
+                        @if (!string.IsNullOrEmpty(Model.Source))
+                        {
+                            <dt class="col-sm-4 text-muted">Source</dt>
+                            <dd class="col-sm-8">@Model.Source</dd>
+                        }
+                        @if (Model.IsUserInvoked.HasValue)
+                        {
+                            <dt class="col-sm-4 text-muted">Manual Check-in</dt>
+                            <dd class="col-sm-8">@(Model.IsUserInvoked.Value ? "Yes" : "No")</dd>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Provider))
+                        {
+                            <dt class="col-sm-4 text-muted">Location Provider</dt>
+                            <dd class="col-sm-8">@Model.Provider.ToUpperInvariant()</dd>
+                        }
+                        @if (Model.Bearing.HasValue)
+                        {
+                            var bearing = Model.Bearing.Value;
+                            var direction = bearing switch
+                            {
+                                >= 337.5 or < 22.5 => "N",
+                                >= 22.5 and < 67.5 => "NE",
+                                >= 67.5 and < 112.5 => "E",
+                                >= 112.5 and < 157.5 => "SE",
+                                >= 157.5 and < 202.5 => "S",
+                                >= 202.5 and < 247.5 => "SW",
+                                >= 247.5 and < 292.5 => "W",
+                                _ => "NW"
+                            };
+                            <dt class="col-sm-4 text-muted">Bearing</dt>
+                            <dd class="col-sm-8">@bearing.ToString("F0")° (@direction)</dd>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.DeviceModel))
+                        {
+                            <dt class="col-sm-4 text-muted">Device</dt>
+                            <dd class="col-sm-8">@Model.DeviceModel</dd>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.OsVersion))
+                        {
+                            <dt class="col-sm-4 text-muted">OS Version</dt>
+                            <dd class="col-sm-8">@Model.OsVersion</dd>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.AppVersion))
+                        {
+                            <dt class="col-sm-4 text-muted">App Version</dt>
+                            <dd class="col-sm-8">@Model.AppVersion@(string.IsNullOrEmpty(Model.AppBuild) ? "" : $" ({Model.AppBuild})")</dd>
+                        }
+                        @if (Model.BatteryLevel.HasValue)
+                        {
+                            <dt class="col-sm-4 text-muted">Battery</dt>
+                            <dd class="col-sm-8">@Model.BatteryLevel%@(Model.IsCharging == true ? " (Charging)" : "")</dd>
+                        }
+                    </dl>
+                </div>
+            </details>
+        }
     </div>
 
     <!-- Map Column -->
