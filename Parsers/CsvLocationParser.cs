@@ -71,6 +71,7 @@ public sealed class CsvLocationParser : ILocationDataParser
             var notes = GetField(csv, "Notes");
 
             // Extract metadata fields
+            var source = GetField(csv, "Source");
             var isUserInvoked = GetNullableBool(csv, "IsUserInvoked");
             var provider = GetField(csv, "Provider");
             var bearing = GetNullableDouble(csv, "Bearing");
@@ -104,6 +105,7 @@ public sealed class CsvLocationParser : ILocationDataParser
                 ActivityType = null!,
 
                 // Metadata fields
+                Source = source,
                 IsUserInvoked = isUserInvoked,
                 Provider = provider,
                 Bearing = bearing,

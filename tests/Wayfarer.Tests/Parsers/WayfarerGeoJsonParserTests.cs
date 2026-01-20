@@ -311,6 +311,7 @@ public class WayfarerGeoJsonParserTests
                     ""geometry"": { ""type"": ""Point"", ""coordinates"": [-74.006, 40.7128] },
                     ""properties"": {
                         ""TimestampUtc"": ""2024-01-15T10:30:00Z"",
+                        ""Source"": ""mobile-log"",
                         ""IsUserInvoked"": true,
                         ""Provider"": ""gps"",
                         ""Bearing"": 180.5,
@@ -332,6 +333,7 @@ public class WayfarerGeoJsonParserTests
         Assert.Single(result);
         var location = result[0];
 
+        Assert.Equal("mobile-log", location.Source);
         Assert.True(location.IsUserInvoked);
         Assert.Equal("gps", location.Provider);
         Assert.Equal(180.5, location.Bearing);

@@ -103,6 +103,7 @@ namespace Wayfarer.Parsers
                 var notes = getString("Notes");
 
                 // Extract metadata fields
+                var source = getString("Source");
                 var isUserInvoked = getBool("IsUserInvoked");
                 var provider = getString("Provider");
                 var bearing = getDouble("Bearing");
@@ -135,6 +136,7 @@ namespace Wayfarer.Parsers
                     Country = country,
 
                     // Metadata fields
+                    Source = source,
                     IsUserInvoked = isUserInvoked,
                     Provider = provider,
                     Bearing = bearing,

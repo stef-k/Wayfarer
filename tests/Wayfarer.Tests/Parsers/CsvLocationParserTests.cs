@@ -335,8 +335,8 @@ not-a-number,-74.0060,2024-01-15T10:00:00Z,UTC
     public async Task ParseAsync_AllMetadataFields_ParsesCorrectly()
     {
         // Arrange
-        var csv = @"Latitude,Longitude,TimestampUtc,TimeZoneId,IsUserInvoked,Provider,Bearing,AppVersion,AppBuild,DeviceModel,OsVersion,BatteryLevel,IsCharging
-40.7128,-74.0060,2024-01-15T10:00:00Z,UTC,true,gps,180.5,1.2.3,45,Pixel 7 Pro,Android 14,85,false";
+        var csv = @"Latitude,Longitude,TimestampUtc,TimeZoneId,Source,IsUserInvoked,Provider,Bearing,AppVersion,AppBuild,DeviceModel,OsVersion,BatteryLevel,IsCharging
+40.7128,-74.0060,2024-01-15T10:00:00Z,UTC,mobile-log,true,gps,180.5,1.2.3,45,Pixel 7 Pro,Android 14,85,false";
         using var stream = CreateStream(csv);
 
         // Act
@@ -345,6 +345,7 @@ not-a-number,-74.0060,2024-01-15T10:00:00Z,UTC
         // Assert
         Assert.Single(result);
         var location = result[0];
+        Assert.Equal("mobile-log", location.Source);
         Assert.True(location.IsUserInvoked);
         Assert.Equal("gps", location.Provider);
         Assert.Equal(180.5, location.Bearing);
