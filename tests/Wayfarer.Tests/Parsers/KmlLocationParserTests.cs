@@ -430,4 +430,48 @@ public class KmlLocationParserTests
         Assert.Single(result);
         Assert.Null(result[0].Altitude);
     }
+
+    [Fact]
+    public async Task ParseAsync_MetadataFields_ParsesAllIncludingSource()
+    {
+        // Arrange - Include all metadata fields including Source for roundtrip support
+        var kml = $@"{KmlHeader}
+<Document>
+    <Placemark>
+        <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
+        <ExtendedData>
+            <Data name=""TimestampUtc""><value>2024-01-15T10:30:00Z</value></Data>
+            <Data name=""Source""><value>mobile-log</value></Data>
+            <Data name=""IsUserInvoked""><value>true</value></Data>
+            <Data name=""Provider""><value>gps</value></Data>
+            <Data name=""Bearing""><value>180.5</value></Data>
+            <Data name=""AppVersion""><value>1.2.3</value></Data>
+            <Data name=""AppBuild""><value>45</value></Data>
+            <Data name=""DeviceModel""><value>Pixel 7 Pro</value></Data>
+            <Data name=""OsVersion""><value>Android 14</value></Data>
+            <Data name=""BatteryLevel""><value>85</value></Data>
+            <Data name=""IsCharging""><value>false</value></Data>
+        </ExtendedData>
+    </Placemark>
+</Document>
+{KmlFooter}";
+        using var stream = CreateStream(kml);
+
+        // Act
+        var result = await _parser.ParseAsync(stream, "user1");
+
+        // Assert
+        Assert.Single(result);
+        var location = result[0];
+        Assert.Equal("mobile-log", location.Source);
+        Assert.True(location.IsUserInvoked);
+        Assert.Equal("gps", location.Provider);
+        Assert.Equal(180.5, location.Bearing);
+        Assert.Equal("1.2.3", location.AppVersion);
+        Assert.Equal("45", location.AppBuild);
+        Assert.Equal("Pixel 7 Pro", location.DeviceModel);
+        Assert.Equal("Android 14", location.OsVersion);
+        Assert.Equal(85, location.BatteryLevel);
+        Assert.False(location.IsCharging);
+    }
 }

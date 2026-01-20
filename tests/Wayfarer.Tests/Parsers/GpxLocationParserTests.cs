@@ -377,4 +377,47 @@ public class GpxLocationParserTests
         // Act & Assert
         await Assert.ThrowsAsync<System.Xml.XmlException>(() => _parser.ParseAsync(stream, "user1"));
     }
+
+    [Fact]
+    public async Task ParseAsync_MetadataFields_ParsesAllIncludingSource()
+    {
+        // Arrange - Include all metadata fields including Source for roundtrip support
+        var gpx = $@"{GpxHeader}
+<trk><trkseg>
+    <trkpt lat=""40.7128"" lon=""-74.0060"">
+        <time>2024-01-15T10:30:00Z</time>
+        <extensions>
+            <wayfarer:source>mobile-log</wayfarer:source>
+            <wayfarer:isUserInvoked>true</wayfarer:isUserInvoked>
+            <wayfarer:provider>gps</wayfarer:provider>
+            <wayfarer:bearing>180.5</wayfarer:bearing>
+            <wayfarer:appVersion>1.2.3</wayfarer:appVersion>
+            <wayfarer:appBuild>45</wayfarer:appBuild>
+            <wayfarer:deviceModel>Pixel 7 Pro</wayfarer:deviceModel>
+            <wayfarer:osVersion>Android 14</wayfarer:osVersion>
+            <wayfarer:batteryLevel>85</wayfarer:batteryLevel>
+            <wayfarer:isCharging>false</wayfarer:isCharging>
+        </extensions>
+    </trkpt>
+</trkseg></trk>
+{GpxFooter}";
+        using var stream = CreateStream(gpx);
+
+        // Act
+        var result = await _parser.ParseAsync(stream, "user1");
+
+        // Assert
+        Assert.Single(result);
+        var location = result[0];
+        Assert.Equal("mobile-log", location.Source);
+        Assert.True(location.IsUserInvoked);
+        Assert.Equal("gps", location.Provider);
+        Assert.Equal(180.5, location.Bearing);
+        Assert.Equal("1.2.3", location.AppVersion);
+        Assert.Equal("45", location.AppBuild);
+        Assert.Equal("Pixel 7 Pro", location.DeviceModel);
+        Assert.Equal("Android 14", location.OsVersion);
+        Assert.Equal(85, location.BatteryLevel);
+        Assert.False(location.IsCharging);
+    }
 }

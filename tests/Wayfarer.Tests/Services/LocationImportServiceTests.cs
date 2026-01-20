@@ -287,6 +287,386 @@ public class LocationImportServiceTests : TestBase
         Assert.Equal(2, updatedImport2.SkippedDuplicates); // Both records skipped
     }
 
+    [Fact]
+    public async Task ProcessImport_BoundaryTime_ExactlyOneSecondApart_IsDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-time",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location exactly 1 second later at same coordinates (should be duplicate)
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.1,-122.2,2025-01-01T12:00:01Z,2025-01-01T12:00:01Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 30,
+            UserId = "u-boundary-time",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should still have only 1 location (new one skipped as duplicate)
+        Assert.Equal(1, db.Locations.Count());
+        Assert.Equal(1, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
+    [Fact]
+    public async Task ProcessImport_BoundaryTime_JustOverOneSecondApart_IsNotDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-time2",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location 2 seconds later at same coordinates (should NOT be duplicate)
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.1,-122.2,2025-01-01T12:00:02Z,2025-01-01T12:00:02Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 31,
+            UserId = "u-boundary-time2",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should have 2 locations (new one is NOT a duplicate)
+        Assert.Equal(2, db.Locations.Count());
+        Assert.Equal(0, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
+    [Fact]
+    public async Task ProcessImport_BoundaryDistance_Within10Meters_IsDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location at 37.1, -122.2
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-dist",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location ~5 meters away at same timestamp (should be duplicate)
+        // At latitude 37.1°: ~5m north ≈ 0.000045 degrees latitude
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.100045,-122.2,2025-01-01T12:00:00Z,2025-01-01T12:00:00Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 32,
+            UserId = "u-boundary-dist",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should still have only 1 location (new one skipped as duplicate)
+        Assert.Equal(1, db.Locations.Count());
+        Assert.Equal(1, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
+    [Fact]
+    public async Task ProcessImport_BoundaryDistance_Over10Meters_IsNotDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location at 37.1, -122.2
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-dist2",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location ~15 meters away at same timestamp (should NOT be duplicate)
+        // At latitude 37.1°: ~15m north ≈ 0.000135 degrees latitude
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.100135,-122.2,2025-01-01T12:00:00Z,2025-01-01T12:00:00Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 33,
+            UserId = "u-boundary-dist2",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should have 2 locations (new one is NOT a duplicate)
+        Assert.Equal(2, db.Locations.Count());
+        Assert.Equal(0, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
+    [Fact]
+    public async Task ProcessImport_BothBoundaries_TimeAndDistanceWithinTolerance_IsDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-both",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location ~8m away and 1 second later (both within tolerance = duplicate)
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.100072,-122.2,2025-01-01T12:00:01Z,2025-01-01T12:00:01Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 34,
+            UserId = "u-boundary-both",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should have only 1 location (new one is a duplicate)
+        Assert.Equal(1, db.Locations.Count());
+        Assert.Equal(1, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
+    [Fact]
+    public async Task ProcessImport_Boundary_TimeWithinButDistanceOutside_IsNotDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-mix1",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location ~20m away but only 0.5 seconds later (distance outside, time within)
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.10018,-122.2,2025-01-01T12:00:00Z,2025-01-01T12:00:00Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 35,
+            UserId = "u-boundary-mix1",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should have 2 locations (new one is NOT a duplicate - distance too far)
+        Assert.Equal(2, db.Locations.Count());
+        Assert.Equal(0, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
+    [Fact]
+    public async Task ProcessImport_Boundary_DistanceWithinButTimeOutside_IsNotDuplicate()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location
+        var existingLocation = new Location
+        {
+            UserId = "u-boundary-mix2",
+            Timestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with location at same coordinates but 5 seconds later (distance within, time outside)
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
+            "37.1,-122.2,2025-01-01T12:00:05Z,2025-01-01T12:00:05Z,UTC");
+
+        var import = new LocationImport
+        {
+            Id = 36,
+            UserId = "u-boundary-mix2",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should have 2 locations (new one is NOT a duplicate - time too far)
+        Assert.Equal(2, db.Locations.Count());
+        Assert.Equal(0, db.LocationImports.Single(li => li.Id == import.Id).SkippedDuplicates);
+    }
+
     private sealed class FakeHttpHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
