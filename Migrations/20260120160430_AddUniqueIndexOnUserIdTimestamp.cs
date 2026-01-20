@@ -10,21 +10,14 @@ namespace Wayfarer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Add unique index to prevent duplicate locations for the same user at the same timestamp.
-            // This guards against race conditions in concurrent imports/API calls.
-            migrationBuilder.CreateIndex(
-                name: "IX_Locations_UserId_Timestamp_Unique",
-                table: "Locations",
-                columns: new[] { "UserId", "Timestamp" },
-                unique: true);
+            // No-op: legacy imports contain duplicate timestamps, so this unique index
+            // cannot be applied safely in production.
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Locations_UserId_Timestamp_Unique",
-                table: "Locations");
+            // No-op: index creation was removed to preserve historical data.
         }
     }
 }
