@@ -118,10 +118,18 @@ namespace Wayfarer.Parsers
                         loc.Source ??= "queue-import";
                     }
 
-                    // 2) Reverse‑geocode only if we have a key AND the record truly needs it (not having a full address data)
-                    if (hasApiKey)
+                    // 2) Filter duplicates BEFORE geocoding to avoid wasting API calls on duplicates
+                    var (toInsert, skippedInBatch) = await FilterDuplicatesAsync(
+                        batch,
+                        locationImport.UserId,
+                        cancellationToken);
+
+                    locationImport.SkippedDuplicates += skippedInBatch;
+
+                    // 3) Reverse‑geocode only non-duplicates that need it
+                    if (hasApiKey && toInsert.Count > 0)
                     {
-                        foreach (var loc in batch)
+                        foreach (var loc in toInsert)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
 
@@ -146,14 +154,6 @@ namespace Wayfarer.Parsers
                             }
                         }
                     }
-
-                    // 3) Filter duplicates before inserting
-                    var (toInsert, skippedInBatch) = await FilterDuplicatesAsync(
-                        batch,
-                        locationImport.UserId,
-                        cancellationToken);
-
-                    locationImport.SkippedDuplicates += skippedInBatch;
 
                     // Insert only non-duplicates
                     if (toInsert.Count > 0)
