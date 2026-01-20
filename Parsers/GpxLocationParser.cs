@@ -63,6 +63,17 @@ public sealed class GpxLocationParser : ILocationDataParser
             var region = GetExtensionValue(extensions, "region");
             var country = GetExtensionValue(extensions, "country");
             var notes = GetExtensionValue(extensions, "notes");
+            // Metadata fields
+            var source = GetExtensionValue(extensions, "source");
+            var isUserInvoked = ParseNullableBool(GetExtensionValue(extensions, "isUserInvoked"));
+            var provider = GetExtensionValue(extensions, "provider");
+            var bearing = ParseNullableDouble(GetExtensionValue(extensions, "bearing"));
+            var appVersion = GetExtensionValue(extensions, "appVersion");
+            var appBuild = GetExtensionValue(extensions, "appBuild");
+            var deviceModel = GetExtensionValue(extensions, "deviceModel");
+            var osVersion = GetExtensionValue(extensions, "osVersion");
+            var batteryLevel = ParseNullableInt(GetExtensionValue(extensions, "batteryLevel"));
+            var isCharging = ParseNullableBool(GetExtensionValue(extensions, "isCharging"));
 
             var timestampUtc = ParseTimestampUtc(timestampUtcRaw);
             var localTimestamp = ParseLocalTimestamp(localTimestampRaw, timestampUtc);
@@ -87,7 +98,18 @@ public sealed class GpxLocationParser : ILocationDataParser
                 Country = country,
                 Notes = notes,
                 ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
-                ActivityType = null!
+                ActivityType = null!,
+                // Metadata fields
+                Source = source,
+                IsUserInvoked = isUserInvoked,
+                Provider = provider,
+                Bearing = bearing,
+                AppVersion = appVersion,
+                AppBuild = appBuild,
+                DeviceModel = deviceModel,
+                OsVersion = osVersion,
+                BatteryLevel = batteryLevel,
+                IsCharging = isCharging
             };
 
             locations.Add(location);
@@ -124,6 +146,22 @@ public sealed class GpxLocationParser : ILocationDataParser
     private static double? ParseNullableDouble(string? raw)
     {
         return double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out var value)
+            ? value
+            : null;
+    }
+
+    private static bool? ParseNullableBool(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (bool.TryParse(raw, out var b)) return b;
+        if (raw == "1") return true;
+        if (raw == "0") return false;
+        return null;
+    }
+
+    private static int? ParseNullableInt(string? raw)
+    {
+        return int.TryParse(raw, NumberStyles.Integer, ParsingCulture, out var value)
             ? value
             : null;
     }
