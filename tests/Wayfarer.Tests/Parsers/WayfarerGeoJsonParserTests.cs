@@ -299,6 +299,112 @@ public class WayfarerGeoJsonParserTests
         Assert.Null(location.Notes);
     }
 
+    [Fact]
+    public async Task ParseAsync_ParsesAllMetadataFields()
+    {
+        // Arrange
+        var geoJson = @"{
+            ""type"": ""FeatureCollection"",
+            ""features"": [
+                {
+                    ""type"": ""Feature"",
+                    ""geometry"": { ""type"": ""Point"", ""coordinates"": [-74.006, 40.7128] },
+                    ""properties"": {
+                        ""TimestampUtc"": ""2024-01-15T10:30:00Z"",
+                        ""Source"": ""mobile-log"",
+                        ""IsUserInvoked"": true,
+                        ""Provider"": ""gps"",
+                        ""Bearing"": 180.5,
+                        ""AppVersion"": ""1.2.3"",
+                        ""AppBuild"": ""45"",
+                        ""DeviceModel"": ""Pixel 7 Pro"",
+                        ""OsVersion"": ""Android 14"",
+                        ""BatteryLevel"": 85,
+                        ""IsCharging"": false
+                    }
+                }
+            ]
+        }";
+
+        // Act
+        var result = await _parser.ParseAsync(ToStream(geoJson), "user-123");
+
+        // Assert
+        Assert.Single(result);
+        var location = result[0];
+
+        Assert.Equal("mobile-log", location.Source);
+        Assert.True(location.IsUserInvoked);
+        Assert.Equal("gps", location.Provider);
+        Assert.Equal(180.5, location.Bearing);
+        Assert.Equal("1.2.3", location.AppVersion);
+        Assert.Equal("45", location.AppBuild);
+        Assert.Equal("Pixel 7 Pro", location.DeviceModel);
+        Assert.Equal("Android 14", location.OsVersion);
+        Assert.Equal(85, location.BatteryLevel);
+        Assert.False(location.IsCharging);
+    }
+
+    [Fact]
+    public async Task ParseAsync_HandlesMissingMetadataFields()
+    {
+        // Arrange - no metadata fields
+        var geoJson = @"{
+            ""type"": ""FeatureCollection"",
+            ""features"": [
+                {
+                    ""type"": ""Feature"",
+                    ""geometry"": { ""type"": ""Point"", ""coordinates"": [-74.006, 40.7128] },
+                    ""properties"": {
+                        ""TimestampUtc"": ""2024-01-15T10:30:00Z""
+                    }
+                }
+            ]
+        }";
+
+        // Act
+        var result = await _parser.ParseAsync(ToStream(geoJson), "user-123");
+
+        // Assert
+        Assert.Single(result);
+        var location = result[0];
+
+        Assert.Null(location.IsUserInvoked);
+        Assert.Null(location.Provider);
+        Assert.Null(location.Bearing);
+        Assert.Null(location.AppVersion);
+        Assert.Null(location.AppBuild);
+        Assert.Null(location.DeviceModel);
+        Assert.Null(location.OsVersion);
+        Assert.Null(location.BatteryLevel);
+        Assert.Null(location.IsCharging);
+    }
+
+    [Fact]
+    public async Task ParseAsync_SetsSrid4326OnCoordinates()
+    {
+        // Arrange
+        var geoJson = @"{
+            ""type"": ""FeatureCollection"",
+            ""features"": [
+                {
+                    ""type"": ""Feature"",
+                    ""geometry"": { ""type"": ""Point"", ""coordinates"": [-74.006, 40.7128] },
+                    ""properties"": {
+                        ""TimestampUtc"": ""2024-01-15T10:30:00Z""
+                    }
+                }
+            ]
+        }";
+
+        // Act
+        var result = await _parser.ParseAsync(ToStream(geoJson), "user-123");
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal(4326, result[0].Coordinates.SRID);
+    }
+
     #endregion
 
     #region Timestamp Parsing Tests

@@ -70,6 +70,18 @@ public sealed class CsvLocationParser : ILocationDataParser
             var fullAddress = GetField(csv, "FullAddress") ?? address;
             var notes = GetField(csv, "Notes");
 
+            // Extract metadata fields
+            var source = GetField(csv, "Source");
+            var isUserInvoked = GetNullableBool(csv, "IsUserInvoked");
+            var provider = GetField(csv, "Provider");
+            var bearing = GetNullableDouble(csv, "Bearing");
+            var appVersion = GetField(csv, "AppVersion");
+            var appBuild = GetField(csv, "AppBuild");
+            var deviceModel = GetField(csv, "DeviceModel");
+            var osVersion = GetField(csv, "OsVersion");
+            var batteryLevel = GetNullableInt(csv, "BatteryLevel");
+            var isCharging = GetNullableBool(csv, "IsCharging");
+
             var location = new Location
             {
                 UserId = userId,
@@ -90,7 +102,19 @@ public sealed class CsvLocationParser : ILocationDataParser
                 Country = GetField(csv, "Country"),
                 Notes = notes,
                 ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
-                ActivityType = null!
+                ActivityType = null!,
+
+                // Metadata fields
+                Source = source,
+                IsUserInvoked = isUserInvoked,
+                Provider = provider,
+                Bearing = bearing,
+                AppVersion = appVersion,
+                AppBuild = appBuild,
+                DeviceModel = deviceModel,
+                OsVersion = osVersion,
+                BatteryLevel = batteryLevel,
+                IsCharging = isCharging
             };
 
             locations.Add(location);
@@ -113,6 +137,44 @@ public sealed class CsvLocationParser : ILocationDataParser
         }
 
         return double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static bool? GetNullableBool(CsvReader csv, string field)
+    {
+        if (!csv.TryGetField(field, out string? raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        if (bool.TryParse(raw, out var parsed))
+        {
+            return parsed;
+        }
+
+        // Handle "0"/"1" format
+        if (raw == "1" || raw.Equals("true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (raw == "0" || raw.Equals("false", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return null;
+    }
+
+    private static int? GetNullableInt(CsvReader csv, string field)
+    {
+        if (!csv.TryGetField(field, out string? raw) || string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        return int.TryParse(raw, NumberStyles.Integer, ParsingCulture, out var parsed)
             ? parsed
             : null;
     }

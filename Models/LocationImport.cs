@@ -61,4 +61,9 @@ public class LocationImport
     // Status (Pending, InProgress, Completed, Failed)
     public ImportStatus Status { get; set; } = ImportStatus.Stopped;  // Default to 'Pending' status
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Count of locations skipped during import due to deduplication.
+    /// </summary>
+    public int SkippedDuplicates { get; set; }
 }

@@ -326,6 +326,17 @@ namespace Wayfarer.Areas.User.Controllers
                     Place = location.Place,
                     Region = location.Region,
                     Country = location.Country,
+                    // Capture metadata (read-only)
+                    Source = location.Source,
+                    IsUserInvoked = location.IsUserInvoked,
+                    Provider = location.Provider,
+                    Bearing = location.Bearing,
+                    AppVersion = location.AppVersion,
+                    AppBuild = location.AppBuild,
+                    DeviceModel = location.DeviceModel,
+                    OsVersion = location.OsVersion,
+                    BatteryLevel = location.BatteryLevel,
+                    IsCharging = location.IsCharging,
                 };
 
                 viewModel.ReturnUrl = GetSafeReturnUrl(returnUrl);

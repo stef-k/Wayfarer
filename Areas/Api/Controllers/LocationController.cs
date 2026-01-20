@@ -172,7 +172,19 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
                 Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId
+                ActivityTypeId = dto.ActivityTypeId,
+
+                // Metadata fields
+                Source = dto.Source ?? "api-checkin",
+                IsUserInvoked = dto.IsUserInvoked ?? true, // Default true for check-ins
+                Provider = dto.Provider,
+                Bearing = dto.Bearing,
+                AppVersion = dto.AppVersion,
+                AppBuild = dto.AppBuild,
+                DeviceModel = dto.DeviceModel,
+                OsVersion = dto.OsVersion,
+                BatteryLevel = dto.BatteryLevel,
+                IsCharging = dto.IsCharging
             };
 
             try
@@ -640,12 +652,24 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType,
                 Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId
+                ActivityTypeId = dto.ActivityTypeId,
+
+                // Metadata fields
+                Source = dto.Source ?? "api-log",
+                IsUserInvoked = dto.IsUserInvoked ?? false,
+                Provider = dto.Provider,
+                Bearing = dto.Bearing,
+                AppVersion = dto.AppVersion,
+                AppBuild = dto.AppBuild,
+                DeviceModel = dto.DeviceModel,
+                OsVersion = dto.OsVersion,
+                BatteryLevel = dto.BatteryLevel,
+                IsCharging = dto.IsCharging
             };
 
             try
             {
-                var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                var apiToken = user.ApiTokens?.FirstOrDefault(t => t.Name == "Mapbox");
                 if (apiToken?.Token != null)
                 {
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
@@ -803,14 +827,14 @@ public class LocationController : BaseApiController
         }
         catch (Exception e)
         {
-            _logger.LogError(e, $"Error in getting user locations.\n{e.Message}");
+            _logger.LogError(e, "Error in getting user locations.");
             return Ok(new
             {
-                Success = true,
-                Data = $"{e}",
-                TotalItems = string.Empty,
-                CurrentPage = 1, // Modify as needed for pagination
-                PageSize = 1
+                Success = false,
+                Data = "An error occurred while retrieving locations.",
+                TotalItems = 0,
+                CurrentPage = 1,
+                PageSize = 0
             });
         }
     }
@@ -1024,7 +1048,7 @@ public class LocationController : BaseApiController
             if (coordsUpdated)
                 try
                 {
-                    var apiToken = user.ApiTokens.FirstOrDefault(t => t.Name == "Mapbox");
+                    var apiToken = user.ApiTokens?.FirstOrDefault(t => t.Name == "Mapbox");
                     if (apiToken?.Token != null)
                     {
                         var lat = location.Coordinates.Y;

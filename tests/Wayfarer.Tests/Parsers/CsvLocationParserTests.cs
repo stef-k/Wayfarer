@@ -330,4 +330,94 @@ not-a-number,-74.0060,2024-01-15T10:00:00Z,UTC
         Assert.Single(result);
         Assert.Equal(15.75, result[0].Accuracy);
     }
+
+    [Fact]
+    public async Task ParseAsync_AllMetadataFields_ParsesCorrectly()
+    {
+        // Arrange
+        var csv = @"Latitude,Longitude,TimestampUtc,TimeZoneId,Source,IsUserInvoked,Provider,Bearing,AppVersion,AppBuild,DeviceModel,OsVersion,BatteryLevel,IsCharging
+40.7128,-74.0060,2024-01-15T10:00:00Z,UTC,mobile-log,true,gps,180.5,1.2.3,45,Pixel 7 Pro,Android 14,85,false";
+        using var stream = CreateStream(csv);
+
+        // Act
+        var result = await _parser.ParseAsync(stream, "user1");
+
+        // Assert
+        Assert.Single(result);
+        var location = result[0];
+        Assert.Equal("mobile-log", location.Source);
+        Assert.True(location.IsUserInvoked);
+        Assert.Equal("gps", location.Provider);
+        Assert.Equal(180.5, location.Bearing);
+        Assert.Equal("1.2.3", location.AppVersion);
+        Assert.Equal("45", location.AppBuild);
+        Assert.Equal("Pixel 7 Pro", location.DeviceModel);
+        Assert.Equal("Android 14", location.OsVersion);
+        Assert.Equal(85, location.BatteryLevel);
+        Assert.False(location.IsCharging);
+    }
+
+    [Fact]
+    public async Task ParseAsync_MissingMetadataFields_ReturnsNulls()
+    {
+        // Arrange - no metadata fields
+        var csv = @"Latitude,Longitude,TimestampUtc,TimeZoneId
+40.7128,-74.0060,2024-01-15T10:00:00Z,UTC";
+        using var stream = CreateStream(csv);
+
+        // Act
+        var result = await _parser.ParseAsync(stream, "user1");
+
+        // Assert
+        Assert.Single(result);
+        var location = result[0];
+        Assert.Null(location.IsUserInvoked);
+        Assert.Null(location.Provider);
+        Assert.Null(location.Bearing);
+        Assert.Null(location.AppVersion);
+        Assert.Null(location.AppBuild);
+        Assert.Null(location.DeviceModel);
+        Assert.Null(location.OsVersion);
+        Assert.Null(location.BatteryLevel);
+        Assert.Null(location.IsCharging);
+    }
+
+    [Fact]
+    public async Task ParseAsync_BooleanFormats_ParsesCorrectly()
+    {
+        // Arrange - different boolean formats
+        var csv = @"Latitude,Longitude,TimestampUtc,TimeZoneId,IsUserInvoked,IsCharging
+40.7128,-74.0060,2024-01-15T10:00:00Z,UTC,1,0
+40.7129,-74.0061,2024-01-15T11:00:00Z,UTC,True,False
+40.7130,-74.0062,2024-01-15T12:00:00Z,UTC,true,false";
+        using var stream = CreateStream(csv);
+
+        // Act
+        var result = await _parser.ParseAsync(stream, "user1");
+
+        // Assert
+        Assert.Equal(3, result.Count);
+        Assert.True(result[0].IsUserInvoked);
+        Assert.False(result[0].IsCharging);
+        Assert.True(result[1].IsUserInvoked);
+        Assert.False(result[1].IsCharging);
+        Assert.True(result[2].IsUserInvoked);
+        Assert.False(result[2].IsCharging);
+    }
+
+    [Fact]
+    public async Task ParseAsync_SetsSrid4326OnCoordinates()
+    {
+        // Arrange
+        var csv = @"Latitude,Longitude,TimestampUtc,TimeZoneId
+40.7128,-74.0060,2024-01-15T10:00:00Z,UTC";
+        using var stream = CreateStream(csv);
+
+        // Act
+        var result = await _parser.ParseAsync(stream, "user1");
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal(4326, result[0].Coordinates.SRID);
+    }
 }

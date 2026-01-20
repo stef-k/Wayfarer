@@ -67,6 +67,17 @@ public sealed class KmlLocationParser : ILocationDataParser
             var country = ReadDataValue(extendedData, namespaceToUse, "Country");
             var activityName = ReadDataValue(extendedData, namespaceToUse, "Activity");
             var notes = ReadDataValue(extendedData, namespaceToUse, "Notes") ?? placemark.Element(namespaceToUse + "description")?.Value;
+            // Metadata fields
+            var source = ReadDataValue(extendedData, namespaceToUse, "Source");
+            var isUserInvoked = ParseNullableBool(ReadDataValue(extendedData, namespaceToUse, "IsUserInvoked"));
+            var provider = ReadDataValue(extendedData, namespaceToUse, "Provider");
+            var bearing = ParseNullableDouble(ReadDataValue(extendedData, namespaceToUse, "Bearing"));
+            var appVersion = ReadDataValue(extendedData, namespaceToUse, "AppVersion");
+            var appBuild = ReadDataValue(extendedData, namespaceToUse, "AppBuild");
+            var deviceModel = ReadDataValue(extendedData, namespaceToUse, "DeviceModel");
+            var osVersion = ReadDataValue(extendedData, namespaceToUse, "OsVersion");
+            var batteryLevel = ParseNullableInt(ReadDataValue(extendedData, namespaceToUse, "BatteryLevel"));
+            var isCharging = ParseNullableBool(ReadDataValue(extendedData, namespaceToUse, "IsCharging"));
 
             var timestampUtc = ParseTimestampUtc(timestampRaw);
             var localTimestamp = ParseLocalTimestamp(localTimestampRaw, timestampUtc);
@@ -92,7 +103,18 @@ public sealed class KmlLocationParser : ILocationDataParser
                 Country = country,
                 Notes = notes,
                 ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
-                ActivityType = null!
+                ActivityType = null!,
+                // Metadata fields
+                Source = source,
+                IsUserInvoked = isUserInvoked,
+                Provider = provider,
+                Bearing = bearing,
+                AppVersion = appVersion,
+                AppBuild = appBuild,
+                DeviceModel = deviceModel,
+                OsVersion = osVersion,
+                BatteryLevel = batteryLevel,
+                IsCharging = isCharging
             };
 
             locations.Add(location);
@@ -163,6 +185,22 @@ public sealed class KmlLocationParser : ILocationDataParser
     private static double? ParseNullableDouble(string? raw)
     {
         return double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out var value)
+            ? value
+            : null;
+    }
+
+    private static bool? ParseNullableBool(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (bool.TryParse(raw, out var b)) return b;
+        if (raw == "1") return true;
+        if (raw == "0") return false;
+        return null;
+    }
+
+    private static int? ParseNullableInt(string? raw)
+    {
+        return int.TryParse(raw, NumberStyles.Integer, ParsingCulture, out var value)
             ? value
             : null;
     }

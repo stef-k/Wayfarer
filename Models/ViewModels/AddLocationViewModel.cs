@@ -47,6 +47,83 @@ namespace Wayfarer.Models.ViewModels
         /// Destination to redirect to when the user chooses Save &amp; Return.
         /// </summary>
         public string? ReturnUrl { get; set; }
+
+        #region Capture Metadata (read-only display fields)
+
+        /// <summary>
+        /// Source of the location data (e.g., "api-log", "api-checkin", "queue-import").
+        /// </summary>
+        [BindNever]
+        public string? Source { get; set; }
+
+        /// <summary>
+        /// Whether the location was manually triggered by the user.
+        /// </summary>
+        [BindNever]
+        public bool? IsUserInvoked { get; set; }
+
+        /// <summary>
+        /// Location provider used (e.g., "gps", "network", "fused").
+        /// </summary>
+        [BindNever]
+        public string? Provider { get; set; }
+
+        /// <summary>
+        /// Direction of travel in degrees (0-360).
+        /// </summary>
+        [BindNever]
+        public double? Bearing { get; set; }
+
+        /// <summary>
+        /// Version of the app that captured the location.
+        /// </summary>
+        [BindNever]
+        public string? AppVersion { get; set; }
+
+        /// <summary>
+        /// Build number of the app that captured the location.
+        /// </summary>
+        [BindNever]
+        public string? AppBuild { get; set; }
+
+        /// <summary>
+        /// Device model that captured the location.
+        /// </summary>
+        [BindNever]
+        public string? DeviceModel { get; set; }
+
+        /// <summary>
+        /// Operating system version of the device.
+        /// </summary>
+        [BindNever]
+        public string? OsVersion { get; set; }
+
+        /// <summary>
+        /// Battery level (0-100) when the location was captured.
+        /// </summary>
+        [BindNever]
+        public int? BatteryLevel { get; set; }
+
+        /// <summary>
+        /// Whether the device was charging when the location was captured.
+        /// </summary>
+        [BindNever]
+        public bool? IsCharging { get; set; }
+
+        /// <summary>
+        /// Indicates whether any capture metadata is available for display.
+        /// </summary>
+        [BindNever]
+        public bool HasCaptureMetadata =>
+            !string.IsNullOrEmpty(Source) ||
+            IsUserInvoked.HasValue ||
+            !string.IsNullOrEmpty(Provider) ||
+            Bearing.HasValue ||
+            !string.IsNullOrEmpty(AppVersion) ||
+            !string.IsNullOrEmpty(DeviceModel) ||
+            BatteryLevel.HasValue;
+
+        #endregion
     }
 
 }

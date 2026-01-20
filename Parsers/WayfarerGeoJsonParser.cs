@@ -68,6 +68,18 @@ namespace Wayfarer.Parsers
                         ? Convert.ToDouble(attrs[key])
                         : (double?)null;
 
+                // helper to safely get a bool? attribute
+                bool? getBool(string key)
+                    => attrs.Exists(key) && attrs[key] != null
+                        ? Convert.ToBoolean(attrs[key])
+                        : (bool?)null;
+
+                // helper to safely get an int? attribute
+                int? getInt(string key)
+                    => attrs.Exists(key) && attrs[key] != null
+                        ? Convert.ToInt32(attrs[key])
+                        : (int?)null;
+
                 // 3) Extract attributes with null guards
                 var tsUtcString = getString("TimestampUtc");
                 var tzId = getString("TimeZoneId") ?? "UTC";
@@ -90,14 +102,26 @@ namespace Wayfarer.Parsers
                 var country = getString("Country");
                 var notes = getString("Notes");
 
-                // 4) Construct domain object
+                // Extract metadata fields
+                var source = getString("Source");
+                var isUserInvoked = getBool("IsUserInvoked");
+                var provider = getString("Provider");
+                var bearing = getDouble("Bearing");
+                var appVersion = getString("AppVersion");
+                var appBuild = getString("AppBuild");
+                var deviceModel = getString("DeviceModel");
+                var osVersion = getString("OsVersion");
+                var batteryLevel = getInt("BatteryLevel");
+                var isCharging = getBool("IsCharging");
+
+                // 4) Construct domain object with explicit SRID
                 var loc = new Location
                 {
                     UserId = userId,
                     Timestamp = tsUtc,
                     LocalTimestamp = localTs,
                     TimeZoneId = tzId,
-                    Coordinates = pt,
+                    Coordinates = new Point(pt.X, pt.Y) { SRID = 4326 },
                     Accuracy = accuracy,
                     Altitude = altitude,
                     Speed = speed,
@@ -111,8 +135,20 @@ namespace Wayfarer.Parsers
                     Region = region,
                     Country = country,
 
-                    // TODO: map 'activity' to your ActivityType lookup
-                    ActivityType = /* e.g. ResolveActivity(activity) */ null!,
+                    // Metadata fields
+                    Source = source,
+                    IsUserInvoked = isUserInvoked,
+                    Provider = provider,
+                    Bearing = bearing,
+                    AppVersion = appVersion,
+                    AppBuild = appBuild,
+                    DeviceModel = deviceModel,
+                    OsVersion = osVersion,
+                    BatteryLevel = batteryLevel,
+                    IsCharging = isCharging,
+
+                    // Activity mapping handled by LocationImportService
+                    ActivityType = null!,
                     ImportedActivityName = string.IsNullOrWhiteSpace(activity) ? null : activity
                 };
 
