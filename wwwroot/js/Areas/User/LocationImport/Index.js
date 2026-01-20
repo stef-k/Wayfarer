@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 const handleStream = (event) => {
     const payload = JSON.parse(event.data);
-    updateRow(payload.FilePath, payload.LastProcessedIndex, payload.LastImportedRecord, payload.TotalRecords, payload.Status, payload.ErrorMessage);
+    updateRow(payload.FilePath, payload.LastProcessedIndex, payload.LastImportedRecord, payload.TotalRecords, payload.Status, payload.ErrorMessage, payload.SkippedDuplicates);
 }
 
 /**
@@ -98,8 +98,9 @@ const handleStream = (event) => {
  * @param {string|number} total
  * @param {string|number} Status     New value for .importStatus
  * @param {string|number} ErrorMessage     New value for .errorMessage
+ * @param {string|number} SkippedDuplicates     Count of skipped duplicates
  */
-const updateRow = (filePathValue, lastProcessedIndex, lastImportedRecord, total, Status, ErrorMessage) => {
+const updateRow = (filePathValue, lastProcessedIndex, lastImportedRecord, total, Status, ErrorMessage, SkippedDuplicates) => {
     const filePathCells = document.querySelectorAll('#locationImport tbody .filePath');
 
     for (let cell of filePathCells) {
@@ -111,8 +112,19 @@ const updateRow = (filePathValue, lastProcessedIndex, lastImportedRecord, total,
             const recCell = row.querySelector('.lastImportedRecord');
             const importStatusCell = row.querySelector('.importStatus');
             const errorMessageCell = row.querySelector('.errorMessage');
+            const skippedCell = row.querySelector('.skippedDuplicates');
 
-            if (idxCell) idxCell.textContent = `${lastProcessedIndex} of ${total}`;
+            // Build progress text with skipped count if any
+            let progressText = `${lastProcessedIndex} of ${total}`;
+            if (SkippedDuplicates && SkippedDuplicates > 0) {
+                progressText += ` (${SkippedDuplicates} duplicates skipped)`;
+            }
+            if (idxCell) idxCell.textContent = progressText;
+
+            // Also update dedicated skipped cell if it exists
+            if (skippedCell) {
+                skippedCell.textContent = SkippedDuplicates > 0 ? SkippedDuplicates : '';
+            }
             if (recCell) recCell.textContent = lastImportedRecord;
             if (errorMessageCell) errorMessageCell.textContent = ErrorMessage ?? "";
 

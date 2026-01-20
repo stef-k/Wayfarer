@@ -48,5 +48,59 @@ namespace Wayfarer.Models
         public string? Country { get; set; }
         public string? Notes { get; set; }  // This could store plain text, HTML, or Markdown
 
+        #region Metadata Fields
+
+        /// <summary>
+        /// How this record was created: "api-log", "api-checkin", "import", "queue-import".
+        /// </summary>
+        public string? Source { get; set; }
+
+        /// <summary>
+        /// Whether location was manually invoked by user (true) or automatic (false).
+        /// </summary>
+        public bool? IsUserInvoked { get; set; }
+
+        /// <summary>
+        /// Location provider/sensors: "gps", "network", "fused", etc.
+        /// </summary>
+        public string? Provider { get; set; }
+
+        /// <summary>
+        /// Direction of travel in degrees (0-360). 0 = North, 90 = East.
+        /// </summary>
+        public double? Bearing { get; set; }
+
+        /// <summary>
+        /// Mobile app version that captured this location.
+        /// </summary>
+        public string? AppVersion { get; set; }
+
+        /// <summary>
+        /// Mobile app build number.
+        /// </summary>
+        public string? AppBuild { get; set; }
+
+        /// <summary>
+        /// Device model that captured this location.
+        /// </summary>
+        public string? DeviceModel { get; set; }
+
+        /// <summary>
+        /// OS version on the capturing device.
+        /// </summary>
+        public string? OsVersion { get; set; }
+
+        /// <summary>
+        /// Battery level (0-100) when location was captured.
+        /// </summary>
+        public int? BatteryLevel { get; set; }
+
+        /// <summary>
+        /// Whether device was charging when location was captured.
+        /// </summary>
+        public bool? IsCharging { get; set; }
+
+        #endregion
+
     }
 }

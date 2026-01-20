@@ -94,6 +94,7 @@ namespace Wayfarer.Parsers
                                 LastImportedRecord = locationImport.LastImportedRecord,
                                 LastProcessedIndex = locationImport.LastProcessedIndex,
                                 TotalRecords     = locationImport.TotalRecords,
+                                SkippedDuplicates = locationImport.SkippedDuplicates,
                                 Status             = ImportStatus.Stopped,
                                 ErrorMessage = locationImport.ErrorMessage,
                             })
@@ -110,6 +111,12 @@ namespace Wayfarer.Parsers
                         .Skip(processed)
                         .Take(batchSize)
                         .ToList();
+
+                    // Set Source field on all locations in batch
+                    foreach (var loc in batch)
+                    {
+                        loc.Source = "queue-import";
+                    }
 
                     // 2) Reverse‑geocode only if we have a key AND the record truly needs it (not having a full address data)
                     if (hasApiKey)
@@ -140,8 +147,19 @@ namespace Wayfarer.Parsers
                         }
                     }
 
-                    // 3) Insert & save this batch
-                    await InsertLocationsToDb(batch, cancellationToken);
+                    // 3) Filter duplicates before inserting
+                    var (toInsert, skippedInBatch) = await FilterDuplicatesAsync(
+                        batch,
+                        locationImport.UserId,
+                        cancellationToken);
+
+                    locationImport.SkippedDuplicates += skippedInBatch;
+
+                    // Insert only non-duplicates
+                    if (toInsert.Count > 0)
+                    {
+                        await InsertLocationsToDb(toInsert, cancellationToken);
+                    }
 
                     // 4) Update progress & SSE
                     processed += batch.Count;
@@ -170,6 +188,7 @@ namespace Wayfarer.Parsers
                             LastImportedRecord   = locationImport?.LastImportedRecord,
                             LastProcessedIndex   = locationImport?.LastProcessedIndex,
                             TotalRecords     = locationImport?.TotalRecords ?? 0,
+                            SkippedDuplicates = locationImport?.SkippedDuplicates ?? 0,
                             Status = ImportStatus.InProgress,
                             ErrorMessage = locationImport?.ErrorMessage,
                         })
@@ -190,13 +209,15 @@ namespace Wayfarer.Parsers
                             FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
                             LastImportedRecord   = locationImport.LastImportedRecord,
                             LastProcessedIndex   = locationImport.LastProcessedIndex,
+                            TotalRecords         = locationImport.TotalRecords,
+                            SkippedDuplicates    = locationImport.SkippedDuplicates,
                             Status = ImportStatus.Completed,
                             ErrorMessage = locationImport.ErrorMessage,
                         })
                     );
                     _logger.LogInformation(
-                        "Import {ImportId} completed successfully: {Total} records processed.",
-                        importId, total);
+                        "Import {ImportId} completed successfully: {Total} records processed, {Skipped} duplicates skipped.",
+                        importId, total, locationImport.SkippedDuplicates);
                 }
             }
             catch (OperationCanceledException)
@@ -214,6 +235,7 @@ namespace Wayfarer.Parsers
                             LastImportedRecord   = locationImport?.LastImportedRecord,
                             LastProcessedIndex   = locationImport?.LastProcessedIndex,
                             TotalRecords     = locationImport?.TotalRecords ?? 0,
+                            SkippedDuplicates = locationImport?.SkippedDuplicates ?? 0,
                             Status = ImportStatus.Stopped,
                             ErrorMessage = locationImport?.ErrorMessage,
                         })
@@ -227,8 +249,8 @@ namespace Wayfarer.Parsers
                 if (li != null)
                 {
                     li.Status = ImportStatus.Failed;
-                    li.ErrorMessage = ex.ToString().Length > 2000 
-                        ? ex.ToString().Substring(0, 2000) 
+                    li.ErrorMessage = ex.ToString().Length > 2000
+                        ? ex.ToString().Substring(0, 2000)
                         : ex.ToString();
                     await _context.SaveChangesAsync(CancellationToken.None);
                     await _sse.BroadcastAsync(
@@ -238,6 +260,7 @@ namespace Wayfarer.Parsers
                             LastImportedRecord   = locationImport?.LastImportedRecord,
                             LastProcessedIndex   = locationImport?.LastProcessedIndex,
                             TotalRecords     = locationImport?.TotalRecords ?? 0,
+                            SkippedDuplicates = locationImport?.SkippedDuplicates ?? 0,
                             Status = ImportStatus.Failed,
                             ErrorMessage = locationImport?.ErrorMessage,
                         })
@@ -263,6 +286,73 @@ namespace Wayfarer.Parsers
         {
             _context.Locations.AddRange(locations);
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Filters out duplicate locations from a batch using timestamp and coordinate matching.
+        /// </summary>
+        /// <param name="batch">The batch of locations to filter.</param>
+        /// <param name="userId">The user ID for the locations.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>A tuple containing the list of non-duplicate locations to insert and the count of skipped duplicates.</returns>
+        private async Task<(List<Location> toInsert, int skipped)> FilterDuplicatesAsync(
+            List<Location> batch,
+            string userId,
+            CancellationToken ct)
+        {
+            if (batch.Count == 0)
+            {
+                return (batch, 0);
+            }
+
+            var timeTolerance = TimeSpan.FromSeconds(1);
+            var distanceMeters = 10.0;
+
+            // Get timestamp range with buffer
+            var minTs = batch.Min(l => l.Timestamp).AddSeconds(-2);
+            var maxTs = batch.Max(l => l.Timestamp).AddSeconds(2);
+
+            // Pre-fetch existing locations in range (avoids N+1 queries)
+            var existing = await _context.Locations
+                .Where(l => l.UserId == userId && l.Timestamp >= minTs && l.Timestamp <= maxTs)
+                .Select(l => new { l.Timestamp, l.Coordinates })
+                .ToListAsync(ct);
+
+            if (existing.Count == 0)
+            {
+                return (batch, 0);
+            }
+
+            var toInsert = new List<Location>();
+            int skipped = 0;
+
+            foreach (var loc in batch)
+            {
+                bool isDuplicate = existing.Any(e =>
+                    Math.Abs((e.Timestamp - loc.Timestamp).TotalSeconds) <= timeTolerance.TotalSeconds &&
+                    e.Coordinates.Distance(loc.Coordinates) <= distanceMeters);
+
+                if (isDuplicate)
+                {
+                    skipped++;
+                    _logger.LogDebug(
+                        "Skipping duplicate location: Timestamp={Timestamp}, Lat={Lat}, Lon={Lon}",
+                        loc.Timestamp, loc.Coordinates.Y, loc.Coordinates.X);
+                }
+                else
+                {
+                    toInsert.Add(loc);
+                }
+            }
+
+            if (skipped > 0)
+            {
+                _logger.LogInformation(
+                    "Deduplication: {Skipped} duplicates found in batch of {Total}",
+                    skipped, batch.Count);
+            }
+
+            return (toInsert, skipped);
         }
 
         private async Task ResolveActivityTypesAsync(List<Location> locations, CancellationToken cancellationToken)

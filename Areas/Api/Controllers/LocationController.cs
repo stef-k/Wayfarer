@@ -172,7 +172,19 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
                 Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId
+                ActivityTypeId = dto.ActivityTypeId,
+
+                // Metadata fields
+                Source = "api-checkin",
+                IsUserInvoked = true, // Always true for check-ins
+                Provider = dto.Provider,
+                Bearing = dto.Bearing,
+                AppVersion = dto.AppVersion,
+                AppBuild = dto.AppBuild,
+                DeviceModel = dto.DeviceModel,
+                OsVersion = dto.OsVersion,
+                BatteryLevel = dto.BatteryLevel,
+                IsCharging = dto.IsCharging
             };
 
             try
@@ -640,7 +652,19 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType,
                 Notes = dto.Notes,
-                ActivityTypeId = dto.ActivityTypeId
+                ActivityTypeId = dto.ActivityTypeId,
+
+                // Metadata fields
+                Source = "api-log",
+                IsUserInvoked = dto.IsUserInvoked ?? false,
+                Provider = dto.Provider,
+                Bearing = dto.Bearing,
+                AppVersion = dto.AppVersion,
+                AppBuild = dto.AppBuild,
+                DeviceModel = dto.DeviceModel,
+                OsVersion = dto.OsVersion,
+                BatteryLevel = dto.BatteryLevel,
+                IsCharging = dto.IsCharging
             };
 
             try

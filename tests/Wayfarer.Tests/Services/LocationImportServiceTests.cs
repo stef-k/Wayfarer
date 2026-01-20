@@ -120,6 +120,173 @@ public class LocationImportServiceTests : TestBase
         }
     }
 
+    [Fact]
+    public async Task ProcessImport_SkipsDuplicates_WhenLocationsAlreadyExist()
+    {
+        var db = CreateDbContext();
+
+        // Pre-existing location
+        var existingLocation = new Location
+        {
+            UserId = "u-dedup",
+            Timestamp = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            LocalTimestamp = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(-122.2, 37.1) { SRID = 4326 },
+            Accuracy = 5,
+            Source = "api-log"
+        };
+        db.Locations.Add(existingLocation);
+        await db.SaveChangesAsync();
+
+        // CSV with same location (should be skipped) + one new location
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Accuracy\r\n" +
+            "37.1,-122.2,2025-01-01T00:00:00Z,2025-01-01T00:00:00Z,UTC,5\r\n" +      // Duplicate
+            "37.2,-122.3,2025-01-02T00:00:00Z,2025-01-02T00:00:00Z,UTC,10");          // New
+
+        var import = new LocationImport
+        {
+            Id = 10,
+            UserId = "u-dedup",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out var sse);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should have 2 locations total: 1 existing + 1 new (1 skipped)
+        Assert.Equal(2, db.Locations.Count());
+
+        var updatedImport = db.LocationImports.Single(li => li.Id == import.Id);
+        Assert.Equal(ImportStatus.Completed, updatedImport.Status);
+        Assert.Equal(1, updatedImport.SkippedDuplicates);
+        Assert.Equal(2, updatedImport.LastProcessedIndex); // Processed 2 records
+
+        // Verify SSE broadcast includes SkippedDuplicates
+        Assert.Contains(sse.Messages, m => m.Contains("SkippedDuplicates"));
+    }
+
+    [Fact]
+    public async Task ProcessImport_SetsSourceField_OnImportedLocations()
+    {
+        var db = CreateDbContext();
+
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Accuracy\r\n" +
+            "37.1,-122.2,2025-01-01T00:00:00Z,2025-01-01T00:00:00Z,UTC,5");
+
+        var import = new LocationImport
+        {
+            Id = 11,
+            UserId = "u-source",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, sse: out _);
+
+        try
+        {
+            await service.ProcessImport(import.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        var stored = Assert.Single(db.Locations);
+        Assert.Equal("queue-import", stored.Source);
+    }
+
+    [Fact]
+    public async Task ProcessImport_ImportSameFileTwice_SkipsAllOnSecondRun()
+    {
+        var db = CreateDbContext();
+
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(
+            tempFile,
+            "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Accuracy\r\n" +
+            "37.1,-122.2,2025-01-01T00:00:00Z,2025-01-01T00:00:00Z,UTC,5\r\n" +
+            "37.2,-122.3,2025-01-02T00:00:00Z,2025-01-02T00:00:00Z,UTC,10");
+
+        // First import
+        var import1 = new LocationImport
+        {
+            Id = 20,
+            UserId = "u-twice",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import1);
+        await db.SaveChangesAsync();
+
+        var service1 = CreateService(db, sse: out _);
+        await service1.ProcessImport(import1.Id, CancellationToken.None);
+
+        Assert.Equal(2, db.Locations.Count());
+        Assert.Equal(0, db.LocationImports.Single(li => li.Id == 20).SkippedDuplicates);
+
+        // Second import of same file
+        var import2 = new LocationImport
+        {
+            Id = 21,
+            UserId = "u-twice",
+            FileType = LocationImportFileType.Csv,
+            FilePath = tempFile,
+            LastProcessedIndex = 0,
+            TotalRecords = 0,
+            Status = ImportStatus.InProgress
+        };
+        db.LocationImports.Add(import2);
+        await db.SaveChangesAsync();
+
+        var service2 = CreateService(db, sse: out _);
+
+        try
+        {
+            await service2.ProcessImport(import2.Id, CancellationToken.None);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+
+        // Should still have 2 locations (no new ones added)
+        Assert.Equal(2, db.Locations.Count());
+
+        var updatedImport2 = db.LocationImports.Single(li => li.Id == import2.Id);
+        Assert.Equal(ImportStatus.Completed, updatedImport2.Status);
+        Assert.Equal(2, updatedImport2.SkippedDuplicates); // Both records skipped
+    }
+
     private sealed class FakeHttpHandler : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

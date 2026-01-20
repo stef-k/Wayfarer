@@ -693,6 +693,18 @@ namespace Wayfarer.Migrations
                     b.Property<double?>("Altitude")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("AppBuild")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AppVersion")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("BatteryLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("Bearing")
+                        .HasColumnType("double precision");
+
                     b.Property<Point>("Coordinates")
                         .IsRequired()
                         .HasColumnType("geography(Point, 4326)");
@@ -700,11 +712,20 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Country")
                         .HasColumnType("text");
 
+                    b.Property<string>("DeviceModel")
+                        .HasColumnType("text");
+
                     b.Property<string>("FullAddress")
                         .HasColumnType("text");
 
                     b.Property<Guid?>("IdempotencyKey")
                         .HasColumnType("uuid");
+
+                    b.Property<bool?>("IsCharging")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("IsUserInvoked")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("LocalTimestamp")
                         .HasColumnType("timestamp with time zone");
@@ -715,13 +736,22 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<string>("OsVersion")
+                        .HasColumnType("text");
+
                     b.Property<string>("Place")
                         .HasColumnType("text");
 
                     b.Property<string>("PostCode")
                         .HasColumnType("text");
 
+                    b.Property<string>("Provider")
+                        .HasColumnType("text");
+
                     b.Property<string>("Region")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Source")
                         .HasColumnType("text");
 
                     b.Property<double?>("Speed")
@@ -784,6 +814,9 @@ namespace Wayfarer.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("LastProcessedIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SkippedDuplicates")
                         .HasColumnType("integer");
 
                     b.Property<string>("Status")
