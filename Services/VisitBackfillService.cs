@@ -33,7 +33,8 @@ public class VisitBackfillService : IVisitBackfillService
         string userId,
         Guid tripId,
         DateOnly? fromDate,
-        DateOnly? toDate)
+        DateOnly? toDate,
+        CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         var settings = _settingsService.GetSettings();
@@ -42,7 +43,7 @@ public class VisitBackfillService : IVisitBackfillService
         var trip = await _dbContext.Trips
             .Include(t => t.Regions)
             .ThenInclude(r => r.Places)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
         if (trip == null)
         {
@@ -69,7 +70,7 @@ public class VisitBackfillService : IVisitBackfillService
             .Where(v => v.UserId == userId)
             .Where(v => (v.PlaceId.HasValue && allPlaceIds.Contains(v.PlaceId.Value))
                         || v.TripIdSnapshot == tripId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         _logger.LogInformation(
             "Backfill analysis for trip {TripId} ({TripName}): {PlaceCount} places, {PlacesWithCoords} with coords, {ExistingVisits} existing visits",
@@ -173,13 +174,14 @@ public class VisitBackfillService : IVisitBackfillService
     public async Task<BackfillResultDto> ApplyAsync(
         string userId,
         Guid tripId,
-        BackfillApplyRequestDto request)
+        BackfillApplyRequestDto request,
+        CancellationToken cancellationToken = default)
     {
         // Validate trip ownership
         var trip = await _dbContext.Trips
             .Include(t => t.Regions)
             .ThenInclude(r => r.Places)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId);
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
         if (trip == null)
         {
@@ -199,7 +201,7 @@ public class VisitBackfillService : IVisitBackfillService
         var existingVisitRecords = await _dbContext.PlaceVisitEvents
             .Where(v => v.UserId == userId && v.TripIdSnapshot == tripId)
             .Select(v => new { v.PlaceId, v.PlaceNameSnapshot, Date = v.ArrivedAtUtc.Date })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         // Build sets for duplicate detection (by PlaceId and by PlaceNameSnapshot)
         var existingKeysByPlaceId = existingVisitRecords
@@ -274,22 +276,25 @@ public class VisitBackfillService : IVisitBackfillService
             created++;
         }
 
-        // Delete stale visits
+        // Delete selected visits
         var deleted = 0;
         if (request.DeleteVisitIds.Count > 0)
         {
-            // Scope deletions to this trip to prevent accidental deletion of visits from other trips
+            // Scope deletions to match preview scope: (PlaceId in trip's places) OR TripIdSnapshot == tripId
+            // This ensures visits shown in preview can actually be deleted
+            var allPlaceIds = placesById.Keys.ToHashSet();
             var visitsToDelete = await _dbContext.PlaceVisitEvents
                 .Where(v => v.UserId == userId
-                            && v.TripIdSnapshot == tripId
-                            && request.DeleteVisitIds.Contains(v.Id))
-                .ToListAsync();
+                            && request.DeleteVisitIds.Contains(v.Id)
+                            && ((v.PlaceId.HasValue && allPlaceIds.Contains(v.PlaceId.Value))
+                                || v.TripIdSnapshot == tripId))
+                .ToListAsync(cancellationToken);
 
             _dbContext.PlaceVisitEvents.RemoveRange(visitsToDelete);
             deleted = visitsToDelete.Count;
         }
 
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Backfill applied for trip {TripId}: {Created} created, {Deleted} deleted, {Skipped} skipped",
@@ -306,11 +311,14 @@ public class VisitBackfillService : IVisitBackfillService
     }
 
     /// <inheritdoc />
-    public async Task<BackfillResultDto> ClearVisitsAsync(string userId, Guid tripId)
+    public async Task<BackfillResultDto> ClearVisitsAsync(
+        string userId,
+        Guid tripId,
+        CancellationToken cancellationToken = default)
     {
         // Validate trip ownership
         var tripExists = await _dbContext.Trips
-            .AnyAsync(t => t.Id == tripId && t.UserId == userId);
+            .AnyAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
         if (!tripExists)
         {
@@ -323,11 +331,11 @@ public class VisitBackfillService : IVisitBackfillService
 
         var visits = await _dbContext.PlaceVisitEvents
             .Where(v => v.UserId == userId && v.TripIdSnapshot == tripId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         var count = visits.Count;
         _dbContext.PlaceVisitEvents.RemoveRange(visits);
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Cleared {Count} visits for trip {TripId} by user {UserId}",
@@ -465,9 +473,11 @@ public class VisitBackfillService : IVisitBackfillService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex,
-                "Spatial query failed for place {PlaceId} at ({Lat}, {Lon})",
-                place.Id, place.Location.Y, place.Location.X);
+            // Log error but continue - one failed place shouldn't block the entire analysis
+            _logger.LogError(ex,
+                "Spatial query failed for place {PlaceId} ({PlaceName}) at ({Lat}, {Lon}). " +
+                "This place will be skipped in the analysis.",
+                place.Id, place.Name, place.Location.Y, place.Location.X);
         }
 
         return new PlaceAnalysisResult
@@ -493,85 +503,15 @@ public class VisitBackfillService : IVisitBackfillService
         if (avgDistanceMeters > settings.VisitedMinRadiusMeters)
         {
             var range = settings.VisitedMaxSearchRadiusMeters - settings.VisitedMinRadiusMeters;
-            var excess = avgDistanceMeters - settings.VisitedMinRadiusMeters;
-            distancePenalty = Math.Min(20, (excess / range) * 20);
+            if (range > 0)
+            {
+                var excess = avgDistanceMeters - settings.VisitedMinRadiusMeters;
+                distancePenalty = Math.Min(20, (excess / range) * 20);
+            }
+            // If range is 0, no distance penalty is applied (settings are equal)
         }
 
         return (int)Math.Max(0, Math.Min(100, hitScore - distancePenalty));
-    }
-
-    /// <summary>
-    /// Finds stale visits for a trip. A visit is stale if:
-    /// - The place was deleted (PlaceId is null)
-    /// - The place was moved beyond the search radius
-    /// </summary>
-    private async Task<List<StaleVisitDto>> FindStaleVisitsAsync(
-        string userId,
-        Guid tripId,
-        ApplicationSettings settings)
-    {
-        var visits = await _dbContext.PlaceVisitEvents
-            .Where(v => v.UserId == userId && v.TripIdSnapshot == tripId)
-            .ToListAsync();
-
-        // Get current place locations
-        var placeIds = visits
-            .Where(v => v.PlaceId.HasValue)
-            .Select(v => v.PlaceId!.Value)
-            .Distinct()
-            .ToList();
-
-        var places = await _dbContext.Places
-            .Where(p => placeIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id);
-
-        var staleVisits = new List<StaleVisitDto>();
-
-        foreach (var visit in visits)
-        {
-            string? reason = null;
-            double? distanceMeters = null;
-
-            if (!visit.PlaceId.HasValue)
-            {
-                // Place was deleted
-                reason = "Place was deleted";
-            }
-            else if (!places.TryGetValue(visit.PlaceId.Value, out var place))
-            {
-                // Place no longer exists
-                reason = "Place no longer exists";
-            }
-            else if (visit.PlaceLocationSnapshot != null && place.Location != null)
-            {
-                // Check if place has moved significantly
-                var distance = CalculateHaversineDistance(
-                    visit.PlaceLocationSnapshot.Y, visit.PlaceLocationSnapshot.X,
-                    place.Location.Y, place.Location.X);
-
-                if (distance > settings.VisitedMaxSearchRadiusMeters)
-                {
-                    reason = "Place was moved";
-                    distanceMeters = Math.Round(distance, 1);
-                }
-            }
-
-            if (reason != null)
-            {
-                staleVisits.Add(new StaleVisitDto
-                {
-                    VisitId = visit.Id,
-                    PlaceId = visit.PlaceId,
-                    PlaceName = visit.PlaceNameSnapshot,
-                    RegionName = visit.RegionNameSnapshot,
-                    VisitDate = DateOnly.FromDateTime(visit.ArrivedAtUtc),
-                    Reason = reason,
-                    DistanceMeters = distanceMeters
-                });
-            }
-        }
-
-        return staleVisits;
     }
 
     /// <summary>

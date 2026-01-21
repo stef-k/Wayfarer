@@ -35,11 +35,13 @@ public class BackfillController : BaseApiController
     /// <param name="tripId">The trip ID to analyze.</param>
     /// <param name="fromDate">Optional start date filter (yyyy-MM-dd).</param>
     /// <param name="toDate">Optional end date filter (yyyy-MM-dd).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet("preview/{tripId:guid}")]
     public async Task<IActionResult> Preview(
         Guid tripId,
         [FromQuery] string? fromDate = null,
-        [FromQuery] string? toDate = null)
+        [FromQuery] string? toDate = null,
+        CancellationToken cancellationToken = default)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -50,13 +52,22 @@ public class BackfillController : BaseApiController
             DateOnly? from = null;
             DateOnly? to = null;
 
-            if (!string.IsNullOrEmpty(fromDate) && DateOnly.TryParse(fromDate, out var parsedFrom))
+            // Validate date formats if provided
+            if (!string.IsNullOrEmpty(fromDate))
+            {
+                if (!DateOnly.TryParse(fromDate, out var parsedFrom))
+                    return BadRequest(new { success = false, message = $"Invalid fromDate format: '{fromDate}'. Use yyyy-MM-dd." });
                 from = parsedFrom;
+            }
 
-            if (!string.IsNullOrEmpty(toDate) && DateOnly.TryParse(toDate, out var parsedTo))
+            if (!string.IsNullOrEmpty(toDate))
+            {
+                if (!DateOnly.TryParse(toDate, out var parsedTo))
+                    return BadRequest(new { success = false, message = $"Invalid toDate format: '{toDate}'. Use yyyy-MM-dd." });
                 to = parsedTo;
+            }
 
-            var result = await _backfillService.PreviewAsync(userId, tripId, from, to);
+            var result = await _backfillService.PreviewAsync(userId, tripId, from, to, cancellationToken);
 
             return Ok(new { success = true, data = result });
         }
@@ -76,10 +87,12 @@ public class BackfillController : BaseApiController
     /// </summary>
     /// <param name="tripId">The trip ID.</param>
     /// <param name="request">The apply request with visits to create and delete.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost("apply/{tripId:guid}")]
     public async Task<IActionResult> Apply(
         Guid tripId,
-        [FromBody] BackfillApplyRequestDto request)
+        [FromBody] BackfillApplyRequestDto request,
+        CancellationToken cancellationToken = default)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -90,7 +103,7 @@ public class BackfillController : BaseApiController
 
         try
         {
-            var result = await _backfillService.ApplyAsync(userId, tripId, request);
+            var result = await _backfillService.ApplyAsync(userId, tripId, request, cancellationToken);
 
             if (!result.Success)
                 return NotFound(new { success = false, message = result.Message });
@@ -108,8 +121,11 @@ public class BackfillController : BaseApiController
     /// Clear all visits for a trip.
     /// </summary>
     /// <param name="tripId">The trip ID.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     [HttpDelete("clear/{tripId:guid}")]
-    public async Task<IActionResult> Clear(Guid tripId)
+    public async Task<IActionResult> Clear(
+        Guid tripId,
+        CancellationToken cancellationToken = default)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
@@ -117,7 +133,7 @@ public class BackfillController : BaseApiController
 
         try
         {
-            var result = await _backfillService.ClearVisitsAsync(userId, tripId);
+            var result = await _backfillService.ClearVisitsAsync(userId, tripId, cancellationToken);
 
             if (!result.Success)
                 return NotFound(new { success = false, message = result.Message });
