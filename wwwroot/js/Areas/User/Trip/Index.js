@@ -130,13 +130,21 @@
 
     /**
      * Shows the loading state in the backfill modal.
+     * @param {string} message - The main loading message.
+     * @param {string|null} subMessage - Optional sub-message with additional info.
      */
-    const showBackfillLoading = () => {
+    const showBackfillLoading = (message = 'Analyzing location history...', subMessage = null) => {
         configSection?.classList.add('d-none');
         loadingSection?.classList.remove('d-none');
         resultsSection?.classList.add('d-none');
         analyzeBtn?.classList.add('d-none');
         applyBtn?.classList.add('d-none');
+
+        // Update loading message
+        const loadingText = loadingSection?.querySelector('p');
+        if (loadingText) {
+            loadingText.innerHTML = message + (subMessage ? `<br><small class="text-muted">${subMessage}</small>` : '');
+        }
     };
 
     /**
@@ -354,15 +362,36 @@
     const handleAnalyzeClick = async () => {
         if (!currentTripId) return;
 
-        showBackfillLoading();
+        const params = new URLSearchParams();
+        if (fromDateInput?.value) params.set('fromDate', fromDateInput.value);
+        if (toDateInput?.value) params.set('toDate', toDateInput.value);
+        const queryString = params.toString() ? '?' + params : '';
 
+        // Phase 1: Get info for progress feedback
         try {
-            const params = new URLSearchParams();
-            if (fromDateInput?.value) params.set('fromDate', fromDateInput.value);
-            if (toDateInput?.value) params.set('toDate', toDateInput.value);
+            const infoUrl = `/api/backfill/info/${currentTripId}${queryString}`;
+            const infoResp = await fetch(infoUrl);
+            const infoResult = await infoResp.json();
 
-            const url = `/api/backfill/preview/${currentTripId}${params.toString() ? '?' + params : ''}`;
-            const resp = await fetch(url);
+            if (infoResult.success) {
+                const info = infoResult.data;
+                // Show progress with real numbers
+                showBackfillLoading(
+                    `Analyzing ${info.placesWithCoordinates} places against ${info.estimatedLocations.toLocaleString()} locations...`,
+                    `Estimated time: ~${info.estimatedSeconds} second${info.estimatedSeconds !== 1 ? 's' : ''}`
+                );
+            } else {
+                showBackfillLoading();
+            }
+        } catch {
+            // Fall back to generic message if info endpoint fails
+            showBackfillLoading();
+        }
+
+        // Phase 2: Run actual preview
+        try {
+            const previewUrl = `/api/backfill/preview/${currentTripId}${queryString}`;
+            const resp = await fetch(previewUrl);
             const result = await resp.json();
 
             if (result.success) {

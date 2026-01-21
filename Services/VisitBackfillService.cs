@@ -14,6 +14,11 @@ namespace Wayfarer.Services;
 /// </summary>
 public class VisitBackfillService : IVisitBackfillService
 {
+    /// <summary>
+    /// Minimum number of places to use batched query. Below this, individual queries are fine.
+    /// </summary>
+    private const int BatchedQueryThreshold = 10;
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IApplicationSettingsService _settingsService;
     private readonly ILogger<VisitBackfillService> _logger;
@@ -113,31 +118,44 @@ public class VisitBackfillService : IVisitBackfillService
             .Select(v => (PlaceName: v.PlaceNameSnapshot, Date: DateOnly.FromDateTime(v.ArrivedAtUtc)))
             .ToHashSet();
 
-        // Analyze each place
-        var candidates = new List<BackfillCandidateDto>();
-        var totalLocationsScanned = 0;
+        // Build region lookup for candidate mapping
+        var regionsById = trip.Regions.ToDictionary(r => r.Id);
 
-        foreach (var place in placesWithCoords)
+        // Analyze places - use batched query for efficiency on larger trips
+        List<BackfillCandidateDto> allCandidates;
+        int totalLocationsScanned;
+
+        if (placesWithCoords.Count >= BatchedQueryThreshold)
         {
-            var region = trip.Regions.First(r => r.Id == place.RegionId);
-            var placeResults = await FindVisitCandidatesForPlaceAsync(
-                userId, place, region, settings, fromDate, toDate);
+            // Use efficient batched query
+            allCandidates = await FindVisitCandidatesBatchedAsync(
+                userId, placesWithCoords, regionsById, settings, fromDate, toDate, cancellationToken);
 
-            totalLocationsScanned += placeResults.LocationsScanned;
+            // Estimate locations scanned (batched query doesn't return this directly)
+            totalLocationsScanned = allCandidates.Sum(c => c.LocationCount);
+        }
+        else
+        {
+            // Use individual queries for small trips (simpler, easier to debug)
+            allCandidates = await FindVisitCandidatesIndividuallyAsync(
+                userId, placesWithCoords, regionsById, settings, fromDate, toDate, cancellationToken);
 
-            // Filter out candidates that already have visits
-            // Check both by PlaceId and by PlaceName (for cases where place was deleted/recreated)
-            // IMPORTANT: Use UTC date from FirstSeenUtc (not VisitDate which is local) to match ArrivedAtUtc storage
-            foreach (var candidate in placeResults.Candidates)
+            totalLocationsScanned = allCandidates.Sum(c => c.LocationCount);
+        }
+
+        // Filter out candidates that already have visits
+        // Check both by PlaceId and by PlaceName (for cases where place was deleted/recreated)
+        // IMPORTANT: Use UTC date from FirstSeenUtc (not VisitDate which is local) to match ArrivedAtUtc storage
+        var candidates = new List<BackfillCandidateDto>();
+        foreach (var candidate in allCandidates)
+        {
+            var candidateDateUtc = DateOnly.FromDateTime(candidate.FirstSeenUtc);
+            var hasByPlaceId = existingVisitKeysByPlaceId.Contains((candidate.PlaceId, candidateDateUtc));
+            var hasByName = existingVisitKeysByName.Contains((candidate.PlaceName, candidateDateUtc));
+
+            if (!hasByPlaceId && !hasByName)
             {
-                var candidateDateUtc = DateOnly.FromDateTime(candidate.FirstSeenUtc);
-                var hasByPlaceId = existingVisitKeysByPlaceId.Contains((place.Id, candidateDateUtc));
-                var hasByName = existingVisitKeysByName.Contains((place.Name, candidateDateUtc));
-
-                if (!hasByPlaceId && !hasByName)
-                {
-                    candidates.Add(candidate);
-                }
+                candidates.Add(candidate);
             }
         }
 
@@ -349,6 +367,59 @@ public class VisitBackfillService : IVisitBackfillService
         };
     }
 
+    /// <inheritdoc />
+    public async Task<BackfillInfoDto> GetInfoAsync(
+        string userId,
+        Guid tripId,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate trip ownership
+        var trip = await _dbContext.Trips
+            .Include(t => t.Regions)
+            .ThenInclude(r => r.Places)
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+
+        if (trip == null)
+        {
+            throw new InvalidOperationException("Trip not found or access denied.");
+        }
+
+        var allPlaces = trip.Regions.SelectMany(r => r.Places).ToList();
+        var placesWithCoords = allPlaces.Count(p => p.Location != null);
+
+        // Count locations in date range (fast count query)
+        var locationQuery = _dbContext.Locations.Where(l => l.UserId == userId);
+
+        if (fromDate.HasValue)
+            locationQuery = locationQuery.Where(l => l.LocalTimestamp >= fromDate.Value.ToDateTime(TimeOnly.MinValue));
+        if (toDate.HasValue)
+            locationQuery = locationQuery.Where(l => l.LocalTimestamp <= toDate.Value.ToDateTime(TimeOnly.MaxValue));
+
+        var locationCount = await locationQuery.CountAsync(cancellationToken);
+
+        // Count existing visits for this trip
+        var existingVisitCount = await _dbContext.PlaceVisitEvents
+            .CountAsync(v => v.UserId == userId && v.TripIdSnapshot == tripId, cancellationToken);
+
+        // Estimate analysis time based on batched query performance
+        // Batched query: ~50ms base + ~2ms per place + ~0.01ms per 1000 locations
+        var estimatedMs = 50 + (placesWithCoords * 2) + (locationCount / 100);
+        var estimatedSeconds = Math.Max(1, (int)Math.Ceiling(estimatedMs / 1000.0));
+
+        return new BackfillInfoDto
+        {
+            TripId = tripId,
+            TripName = trip.Name,
+            TotalPlaces = allPlaces.Count,
+            PlacesWithCoordinates = placesWithCoords,
+            EstimatedLocations = locationCount,
+            EstimatedSeconds = estimatedSeconds,
+            ExistingVisits = existingVisitCount
+        };
+    }
+
     /// <summary>
     /// Finds visit candidates for a specific place by querying location history.
     /// Uses PostGIS ST_DWithin for efficient spatial matching.
@@ -485,6 +556,213 @@ public class VisitBackfillService : IVisitBackfillService
             LocationsScanned = totalLocations,
             Candidates = candidates
         };
+    }
+
+    /// <summary>
+    /// Finds visit candidates for multiple places in a single batched query.
+    /// Uses PostgreSQL LATERAL JOIN for efficient spatial matching.
+    /// </summary>
+    private async Task<List<BackfillCandidateDto>> FindVisitCandidatesBatchedAsync(
+        string userId,
+        List<Place> places,
+        Dictionary<Guid, Region> regionsById,
+        ApplicationSettings settings,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken)
+    {
+        if (places.Count == 0)
+            return new List<BackfillCandidateDto>();
+
+        var radiusMeters = settings.VisitedMaxSearchRadiusMeters;
+        var minHits = settings.VisitedRequiredHits;
+
+        // Build VALUES clause for all places
+        var placeParams = new List<NpgsqlParameter>();
+        var valuesRows = new List<string>();
+
+        for (int i = 0; i < places.Count; i++)
+        {
+            var place = places[i];
+            if (place.Location == null) continue;
+
+            var idParam = $"@p{i}_id";
+            var lonParam = $"@p{i}_lon";
+            var latParam = $"@p{i}_lat";
+
+            valuesRows.Add($"({idParam}::uuid, {lonParam}, {latParam})");
+            placeParams.Add(new NpgsqlParameter(idParam, place.Id));
+            placeParams.Add(new NpgsqlParameter(lonParam, place.Location.X));
+            placeParams.Add(new NpgsqlParameter(latParam, place.Location.Y));
+        }
+
+        if (valuesRows.Count == 0)
+            return new List<BackfillCandidateDto>();
+
+        // Build date filter clause
+        var dateFilters = "";
+        if (fromDate.HasValue)
+            dateFilters += " AND DATE(l.\"LocalTimestamp\") >= @fromDate";
+        if (toDate.HasValue)
+            dateFilters += " AND DATE(l.\"LocalTimestamp\") <= @toDate";
+
+        var sql = $"""
+            WITH place_coords AS (
+                SELECT * FROM (VALUES
+                    {string.Join(",\n                ", valuesRows)}
+                ) AS t(place_id, lon, lat)
+            )
+            SELECT
+                pc.place_id,
+                DATE(l."LocalTimestamp") as visit_date,
+                MIN(l."LocalTimestamp") as first_seen,
+                MAX(l."LocalTimestamp") as last_seen,
+                COUNT(*) as location_count,
+                AVG(ST_Distance(
+                    l."Coordinates",
+                    ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography
+                )) as avg_distance
+            FROM place_coords pc
+            CROSS JOIN LATERAL (
+                SELECT l."LocalTimestamp", l."Coordinates"
+                FROM "Locations" l
+                WHERE l."UserId" = @userId
+                  AND ST_DWithin(
+                        l."Coordinates",
+                        ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography,
+                        @radius
+                      ){dateFilters}
+            ) l
+            GROUP BY pc.place_id, DATE(l."LocalTimestamp")
+            HAVING COUNT(*) >= @minHits
+            ORDER BY pc.place_id, visit_date DESC
+            """;
+
+        var candidates = new List<BackfillCandidateDto>();
+        var placesById = places.Where(p => p.Location != null).ToDictionary(p => p.Id);
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+            var connectionWasOpen = connection.State == System.Data.ConnectionState.Open;
+
+            if (!connectionWasOpen)
+            {
+                await _dbContext.Database.OpenConnectionAsync(cancellationToken);
+            }
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.CommandTimeout = 120; // 2 minute timeout for large queries
+
+                // Add place parameters
+                foreach (var param in placeParams)
+                {
+                    command.Parameters.Add(param);
+                }
+
+                // Add common parameters
+                command.Parameters.Add(new NpgsqlParameter("@userId", userId));
+                command.Parameters.Add(new NpgsqlParameter("@radius", radiusMeters));
+                command.Parameters.Add(new NpgsqlParameter("@minHits", minHits));
+
+                if (fromDate.HasValue)
+                    command.Parameters.Add(new NpgsqlParameter("@fromDate", fromDate.Value));
+                if (toDate.HasValue)
+                    command.Parameters.Add(new NpgsqlParameter("@toDate", toDate.Value));
+
+                var sw = Stopwatch.StartNew();
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var placeId = reader.GetGuid(0);
+                    var visitDate = DateOnly.FromDateTime(reader.GetDateTime(1));
+                    var firstSeen = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
+                    var lastSeen = DateTime.SpecifyKind(reader.GetDateTime(3), DateTimeKind.Utc);
+                    var locationCount = reader.GetInt32(4);
+                    var avgDistance = reader.GetDouble(5);
+
+                    if (!placesById.TryGetValue(placeId, out var place))
+                        continue;
+
+                    var region = regionsById[place.RegionId];
+                    var confidence = CalculateConfidence(locationCount, avgDistance, settings);
+
+                    candidates.Add(new BackfillCandidateDto
+                    {
+                        PlaceId = place.Id,
+                        PlaceName = place.Name,
+                        RegionName = region.Name,
+                        VisitDate = visitDate,
+                        FirstSeenUtc = firstSeen,
+                        LastSeenUtc = lastSeen,
+                        LocationCount = locationCount,
+                        AvgDistanceMeters = Math.Round(avgDistance, 1),
+                        Confidence = confidence,
+                        Latitude = place.Location!.Y,
+                        Longitude = place.Location!.X,
+                        IconName = place.IconName,
+                        MarkerColor = place.MarkerColor
+                    });
+                }
+
+                sw.Stop();
+                _logger.LogInformation(
+                    "Batched spatial query for {PlaceCount} places completed in {ElapsedMs}ms, found {CandidateCount} candidates",
+                    places.Count, sw.ElapsedMilliseconds, candidates.Count);
+            }
+            finally
+            {
+                if (!connectionWasOpen)
+                {
+                    await _dbContext.Database.CloseConnectionAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Batched spatial query failed for {PlaceCount} places. Falling back to individual queries.",
+                places.Count);
+
+            // Fallback to individual queries on error
+            return await FindVisitCandidatesIndividuallyAsync(
+                userId, places, regionsById, settings, fromDate, toDate, cancellationToken);
+        }
+
+        return candidates;
+    }
+
+    /// <summary>
+    /// Fallback method that uses individual queries per place (original N+1 pattern).
+    /// Used for small trips or when batched query fails.
+    /// </summary>
+    private async Task<List<BackfillCandidateDto>> FindVisitCandidatesIndividuallyAsync(
+        string userId,
+        List<Place> places,
+        Dictionary<Guid, Region> regionsById,
+        ApplicationSettings settings,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<BackfillCandidateDto>();
+
+        foreach (var place in places)
+        {
+            if (place.Location == null) continue;
+
+            var region = regionsById[place.RegionId];
+            var placeResults = await FindVisitCandidatesForPlaceAsync(
+                userId, place, region, settings, fromDate, toDate);
+
+            candidates.AddRange(placeResults.Candidates);
+        }
+
+        return candidates;
     }
 
     /// <summary>

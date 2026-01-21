@@ -50,4 +50,20 @@ public interface IVisitBackfillService
         string userId,
         Guid tripId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets lightweight metadata for backfill analysis progress feedback.
+    /// </summary>
+    /// <param name="userId">The user ID.</param>
+    /// <param name="tripId">The trip ID.</param>
+    /// <param name="fromDate">Optional start date filter.</param>
+    /// <param name="toDate">Optional end date filter.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Metadata for progress feedback.</returns>
+    Task<BackfillInfoDto> GetInfoAsync(
+        string userId,
+        Guid tripId,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken = default);
 }

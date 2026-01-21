@@ -329,3 +329,51 @@ public sealed class BackfillResultDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Message { get; init; }
 }
+
+/// <summary>
+/// Lightweight metadata for backfill analysis progress feedback.
+/// </summary>
+public sealed class BackfillInfoDto
+{
+    /// <summary>
+    /// The trip ID.
+    /// </summary>
+    [JsonPropertyName("tripId")]
+    public Guid TripId { get; init; }
+
+    /// <summary>
+    /// The trip name.
+    /// </summary>
+    [JsonPropertyName("tripName")]
+    public string TripName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Total number of places in the trip.
+    /// </summary>
+    [JsonPropertyName("totalPlaces")]
+    public int TotalPlaces { get; init; }
+
+    /// <summary>
+    /// Number of places with coordinates (analyzable).
+    /// </summary>
+    [JsonPropertyName("placesWithCoordinates")]
+    public int PlacesWithCoordinates { get; init; }
+
+    /// <summary>
+    /// Estimated location records to scan (based on date range if provided).
+    /// </summary>
+    [JsonPropertyName("estimatedLocations")]
+    public int EstimatedLocations { get; init; }
+
+    /// <summary>
+    /// Estimated analysis duration in seconds.
+    /// </summary>
+    [JsonPropertyName("estimatedSeconds")]
+    public int EstimatedSeconds { get; init; }
+
+    /// <summary>
+    /// Number of existing visits for this trip.
+    /// </summary>
+    [JsonPropertyName("existingVisits")]
+    public int ExistingVisits { get; init; }
+}

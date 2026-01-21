@@ -29,6 +29,58 @@ public class BackfillController : BaseApiController
     }
 
     /// <summary>
+    /// Get backfill analysis metadata for progress feedback.
+    /// </summary>
+    /// <param name="tripId">The trip ID.</param>
+    /// <param name="fromDate">Optional start date filter (yyyy-MM-dd).</param>
+    /// <param name="toDate">Optional end date filter (yyyy-MM-dd).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("info/{tripId:guid}")]
+    public async Task<IActionResult> Info(
+        Guid tripId,
+        [FromQuery] string? fromDate = null,
+        [FromQuery] string? toDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { success = false, message = "Unauthorized." });
+
+        try
+        {
+            DateOnly? from = null;
+            DateOnly? to = null;
+
+            if (!string.IsNullOrEmpty(fromDate))
+            {
+                if (!DateOnly.TryParse(fromDate, out var parsedFrom))
+                    return BadRequest(new { success = false, message = $"Invalid fromDate format: '{fromDate}'. Use yyyy-MM-dd." });
+                from = parsedFrom;
+            }
+
+            if (!string.IsNullOrEmpty(toDate))
+            {
+                if (!DateOnly.TryParse(toDate, out var parsedTo))
+                    return BadRequest(new { success = false, message = $"Invalid toDate format: '{toDate}'. Use yyyy-MM-dd." });
+                to = parsedTo;
+            }
+
+            var result = await _backfillService.GetInfoAsync(userId, tripId, from, to, cancellationToken);
+
+            return Ok(new { success = true, data = result });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting backfill info for trip {TripId}, user {UserId}", tripId, userId);
+            return StatusCode(500, new { success = false, message = "An error occurred." });
+        }
+    }
+
+    /// <summary>
     /// Preview backfill analysis for a trip.
     /// Analyzes location history against trip places to find potential visits.
     /// </summary>
