@@ -24,6 +24,28 @@ Logging
 CacheSettings
 - `CacheSettings:TileCacheDirectory` — local directory for map tile cache.
 
+Tile Provider Settings (Admin UI)
+- **Tile Provider** — select from presets (OpenStreetMap, Carto Light/Dark, ESRI Satellite) or configure a custom URL template.
+- **Custom URL Template** — use `{z}`, `{x}`, `{y}` placeholders; optionally `{apikey}` for providers requiring authentication.
+- **API Key** — stored securely for tile providers that require it (e.g., Mapbox, Thunderforest).
+- **Attribution** — HTML attribution text displayed on maps; auto-filled for presets.
+- Provider changes trigger automatic cache purge to avoid tile mixing.
+
+Location Thresholds (Admin UI)
+- **Distance Threshold** — minimum distance (meters) before logging a new location.
+- **Time Threshold** — minimum time (seconds) between location logs.
+- **GPS Accuracy Threshold** — maximum acceptable accuracy value (default 50m); readings with higher values are rejected.
+
+Visit Detection (Admin UI)
+- **Detection Radius** — distance (meters) from place center to trigger visit detection.
+- **Notification Cooldown** — minimum delay (seconds) between visit notifications for the same place, reducing SSE spam.
+- **End-Visit Timeout** — time without pings before a visit is considered ended.
+
+Tile Rate Limiting
+- Anonymous tile requests are rate-limited (default: 500 requests/minute per IP).
+- Configurable via `TileRateLimitPerMinute` setting.
+- X-Forwarded-For header trusted from localhost/private IPs for proper client identification behind reverse proxies.
+
 Uploads
 - Upload staging directory defaults under `Uploads/Temp/` (path visible in Admin Settings). Ensure writable by the app.
 

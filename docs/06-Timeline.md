@@ -22,5 +22,27 @@ Recording Modes & Data Footprint
 - Low accuracy: logs every ~10 minutes when movement exceeds ~50 m. Storage trends around 64.9 MB per user per year.
 - Use Admin → Settings to tune the distance/time/accuracy thresholds to balance fidelity with database growth.
 
+GPS Accuracy Filtering
+- Location pings with poor GPS accuracy can be filtered out automatically.
+- Configure the **GPS Accuracy Threshold** in Admin → Settings (default: 50 meters).
+- Readings with accuracy values exceeding this threshold are rejected at the API level.
+- Helps reduce noise from indoor/urban canyon readings while preserving quality data.
+- Users can view their effective threshold in User → Settings.
+
+Inline Activity Editing
+- Edit a location's activity type directly from the location popup or table row.
+- Click the activity dropdown to switch between available types without opening a full edit form.
+- Changes save automatically when a new activity is selected.
+
 Bulk Edit Notes
 - From Locations > Bulk Edit Notes, you can search by filters and update notes for many records at once.
+
+Location Metadata
+- Each location record can store additional metadata:
+  - **Accuracy** — GPS accuracy in meters
+  - **Speed** — movement speed at time of recording
+  - **Altitude** — elevation above sea level
+  - **Heading** — compass bearing
+  - **Source** — origin of the data (mobile app, import, API)
+- Metadata is preserved during import/export operations.
+- View metadata in location details and edit modals.

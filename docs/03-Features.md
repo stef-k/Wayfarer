@@ -6,23 +6,32 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 ## Maps and Tiles
 
-- Interactive maps via **Leaflet** with OpenStreetMap tiles.
-- **Local tile caching** reduces bandwidth and respects OSM fair-use policies:
+- Interactive maps via **Leaflet** with configurable tile providers.
+- **Tile provider settings** (Admin > Settings):
+  - Built-in presets: OpenStreetMap, Carto Light/Dark, ESRI Satellite.
+  - Custom tile URL templates with API key placeholders.
+  - Dynamic map attribution from active provider.
+- **Local tile caching** reduces bandwidth and respects fair-use policies:
   - Zoom levels 0–8 cached permanently (~1.3–1.75 GB).
   - Higher zooms use LRU policy with configurable cap (default 1024 MB).
-- Admin controls for cache statistics, cleanup, and size limits.
+- **Tile rate limiting** for anonymous users (default 500 requests/minute per IP).
+- Admin controls for cache statistics, cleanup, provider changes, and size limits.
 
 ---
 
 ## Location Timeline
 
 - **Record locations** via mobile app GPS, manual check-ins, or API.
-- **Import history** from Google Timeline (JSON), GPX, and KML files with progress tracking.
-- **Export locations** to GeoJSON, KML, or CSV formats.
+- **Import history** from Google Timeline (JSON), GPX, KML, GeoJSON, and CSV with progress tracking.
+- **Import deduplication** prevents duplicate entries based on timestamp and coordinates.
+- **Metadata preservation** — accuracy, speed, altitude, heading, and source tracked per location.
+- **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 - **Reverse geocoding** enriches coordinates with addresses when a Mapbox token is configured.
 - **Activity types** categorize entries (walking, driving, eating, etc.).
+- **Inline activity editing** — edit activity type directly from location modals and tables.
 - **Bulk edit notes** to update multiple location records at once.
 - **Location statistics** show visit counts by country, region, and city.
+- **GPS accuracy filtering** — configurable threshold (default 50m) filters noisy readings.
 
 ---
 
@@ -54,6 +63,14 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Two-hit confirmation** reduces false positives from GPS noise.
 - Records **visit events** with arrival/departure times and place snapshot data.
 - **Visit management UI** to view, search, and edit visit history.
+- **Visit backfill** — analyze existing location history to create visits retroactively:
+  - Preview new, stale, and existing visits before applying.
+  - Confidence scoring based on location count and proximity.
+  - Stale visit detection when places are deleted or moved.
+  - Select/deselect functionality with manual visit deletion.
+  - Clear All Visits option in trip menu.
+- **Visit-to-location navigation** — view underlying location records from any visit.
+- **Notification cooldown** — configurable delay to reduce SSE spam for repeated visits.
 - Works with all location sources: mobile tracking, manual check-ins, API entries.
 - Configurable detection radius, accuracy thresholds, and confirmation requirements.
 
@@ -96,12 +113,15 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 - **User management** — create, edit, lock/unlock, assign roles.
 - **Application settings** — location thresholds, visit detection, upload limits, cache sizes.
+- **Tile provider settings** — presets, custom templates, API keys, validation, cache purge on change.
+- **GPS accuracy threshold** — filter low-quality location readings (default 50m).
+- **Visit notification cooldown** — reduce notification spam for repeated arrivals.
 - **Audit logs** — track all admin actions for compliance.
 - **Activity types** — manage location activity categories.
 - **Job monitoring** — view scheduled jobs, execution history, and status.
 - **Log viewer** — real-time application log viewing with search.
 - **Registration control** — open/close user self-registration.
-- **Cache management** — view stats, clear LRU or all tiles.
+- **Cache management** — view stats, clear LRU or all tiles, rate limiting for anonymous users.
 
 ---
 

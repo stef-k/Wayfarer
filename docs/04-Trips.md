@@ -115,7 +115,38 @@ When you receive GPS pings (from the mobile app, API, or manual entries), the sy
 - View visit history from **User > Visits**.
 - Search by place name, region name, date range.
 - Edit or delete individual visits.
+- **Visit-to-location navigation** — click to view the underlying location records that triggered a visit.
+- **Locations column** in visit list shows count of relevant location pings.
 - Visit data persists independently of trip changes.
+
+### Visit Backfill
+
+Analyze your existing location history to create visits retroactively for trip places you've already passed through.
+
+**How to use:**
+
+1. Open a trip and select **Backfill Visits** from the dropdown menu.
+2. Optionally set a date range to limit the analysis period.
+3. Click **Analyze** to scan your location history against all trip places.
+4. Review the preview with three sections:
+   - **New Visits** — detected visits that don't exist yet (select which to create).
+   - **Stale Visits** — existing visits where the place was deleted or moved beyond detection radius.
+   - **Existing Visits** — visits already recorded (can be deleted if needed).
+5. Use **Select All / Deselect All** to quickly manage selections.
+6. Review the **Action Summary** showing what will happen on Apply.
+7. Click **Apply** to create selected new visits and delete selected stale/existing visits.
+
+**Confidence scoring:**
+
+- Each potential visit receives a confidence score based on:
+  - Number of location pings within the detection radius.
+  - Proximity to the place center.
+- Higher confidence indicates more reliable visit detection.
+
+**Clear All Visits:**
+
+- Use **Clear All Visits** from the trip dropdown to remove all visit records for a trip.
+- Useful when reimporting or restructuring trip data.
 
 ### Configuration
 
@@ -125,6 +156,7 @@ Adjust in **Admin > Settings**:
 - Accuracy thresholds
 - Confirmation window (derived from location threshold)
 - End-visit timeout
+- **Notification cooldown** — minimum delay between visit notifications for the same place (reduces SSE spam when moving in and out of a place boundary)
 
 ---
 

@@ -19,6 +19,16 @@
 - Fixed duplicate detection to check by PlaceNameSnapshot in addition to PlaceId
 - Fixed settings persistence for cooldown and rate limit settings (#128)
 
+### 2026-01-20
+- Added location metadata fields: accuracy, speed, altitude, heading, source (#121)
+- Added import deduplication to prevent duplicate location entries (#121)
+- Added metadata support to all location exporters (GeoJSON, CSV, GPX, KML)
+- Added metadata parsing to GPX, KML, GeoJSON, and CSV importers
+- Added capture metadata display to Location Edit view
+- Added test coverage for metadata parsing and deduplication boundaries (#124)
+- Fixed Source field extraction in GeoJSON and CSV parsers
+- Removed location timestamp unique index that caused import failures (#125)
+
 ### 2026-01-19
 - Added inline activity view/edit mode for location modals and tables
 - Added table activity editing with preselected activity values

@@ -9,10 +9,13 @@ Wayfarer is a self-hosted travel companion that lets you keep a private location
 ### Location Timeline
 - **Record locations** via mobile app GPS, manual check-ins, or API.
 - **Import history** from Google Timeline (JSON), GPX, KML, GeoJSON, and CSV.
-- **Export locations** to GeoJSON, KML, CSV, or GPX formats.
+- **Import deduplication** prevents duplicate entries automatically.
+- **Metadata preservation** — accuracy, speed, altitude, heading tracked per location.
+- **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 - **Reverse geocoding** enriches coordinates with addresses (Mapbox token required).
 - **Location statistics** — visit counts by country, region, and city.
 - **Bulk edit notes** to update multiple records at once.
+- **Inline activity editing** — change activity type directly from location views.
 
 ### Trip Planning
 - Organize trips into **Regions**, **Places**, **Areas**, and **Segments**.
@@ -26,6 +29,7 @@ Wayfarer is a self-hosted travel companion that lets you keep a private location
 - Detects when GPS pings arrive near planned trip places.
 - **Two-hit confirmation** reduces false positives from GPS noise.
 - Records **visit events** with arrival/departure times and place snapshots.
+- **Visit backfill** — analyze existing location history to create visits retroactively.
 - Works with all location sources: mobile tracking, check-ins, API entries.
 - Configurable detection radius, accuracy thresholds, and confirmation requirements.
 
@@ -45,6 +49,8 @@ Wayfarer is a self-hosted travel companion that lets you keep a private location
 ### Admin Features
 - **User management** — create, edit, lock/unlock, assign roles.
 - **Application settings** — location thresholds, visit detection, upload limits.
+- **Tile provider settings** — presets, custom templates, API key support.
+- **GPS accuracy filtering** — reject low-quality location readings.
 - **Background jobs** — pause, resume, cancel running jobs; view history and status.
 - **Cache management** — tile cache statistics, LRU cleanup, MBTiles for mobile.
 - **Audit logs** — track all admin actions for compliance.

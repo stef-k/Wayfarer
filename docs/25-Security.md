@@ -40,7 +40,29 @@ Two-Factor Authentication (2FA)
 - Identity area includes Enable Authenticator pages for TOTP-based 2FA.
 - Encourage users to enable 2FA, especially for admin accounts.
 
+CSRF Protection
+- All admin endpoints are protected with anti-forgery tokens.
+- AJAX calls to sensitive endpoints (cache deletion, settings changes) include CSRF tokens.
+- Forms use `@Html.AntiForgeryToken()` and controllers validate with `[ValidateAntiForgeryToken]`.
+
+Rate Limiting
+- **Tile requests** — Anonymous users limited to 500 requests/minute per IP (configurable).
+- **Check-in endpoint** — Rate-limited to prevent spam (default: 10 second cooldown).
+- **Location logging** — Filtered by time and distance thresholds.
+- Rate limit headers included in API responses.
+
+XSS Prevention
+- Tile provider attribution is sanitized using HtmlSanitizer before rendering.
+- User-generated content (notes, names) escaped in views.
+- Rich HTML content (trip notes) rendered in controlled contexts.
+
+IP Address Handling
+- X-Forwarded-For header trusted only from localhost and private IP ranges.
+- Prevents IP spoofing attacks when behind reverse proxies.
+- Configure trusted proxies in `Program.cs` for your deployment environment.
+
 Uploads & Secrets
 - Do not store tokens or secrets in exports or logs.
 - Avoid logging PII. Use role-based checks on admin endpoints.
+- API keys are redacted from tile service logs to prevent exposure.
 
