@@ -514,6 +514,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Place visit detection service (auto-visited trip places)
     builder.Services.AddScoped<IPlaceVisitDetectionService, PlaceVisitDetectionService>();
 
+    // Visit backfill service (analyze location history to create visits)
+    builder.Services.AddScoped<IVisitBackfillService, VisitBackfillService>();
+
     // Trip export service (PDF, KML, Google MyMaps KML)
     builder.Services.AddScoped<ITripExportService, TripExportService>();
 

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### 2026-01-21
+- Added Visit Backfill feature to analyze location history and create visit records (#104)
+- Added backfill preview with new visits, stale visits, and existing visits sections
+- Added confidence scoring based on location count and proximity
+- Added stale visit detection (place deleted/moved beyond radius)
+- Added manual visit deletion with checkboxes in existing visits
+- Added select/deselect all functionality for visit selections
+- Added action summary showing what will happen on Apply
+- Added Clear All Visits option in trip dropdown menu
+- Added navigation from Visit to underlying Location records (#127)
+- Added Relevant Locations card on Visit/Edit page
+- Added Locations column with lazy-loaded counts in Visit Index
+- Added visit notification cooldown setting to reduce SSE spam (#128)
+- Fixed duplicate visit prevention with timezone-aware date comparison
+- Fixed duplicate detection to check by PlaceNameSnapshot in addition to PlaceId
+- Fixed settings persistence for cooldown and rate limit settings (#128)
+
 ### 2026-01-19
 - Added inline activity view/edit mode for location modals and tables
 - Added table activity editing with preselected activity values
