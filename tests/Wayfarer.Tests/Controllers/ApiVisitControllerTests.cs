@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -221,9 +223,90 @@ public class ApiVisitControllerTests : TestBase
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
+    [Fact]
+    public async Task GetVisitLocations_ReturnsUnauthorized_WhenNotAuthenticated()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db, null);
+
+        var result = await controller.GetVisitLocations(Guid.NewGuid());
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetVisitLocations_ReturnsNotFound_WhenVisitNotExists()
+    {
+        var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
+        db.SaveChanges();
+        var controller = BuildController(db, "u1");
+
+        var result = await controller.GetVisitLocations(Guid.NewGuid());
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetVisitLocations_ReturnsNotFound_WhenVisitBelongsToOtherUser()
+    {
+        var db = CreateDbContext();
+        db.Users.AddRange(
+            TestDataFixtures.CreateUser(id: "u1"),
+            TestDataFixtures.CreateUser(id: "u2"));
+        var visit = CreateVisit("u2", "Other User Visit");
+        db.PlaceVisitEvents.Add(visit);
+        db.SaveChanges();
+        var controller = BuildController(db, "u1");
+
+        var result = await controller.GetVisitLocations(visit.Id);
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetVisitLocations_ReturnsEmptyList_WhenNoMatchingLocations()
+    {
+        var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
+        var visit = CreateVisit("u1", "My Visit");
+        db.PlaceVisitEvents.Add(visit);
+        db.SaveChanges();
+        var controller = BuildController(db, "u1");
+
+        var result = await controller.GetVisitLocations(visit.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var totalItems = (int?)ok.Value?.GetType().GetProperty("totalItems")?.GetValue(ok.Value);
+        Assert.Equal(0, totalItems);
+    }
+
+    [Fact]
+    public async Task GetVisitLocations_ReturnsOk_WithValidVisit()
+    {
+        var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
+        var visit = CreateVisit("u1", "My Visit");
+        db.PlaceVisitEvents.Add(visit);
+        db.SaveChanges();
+        var controller = BuildController(db, "u1");
+
+        var result = await controller.GetVisitLocations(visit.Id);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var success = ok.Value?.GetType().GetProperty("success")?.GetValue(ok.Value);
+        Assert.Equal(true, success);
+    }
+
     private VisitController BuildController(ApplicationDbContext db, string? userId)
     {
-        var controller = new VisitController(db, NullLogger<BaseApiController>.Instance);
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            VisitedMaxSearchRadiusMeters = 150
+        });
+
+        var controller = new VisitController(db, NullLogger<BaseApiController>.Instance, settingsMock.Object);
 
         var httpContext = new DefaultHttpContext();
         if (userId != null)

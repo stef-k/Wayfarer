@@ -163,6 +163,51 @@
                      data-color="@(Model.MarkerColorSnapshot ?? "bg-blue")"></div>
             </div>
         </div>
+
+        <!-- Relevant Locations Card -->
+        <div class="card shadow-sm mt-3" id="locationPingsCard" data-visit-id="@Model.Id">
+            <div class="card-header d-flex justify-content-between align-items-center"
+                 role="button" data-bs-toggle="collapse" data-bs-target="#locationPingsCollapse"
+                 aria-expanded="true" aria-controls="locationPingsCollapse">
+                <h2 class="fs-5 mb-0">
+                    <i class="bi bi-geo-alt me-1"></i>Relevant Locations
+                    <span id="locationPingsCount" class="badge bg-secondary ms-2">...</span>
+                </h2>
+                <i class="bi bi-chevron-up" id="collapseIcon"></i>
+            </div>
+            <div id="locationPingsCollapse" class="collapse show">
+                <div class="card-body p-2">
+                    <div id="locationPingsLoading" class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                        <span class="ms-2">Loading...</span>
+                    </div>
+                    <div class="table-responsive" id="locationPingsTableWrapper" style="display:none; max-height:220px; overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0" id="locationPingsTable">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Coordinates</th>
+                                    <th class="text-end">Accuracy</th>
+                                    <th class="text-end">Speed</th>
+                                    <th>Activity</th>
+                                    <th>Address</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="locationPingsBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="locationPingsLoadMore" class="text-center mt-2" style="display:none;">
+                        <button class="btn btn-outline-primary btn-sm" id="loadMoreLocationsBtn">
+                            Show More
+                        </button>
+                    </div>
+                    <div id="locationPingsEmpty" class="text-muted text-center py-3" style="display:none;">
+                        No relevant locations found for this visit.
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

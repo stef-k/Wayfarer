@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -14,9 +15,15 @@ namespace Wayfarer.Areas.Api.Controllers;
 [ApiController]
 public class VisitController : BaseApiController
 {
-    public VisitController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger)
+    private readonly IApplicationSettingsService _settingsService;
+
+    public VisitController(
+        ApplicationDbContext dbContext,
+        ILogger<BaseApiController> logger,
+        IApplicationSettingsService settingsService)
         : base(dbContext, logger)
     {
+        _settingsService = settingsService;
     }
 
     /// <summary>
@@ -220,5 +227,168 @@ public class VisitController : BaseApiController
     {
         /// <summary>Array of visit IDs to delete.</summary>
         public Guid[] VisitIds { get; set; } = Array.Empty<Guid>();
+    }
+
+    /// <summary>
+    /// Get location counts for multiple visits in batch.
+    /// Used to lazy-load counts after the main search results are displayed.
+    /// </summary>
+    /// <param name="request">Request containing visit IDs to count locations for.</param>
+    [HttpPost("location-counts")]
+    public async Task<IActionResult> GetLocationCounts([FromBody] LocationCountsRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { success = false, message = "Unauthorized." });
+
+        if (request?.VisitIds == null || request.VisitIds.Length == 0)
+            return Ok(new { success = true, counts = new Dictionary<Guid, int>() });
+
+        try
+        {
+            // Get visits for the requested IDs (verify ownership)
+            var visits = await _dbContext.PlaceVisitEvents
+                .Where(v => v.UserId == userId && request.VisitIds.Contains(v.Id))
+                .ToListAsync();
+
+            var settings = _settingsService.GetSettings();
+            var radiusMeters = settings.VisitedMaxSearchRadiusMeters;
+
+            var counts = await GetLocationCountsForVisitsAsync(userId, visits, radiusMeters);
+
+            return Ok(new { success = true, counts });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting location counts for user {UserId}", userId);
+            return StatusCode(500, new { success = false, message = "An error occurred." });
+        }
+    }
+
+    /// <summary>
+    /// Request model for batch location counts.
+    /// </summary>
+    public class LocationCountsRequest
+    {
+        /// <summary>Array of visit IDs to get location counts for.</summary>
+        public Guid[] VisitIds { get; set; } = Array.Empty<Guid>();
+    }
+
+    /// <summary>
+    /// Get locations relevant to a visit (within time window and proximity radius).
+    /// Returns locations that fall within the visit's time window and are near the place location.
+    /// </summary>
+    /// <param name="visitId">The visit ID</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Items per page</param>
+    [HttpGet("{visitId:guid}/locations")]
+    public async Task<IActionResult> GetVisitLocations(
+        Guid visitId,
+        int page = 1,
+        int pageSize = 10)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { success = false, message = "Unauthorized." });
+
+        try
+        {
+            // Get the visit and verify ownership
+            var visit = await _dbContext.PlaceVisitEvents
+                .FirstOrDefaultAsync(v => v.Id == visitId && v.UserId == userId);
+
+            if (visit == null)
+                return NotFound(new { success = false, message = "Visit not found." });
+
+            if (visit.PlaceLocationSnapshot == null)
+                return Ok(new { success = true, data = Array.Empty<object>(), totalItems = 0, page, pageSize });
+
+            // Get search radius from settings
+            var settings = _settingsService.GetSettings();
+            var radiusMeters = settings.VisitedMaxSearchRadiusMeters;
+
+            // Determine end time: use EndedAtUtc if closed, otherwise LastSeenAtUtc
+            var endTime = visit.EndedAtUtc ?? visit.LastSeenAtUtc;
+
+            // Build query: locations within time window and proximity
+            // Use server-side Timestamp for comparison since visit timestamps are also server-side UTC
+            var query = _dbContext.Locations
+                .Include(l => l.ActivityType)
+                .Where(l => l.UserId == userId)
+                .Where(l => l.Timestamp >= visit.ArrivedAtUtc)
+                .Where(l => l.Timestamp <= endTime)
+                .Where(l => l.Coordinates.IsWithinDistance(visit.PlaceLocationSnapshot, radiusMeters))
+                .OrderBy(l => l.Timestamp);
+
+            // Get total count
+            var totalItems = await query.CountAsync();
+
+            // Fetch paginated location entities first
+            var locationEntities = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // Project to DTOs in-memory (avoids EF Core geography translation issues)
+            var locations = locationEntities.Select(l => new
+            {
+                l.Id,
+                l.LocalTimestamp,
+                l.TimeZoneId,
+                Latitude = l.Coordinates.Y,
+                Longitude = l.Coordinates.X,
+                l.Accuracy,
+                l.Speed,
+                Activity = l.ActivityType?.Name,
+                l.Address
+            }).ToList();
+
+            return Ok(new
+            {
+                success = true,
+                data = locations,
+                totalItems,
+                page,
+                pageSize
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting locations for visit {VisitId}, user {UserId}", visitId, userId);
+            return StatusCode(500, new { success = false, message = "An error occurred while retrieving locations." });
+        }
+    }
+
+    /// <summary>
+    /// Get location counts for multiple visits sequentially.
+    /// Note: DbContext is not thread-safe, so we cannot run queries in parallel.
+    /// </summary>
+    private async Task<Dictionary<Guid, int>> GetLocationCountsForVisitsAsync(
+        string userId,
+        List<PlaceVisitEvent> visits,
+        int radiusMeters)
+    {
+        var counts = new Dictionary<Guid, int>();
+
+        foreach (var v in visits)
+        {
+            if (v.PlaceLocationSnapshot == null)
+            {
+                counts[v.Id] = 0;
+                continue;
+            }
+
+            var endTime = v.EndedAtUtc ?? v.LastSeenAtUtc;
+            var count = await _dbContext.Locations
+                .Where(l => l.UserId == userId)
+                .Where(l => l.Timestamp >= v.ArrivedAtUtc)
+                .Where(l => l.Timestamp <= endTime)
+                .Where(l => l.Coordinates.IsWithinDistance(v.PlaceLocationSnapshot, radiusMeters))
+                .CountAsync();
+
+            counts[v.Id] = count;
+        }
+
+        return counts;
     }
 }
