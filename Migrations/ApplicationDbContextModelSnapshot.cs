@@ -78,6 +78,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("UploadSizeLimitMB")
                         .HasColumnType("integer");
 
+                    b.Property<int>("VisitNotificationCooldownHours")
+                        .HasColumnType("integer");
+
                     b.Property<double>("VisitedAccuracyMultiplier")
                         .HasColumnType("double precision");
 

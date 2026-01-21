@@ -327,6 +327,40 @@
                             </div>
 
                             <div class="col-md-6 mb-3">
+                                <label asp-for="VisitNotificationCooldownHours" class="form-label">
+                                    <i class="bi bi-bell-slash me-1"></i>Notification Cooldown (hours)
+                                </label>
+                                <select asp-for="VisitNotificationCooldownHours" class="form-control">
+                                    <option value="-1">Never notify (disabled)</option>
+                                    <option value="0">Always notify (no cooldown)</option>
+                                    <optgroup label="Short (1-6 hours)">
+                                        <option value="1">1 hour</option>
+                                        <option value="2">2 hours</option>
+                                        <option value="3">3 hours</option>
+                                        <option value="6">6 hours</option>
+                                    </optgroup>
+                                    <optgroup label="Day-based (12-48 hours)">
+                                        <option value="12">12 hours</option>
+                                        <option value="24">24 hours (1 day) - Default</option>
+                                        <option value="48">48 hours (2 days)</option>
+                                    </optgroup>
+                                    <optgroup label="Weekly (72-168 hours)">
+                                        <option value="72">72 hours (3 days)</option>
+                                        <option value="168">168 hours (1 week)</option>
+                                    </optgroup>
+                                    <optgroup label="Monthly (336-720 hours)">
+                                        <option value="336">336 hours (2 weeks)</option>
+                                        <option value="720">720 hours (30 days)</option>
+                                    </optgroup>
+                                </select>
+                                <small class="form-text text-muted">
+                                    Minimum time before sending another notification for the same place.<br/>
+                                    <em>Visits are always recorded; this only affects SSE notifications.</em>
+                                </small>
+                                <span asp-validation-for="VisitNotificationCooldownHours" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
                                 <div class="alert alert-info mb-0">
                                     <strong>Derived from Time Threshold (@Model.LocationTimeThresholdMinutes min):</strong>
                                     <ul class="mb-0 mt-2">
@@ -631,7 +665,7 @@
                         </div>
 
                         <div class="form-text fs-6 mt-2">
-                            • This includes storage used by: map tile cache (zoom ≥ 9),PBF used for mobile routing and routing files, and
+                            • This includes storage used by: map tile cache (zoom ≥ 9) and
                             uploaded files (e.g. Google Timeline JSON).<br/>
                             • Zoom levels 0–8 are permanent and not included in soft limits.<br/>
                             • Use this summary to estimate how much disk Wayfarer currently occupies on your server.
