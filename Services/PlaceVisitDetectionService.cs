@@ -468,11 +468,13 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
         var cooldownCutoff = DateTime.UtcNow.AddHours(-settings.VisitNotificationCooldownHours);
 
         // Check for any previous visit to the same place within the cooldown window
+        // Use LastSeenAtUtc (last activity) rather than ArrivedAtUtc to properly handle
+        // long-running visits - we want to throttle based on when user was last present
         var hasRecentVisit = await _dbContext.PlaceVisitEvents
             .Where(v => v.UserId == userId)
             .Where(v => v.PlaceId == placeId)
             .Where(v => v.Id != currentVisitId) // Exclude the visit we just created
-            .Where(v => v.ArrivedAtUtc >= cooldownCutoff)
+            .Where(v => v.LastSeenAtUtc >= cooldownCutoff)
             .AnyAsync(cancellationToken);
 
         return !hasRecentVisit;
