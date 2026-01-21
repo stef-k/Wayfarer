@@ -507,6 +507,31 @@
     // Reset modal when hidden
     backfillModalEl?.addEventListener('hidden.bs.modal', resetBackfillModal);
 
+    // Initialize Tippy tooltips when modal is shown
+    backfillModalEl?.addEventListener('shown.bs.modal', () => {
+        // Initialize Tippy for all help icons in the modal
+        if (typeof tippy !== 'undefined') {
+            backfillModalEl.querySelectorAll('.backfill-help[data-tippy-content]').forEach(el => {
+                // Skip if already initialized
+                if (el._tippy) return;
+                tippy(el, {
+                    appendTo: () => document.body,
+                    allowHTML: true,
+                    interactive: true,
+                    placement: 'top',
+                    maxWidth: 350,
+                    theme: 'light-border',
+                    popperOptions: {
+                        modifiers: [{
+                            name: 'zIndex',
+                            options: { zIndex: 2000 }  // Must exceed Bootstrap modal (1050)
+                        }]
+                    }
+                });
+            });
+        }
+    });
+
     // Select/Deselect all handlers for stale visits
     document.getElementById('stale-select-all')?.addEventListener('click', (e) => {
         e.preventDefault();

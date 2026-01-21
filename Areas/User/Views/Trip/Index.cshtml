@@ -118,17 +118,21 @@ else
                                 <a class="dropdown-item btn-backfill-analyze"
                                    href="#"
                                    data-trip-id="@trip.Id"
-                                   data-trip-name="@trip.Name">
+                                   data-trip-name="@trip.Name"
+                                   title="Scan your location history to find and create visit records for places in this trip">
                                     <i class="bi bi-clock-history me-2"></i>Analyze History
+                                    <small class="d-block text-muted ps-4">Find visits from your location data</small>
                                 </a>
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item btn-backfill-clear"
+                                <a class="dropdown-item btn-backfill-clear text-warning"
                                    href="#"
                                    data-trip-id="@trip.Id"
-                                   data-trip-name="@trip.Name">
+                                   data-trip-name="@trip.Name"
+                                   title="Remove all visit records associated with this trip">
                                     <i class="bi bi-trash me-2"></i>Clear All Visits
+                                    <small class="d-block text-muted ps-4">Delete all visit records for this trip</small>
                                 </a>
                             </li>
                             <li>
@@ -160,6 +164,8 @@ else
             <div class="modal-header">
                 <h5 class="modal-title">
                     <i class="bi bi-clock-history me-2"></i>Analyze Location History
+                    <i class="bi bi-question-circle text-muted ms-2 backfill-help" role="button" tabindex="0"
+                       data-tippy-content="This tool scans your location history to find days when you were physically near places in this trip. It can automatically create visit records for places you've been to, and identify outdated visits that may need cleanup."></i>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -171,19 +177,27 @@ else
                     </p>
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label for="backfill-from-date" class="form-label">From Date (optional)</label>
+                            <label for="backfill-from-date" class="form-label">
+                                From Date (optional)
+                                <i class="bi bi-question-circle text-muted small backfill-help" role="button" tabindex="0"
+                                   data-tippy-content="Only analyze location history from this date forward. Useful if you know when your trip started."></i>
+                            </label>
                             <input type="date" class="form-control" id="backfill-from-date">
                         </div>
                         <div class="col-md-6">
-                            <label for="backfill-to-date" class="form-label">To Date (optional)</label>
+                            <label for="backfill-to-date" class="form-label">
+                                To Date (optional)
+                                <i class="bi bi-question-circle text-muted small backfill-help" role="button" tabindex="0"
+                                   data-tippy-content="Only analyze location history up to this date. Useful if you know when your trip ended."></i>
+                            </label>
                             <input type="date" class="form-control" id="backfill-to-date">
                         </div>
                     </div>
                     <div class="alert alert-light small mb-0">
-                        <i class="bi bi-info-circle me-1"></i>
-                        <strong>Tip:</strong> Use date filters to narrow the analysis to when the trip took place.
-                        Leave dates empty to analyze all location history. The analysis will find
-                        days when you were near trip places and suggest creating visit records.
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>How it works:</strong> The analysis searches your location history for GPS points
+                        within ~150m of each place in this trip. Days with multiple location points near a place
+                        are suggested as visits. Leave dates empty to scan your entire history.
                     </div>
                 </div>
 
@@ -202,11 +216,17 @@ else
                         <div class="row text-center">
                             <div class="col-4">
                                 <div class="fw-bold" id="result-locations">0</div>
-                                <small class="text-muted">Locations</small>
+                                <small class="text-muted backfill-help" role="button" tabindex="0"
+                                       data-tippy-content="Total GPS location points that matched places in this trip. More matches = higher confidence.">
+                                    Locations <i class="bi bi-info-circle"></i>
+                                </small>
                             </div>
                             <div class="col-4">
                                 <div class="fw-bold" id="result-places">0</div>
-                                <small class="text-muted">Places</small>
+                                <small class="text-muted backfill-help" role="button" tabindex="0"
+                                       data-tippy-content="Number of places in this trip that have coordinates and were included in the analysis.">
+                                    Places <i class="bi bi-info-circle"></i>
+                                </small>
                             </div>
                             <div class="col-4">
                                 <div class="fw-bold" id="result-time">0ms</div>
@@ -220,16 +240,21 @@ else
                         <h6 class="border-bottom pb-2">
                             <i class="bi bi-plus-circle text-success me-2"></i>
                             New Visits to Create (<span id="new-visits-count">0</span>)
+                            <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
+                               data-tippy-content="<strong>New visits</strong> are days when your location history shows you were near a place, but no visit record exists yet.<br><br><strong>Confidence %</strong> indicates how certain we are — based on how many GPS points matched and how close they were to the place center."></i>
                         </h6>
                         <div id="new-visits-hint" class="alert alert-success small py-2 mb-2 d-none">
-                            <i class="bi bi-info-circle me-1"></i>
+                            <i class="bi bi-check-circle me-1"></i>
                             These visits will be <strong>automatically created</strong> when you click Apply.
+                            Higher confidence means more GPS points were found near the place.
                         </div>
                         <div id="new-visits-list" class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
                             <!-- Populated by JS -->
                         </div>
                         <div id="no-new-visits" class="text-muted small d-none">
-                            No new visits found in the selected date range.
+                            <i class="bi bi-check-circle me-1"></i>
+                            No new visits found — you may already have visit records for all matching days,
+                            or no location data matches the places in this trip.
                         </div>
                     </div>
 
@@ -239,6 +264,8 @@ else
                             <span>
                                 <i class="bi bi-exclamation-triangle text-warning me-2"></i>
                                 Stale Visits (<span id="stale-visits-count">0</span>)
+                                <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
+                                   data-tippy-content="<strong>Stale visits</strong> are existing visit records that may no longer be accurate:<br><br>• <strong>Place was deleted</strong> — The place no longer exists<br>• <strong>Place was moved</strong> — The place location changed significantly (>150m) since the visit was recorded<br><br>These are pre-selected for deletion, but you can uncheck any you want to keep."></i>
                             </span>
                             <span id="stale-select-all-wrapper" class="d-none">
                                 <a href="#" class="small text-decoration-none" id="stale-select-all">Select all</a>
@@ -247,14 +274,16 @@ else
                             </span>
                         </h6>
                         <div id="stale-visits-hint" class="alert alert-warning small py-2 mb-2 d-none">
-                            <i class="bi bi-info-circle me-1"></i>
-                            <strong>Checked = will be deleted</strong>. Uncheck to keep a visit.
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Checked visits will be deleted.</strong> These visits reference places that were
+                            deleted or moved significantly. Uncheck any you want to keep.
                         </div>
                         <div id="stale-visits-list" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
                             <!-- Populated by JS -->
                         </div>
                         <div id="no-stale-visits" class="text-muted small d-none">
-                            No stale visits found.
+                            <i class="bi bi-check-circle me-1"></i>
+                            No stale visits found — all existing visits reference valid, current place locations.
                         </div>
                     </div>
 
@@ -264,6 +293,8 @@ else
                             <span>
                                 <i class="bi bi-check-circle text-primary me-2"></i>
                                 Existing Visits (<span id="existing-visits-count">0</span>)
+                                <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
+                                   data-tippy-content="<strong>Existing visits</strong> are valid visit records that already exist for this trip. They are shown here for reference and manual cleanup.<br><br>Check any visits you want to delete — for example, if they were created by mistake or you want to re-analyze with different settings."></i>
                             </span>
                             <span id="existing-select-all-wrapper" class="d-none">
                                 <a href="#" class="small text-decoration-none" id="existing-select-all">Select all</a>
@@ -272,14 +303,16 @@ else
                             </span>
                         </h6>
                         <div id="existing-visits-hint" class="alert alert-secondary small py-2 mb-2 d-none">
-                            <i class="bi bi-info-circle me-1"></i>
-                            <strong>Check to delete</strong>. These visits are valid but you can select any to remove.
+                            <i class="bi bi-shield-check me-1"></i>
+                            These are <strong>valid visits</strong> that won't be modified unless you check them for deletion.
+                            Use this to manually clean up visits you no longer want.
                         </div>
                         <div id="existing-visits-list" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
                             <!-- Populated by JS -->
                         </div>
                         <div id="no-existing-visits" class="text-muted small d-none">
-                            No existing visits for this trip.
+                            <i class="bi bi-inbox me-1"></i>
+                            No existing visits for this trip yet.
                         </div>
                     </div>
                 </div>
