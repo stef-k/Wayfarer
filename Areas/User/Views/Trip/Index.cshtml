@@ -105,25 +105,209 @@ else
                        class="btn btn-sm btn-primary">View</a>
                     <a asp-area="User" asp-controller="Trip" asp-action="Edit" title="Edit Trip" asp-route-id="@trip.Id"
                        class="btn btn-sm btn-secondary">Edit</a>
+                    <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                data-bs-display="static"
+                                aria-expanded="false">
+                            More
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item btn-backfill-analyze"
+                                   href="#"
+                                   data-trip-id="@trip.Id"
+                                   data-trip-name="@trip.Name">
+                                    <i class="bi bi-clock-history me-2"></i>Analyze History
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item btn-backfill-clear"
+                                   href="#"
+                                   data-trip-id="@trip.Id"
+                                   data-trip-name="@trip.Name">
+                                    <i class="bi bi-trash me-2"></i>Clear All Visits
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-danger btn-trip-delete"
+                                   href="#"
+                                   data-trip-id="@trip.Id">
+                                    <i class="bi bi-x-circle me-2"></i>Delete Trip
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                     <form id="delete-form-@trip.Id"
                           asp-action="Delete"
                           method="post"
                           class="d-none">
                         <input type="hidden" name="id" value="@trip.Id"/>
                     </form>
-
-                    <button type="button"
-                            class="btn btn-sm btn-outline-danger btn-trip-delete"
-                            data-trip-id="@trip.Id"
-                            title="Delete Trip">
-                        Delete
-                    </button>
                 </td>
             </tr>
         }
         </tbody>
     </table>
 }
+
+<!-- ▼ Backfill analysis modal -->
+<div class="modal fade" id="backfillModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i>Analyze Location History
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Configuration Phase -->
+                <div id="backfill-config">
+                    <p class="mb-3">
+                        Analyzing trip: <strong id="backfill-trip-name"></strong>
+                    </p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="backfill-from-date" class="form-label">From Date (optional)</label>
+                            <input type="date" class="form-control" id="backfill-from-date">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="backfill-to-date" class="form-label">To Date (optional)</label>
+                            <input type="date" class="form-control" id="backfill-to-date">
+                        </div>
+                    </div>
+                    <div class="alert alert-light small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Tip:</strong> Use date filters to narrow the analysis to when the trip took place.
+                        Leave dates empty to analyze all location history. The analysis will find
+                        days when you were near trip places and suggest creating visit records.
+                    </div>
+                </div>
+
+                <!-- Loading Phase -->
+                <div id="backfill-loading" class="text-center py-4 d-none">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Analyzing...</span>
+                    </div>
+                    <p class="mb-0">Analyzing location history...</p>
+                </div>
+
+                <!-- Results Phase -->
+                <div id="backfill-results" class="d-none">
+                    <!-- Summary -->
+                    <div class="alert alert-info mb-3">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="fw-bold" id="result-locations">0</div>
+                                <small class="text-muted">Locations</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold" id="result-places">0</div>
+                                <small class="text-muted">Places</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="fw-bold" id="result-time">0ms</div>
+                                <small class="text-muted">Analysis Time</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- New Visits Section -->
+                    <div id="new-visits-section" class="mb-3">
+                        <h6 class="border-bottom pb-2">
+                            <i class="bi bi-plus-circle text-success me-2"></i>
+                            New Visits to Create (<span id="new-visits-count">0</span>)
+                        </h6>
+                        <div id="new-visits-hint" class="alert alert-success small py-2 mb-2 d-none">
+                            <i class="bi bi-info-circle me-1"></i>
+                            These visits will be <strong>automatically created</strong> when you click Apply.
+                        </div>
+                        <div id="new-visits-list" class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div id="no-new-visits" class="text-muted small d-none">
+                            No new visits found in the selected date range.
+                        </div>
+                    </div>
+
+                    <!-- Stale Visits Section -->
+                    <div id="stale-visits-section" class="mb-3">
+                        <h6 class="border-bottom pb-2 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                                Stale Visits (<span id="stale-visits-count">0</span>)
+                            </span>
+                            <span id="stale-select-all-wrapper" class="d-none">
+                                <a href="#" class="small text-decoration-none" id="stale-select-all">Select all</a>
+                                <span class="text-muted mx-1">|</span>
+                                <a href="#" class="small text-decoration-none" id="stale-deselect-all">Deselect all</a>
+                            </span>
+                        </h6>
+                        <div id="stale-visits-hint" class="alert alert-warning small py-2 mb-2 d-none">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>Checked = will be deleted</strong>. Uncheck to keep a visit.
+                        </div>
+                        <div id="stale-visits-list" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div id="no-stale-visits" class="text-muted small d-none">
+                            No stale visits found.
+                        </div>
+                    </div>
+
+                    <!-- Existing Visits Section -->
+                    <div id="existing-visits-section" class="mb-3">
+                        <h6 class="border-bottom pb-2 d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="bi bi-check-circle text-primary me-2"></i>
+                                Existing Visits (<span id="existing-visits-count">0</span>)
+                            </span>
+                            <span id="existing-select-all-wrapper" class="d-none">
+                                <a href="#" class="small text-decoration-none" id="existing-select-all">Select all</a>
+                                <span class="text-muted mx-1">|</span>
+                                <a href="#" class="small text-decoration-none" id="existing-deselect-all">Deselect all</a>
+                            </span>
+                        </h6>
+                        <div id="existing-visits-hint" class="alert alert-secondary small py-2 mb-2 d-none">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>Check to delete</strong>. These visits are valid but you can select any to remove.
+                        </div>
+                        <div id="existing-visits-list" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div id="no-existing-visits" class="text-muted small d-none">
+                            No existing visits for this trip.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Action Summary (shown before Apply) -->
+            <div id="action-summary" class="px-3 pb-2 d-none">
+                <div class="alert alert-light border mb-0 small">
+                    <strong>Actions to perform:</strong>
+                    <ul class="mb-0 ps-3">
+                        <li id="summary-create" class="d-none"><span id="summary-create-count">0</span> new visits will be created</li>
+                        <li id="summary-delete-stale" class="d-none text-warning"><span id="summary-delete-stale-count">0</span> stale visits will be deleted</li>
+                        <li id="summary-delete-manual" class="d-none text-danger"><span id="summary-delete-manual-count">0</span> existing visits will be deleted</li>
+                        <li id="summary-nothing" class="d-none text-muted">No changes to apply</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-backfill-analyze">
+                    <i class="bi bi-search me-1"></i>Analyze
+                </button>
+                <button type="button" class="btn btn-success d-none" id="btn-backfill-apply">
+                    <i class="bi bi-check-lg me-1"></i>Apply Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- ▼ NEW duplicate / upsert modal -->
 <div class="modal fade" id="dupModal" tabindex="-1">
