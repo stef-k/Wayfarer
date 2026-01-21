@@ -260,9 +260,9 @@ public class VisitBackfillService : IVisitBackfillService
             };
 
             _dbContext.PlaceVisitEvents.Add(visitEvent);
-            // Add to both sets to prevent duplicates in same batch (use UTC date)
+            // Add to PlaceId set to prevent duplicates in same batch (use UTC date)
+            // Note: Don't add to existingKeysByName - that's only for visits with null PlaceId
             existingKeysByPlaceId.Add((item.PlaceId, itemDateUtc));
-            existingKeysByName.Add((place.Name, itemDateUtc));
             created++;
         }
 
