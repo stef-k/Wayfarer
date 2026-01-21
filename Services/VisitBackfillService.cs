@@ -92,13 +92,15 @@ public class VisitBackfillService : IVisitBackfillService
 
         // Build sets for duplicate detection:
         // 1. By (PlaceId, Date) - for visits with valid PlaceId
-        // 2. By (PlaceNameSnapshot, Date) - for visits where place was deleted (PlaceId = null)
+        // 2. By (PlaceNameSnapshot, Date) - ONLY for visits where place was deleted (PlaceId = null)
+        //    This prevents false positives when two different places have the same name
         var existingVisitKeysByPlaceId = existingVisits
             .Where(v => v.PlaceId.HasValue)
             .Select(v => (PlaceId: v.PlaceId!.Value, Date: DateOnly.FromDateTime(v.ArrivedAtUtc)))
             .ToHashSet();
 
         var existingVisitKeysByName = existingVisits
+            .Where(v => !v.PlaceId.HasValue) // Only for deleted places (PlaceId = null)
             .Select(v => (PlaceName: v.PlaceNameSnapshot, Date: DateOnly.FromDateTime(v.ArrivedAtUtc)))
             .ToHashSet();
 
@@ -197,7 +199,10 @@ public class VisitBackfillService : IVisitBackfillService
             .Select(v => (PlaceId: v.PlaceId!.Value, Date: DateOnly.FromDateTime(v.Date)))
             .ToHashSet();
 
+        // Only use name-based dedupe for visits where PlaceId is null (deleted places)
+        // This prevents false positives when two different places have the same name
         var existingKeysByName = existingVisitRecords
+            .Where(v => !v.PlaceId.HasValue)
             .Select(v => (PlaceName: v.PlaceNameSnapshot, Date: DateOnly.FromDateTime(v.Date)))
             .ToHashSet();
 
