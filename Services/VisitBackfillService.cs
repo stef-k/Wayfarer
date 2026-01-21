@@ -77,6 +77,14 @@ public class VisitBackfillService : IVisitBackfillService
 
         if (placesWithCoords.Count == 0)
         {
+            // No places with coordinates - skip candidate analysis but still detect stale visits
+            var staleVisitsNoCoords = FindStaleVisitsFromList(existingVisits, allPlaces, settings);
+            var staleVisitIdsNoCoords = staleVisitsNoCoords.Select(s => s.VisitId).ToHashSet();
+            var unchangedVisitsNoCoords = existingVisits
+                .Where(v => !staleVisitIdsNoCoords.Contains(v.Id))
+                .ToList();
+
+            stopwatch.Stop();
             return new BackfillPreviewDto
             {
                 TripId = tripId,
@@ -85,8 +93,8 @@ public class VisitBackfillService : IVisitBackfillService
                 PlacesAnalyzed = 0,
                 AnalysisDurationMs = stopwatch.ElapsedMilliseconds,
                 NewVisits = new List<BackfillCandidateDto>(),
-                StaleVisits = new List<StaleVisitDto>(),
-                ExistingVisits = MapToExistingVisitDtos(existingVisits)
+                StaleVisits = staleVisitsNoCoords,
+                ExistingVisits = MapToExistingVisitDtos(unchangedVisitsNoCoords)
             };
         }
 
@@ -270,8 +278,11 @@ public class VisitBackfillService : IVisitBackfillService
         var deleted = 0;
         if (request.DeleteVisitIds.Count > 0)
         {
+            // Scope deletions to this trip to prevent accidental deletion of visits from other trips
             var visitsToDelete = await _dbContext.PlaceVisitEvents
-                .Where(v => v.UserId == userId && request.DeleteVisitIds.Contains(v.Id))
+                .Where(v => v.UserId == userId
+                            && v.TripIdSnapshot == tripId
+                            && request.DeleteVisitIds.Contains(v.Id))
                 .ToListAsync();
 
             _dbContext.PlaceVisitEvents.RemoveRange(visitsToDelete);
