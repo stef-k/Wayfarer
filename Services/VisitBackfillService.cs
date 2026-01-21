@@ -361,20 +361,13 @@ public class VisitBackfillService : IVisitBackfillService
         var radiusMeters = settings.VisitedMaxSearchRadiusMeters;
         var minHits = settings.VisitedRequiredHits;
 
-        // Build date filters
-        DateTime? fromUtc = fromDate.HasValue
-            ? new DateTime(fromDate.Value.Year, fromDate.Value.Month, fromDate.Value.Day, 0, 0, 0, DateTimeKind.Utc)
-            : null;
-        DateTime? toUtc = toDate.HasValue
-            ? new DateTime(toDate.Value.Year, toDate.Value.Month, toDate.Value.Day, 23, 59, 59, DateTimeKind.Utc)
-            : null;
-
-        // Build dynamic SQL to avoid nullable parameter type inference issues
+        // Build dynamic SQL date filters using DATE() to filter on local date portion
+        // This avoids timezone boundary issues when user selects date ranges
         var dateFilters = "";
-        if (fromUtc.HasValue)
-            dateFilters += " AND l.\"LocalTimestamp\" >= @fromDate";
-        if (toUtc.HasValue)
-            dateFilters += " AND l.\"LocalTimestamp\" <= @toDate";
+        if (fromDate.HasValue)
+            dateFilters += " AND DATE(l.\"LocalTimestamp\") >= @fromDate";
+        if (toDate.HasValue)
+            dateFilters += " AND DATE(l.\"LocalTimestamp\") <= @toDate";
 
         // PostGIS query to find location matches grouped by date
         // Use LocalTimestamp consistently for visit times (not Timestamp which is server ingestion time)
@@ -422,10 +415,11 @@ public class VisitBackfillService : IVisitBackfillService
                 command.Parameters.Add(new NpgsqlParameter("@lat", place.Location.Y));
                 command.Parameters.Add(new NpgsqlParameter("@radius", radiusMeters));
                 command.Parameters.Add(new NpgsqlParameter("@minHits", minHits));
-                if (fromUtc.HasValue)
-                    command.Parameters.Add(new NpgsqlParameter("@fromDate", fromUtc.Value));
-                if (toUtc.HasValue)
-                    command.Parameters.Add(new NpgsqlParameter("@toDate", toUtc.Value));
+                // Pass DateOnly directly - PostgreSQL DATE type comparison
+                if (fromDate.HasValue)
+                    command.Parameters.Add(new NpgsqlParameter("@fromDate", fromDate.Value));
+                if (toDate.HasValue)
+                    command.Parameters.Add(new NpgsqlParameter("@toDate", toDate.Value));
 
                 await using var reader = await command.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
