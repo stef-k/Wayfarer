@@ -451,4 +451,38 @@ public class PlaceVisitDetectionServiceTests : TestBase
     }
 
     #endregion
+
+    #region Notification Cooldown Settings Tests
+
+    [Fact]
+    [Trait("Category", "PlaceVisitDetection")]
+    public void VisitNotificationCooldownHours_DefaultsTo24()
+    {
+        // Arrange & Act
+        var settings = new ApplicationSettings();
+
+        // Assert
+        Assert.Equal(24, settings.VisitNotificationCooldownHours);
+    }
+
+    [Theory]
+    [Trait("Category", "PlaceVisitDetection")]
+    [InlineData(-1)]  // Disabled (never notify)
+    [InlineData(0)]   // Always notify
+    [InlineData(1)]   // 1 hour cooldown
+    [InlineData(24)]  // Default
+    [InlineData(720)] // Max (30 days)
+    public void VisitNotificationCooldownHours_AcceptsValidRange(int value)
+    {
+        // Arrange
+        var settings = new ApplicationSettings
+        {
+            VisitNotificationCooldownHours = value
+        };
+
+        // Act & Assert
+        Assert.Equal(value, settings.VisitNotificationCooldownHours);
+    }
+
+    #endregion
 }

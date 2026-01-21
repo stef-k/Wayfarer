@@ -150,6 +150,16 @@ public class ApplicationSettings
     [Range(1000, 200000, ErrorMessage = "Notes max chars must be between 1000 and 200000.")]
     public int VisitedPlaceNotesSnapshotMaxHtmlChars { get; set; } = 20000;
 
+    /// <summary>
+    /// Cooldown period in hours before sending another SSE notification for the same place.
+    /// Set to -1 to completely disable visit notifications (never notify).
+    /// Set to 0 to disable cooldown (always notify on every visit).
+    /// Default is 24 hours - prevents notification spam when visiting the same place multiple times per day.
+    /// </summary>
+    [Required]
+    [Range(-1, 720, ErrorMessage = "Notification cooldown must be -1 (never notify), 0 (always notify), or 1-720 hours.")]
+    public int VisitNotificationCooldownHours { get; set; } = 24;
+
     // === Derived Properties (computed from LocationTimeThresholdMinutes) ===
 
     /// <summary>

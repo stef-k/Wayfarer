@@ -153,6 +153,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     {
                         changes.Add("TileProviderApiKey: [updated]");
                     }
+                    Track("TileRateLimitEnabled", currentSettings.TileRateLimitEnabled, updatedSettings.TileRateLimitEnabled);
+                    Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
 
                     // Trip Place Auto-Visited settings
                     Track("VisitedRequiredHits", currentSettings.VisitedRequiredHits, updatedSettings.VisitedRequiredHits);
@@ -162,6 +164,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("VisitedAccuracyRejectMeters", currentSettings.VisitedAccuracyRejectMeters, updatedSettings.VisitedAccuracyRejectMeters);
                     Track("VisitedMaxSearchRadiusMeters", currentSettings.VisitedMaxSearchRadiusMeters, updatedSettings.VisitedMaxSearchRadiusMeters);
                     Track("VisitedPlaceNotesSnapshotMaxHtmlChars", currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars, updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars);
+                    Track("VisitNotificationCooldownHours", currentSettings.VisitNotificationCooldownHours, updatedSettings.VisitNotificationCooldownHours);
 
                     // Treat empty stored values as defaults to avoid purging on upgrade.
                     var currentProviderKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderKey)
@@ -189,6 +192,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileProviderUrlTemplate = updatedSettings.TileProviderUrlTemplate;
                     currentSettings.TileProviderAttribution = updatedSettings.TileProviderAttribution;
                     currentSettings.TileProviderApiKey = updatedSettings.TileProviderApiKey;
+                    currentSettings.TileRateLimitEnabled = updatedSettings.TileRateLimitEnabled;
+                    currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
 
                     // Trip Place Auto-Visited settings
                     currentSettings.VisitedRequiredHits = updatedSettings.VisitedRequiredHits;
@@ -198,6 +203,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.VisitedAccuracyRejectMeters = updatedSettings.VisitedAccuracyRejectMeters;
                     currentSettings.VisitedMaxSearchRadiusMeters = updatedSettings.VisitedMaxSearchRadiusMeters;
                     currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars = updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars;
+                    currentSettings.VisitNotificationCooldownHours = updatedSettings.VisitNotificationCooldownHours;
 
                     await _dbContext.SaveChangesAsync();
 

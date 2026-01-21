@@ -412,15 +412,72 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
         _dbContext.PlaceVisitEvents.Add(visitEvent);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // Broadcast SSE notification for visit started
-        var sseEvent = VisitSseEventDto.FromVisitEvent(visitEvent);
-        await _sseService.BroadcastAsync(
-            $"user-visits-{candidate.UserId}",
-            JsonSerializer.Serialize(sseEvent));
+        // Check notification cooldown before broadcasting SSE
+        var shouldNotify = await ShouldBroadcastVisitNotificationAsync(
+            candidate.UserId, place.Id, visitEvent.Id, settings, cancellationToken);
 
-        _logger.LogInformation(
-            "Created visit event {VisitId} for user {UserId}, place {PlaceName} in trip {TripName}",
-            visitEvent.Id, candidate.UserId, place.Name, trip.Name);
+        if (shouldNotify)
+        {
+            var sseEvent = VisitSseEventDto.FromVisitEvent(visitEvent);
+            await _sseService.BroadcastAsync(
+                $"user-visits-{candidate.UserId}",
+                JsonSerializer.Serialize(sseEvent));
+
+            _logger.LogInformation(
+                "Created visit event {VisitId} for user {UserId}, place {PlaceName} in trip {TripName} (notification sent)",
+                visitEvent.Id, candidate.UserId, place.Name, trip.Name);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Created visit event {VisitId} for user {UserId}, place {PlaceName} in trip {TripName} (notification skipped - within cooldown)",
+                visitEvent.Id, candidate.UserId, place.Name, trip.Name);
+        }
+    }
+
+    /// <summary>
+    /// Determines if a visit notification should be broadcast based on cooldown settings.
+    /// Returns false if notifications are disabled (-1).
+    /// Returns true if cooldown is disabled (0) or no recent visit to the same place exists within the cooldown window.
+    /// </summary>
+    /// <param name="userId">The user's ID.</param>
+    /// <param name="placeId">The place being visited.</param>
+    /// <param name="currentVisitId">The ID of the visit just created (to exclude from the query).</param>
+    /// <param name="settings">Application settings containing cooldown configuration.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if notification should be sent, false if disabled or within cooldown period.</returns>
+    private async Task<bool> ShouldBroadcastVisitNotificationAsync(
+        string userId,
+        Guid placeId,
+        Guid currentVisitId,
+        ApplicationSettings settings,
+        CancellationToken cancellationToken)
+    {
+        // Notifications completely disabled
+        if (settings.VisitNotificationCooldownHours < 0)
+        {
+            return false;
+        }
+
+        // Cooldown disabled - always notify
+        if (settings.VisitNotificationCooldownHours == 0)
+        {
+            return true;
+        }
+
+        var cooldownCutoff = DateTime.UtcNow.AddHours(-settings.VisitNotificationCooldownHours);
+
+        // Check for any previous visit to the same place within the cooldown window
+        // Use LastSeenAtUtc (last activity) rather than ArrivedAtUtc to properly handle
+        // long-running visits - we want to throttle based on when user was last present
+        var hasRecentVisit = await _dbContext.PlaceVisitEvents
+            .Where(v => v.UserId == userId)
+            .Where(v => v.PlaceId == placeId)
+            .Where(v => v.Id != currentVisitId) // Exclude the visit we just created
+            .Where(v => v.LastSeenAtUtc >= cooldownCutoff)
+            .AnyAsync(cancellationToken);
+
+        return !hasRecentVisit;
     }
 
     /// <summary>
