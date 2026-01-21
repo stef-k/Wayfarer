@@ -265,7 +265,7 @@ const displayVisitsInTable = (visits) => {
     tbody.innerHTML = '';
 
     if (!visits.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No visits found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center">No visits found.</td></tr>';
         return;
     }
 
@@ -273,6 +273,9 @@ const displayVisitsInTable = (visits) => {
         const statusBadge = v.endedAtUtc
             ? '<span class="badge bg-success">Closed</span>'
             : '<span class="badge bg-warning text-dark">Open</span>';
+
+        // Show spinner initially, will be replaced by actual count
+        const locationSpinner = `<span class="location-count-cell" data-visit-id="${v.id}"><span class="spinner-border spinner-border-sm" role="status"></span></span>`;
 
         tbody.insertAdjacentHTML('beforeend', `
             <tr>
@@ -287,6 +290,7 @@ const displayVisitsInTable = (visits) => {
                 <td>${v.tripNameSnapshot || 'Unknown'}</td>
                 <td>${v.regionNameSnapshot || '-'}</td>
                 <td class="text-center">${formatDwellTime(v.arrivedAtUtc, v.endedAtUtc)}</td>
+                <td class="text-center">${locationSpinner}</td>
                 <td class="text-center">${statusBadge}</td>
                 <td>
                     <a href="#" class="btn btn-primary btn-sm view-visit" data-id="${v.id}">View</a>
@@ -294,6 +298,52 @@ const displayVisitsInTable = (visits) => {
                 </td>
             </tr>
         `);
+    }
+
+    // Lazy-load location counts after table renders
+    loadLocationCounts(visits.map(v => v.id));
+};
+
+/**
+ * Load location counts for visits and update the table cells
+ */
+const loadLocationCounts = async (visitIds) => {
+    if (!visitIds.length) return;
+
+    try {
+        const response = await fetch('/api/Visit/location-counts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ visitIds })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.counts) {
+            // Update each cell with the count
+            for (const [visitId, count] of Object.entries(data.counts)) {
+                const cell = document.querySelector(`.location-count-cell[data-visit-id="${visitId}"]`);
+                if (cell) {
+                    const badge = count > 0
+                        ? `<span class="badge bg-info">${count}</span>`
+                        : '<span class="badge bg-secondary">0</span>';
+                    cell.innerHTML = badge;
+
+                    // Also update the visit object in memory for modal use
+                    const visit = visits.find(v => v.id === visitId);
+                    if (visit) visit.locationCount = count;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load location counts', e);
+        // Replace spinners with error indicator
+        document.querySelectorAll('.location-count-cell').forEach(cell => {
+            if (cell.querySelector('.spinner-border')) {
+                cell.innerHTML = '<span class="badge bg-secondary">-</span>';
+            }
+        });
     }
 };
 
@@ -382,10 +432,15 @@ const updateSummary = (total) => {
 /**
  * View visit details in modal
  */
-const viewVisitDetails = (visit) => {
+const viewVisitDetails = async (visit) => {
     const content = document.getElementById('modalContent');
     content.innerHTML = generateVisitModalContent(visit);
     new bootstrap.Modal(document.getElementById('visitModal')).show();
+
+    // Load locations after showing modal (if count is known and > 0, or if still loading)
+    if (visit.locationCount === undefined || visit.locationCount > 0) {
+        await loadVisitLocationsForModal(visit.id);
+    }
 };
 
 /**
@@ -396,6 +451,12 @@ const generateVisitModalContent = (v) => {
     const statusBadge = v.endedAtUtc
         ? '<span class="badge bg-success">Closed</span>'
         : '<span class="badge bg-warning text-dark">Open</span>';
+
+    const locationBadge = v.locationCount === undefined
+        ? '<span class="spinner-border spinner-border-sm" role="status"></span>'
+        : (v.locationCount > 0
+            ? `<span class="badge bg-info">${v.locationCount}</span>`
+            : '<span class="badge bg-secondary">0</span>');
 
     return `
         <div class="container-fluid">
@@ -442,6 +503,14 @@ const generateVisitModalContent = (v) => {
                 </div>
             </div>
             ` : ''}
+            <div class="row mb-2">
+                <div class="col-12">
+                    <strong>Relevant Locations:</strong> ${locationBadge}
+                    <div id="modalLocationsContainer" class="mt-2">
+                        ${v.locationCount === 0 ? '<span class="text-muted small">No relevant locations recorded</span>' : '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>'}
+                    </div>
+                </div>
+            </div>
             <hr/>
             <div class="row">
                 <div class="col-6">
@@ -468,4 +537,56 @@ const deleteVisit = async (id) => {
     if (!data.success) {
         throw new Error(data.message || 'Delete failed');
     }
+};
+
+/**
+ * Load locations for the visit modal
+ */
+const loadVisitLocationsForModal = async (visitId) => {
+    const container = document.getElementById('modalLocationsContainer');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`/api/visit/${visitId}/locations?page=1&pageSize=5`);
+        const data = await response.json();
+
+        if (data.success && data.data.length > 0) {
+            const locationsHtml = data.data.map(loc => `
+                <div class="small border-bottom py-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-geo-alt text-muted me-1"></i>
+                            ${formatModalLocationTimestamp(loc.localTimestamp)}
+                            <span class="font-monospace text-muted ms-2">${loc.latitude?.toFixed(4)}, ${loc.longitude?.toFixed(4)}</span>
+                        </span>
+                        <a href="/User/Location/Edit/${loc.id}?returnUrl=${returnUrlParam}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit location"><i class="bi bi-pencil"></i></a>
+                    </div>
+                    ${loc.address ? `<small class="text-muted d-block text-truncate">${loc.address}</small>` : ''}
+                </div>
+            `).join('');
+
+            const moreHtml = data.totalItems > 5
+                ? `<div class="text-center mt-2"><a href="${buildEditUrl(visitId)}" class="btn btn-sm btn-outline-secondary">View all ${data.totalItems} locations</a></div>`
+                : '';
+
+            container.innerHTML = locationsHtml + moreHtml;
+        } else {
+            container.innerHTML = '<span class="text-muted small">No relevant locations found</span>';
+        }
+    } catch (e) {
+        console.error('Failed to load visit locations', e);
+        container.innerHTML = '<span class="text-danger small">Failed to load locations</span>';
+    }
+};
+
+/**
+ * Format timestamp for modal location display
+ */
+const formatModalLocationTimestamp = (ts) => {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    return d.toLocaleString(undefined, {
+        month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
 };

@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initQuill();
     initDeleteConfirmation();
     initIconColorSync();
+    initLocationPings();
 });
 
 /**
@@ -50,6 +51,9 @@ const initMap = () => {
         maxZoom: 19,
         attribution: tilesAttribution
     }).addTo(map);
+
+    // Set standard attribution prefix (matches Timeline)
+    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
 
     // Add initial marker
     const iconUrl = buildPngIconUrl(icon, color);
@@ -206,4 +210,132 @@ const initDeleteConfirmation = () => {
             });
         });
     }
+};
+
+// === Relevant Locations Section ===
+let locationPingsPage = 0;
+let locationPingsTotalItems = 0;
+const locationPingsPageSize = 10;
+
+/**
+ * Initialize the relevant locations section.
+ * Loads data immediately since card is expanded by default.
+ */
+const initLocationPings = () => {
+    const card = document.getElementById('locationPingsCard');
+    if (!card) return;
+
+    const collapse = document.getElementById('locationPingsCollapse');
+
+    // Load data immediately (card is expanded by default)
+    fetchLocationPingsCount();
+    loadLocationPings();
+
+    // Toggle chevron icon on expand
+    collapse.addEventListener('show.bs.collapse', () => {
+        document.getElementById('collapseIcon').classList.replace('bi-chevron-down', 'bi-chevron-up');
+    });
+
+    // Toggle chevron icon on collapse
+    collapse.addEventListener('hide.bs.collapse', () => {
+        document.getElementById('collapseIcon').classList.replace('bi-chevron-up', 'bi-chevron-down');
+    });
+
+    // Load more button handler
+    document.getElementById('loadMoreLocationsBtn')?.addEventListener('click', loadLocationPings);
+};
+
+/**
+ * Fetch the total count of relevant locations for the badge display.
+ */
+const fetchLocationPingsCount = async () => {
+    const visitId = document.getElementById('locationPingsCard')?.dataset.visitId;
+    if (!visitId) return;
+
+    try {
+        const res = await fetch(`/api/visit/${visitId}/locations?page=1&pageSize=1`);
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('locationPingsCount').textContent = data.totalItems;
+        }
+    } catch (e) {
+        console.error('Failed to fetch relevant locations count', e);
+    }
+};
+
+/**
+ * Load a page of relevant locations and append to the table.
+ */
+const loadLocationPings = async () => {
+    const visitId = document.getElementById('locationPingsCard')?.dataset.visitId;
+    if (!visitId) return;
+
+    locationPingsPage++;
+
+    try {
+        const res = await fetch(`/api/visit/${visitId}/locations?page=${locationPingsPage}&pageSize=${locationPingsPageSize}`);
+        const data = await res.json();
+
+        document.getElementById('locationPingsLoading').style.display = 'none';
+
+        if (data.success) {
+            locationPingsTotalItems = data.totalItems;
+
+            if (data.totalItems === 0) {
+                document.getElementById('locationPingsEmpty').style.display = 'block';
+            } else {
+                document.getElementById('locationPingsTableWrapper').style.display = 'block';
+                renderLocationPings(data.data);
+
+                // Show/hide load more button based on remaining items
+                const loadedCount = locationPingsPage * locationPingsPageSize;
+                document.getElementById('locationPingsLoadMore').style.display =
+                    loadedCount < data.totalItems ? 'block' : 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load relevant locations', e);
+        document.getElementById('locationPingsLoading').style.display = 'none';
+        document.getElementById('locationPingsEmpty').style.display = 'block';
+        document.getElementById('locationPingsEmpty').textContent = 'Failed to load relevant locations.';
+    }
+};
+
+/**
+ * Render relevant location rows into the table body.
+ * @param {Array} locations - Array of location objects from the API
+ */
+const renderLocationPings = (locations) => {
+    const tbody = document.getElementById('locationPingsBody');
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+
+    locations.forEach(loc => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="small">${formatLocationTimestamp(loc.localTimestamp)}</td>
+            <td class="small font-monospace">${loc.latitude?.toFixed(5)}, ${loc.longitude?.toFixed(5)}</td>
+            <td class="text-end small">${loc.accuracy ? loc.accuracy + 'm' : '-'}</td>
+            <td class="text-end small">${loc.speed ? (loc.speed * 3.6).toFixed(1) + ' km/h' : '-'}</td>
+            <td class="small">${loc.activity || '-'}</td>
+            <td class="small text-truncate" style="max-width:150px;" title="${loc.address || ''}">${loc.address || '-'}</td>
+            <td>
+                <a href="/User/Location/Edit/${loc.id}?returnUrl=${returnUrl}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit location"><i class="bi bi-pencil"></i></a>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+};
+
+/**
+ * Format a timestamp for display in the location pings table.
+ * @param {string} ts - ISO timestamp string
+ * @returns {string} Formatted date/time string
+ */
+const formatLocationTimestamp = (ts) => {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    return d.toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
 };
