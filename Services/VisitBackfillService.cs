@@ -377,11 +377,12 @@ public class VisitBackfillService : IVisitBackfillService
             dateFilters += " AND l.\"LocalTimestamp\" <= @toDate";
 
         // PostGIS query to find location matches grouped by date
+        // Use LocalTimestamp consistently for visit times (not Timestamp which is server ingestion time)
         var sql = $"""
             SELECT
                 DATE(l."LocalTimestamp") as visit_date,
-                MIN(l."Timestamp") as first_seen_utc,
-                MAX(l."Timestamp") as last_seen_utc,
+                MIN(l."LocalTimestamp") as first_seen,
+                MAX(l."LocalTimestamp") as last_seen,
                 COUNT(*) as location_count,
                 AVG(ST_Distance(
                     l."Coordinates",
@@ -430,6 +431,8 @@ public class VisitBackfillService : IVisitBackfillService
                 while (await reader.ReadAsync())
                 {
                     var visitDate = DateOnly.FromDateTime(reader.GetDateTime(0));
+                    // Note: LocalTimestamp is user's local time, not UTC. We store it as UTC for
+                    // consistency with ArrivedAtUtc field, but it represents the actual event time.
                     var firstSeen = DateTime.SpecifyKind(reader.GetDateTime(1), DateTimeKind.Utc);
                     var lastSeen = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
                     var locationCount = reader.GetInt32(3);
