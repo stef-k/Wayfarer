@@ -765,6 +765,15 @@ import { addZoomLevelControl } from '../../../map-utils.js';
     const WF_ANCHOR = [14, 45];
 
     /**
+     * Double requestAnimationFrame helper for deterministic layout settling.
+     * Waits for two paint cycles to ensure all CSS/layout calculations are complete.
+     * @returns {Promise<void>}
+     */
+    const waitForLayoutSettle = () => new Promise(resolve => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+
+    /**
      * Builds the PNG icon URL for Wayfarer markers.
      * @param {string} iconName - The icon name.
      * @param {string} bgClass - The background color class.
@@ -779,10 +788,9 @@ import { addZoomLevelControl } from '../../../map-utils.js';
      * @returns {boolean} True if map was initialized, false if container not ready.
      */
     const initContextMap = () => {
+        // Prevent double initialization
         if (contextMap) {
-            contextMap.off();
-            contextMap.remove();
-            contextMap = null;
+            return true;
         }
 
         const container = document.getElementById('placeContextMap');
@@ -795,9 +803,6 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         }
 
         contextMap = L.map(container, { zoomAnimation: true }).setView([0, 0], 13);
-
-        // Immediately invalidate size to ensure correct dimensions
-        contextMap.invalidateSize();
 
         L.tileLayer(tilesUrl, {
             maxZoom: 19,
@@ -815,6 +820,18 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         contextMarkersGroup = L.featureGroup().addTo(contextMap);
 
         return true;
+    };
+
+    /**
+     * Destroys the current map instance for clean re-initialization.
+     */
+    const destroyContextMap = () => {
+        if (contextMap) {
+            contextMap.off();
+            contextMap.remove();
+            contextMap = null;
+            contextMarkersGroup = null;
+        }
     };
 
     /**
@@ -848,7 +865,7 @@ import { addZoomLevelControl } from '../../../map-utils.js';
      * @param {Object} place - The place data with lat, lon, iconName, markerColor.
      * @param {Array} locations - Array of location pings.
      */
-    const renderContextMarkers = (place, locations) => {
+    const renderContextMarkers = async (place, locations) => {
         if (!contextMap || !contextMarkersGroup) return;
 
         contextMarkersGroup.clearLayers();
@@ -922,7 +939,8 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         // Fit map to show all markers with padding
         if (contextMarkersGroup.getLayers().length > 0) {
             contextMap.fitBounds(contextMarkersGroup.getBounds(), { padding: [40, 40] });
-            // Force tile recalculation after bounds change
+            // Wait for layout to settle after bounds change, then recalculate tiles
+            await waitForLayoutSettle();
             contextMap.invalidateSize();
         }
     };
@@ -995,22 +1013,20 @@ import { addZoomLevelControl } from '../../../map-utils.js';
     };
 
     /**
-     * Initializes the map and loads data after modal is fully visible.
+     * Loads place data after map is initialized.
+     * Map should already be created by ResizeObserver before this is called.
      */
     const initPlaceContextAfterShow = async () => {
         if (!pendingPlaceData) return;
+        if (!contextMap) return; // Map must be initialized first
 
         const placeData = pendingPlaceData;
         pendingPlaceData = null;
         pendingPlaceType = null;
 
-        // Initialize the map now that modal is visible and has dimensions
-        initContextMap();
-
-        // Ensure map size is correct
-        if (contextMap) {
-            contextMap.invalidateSize();
-        }
+        // Wait for layout to settle, then ensure map knows its size
+        await waitForLayoutSettle();
+        contextMap.invalidateSize();
 
         // Check if we have coordinates
         if (!placeData.latitude || !placeData.longitude) {
@@ -1073,12 +1089,7 @@ import { addZoomLevelControl } from '../../../map-utils.js';
             mapResizeObserver = null;
         }
         // Cleanup map
-        if (contextMap) {
-            contextMap.off();
-            contextMap.remove();
-            contextMap = null;
-            contextMarkersGroup = null;
-        }
+        destroyContextMap();
         pendingPlaceData = null;
         pendingPlaceType = null;
     });
@@ -1093,10 +1104,10 @@ import { addZoomLevelControl } from '../../../map-utils.js';
             for (const entry of entries) {
                 const { width, height } = entry.contentRect;
 
-                // Container has valid dimensions
+                // Container has valid dimensions - initialize map once
                 if (width > 0 && height > 0) {
                     if (!contextMap) {
-                        // First time - initialize map and load data
+                        // First time - initialize map then load data
                         if (initContextMap()) {
                             initPlaceContextAfterShow();
                         }
