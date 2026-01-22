@@ -1065,7 +1065,12 @@ import { addZoomLevelControl } from '../../../map-utils.js';
 
     // Initialize map when modal is fully shown (proper timing for Leaflet)
     placeContextModalEl?.addEventListener('shown.bs.modal', () => {
-        initPlaceContextAfterShow();
+        // Small delay to ensure DOM has fully settled after modal animation
+        setTimeout(() => {
+            initPlaceContextAfterShow();
+            // Additional invalidateSize after a brief moment to handle any remaining layout shifts
+            setTimeout(() => contextMap?.invalidateSize(), 100);
+        }, 50);
     });
 
     /* ------------------------------------------------ boot */
