@@ -60,7 +60,8 @@
         </div>
       </div>
       <small class="text-muted fst-italic d-block">
-        <i class="bi bi-info-circle"></i> Day view shows all locations. Month/Year may be sampled for large datasets.
+        <i class="bi bi-info-circle"></i> Default shows live locations. Use the date picker for historical view.
+        Day view shows all locations. Month/Year may be sampled for large datasets.
       </small>
     </div>
   </div>
@@ -115,7 +116,8 @@
               @u.UserName (@u.DisplayName)
             </label>
             <div class="btn-group btn-group-sm">
-              <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.Id">Only</button>
+              <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.Id"
+                      data-tippy-content="Show only this member, hide all others.">Only</button>
               <button type="button" class="btn btn-outline-danger remove-user" data-user-id="@u.Id">Remove</button>
             </div>
           </div>

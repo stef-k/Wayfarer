@@ -69,7 +69,8 @@
                             data-tag-input />
                     </div>
                     <button type="button" class="btn btn-outline-secondary" data-tag-mode-value="@Model.TagMode"
-                        data-tag-mode-toggle title="Match mode: @Model.TagMode">
+                        data-tag-mode-toggle title="Match mode: @Model.TagMode"
+                        data-tippy-content="All: trips must have all selected tags. Any: trips with at least one selected tag.">
                         @(Model.TagMode == "all" ? "All" : "Any")
                     </button>
                     <button type="button" class="btn btn-outline-secondary" data-clear-tags

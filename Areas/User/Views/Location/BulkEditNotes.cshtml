@@ -9,6 +9,12 @@
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
 
+<div class="alert alert-light small mb-3 mx-auto" style="max-width: 700px;">
+    <i class="bi bi-lightbulb me-1"></i>
+    <strong>How it works:</strong> Bulk edit allows you to add or replace notes on multiple locations at once.
+    Use the filters to target specific records by country, region, city, or date range.
+</div>
+
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm mb-4">
@@ -56,7 +62,10 @@
                         <input asp-for="Append"
                                class="form-check-input"
                                id="Append"/>
-                        <label asp-for="Append" class="form-check-label"></label>
+                        <label asp-for="Append" class="form-check-label">
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="Checked: append notes after existing content. Unchecked: replace existing notes entirely."></i>
+                        </label>
                     </div>
 
                     <div class="form-check mb-4">

@@ -9,6 +9,8 @@
 <div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 my-0">
     <h1 class="fs-3 my-0">
         @(displayName != null ? $"Timeline of {displayName}" : $"Timeline of {username}")
+        <i class="bi bi-question-circle text-muted ms-1 fs-6"
+           data-tippy-content="This is a public timeline. The user chose to share their location history. Some areas may be hidden for privacy."></i>
     </h1>
 
     <!-- This span gets populated dynamically -->

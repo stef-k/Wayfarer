@@ -396,3 +396,32 @@ wayfarer.showAlert = showAlert;
 wayfarer.hideAlert = hideAlert;
 wayfarer.showToast = showToast;
 
+/**
+ * Initializes tippy.js tooltips for help icons across the application.
+ * Targets elements with data-tippy-content attribute.
+ * Skips elements that already have tippy instances to prevent conflicts.
+ * @param {string} [selector='[data-tippy-content]'] - CSS selector for tooltip elements
+ * @param {Object} [options={}] - Additional tippy.js options to merge with defaults
+ */
+wayfarer.initHelpTooltips = () => {
+    if (typeof tippy === 'undefined') return;
+    document.querySelectorAll('[data-tippy-content]').forEach(el => {
+        if (el._tippy) return; // Skip if already initialized
+        tippy(el, {
+            allowHTML: true,
+            appendTo: () => document.body,
+            zIndex: 9999,
+            popperOptions: {
+                strategy: 'fixed'
+            }
+        });
+    });
+};
+
+// Initialize when DOM is ready (or immediately if already ready)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wayfarer.initHelpTooltips);
+} else {
+    wayfarer.initHelpTooltips();
+}
+
