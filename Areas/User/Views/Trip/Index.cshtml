@@ -410,8 +410,8 @@ else
     </div>
 </div>
 
-<!-- ▼ Place Context Map modal -->
-<div class="modal fade" id="placeContextModal" tabindex="-1">
+<!-- ▼ Place Context Map modal (stacked above backfill modal) -->
+<div class="modal fade" id="placeContextModal" tabindex="-1" data-bs-backdrop="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content shadow-lg">
             <div class="modal-header py-2">
@@ -421,7 +421,7 @@ else
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-0">
-                <div id="placeContextMap" style="height: 400px;"></div>
+                <div id="placeContextMap"></div>
                 <div id="placeContextInfo" class="p-3 border-top small">
                     <div class="row text-center">
                         <div class="col-4">
