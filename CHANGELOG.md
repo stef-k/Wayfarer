@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### 2026-01-22
+- Added place context map modal to trip visit analysis (#139)
+- Map shows place marker and location pings that contributed to the match
+- Includes ruler measurement tool, auto-fit bounds, and ping tooltips with details
 - Added "Consider Also" suggestions feature to backfill analysis (#134)
 - Added 4-tab interface for backfill modal: Confirmed, Consider Also, Stale, Existing
 - Added cross-tier evidence logic to catch near-miss visits while filtering GPS noise

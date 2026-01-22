@@ -514,3 +514,98 @@ public sealed class BackfillInfoDto
     [JsonPropertyName("existingVisits")]
     public int ExistingVisits { get; init; }
 }
+
+/// <summary>
+/// A location ping that contributed to a visit candidate or suggestion.
+/// Used for the map context modal to visualize location evidence.
+/// </summary>
+public sealed class CandidateLocationDto
+{
+    /// <summary>
+    /// The location ID.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public int Id { get; init; }
+
+    /// <summary>
+    /// Local timestamp when the location was recorded.
+    /// </summary>
+    [JsonPropertyName("localTimestamp")]
+    public DateTime LocalTimestamp { get; init; }
+
+    /// <summary>
+    /// Latitude of the location.
+    /// </summary>
+    [JsonPropertyName("latitude")]
+    public double Latitude { get; init; }
+
+    /// <summary>
+    /// Longitude of the location.
+    /// </summary>
+    [JsonPropertyName("longitude")]
+    public double Longitude { get; init; }
+
+    /// <summary>
+    /// GPS accuracy in meters (if available).
+    /// </summary>
+    [JsonPropertyName("accuracy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Accuracy { get; init; }
+
+    /// <summary>
+    /// Speed in meters per second (if available).
+    /// </summary>
+    [JsonPropertyName("speed")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? Speed { get; init; }
+
+    /// <summary>
+    /// Activity type name (if available).
+    /// </summary>
+    [JsonPropertyName("activity")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Activity { get; init; }
+
+    /// <summary>
+    /// Reverse-geocoded address (if available).
+    /// </summary>
+    [JsonPropertyName("address")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Address { get; init; }
+
+    /// <summary>
+    /// Distance from the place center in meters.
+    /// </summary>
+    [JsonPropertyName("distanceMeters")]
+    public double DistanceMeters { get; init; }
+}
+
+/// <summary>
+/// Response for the candidate locations endpoint.
+/// </summary>
+public sealed class CandidateLocationsResponseDto
+{
+    /// <summary>
+    /// List of location pings within the search radius and time window.
+    /// </summary>
+    [JsonPropertyName("locations")]
+    public List<CandidateLocationDto> Locations { get; init; } = new();
+
+    /// <summary>
+    /// Total count of matching locations (for pagination info).
+    /// </summary>
+    [JsonPropertyName("totalCount")]
+    public int TotalCount { get; init; }
+
+    /// <summary>
+    /// Current page number.
+    /// </summary>
+    [JsonPropertyName("page")]
+    public int Page { get; init; }
+
+    /// <summary>
+    /// Page size used.
+    /// </summary>
+    [JsonPropertyName("pageSize")]
+    public int PageSize { get; init; }
+}

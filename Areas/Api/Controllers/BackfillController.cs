@@ -198,4 +198,74 @@ public class BackfillController : BaseApiController
             return StatusCode(500, new { success = false, message = "An error occurred while clearing visits." });
         }
     }
+
+    /// <summary>
+    /// Get location pings that contributed to a visit candidate or suggestion.
+    /// Used for the map context modal to visualize location evidence.
+    /// </summary>
+    /// <param name="placeId">The place ID.</param>
+    /// <param name="lat">Place latitude.</param>
+    /// <param name="lon">Place longitude.</param>
+    /// <param name="firstSeenUtc">Start of time window (ISO 8601).</param>
+    /// <param name="lastSeenUtc">End of time window (ISO 8601).</param>
+    /// <param name="radius">Search radius in meters (optional, defaults to app setting).</param>
+    /// <param name="page">Page number (1-based).</param>
+    /// <param name="pageSize">Number of locations per page.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("candidate-locations")]
+    public async Task<IActionResult> GetCandidateLocations(
+        [FromQuery] Guid placeId,
+        [FromQuery] double lat,
+        [FromQuery] double lon,
+        [FromQuery] DateTime firstSeenUtc,
+        [FromQuery] DateTime lastSeenUtc,
+        [FromQuery] int? radius = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { success = false, message = "Unauthorized." });
+
+        // Validate required parameters
+        if (placeId == Guid.Empty)
+            return BadRequest(new { success = false, message = "placeId is required." });
+
+        if (lat < -90 || lat > 90)
+            return BadRequest(new { success = false, message = "Invalid latitude." });
+
+        if (lon < -180 || lon > 180)
+            return BadRequest(new { success = false, message = "Invalid longitude." });
+
+        if (firstSeenUtc == default || lastSeenUtc == default)
+            return BadRequest(new { success = false, message = "firstSeenUtc and lastSeenUtc are required." });
+
+        try
+        {
+            // Use provided radius or fall back to suggestion max radius (for showing all pings in context)
+            var settings = _dbContext.ApplicationSettings.FirstOrDefault();
+            var searchRadius = radius ?? settings?.SuggestionMaxRadius ?? 7500;
+
+            var (locations, totalCount) = await _backfillService.GetCandidateLocationsAsync(
+                userId, placeId, lat, lon, firstSeenUtc, lastSeenUtc, searchRadius, page, pageSize, cancellationToken);
+
+            return Ok(new
+            {
+                success = true,
+                data = new CandidateLocationsResponseDto
+                {
+                    Locations = locations,
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting candidate locations for place {PlaceId}, user {UserId}", placeId, userId);
+            return StatusCode(500, new { success = false, message = "An error occurred while retrieving locations." });
+        }
+    }
 }

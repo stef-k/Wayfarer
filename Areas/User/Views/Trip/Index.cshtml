@@ -1,5 +1,8 @@
 @model List<Wayfarer.Models.Trip>
 
+@{
+    ViewData["LoadLeaflet"] = true;
+}
 
 <h2>@ViewData["Title"]</h2>
 
@@ -159,7 +162,7 @@ else
 
 <!-- ▼ Backfill analysis modal -->
 <div class="modal fade" id="backfillModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content shadow-lg">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -405,6 +408,46 @@ else
                 <button id="btnCopy" class="btn btn-outline-secondary">
                     <i class="bi bi-files me-1"></i> Create copy
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ▼ Place Context Map modal (stacked above backfill modal) -->
+<div class="modal fade" id="placeContextModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content shadow-lg">
+            <div class="modal-header py-2">
+                <h5 class="modal-title" id="placeContextTitle">
+                    <i class="bi bi-geo-alt me-1"></i>Place Context
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="placeContextMap"></div>
+                <div id="placeContextInfo" class="p-3 border-top small">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="fw-bold" id="context-ping-count">-</div>
+                            <small class="text-muted">Location Pings</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold" id="context-time-range">-</div>
+                            <small class="text-muted">Time Range</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="fw-bold" id="context-avg-distance">-</div>
+                            <small class="text-muted">Avg Distance</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <small class="text-muted me-auto">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Click the ruler icon <img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/rulers.svg" alt="ruler" style="width:1em;height:1em;vertical-align:middle;"> to measure distances
+                </small>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

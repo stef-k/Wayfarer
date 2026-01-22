@@ -1340,4 +1340,150 @@ public class VisitBackfillService : IVisitBackfillService
 
         return $"{hitsTotal} pings within extended range";
     }
+
+    /// <inheritdoc />
+    public async Task<(List<CandidateLocationDto> Locations, int TotalCount)> GetCandidateLocationsAsync(
+        string userId,
+        Guid placeId,
+        double lat,
+        double lon,
+        DateTime firstSeenUtc,
+        DateTime lastSeenUtc,
+        int searchRadiusMeters,
+        int page = 1,
+        int pageSize = 50,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate pagination parameters
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var offset = (page - 1) * pageSize;
+
+        // Expand the time window slightly to capture edge cases (1 hour buffer on each side)
+        var timeWindowStart = firstSeenUtc.AddHours(-1);
+        var timeWindowEnd = lastSeenUtc.AddHours(1);
+
+        // PostGIS query to find location pings within radius and time window
+        var sql = """
+            SELECT
+                l."Id",
+                l."LocalTimestamp",
+                ST_Y(l."Coordinates"::geometry) as lat,
+                ST_X(l."Coordinates"::geometry) as lon,
+                l."Accuracy",
+                l."Speed",
+                at."Name" as activity,
+                l."Address",
+                ST_Distance(
+                    l."Coordinates",
+                    ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography
+                ) as distance_meters
+            FROM "Locations" l
+            LEFT JOIN "ActivityTypes" at ON l."ActivityTypeId" = at."Id"
+            WHERE l."UserId" = @userId
+              AND ST_DWithin(
+                    l."Coordinates",
+                    ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography,
+                    @radius
+                  )
+              AND l."LocalTimestamp" >= @startTime
+              AND l."LocalTimestamp" <= @endTime
+            ORDER BY l."LocalTimestamp" ASC
+            LIMIT @limit OFFSET @offset
+            """;
+
+        var countSql = """
+            SELECT COUNT(*)
+            FROM "Locations" l
+            WHERE l."UserId" = @userId
+              AND ST_DWithin(
+                    l."Coordinates",
+                    ST_SetSRID(ST_MakePoint(@lon, @lat), 4326)::geography,
+                    @radius
+                  )
+              AND l."LocalTimestamp" >= @startTime
+              AND l."LocalTimestamp" <= @endTime
+            """;
+
+        var locations = new List<CandidateLocationDto>();
+        var totalCount = 0;
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+            var connectionWasOpen = connection.State == System.Data.ConnectionState.Open;
+
+            if (!connectionWasOpen)
+            {
+                await _dbContext.Database.OpenConnectionAsync(cancellationToken);
+            }
+
+            try
+            {
+                // Get total count first
+                await using (var countCommand = connection.CreateCommand())
+                {
+                    countCommand.CommandText = countSql;
+                    countCommand.Parameters.Add(new NpgsqlParameter("@userId", userId));
+                    countCommand.Parameters.Add(new NpgsqlParameter("@lon", lon));
+                    countCommand.Parameters.Add(new NpgsqlParameter("@lat", lat));
+                    countCommand.Parameters.Add(new NpgsqlParameter("@radius", searchRadiusMeters));
+                    countCommand.Parameters.Add(new NpgsqlParameter("@startTime", timeWindowStart));
+                    countCommand.Parameters.Add(new NpgsqlParameter("@endTime", timeWindowEnd));
+
+                    var countResult = await countCommand.ExecuteScalarAsync(cancellationToken);
+                    totalCount = Convert.ToInt32(countResult);
+                }
+
+                // Get paginated locations
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.Parameters.Add(new NpgsqlParameter("@userId", userId));
+                command.Parameters.Add(new NpgsqlParameter("@lon", lon));
+                command.Parameters.Add(new NpgsqlParameter("@lat", lat));
+                command.Parameters.Add(new NpgsqlParameter("@radius", searchRadiusMeters));
+                command.Parameters.Add(new NpgsqlParameter("@startTime", timeWindowStart));
+                command.Parameters.Add(new NpgsqlParameter("@endTime", timeWindowEnd));
+                command.Parameters.Add(new NpgsqlParameter("@limit", pageSize));
+                command.Parameters.Add(new NpgsqlParameter("@offset", offset));
+
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    locations.Add(new CandidateLocationDto
+                    {
+                        Id = reader.GetInt32(0),
+                        LocalTimestamp = DateTime.SpecifyKind(reader.GetDateTime(1), DateTimeKind.Utc),
+                        Latitude = reader.GetDouble(2),
+                        Longitude = reader.GetDouble(3),
+                        Accuracy = reader.IsDBNull(4) ? null : reader.GetDouble(4),
+                        Speed = reader.IsDBNull(5) ? null : reader.GetDouble(5),
+                        Activity = reader.IsDBNull(6) ? null : reader.GetString(6),
+                        Address = reader.IsDBNull(7) ? null : reader.GetString(7),
+                        DistanceMeters = Math.Round(reader.GetDouble(8), 1)
+                    });
+                }
+            }
+            finally
+            {
+                if (!connectionWasOpen)
+                {
+                    await _dbContext.Database.CloseConnectionAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to get candidate locations for place {PlaceId} at ({Lat}, {Lon})",
+                placeId, lat, lon);
+            throw;
+        }
+
+        _logger.LogDebug(
+            "Retrieved {Count}/{Total} candidate locations for place {PlaceId} (page {Page})",
+            locations.Count, totalCount, placeId, page);
+
+        return (locations, totalCount);
+    }
 }

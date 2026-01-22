@@ -983,6 +983,43 @@ thead th {
     box-shadow: 0 0 6px rgba(0,0,0,0.1);
 }
 
+/* Zoom level control (with ruler and copy link buttons) */
+.leaflet-control-custom {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.leaflet-control-custom span {
+    font-size: 14px;
+    color: #000;
+}
+
+.leaflet-control-custom button {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    padding: 0;
+    line-height: 1;
+}
+
+/* Dark theme support for zoom level control */
+[data-bs-theme="dark"] .leaflet-control-custom {
+    background-color: #2b2b2b;
+    border-color: #555;
+}
+
+[data-bs-theme="dark"] .leaflet-control-custom span {
+    color: #fff;
+}
+
+[data-bs-theme="dark"] .leaflet-control-custom button img {
+    filter: invert(1);
+}
+
 /* Ruler button (active visual state) */
 .leaflet-control-custom button.active {
     background-color: #0d6efd1a;
@@ -2084,4 +2121,59 @@ html[data-bs-theme="dark"] .ql-editor a {
 
 [data-bs-theme="dark"] .ts-wrapper .clear-button:hover {
     color: #ffffff !important;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Place Context Map Modal (Trip Analysis)
+   Stacked modal for viewing place location with GPS pings
+───────────────────────────────────────────────────────── */
+
+/* Higher z-index for stacked modal above backfill modal */
+#placeContextModal {
+    z-index: 1060 !important;
+}
+
+/* Map container with proper overflow handling */
+#placeContextMap {
+    height: 500px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* Ensure Leaflet elements stay within container */
+#placeContextMap .leaflet-container {
+    overflow: hidden;
+}
+
+/* Modal content overflow handling */
+#placeContextModal .modal-content {
+    overflow: hidden;
+}
+
+#placeContextModal .modal-body {
+    overflow: hidden;
+}
+
+/* Ping marker tooltips */
+.ping-context-tooltip {
+    font-size: 0.85rem;
+}
+
+.ping-context-tooltip .badge {
+    font-size: 0.75rem;
+}
+
+/* Dark theme support for place context tooltips */
+[data-bs-theme="dark"] .ping-context-tooltip,
+[data-bs-theme="dark"] .place-context-tooltip {
+    background: #2c3034;
+    border-color: #495057;
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .ping-context-tooltip::before,
+[data-bs-theme="dark"] .place-context-tooltip::before {
+    border-top-color: #2c3034;
 }
