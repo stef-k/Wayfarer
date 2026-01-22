@@ -1120,9 +1120,9 @@ import { addZoomLevelControl } from '../../../map-utils.js';
                 'existing': 'Existing Visit'
             }[type] || 'Place Context';
 
-            // Build link to trip view page with place coordinates for focus
+            // Build link to user's private trip view page with place coordinates for focus
             const tripViewUrl = currentTripId && placeData.latitude && placeData.longitude
-                ? `/Public/Trips/${currentTripId}?lat=${placeData.latitude.toFixed(6)}&lon=${placeData.longitude.toFixed(6)}&zoom=17&placeId=${placeData.placeId}`
+                ? `/User/Trip/View/${currentTripId}?lat=${placeData.latitude.toFixed(6)}&lon=${placeData.longitude.toFixed(6)}&zoom=17&placeId=${placeData.placeId}`
                 : null;
 
             const placeNameHtml = tripViewUrl
