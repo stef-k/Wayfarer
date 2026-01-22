@@ -102,6 +102,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("VisitedRequiredHits")
                         .HasColumnType("integer");
 
+                    b.Property<int>("VisitedSuggestionMaxRadiusMultiplier")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.ToTable("ApplicationSettings");
@@ -959,6 +962,9 @@ namespace Wayfarer.Migrations
 
                     b.Property<string>("RegionNameSnapshot")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Source")
                         .HasColumnType("text");
 
                     b.Property<Guid>("TripIdSnapshot")

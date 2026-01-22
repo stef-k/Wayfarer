@@ -165,6 +165,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("VisitedMaxSearchRadiusMeters", currentSettings.VisitedMaxSearchRadiusMeters, updatedSettings.VisitedMaxSearchRadiusMeters);
                     Track("VisitedPlaceNotesSnapshotMaxHtmlChars", currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars, updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars);
                     Track("VisitNotificationCooldownHours", currentSettings.VisitNotificationCooldownHours, updatedSettings.VisitNotificationCooldownHours);
+                    Track("VisitedSuggestionMaxRadiusMultiplier", currentSettings.VisitedSuggestionMaxRadiusMultiplier, updatedSettings.VisitedSuggestionMaxRadiusMultiplier);
 
                     // Treat empty stored values as defaults to avoid purging on upgrade.
                     var currentProviderKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderKey)
@@ -204,6 +205,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.VisitedMaxSearchRadiusMeters = updatedSettings.VisitedMaxSearchRadiusMeters;
                     currentSettings.VisitedPlaceNotesSnapshotMaxHtmlChars = updatedSettings.VisitedPlaceNotesSnapshotMaxHtmlChars;
                     currentSettings.VisitNotificationCooldownHours = updatedSettings.VisitNotificationCooldownHours;
+                    currentSettings.VisitedSuggestionMaxRadiusMultiplier = updatedSettings.VisitedSuggestionMaxRadiusMultiplier;
 
                     await _dbContext.SaveChangesAsync();
 

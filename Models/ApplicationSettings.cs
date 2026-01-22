@@ -160,6 +160,18 @@ public class ApplicationSettings
     [Range(-1, 720, ErrorMessage = "Notification cooldown must be -1 (never notify), 0 (always notify), or 1-720 hours.")]
     public int VisitNotificationCooldownHours { get; set; } = 24;
 
+    // === Visit Suggestion Settings (for "Consider Also" feature) ===
+
+    /// <summary>
+    /// Maximum radius multiplier for suggested visits in the "Consider Also" feature.
+    /// Searches up to VisitedMaxSearchRadiusMeters × this value for potential visits.
+    /// Example: 150m × 50 = 7500m max search radius for suggestions.
+    /// These suggestions require user confirmation and are not auto-matched.
+    /// </summary>
+    [Required]
+    [Range(2, 100, ErrorMessage = "Suggestion radius multiplier must be between 2 and 100.")]
+    public int VisitedSuggestionMaxRadiusMultiplier { get; set; } = 50;
+
     // === Derived Properties (computed from LocationTimeThresholdMinutes) ===
 
     /// <summary>
@@ -182,4 +194,62 @@ public class ApplicationSettings
     /// </summary>
     [NotMapped]
     public int VisitedEndVisitAfterMinutes => LocationTimeThresholdMinutes * 9;
+
+    // === Derived Suggestion Tier Properties (for "Consider Also" feature) ===
+
+    /// <summary>
+    /// Suggestion Tier 1 radius in meters. Same as strict matching radius.
+    /// Derived: VisitedMaxSearchRadiusMeters (150m default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionTier1Radius => VisitedMaxSearchRadiusMeters;
+
+    /// <summary>
+    /// Suggestion Tier 2 radius in meters.
+    /// Derived: VisitedMaxSearchRadiusMeters × 2 (300m default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionTier2Radius => VisitedMaxSearchRadiusMeters * 2;
+
+    /// <summary>
+    /// Suggestion Tier 3 radius in meters.
+    /// Derived: VisitedMaxSearchRadiusMeters × 5 (750m default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionTier3Radius => VisitedMaxSearchRadiusMeters * 5;
+
+    /// <summary>
+    /// Maximum suggestion search radius in meters.
+    /// Derived: VisitedMaxSearchRadiusMeters × VisitedSuggestionMaxRadiusMultiplier (7500m default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionMaxRadius => VisitedMaxSearchRadiusMeters * VisitedSuggestionMaxRadiusMultiplier;
+
+    /// <summary>
+    /// Hits required at Tier 1 for suggestion (relaxed from strict matching).
+    /// Derived: VisitedRequiredHits - 1, minimum 1 (1 hit default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionTier1Hits => Math.Max(1, VisitedRequiredHits - 1);
+
+    /// <summary>
+    /// Hits required at Tier 2 for suggestion.
+    /// Derived: VisitedRequiredHits (2 hits default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionTier2Hits => VisitedRequiredHits;
+
+    /// <summary>
+    /// Hits required at Tier 3 for suggestion.
+    /// Derived: VisitedRequiredHits + 1 (3 hits default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionTier3Hits => VisitedRequiredHits + 1;
+
+    /// <summary>
+    /// Hits required at max radius for suggestion.
+    /// Derived: VisitedRequiredHits + 3 (5 hits default)
+    /// </summary>
+    [NotMapped]
+    public int SuggestionMaxHits => VisitedRequiredHits + 3;
 }

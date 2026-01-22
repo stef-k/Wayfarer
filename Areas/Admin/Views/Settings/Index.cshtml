@@ -373,6 +373,59 @@
                                     </ul>
                                 </div>
                             </div>
+
+                            <!-- Backfill Suggestion Settings (Consider Also feature) -->
+                            <div class="col-12 mt-3 mb-2">
+                                <h5 class="border-bottom pb-2">
+                                    <i class="bi bi-lightbulb me-1"></i>Backfill Suggestions ("Consider Also")
+                                </h5>
+                                <p class="text-muted small mb-2">
+                                    Settings for the "Consider Also" feature in backfill analysis. These suggestions use relaxed
+                                    matching criteria and require user confirmation before creating visits.
+                                </p>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="VisitedSuggestionMaxRadiusMultiplier" class="form-label">
+                                    Suggestion Max Radius Multiplier
+                                </label>
+                                <select asp-for="VisitedSuggestionMaxRadiusMultiplier" class="form-control">
+                                    <optgroup label="Conservative (2-10x)">
+                                        <option value="2">2× (@(Model.VisitedMaxSearchRadiusMeters * 2)m)</option>
+                                        <option value="5">5× (@(Model.VisitedMaxSearchRadiusMeters * 5)m)</option>
+                                        <option value="10">10× (@(Model.VisitedMaxSearchRadiusMeters * 10)m)</option>
+                                    </optgroup>
+                                    <optgroup label="Moderate (20-50x) - Recommended">
+                                        <option value="20">20× (@(Model.VisitedMaxSearchRadiusMeters * 20)m)</option>
+                                        <option value="30">30× (@(Model.VisitedMaxSearchRadiusMeters * 30)m)</option>
+                                        <option value="40">40× (@(Model.VisitedMaxSearchRadiusMeters * 40)m)</option>
+                                        <option value="50">50× (@(Model.VisitedMaxSearchRadiusMeters * 50)m) - Default</option>
+                                    </optgroup>
+                                    <optgroup label="Extensive (60-100x)">
+                                        <option value="60">60× (@(Model.VisitedMaxSearchRadiusMeters * 60)m)</option>
+                                        <option value="75">75× (@(Model.VisitedMaxSearchRadiusMeters * 75)m)</option>
+                                        <option value="100">100× (@(Model.VisitedMaxSearchRadiusMeters * 100)m)</option>
+                                    </optgroup>
+                                </select>
+                                <small class="form-text text-muted">
+                                    Max search radius for suggestions during backfill.<br/>
+                                    <em>Current: @Model.VisitedMaxSearchRadiusMeters m × @Model.VisitedSuggestionMaxRadiusMultiplier = @Model.SuggestionMaxRadius m</em>
+                                </small>
+                                <span asp-validation-for="VisitedSuggestionMaxRadiusMultiplier" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="alert alert-secondary mb-0">
+                                    <strong>Derived Suggestion Tiers:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        <li>Tier 1: <code>@Model.SuggestionTier1Radius m</code> (needs @Model.SuggestionTier1Hits hit)</li>
+                                        <li>Tier 2: <code>@Model.SuggestionTier2Radius m</code> (needs @Model.SuggestionTier2Hits hits)</li>
+                                        <li>Tier 3: <code>@Model.SuggestionTier3Radius m</code> (needs @Model.SuggestionTier3Hits hits)</li>
+                                        <li>Max: <code>@Model.SuggestionMaxRadius m</code> (needs @Model.SuggestionMaxHits hits)</li>
+                                    </ul>
+                                    <small class="text-muted">Cross-tier evidence filters GPS noise while catching near-miss visits.</small>
+                                </div>
+                            </div>
                         </div>
                         <hr/>
                         <div class="row">
