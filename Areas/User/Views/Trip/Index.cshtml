@@ -427,26 +427,37 @@ else
                 <div id="placeContextMap"></div>
                 <div id="placeContextInfo" class="p-3 border-top small">
                     <div class="row text-center">
-                        <div class="col-4">
+                        <div class="col">
                             <div class="fw-bold" id="context-ping-count">-</div>
                             <small class="text-muted">Location Pings</small>
                         </div>
-                        <div class="col-4">
+                        <div class="col">
                             <div class="fw-bold" id="context-time-range">-</div>
                             <small class="text-muted">Time Range</small>
                         </div>
-                        <div class="col-4">
+                        <div class="col">
                             <div class="fw-bold" id="context-avg-distance">-</div>
                             <small class="text-muted">Avg Distance</small>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold" id="context-closest-ping">-</div>
+                            <small class="text-muted">Closest Ping</small>
+                        </div>
+                        <div class="col">
+                            <div class="fw-bold" id="context-furthest-ping">-</div>
+                            <small class="text-muted">Furthest Ping</small>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer py-2">
-                <small class="text-muted me-auto">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Click the ruler icon <img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/rulers.svg" alt="ruler" style="width:1em;height:1em;vertical-align:middle;"> to measure distances
-                </small>
+                <div class="me-auto d-flex align-items-center gap-2">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Click the ruler icon <i class="bi bi-rulers"></i> to measure distances
+                    </small>
+                    <span id="context-external-links"></span>
+                </div>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
