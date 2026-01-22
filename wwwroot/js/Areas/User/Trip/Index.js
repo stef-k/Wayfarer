@@ -752,6 +752,7 @@ import { addZoomLevelControl } from '../../../map-utils.js';
     const placeContextModal = placeContextModalEl ? new bootstrap.Modal(placeContextModalEl) : null;
     let contextMap = null;
     let contextMarkersGroup = null;
+    let mapResizeObserver = null;
 
     // Map tiles config (proxy URL + attribution) injected by layout
     const tilesConfig = window.wayfarerTileConfig || {};
@@ -774,6 +775,8 @@ import { addZoomLevelControl } from '../../../map-utils.js';
 
     /**
      * Initializes the place context map.
+     * Only creates the map if the container has valid dimensions.
+     * @returns {boolean} True if map was initialized, false if container not ready.
      */
     const initContextMap = () => {
         if (contextMap) {
@@ -783,7 +786,13 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         }
 
         const container = document.getElementById('placeContextMap');
-        if (!container) return null;
+        if (!container) return false;
+
+        // Check if container has actual dimensions
+        const rect = container.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+            return false;
+        }
 
         contextMap = L.map(container, { zoomAnimation: true }).setView([0, 0], 13);
 
@@ -802,7 +811,7 @@ import { addZoomLevelControl } from '../../../map-utils.js';
 
         contextMarkersGroup = L.featureGroup().addTo(contextMap);
 
-        return contextMap;
+        return true;
     };
 
     /**
@@ -1051,8 +1060,14 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         }
     };
 
-    // Reset map when modal is hidden
+    // Reset map and cleanup when modal is hidden
     placeContextModalEl?.addEventListener('hidden.bs.modal', () => {
+        // Disconnect resize observer
+        if (mapResizeObserver) {
+            mapResizeObserver.disconnect();
+            mapResizeObserver = null;
+        }
+        // Cleanup map
         if (contextMap) {
             contextMap.off();
             contextMap.remove();
@@ -1063,14 +1078,32 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         pendingPlaceType = null;
     });
 
-    // Initialize map when modal is fully shown (proper timing for Leaflet)
+    // Initialize map when modal is fully shown using ResizeObserver for deterministic timing
     placeContextModalEl?.addEventListener('shown.bs.modal', () => {
-        // Small delay to ensure DOM has fully settled after modal animation
-        setTimeout(() => {
-            initPlaceContextAfterShow();
-            // Additional invalidateSize after a brief moment to handle any remaining layout shifts
-            setTimeout(() => contextMap?.invalidateSize(), 100);
-        }, 50);
+        const container = document.getElementById('placeContextMap');
+        if (!container) return;
+
+        // Use ResizeObserver to detect when container has dimensions
+        mapResizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const { width, height } = entry.contentRect;
+
+                // Container has valid dimensions
+                if (width > 0 && height > 0) {
+                    if (!contextMap) {
+                        // First time - initialize map and load data
+                        if (initContextMap()) {
+                            initPlaceContextAfterShow();
+                        }
+                    } else {
+                        // Subsequent resizes - just invalidate size
+                        contextMap.invalidateSize();
+                    }
+                }
+            }
+        });
+
+        mapResizeObserver.observe(container);
     });
 
     /* ------------------------------------------------ boot */

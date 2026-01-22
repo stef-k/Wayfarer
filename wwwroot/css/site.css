@@ -2098,7 +2098,7 @@ html[data-bs-theme="dark"] .ql-editor a {
 
 /* Map container with proper overflow handling */
 #placeContextMap {
-    height: 400px;
+    height: 500px;
     width: 100%;
     position: relative;
     overflow: hidden;
