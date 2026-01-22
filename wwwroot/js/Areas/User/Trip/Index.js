@@ -429,6 +429,16 @@
     const handleAnalyzeClick = async () => {
         if (!currentTripId) return;
 
+        // Validate date range if both dates are provided
+        if (fromDateInput?.value && toDateInput?.value) {
+            const fromDate = new Date(fromDateInput.value);
+            const toDate = new Date(toDateInput.value);
+            if (fromDate > toDate) {
+                wayfarer.showAlert('warning', 'From date must be before or equal to To date.');
+                return;
+            }
+        }
+
         const params = new URLSearchParams();
         if (fromDateInput?.value) params.set('fromDate', fromDateInput.value);
         if (toDateInput?.value) params.set('toDate', toDateInput.value);

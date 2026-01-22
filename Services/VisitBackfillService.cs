@@ -420,7 +420,8 @@ public class VisitBackfillService : IVisitBackfillService
         Region region,
         ApplicationSettings settings,
         DateOnly? fromDate,
-        DateOnly? toDate)
+        DateOnly? toDate,
+        CancellationToken cancellationToken = default)
     {
         if (place.Location == null)
         {
@@ -472,7 +473,7 @@ public class VisitBackfillService : IVisitBackfillService
 
             if (!connectionWasOpen)
             {
-                await _dbContext.Database.OpenConnectionAsync();
+                await _dbContext.Database.OpenConnectionAsync(cancellationToken);
             }
 
             try
@@ -490,8 +491,8 @@ public class VisitBackfillService : IVisitBackfillService
                 if (toDate.HasValue)
                     command.Parameters.Add(new NpgsqlParameter("@toDate", toDate.Value));
 
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     var visitDate = DateOnly.FromDateTime(reader.GetDateTime(0));
                     // Note: LocalTimestamp is user's local time, not UTC. We store it as UTC for
@@ -551,8 +552,49 @@ public class VisitBackfillService : IVisitBackfillService
     /// <summary>
     /// Finds visit candidates for multiple places in a single batched query.
     /// Uses PostgreSQL LATERAL JOIN for efficient spatial matching.
+    /// Chunks large place lists to stay within PostgreSQL's ~32,767 parameter limit.
     /// </summary>
     private async Task<List<BackfillCandidateDto>> FindVisitCandidatesBatchedAsync(
+        string userId,
+        List<Place> places,
+        Dictionary<Guid, Region> regionsById,
+        ApplicationSettings settings,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken)
+    {
+        if (places.Count == 0)
+            return new List<BackfillCandidateDto>();
+
+        // PostgreSQL has ~32,767 parameter limit. Each place uses 3 params (id, lon, lat).
+        // Use 10,000 places per chunk (30,000 params) to leave room for common params.
+        const int maxPlacesPerChunk = 10000;
+
+        if (places.Count > maxPlacesPerChunk)
+        {
+            _logger.LogInformation(
+                "Chunking batched query: {TotalPlaces} places into {ChunkCount} chunks of {ChunkSize}",
+                places.Count, (places.Count + maxPlacesPerChunk - 1) / maxPlacesPerChunk, maxPlacesPerChunk);
+
+            var allCandidates = new List<BackfillCandidateDto>();
+            foreach (var chunk in places.Chunk(maxPlacesPerChunk))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var chunkResults = await FindVisitCandidatesBatchedCoreAsync(
+                    userId, chunk.ToList(), regionsById, settings, fromDate, toDate, cancellationToken);
+                allCandidates.AddRange(chunkResults);
+            }
+            return allCandidates;
+        }
+
+        return await FindVisitCandidatesBatchedCoreAsync(
+            userId, places, regionsById, settings, fromDate, toDate, cancellationToken);
+    }
+
+    /// <summary>
+    /// Core implementation of batched query for a single chunk of places.
+    /// </summary>
+    private async Task<List<BackfillCandidateDto>> FindVisitCandidatesBatchedCoreAsync(
         string userId,
         List<Place> places,
         Dictionary<Guid, Region> regionsById,
@@ -678,7 +720,12 @@ public class VisitBackfillService : IVisitBackfillService
                     if (!placesById.TryGetValue(placeId, out var place))
                         continue;
 
-                    var region = regionsById[place.RegionId];
+                    if (!regionsById.TryGetValue(place.RegionId, out var region))
+                    {
+                        _logger.LogWarning("Region {RegionId} not found for place {PlaceId}, skipping candidate", place.RegionId, place.Id);
+                        continue;
+                    }
+
                     var confidence = CalculateConfidence(locationCount, avgDistance, settings);
 
                     candidates.Add(new BackfillCandidateDto
@@ -745,9 +792,14 @@ public class VisitBackfillService : IVisitBackfillService
         {
             if (place.Location == null) continue;
 
-            var region = regionsById[place.RegionId];
+            if (!regionsById.TryGetValue(place.RegionId, out var region))
+            {
+                _logger.LogWarning("Region {RegionId} not found for place {PlaceId}, skipping", place.RegionId, place.Id);
+                continue;
+            }
+
             var placeResults = await FindVisitCandidatesForPlaceAsync(
-                userId, place, region, settings, fromDate, toDate);
+                userId, place, region, settings, fromDate, toDate, cancellationToken);
 
             candidates.AddRange(placeResults.Candidates);
         }
@@ -1178,7 +1230,12 @@ public class VisitBackfillService : IVisitBackfillService
                     if (!placesById.TryGetValue(placeId, out var place))
                         continue;
 
-                    var region = regionsById[place.RegionId];
+                    if (!regionsById.TryGetValue(place.RegionId, out var region))
+                    {
+                        _logger.LogWarning("Region {RegionId} not found for place {PlaceId}, skipping suggestion", place.RegionId, place.Id);
+                        continue;
+                    }
+
                     var hasUserCheckin = checkinCount >= 1;
 
                     // Generate suggestion reason

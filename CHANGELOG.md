@@ -12,6 +12,11 @@
 - Added Source property to PlaceVisitEvent to track visit origin (realtime, backfill, backfill-user-confirmed)
 - Added user check-in detection as strong signal for suggestions
 - Added admin settings UI for suggestion multiplier with derived tier info panel
+- Added unique index on PlaceVisitEvents (UserId, PlaceId, Date) to prevent duplicates at DB level
+- Added chunking for batched spatial queries when places > 10,000 (PostgreSQL parameter limit)
+- Added CancellationToken propagation to individual place analysis queries
+- Added frontend validation for date range (fromDate must be ≤ toDate)
+- Fixed potential KeyNotFoundException with TryGetValue pattern for region lookups
 
 ### 2026-01-21
 - Added Visit Backfill feature to analyze location history and create visit records (#104)
