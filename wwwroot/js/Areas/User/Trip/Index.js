@@ -810,7 +810,8 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         }).addTo(contextMap);
 
         contextMap.attributionControl.setPrefix(
-            '&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer" target="_blank">Wayfarer</a> | ' +
+            '&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | ' +
+            '<a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | ' +
             '&copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>'
         );
 

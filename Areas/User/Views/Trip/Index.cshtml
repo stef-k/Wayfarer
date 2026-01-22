@@ -1,5 +1,8 @@
 @model List<Wayfarer.Models.Trip>
 
+@{
+    ViewData["LoadLeaflet"] = true;
+}
 
 <h2>@ViewData["Title"]</h2>
 
@@ -411,7 +414,7 @@ else
 </div>
 
 <!-- ▼ Place Context Map modal (stacked above backfill modal) -->
-<div class="modal fade" id="placeContextModal" tabindex="-1" data-bs-backdrop="true">
+<div class="modal fade" id="placeContextModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content shadow-lg">
             <div class="modal-header py-2">
