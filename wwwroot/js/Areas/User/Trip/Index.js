@@ -1,5 +1,9 @@
 /* trips.js Trip index view functionality */
 import { addZoomLevelControl } from '../../../map-utils.js';
+import {
+    generateWikipediaLinkHtml,
+    initWikipediaPopovers,
+} from '../../../util/wikipedia-utils.js';
 
 (() => {
     /* ------------------------------------------------ Delete trip */
@@ -961,79 +965,6 @@ import { addZoomLevelControl } from '../../../map-utils.js';
     };
 
     /**
-     * Generates a Wikipedia link element for a place.
-     * @param {Object} placeData - The place data with coordinates.
-     * @returns {string} HTML string with Wikipedia link.
-     */
-    const generateWikipediaLink = (placeData) => {
-        if (!placeData?.latitude || !placeData?.longitude) return '';
-        return `<a href="#" class="btn btn-outline-primary btn-sm wikipedia-link" data-lat="${placeData.latitude}" data-lon="${placeData.longitude}" title="Search Wikipedia nearby"><i class="bi bi-wikipedia"></i> Wiki</a>`;
-    };
-
-    /**
-     * Initializes Wikipedia popover for lazy-loading article summaries.
-     * @param {HTMLElement} containerEl - The container element with Wikipedia links.
-     */
-    const initWikipediaPopovers = (containerEl) => {
-        if (typeof tippy === 'undefined') return;
-        containerEl.querySelectorAll('.wikipedia-link').forEach(el => {
-            // Prevent double initialization
-            if (el._tippy) return;
-            tippy(el, {
-                appendTo: () => document.body,
-                popperOptions: {
-                    strategy: 'fixed',
-                    modifiers: [{ name: 'zIndex', options: { value: 2000 } }]
-                },
-                interactiveBorder: 20,
-                content: 'Loading…',
-                allowHTML: true,
-                interactive: true,
-                hideOnClick: false,
-                placement: 'top',
-                onShow: async instance => {
-                    if (instance._loaded) return;
-                    instance._loaded = true;
-
-                    const lat = el.getAttribute('data-lat');
-                    const lon = el.getAttribute('data-lon');
-
-                    // GeoSearch for nearby Wikipedia pages
-                    const geoUrl = new URL('https://en.wikipedia.org/w/api.php');
-                    geoUrl.search = new URLSearchParams({
-                        action: 'query', list: 'geosearch', gscoord: `${lat}|${lon}`,
-                        gsradius: 100, gslimit: 5, format: 'json', origin: '*'
-                    }).toString();
-
-                    try {
-                        const geoRes = await fetch(geoUrl);
-                        if (!geoRes.ok) throw new Error(`GeoSearch HTTP ${geoRes.status}`);
-                        const geoJson = await geoRes.json();
-                        const results = geoJson.query?.geosearch || [];
-
-                        if (!results.length) {
-                            instance.setContent('<div style="max-width:250px"><em>No nearby Wikipedia article found.</em></div>');
-                            return;
-                        }
-
-                        // Fetch summary of the top hit
-                        const title = encodeURIComponent(results[0].title);
-                        const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
-                        const sumRes = await fetch(summaryUrl);
-                        if (!sumRes.ok) throw new Error(`Summary HTTP ${sumRes.status}`);
-                        const data = await sumRes.json();
-
-                        instance.setContent(`<div style="max-width:250px"><strong>${data.title}</strong><p>${data.extract}</p><a href="${data.content_urls.desktop.page}" target="_blank">Read more »</a></div>`);
-                    } catch (err) {
-                        instance.setContent('<div style="max-width:250px"><em>Could not load article.</em></div>');
-                        console.debug('Wiki popover error:', err);
-                    }
-                }
-            });
-        });
-    };
-
-    /**
      * Updates the info panel below the map.
      * @param {Array} locations - Array of location pings.
      * @param {Object} [placeData] - Optional place data for external links.
@@ -1093,8 +1024,8 @@ import { addZoomLevelControl } from '../../../map-utils.js';
 
         // Update external links
         if (linksEl && placeData) {
-            linksEl.innerHTML = generateGoogleMapsLink(placeData) + ' ' + generateWikipediaLink(placeData);
-            initWikipediaPopovers(linksEl);
+            linksEl.innerHTML = generateGoogleMapsLink(placeData) + ' ' + generateWikipediaLinkHtml(placeData.latitude, placeData.longitude, { query: placeData.placeName });
+            initWikipediaPopovers(linksEl, { placement: 'top' });
         } else if (linksEl) {
             linksEl.innerHTML = '';
         }
