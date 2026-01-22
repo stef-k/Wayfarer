@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### 2026-01-22
+- Added centralized Wikipedia search utility with dual search strategy (#142)
+- Combines geosearch and text search for better Wikipedia article discovery
+- Migrated 8 files to use new shared module, removing ~600 lines of duplicate code
 - Added place context map modal to trip visit analysis (#139)
 - Map shows place marker and location pings that contributed to the match
 - Includes ruler measurement tool, auto-fit bounds, and ping tooltips with details

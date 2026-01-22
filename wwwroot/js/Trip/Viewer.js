@@ -21,6 +21,10 @@ import {
     getSegmentPolyline,
     canvasRenderer
 } from './tripViewerHelpers.js';
+import {
+    generateWikipediaLinkHtml,
+    initWikipediaPopovers,
+} from '../util/wikipedia-utils.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -140,60 +144,6 @@ const gmLinkWithCoords = (addr, lat, lon) => `<a href="https://www.google.com/ma
       target="_blank" class="btn btn-outline-primary btn-sm"
       title="View in Google Maps">
       <i class="bi bi-globe-europe-africa"></i> Maps</a>`;
-/* ─── Google Maps + Wikipedia helpers ────────────────────── */
-// Deprecated: use gmLinkWithCoords(addr, lat, lon) instead for better precision.
-
-const wikiLink = (lat, lon) => `<a href="#" class="btn btn-outline-primary btn-sm wikipedia-link"
-      data-lat="${lat}" data-lon="${lon}">
-      <i class="bi bi-wikipedia"></i> Wiki</a>`;
-
-const initWikiPopovers = root => {
-    root.querySelectorAll('.wikipedia-link').forEach(a => {
-        tippy(a, {
-            appendTo: () => document.body,
-            placement: 'right',
-            interactive: true,
-            allowHTML: true,
-            hideOnClick: false,
-            content: 'Loading…',
-            onShow: async tip => {
-                if (tip._loaded) return;          /* only once */
-                tip._loaded = true;
-                try {
-                    const {lat, lon} = a.dataset;
-
-                    /* 1) GeoSearch */
-                    const geoURL = `https://en.wikipedia.org/w/api.php?` + new URLSearchParams({
-                        action: 'query',
-                        list: 'geosearch',
-                        gscoord: `${lat}|${lon}`,
-                        gsradius: 100,
-                        gslimit: 1,
-                        format: 'json',
-                        origin: '*'
-                    });
-                    const first = (await (await fetch(geoURL)).json()).query.geosearch[0];
-                    if (!first) {
-                        tip.setContent('<em>No nearby article.</em>');
-                        return;
-                    }
-
-                    /* 2) Summary */
-                    const sumURL = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(first.title)}`;
-                    const j = await (await fetch(sumURL)).json();
-
-                    tip.setContent(`<div style="max-width:240px">
-                            <strong>${j.title}</strong><p>${j.extract}</p>
-                            <a href="${j.content_urls.desktop.page}" target="_blank">Read&nbsp;more&nbsp;»</a>
-                          </div>`);
-                } catch {
-                    tip.setContent('<em>Could not load article.</em>');
-                }
-            }
-        });
-    });
-};
-
 /* ========================================================= */
 const init = () => {
     initLegendSearch();
@@ -507,7 +457,7 @@ const init = () => {
 
     <div class="mt-3 d-flex flex-wrap gap-2">
       ${gmLinkWithCoords(d.placeAddress, d.placeLat, d.placeLon)}
-      ${wikiLink(d.placeLat, d.placeLon)}
+      ${generateWikipediaLinkHtml(+d.placeLat, +d.placeLon, { query: d.placeName })}
     </div>
   </div>`;
     };
@@ -540,7 +490,7 @@ const init = () => {
                 applyCentreOffset(collapsed ? -1 : 1, true);
             });
         }
-        initWikiPopovers(pane);
+        initWikipediaPopovers(pane);
     };
 
     /* close details */

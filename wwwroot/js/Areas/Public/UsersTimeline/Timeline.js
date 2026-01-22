@@ -39,6 +39,10 @@ import {
     formatDecimal,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
+import {
+    generateWikipediaLinkHtml,
+    initWikipediaPopovers,
+} from '../../../util/wikipedia-utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     username = document.getElementById('username').dataset.username;
@@ -343,7 +347,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
         <div class="row mb-2">
             <div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span><br/>
             ${generateGoogleMapsLink(location)}
-            ${generateWikipediaLink(location)}
+            ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
             </div>
         </div>
         <div class="row mb-2">
@@ -385,110 +389,6 @@ const generateGoogleMapsLink = location => {
       title="View in Google Maps"
     ><i class="bi bi-globe-europe-africa"></i> Maps</a>
   `;
-};
-
-/**
- * Generates a link for Wikipedia
- * @param {object} location
- * @param {{ latitude: number, longitude: number }} location.coordinates
- */
-const generateWikipediaLink = location => {
-    const {latitude, longitude} = location.coordinates;
-    return `
-    <a
-      href="#"
-      class="ms-2 wikipedia-link btn btn-outline-primary btn-sm"
-      data-lat="${latitude}"
-      data-lon="${longitude}"
-    ><i class="bi bi-wikipedia"></i> Wiki</a>
-  `;
-};
-
-
-/**
- * Cretes a pop over with Wikipedia content about the place IF and article exists based on the coordinates of the location
- * @param {HTMLElement} modalEl  — the actual <div id="locationModal"> element
- */
-const initWikipediaPopovers = modalEl => {
-    modalEl.querySelectorAll('.wikipedia-link').forEach(el => {
-        tippy(el, {
-            appendTo: () => document.body,
-            popperOptions: {
-                modifiers: [
-                    {
-                        name: 'zIndex',
-                        options: {value: 2000}  // must exceed Bootstrap modal (1050)
-                    }
-                ]
-            },
-            interactiveBorder: 20,
-            content: 'Loading…',
-            allowHTML: true,
-            interactive: true,
-            hideOnClick: false,
-            placement: 'right',
-            onShow: async instance => {
-                if (instance._loaded) return;
-                instance._loaded = true;
-
-                const lat = el.getAttribute('data-lat');
-                const lon = el.getAttribute('data-lon');
-
-                // 1) GeoSearch for nearby pages
-                const geoUrl = new URL('https://en.wikipedia.org/w/api.php');
-                geoUrl.search = new URLSearchParams({
-                    action: 'query',
-                    list: 'geosearch',
-                    gscoord: `${lat}|${lon}`,
-                    gsradius: 100,      // meters
-                    gslimit: 5,
-                    format: 'json',
-                    origin: '*'
-                }).toString();
-
-                try {
-                    const geoRes = await fetch(geoUrl);
-                    if (!geoRes.ok) throw new Error(`GeoSearch HTTP ${geoRes.status}`);
-                    const geoJson = await geoRes.json();
-                    const results = geoJson.query?.geosearch || [];
-
-                    if (!results.length) {
-                        instance.setContent(`
-              <div style="max-width:250px">
-                <em>No nearby Wikipedia article found.</em>
-              </div>
-            `);
-                        return;
-                    }
-
-                    // 2) Fetch summary of the top hit
-                    const title = encodeURIComponent(results[0].title);
-                    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
-                    const sumRes = await fetch(summaryUrl);
-                    if (!sumRes.ok) throw new Error(`Summary HTTP ${sumRes.status}`);
-                    const data = await sumRes.json();
-
-                    instance.setContent(`
-            <div style="max-width:250px">
-              <strong>${data.title}</strong>
-              <p>${data.extract}</p>
-              <a href="${data.content_urls.desktop.page}" target="_blank">
-                Read more »
-              </a>
-            </div>
-          `);
-                } catch (err) {
-                    instance.setContent(`
-            <div style="max-width:250px">
-              <em>Could not load article.</em>
-            </div>
-          `);
-                    console.debug('Wiki popover error:', err);
-                }
-            }
-        });
-    })
-    ;
 };
 
 /**

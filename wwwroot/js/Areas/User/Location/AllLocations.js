@@ -11,6 +11,10 @@ import {
     initActivitySelect,
     setupActivityEditorEvents,
 } from '../../../util/activity-editor.js';
+import {
+    generateWikipediaLinkHtml,
+    initWikipediaPopovers,
+} from '../../../util/wikipedia-utils.js';
 
 let locations = [];
 let currentPage = 1;
@@ -409,7 +413,7 @@ const generateLocationModalContent = (location) => {
         <div class="col-12">
             <strong>Address:</strong> ${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'} <br>
                 ${generateGoogleMapsLink(location)}
-            ${generateWikipediaLink(location)}
+            ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
         </div>
       </div>
       <div class="row mb-2">
@@ -447,53 +451,6 @@ const generateGoogleMapsLink = (location) => {
     return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps">
     <i class="bi bi-globe-europe-africa"></i> Maps
 </a>`;
-}
-
-const generateWikipediaLink = (location) => {
-    return `<a href="#" class="ms-2 wikipedia-link btn btn-outline-primary btn-sm" data-lat="${location.coordinates.latitude}" data-lon="${location.coordinates.longitude}">
-    <i class="bi bi-wikipedia"></i> Wiki</a>`;
-}
-
-const initWikipediaPopovers = (modalEl) => {
-    modalEl.querySelectorAll('.wikipedia-link').forEach(el => {
-        tippy(el, {
-            appendTo: () => document.body,
-            popperOptions: {modifiers: [{name: 'zIndex', options: {value: 2000}}]},
-            interactiveBorder: 20,
-            content: 'Loading…',
-            allowHTML: true,
-            interactive: true,
-            hideOnClick: false,
-            placement: 'right',
-            onShow: async instance => {
-                if (instance._loaded) return;
-                instance._loaded = true;
-                const lat = el.dataset.lat;
-                const lon = el.dataset.lon;
-                try {
-                    const geoUrl = new URL('https://en.wikipedia.org/w/api.php');
-                    geoUrl.search = new URLSearchParams({
-                        action: 'query',
-                        list: 'geosearch',
-                        gscoord: `${lat}|${lon}`,
-                        gsradius: 100,
-                        gslimit: 5,
-                        format: 'json',
-                        origin: '*'
-                    });
-                    const geoRes = await fetch(geoUrl);
-                    const geoJson = await geoRes.json();
-                    if (!geoJson.query.geosearch.length) return instance.setContent('<em>No nearby article</em>');
-                    const title = encodeURIComponent(geoJson.query.geosearch[0].title);
-                    const sumRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`);
-                    const data = await sumRes.json();
-                    instance.setContent(`<strong>${data.title}</strong><p>${data.extract}</p><a href="${data.content_urls.desktop.page}" target="_blank">Read more »</a>`);
-                } catch {
-                    instance.setContent('<em>Could not load article.</em>');
-                }
-            }
-        });
-    });
 }
 
 const getUserStats = async () => {
