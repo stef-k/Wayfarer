@@ -796,6 +796,9 @@ import { addZoomLevelControl } from '../../../map-utils.js';
 
         contextMap = L.map(container, { zoomAnimation: true }).setView([0, 0], 13);
 
+        // Immediately invalidate size to ensure correct dimensions
+        contextMap.invalidateSize();
+
         L.tileLayer(tilesUrl, {
             maxZoom: 19,
             attribution: tilesAttribution
@@ -919,6 +922,8 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         // Fit map to show all markers with padding
         if (contextMarkersGroup.getLayers().length > 0) {
             contextMap.fitBounds(contextMarkersGroup.getBounds(), { padding: [40, 40] });
+            // Force tile recalculation after bounds change
+            contextMap.invalidateSize();
         }
     };
 
