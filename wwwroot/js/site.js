@@ -410,7 +410,10 @@ wayfarer.initHelpTooltips = () => {
         tippy(el, {
             allowHTML: true,
             appendTo: () => document.body,
-            zIndex: 9999
+            zIndex: 9999,
+            popperOptions: {
+                strategy: 'fixed'
+            }
         });
     });
 };
