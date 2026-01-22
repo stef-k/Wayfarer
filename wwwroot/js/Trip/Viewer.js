@@ -828,14 +828,14 @@ const init = () => {
                         bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
                     } catch {}
                 }
-                // Wait for accordion animation, then highlight the place
+                // Wait for accordion animation, then highlight the place and open details
                 setTimeout(() => {
                     // Highlight marker on map
                     highlightMarker(focusPlaceId);
-                    // Scroll place into view in the legend
-                    placeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Add visual highlight to the list item
-                    placeEl.classList.add('search-hit');
+                    // Open the place details pane
+                    if (window.wayfarer?.openPlaceDetails) {
+                        window.wayfarer.openPlaceDetails(focusPlaceId);
+                    }
                 }, 350);
             }
         }
