@@ -1120,13 +1120,13 @@ import { addZoomLevelControl } from '../../../map-utils.js';
                 'existing': 'Existing Visit'
             }[type] || 'Place Context';
 
-            // Build link to trip edit page with place coordinates for focus
-            const tripEditUrl = currentTripId && placeData.latitude && placeData.longitude
-                ? `/User/Trip/Edit/${currentTripId}?lat=${placeData.latitude.toFixed(6)}&lng=${placeData.longitude.toFixed(6)}&zoom=17&placeId=${placeData.placeId}`
+            // Build link to trip view page with place coordinates for focus
+            const tripViewUrl = currentTripId && placeData.latitude && placeData.longitude
+                ? `/Public/Trips/${currentTripId}?lat=${placeData.latitude.toFixed(6)}&lon=${placeData.longitude.toFixed(6)}&zoom=17&placeId=${placeData.placeId}`
                 : null;
 
-            const placeNameHtml = tripEditUrl
-                ? `<a href="${tripEditUrl}" target="_blank" class="text-decoration-none" title="Open place in trip editor">${escapeHtml(placeData.placeName)} <i class="bi bi-box-arrow-up-right small"></i></a>`
+            const placeNameHtml = tripViewUrl
+                ? `<a href="${tripViewUrl}" target="_blank" class="text-decoration-none" title="View place in trip">${escapeHtml(placeData.placeName)} <i class="bi bi-box-arrow-up-right small"></i></a>`
                 : escapeHtml(placeData.placeName);
 
             titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${placeNameHtml} <small class="text-muted fw-normal">- ${typeLabel}</small>`;

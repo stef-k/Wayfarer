@@ -814,6 +814,33 @@ const init = () => {
         }
     });
 
+    /* ----- auto-focus place from URL parameter ----- */
+    const focusPlaceId = params.get('placeId');
+    if (focusPlaceId) {
+        const placeEl = document.querySelector(`.place-list-item[data-place-id="${focusPlaceId}"]`);
+        if (placeEl) {
+            const regionId = placeEl.dataset.regionId;
+            if (regionId) {
+                // Expand the region accordion
+                const collapseEl = document.getElementById(`reg-body-${regionId}`);
+                if (collapseEl && !collapseEl.classList.contains('show')) {
+                    try {
+                        bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+                    } catch {}
+                }
+                // Wait for accordion animation, then highlight the place
+                setTimeout(() => {
+                    // Highlight marker on map
+                    highlightMarker(focusPlaceId);
+                    // Scroll place into view in the legend
+                    placeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Add visual highlight to the list item
+                    placeEl.classList.add('search-hit');
+                }, 350);
+            }
+        }
+    }
+
 };
 
 if (document.readyState === 'loading') {
