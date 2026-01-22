@@ -282,7 +282,7 @@ export const generateWikipediaLinkHtml = (latOrLocation, lonOrOptions, options) 
         const coords = extractCoordinates(latOrLocation);
         lat = coords.lat;
         lon = coords.lon;
-        opts = (typeof lonOrOptions === 'object' ? lonOrOptions : {}) || {};
+        opts = typeof lonOrOptions === 'object' ? lonOrOptions : {};
     } else {
         // Invalid input
         return '';
@@ -348,7 +348,7 @@ const getErrorHtml = () =>
  */
 const getSummaryHtml = (summary) => {
     const url = summary.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(summary.title)}`;
-    return `<div style="max-width:${POPOVER_MAX_WIDTH}px"><strong>${escapeHtml(summary.title)}</strong><p>${summary.extract || ''}</p><a href="${url}" target="_blank">Read more \u00BB</a></div>`;
+    return `<div style="max-width:${POPOVER_MAX_WIDTH}px"><strong>${escapeHtml(summary.title)}</strong><p>${escapeHtml(summary.extract || '')}</p><a href="${url}" target="_blank" rel="noopener noreferrer">Read more \u00BB</a></div>`;
 };
 
 /**
@@ -394,12 +394,9 @@ export const initWikipediaPopovers = (containerEl, options = {}) => {
 
         tippy(el, {
             appendTo: () => document.body,
+            zIndex,
             popperOptions: {
-                strategy: 'fixed',
-                modifiers: [{
-                    name: 'zIndex',
-                    options: { value: zIndex }
-                }]
+                strategy: 'fixed'
             },
             interactiveBorder: 20,
             content: getLoadingHtml(),
