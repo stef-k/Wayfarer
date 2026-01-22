@@ -994,7 +994,13 @@ public class VisitBackfillService : IVisitBackfillService
             return BackfillCreateResult.Skipped;
         }
 
-        var region = trip.Regions.First(r => r.Id == place.RegionId);
+        var region = trip.Regions.FirstOrDefault(r => r.Id == place.RegionId);
+        if (region == null)
+        {
+            _logger.LogWarning("Region {RegionId} not found in trip {TripId} for place {PlaceId}, skipping visit creation",
+                place.RegionId, trip.Id, place.Id);
+            return BackfillCreateResult.Skipped;
+        }
 
         var visitEvent = new PlaceVisitEvent
         {
