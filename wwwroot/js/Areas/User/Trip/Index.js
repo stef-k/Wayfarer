@@ -1,4 +1,6 @@
 /* trips.js Trip index view functionality */
+import { addZoomLevelControl } from '../../../map-utils.js';
+
 (() => {
     /* ------------------------------------------------ Delete trip */
     const handleDeleteClick = (btn, e) => {
@@ -187,15 +189,29 @@
             noNewVisits?.classList.add('d-none');
             newVisitsHint?.classList.remove('d-none');
             newVisitsList.innerHTML = data.newVisits.map(v => `
-                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 place-context-item"
+                     style="cursor: pointer;"
+                     data-place-id="${v.placeId}"
+                     data-place-name="${escapeHtml(v.placeName)}"
+                     data-region-name="${escapeHtml(v.regionName)}"
+                     data-latitude="${v.latitude || ''}"
+                     data-longitude="${v.longitude || ''}"
+                     data-icon-name="${v.iconName || ''}"
+                     data-marker-color="${v.markerColor || ''}"
+                     data-first-seen="${v.firstSeenUtc}"
+                     data-last-seen="${v.lastSeenUtc}"
+                     data-type="candidate">
                     <div>
                         <div class="fw-medium text-success"><i class="bi bi-plus-circle me-1"></i>${escapeHtml(v.placeName)}</div>
                         <small class="text-muted">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
                     </div>
-                    <div class="text-end">
-                        <span class="badge ${getConfidenceBadgeClass(v.confidence)}"
-                              title="Confidence based on location count and proximity (avg ${Math.round(v.avgDistanceMeters)}m from place)">${v.confidence}% Confidence</span>
-                        <small class="text-muted d-block">${v.locationCount} hits</small>
+                    <div class="text-end d-flex align-items-center gap-2">
+                        <div>
+                            <span class="badge ${getConfidenceBadgeClass(v.confidence)}"
+                                  title="Confidence based on location count and proximity (avg ${Math.round(v.avgDistanceMeters)}m from place)">${v.confidence}% Confidence</span>
+                            <small class="text-muted d-block">${v.locationCount} hits</small>
+                        </div>
+                        <i class="bi bi-geo-alt text-muted" title="View on map"></i>
                     </div>
                 </div>
             `).join('');
@@ -221,7 +237,7 @@
             suggestedSelectAllWrapper?.classList.remove('d-none');
             suggestedVisitsList.innerHTML = suggestedVisits.map(v => `
                 <div class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div class="form-check">
+                    <div class="form-check flex-grow-1">
                         <input class="form-check-input suggested-visit-check" type="checkbox"
                                value="${v.placeId}"
                                data-visit-date="${v.visitDate}"
@@ -233,12 +249,28 @@
                             <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
                         </label>
                     </div>
-                    <div class="text-end">
-                        <span class="badge bg-info" title="${escapeHtml(v.suggestionReason)}">
-                            ${v.hasUserCheckin ? '<i class="bi bi-check-circle me-1"></i>' : ''}
-                            ${escapeHtml(v.suggestionReason)}
-                        </span>
-                        <small class="text-muted d-block">${Math.round(v.minDistanceMeters)}m min dist</small>
+                    <div class="text-end d-flex align-items-center gap-2">
+                        <div>
+                            <span class="badge bg-info" title="${escapeHtml(v.suggestionReason)}">
+                                ${v.hasUserCheckin ? '<i class="bi bi-check-circle me-1"></i>' : ''}
+                                ${escapeHtml(v.suggestionReason)}
+                            </span>
+                            <small class="text-muted d-block">${Math.round(v.minDistanceMeters)}m min dist</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary place-context-btn"
+                                data-place-id="${v.placeId}"
+                                data-place-name="${escapeHtml(v.placeName)}"
+                                data-region-name="${escapeHtml(v.regionName)}"
+                                data-latitude="${v.latitude || ''}"
+                                data-longitude="${v.longitude || ''}"
+                                data-icon-name="${v.iconName || ''}"
+                                data-marker-color="${v.markerColor || ''}"
+                                data-first-seen="${v.firstSeenUtc}"
+                                data-last-seen="${v.lastSeenUtc}"
+                                data-type="suggestion"
+                                title="View on map">
+                            <i class="bi bi-geo-alt"></i>
+                        </button>
                     </div>
                 </div>
             `).join('');
@@ -268,12 +300,12 @@
             staleSelectAllWrapper?.classList.remove('d-none');
             staleVisitsList.innerHTML = data.staleVisits.map(v => `
                 <div class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div class="form-check">
+                    <div class="form-check flex-grow-1">
                         <input class="form-check-input stale-visit-check" type="checkbox"
                                value="${v.visitId}" id="stale-${v.visitId}" checked>
                         <label class="form-check-label" for="stale-${v.visitId}">
                             <span class="fw-medium text-danger"><i class="bi bi-trash me-1"></i>${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${v.visitDate}</small>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
                         </label>
                     </div>
                     <span class="badge bg-warning text-dark">${escapeHtml(v.reason)}</span>
@@ -306,7 +338,7 @@
             existingSelectAllWrapper?.classList.remove('d-none');
             existingVisitsList.innerHTML = existingVisits.map(v => `
                 <div class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div class="form-check">
+                    <div class="form-check flex-grow-1">
                         <input class="form-check-input existing-visit-check" type="checkbox"
                                value="${v.visitId}" id="existing-${v.visitId}">
                         <label class="form-check-label" for="existing-${v.visitId}">
@@ -328,12 +360,64 @@
             });
         }
 
+        // Add click handlers for place context map
+        addPlaceContextClickHandlers();
+
         // Show apply button and action summary (always show for any available actions)
         const hasChanges = data.newVisits.length > 0 || suggestedVisits.length > 0 || data.staleVisits.length > 0 || existingVisits.length > 0;
         if (hasChanges) {
             applyBtn?.classList.remove('d-none');
             updateActionSummary();
         }
+    };
+
+    /**
+     * Adds click handlers to place context items and buttons.
+     */
+    const addPlaceContextClickHandlers = () => {
+        // Click handler for confirmed visit list items (full row click)
+        document.querySelectorAll('.place-context-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                // Don't trigger if clicking on a checkbox or button
+                if (e.target.closest('input, button')) return;
+
+                const placeData = {
+                    placeId: item.dataset.placeId,
+                    placeName: item.dataset.placeName,
+                    regionName: item.dataset.regionName,
+                    latitude: parseFloat(item.dataset.latitude) || null,
+                    longitude: parseFloat(item.dataset.longitude) || null,
+                    iconName: item.dataset.iconName || null,
+                    markerColor: item.dataset.markerColor || null,
+                    firstSeenUtc: item.dataset.firstSeen,
+                    lastSeenUtc: item.dataset.lastSeen
+                };
+
+                showPlaceContext(placeData, item.dataset.type || 'candidate');
+            });
+        });
+
+        // Click handler for suggestion map buttons
+        document.querySelectorAll('.place-context-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation(); // Don't trigger parent click handlers
+
+                const placeData = {
+                    placeId: btn.dataset.placeId,
+                    placeName: btn.dataset.placeName,
+                    regionName: btn.dataset.regionName,
+                    latitude: parseFloat(btn.dataset.latitude) || null,
+                    longitude: parseFloat(btn.dataset.longitude) || null,
+                    iconName: btn.dataset.iconName || null,
+                    markerColor: btn.dataset.markerColor || null,
+                    firstSeenUtc: btn.dataset.firstSeen,
+                    lastSeenUtc: btn.dataset.lastSeen
+                };
+
+                showPlaceContext(placeData, btn.dataset.type || 'suggestion');
+            });
+        });
     };
 
     /**
@@ -661,6 +745,304 @@
         e.preventDefault();
         document.querySelectorAll('.existing-visit-check').forEach(cb => cb.checked = false);
         updateActionSummary();
+    });
+
+    /* ------------------------------------------------ Place Context Map */
+    const placeContextModalEl = document.getElementById('placeContextModal');
+    const placeContextModal = placeContextModalEl ? new bootstrap.Modal(placeContextModalEl) : null;
+    let contextMap = null;
+    let contextMarkersGroup = null;
+
+    // Map tiles config (proxy URL + attribution) injected by layout
+    const tilesConfig = window.wayfarerTileConfig || {};
+    const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
+    const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
+
+    // Wayfarer icon dimensions
+    const WF_WIDTH = 28;
+    const WF_HEIGHT = 45;
+    const WF_ANCHOR = [14, 45];
+
+    /**
+     * Builds the PNG icon URL for Wayfarer markers.
+     * @param {string} iconName - The icon name.
+     * @param {string} bgClass - The background color class.
+     * @returns {string} The icon URL.
+     */
+    const buildPngIconUrl = (iconName, bgClass) =>
+        `/icons/wayfarer-map-icons/dist/png/marker/${bgClass}/${iconName}.png`;
+
+    /**
+     * Initializes the place context map.
+     */
+    const initContextMap = () => {
+        if (contextMap) {
+            contextMap.off();
+            contextMap.remove();
+            contextMap = null;
+        }
+
+        const container = document.getElementById('placeContextMap');
+        if (!container) return null;
+
+        contextMap = L.map(container, { zoomAnimation: true }).setView([0, 0], 13);
+
+        L.tileLayer(tilesUrl, {
+            maxZoom: 19,
+            attribution: tilesAttribution
+        }).addTo(contextMap);
+
+        contextMap.attributionControl.setPrefix(
+            '&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer" target="_blank">Wayfarer</a> | ' +
+            '&copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>'
+        );
+
+        // Add zoom level control with ruler tool
+        addZoomLevelControl(contextMap);
+
+        contextMarkersGroup = L.featureGroup().addTo(contextMap);
+
+        return contextMap;
+    };
+
+    /**
+     * Fetches candidate locations from the API.
+     * @param {Object} params - The query parameters.
+     * @returns {Promise<Object>} The API response data.
+     */
+    const fetchCandidateLocations = async (params) => {
+        const queryParams = new URLSearchParams({
+            placeId: params.placeId,
+            lat: params.lat,
+            lon: params.lon,
+            firstSeenUtc: params.firstSeenUtc,
+            lastSeenUtc: params.lastSeenUtc,
+            radius: params.radius || 7500,
+            pageSize: params.pageSize || 200
+        });
+
+        const resp = await fetch(`/api/backfill/candidate-locations?${queryParams}`);
+        const result = await resp.json();
+
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to fetch locations');
+        }
+
+        return result.data;
+    };
+
+    /**
+     * Renders markers on the context map.
+     * @param {Object} place - The place data with lat, lon, iconName, markerColor.
+     * @param {Array} locations - Array of location pings.
+     */
+    const renderContextMarkers = (place, locations) => {
+        if (!contextMap || !contextMarkersGroup) return;
+
+        contextMarkersGroup.clearLayers();
+
+        // Add place marker (main marker)
+        const iconUrl = buildPngIconUrl(place.iconName || 'marker', place.markerColor || 'bg-blue');
+        const placeMarker = L.marker([place.lat, place.lon], {
+            icon: L.icon({
+                iconUrl,
+                iconSize: [WF_WIDTH, WF_HEIGHT],
+                iconAnchor: WF_ANCHOR,
+                className: 'map-icon'
+            }),
+            zIndexOffset: 1000 // Ensure place marker is on top
+        });
+
+        placeMarker.bindTooltip(`
+            <strong>${escapeHtml(place.name)}</strong>
+            ${place.regionName ? `<br><small class="text-muted">${escapeHtml(place.regionName)}</small>` : ''}
+        `, {
+            direction: 'top',
+            className: 'place-context-tooltip'
+        });
+
+        contextMarkersGroup.addLayer(placeMarker);
+
+        // Add location ping markers
+        locations.forEach(loc => {
+            const pingMarker = L.circleMarker([loc.latitude, loc.longitude], {
+                radius: 6,
+                color: '#0d6efd',
+                fillColor: '#0d6efd',
+                fillOpacity: 0.6,
+                weight: 2
+            });
+
+            // Build tooltip content for the ping
+            const timestamp = new Date(loc.localTimestamp);
+            const timeStr = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const dateStr = timestamp.toLocaleDateString();
+
+            let tooltipHtml = `
+                <div class="ping-tooltip">
+                    <strong>${timeStr}</strong> <small class="text-muted">${dateStr}</small>
+                    <br><span class="badge bg-secondary">${Math.round(loc.distanceMeters)}m from place</span>
+            `;
+
+            if (loc.accuracy) {
+                tooltipHtml += `<br><small>Accuracy: ±${Math.round(loc.accuracy)}m</small>`;
+            }
+            if (loc.speed) {
+                tooltipHtml += `<br><small>Speed: ${(loc.speed * 3.6).toFixed(1)} km/h</small>`;
+            }
+            if (loc.activity) {
+                tooltipHtml += `<br><small>Activity: ${escapeHtml(loc.activity)}</small>`;
+            }
+            if (loc.address) {
+                tooltipHtml += `<br><small>${escapeHtml(loc.address)}</small>`;
+            }
+
+            tooltipHtml += '</div>';
+
+            pingMarker.bindTooltip(tooltipHtml, {
+                direction: 'top',
+                className: 'ping-context-tooltip'
+            });
+
+            contextMarkersGroup.addLayer(pingMarker);
+        });
+
+        // Fit map to show all markers with padding
+        if (contextMarkersGroup.getLayers().length > 0) {
+            contextMap.fitBounds(contextMarkersGroup.getBounds(), { padding: [40, 40] });
+        }
+    };
+
+    /**
+     * Updates the info panel below the map.
+     * @param {Array} locations - Array of location pings.
+     */
+    const updateContextInfo = (locations) => {
+        const countEl = document.getElementById('context-ping-count');
+        const timeEl = document.getElementById('context-time-range');
+        const distEl = document.getElementById('context-avg-distance');
+
+        if (countEl) countEl.textContent = locations.length;
+
+        if (locations.length > 0) {
+            // Calculate time range
+            const times = locations.map(l => new Date(l.localTimestamp).getTime());
+            const minTime = new Date(Math.min(...times));
+            const maxTime = new Date(Math.max(...times));
+
+            const formatTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            if (timeEl) {
+                if (minTime.toDateString() === maxTime.toDateString()) {
+                    timeEl.textContent = `${formatTime(minTime)} - ${formatTime(maxTime)}`;
+                } else {
+                    timeEl.textContent = `${minTime.toLocaleDateString()} - ${maxTime.toLocaleDateString()}`;
+                }
+            }
+
+            // Calculate average distance
+            const avgDist = locations.reduce((sum, l) => sum + l.distanceMeters, 0) / locations.length;
+            if (distEl) distEl.textContent = `${Math.round(avgDist)}m`;
+        } else {
+            if (timeEl) timeEl.textContent = '-';
+            if (distEl) distEl.textContent = '-';
+        }
+    };
+
+    /**
+     * Shows the place context modal with map and location pings.
+     * @param {Object} placeData - The place data from the analysis.
+     * @param {string} type - 'candidate', 'suggestion', 'stale', or 'existing'.
+     */
+    const showPlaceContext = async (placeData, type) => {
+        // Update modal title
+        const titleEl = document.getElementById('placeContextTitle');
+        if (titleEl) {
+            const typeLabel = {
+                'candidate': 'Confirmed Visit',
+                'suggestion': 'Suggested Visit',
+                'stale': 'Stale Visit',
+                'existing': 'Existing Visit'
+            }[type] || 'Place Context';
+
+            titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${escapeHtml(placeData.placeName)} <small class="text-muted fw-normal">- ${typeLabel}</small>`;
+        }
+
+        // Show modal first so the map container has dimensions
+        placeContextModal?.show();
+
+        // Wait for modal to be visible before initializing map
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Initialize or reset the map
+        initContextMap();
+
+        // Check if we have coordinates
+        if (!placeData.latitude || !placeData.longitude) {
+            // No coordinates available - show message
+            renderContextMarkers({
+                lat: 0,
+                lon: 0,
+                name: placeData.placeName,
+                regionName: placeData.regionName
+            }, []);
+            updateContextInfo([]);
+            return;
+        }
+
+        // Render place marker immediately
+        renderContextMarkers({
+            lat: placeData.latitude,
+            lon: placeData.longitude,
+            name: placeData.placeName,
+            regionName: placeData.regionName,
+            iconName: placeData.iconName,
+            markerColor: placeData.markerColor
+        }, []);
+
+        // Fetch and render location pings (only if we have time data)
+        if (placeData.firstSeenUtc && placeData.lastSeenUtc) {
+            try {
+                const data = await fetchCandidateLocations({
+                    placeId: placeData.placeId,
+                    lat: placeData.latitude,
+                    lon: placeData.longitude,
+                    firstSeenUtc: placeData.firstSeenUtc,
+                    lastSeenUtc: placeData.lastSeenUtc
+                });
+
+                renderContextMarkers({
+                    lat: placeData.latitude,
+                    lon: placeData.longitude,
+                    name: placeData.placeName,
+                    regionName: placeData.regionName,
+                    iconName: placeData.iconName,
+                    markerColor: placeData.markerColor
+                }, data.locations);
+
+                updateContextInfo(data.locations);
+            } catch (err) {
+                console.error('Failed to fetch candidate locations:', err);
+                updateContextInfo([]);
+            }
+        } else {
+            updateContextInfo([]);
+        }
+    };
+
+    // Reset map when modal is hidden
+    placeContextModalEl?.addEventListener('hidden.bs.modal', () => {
+        if (contextMap) {
+            contextMap.off();
+            contextMap.remove();
+            contextMap = null;
+            contextMarkersGroup = null;
+        }
+    });
+
+    // Invalidate map size when modal is shown (fixes rendering issues)
+    placeContextModalEl?.addEventListener('shown.bs.modal', () => {
+        setTimeout(() => contextMap?.invalidateSize(), 100);
     });
 
     /* ------------------------------------------------ boot */
