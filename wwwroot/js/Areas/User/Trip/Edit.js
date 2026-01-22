@@ -775,4 +775,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadPersistedMarkers();
     initSearchHandlers();
     initSidebarTripItemSearch();
+
+    /* ----- auto-focus place from URL parameter ----- */
+    const focusPlaceId = urlParams.get('placeId');
+    if (focusPlaceId) {
+        // Find the place element and its parent region
+        const placeEl = document.querySelector(`.place-list-item[data-place-id="${focusPlaceId}"]`);
+        if (placeEl) {
+            const regionId = placeEl.dataset.regionId;
+            if (regionId) {
+                // Expand the region accordion
+                const collapseEl = document.getElementById(`collapse-${regionId}`);
+                if (collapseEl && !collapseEl.classList.contains('show')) {
+                    try {
+                        bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+                    } catch {}
+                }
+                // Wait for accordion animation, then click the place to select it
+                setTimeout(() => {
+                    placeEl.click();
+                    placeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 350);
+            }
+        }
+    }
 });

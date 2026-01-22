@@ -947,38 +947,156 @@ import { addZoomLevelControl } from '../../../map-utils.js';
     };
 
     /**
+     * Generates a Google Maps link for a place.
+     * @param {Object} placeData - The place data with coordinates and name.
+     * @returns {string} HTML string with Google Maps link.
+     */
+    const generateGoogleMapsLink = (placeData) => {
+        if (!placeData?.latitude || !placeData?.longitude) return '';
+        const query = placeData.placeName
+            ? `${placeData.placeName} (${placeData.latitude.toFixed(6)},${placeData.longitude.toFixed(6)})`
+            : `${placeData.latitude.toFixed(6)},${placeData.longitude.toFixed(6)}`;
+        const q = encodeURIComponent(query);
+        return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="btn btn-outline-primary btn-sm" title="View in Google Maps"><i class="bi bi-globe-europe-africa"></i> Maps</a>`;
+    };
+
+    /**
+     * Generates a Wikipedia link element for a place.
+     * @param {Object} placeData - The place data with coordinates.
+     * @returns {string} HTML string with Wikipedia link.
+     */
+    const generateWikipediaLink = (placeData) => {
+        if (!placeData?.latitude || !placeData?.longitude) return '';
+        return `<a href="#" class="btn btn-outline-primary btn-sm wikipedia-link" data-lat="${placeData.latitude}" data-lon="${placeData.longitude}" title="Search Wikipedia nearby"><i class="bi bi-wikipedia"></i> Wiki</a>`;
+    };
+
+    /**
+     * Initializes Wikipedia popover for lazy-loading article summaries.
+     * @param {HTMLElement} containerEl - The container element with Wikipedia links.
+     */
+    const initWikipediaPopovers = (containerEl) => {
+        if (typeof tippy === 'undefined') return;
+        containerEl.querySelectorAll('.wikipedia-link').forEach(el => {
+            // Prevent double initialization
+            if (el._tippy) return;
+            tippy(el, {
+                appendTo: () => document.body,
+                popperOptions: {
+                    strategy: 'fixed',
+                    modifiers: [{ name: 'zIndex', options: { value: 2000 } }]
+                },
+                interactiveBorder: 20,
+                content: 'Loading…',
+                allowHTML: true,
+                interactive: true,
+                hideOnClick: false,
+                placement: 'top',
+                onShow: async instance => {
+                    if (instance._loaded) return;
+                    instance._loaded = true;
+
+                    const lat = el.getAttribute('data-lat');
+                    const lon = el.getAttribute('data-lon');
+
+                    // GeoSearch for nearby Wikipedia pages
+                    const geoUrl = new URL('https://en.wikipedia.org/w/api.php');
+                    geoUrl.search = new URLSearchParams({
+                        action: 'query', list: 'geosearch', gscoord: `${lat}|${lon}`,
+                        gsradius: 100, gslimit: 5, format: 'json', origin: '*'
+                    }).toString();
+
+                    try {
+                        const geoRes = await fetch(geoUrl);
+                        if (!geoRes.ok) throw new Error(`GeoSearch HTTP ${geoRes.status}`);
+                        const geoJson = await geoRes.json();
+                        const results = geoJson.query?.geosearch || [];
+
+                        if (!results.length) {
+                            instance.setContent('<div style="max-width:250px"><em>No nearby Wikipedia article found.</em></div>');
+                            return;
+                        }
+
+                        // Fetch summary of the top hit
+                        const title = encodeURIComponent(results[0].title);
+                        const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${title}`;
+                        const sumRes = await fetch(summaryUrl);
+                        if (!sumRes.ok) throw new Error(`Summary HTTP ${sumRes.status}`);
+                        const data = await sumRes.json();
+
+                        instance.setContent(`<div style="max-width:250px"><strong>${data.title}</strong><p>${data.extract}</p><a href="${data.content_urls.desktop.page}" target="_blank">Read more »</a></div>`);
+                    } catch (err) {
+                        instance.setContent('<div style="max-width:250px"><em>Could not load article.</em></div>');
+                        console.debug('Wiki popover error:', err);
+                    }
+                }
+            });
+        });
+    };
+
+    /**
      * Updates the info panel below the map.
      * @param {Array} locations - Array of location pings.
+     * @param {Object} [placeData] - Optional place data for external links.
      */
-    const updateContextInfo = (locations) => {
+    const updateContextInfo = (locations, placeData = null) => {
         const countEl = document.getElementById('context-ping-count');
         const timeEl = document.getElementById('context-time-range');
         const distEl = document.getElementById('context-avg-distance');
+        const closestEl = document.getElementById('context-closest-ping');
+        const furthestEl = document.getElementById('context-furthest-ping');
+        const linksEl = document.getElementById('context-external-links');
 
         if (countEl) countEl.textContent = locations.length;
 
         if (locations.length > 0) {
-            // Calculate time range
+            // Calculate time range with date and time
             const times = locations.map(l => new Date(l.localTimestamp).getTime());
             const minTime = new Date(Math.min(...times));
             const maxTime = new Date(Math.max(...times));
 
-            const formatTime = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const formatDateTime = (d) => {
+                const date = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `${date} ${time}`;
+            };
 
             if (timeEl) {
                 if (minTime.toDateString() === maxTime.toDateString()) {
-                    timeEl.textContent = `${formatTime(minTime)} - ${formatTime(maxTime)}`;
+                    // Same day - show date once with time range
+                    const date = minTime.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                    const startTime = minTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const endTime = maxTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    timeEl.textContent = `${date} ${startTime} - ${endTime}`;
                 } else {
-                    timeEl.textContent = `${minTime.toLocaleDateString()} - ${maxTime.toLocaleDateString()}`;
+                    // Different days - show full date+time for both
+                    timeEl.textContent = `${formatDateTime(minTime)} - ${formatDateTime(maxTime)}`;
                 }
             }
 
             // Calculate average distance
             const avgDist = locations.reduce((sum, l) => sum + l.distanceMeters, 0) / locations.length;
             if (distEl) distEl.textContent = `${Math.round(avgDist)}m`;
+
+            // Calculate closest and furthest pings
+            const distances = locations.map(l => l.distanceMeters);
+            const closestDist = Math.min(...distances);
+            const furthestDist = Math.max(...distances);
+
+            if (closestEl) closestEl.textContent = `${Math.round(closestDist)}m`;
+            if (furthestEl) furthestEl.textContent = `${Math.round(furthestDist)}m`;
         } else {
             if (timeEl) timeEl.textContent = '-';
             if (distEl) distEl.textContent = '-';
+            if (closestEl) closestEl.textContent = '-';
+            if (furthestEl) furthestEl.textContent = '-';
+        }
+
+        // Update external links
+        if (linksEl && placeData) {
+            linksEl.innerHTML = generateGoogleMapsLink(placeData) + ' ' + generateWikipediaLink(placeData);
+            initWikipediaPopovers(linksEl);
+        } else if (linksEl) {
+            linksEl.innerHTML = '';
         }
     };
 
@@ -992,7 +1110,7 @@ import { addZoomLevelControl } from '../../../map-utils.js';
      * @param {string} type - 'candidate', 'suggestion', 'stale', or 'existing'.
      */
     const showPlaceContext = (placeData, type) => {
-        // Update modal title
+        // Update modal title with link to trip place
         const titleEl = document.getElementById('placeContextTitle');
         if (titleEl) {
             const typeLabel = {
@@ -1002,7 +1120,16 @@ import { addZoomLevelControl } from '../../../map-utils.js';
                 'existing': 'Existing Visit'
             }[type] || 'Place Context';
 
-            titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${escapeHtml(placeData.placeName)} <small class="text-muted fw-normal">- ${typeLabel}</small>`;
+            // Build link to trip edit page with place coordinates for focus
+            const tripEditUrl = currentTripId && placeData.latitude && placeData.longitude
+                ? `/User/Trip/Edit/${currentTripId}?lat=${placeData.latitude.toFixed(6)}&lng=${placeData.longitude.toFixed(6)}&zoom=17&placeId=${placeData.placeId}`
+                : null;
+
+            const placeNameHtml = tripEditUrl
+                ? `<a href="${tripEditUrl}" target="_blank" class="text-decoration-none" title="Open place in trip editor">${escapeHtml(placeData.placeName)} <i class="bi bi-box-arrow-up-right small"></i></a>`
+                : escapeHtml(placeData.placeName);
+
+            titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${placeNameHtml} <small class="text-muted fw-normal">- ${typeLabel}</small>`;
         }
 
         // Store data for when modal is fully shown
@@ -1038,7 +1165,7 @@ import { addZoomLevelControl } from '../../../map-utils.js';
                 name: placeData.placeName,
                 regionName: placeData.regionName
             }, []);
-            updateContextInfo([]);
+            updateContextInfo([], placeData);
             return;
         }
 
@@ -1072,13 +1199,13 @@ import { addZoomLevelControl } from '../../../map-utils.js';
                     markerColor: placeData.markerColor
                 }, data.locations);
 
-                updateContextInfo(data.locations);
+                updateContextInfo(data.locations, placeData);
             } catch (err) {
                 console.error('Failed to fetch candidate locations:', err);
-                updateContextInfo([]);
+                updateContextInfo([], placeData);
             }
         } else {
-            updateContextInfo([]);
+            updateContextInfo([], placeData);
         }
     };
 
