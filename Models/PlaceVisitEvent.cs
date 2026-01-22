@@ -50,6 +50,18 @@ public class PlaceVisitEvent
     /// </summary>
     public DateTime? EndedAtUtc { get; set; }
 
+    // === Visit Metadata ===
+
+    /// <summary>
+    /// Source of the visit record. Indicates how the visit was created:
+    /// - "realtime": Auto-detected from live location tracking
+    /// - "backfill": Created via backfill analysis (strict matching)
+    /// - "backfill-user-confirmed": Created via backfill from "Consider Also" user confirmation
+    /// - "manual": Manually created by user
+    /// </summary>
+    [ValidateNever]
+    public string? Source { get; set; }
+
     // === Snapshot Fields (Durability) ===
 
     /// <summary>Snapshot of Trip.Id at time of visit (not a FK, preserved after deletion).</summary>

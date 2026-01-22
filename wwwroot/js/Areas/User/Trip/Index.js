@@ -119,13 +119,22 @@
         applyBtn?.classList.add('d-none');
         document.getElementById('action-summary')?.classList.add('d-none');
         document.getElementById('new-visits-hint')?.classList.add('d-none');
+        document.getElementById('suggested-visits-hint')?.classList.add('d-none');
         document.getElementById('stale-visits-hint')?.classList.add('d-none');
         document.getElementById('existing-visits-hint')?.classList.add('d-none');
+        document.getElementById('suggested-select-all-wrapper')?.classList.add('d-none');
         document.getElementById('stale-select-all-wrapper')?.classList.add('d-none');
         document.getElementById('existing-select-all-wrapper')?.classList.add('d-none');
         if (fromDateInput) fromDateInput.value = '';
         if (toDateInput) toDateInput.value = '';
         previewData = null;
+
+        // Reset to first tab
+        const confirmedTab = document.getElementById('confirmed-tab');
+        if (confirmedTab) {
+            const tab = new bootstrap.Tab(confirmedTab);
+            tab.show();
+        }
     };
 
     /**
@@ -190,6 +199,54 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Suggested visits (Consider Also tab)
+        const suggestedVisitsList = document.getElementById('suggested-visits-list');
+        const noSuggestedVisits = document.getElementById('no-suggested-visits');
+        const suggestedVisitsHint = document.getElementById('suggested-visits-hint');
+        const suggestedSelectAllWrapper = document.getElementById('suggested-select-all-wrapper');
+        const suggestedVisits = data.suggestedVisits || [];
+        document.getElementById('suggested-visits-count').textContent = suggestedVisits.length;
+
+        if (suggestedVisits.length === 0) {
+            suggestedVisitsList?.classList.add('d-none');
+            noSuggestedVisits?.classList.remove('d-none');
+            suggestedVisitsHint?.classList.add('d-none');
+            suggestedSelectAllWrapper?.classList.add('d-none');
+        } else {
+            suggestedVisitsList?.classList.remove('d-none');
+            noSuggestedVisits?.classList.add('d-none');
+            suggestedVisitsHint?.classList.remove('d-none');
+            suggestedSelectAllWrapper?.classList.remove('d-none');
+            suggestedVisitsList.innerHTML = suggestedVisits.map(v => `
+                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <div class="form-check">
+                        <input class="form-check-input suggested-visit-check" type="checkbox"
+                               value="${v.placeId}"
+                               data-visit-date="${v.visitDate}"
+                               data-first-seen="${v.firstSeenUtc}"
+                               data-last-seen="${v.lastSeenUtc}"
+                               id="suggested-${v.placeId}-${v.visitDate}">
+                        <label class="form-check-label" for="suggested-${v.placeId}-${v.visitDate}">
+                            <span class="fw-medium text-info"><i class="bi bi-lightbulb me-1"></i>${escapeHtml(v.placeName)}</span>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                        </label>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-info" title="${escapeHtml(v.suggestionReason)}">
+                            ${v.hasUserCheckin ? '<i class="bi bi-check-circle me-1"></i>' : ''}
+                            ${escapeHtml(v.suggestionReason)}
+                        </span>
+                        <small class="text-muted d-block">${Math.round(v.minDistanceMeters)}m min dist</small>
+                    </div>
+                </div>
+            `).join('');
+
+            // Add change listeners to update action summary
+            suggestedVisitsList.querySelectorAll('.suggested-visit-check').forEach(cb => {
+                cb.addEventListener('change', updateActionSummary);
+            });
         }
 
         // Stale visits
@@ -271,8 +328,8 @@
             });
         }
 
-        // Show apply button and action summary (always show for existing visits too)
-        const hasChanges = data.newVisits.length > 0 || data.staleVisits.length > 0 || existingVisits.length > 0;
+        // Show apply button and action summary (always show for any available actions)
+        const hasChanges = data.newVisits.length > 0 || suggestedVisits.length > 0 || data.staleVisits.length > 0 || existingVisits.length > 0;
         if (hasChanges) {
             applyBtn?.classList.remove('d-none');
             updateActionSummary();
@@ -285,21 +342,25 @@
     const updateActionSummary = () => {
         const actionSummary = document.getElementById('action-summary');
         const summaryCreate = document.getElementById('summary-create');
+        const summaryConfirmSuggestions = document.getElementById('summary-confirm-suggestions');
         const summaryDeleteStale = document.getElementById('summary-delete-stale');
         const summaryDeleteManual = document.getElementById('summary-delete-manual');
         const summaryNothing = document.getElementById('summary-nothing');
         const summaryCreateCount = document.getElementById('summary-create-count');
+        const summaryConfirmCount = document.getElementById('summary-confirm-count');
         const summaryDeleteStaleCount = document.getElementById('summary-delete-stale-count');
         const summaryDeleteManualCount = document.getElementById('summary-delete-manual-count');
 
         if (!actionSummary || !previewData) return;
 
         const newVisitsCount = previewData.newVisits?.length || 0;
+        const confirmedSuggestionsCount = document.querySelectorAll('.suggested-visit-check:checked').length;
         const staleDeleteCount = document.querySelectorAll('.stale-visit-check:checked').length;
         const manualDeleteCount = document.querySelectorAll('.existing-visit-check:checked').length;
 
         // Update counts
         if (summaryCreateCount) summaryCreateCount.textContent = newVisitsCount;
+        if (summaryConfirmCount) summaryConfirmCount.textContent = confirmedSuggestionsCount;
         if (summaryDeleteStaleCount) summaryDeleteStaleCount.textContent = staleDeleteCount;
         if (summaryDeleteManualCount) summaryDeleteManualCount.textContent = manualDeleteCount;
 
@@ -308,6 +369,12 @@
             summaryCreate?.classList.remove('d-none');
         } else {
             summaryCreate?.classList.add('d-none');
+        }
+
+        if (confirmedSuggestionsCount > 0) {
+            summaryConfirmSuggestions?.classList.remove('d-none');
+        } else {
+            summaryConfirmSuggestions?.classList.add('d-none');
         }
 
         if (staleDeleteCount > 0) {
@@ -322,7 +389,7 @@
             summaryDeleteManual?.classList.add('d-none');
         }
 
-        if (newVisitsCount === 0 && staleDeleteCount === 0 && manualDeleteCount === 0) {
+        if (newVisitsCount === 0 && confirmedSuggestionsCount === 0 && staleDeleteCount === 0 && manualDeleteCount === 0) {
             summaryNothing?.classList.remove('d-none');
         } else {
             summaryNothing?.classList.add('d-none');
@@ -361,6 +428,16 @@
      */
     const handleAnalyzeClick = async () => {
         if (!currentTripId) return;
+
+        // Validate date range if both dates are provided
+        if (fromDateInput?.value && toDateInput?.value) {
+            const fromDate = new Date(fromDateInput.value);
+            const toDate = new Date(toDateInput.value);
+            if (fromDate > toDate) {
+                wayfarer.showAlert('warning', 'From date must be before or equal to To date.');
+                return;
+            }
+        }
 
         const params = new URLSearchParams();
         if (fromDateInput?.value) params.set('fromDate', fromDateInput.value);
@@ -413,12 +490,22 @@
     const handleApplyClick = async () => {
         if (!currentTripId || !previewData) return;
 
-        // Build the request payload
+        // Build the request payload for strict matches
         const createVisits = previewData.newVisits.map(v => ({
             placeId: v.placeId,
             visitDate: v.visitDate,
             firstSeenUtc: v.firstSeenUtc,
             lastSeenUtc: v.lastSeenUtc
+        }));
+
+        // Build the request payload for user-confirmed suggestions
+        const confirmedSuggestions = Array.from(
+            document.querySelectorAll('.suggested-visit-check:checked')
+        ).map(cb => ({
+            placeId: cb.value,
+            visitDate: cb.dataset.visitDate,
+            firstSeenUtc: cb.dataset.firstSeen,
+            lastSeenUtc: cb.dataset.lastSeen
         }));
 
         // Get selected stale visits to delete
@@ -434,7 +521,7 @@
         // Combine all visit IDs to delete
         const deleteVisitIds = [...staleVisitIds, ...manualDeleteIds];
 
-        if (createVisits.length === 0 && deleteVisitIds.length === 0) {
+        if (createVisits.length === 0 && confirmedSuggestions.length === 0 && deleteVisitIds.length === 0) {
             wayfarer.showAlert('info', 'No changes to apply.');
             backfillModal?.hide();
             return;
@@ -447,15 +534,23 @@
             const resp = await fetch(`/api/backfill/apply/${currentTripId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ createVisits, deleteVisitIds })
+                body: JSON.stringify({ createVisits, confirmedSuggestions, deleteVisitIds })
             });
 
             const result = await resp.json();
 
             if (result.success) {
                 const data = result.data;
-                wayfarer.showAlert('success',
-                    `Created ${data.visitsCreated} visits, deleted ${data.visitsDeleted} visits.`);
+                const totalCreated = data.visitsCreated + data.suggestionsConfirmed;
+                let message = `Created ${totalCreated} visits`;
+                if (data.visitsCreated > 0 && data.suggestionsConfirmed > 0) {
+                    message = `Created ${totalCreated} visits (${data.visitsCreated} confirmed, ${data.suggestionsConfirmed} from suggestions)`;
+                }
+                if (data.visitsDeleted > 0) {
+                    message += `, deleted ${data.visitsDeleted} visits`;
+                }
+                message += '.';
+                wayfarer.showAlert('success', message);
                 backfillModal?.hide();
             } else {
                 wayfarer.showAlert('danger', result.message || 'Failed to apply changes.');
@@ -530,6 +625,18 @@
                 });
             });
         }
+    });
+
+    // Select/Deselect all handlers for suggested visits
+    document.getElementById('suggested-select-all')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.suggested-visit-check').forEach(cb => cb.checked = true);
+        updateActionSummary();
+    });
+    document.getElementById('suggested-deselect-all')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.suggested-visit-check').forEach(cb => cb.checked = false);
+        updateActionSummary();
     });
 
     // Select/Deselect all handlers for stale visits

@@ -159,6 +159,17 @@ public class VisitBackfillService : IVisitBackfillService
             }
         }
 
+        // Build sets for suggestion filtering (exclude strict matches and existing visits)
+        var strictMatchKeys = candidates
+            .Select(c => (c.PlaceId, DateOnly.FromDateTime(c.FirstSeenUtc)))
+            .ToHashSet();
+
+        // Find visit suggestions (cross-tier evidence, "Consider Also" feature)
+        var suggestions = await FindVisitSuggestionsAsync(
+            userId, placesWithCoords, regionsById, settings,
+            strictMatchKeys, existingVisitKeysByPlaceId,
+            fromDate, toDate, cancellationToken);
+
         // Find stale visits (place deleted or moved)
         // Use allPlaces so visits to places without coordinates aren't incorrectly marked as stale
         var staleVisits = FindStaleVisitsFromList(existingVisits, allPlaces, settings);
@@ -172,8 +183,8 @@ public class VisitBackfillService : IVisitBackfillService
         stopwatch.Stop();
 
         _logger.LogInformation(
-            "Backfill preview for trip {TripId}: {Candidates} candidates, {Stale} stale, {Unchanged} unchanged in {Ms}ms",
-            tripId, candidates.Count, staleVisits.Count, unchangedVisits.Count, stopwatch.ElapsedMilliseconds);
+            "Backfill preview for trip {TripId}: {Candidates} candidates, {Suggestions} suggestions, {Stale} stale, {Unchanged} unchanged in {Ms}ms",
+            tripId, candidates.Count, suggestions.Count, staleVisits.Count, unchangedVisits.Count, stopwatch.ElapsedMilliseconds);
 
         return new BackfillPreviewDto
         {
@@ -184,7 +195,8 @@ public class VisitBackfillService : IVisitBackfillService
             AnalysisDurationMs = stopwatch.ElapsedMilliseconds,
             NewVisits = candidates.OrderByDescending(c => c.VisitDate).ThenBy(c => c.PlaceName).ToList(),
             StaleVisits = staleVisits,
-            ExistingVisits = MapToExistingVisitDtos(unchangedVisits)
+            ExistingVisits = MapToExistingVisitDtos(unchangedVisits),
+            SuggestedVisits = suggestions.OrderByDescending(s => s.VisitDate).ThenBy(s => s.PlaceName).ToList()
         };
     }
 
@@ -235,63 +247,39 @@ public class VisitBackfillService : IVisitBackfillService
             .ToHashSet();
 
         var created = 0;
+        var suggestionsConfirmed = 0;
         var skipped = 0;
 
-        // Create new visits
+        // Create new visits from strict matching
         foreach (var item in request.CreateVisits)
         {
-            // Check if place still exists
-            if (!placesById.TryGetValue(item.PlaceId, out var place))
+            var result = CreateVisitFromBackfill(
+                item, userId, trip, placesById, settings, existingKeysByPlaceId, existingKeysByName, "backfill");
+
+            if (result == BackfillCreateResult.Created)
+            {
+                created++;
+            }
+            else
             {
                 skipped++;
-                continue;
             }
+        }
 
-            // Check for duplicate by PlaceId or PlaceName
-            // IMPORTANT: Use UTC date from FirstSeenUtc (not VisitDate which is local) to match ArrivedAtUtc storage
-            var itemDateUtc = DateOnly.FromDateTime(item.FirstSeenUtc);
-            var hasByPlaceId = existingKeysByPlaceId.Contains((item.PlaceId, itemDateUtc));
-            var hasByName = existingKeysByName.Contains((place.Name, itemDateUtc));
+        // Create visits from user-confirmed suggestions ("Consider Also")
+        foreach (var item in request.ConfirmedSuggestions)
+        {
+            var result = CreateVisitFromBackfill(
+                item, userId, trip, placesById, settings, existingKeysByPlaceId, existingKeysByName, "backfill-user-confirmed");
 
-            if (hasByPlaceId || hasByName)
+            if (result == BackfillCreateResult.Created)
+            {
+                suggestionsConfirmed++;
+            }
+            else
             {
                 skipped++;
-                continue;
             }
-
-            var region = trip.Regions.First(r => r.Id == place.RegionId);
-
-            var visitEvent = new PlaceVisitEvent
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                PlaceId = place.Id,
-                ArrivedAtUtc = item.FirstSeenUtc,
-                LastSeenAtUtc = item.LastSeenUtc,
-                EndedAtUtc = item.LastSeenUtc, // Backfilled visits are closed
-
-                // Snapshots
-                TripIdSnapshot = trip.Id,
-                TripNameSnapshot = trip.Name,
-                RegionNameSnapshot = region.Name,
-                PlaceNameSnapshot = place.Name,
-                PlaceLocationSnapshot = place.Location != null
-                    ? new Point(place.Location.X, place.Location.Y) { SRID = place.Location.SRID }
-                    : null,
-
-                // Notes - truncate if needed
-                NotesHtml = TruncateNotes(place.Notes, settings.VisitedPlaceNotesSnapshotMaxHtmlChars),
-
-                // Optional UI snapshots
-                IconNameSnapshot = place.IconName,
-                MarkerColorSnapshot = place.MarkerColor
-            };
-
-            _dbContext.PlaceVisitEvents.Add(visitEvent);
-            // Add to PlaceId set to prevent duplicates in same batch (use UTC date)
-            // Note: Don't add to existingKeysByName - that's only for visits with null PlaceId
-            existingKeysByPlaceId.Add((item.PlaceId, itemDateUtc));
-            created++;
         }
 
         // Delete selected visits
@@ -315,16 +303,18 @@ public class VisitBackfillService : IVisitBackfillService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Backfill applied for trip {TripId}: {Created} created, {Deleted} deleted, {Skipped} skipped",
-            tripId, created, deleted, skipped);
+            "Backfill applied for trip {TripId}: {Created} created, {SuggestionsConfirmed} confirmed suggestions, {Deleted} deleted, {Skipped} skipped",
+            tripId, created, suggestionsConfirmed, deleted, skipped);
 
+        var totalCreated = created + suggestionsConfirmed;
         return new BackfillResultDto
         {
             Success = true,
             VisitsCreated = created,
+            SuggestionsConfirmed = suggestionsConfirmed,
             VisitsDeleted = deleted,
             Skipped = skipped,
-            Message = $"Created {created} visits, deleted {deleted} stale visits."
+            Message = $"Created {totalCreated} visits ({created} matched, {suggestionsConfirmed} confirmed), deleted {deleted} stale visits."
         };
     }
 
@@ -430,7 +420,8 @@ public class VisitBackfillService : IVisitBackfillService
         Region region,
         ApplicationSettings settings,
         DateOnly? fromDate,
-        DateOnly? toDate)
+        DateOnly? toDate,
+        CancellationToken cancellationToken = default)
     {
         if (place.Location == null)
         {
@@ -482,7 +473,7 @@ public class VisitBackfillService : IVisitBackfillService
 
             if (!connectionWasOpen)
             {
-                await _dbContext.Database.OpenConnectionAsync();
+                await _dbContext.Database.OpenConnectionAsync(cancellationToken);
             }
 
             try
@@ -500,8 +491,8 @@ public class VisitBackfillService : IVisitBackfillService
                 if (toDate.HasValue)
                     command.Parameters.Add(new NpgsqlParameter("@toDate", toDate.Value));
 
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     var visitDate = DateOnly.FromDateTime(reader.GetDateTime(0));
                     // Note: LocalTimestamp is user's local time, not UTC. We store it as UTC for
@@ -561,8 +552,49 @@ public class VisitBackfillService : IVisitBackfillService
     /// <summary>
     /// Finds visit candidates for multiple places in a single batched query.
     /// Uses PostgreSQL LATERAL JOIN for efficient spatial matching.
+    /// Chunks large place lists to stay within PostgreSQL's ~32,767 parameter limit.
     /// </summary>
     private async Task<List<BackfillCandidateDto>> FindVisitCandidatesBatchedAsync(
+        string userId,
+        List<Place> places,
+        Dictionary<Guid, Region> regionsById,
+        ApplicationSettings settings,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken)
+    {
+        if (places.Count == 0)
+            return new List<BackfillCandidateDto>();
+
+        // PostgreSQL has ~32,767 parameter limit. Each place uses 3 params (id, lon, lat).
+        // Use 10,000 places per chunk (30,000 params) to leave room for common params.
+        const int maxPlacesPerChunk = 10000;
+
+        if (places.Count > maxPlacesPerChunk)
+        {
+            _logger.LogInformation(
+                "Chunking batched query: {TotalPlaces} places into {ChunkCount} chunks of {ChunkSize}",
+                places.Count, (places.Count + maxPlacesPerChunk - 1) / maxPlacesPerChunk, maxPlacesPerChunk);
+
+            var allCandidates = new List<BackfillCandidateDto>();
+            foreach (var chunk in places.Chunk(maxPlacesPerChunk))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var chunkResults = await FindVisitCandidatesBatchedCoreAsync(
+                    userId, chunk.ToList(), regionsById, settings, fromDate, toDate, cancellationToken);
+                allCandidates.AddRange(chunkResults);
+            }
+            return allCandidates;
+        }
+
+        return await FindVisitCandidatesBatchedCoreAsync(
+            userId, places, regionsById, settings, fromDate, toDate, cancellationToken);
+    }
+
+    /// <summary>
+    /// Core implementation of batched query for a single chunk of places.
+    /// </summary>
+    private async Task<List<BackfillCandidateDto>> FindVisitCandidatesBatchedCoreAsync(
         string userId,
         List<Place> places,
         Dictionary<Guid, Region> regionsById,
@@ -688,7 +720,12 @@ public class VisitBackfillService : IVisitBackfillService
                     if (!placesById.TryGetValue(placeId, out var place))
                         continue;
 
-                    var region = regionsById[place.RegionId];
+                    if (!regionsById.TryGetValue(place.RegionId, out var region))
+                    {
+                        _logger.LogWarning("Region {RegionId} not found for place {PlaceId}, skipping candidate", place.RegionId, place.Id);
+                        continue;
+                    }
+
                     var confidence = CalculateConfidence(locationCount, avgDistance, settings);
 
                     candidates.Add(new BackfillCandidateDto
@@ -755,9 +792,14 @@ public class VisitBackfillService : IVisitBackfillService
         {
             if (place.Location == null) continue;
 
-            var region = regionsById[place.RegionId];
+            if (!regionsById.TryGetValue(place.RegionId, out var region))
+            {
+                _logger.LogWarning("Region {RegionId} not found for place {PlaceId}, skipping", place.RegionId, place.Id);
+                continue;
+            }
+
             var placeResults = await FindVisitCandidatesForPlaceAsync(
-                userId, place, region, settings, fromDate, toDate);
+                userId, place, region, settings, fromDate, toDate, cancellationToken);
 
             candidates.AddRange(placeResults.Candidates);
         }
@@ -910,5 +952,392 @@ public class VisitBackfillService : IVisitBackfillService
     {
         public int LocationsScanned { get; init; }
         public List<BackfillCandidateDto> Candidates { get; init; } = new();
+    }
+
+    /// <summary>
+    /// Result of attempting to create a visit from backfill.
+    /// </summary>
+    private enum BackfillCreateResult
+    {
+        Created,
+        Skipped
+    }
+
+    /// <summary>
+    /// Creates a visit from a backfill request item.
+    /// Handles duplicate detection and adds to the database context.
+    /// </summary>
+    private BackfillCreateResult CreateVisitFromBackfill(
+        BackfillCreateVisitDto item,
+        string userId,
+        Trip trip,
+        Dictionary<Guid, Place> placesById,
+        ApplicationSettings settings,
+        HashSet<(Guid PlaceId, DateOnly Date)> existingKeysByPlaceId,
+        HashSet<(string PlaceName, DateOnly Date)> existingKeysByName,
+        string source)
+    {
+        // Check if place still exists
+        if (!placesById.TryGetValue(item.PlaceId, out var place))
+        {
+            return BackfillCreateResult.Skipped;
+        }
+
+        // Check for duplicate by PlaceId or PlaceName
+        // IMPORTANT: Use UTC date from FirstSeenUtc (not VisitDate which is local) to match ArrivedAtUtc storage
+        var itemDateUtc = DateOnly.FromDateTime(item.FirstSeenUtc);
+        var hasByPlaceId = existingKeysByPlaceId.Contains((item.PlaceId, itemDateUtc));
+        var hasByName = existingKeysByName.Contains((place.Name, itemDateUtc));
+
+        if (hasByPlaceId || hasByName)
+        {
+            return BackfillCreateResult.Skipped;
+        }
+
+        var region = trip.Regions.FirstOrDefault(r => r.Id == place.RegionId);
+        if (region == null)
+        {
+            _logger.LogWarning("Region {RegionId} not found in trip {TripId} for place {PlaceId}, skipping visit creation",
+                place.RegionId, trip.Id, place.Id);
+            return BackfillCreateResult.Skipped;
+        }
+
+        var visitEvent = new PlaceVisitEvent
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PlaceId = place.Id,
+            ArrivedAtUtc = item.FirstSeenUtc,
+            LastSeenAtUtc = item.LastSeenUtc,
+            EndedAtUtc = item.LastSeenUtc, // Backfilled visits are closed
+            Source = source,
+
+            // Snapshots
+            TripIdSnapshot = trip.Id,
+            TripNameSnapshot = trip.Name,
+            RegionNameSnapshot = region.Name,
+            PlaceNameSnapshot = place.Name,
+            PlaceLocationSnapshot = place.Location != null
+                ? new Point(place.Location.X, place.Location.Y) { SRID = place.Location.SRID }
+                : null,
+
+            // Notes - truncate if needed
+            NotesHtml = TruncateNotes(place.Notes, settings.VisitedPlaceNotesSnapshotMaxHtmlChars),
+
+            // Optional UI snapshots
+            IconNameSnapshot = place.IconName,
+            MarkerColorSnapshot = place.MarkerColor
+        };
+
+        _dbContext.PlaceVisitEvents.Add(visitEvent);
+        // Add to PlaceId set to prevent duplicates in same batch (use UTC date)
+        // Note: Don't add to existingKeysByName - that's only for visits with null PlaceId
+        existingKeysByPlaceId.Add((item.PlaceId, itemDateUtc));
+
+        return BackfillCreateResult.Created;
+    }
+
+    /// <summary>
+    /// Finds visit suggestions using cross-tier logic.
+    /// These are potential visits that didn't meet strict matching criteria
+    /// but have evidence across multiple radius tiers or user check-ins.
+    /// </summary>
+    private async Task<List<SuggestedVisitDto>> FindVisitSuggestionsAsync(
+        string userId,
+        List<Place> places,
+        Dictionary<Guid, Region> regionsById,
+        ApplicationSettings settings,
+        HashSet<(Guid PlaceId, DateOnly Date)> strictMatchKeys,
+        HashSet<(Guid PlaceId, DateOnly Date)> existingVisitKeys,
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        CancellationToken cancellationToken)
+    {
+        if (places.Count == 0)
+            return new List<SuggestedVisitDto>();
+
+        // Get tier radii and hit thresholds from settings
+        var tier1Radius = settings.SuggestionTier1Radius;
+        var tier2Radius = settings.SuggestionTier2Radius;
+        var tier3Radius = settings.SuggestionTier3Radius;
+        var maxRadius = settings.SuggestionMaxRadius;
+
+        var tier1Hits = settings.SuggestionTier1Hits;
+        var tier2Hits = settings.SuggestionTier2Hits;
+        var tier3Hits = settings.SuggestionTier3Hits;
+        var maxHits = settings.SuggestionMaxHits;
+
+        // Build VALUES clause for all places
+        var placeParams = new List<NpgsqlParameter>();
+        var valuesRows = new List<string>();
+
+        for (int i = 0; i < places.Count; i++)
+        {
+            var place = places[i];
+            if (place.Location == null) continue;
+
+            var idParam = $"@s{i}_id";
+            var lonParam = $"@s{i}_lon";
+            var latParam = $"@s{i}_lat";
+
+            valuesRows.Add($"({idParam}::uuid, {lonParam}, {latParam})");
+            placeParams.Add(new NpgsqlParameter(idParam, place.Id));
+            placeParams.Add(new NpgsqlParameter(lonParam, place.Location.X));
+            placeParams.Add(new NpgsqlParameter(latParam, place.Location.Y));
+        }
+
+        if (valuesRows.Count == 0)
+            return new List<SuggestedVisitDto>();
+
+        // Build date filter clause
+        var dateFilters = "";
+        if (fromDate.HasValue)
+            dateFilters += " AND DATE(l.\"LocalTimestamp\") >= @fromDate";
+        if (toDate.HasValue)
+            dateFilters += " AND DATE(l.\"LocalTimestamp\") <= @toDate";
+
+        // Cross-tier suggestion query:
+        // - Searches within max suggestion radius
+        // - Counts hits in each tier
+        // - Checks for user-invoked check-ins
+        // - Applies cross-tier logic to filter GPS noise
+        var sql = $"""
+            WITH place_coords AS (
+                SELECT * FROM (VALUES
+                    {string.Join(",\n                ", valuesRows)}
+                ) AS t(place_id, lon, lat)
+            ),
+            location_hits AS (
+                SELECT
+                    pc.place_id,
+                    DATE(l."LocalTimestamp") as visit_date,
+                    MIN(l."LocalTimestamp") as first_seen,
+                    MAX(l."LocalTimestamp") as last_seen,
+                    MIN(ST_Distance(
+                        l."Coordinates",
+                        ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography
+                    )) as min_distance,
+                    COUNT(*) FILTER (WHERE ST_DWithin(
+                        l."Coordinates",
+                        ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography,
+                        @tier1Radius
+                    )) as hits_tier1,
+                    COUNT(*) FILTER (WHERE ST_DWithin(
+                        l."Coordinates",
+                        ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography,
+                        @tier2Radius
+                    )) as hits_tier2,
+                    COUNT(*) FILTER (WHERE ST_DWithin(
+                        l."Coordinates",
+                        ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography,
+                        @tier3Radius
+                    )) as hits_tier3,
+                    COUNT(*) as hits_total,
+                    COUNT(*) FILTER (WHERE l."IsUserInvoked" = true) as checkin_count
+                FROM place_coords pc
+                CROSS JOIN LATERAL (
+                    SELECT l."LocalTimestamp", l."Coordinates", l."IsUserInvoked"
+                    FROM "Locations" l
+                    WHERE l."UserId" = @userId
+                      AND ST_DWithin(
+                            l."Coordinates",
+                            ST_SetSRID(ST_MakePoint(pc.lon, pc.lat), 4326)::geography,
+                            @maxRadius
+                          ){dateFilters}
+                ) l
+                GROUP BY pc.place_id, DATE(l."LocalTimestamp")
+            )
+            SELECT
+                place_id, visit_date, first_seen, last_seen, min_distance,
+                hits_tier1, hits_tier2, hits_tier3, hits_total, checkin_count
+            FROM location_hits
+            WHERE (
+                -- Cross-tier evidence logic
+                checkin_count >= 1
+                OR hits_tier1 >= @tier1Hits
+                OR hits_tier2 >= @tier2Hits
+                OR hits_tier3 >= @tier3Hits
+                OR hits_total >= @maxHits
+                OR (hits_tier1 >= 1 AND hits_tier2 >= 2)
+                OR (hits_tier2 >= 1 AND hits_tier3 >= 3)
+            )
+            ORDER BY place_id, visit_date DESC
+            """;
+
+        var suggestions = new List<SuggestedVisitDto>();
+        var placesById = places.Where(p => p.Location != null).ToDictionary(p => p.Id);
+
+        try
+        {
+            var connection = _dbContext.Database.GetDbConnection();
+            var connectionWasOpen = connection.State == System.Data.ConnectionState.Open;
+
+            if (!connectionWasOpen)
+            {
+                await _dbContext.Database.OpenConnectionAsync(cancellationToken);
+            }
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.CommandTimeout = 120; // 2 minute timeout
+
+                // Add place parameters
+                foreach (var param in placeParams)
+                {
+                    command.Parameters.Add(param);
+                }
+
+                // Add tier radius parameters
+                command.Parameters.Add(new NpgsqlParameter("@tier1Radius", tier1Radius));
+                command.Parameters.Add(new NpgsqlParameter("@tier2Radius", tier2Radius));
+                command.Parameters.Add(new NpgsqlParameter("@tier3Radius", tier3Radius));
+                command.Parameters.Add(new NpgsqlParameter("@maxRadius", maxRadius));
+
+                // Add tier hit threshold parameters
+                command.Parameters.Add(new NpgsqlParameter("@tier1Hits", tier1Hits));
+                command.Parameters.Add(new NpgsqlParameter("@tier2Hits", tier2Hits));
+                command.Parameters.Add(new NpgsqlParameter("@tier3Hits", tier3Hits));
+                command.Parameters.Add(new NpgsqlParameter("@maxHits", maxHits));
+
+                // Add common parameters
+                command.Parameters.Add(new NpgsqlParameter("@userId", userId));
+
+                if (fromDate.HasValue)
+                    command.Parameters.Add(new NpgsqlParameter("@fromDate", fromDate.Value));
+                if (toDate.HasValue)
+                    command.Parameters.Add(new NpgsqlParameter("@toDate", toDate.Value));
+
+                var sw = Stopwatch.StartNew();
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    var placeId = reader.GetGuid(0);
+                    var visitDate = DateOnly.FromDateTime(reader.GetDateTime(1));
+                    var firstSeen = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
+                    var lastSeen = DateTime.SpecifyKind(reader.GetDateTime(3), DateTimeKind.Utc);
+                    var minDistance = reader.GetDouble(4);
+                    var hitsTier1 = reader.GetInt32(5);
+                    var hitsTier2 = reader.GetInt32(6);
+                    var hitsTier3 = reader.GetInt32(7);
+                    var hitsTotal = reader.GetInt32(8);
+                    var checkinCount = reader.GetInt32(9);
+
+                    // Skip if this place+date combo already has a strict match or existing visit
+                    var visitDateUtc = DateOnly.FromDateTime(firstSeen);
+                    if (strictMatchKeys.Contains((placeId, visitDateUtc)) ||
+                        existingVisitKeys.Contains((placeId, visitDateUtc)))
+                    {
+                        continue;
+                    }
+
+                    if (!placesById.TryGetValue(placeId, out var place))
+                        continue;
+
+                    if (!regionsById.TryGetValue(place.RegionId, out var region))
+                    {
+                        _logger.LogWarning("Region {RegionId} not found for place {PlaceId}, skipping suggestion", place.RegionId, place.Id);
+                        continue;
+                    }
+
+                    var hasUserCheckin = checkinCount >= 1;
+
+                    // Generate suggestion reason
+                    var reason = GenerateSuggestionReason(
+                        hasUserCheckin, hitsTier1, hitsTier2, hitsTier3, hitsTotal,
+                        tier1Radius, tier2Radius, tier3Radius);
+
+                    suggestions.Add(new SuggestedVisitDto
+                    {
+                        PlaceId = place.Id,
+                        PlaceName = place.Name,
+                        RegionName = region.Name,
+                        VisitDate = visitDate,
+                        MinDistanceMeters = Math.Round(minDistance, 1),
+                        HitsTier1 = hitsTier1,
+                        HitsTier2 = hitsTier2,
+                        HitsTier3 = hitsTier3,
+                        HitsTotal = hitsTotal,
+                        HasUserCheckin = hasUserCheckin,
+                        SuggestionReason = reason,
+                        FirstSeenUtc = firstSeen,
+                        LastSeenUtc = lastSeen,
+                        Latitude = place.Location!.Y,
+                        Longitude = place.Location!.X,
+                        IconName = place.IconName,
+                        MarkerColor = place.MarkerColor
+                    });
+                }
+
+                sw.Stop();
+                _logger.LogInformation(
+                    "Suggestion query for {PlaceCount} places completed in {ElapsedMs}ms, found {SuggestionCount} suggestions",
+                    places.Count, sw.ElapsedMilliseconds, suggestions.Count);
+            }
+            finally
+            {
+                if (!connectionWasOpen)
+                {
+                    await _dbContext.Database.CloseConnectionAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Suggestion query failed for {PlaceCount} places. Suggestions will be empty.",
+                places.Count);
+            return new List<SuggestedVisitDto>();
+        }
+
+        return suggestions;
+    }
+
+    /// <summary>
+    /// Generates a human-readable reason for why a place is being suggested.
+    /// </summary>
+    private static string GenerateSuggestionReason(
+        bool hasUserCheckin,
+        int hitsTier1,
+        int hitsTier2,
+        int hitsTier3,
+        int hitsTotal,
+        int tier1Radius,
+        int tier2Radius,
+        int tier3Radius)
+    {
+        if (hasUserCheckin)
+        {
+            return "User checked in nearby";
+        }
+
+        if (hitsTier1 >= 1 && hitsTier2 >= 2)
+        {
+            return $"Cross-tier: {hitsTier1} within {tier1Radius}m + {hitsTier2} within {tier2Radius}m";
+        }
+
+        if (hitsTier2 >= 1 && hitsTier3 >= 3)
+        {
+            return $"Cross-tier: {hitsTier2} within {tier2Radius}m + {hitsTier3} within {tier3Radius}m";
+        }
+
+        if (hitsTier1 >= 1)
+        {
+            return $"{hitsTier1} ping{(hitsTier1 > 1 ? "s" : "")} within {tier1Radius}m";
+        }
+
+        if (hitsTier2 >= 2)
+        {
+            return $"{hitsTier2} pings within {tier2Radius}m";
+        }
+
+        if (hitsTier3 >= 3)
+        {
+            return $"{hitsTier3} pings within {tier3Radius}m";
+        }
+
+        return $"{hitsTotal} pings within extended range";
     }
 }

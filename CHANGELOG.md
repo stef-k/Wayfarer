@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### 2026-01-22
+- Added "Consider Also" suggestions feature to backfill analysis (#134)
+- Added 4-tab interface for backfill modal: Confirmed, Consider Also, Stale, Existing
+- Added cross-tier evidence logic to catch near-miss visits while filtering GPS noise
+- Added SuggestedVisitDto with tier hit counts and suggestion reasons
+- Added VisitedSuggestionMaxRadiusMultiplier setting (default 50×, configurable 2-100×)
+- Added derived suggestion tier properties (Tier 1-3 radii and hit requirements)
+- Added Source property to PlaceVisitEvent to track visit origin (realtime, backfill, backfill-user-confirmed)
+- Added user check-in detection as strong signal for suggestions
+- Added admin settings UI for suggestion multiplier with derived tier info panel
+- Added unique index on PlaceVisitEvents (UserId, PlaceId, Date) to prevent duplicates at DB level
+- Added chunking for batched spatial queries when places > 10,000 (PostgreSQL parameter limit)
+- Added CancellationToken propagation to individual place analysis queries
+- Added frontend validation for date range (fromDate must be ≤ toDate)
+- Fixed potential KeyNotFoundException with TryGetValue pattern for region lookups
+
 ### 2026-01-21
 - Added Visit Backfill feature to analyze location history and create visit records (#104)
 - Added backfill preview with new visits, stale visits, and existing visits sections

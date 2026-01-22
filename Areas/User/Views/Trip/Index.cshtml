@@ -235,84 +235,127 @@ else
                         </div>
                     </div>
 
-                    <!-- New Visits Section -->
-                    <div id="new-visits-section" class="mb-3">
-                        <h6 class="border-bottom pb-2">
-                            <i class="bi bi-plus-circle text-success me-2"></i>
-                            New Visits to Create (<span id="new-visits-count">0</span>)
-                            <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
-                               data-tippy-content="<strong>New visits</strong> are days when your location history shows you were near a place, but no visit record exists yet.<br><br><strong>Confidence %</strong> indicates how certain we are — based on how many GPS points matched and how close they were to the place center."></i>
-                        </h6>
-                        <div id="new-visits-hint" class="alert alert-success small py-2 mb-2 d-none">
-                            <i class="bi bi-check-circle me-1"></i>
-                            These visits will be <strong>automatically created</strong> when you click Apply.
-                            Higher confidence means more GPS points were found near the place.
-                        </div>
-                        <div id="new-visits-list" class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
-                            <!-- Populated by JS -->
-                        </div>
-                        <div id="no-new-visits" class="text-muted small d-none">
-                            <i class="bi bi-check-circle me-1"></i>
-                            No new visits found — you may already have visit records for all matching days,
-                            or no location data matches the places in this trip.
-                        </div>
-                    </div>
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs" id="backfillTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="confirmed-tab" data-bs-toggle="tab" data-bs-target="#confirmed-pane"
+                                    type="button" role="tab" aria-controls="confirmed-pane" aria-selected="true">
+                                <i class="bi bi-plus-circle text-success me-1"></i>
+                                Confirmed <span class="badge bg-success ms-1" id="new-visits-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="suggestions-tab" data-bs-toggle="tab" data-bs-target="#suggestions-pane"
+                                    type="button" role="tab" aria-controls="suggestions-pane" aria-selected="false">
+                                <i class="bi bi-lightbulb text-info me-1"></i>
+                                Consider Also <span class="badge bg-info ms-1" id="suggested-visits-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="stale-tab" data-bs-toggle="tab" data-bs-target="#stale-pane"
+                                    type="button" role="tab" aria-controls="stale-pane" aria-selected="false">
+                                <i class="bi bi-exclamation-triangle text-warning me-1"></i>
+                                Stale <span class="badge bg-warning text-dark ms-1" id="stale-visits-count">0</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing-pane"
+                                    type="button" role="tab" aria-controls="existing-pane" aria-selected="false">
+                                <i class="bi bi-check-circle text-primary me-1"></i>
+                                Existing <span class="badge bg-primary ms-1" id="existing-visits-count">0</span>
+                            </button>
+                        </li>
+                    </ul>
 
-                    <!-- Stale Visits Section -->
-                    <div id="stale-visits-section" class="mb-3">
-                        <h6 class="border-bottom pb-2 d-flex justify-content-between align-items-center">
-                            <span>
-                                <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-                                Stale Visits (<span id="stale-visits-count">0</span>)
+                    <!-- Tab Content -->
+                    <div class="tab-content pt-3" id="backfillTabContent">
+                        <!-- Confirmed (New Visits) Tab -->
+                        <div class="tab-pane fade show active" id="confirmed-pane" role="tabpanel" aria-labelledby="confirmed-tab">
+                            <div id="new-visits-hint" class="alert alert-success small py-2 mb-2 d-none">
+                                <i class="bi bi-check-circle me-1"></i>
+                                These visits will be <strong>automatically created</strong> when you click Apply.
+                                Higher confidence means more GPS points were found near the place.
+                                <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
+                                   data-tippy-content="<strong>Confirmed visits</strong> are days when your location history shows you were near a place (within ~150m), with multiple GPS points confirming your presence.<br><br><strong>Confidence %</strong> indicates certainty — based on how many GPS points matched and how close they were to the place center."></i>
+                            </div>
+                            <div id="new-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                                <!-- Populated by JS -->
+                            </div>
+                            <div id="no-new-visits" class="text-muted small d-none">
+                                <i class="bi bi-check-circle me-1"></i>
+                                No new visits found — you may already have visit records for all matching days,
+                                or no location data matches the places in this trip.
+                            </div>
+                        </div>
+
+                        <!-- Consider Also (Suggestions) Tab -->
+                        <div class="tab-pane fade" id="suggestions-pane" role="tabpanel" aria-labelledby="suggestions-tab">
+                            <div id="suggested-visits-hint" class="alert alert-info small py-2 mb-2 d-none">
+                                <i class="bi bi-lightbulb me-1"></i>
+                                These are <strong>potential visits</strong> that didn't meet strict matching criteria but show evidence
+                                you may have been nearby. Check the ones you want to confirm.
+                                <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
+                                   data-tippy-content="<strong>Consider Also</strong> shows places where your location data suggests a possible visit:<br><br>• <strong>Cross-tier evidence</strong> — GPS points at multiple distances (e.g., some within 150m, more within 300m)<br>• <strong>User check-in</strong> — You manually checked in while nearby<br>• <strong>Extended range</strong> — Multiple pings within a wider area<br><br>These require your confirmation — check to create a visit, leave unchecked to skip."></i>
+                            </div>
+                            <div id="suggested-select-all-wrapper" class="d-flex justify-content-end mb-2 d-none">
+                                <a href="#" class="small text-decoration-none" id="suggested-select-all">Select all</a>
+                                <span class="text-muted mx-1">|</span>
+                                <a href="#" class="small text-decoration-none" id="suggested-deselect-all">Deselect all</a>
+                            </div>
+                            <div id="suggested-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                                <!-- Populated by JS -->
+                            </div>
+                            <div id="no-suggested-visits" class="text-muted small d-none">
+                                <i class="bi bi-check-circle me-1"></i>
+                                No additional suggestions — all potential visits either met strict criteria (shown in Confirmed tab)
+                                or had insufficient evidence.
+                            </div>
+                        </div>
+
+                        <!-- Stale Visits Tab -->
+                        <div class="tab-pane fade" id="stale-pane" role="tabpanel" aria-labelledby="stale-tab">
+                            <div id="stale-visits-hint" class="alert alert-warning small py-2 mb-2 d-none">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                <strong>Checked visits will be deleted.</strong> These visits reference places that were
+                                deleted or moved significantly. Uncheck any you want to keep.
                                 <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
                                    data-tippy-content="<strong>Stale visits</strong> are existing visit records that may no longer be accurate:<br><br>• <strong>Place was deleted</strong> — The place no longer exists<br>• <strong>Place was moved</strong> — The place location changed significantly (>150m) since the visit was recorded<br><br>These are pre-selected for deletion, but you can uncheck any you want to keep."></i>
-                            </span>
-                            <span id="stale-select-all-wrapper" class="d-none">
+                            </div>
+                            <div id="stale-select-all-wrapper" class="d-flex justify-content-end mb-2 d-none">
                                 <a href="#" class="small text-decoration-none" id="stale-select-all">Select all</a>
                                 <span class="text-muted mx-1">|</span>
                                 <a href="#" class="small text-decoration-none" id="stale-deselect-all">Deselect all</a>
-                            </span>
-                        </h6>
-                        <div id="stale-visits-hint" class="alert alert-warning small py-2 mb-2 d-none">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            <strong>Checked visits will be deleted.</strong> These visits reference places that were
-                            deleted or moved significantly. Uncheck any you want to keep.
+                            </div>
+                            <div id="stale-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                                <!-- Populated by JS -->
+                            </div>
+                            <div id="no-stale-visits" class="text-muted small d-none">
+                                <i class="bi bi-check-circle me-1"></i>
+                                No stale visits found — all existing visits reference valid, current place locations.
+                            </div>
                         </div>
-                        <div id="stale-visits-list" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
-                            <!-- Populated by JS -->
-                        </div>
-                        <div id="no-stale-visits" class="text-muted small d-none">
-                            <i class="bi bi-check-circle me-1"></i>
-                            No stale visits found — all existing visits reference valid, current place locations.
-                        </div>
-                    </div>
 
-                    <!-- Existing Visits Section -->
-                    <div id="existing-visits-section" class="mb-3">
-                        <h6 class="border-bottom pb-2 d-flex justify-content-between align-items-center">
-                            <span>
-                                <i class="bi bi-check-circle text-primary me-2"></i>
-                                Existing Visits (<span id="existing-visits-count">0</span>)
+                        <!-- Existing Visits Tab -->
+                        <div class="tab-pane fade" id="existing-pane" role="tabpanel" aria-labelledby="existing-tab">
+                            <div id="existing-visits-hint" class="alert alert-secondary small py-2 mb-2 d-none">
+                                <i class="bi bi-shield-check me-1"></i>
+                                These are <strong>valid visits</strong> that won't be modified unless you check them for deletion.
+                                Use this to manually clean up visits you no longer want.
                                 <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
                                    data-tippy-content="<strong>Existing visits</strong> are valid visit records that already exist for this trip. They are shown here for reference and manual cleanup.<br><br>Check any visits you want to delete — for example, if they were created by mistake or you want to re-analyze with different settings."></i>
-                            </span>
-                            <span id="existing-select-all-wrapper" class="d-none">
+                            </div>
+                            <div id="existing-select-all-wrapper" class="d-flex justify-content-end mb-2 d-none">
                                 <a href="#" class="small text-decoration-none" id="existing-select-all">Select all</a>
                                 <span class="text-muted mx-1">|</span>
                                 <a href="#" class="small text-decoration-none" id="existing-deselect-all">Deselect all</a>
-                            </span>
-                        </h6>
-                        <div id="existing-visits-hint" class="alert alert-secondary small py-2 mb-2 d-none">
-                            <i class="bi bi-shield-check me-1"></i>
-                            These are <strong>valid visits</strong> that won't be modified unless you check them for deletion.
-                            Use this to manually clean up visits you no longer want.
-                        </div>
-                        <div id="existing-visits-list" class="list-group list-group-flush" style="max-height: 150px; overflow-y: auto;">
-                            <!-- Populated by JS -->
-                        </div>
-                        <div id="no-existing-visits" class="text-muted small d-none">
-                            <i class="bi bi-inbox me-1"></i>
-                            No existing visits for this trip yet.
+                            </div>
+                            <div id="existing-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                                <!-- Populated by JS -->
+                            </div>
+                            <div id="no-existing-visits" class="text-muted small d-none">
+                                <i class="bi bi-inbox me-1"></i>
+                                No existing visits for this trip yet.
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -322,7 +365,8 @@ else
                 <div class="alert alert-light border mb-0 small">
                     <strong>Actions to perform:</strong>
                     <ul class="mb-0 ps-3">
-                        <li id="summary-create" class="d-none"><span id="summary-create-count">0</span> new visits will be created</li>
+                        <li id="summary-create" class="d-none"><span id="summary-create-count">0</span> confirmed visits will be created</li>
+                        <li id="summary-confirm-suggestions" class="d-none text-info"><span id="summary-confirm-count">0</span> suggested visits will be created</li>
                         <li id="summary-delete-stale" class="d-none text-warning"><span id="summary-delete-stale-count">0</span> stale visits will be deleted</li>
                         <li id="summary-delete-manual" class="d-none text-danger"><span id="summary-delete-manual-count">0</span> existing visits will be deleted</li>
                         <li id="summary-nothing" class="d-none text-muted">No changes to apply</li>
