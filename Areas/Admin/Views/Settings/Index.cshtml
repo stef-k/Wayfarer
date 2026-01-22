@@ -87,8 +87,11 @@
 
 
                             <div class="col-md-6">
-                                <label for="LocationDistanceThresholdMeters" class="form-label">Distance Threshold (in
-                                    meters):</label>
+                                <label for="LocationDistanceThresholdMeters" class="form-label">
+                                    Distance Threshold (in meters):
+                                    <i class="bi bi-question-circle text-muted ms-1"
+                                       data-tippy-content="Minimum distance from previous location before recording a new point. Lower values = more detailed tracks but more storage. Higher values = less detail but reduced data."></i>
+                                </label>
                                 <select asp-for="LocationDistanceThresholdMeters" class="form-control">
                                     <optgroup label="Fine (5-50m)">
                                         <option value="5">5 m</option>
@@ -263,7 +266,11 @@
                             </div>
 
                             <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedRequiredHits" class="form-label">Required Hits</label>
+                                <label asp-for="VisitedRequiredHits" class="form-label">
+                                    Required Hits
+                                    <i class="bi bi-question-circle text-muted ms-1"
+                                       data-tippy-content="Number of consecutive location pings within a place's radius needed to confirm a visit. More hits = higher confidence but longer detection time."></i>
+                                </label>
                                 <input asp-for="VisitedRequiredHits" class="form-control" type="number" min="2" max="5" />
                                 <small class="form-text text-muted">
                                     Number of pings needed to confirm a visit (2-5).<br/>
@@ -293,7 +300,11 @@
                             </div>
 
                             <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedAccuracyMultiplier" class="form-label">Accuracy Multiplier</label>
+                                <label asp-for="VisitedAccuracyMultiplier" class="form-label">
+                                    Accuracy Multiplier
+                                    <i class="bi bi-question-circle text-muted ms-1"
+                                       data-tippy-content="Multiplies GPS accuracy for detection radius. Example: GPS 25m accuracy with 1.0x multiplier = 25m detection radius. Higher values are more lenient but may cause false positives."></i>
+                                </label>
                                 <input asp-for="VisitedAccuracyMultiplier" class="form-control" type="number" step="0.1" min="0.5" max="5.0" />
                                 <small class="form-text text-muted">
                                     Multiplier applied to GPS accuracy (0.5-5.0).<br/>
@@ -329,6 +340,8 @@
                             <div class="col-md-6 mb-3">
                                 <label asp-for="VisitNotificationCooldownHours" class="form-label">
                                     <i class="bi bi-bell-slash me-1"></i>Notification Cooldown (hours)
+                                    <i class="bi bi-question-circle text-muted ms-1"
+                                       data-tippy-content="Prevents notification spam when users revisit the same place frequently. Visits are always recorded; this only affects SSE push notifications."></i>
                                 </label>
                                 <select asp-for="VisitNotificationCooldownHours" class="form-control">
                                     <option value="-1">Never notify (disabled)</option>
@@ -378,6 +391,8 @@
                             <div class="col-12 mt-3 mb-2">
                                 <h5 class="border-bottom pb-2">
                                     <i class="bi bi-lightbulb me-1"></i>Backfill Suggestions ("Consider Also")
+                                    <i class="bi bi-question-circle text-muted ms-1"
+                                       data-tippy-content="Suggests potential visits that don't meet strict detection criteria. Users must confirm these suggestions manually before visits are created."></i>
                                 </h5>
                                 <p class="text-muted small mb-2">
                                     Settings for the "Consider Also" feature in backfill analysis. These suggestions use relaxed
@@ -574,6 +589,8 @@
                                            value="true" @(Model.TileRateLimitEnabled ? "checked" : "")/>
                                     <label class="form-check-label" for="TileRateLimitEnabled">
                                         Enable rate limiting for anonymous requests
+                                        <i class="bi bi-question-circle text-muted ms-1"
+                                           data-tippy-content="Protects your tile proxy from abuse. Logged-in users are never limited. Affects embeds, public timeline views, and anonymous visitors."></i>
                                     </label>
                                 </div>
                                 <small class="form-text text-muted">

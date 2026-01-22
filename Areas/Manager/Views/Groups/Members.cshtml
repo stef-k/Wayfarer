@@ -45,7 +45,11 @@
       <tr>
         <th>User</th>
         <th>Display Name</th>
-        <th>Role</th>
+        <th>
+            Role
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="Owner: full control, cannot leave the group. Manager: can invite and remove members. Member: can view locations."></i>
+        </th>
         <th>Status</th>
         <th></th>
       </tr>
@@ -77,6 +81,10 @@
 
   <div class="col-md-5">
     <h4>Invite</h4>
+    <div class="alert alert-light small mb-2">
+        <i class="bi bi-lightbulb me-1"></i>
+        Search by username or display name. Invitees can accept or decline the invitation.
+    </div>
     <form id="inviteForm" asp-area="Manager" asp-controller="Groups" asp-action="Invite" method="post">
       <input type="hidden" name="groupId" value="@group.Id" />
       <input type="hidden" id="inviteeUserId" name="inviteeUserId" />

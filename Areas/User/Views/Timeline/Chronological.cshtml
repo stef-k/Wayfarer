@@ -43,7 +43,11 @@
 
                 <!-- View type selector -->
                 <div class="ms-auto d-flex gap-2">
-                    <label class="form-label mb-0 align-self-center">View:</label>
+                    <label class="form-label mb-0 align-self-center">
+                        View:
+                        <i class="bi bi-question-circle text-muted ms-1"
+                           data-tippy-content="Day: shows all location points. Month/Year: sampled for performance (~100/365 points max)."></i>
+                    </label>
                     <div class="btn-group btn-group-sm" role="group">
                         <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
                         <label class="btn btn-outline-primary" for="viewDay">Day</label>

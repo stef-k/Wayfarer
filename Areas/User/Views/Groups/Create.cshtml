@@ -16,7 +16,11 @@
         <textarea class="form-control" id="description" name="description" rows="3"></textarea>
     </div>
     <div class="mb-3">
-        <label class="form-label" for="groupType">Type</label>
+        <label class="form-label" for="groupType">
+            Type
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="Family: all members see each other. Friends: casual sharing with peer visibility controls."></i>
+        </label>
         <select class="form-select" id="groupType" name="groupType" required>
             <option value="Family">Family</option>
             <option value="Friends">Friends</option>

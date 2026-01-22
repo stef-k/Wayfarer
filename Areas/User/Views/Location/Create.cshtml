@@ -21,12 +21,20 @@
                     @Html.AntiForgeryToken()
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
-                        <label for="Latitude" class="col-sm-2 col-form-label">Latitude <span class="text-danger">*</span></label>
-                        <div class="col-sm-4">
+                        <label for="Latitude" class="col-sm-3 col-form-label">
+                            Latitude <span class="text-danger">*</span>
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="Decimal degrees format (e.g., 37.9838). Click on the map to auto-fill."></i>
+                        </label>
+                        <div class="col-sm-3">
                             <input type="text" class="form-control" id="Latitude" name="Latitude" required />
                         </div>
-                        <label for="Longitude" class="col-sm-2 col-form-label">Longitude <span class="text-danger">*</span></label>
-                        <div class="col-sm-4">
+                        <label for="Longitude" class="col-sm-3 col-form-label">
+                            Longitude <span class="text-danger">*</span>
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="Decimal degrees format (e.g., 23.7275). Click on the map to auto-fill."></i>
+                        </label>
+                        <div class="col-sm-3">
                             <input type="text" class="form-control" id="Longitude" name="Longitude" required />
                         </div>
                     </div>
@@ -62,7 +70,11 @@
                         <input type="text" class="form-control" id="Address" name="Address" />
                     </div>
                     <div class="form-group">
-                        <label for="LocalTimestamp">Local Date and Time <span class="text-danger">*</span></label>
+                        <label for="LocalTimestamp">
+                            Local Date and Time <span class="text-danger">*</span>
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="Enter the local time at this location. The time will be stored as UTC and displayed in your configured timezone."></i>
+                        </label>
                         <input type="datetime-local"
                                class="form-control"
                                id="LocalTimestamp"

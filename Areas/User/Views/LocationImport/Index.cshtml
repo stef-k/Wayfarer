@@ -9,12 +9,22 @@
     </a>
 </div>
 
+<div class="alert alert-light small mb-3">
+    <i class="bi bi-lightbulb me-1"></i>
+    <strong>How it works:</strong> Import location history from Google Timeline (JSON format from Google Takeout).
+    Large files are processed in the background - you can leave this page and check back later.
+</div>
+
 <table class="table table-striped table-responsive" id="locationImport" data-user-id="@ViewData["UserId"]">
     <thead>
         <tr>
             <th>File Name</th>
             <th>Uploaded At</th>
-            <th>Status</th>
+            <th>
+                Status
+                <i class="bi bi-question-circle text-muted ms-1"
+                   data-tippy-content="InProgress: currently processing. Completed: finished successfully. Stopped: paused by user. Failed: encountered errors."></i>
+            </th>
             <th>Processed Records</th>
             <th>Last Processed Record</th>
             <th>Errors</th>

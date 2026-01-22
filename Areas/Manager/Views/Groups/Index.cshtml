@@ -8,12 +8,22 @@
     <a class="btn btn-primary" asp-area="Manager" asp-controller="Groups" asp-action="Create">New Group</a>
   </div>
 
+<div class="alert alert-light small mb-3">
+    <i class="bi bi-lightbulb me-1"></i>
+    <strong>How it works:</strong> Groups let you share live locations with trusted people. Create groups for family, friends, or teams.
+    Members can see each other's locations on the group map.
+</div>
+
 <table class="table table-striped">
     <thead>
     <tr>
         <th>Name</th>
         <th>Description</th>
-        <th>Type</th>
+        <th>
+            Type
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="Organization: requires at least one manager. Family: all members see each other. Friends: casual sharing with flexible rules."></i>
+        </th>
         <th>Members</th>
         <th></th>
     </tr>

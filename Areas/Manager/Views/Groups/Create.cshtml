@@ -15,7 +15,11 @@
         <textarea class="form-control" id="description" name="description" rows="3"></textarea>
     </div>
     <div class="mb-3">
-        <label class="form-label" for="groupType">Type</label>
+        <label class="form-label" for="groupType">
+            Type
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="Organization: requires at least one manager at all times. Family and Friends: more flexible, casual sharing."></i>
+        </label>
         <select class="form-select" id="groupType" name="groupType" required>
             <option value="Organization">Organization</option>
             <option value="Family">Family</option>

@@ -6,6 +6,12 @@
 
 <h1 class="text-center">@ViewData["Title"]</h1>
 
+<div class="alert alert-light small mb-3 mx-auto" style="max-width: 800px;">
+    <i class="bi bi-lightbulb me-1"></i>
+    <strong>How it works:</strong> Security audit trail capturing login attempts, password changes, role modifications, and data exports.
+    Use Search to filter by user, action type, or date range.
+</div>
+
 <div class="container">
     <div class="row">
         <div class="col-md-10 offset-md-1">
@@ -32,7 +38,11 @@
                                 <th>User ID</th>
                                 <th>Action</th>
                                 <th>Timestamp</th>
-                                <th>Details</th>
+                                <th>
+                                    Details
+                                    <i class="bi bi-question-circle text-muted ms-1"
+                                       data-tippy-content="Additional context: IP addresses, affected entities, error messages, and other relevant information."></i>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>

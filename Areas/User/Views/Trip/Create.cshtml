@@ -22,7 +22,10 @@
     
     <div class="form-group form-check">
         <input asp-for="IsPublic" class="form-check-input"/>
-        <label asp-for="IsPublic" class="form-check-label"></label>
+        <label asp-for="IsPublic" class="form-check-label">
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="Public: anyone with the link can view this trip. Private: only you can see it. You can change this setting later."></i>
+        </label>
     </div>
 
     <div class="form-group">

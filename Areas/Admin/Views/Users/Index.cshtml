@@ -25,9 +25,21 @@
                 <tr>
                     <th>Username</th>
                     <th>Display Name</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Protected</th>
+                    <th>
+                        Role
+                        <i class="bi bi-question-circle text-muted ms-1"
+                           data-tippy-content="Admin: full system access. Manager: can manage groups and invitations. User: standard access to personal features."></i>
+                    </th>
+                    <th>
+                        Status
+                        <i class="bi bi-question-circle text-muted ms-1"
+                           data-tippy-content="Inactive users cannot log in. This allows temporarily disabling access without deleting user data."></i>
+                    </th>
+                    <th>
+                        Protected
+                        <i class="bi bi-question-circle text-muted ms-1"
+                           data-tippy-content="Protected users cannot be deleted. The first admin account is protected by default."></i>
+                    </th>
                     <th>Actions</th>
                 </tr>
             </thead>

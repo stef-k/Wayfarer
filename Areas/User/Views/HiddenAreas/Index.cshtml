@@ -4,7 +4,13 @@
 }
 
 <h2 class="mb-4">Hidden Areas</h2>
-<p>Draw areas to hide locations from public timeline. Once a hidden area is set, all locations inside it will be hidden from your public timeline.</p>
+
+<div class="alert alert-light small mb-3">
+    <i class="bi bi-lightbulb me-1"></i>
+    <strong>How it works:</strong> Hidden areas mask locations from your public timeline. Draw polygons around sensitive areas
+    like your home or workplace. If a location falls within any hidden area, it will not be visible on your public timeline.
+    Overlapping areas work together - any match hides the location.
+</div>
 <a asp-area="User" asp-controller="HiddenAreas" asp-action="Create" class="btn btn-primary mb-3">
     <i class="bi bi-plus-circle"></i> Add Hidden Area
 </a>
