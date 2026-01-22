@@ -949,12 +949,16 @@ import { addZoomLevelControl } from '../../../map-utils.js';
         }
     };
 
+    // Store pending place data for when modal is shown
+    let pendingPlaceData = null;
+    let pendingPlaceType = null;
+
     /**
      * Shows the place context modal with map and location pings.
      * @param {Object} placeData - The place data from the analysis.
      * @param {string} type - 'candidate', 'suggestion', 'stale', or 'existing'.
      */
-    const showPlaceContext = async (placeData, type) => {
+    const showPlaceContext = (placeData, type) => {
         // Update modal title
         const titleEl = document.getElementById('placeContextTitle');
         if (titleEl) {
@@ -968,14 +972,31 @@ import { addZoomLevelControl } from '../../../map-utils.js';
             titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${escapeHtml(placeData.placeName)} <small class="text-muted fw-normal">- ${typeLabel}</small>`;
         }
 
-        // Show modal first so the map container has dimensions
+        // Store data for when modal is fully shown
+        pendingPlaceData = placeData;
+        pendingPlaceType = type;
+
+        // Show modal - map will be initialized in shown.bs.modal event
         placeContextModal?.show();
+    };
 
-        // Wait for modal to be visible before initializing map
-        await new Promise(resolve => setTimeout(resolve, 200));
+    /**
+     * Initializes the map and loads data after modal is fully visible.
+     */
+    const initPlaceContextAfterShow = async () => {
+        if (!pendingPlaceData) return;
 
-        // Initialize or reset the map
+        const placeData = pendingPlaceData;
+        pendingPlaceData = null;
+        pendingPlaceType = null;
+
+        // Initialize the map now that modal is visible and has dimensions
         initContextMap();
+
+        // Ensure map size is correct
+        if (contextMap) {
+            contextMap.invalidateSize();
+        }
 
         // Check if we have coordinates
         if (!placeData.latitude || !placeData.longitude) {
@@ -1038,11 +1059,13 @@ import { addZoomLevelControl } from '../../../map-utils.js';
             contextMap = null;
             contextMarkersGroup = null;
         }
+        pendingPlaceData = null;
+        pendingPlaceType = null;
     });
 
-    // Invalidate map size when modal is shown (fixes rendering issues)
+    // Initialize map when modal is fully shown (proper timing for Leaflet)
     placeContextModalEl?.addEventListener('shown.bs.modal', () => {
-        setTimeout(() => contextMap?.invalidateSize(), 100);
+        initPlaceContextAfterShow();
     });
 
     /* ------------------------------------------------ boot */
