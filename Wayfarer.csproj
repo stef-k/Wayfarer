@@ -70,6 +70,11 @@
         <None Include="Tools\**\*.*" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
+    <!-- Include docs folder for local serving at /docs/ -->
+    <ItemGroup>
+        <Content Include="docs\**\*.*" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+
     <ItemGroup>
         <Content Update="Areas\Manager\Views\Users\Create.cshtml">
             <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
