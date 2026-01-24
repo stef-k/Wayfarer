@@ -42,6 +42,15 @@ GPS Accuracy Filtering
 - Helps reduce noise from indoor/urban canyon readings while preserving quality data.
 - Users can view their effective threshold in User → Settings.
 
+Adding & Editing Locations
+- **Add Location** — manually add a location point with coordinates, timestamp, activity type, and notes.
+- **Edit Location** — update any location's details including coordinates, timestamp, activity, and notes.
+- Access via the location popup or the Locations table.
+
+![Add Location](images/add-location.JPG)
+
+![Edit Location](images/edit-location.JPG)
+
 Inline Activity Editing
 - Edit a location's activity type directly from the location popup or table row.
 - Click the activity dropdown to switch between available types without opening a full edit form.
