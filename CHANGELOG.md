@@ -12,6 +12,7 @@
 - Fixed missing API endpoint documentation (Icons, Tags, Users, Visit, Backfill)
 - Simplified technical jargon in user-facing documentation
 - Updated home page tagline to "Track Your Timeline - Manage Your Trips"
+- Improved 404 page with larger transparent logo and bigger text
 
 ### 2026-01-22
 - Added centralized Wikipedia search utility with dual search strategy (#142)
