@@ -30,6 +30,10 @@
 - Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
 - Large files are processed asynchronously with SSE progress updates.
 
+![Upload Import Dialog](images/upload-location-import-dialog.JPG)
+
+![Import History](images/location-imports.JPG)
+
 ### Reverse Geocoding (Optional)
 
 - Add a personal Mapbox API token to enrich imported points with addresses.

@@ -2,6 +2,8 @@
 
 Trips are the core trip planning feature in Wayfarer, allowing you to organize destinations, routes, and detailed travel information.
 
+![User Trips](images/user-trips.JPG)
+
 ---
 
 ## Trip Structure
@@ -37,6 +39,14 @@ Trips are **private by default**; you can make them public to share with others.
 - **Wikipedia lookup** — click the Wiki button on any place to discover related articles via geo + text search.
 - **Areas** (polygons) highlight zones; draw them directly on the map.
 
+![Trip Editor](images/trip-edit-1.JPG)
+
+![Place Details Modal](images/place-details-modal-dark-theme.JPG)
+
+![Place Edit](images/place-edit-2.JPG)
+
+![Area Edit](images/area-edit.JPG)
+
 ---
 
 ## Segments (Routes)
@@ -45,6 +55,10 @@ Trips are **private by default**; you can make them public to share with others.
 - Choose **travel mode** (walking, driving, transit, etc.).
 - Add notes and route geometry if available.
 - Segments display as connected lines on the map.
+
+![Segment Edit](images/segment-edit-1.JPG)
+
+![Segment Route Details](images/segment-edit-2.JPG)
 
 ---
 
@@ -132,6 +146,8 @@ When you receive GPS pings (from the mobile app, API, or manual entries), the sy
 - **Visit-to-location navigation** — click to view the underlying location records that triggered a visit.
 - Visit data persists independently of trip changes (place snapshots preserved).
 
+![Visit History](images/trip-visits-index.JPG)
+
 ### Visit Backfill
 
 Analyze your existing location history to create visits retroactively for trip places you've already passed through.
@@ -150,6 +166,10 @@ Analyze your existing location history to create visits retroactively for trip p
 6. Review the **Action Summary** showing what will happen on Apply.
 7. Click **Apply** to create selected visits and delete selected stale/existing visits.
 
+![Visit Backfill Analysis](images/trip-visits-backfill-analysis-tool.JPG)
+
+![Consider Also Suggestions](images/trip-visits-backfill-analysis-tool-consider-also-suggestions.JPG)
+
 **Place context map:**
 
 Click any visit row to open a context map modal showing:
@@ -158,6 +178,8 @@ Click any visit row to open a context map modal showing:
 - Ping tooltips with timestamp, accuracy, and distance details.
 - A ruler measurement tool for manual distance checks.
 - Auto-fit bounds to show all relevant data.
+
+![Place Context Map](images/trip-visits-backfill-analysis-tool-visual-context.JPG)
 
 **Confidence scoring:**
 
@@ -204,6 +226,10 @@ When editing a trip, the progress header shows:
   - Region-by-region breakdown with per-place visit status.
   - Visit details including dates and dwell time.
   - Share Progress option to copy public URL.
+
+![Trip Execution Report](images/trip-execution-report.JPG)
+
+![Visited Places Report](images/trip-execution-report-visited.JPG)
 
 ---
 

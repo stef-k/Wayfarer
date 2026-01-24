@@ -11,6 +11,14 @@ The Wayfarer API provides RESTful endpoints for mobile app integration and exter
 - Public endpoints (public trips, public timeline) require no auth.
 - Private resources require token ownership.
 
+Manage your API tokens from **User Settings > API Tokens**:
+
+![API Tokens Management](images/api-tokens-1.JPG)
+
+![Create API Token](images/api-tokens-2.JPG)
+
+![Token Details](images/api-tokens-3.JPG)
+
 ---
 
 ## Base Controller

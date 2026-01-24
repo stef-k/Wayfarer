@@ -1,8 +1,12 @@
 # Timeline (Public/Private, Hidden Areas, Embed)
 
+![All Locations View](images/all-locations.JPG)
+
 Private vs Public
 - Your timeline is private by default. You can make it public to share on the web.
 - When public, visitors can view your timeline via a public URL. You can set a time threshold (e.g., hide the most recent hours/days).
+
+![Public Timeline](images/public-timeline.JPG)
 
 Time Threshold Options
 - Preset values: Now (live), 1 hour, 1 day, 1 week, 1 month, 1 year.
@@ -12,6 +16,10 @@ Time Threshold Options
 Hidden Areas
 - You can draw Hidden Areas so locations inside them never appear on your public timeline.
 - Manage from: User > Hidden Areas. Create, edit, or delete polygons that hide sensitive places.
+
+![Hidden Areas](images/hidden-areas.JPG)
+
+![Adding a Hidden Area](images/add-hidden-area.JPG)
 
 Embed Your Public Timeline
 - Use the embed URL to include your public timeline in another site:
@@ -47,8 +55,16 @@ Location Search & Filters
 - **Geographic filters** — filter by country, region, or city.
 - **Notes search** — find locations containing specific text in notes.
 
+![Location Search](images/all-locations-search.JPG)
+
+![Split View with Statistics](images/locations-split-view.JPG)
+
+![Timeline Statistics](images/private-timeline-statistics.JPG)
+
 Bulk Edit Notes
 - From Locations > Bulk Edit Notes, you can search by filters and update notes for many records at once.
+
+![Bulk Edit Notes](images/bulk-edit-location-notes.JPG)
 
 Wikipedia Search
 - Click the **Wiki** button on any location to discover related Wikipedia articles.

@@ -2,6 +2,8 @@
 
 Wayfarer is a comprehensive self-hosted travel companion with location tracking, trip planning, and real-time sharing capabilities.
 
+![Home Page](images/home.JPG)
+
 ---
 
 ## Maps and Tiles
@@ -34,6 +36,12 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Location statistics** show visit counts by country, region, and city.
 - **GPS accuracy filtering** — configurable threshold (default 50m) filters noisy readings.
 
+![All Locations View](images/all-locations.JPG)
+
+![Location Search and Filters](images/all-locations-search.JPG)
+
+![Split View with Statistics](images/locations-split-view.JPG)
+
 ---
 
 ## Privacy Controls
@@ -42,6 +50,10 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Public timeline threshold** — control how recent data appears (e.g., hide last 2 hours).
 - **Public/private toggle** — timeline is private by default; opt-in to share.
 - **Embeddable timeline** — iframe your public timeline into other websites.
+
+![Hidden Areas Management](images/hidden-areas.JPG)
+
+![Adding a Hidden Area](images/add-hidden-area.JPG)
 
 ---
 
@@ -69,6 +81,16 @@ Visitors can browse public content without authentication:
 - **Timeline statistics**: distance traveled, time spent, visit counts.
 - **Embeddable** for external websites via iframe.
 
+![Public Trips Discovery](images/public-trips.JPG)
+
+![Trip Preview with Picture-in-Picture](images/public-trip-preview.jpg)
+
+![Public Trip Details](images/public-trip-details.JPG)
+
+![Public Trip Place Details](images/public-trip-place-details.JPG)
+
+![Public Timeline](images/public-timeline.JPG)
+
 ---
 
 ## Trips
@@ -82,6 +104,12 @@ Visitors can browse public content without authentication:
 - **Export trips** to PDF (printable guide with maps and links) or KML.
 - **Public trip sharing** with optional visit progress display.
 - **Trip thumbnails** auto-generated for preview cards.
+
+![User Trips List](images/user-trips.JPG)
+
+![Trip Editor](images/trip-edit-1.JPG)
+
+![Place Details with Wikipedia Search](images/place-details-wikipedia-geosearch-dark-theme.JPG)
 
 ---
 
@@ -104,6 +132,16 @@ Visitors can browse public content without authentication:
 - Works with all location sources: mobile tracking, manual check-ins, API entries.
 - Configurable detection radius, accuracy thresholds, suggestion multiplier, and confirmation requirements.
 
+![Visit History](images/trip-visits-index.JPG)
+
+![Visit Backfill Analysis Tool](images/trip-visits-backfill-analysis-tool.JPG)
+
+![Backfill Visual Context Map](images/trip-visits-backfill-analysis-tool-visual-context.JPG)
+
+![Consider Also Suggestions](images/trip-visits-backfill-analysis-tool-consider-also-suggestions.JPG)
+
+![Trip Execution Report](images/trip-execution-report.JPG)
+
 ---
 
 ## Groups & Real-Time Sharing
@@ -114,6 +152,12 @@ Visitors can browse public content without authentication:
 - **Real-time location sharing** among trusted group members.
 - **Organization peer visibility** settings for larger groups.
 - **SSE notifications** for instant updates on locations, membership changes, and visits.
+
+![Groups List](images/groups-index.JPG)
+
+![Group Members](images/group-members.JPG)
+
+![Group Invitations](images/group-invitations.JPG)
 
 ---
 
@@ -160,6 +204,18 @@ Visitors can browse public content without authentication:
 - **Registration control** — open/close user self-registration.
 - **Cache management** — view stats, clear LRU or all tiles, rate limiting for anonymous users.
 - **Disk usage summary** — combined view of tile cache and upload storage.
+
+![User Management](images/admin-user-management-index.JPG)
+
+![Admin Settings](images/admin-settings-1.JPG)
+
+![Activity Types Management](images/admin-activity-types.JPG)
+
+![Job Monitoring](images/admin-job-monitoring.JPG)
+
+![Log Viewer](images/admin-log-viewer.JPG)
+
+![Audit Logs](images/admin-audit-logs.JPG)
 
 ---
 

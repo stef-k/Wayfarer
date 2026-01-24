@@ -2,6 +2,8 @@
 
 Groups enable trusted location sharing among family, friends, or teams.
 
+![Groups List](images/groups-index.JPG)
+
 ---
 
 ## What Are Groups?
@@ -46,6 +48,8 @@ Choose **Organization** for teams or formal groups that need oversight. Choose *
 4. Click **Create** to save.
 5. Invite members using the Members page.
 
+![Group Members](images/group-members.JPG)
+
 ---
 
 ## Invitation System
@@ -63,6 +67,8 @@ Groups use a token-based invitation system:
 - **Accepted** — user joined the group
 - **Declined** — user rejected the invitation
 - **Expired** — invitation timed out
+
+![Group Invitations](images/group-invitations.JPG)
 
 ---
 
