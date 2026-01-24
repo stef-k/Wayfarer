@@ -90,6 +90,10 @@ dotnet run                  # launch locally (reads appsettings.Development.json
 ```
 
 1. Sign in with the seeded `admin` / `Admin1!` account and change the password.
+
+> **Warning**
+> Do not expose the app publicly until the seeded admin password is changed and registration is disabled.
+
 2. Configure thresholds, cache limits, and registration mode under **Admin > Settings**.
 3. Invite users or enable open registration; managers only see data from users who trust them.
 4. (Optional) Add a personal Mapbox token on your account to enrich locations with addresses.
