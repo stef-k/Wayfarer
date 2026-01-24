@@ -186,7 +186,24 @@ GRANT ALL ON SCHEMA public TO wayfareruser;
 
 ### Configure Connection String
 
-#### Option A: Systemd Environment Variable (Recommended)
+The database password should be configured via systemd environment variable (not stored in appsettings.json files).
+
+#### Automated Setup (install.sh)
+
+The `install.sh` script automatically:
+1. Prompts for the database password during installation
+2. Creates the PostgreSQL user with that password
+3. Configures the systemd service with the connection string
+
+For non-interactive installation, set the `DB_PASS` environment variable:
+
+```bash
+DB_PASS="your-secure-password" ./deployment/install.sh --non-interactive
+```
+
+#### Manual Configuration
+
+If configuring manually, edit the systemd service file:
 
 ```bash
 sudo nano /etc/systemd/system/wayfarer.service
@@ -198,15 +215,14 @@ Add under `[Service]`:
 Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfareruser;Password=your-secure-password-here"
 ```
 
-#### Option B: Edit appsettings.json
+Then reload systemd:
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=wayfarer;Username=wayfareruser;Password=your-secure-password-here"
-  }
-}
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart wayfarer
 ```
+
+**Note:** The `appsettings.json` file contains a placeholder password (`CHANGE_ME_BEFORE_DEPLOY`). The systemd environment variable overrides this at runtime, which is more secure than storing passwords in config files.
 
 ---
 
