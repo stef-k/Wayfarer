@@ -76,7 +76,7 @@ For the rest of this guide, we'll use the system user `wayfarer`.
 sudo apt update && sudo apt upgrade -y
 ```
 
-### 2. Install .NET 9 SDK
+### 2. Install .NET 10 SDK
 
 ```bash
 # Download Microsoft package repository
@@ -84,13 +84,13 @@ wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb
 rm packages-microsoft-prod.deb
 
-# Install .NET 9 SDK
+# Install .NET 10 SDK
 sudo apt update
-sudo apt install -y dotnet-sdk-9.0
+sudo apt install -y dotnet-sdk-10.0
 
 # Verify installation
 dotnet --version
-# Should output: 9.0.x
+# Should output: 10.0.x
 ```
 
 **Note:** For Ubuntu/Debian versions or ARM devices, see: <https://learn.microsoft.com/en-us/dotnet/core/install/linux>

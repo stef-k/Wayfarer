@@ -6,7 +6,7 @@ Supported Platforms
 
 Core Dependencies
 
-- .NET 9 SDK
+- .NET 10 SDK
 - PostgreSQL (13+) with PostGIS extension
 - Reverse proxy (nginx, Caddy, IIS) recommended
 

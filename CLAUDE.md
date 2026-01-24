@@ -8,7 +8,7 @@ Pick and use sub agents if their proficiency matches with the tasks at hand and 
 
 ## Development environment
 
-* The project is developed in Windows 10 with .net 9 ASP.NET MVC. The database is PostgreSQL with PostGIS. Front end is plain modern JavaScript with preference in arrow functions. For tile services uses Open Street Map but with local cache in order to respect fair use policies and Leaflet library.
+* The project is developed in Windows 10 with .NET 10 ASP.NET MVC. The database is PostgreSQL with PostGIS. Front end is plain modern JavaScript with preference in arrow functions. For tile services uses Open Street Map but with local cache in order to respect fair use policies and Leaflet library.
 
 ## Application Description
 
@@ -41,4 +41,4 @@ Pick and use sub agents if their proficiency matches with the tasks at hand and 
 ## Project files
 
 * Backend this application - web app is found at C:\Users\stef\source\repos\Wayfarer
-* Mobile app is found at C:\Users\stef\source\repos\Wayfarer.Mobile
+* Mobile app is found at C:\Users\stef\source\repos\WayfarerMobile

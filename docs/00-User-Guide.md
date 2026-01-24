@@ -4,7 +4,7 @@ Welcome to Wayfarer — a self‑hosted trip planning and personal location time
 
 Links
 - Backend (web app): https://github.com/stef-k/Wayfarer
-- Mobile app: https://github.com/stef-k/Wayfarer.Mobile
+- Mobile app: https://github.com/stef-k/WayfarerMobile
 - Example live instance: https://wayfarer.stefk.me/
 - License: see repository `LICENSE.txt`
 - Author: Stef Karyotidis — https://stefk.me — https://github.com/stef-k

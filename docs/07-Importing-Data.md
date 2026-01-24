@@ -15,6 +15,14 @@ How Imports Work
 - If reverse geocoding is configured (per‑user token), missing addresses are enriched.
 - Progress updates show status and last imported record.
 
+Import Controls
+- **Start** — begin or resume processing a stopped/failed import.
+- **Stop** — pause an in-progress import (can resume later).
+- **Regenerate** — reprocess the file from scratch.
+- **Delete** — remove the import and associated uploaded file.
+- Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
+- Large files are processed asynchronously with SSE progress updates.
+
 Reverse Geocoding Tokens (Optional)
 - You can add a personal Mapbox API token to enrich imported points with addresses.
 - Create an API token named “Mapbox” under your account (or via Admin/Manager if delegated), then re‑run imports to enrich future data.

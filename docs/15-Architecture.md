@@ -1,6 +1,6 @@
 # Architecture
 
-Overview of Wayfarer's technical architecture and design patterns.
+Overview of Wayfarer's technical architecture, design patterns, and application structure.
 
 ---
 
@@ -15,6 +15,7 @@ Overview of Wayfarer's technical architecture and design patterns.
 | Logging | Serilog (console, file, PostgreSQL) |
 | Frontend | Razor views, Leaflet, vanilla JS |
 | Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild-based) |
+| Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
 | PDF Export | Microsoft Playwright |
 | Geocoding | Mapbox API (optional) |
@@ -29,12 +30,32 @@ The application uses ASP.NET Areas for logical separation:
 
 | Area | Purpose |
 |------|---------|
-| **Admin** | System-wide administration (users, settings, jobs, logs) |
-| **Api** | RESTful API endpoints for mobile and external access |
-| **Identity** | Authentication and account management |
-| **Manager** | Business-level administration |
-| **User** | User features (trips, locations, visits, groups) |
-| **Public** | Public-facing pages (shared timelines, public trips) |
+| **Admin** | System-wide administration (users, settings, jobs, logs, audit logs, activity types, API tokens) |
+| **Api** | RESTful JSON APIs for trips, locations, groups, invitations, SSE, icons, settings |
+| **Identity** | Authentication UI for login/registration and account management |
+| **Manager** | Business-level administration (groups, users, API tokens with delegated scope) |
+| **User** | User features (trips, locations, visits, groups, imports, settings) |
+| **Public** | Public-facing pages (shared timelines, public trips, trip discovery) |
+
+---
+
+## Routing
+
+- MVC controllers under `Controllers/` and per-area controllers follow conventional routes.
+- API controllers use `[Area("Api")]` and `[Route("api/[controller]")]`.
+- Trip exports: `TripExportController` uses routes like `Trip/ExportPdf/{id}`.
+
+### Public Timeline Routes
+
+- User public timeline: `GET /Public/Users/Timeline/{username}` (full page view)
+- Embeddable view: `GET /Public/Users/Timeline/{username}/embed`
+- Data API: `POST /Public/Users/GetPublicTimeline` (with viewport/zoom filter), `GET /Public/Users/GetPublicStats/{username}`
+- Hidden Areas are enforced: locations inside user-defined hidden polygons are excluded from public results.
+
+### Base Controllers
+
+- `Controllers/BaseController` — shared helpers for MVC controllers (logging, alerts, titles).
+- `Areas/Api/Controllers/BaseApiController` — token extraction, role helpers, numeric/geometry sanitizers.
 
 ---
 

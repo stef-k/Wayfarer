@@ -4,6 +4,11 @@ Private vs Public
 - Your timeline is private by default. You can make it public to share on the web.
 - When public, visitors can view your timeline via a public URL. You can set a time threshold (e.g., hide the most recent hours/days).
 
+Time Threshold Options
+- Preset values: Now (live), 1 hour, 1 day, 1 week, 1 month, 1 year.
+- Custom threshold using format: `y` (years), `m` (months), `d` (days), `h` (hours).
+- Examples: `1m` (1 month), `2w` (2 weeks), `1.5d` (1.5 days), `6h` (6 hours).
+
 Hidden Areas
 - You can draw Hidden Areas so locations inside them never appear on your public timeline.
 - Manage from: User > Hidden Areas. Create, edit, or delete polygons that hide sensitive places.
@@ -34,8 +39,22 @@ Inline Activity Editing
 - Click the activity dropdown to switch between available types without opening a full edit form.
 - Changes save automatically when a new activity is selected.
 
+Location Search & Filters
+- **Date range** — filter by from/to dates.
+- **Coordinate search** — find locations near specific latitude/longitude.
+- **Activity filter** — filter by activity type (walking, driving, etc.).
+- **Address search** — search by address text.
+- **Geographic filters** — filter by country, region, or city.
+- **Notes search** — find locations containing specific text in notes.
+
 Bulk Edit Notes
 - From Locations > Bulk Edit Notes, you can search by filters and update notes for many records at once.
+
+Wikipedia Search
+- Click the **Wiki** button on any location to discover related Wikipedia articles.
+- Uses dual search strategy: geosearch (nearby coordinates) combined with text search (place name) for reliable results.
+- Hover to see an article summary with excerpt and link to the full Wikipedia page.
+- Works in location popups, modals, and trip place views.
 
 Location Metadata
 - Each location record can store additional metadata:

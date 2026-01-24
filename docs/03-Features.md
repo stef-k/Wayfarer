@@ -27,6 +27,7 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Metadata preservation** — accuracy, speed, altitude, heading, and source tracked per location.
 - **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 - **Reverse geocoding** enriches coordinates with addresses when a Mapbox token is configured.
+- **Wikipedia integration** — click the Wiki button on any location to see nearby Wikipedia articles; uses dual geo + text search for reliable discovery.
 - **Activity types** categorize entries (walking, driving, eating, etc.).
 - **Inline activity editing** — edit activity type directly from location modals and tables.
 - **Bulk edit notes** to update multiple location records at once.
@@ -44,10 +45,37 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 ---
 
+## Public Discovery
+
+Visitors can browse public content without authentication:
+
+**Trip Discovery:**
+- **Search** trips by name and description.
+- **Tag filtering** with "All" (must match all tags) or "Any" (match at least one) modes.
+- **Popular tags** display with usage counts.
+- **Sort options**: by update date or name (A-Z, Z-A).
+- **View modes**: Grid layout (cards) or List layout (table).
+- **Trip cards** show cover image, owner, description excerpt, tags, and stats.
+- **Picture-in-Picture** map preview on hover.
+- **Recent update badge** for trips updated within 7 days.
+- **Quick preview** modal with full trip details.
+- **Clone trips** (authenticated users can copy public trips to their account).
+- **Share button** copies public trip URL to clipboard.
+
+**Public Timeline:**
+- View any user's public timeline by username.
+- Interactive map with location markers.
+- Location details: coordinates, address, activity, timestamp, altitude, speed.
+- **Timeline statistics**: distance traveled, time spent, visit counts.
+- **Embeddable** for external websites via iframe.
+
+---
+
 ## Trips
 
 - Organize trips into **Regions**, **Places** (points), **Areas** (polygons), and **Segments** (routes).
 - Add **notes** (rich HTML), **colors**, **icons**, and **travel modes**.
+- **Wikipedia lookup** — click the Wiki button on any place to see relevant articles via geo + text search.
 - **Trip tags** for organization with public browsing by tag.
 - **Cover images** for trips and regions.
 - **Import trips** from Google MyMaps KML or Wayfarer format with duplicate handling.
@@ -64,15 +92,17 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - Records **visit events** with arrival/departure times and place snapshot data.
 - **Visit management UI** to view, search, and edit visit history.
 - **Visit backfill** — analyze existing location history to create visits retroactively:
-  - Preview new, stale, and existing visits before applying.
-  - Confidence scoring based on location count and proximity.
+  - 4-tab interface: Confirmed, Consider Also, Stale, Existing.
+  - **Consider Also** suggestions catch near-miss visits with cross-tier evidence.
+  - Confidence scoring based on location count, proximity, and tier hit counts.
+  - **Place context map** — click any row to see place marker, contributing pings, and ruler tool.
   - Stale visit detection when places are deleted or moved.
   - Select/deselect functionality with manual visit deletion.
   - Clear All Visits option in trip menu.
 - **Visit-to-location navigation** — view underlying location records from any visit.
 - **Notification cooldown** — configurable delay to reduce SSE spam for repeated visits.
 - Works with all location sources: mobile tracking, manual check-ins, API entries.
-- Configurable detection radius, accuracy thresholds, and confirmation requirements.
+- Configurable detection radius, accuracy thresholds, suggestion multiplier, and confirmation requirements.
 
 ---
 
@@ -89,7 +119,7 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 ## Mobile App Integration
 
-- Companion app **Wayfarer.Mobile** (.NET MAUI) connects via API tokens.
+- Companion app **WayfarerMobile** (.NET MAUI) connects via API tokens.
 - **Live GPS tracking** with configurable intervals.
 - **Manual check-ins** for specific locations.
 - **Offline map tiles** cached for use without connectivity.
@@ -109,19 +139,27 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 ---
 
-## Admin Features
+## Admin & Manager Features
 
-- **User management** — create, edit, lock/unlock, assign roles.
+**Manager capabilities** (also available to Admins):
+- **User management** — create, edit, lock/unlock, assign roles (Admin, Manager, User).
+- **Password management** — reset any user's password.
+- **API token management** — view, create, regenerate, or revoke tokens for any user.
+- **Group management** — create and manage groups, invite members, view group maps.
+
+**Admin-only capabilities:**
+- **Protected users** — first admin account is protected and cannot be deleted.
 - **Application settings** — location thresholds, visit detection, upload limits, cache sizes.
 - **Tile provider settings** — presets, custom templates, API keys, validation, cache purge on change.
 - **GPS accuracy threshold** — filter low-quality location readings (default 50m).
-- **Visit notification cooldown** — reduce notification spam for repeated arrivals.
-- **Audit logs** — track all admin actions for compliance.
-- **Activity types** — manage location activity categories.
-- **Job monitoring** — view scheduled jobs, execution history, and status.
-- **Log viewer** — real-time application log viewing with search.
+- **Visit detection tuning** — required hits, radius ranges, accuracy multipliers, notification cooldown.
+- **Audit logs** — track login attempts, password changes, role modifications, data exports.
+- **Activity types** — manage location activity categories (69 preseeded types).
+- **Job monitoring** — start, pause, resume, cancel scheduled jobs; view execution history.
+- **Log viewer** — real-time log viewing with search, auto-refresh, download, and pagination.
 - **Registration control** — open/close user self-registration.
 - **Cache management** — view stats, clear LRU or all tiles, rate limiting for anonymous users.
+- **Disk usage summary** — combined view of tile cache and upload storage.
 
 ---
 
@@ -143,6 +181,8 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 | Database | PostgreSQL + PostGIS via EF Core |
 | Spatial | NetTopologySuite, GiST indexes |
 | Frontend | Razor views, Leaflet, vanilla JS |
+| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild) |
+| Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
 | PDF Export | Microsoft Playwright |
 | Geocoding | Mapbox API (optional) |

@@ -2,7 +2,7 @@
 
 Project Links
 - Backend (web app): https://github.com/stef-k/Wayfarer
-- Mobile app: https://github.com/stef-k/Wayfarer.Mobile
+- Mobile app: https://github.com/stef-k/WayfarerMobile
 - Example live instance: https://wayfarer.stefk.me/
 
 License

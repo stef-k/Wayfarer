@@ -16,18 +16,35 @@ Groups support three member roles with different permissions:
 
 | Role | Permissions |
 |------|-------------|
-| **Owner** | Full control: manage members, change settings, delete group |
-| **Manager** | Add/remove members, manage invitations |
-| **Member** | View group locations, receive updates |
+| **Owner** | Full control: manage members, change settings, delete group. Cannot leave the group. |
+| **Manager** | Add/remove members (except owner), manage invitations. Required in Organization groups. |
+| **Member** | View group locations, receive updates. Can leave the group. |
+
+**Note:** Organization-type groups must always have at least one Manager. Attempting to remove the last manager is blocked.
+
+---
+
+## Group Types
+
+When creating a group, choose a type that matches your sharing needs:
+
+| Type | Visibility Behavior |
+|------|---------------------|
+| **Organization** | Structured sharing with required manager role — must always have at least one manager |
+| **Family** | All members see each other's locations automatically |
+| **Friends** | Casual sharing with peer visibility controls — members can adjust who sees them |
+
+Choose **Organization** for teams or formal groups that need oversight. Choose **Family** for close-knit groups where everyone should see everyone. Choose **Friends** for larger or more casual groups where members may want granular control.
 
 ---
 
 ## Creating a Group
 
 1. Open **Groups** and click **Create**.
-2. Name the group and save.
-3. Invite members using usernames or email addresses.
-4. Configure visibility and privacy settings.
+2. Name the group and add an optional description.
+3. Select the **Group Type** (Family or Friends).
+4. Click **Create** to save.
+5. Invite members using the Members page.
 
 ---
 
@@ -67,14 +84,28 @@ Groups receive real-time updates through dedicated SSE channels:
 
 ---
 
-## Group Timeline
+## Group Map
 
-The group timeline view shows:
+The group map provides rich location visualization:
 
-- All member locations respecting privacy settings.
+**Chronological Navigation:**
+- Day/Month/Year view modes with navigation buttons.
+- Jump to Today or pick a specific date.
+- Historical locations toggle to view past data.
+
+**Member Controls:**
+- Search members by username or display name.
+- Select All / Deselect All for quick filtering.
+- Show All / Hide All location markers.
+- Per-member visibility toggles.
+- "Only" button to isolate one member's locations.
+- Visual indicator for disabled peer visibility.
+
+**Location Display:**
 - Color-coded markers per member.
-- Time-filtered queries (last hour, day, week).
-- Spatial queries within bounding boxes.
+- Click locations for detailed information modal.
+- Live/latest location indicators.
+- Sampled data for large date ranges (month/year views).
 
 ---
 
@@ -98,7 +129,7 @@ The group timeline view shows:
 
 ## Mobile App Integration
 
-The Wayfarer.Mobile app supports groups:
+The WayfarerMobile app supports groups:
 
 - View group members and their locations.
 - Subscribe to live updates via SSE.

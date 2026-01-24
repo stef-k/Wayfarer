@@ -1,6 +1,6 @@
 # Mobile App
 
-The Wayfarer.Mobile companion app connects to your self-hosted Wayfarer server for GPS tracking, trip navigation, and real-time updates.
+The WayfarerMobile companion app connects to your self-hosted Wayfarer server for GPS tracking, trip navigation, and real-time updates.
 
 ---
 

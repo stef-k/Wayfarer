@@ -10,7 +10,7 @@ Wayfarer is designed for self-hosting by power users, small businesses, and orga
 
 ### Core Dependencies
 
-- **.NET 9 SDK** - Application runtime
+- **.NET 10 SDK** - Application runtime
 - **PostgreSQL 13+** with **PostGIS extension** - Database
 - **Nginx** (or similar reverse proxy) - Recommended for production
 
@@ -30,7 +30,7 @@ If you want to export trips as PDF documents, you'll need:
 
 ### Basic Setup Steps
 
-1. **Install dependencies** (.NET 9, PostgreSQL + PostGIS, Nginx)
+1. **Install dependencies** (.NET 10, PostgreSQL + PostGIS, Nginx)
 2. **Create database and user** with PostGIS enabled
 3. **Clone or download** Wayfarer
 4. **Configure connection string** in `appsettings.json`
@@ -73,7 +73,7 @@ wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb
 sudo apt update
 # 2) Install packages
-sudo apt install -y dotnet-sdk-9.0 postgresql postgis nginx
+sudo apt install -y dotnet-sdk-10.0 postgresql postgis nginx
 
 # Install Chrome dependencies (for PDF export)
 sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
@@ -99,7 +99,7 @@ dotnet run
 
 ### Windows
 
-1. Install .NET 9 SDK from [microsoft.com/dotnet](https://dotnet.microsoft.com/download)
+1. Install .NET 10 SDK from [microsoft.com/dotnet](https://dotnet.microsoft.com/download)
 2. Install PostgreSQL + PostGIS from [postgresql.org (Windows installer)](https://www.postgresql.org/download/windows/) or [enterprisedb.com](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
 3. Clone the repository
 4. Configure `appsettings.Development.json` with your connection string

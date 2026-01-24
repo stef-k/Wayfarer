@@ -1,7 +1,7 @@
 # Mobile Integration
 
 Overview
-- Mobile app: .NET MAUI project (`Wayfarer.Mobile`) with Refit-based API clients, offline tile caching, optional background tracking, and SSE subscriptions for live updates.
+- Mobile app: .NET MAUI project (`WayfarerMobile`) with Refit-based API clients, offline tile caching, optional background tracking, and SSE subscriptions for live updates.
 - Server-agnostic: users configure their own server URL and API token; no hardcoded domains.
 
 HTTP Clients

@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/stef-k/Wayfarer/actions/workflows/tests.yml/badge.svg)](https://github.com/stef-k/Wayfarer/actions/workflows/tests.yml)
 
-Wayfarer is a self-hosted travel companion that lets you keep a private location timeline, plan trips, and optionally share real-time progress with trusted people. The web app runs on ASP.NET Core and PostgreSQL/PostGIS, and a companion mobile app (Wayfarer.Mobile) can stream live GPS updates or manual check-ins straight to your server.
+Wayfarer is a self-hosted travel companion that lets you keep a private location timeline, plan trips, and optionally share real-time progress with trusted people. The web app runs on ASP.NET Core and PostgreSQL/PostGIS, and a companion mobile app (WayfarerMobile) can stream live GPS updates or manual check-ins straight to your server.
 
 ## Key Features
 
@@ -13,6 +13,7 @@ Wayfarer is a self-hosted travel companion that lets you keep a private location
 - **Metadata preservation** — accuracy, speed, altitude, heading tracked per location.
 - **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 - **Reverse geocoding** enriches coordinates with addresses (Mapbox token required).
+- **Wikipedia integration** — discover related articles for any location or trip place.
 - **Location statistics** — visit counts by country, region, and city.
 - **Bulk edit notes** to update multiple records at once.
 - **Inline activity editing** — change activity type directly from location views.
@@ -81,7 +82,7 @@ Full documentation available via GitHub Pages:
 
 ## Mobile Companion
 
-The [Wayfarer.Mobile](https://github.com/stef-k/Wayfarer.Mobile) app (built with .NET MAUI) connects to your server:
+The [WayfarerMobile](https://github.com/stef-k/WayfarerMobile) app (built with .NET MAUI) connects to your server:
 
 - **Live GPS tracking** with configurable intervals
 - **Manual check-ins** for specific locations
@@ -97,6 +98,8 @@ The [Wayfarer.Mobile](https://github.com/stef-k/Wayfarer.Mobile) app (built with
 | Database | PostgreSQL/PostGIS via EF Core & NetTopologySuite |
 | Spatial | GiST indexes, ST_DWithin queries |
 | Frontend | Razor views, Leaflet maps, vanilla JS |
+| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild) |
+| Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
 | PDF Export | Microsoft Playwright |
 | Logging | Serilog (console, file, DB) |
