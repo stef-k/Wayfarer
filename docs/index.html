@@ -35,6 +35,14 @@
           nextText: "Next",
           crossChapter: true,
         },
+        plugins: [
+          function(hook) {
+            hook.doneEach(function() {
+              var pageTitle = document.querySelector('#main h1');
+              document.title = 'Wayfarer - ' + (pageTitle ? pageTitle.textContent : 'Docs');
+            });
+          }
+        ],
       };
     </script>
     <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
