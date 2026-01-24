@@ -22,11 +22,11 @@ If you want to export trips as PDF documents, you'll need:
 - Chrome browser is **automatically downloaded** by the application on first PDF export
 - No manual Chrome installation needed - it's handled automatically!
 
-**Linux users:** See [Install Chromium Runtime Dependencies (PDF export)](26-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export)
+**Linux users:** See [Install Chromium Runtime Dependencies (PDF export)](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export)
 
 **Windows users:** No additional setup needed - Chrome downloads automatically.
 
-> **Note:** If PDF export doesn't work after installation, see the [PDF Export / Playwright Issues](26-Deployment.md#pdf-export--playwright-issues) guide.
+> **Note:** If PDF export doesn't work after installation, see the [PDF Export / Playwright Issues](20-Deployment.md#pdf-export--playwright-issues) guide.
 
 ### Basic Setup Steps
 
@@ -120,7 +120,7 @@ For detailed production deployment instructions including:
 - Log rotation and monitoring
 - Update procedures and troubleshooting
 
-**→ See the comprehensive [Deployment Guide](26-Deployment.md)**
+**→ See the comprehensive [Deployment Guide](20-Deployment.md)**
 
 ---
 
@@ -188,11 +188,11 @@ After installation:
 
 ## Getting Help
 
-- **Detailed Installation:** [Developer Deployment Guide](26-Deployment.md)
+- **Detailed Installation:** [Developer Deployment Guide](20-Deployment.md)
 - **Configuration Reference:** [Developer Configuration Guide](16-Configuration.md)
 - **Troubleshooting:** [User Troubleshooting Guide](10-Troubleshooting.md)
 - **GitHub Issues:** Report bugs and request features
 
 ---
 
-**Ready to deploy?** Check out the [full deployment guide](26-Deployment.md) for step-by-step instructions!
+**Ready to deploy?** Check out the [full deployment guide](20-Deployment.md) for step-by-step instructions!
