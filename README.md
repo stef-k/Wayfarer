@@ -4,6 +4,18 @@
 
 Wayfarer is a self-hosted travel companion that lets you keep a private location timeline, plan trips, and optionally share real-time progress with trusted people. The web app runs on ASP.NET Core and PostgreSQL/PostGIS, and a companion mobile app (WayfarerMobile) can stream live GPS updates or manual check-ins straight to your server.
 
+## Security Model & Intended Use
+
+Wayfarer is a privacy-first, self-hosted location timeline and trip companion for individuals, families, and teams who want to keep their data on their own infrastructure.
+By default, deployments should assume a **closed registration model** and operate behind a reverse proxy with HTTPS.
+
+If you expose Wayfarer publicly, you are responsible for:
+
+* keeping the server updated
+* enforcing strong admin credentials and 2FA
+* rate limiting API endpoints (especially location logging)
+* avoiding public access to admin-only routes and logs
+
 ## Key Features
 
 ### Location Timeline
@@ -72,6 +84,15 @@ dotnet run                  # launch locally (reads appsettings.Development.json
 
 > **Note:** The `appsettings.json` files contain placeholder database passwords. For production, configure credentials via systemd environment variables—see the [Deployment Guide](https://stef-k.github.io/Wayfarer/#/developer/26-Deployment).
 
+### Production Notes
+
+For real deployments, it's recommended to:
+
+* keep public registration disabled unless you explicitly want open signups
+* run behind a reverse proxy (Nginx / Caddy) with HTTPS
+* store secrets (DB credentials, tokens) via environment variables (systemd), not in `appsettings.json`
+* enable request limiting for API endpoints that accept GPS updates
+
 ## Documentation
 
 Full documentation available via GitHub Pages:
@@ -105,6 +126,13 @@ The [WayfarerMobile](https://github.com/stef-k/WayfarerMobile) app (built with .
 | Logging | Serilog (console, file, DB) |
 | Auth | ASP.NET Core Identity with 2FA |
 | Tests | xUnit |
+
+### Map Tiles & Attribution
+
+Wayfarer supports multiple tile providers via Admin settings (OpenStreetMap, Carto, ESRI, or custom URL templates).
+The app includes **built-in tile caching** to reduce bandwidth and respect fair-use policies.
+If you use public OpenStreetMap tile servers, ensure proper attribution is displayed.
+For heavy usage, consider a dedicated tile provider or self-hosted tile server.
 
 ## API
 
@@ -141,6 +169,11 @@ This is a spare-time project that currently meets my needs. I'll improve it when
   - Include repro steps, tests (if applicable), and docs updates.
 
 > Note: This project is MIT-licensed and provided **"as is" without warranty**.
+
+## Branding
+
+The **Wayfarer** name and project identity are intended to refer to this repository.
+Forks and modified redistributions should **use a different name** to avoid confusion and false association.
 
 ## License
 
