@@ -39,6 +39,32 @@ Manage your API tokens from **User Settings > API Tokens**:
 | GET | `/api/settings` | Application settings (thresholds, limits) |
 | GET | `/api/activity` | List of activity types |
 
+### Icons
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/icons?layout=marker\|circle` | List available map icons |
+| GET | `/api/icons/colors` | Available icon colors (backgrounds and glyphs) |
+| GET | `/api/icons/with-previews?layout=marker\|circle` | Icons with PNG preview URLs |
+
+### Tags
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tags/suggest?q={query}&take={count}` | Tag autocomplete suggestions |
+| GET | `/api/tags/popular?take={count}` | Popular tags list |
+
+### Users
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/users/{id}/basic` | Basic user info (Manager/User role required) |
+| GET | `/api/users/stats` | User location statistics |
+| GET | `/api/users/stats/detailed` | Detailed stats with country/region/city arrays |
+| GET | `/api/users/activity?sinceHours={hours}` | Recent user activity (invites, memberships) |
+| GET | `/api/users/search?query={query}&groupId={groupId}` | Search users for invitations |
+| DELETE | `/api/users/{userId}/locations` | Delete all user locations |
+
 ### Trips
 
 | Method | Endpoint | Description |
@@ -68,6 +94,15 @@ Manage your API tokens from **User Settings > API Tokens**:
 | POST | `/api/location/log-location` | Background GPS logging (filters: time, distance, accuracy, duplicates) |
 | POST | `/api/location/check-in` | Manual check-in (rate-limited, bypasses time/distance thresholds) |
 | GET | `/api/location/stats` | User location statistics |
+| GET | `/api/location/search` | Search locations with filters (date, activity, address, country, region, city) |
+| POST | `/api/location/get-user-locations` | Get user locations filtered by zoom and bounds |
+| PUT | `/api/location/{id}` | Update location (coordinates, notes, activity, timestamp) |
+| DELETE | `/api/location/{id}` | Delete single location |
+| POST | `/api/location/bulk-delete` | Bulk delete locations |
+| GET | `/api/location/chronological` | Chronological location data by day/month/year |
+| GET | `/api/location/chronological-stats` | Statistics for date ranges |
+| GET | `/api/location/has-data-for-date` | Check if user has data for a specific date |
+| GET | `/api/location/check-navigation-availability` | Navigation availability for timeline UI |
 
 #### Idempotency
 
@@ -106,10 +141,21 @@ GET/POST /api/location/log-location?lat=37.123&lon=-122.456&token=YOUR_TOKEN
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/visits` | User visit history |
-| GET | `/api/visits/{id}` | Single visit details |
-| PUT | `/api/visits/{id}` | Update visit |
-| DELETE | `/api/visits/{id}` | Delete visit |
+| GET | `/api/visit/search` | Search visits with filters (date, trip, status, place, region) |
+| GET | `/api/visit/trips` | List trips with visits (for filter dropdown) |
+| GET | `/api/visit/{visitId}/locations` | Get locations relevant to a specific visit |
+| POST | `/api/visit/location-counts` | Get location counts for multiple visits |
+| POST | `/api/visit/bulk-delete` | Bulk delete visits |
+
+### Visit Backfill
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/backfill/info/{tripId}` | Backfill analysis metadata |
+| GET | `/api/backfill/preview/{tripId}` | Preview backfill analysis |
+| POST | `/api/backfill/apply/{tripId}` | Apply backfill changes |
+| DELETE | `/api/backfill/clear/{tripId}` | Clear all visits for a trip |
+| GET | `/api/backfill/candidate-locations` | Get location pings for visit candidates |
 
 ### Groups
 

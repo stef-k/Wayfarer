@@ -75,7 +75,6 @@ Trips are **private by default**; you can make them public to share with others.
 
 - Trips automatically generate **map thumbnail previews**.
 - Thumbnails appear in trip lists and cards.
-- Generated using Playwright browser automation.
 - Thumbnails update when trip content changes.
 
 ---
@@ -118,11 +117,11 @@ When you receive GPS pings (from the mobile app, API, or manual entries), the sy
 ### How It Works
 
 1. GPS ping arrives within configured radius of a trip place.
-2. **Two-hit confirmation** — a second ping confirms the visit (reduces GPS noise false positives).
-3. A **PlaceVisitEvent** is recorded with:
-   - Arrival time (UTC)
+2. **Two-hit confirmation** — a second ping confirms the visit (reduces false positives from GPS noise).
+3. A **visit record** is created with:
+   - Arrival time
    - Departure time (when you leave or timeout)
-   - Place snapshot (name, location, notes preserved even if place deleted)
+   - Place snapshot (name, location, notes preserved even if the place is later deleted)
    - Trip and region context
 
 ### Visit Management
@@ -186,9 +185,9 @@ Click any visit row to open a context map modal showing:
 - Each potential visit receives a confidence score based on:
   - Number of location pings within the detection radius.
   - Proximity to the place center.
-  - Tier-based hit counts (Tier 1: within place radius, Tier 2: 2× radius, Tier 3: configurable multiplier).
+  - Multiple detection zones that catch visits even with imprecise GPS data.
 - Higher confidence indicates more reliable visit detection.
-- **Consider Also** suggestions use cross-tier evidence to catch visits that narrowly missed standard thresholds.
+- **Consider Also** suggestions catch visits that narrowly missed standard thresholds using nearby location evidence.
 
 **Clear All Visits:**
 

@@ -9,7 +9,7 @@ Access and Accounts
 - Accounts: Your admin manages registration settings. If registration is closed, request an invite.
 - Account basics: Usernames are the unique identifier for every account. Email addresses are not collected and there is no automated verification flow, so keep track of your credentials.
 - Passwords: Your admin sets initial credentials. Change them after first login under your account settings. Two-factor authentication (2FA) is supported via the account management pages.
-- Lost passwords: Ask an administrator to reset your password. On self-hosted setups an admin can run `dotnet run -- reset-password <username> <new-password>` from the server to recover access.
+- Lost passwords: Ask an administrator to reset your password. Server administrators have access to password reset tools.
 
 Role Overview
 - **Admin** — Manages settings and other accounts. Admin users do not have access to timeline features while acting as admin.
@@ -24,7 +24,7 @@ Password Policy
 App Layout
 - Top Navigation: Switch between Dashboard, Trips, Timeline, Groups, and Admin (if you have access).
 - Left/Right Panels: Context menus (filters, import, settings) depending on the page.
-- Map: Interactive map (Leaflet) with OpenStreetMap tiles (optionally cached locally for performance).
+- Map: Interactive map with OpenStreetMap tiles (cached locally for faster loading).
 
 Core Concepts
 - Timeline: Your personal location points over time (ingested from device logs or imports).

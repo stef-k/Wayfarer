@@ -8,15 +8,15 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 ## Maps and Tiles
 
-- Interactive maps via **Leaflet** with configurable tile providers.
+- **Interactive maps** with configurable tile providers.
 - **Tile provider settings** (Admin > Settings):
   - Built-in presets: OpenStreetMap, Carto Light/Dark, ESRI Satellite.
   - Custom tile URL templates with API key placeholders.
   - Dynamic map attribution from active provider.
 - **Local tile caching** reduces bandwidth and respects fair-use policies:
-  - Zoom levels 0–8 cached permanently (~1.3–1.75 GB).
-  - Higher zooms use LRU policy with configurable cap (default 1024 MB).
-- **Tile rate limiting** for anonymous users (default 500 requests/minute per IP).
+  - Base map tiles cached permanently for fast loading.
+  - Detailed zoom levels cached with automatic cleanup when storage limits are reached.
+- **Rate limiting** protects tile servers from excessive requests.
 - Admin controls for cache statistics, cleanup, provider changes, and size limits.
 
 ---
@@ -229,19 +229,15 @@ Visitors can browse public content without authentication:
 
 ---
 
-## Technology Stack
+## Built With
 
-| Layer | Technology |
-|-------|------------|
-| Backend | ASP.NET Core 10 MVC, Quartz.NET |
-| Database | PostgreSQL + PostGIS via EF Core |
-| Spatial | NetTopologySuite, GiST indexes |
-| Frontend | Razor views, Leaflet, vanilla JS |
-| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild) |
-| Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
-| Real-time | Server-Sent Events (SSE) |
-| PDF Export | Microsoft Playwright |
-| Geocoding | Mapbox API (optional) |
-| Auth | ASP.NET Identity with 2FA |
-| Logging | Serilog (console, file, DB) |
-| Testing | xUnit |
+Wayfarer is a modern web application built for reliability and performance:
+
+- **Backend**: .NET 10 with ASP.NET Core
+- **Database**: PostgreSQL with geographic extensions
+- **Maps**: Interactive maps with customizable tile providers
+- **Real-time**: Live updates via Server-Sent Events
+- **Mobile**: .NET MAUI companion app
+- **Security**: Two-factor authentication supported
+
+For detailed technical specifications, see the [Developer Guide](13-Developer-Guide.md).
