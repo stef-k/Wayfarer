@@ -87,6 +87,7 @@ https://github.com/Leaflet/Leaflet.Editable
 Copyright (c) 2015, Yohan Boniface
 
 Licensed under the WTFPL License.
+http://www.wtfpl.net/
 
 --------------------------------------------------------------------------------
 
@@ -207,8 +208,8 @@ Copyright (c) 2019 Morgan Herlocker
 
 Licensed under the MIT License.
 
-Note: Some Turf.js algorithms may use components licensed under GNU Affero
-General Public License. See the Turf.js repository for specific module licenses.
+Note: Some Turf.js submodules may have different licenses. Refer to the
+Turf.js repository for details.
 
 ================================================================================
 
@@ -371,9 +372,10 @@ Licensed under the Apache License, Version 2.0.
 
 MvcFrontendKit 1.0.0-preview.24
 -------------------------------
-NuGet package for ASP.NET Core MVC frontend utilities.
+https://www.nuget.org/packages/MvcFrontendKit
+https://github.com/nickofc/MvcFrontendKit
 
-Please check the package license on NuGet.org for specific license terms.
+Licensed under the MIT License.
 
 ================================================================================
 
