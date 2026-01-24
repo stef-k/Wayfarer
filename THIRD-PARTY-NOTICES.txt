@@ -1,22 +1,487 @@
-This project includes icons from:
+THIRD-PARTY NOTICES
 
-Google Material Symbols – licensed under the Apache License, Version 2.0  
-https://fonts.google.com/icons  
+This project incorporates components from the projects listed below. The original
+copyright notices and the licenses under which Wayfarer received such components
+are set forth below.
+
+================================================================================
+
+                             ICONS AND ASSETS
+
+================================================================================
+
+Google Material Symbols
+-----------------------
+Licensed under the Apache License, Version 2.0
+https://fonts.google.com/icons
 Copyright 2023 Google LLC.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use these files except in compliance with the License.
-You may obtain a copy of the License at:
-
-    http://www.apache.org/licenses/LICENSE-2.0
 
 Modifications:
 - Icons have been adapted for use in a mapping application context.
-- Changes may include visual styling, sizing, alignment, and embedding in circular or marker-shaped containers.
+- Changes may include visual styling, sizing, alignment, and embedding in
+  circular or marker-shaped containers.
 
 Modifications by: Stef Kariotidis / Wayfarer
 
----
+================================================================================
+
+                         JAVASCRIPT LIBRARIES (FRONTEND)
+
+================================================================================
+
+Leaflet 1.9.4
+-------------
+https://leafletjs.com/
+Copyright (c) 2010-2024, Volodymyr Agafonkin
+Copyright (c) 2010-2011, CloudMade
+All rights reserved.
+
+Licensed under the BSD 2-Clause License:
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+Leaflet.draw 1.0.4
+------------------
+https://github.com/Leaflet/Leaflet.draw
+Copyright (c) 2012-2017, Jacob Toye, Jon West, Smartrak, Leaflet
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Leaflet.markercluster 1.4.1
+---------------------------
+https://github.com/Leaflet/Leaflet.markercluster
+Copyright (c) 2012 David Leaver
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Leaflet.Editable
+----------------
+https://github.com/Leaflet/Leaflet.Editable
+Copyright (c) 2015, Yohan Boniface
+
+Licensed under the WTFPL License.
+
+--------------------------------------------------------------------------------
+
+Leaflet.Path.Drag
+-----------------
+https://github.com/w8r/Leaflet.Path.Drag
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+leaflet-image
+-------------
+https://github.com/mapbox/leaflet-image
+Copyright (c) Mapbox
+
+Licensed under the BSD 2-Clause License.
+
+--------------------------------------------------------------------------------
+
+jQuery 3.7.1
+------------
+https://jquery.com/
+Copyright OpenJS Foundation and other contributors
+
+Licensed under the MIT License.
+https://jquery.org/license
+
+--------------------------------------------------------------------------------
+
+jQuery Validation Plugin 1.21.0
+-------------------------------
+https://jqueryvalidation.org/
+Copyright (c) 2024 Jorn Zaefferer
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+jQuery Validation Unobtrusive 4.0.0
+-----------------------------------
+https://github.com/aspnet/jquery-validation-unobtrusive
+Copyright (c) .NET Foundation
+
+Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+
+QRCode.js
+---------
+https://github.com/davidshimjs/qrcodejs
+Copyright (c) 2012 davidshimjs
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Quill 2.0.3
+-----------
+https://quilljs.com/
+Copyright (c) 2017-2024, Slab Inc.
+
+Licensed under the BSD 3-Clause License.
+
+--------------------------------------------------------------------------------
+
+Bootstrap 5.3.6
+---------------
+https://getbootstrap.com/
+Copyright (c) 2011-2025 The Bootstrap Authors
+
+Licensed under the MIT License.
+https://github.com/twbs/bootstrap/blob/main/LICENSE
+
+--------------------------------------------------------------------------------
+
+Bootstrap Icons 1.13.1
+----------------------
+https://icons.getbootstrap.com/
+Copyright (c) 2019-2024 The Bootstrap Authors
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Popper.js 2.11.8
+----------------
+https://popper.js.org/
+Copyright (c) 2016-2023 Federico Zivolo
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Tippy.js
+--------
+https://atomiks.github.io/tippyjs/
+Copyright (c) 2017-present atomiks
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+SortableJS 1.15.6
+-----------------
+https://sortablejs.github.io/Sortable/
+Copyright (c) 2019 All contributors to Sortable
+
+Licensed under the MIT License.
+https://github.com/SortableJS/Sortable
+
+--------------------------------------------------------------------------------
+
+Turf.js
+-------
+https://turfjs.org/
+Copyright (c) 2019 Morgan Herlocker
+
+Licensed under the MIT License.
+
+Note: Some Turf.js algorithms may use components licensed under GNU Affero
+General Public License. See the Turf.js repository for specific module licenses.
+
+================================================================================
+
+                         NUGET PACKAGES (.NET BACKEND)
+
+================================================================================
+
+CsvHelper 33.1.0
+----------------
+https://joshclose.github.io/CsvHelper/
+Copyright (c) 2009-2024 Josh Close
+
+Licensed under the MS-PL and Apache License, Version 2.0 (dual license).
+
+--------------------------------------------------------------------------------
+
+GeoTimeZone 6.0.0
+-----------------
+https://github.com/mattjohnsonpint/GeoTimeZone
+Copyright (c) Matt Johnson-Pint
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+HtmlSanitizer 8.1.870
+---------------------
+https://github.com/mganss/HtmlSanitizer
+Copyright (c) 2013-2024 Michael Ganss
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+NetTopologySuite 2.6.0
+----------------------
+https://github.com/NetTopologySuite/NetTopologySuite
+Copyright (c) 2006 - 2024 NetTopologySuite Project Team
+
+Licensed under the BSD 3-Clause License.
+
+--------------------------------------------------------------------------------
+
+NetTopologySuite.Features 2.2.0
+-------------------------------
+https://github.com/NetTopologySuite/NetTopologySuite
+Copyright (c) NetTopologySuite Project Team
+
+Licensed under the BSD 3-Clause License.
+
+--------------------------------------------------------------------------------
+
+NetTopologySuite.IO.GeoJSON 4.0.0
+---------------------------------
+https://github.com/NetTopologySuite/NetTopologySuite.IO.GeoJSON
+Copyright (c) NetTopologySuite Project Team
+
+Licensed under the BSD 3-Clause License.
+
+--------------------------------------------------------------------------------
+
+NodaTime 3.2.2
+--------------
+https://nodatime.org/
+Copyright (c) 2011-2024 Jon Skeet
+
+Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+
+Npgsql
+------
+https://www.npgsql.org/
+Copyright (c) 2002-2024 The Npgsql Development Team
+
+Licensed under the PostgreSQL License.
+
+--------------------------------------------------------------------------------
+
+Npgsql.EntityFrameworkCore.PostgreSQL 10.0.0
+--------------------------------------------
+https://github.com/npgsql/efcore.pg
+Copyright (c) The Npgsql Development Team
+
+Licensed under the PostgreSQL License.
+
+--------------------------------------------------------------------------------
+
+Quartz.NET 3.14.0
+-----------------
+https://www.quartz-scheduler.net/
+Copyright (c) Marko Lahma
+
+Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+
+Serilog 4.3.0
+-------------
+https://serilog.net/
+Copyright (c) 2013-2024 Serilog Contributors
+
+Licensed under the Apache License, Version 2.0.
+
+Includes:
+- Serilog.Extensions.Logging 9.0.2
+- Serilog.Sinks.Console 6.0.0
+- Serilog.Sinks.File 7.0.0
+- Serilog.Sinks.PostgreSQL 2.3.0
+
+--------------------------------------------------------------------------------
+
+SixLabors.ImageSharp 3.1.12
+---------------------------
+https://sixlabors.com/products/imagesharp/
+Copyright (c) Six Labors
+
+Licensed under the Apache License, Version 2.0.
+https://github.com/SixLabors/ImageSharp/blob/main/LICENSE
+
+Note: For commercial use, please review SixLabors' license terms at
+https://sixlabors.com/pricing/
+
+--------------------------------------------------------------------------------
+
+Swashbuckle.AspNetCore 9.0.3
+----------------------------
+https://github.com/domaindrivendev/Swashbuckle.AspNetCore
+Copyright (c) 2016 Richard Morris
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+TimeZoneConverter 7.0.0
+-----------------------
+https://github.com/mattjohnsonpint/TimeZoneConverter
+Copyright (c) Matt Johnson-Pint
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Unidecode.NET 2.2.1
+-------------------
+https://github.com/thecoderok/Unidecode.NET
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Microsoft.Playwright 1.48.0
+---------------------------
+https://playwright.dev/dotnet/
+Copyright (c) Microsoft Corporation
+
+Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+
+MvcFrontendKit 1.0.0-preview.24
+-------------------------------
+NuGet package for ASP.NET Core MVC frontend utilities.
+
+Please check the package license on NuGet.org for specific license terms.
+
+================================================================================
+
+                          TEST DEPENDENCIES
+
+================================================================================
+
+xUnit 2.9.3
+-----------
+https://xunit.net/
+Copyright (c) .NET Foundation and Contributors
+
+Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+
+Moq 4.20.72
+-----------
+https://github.com/devlooped/moq
+Copyright (c) 2007-2024 Moq Contributors
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+FluentAssertions 7.0.0
+----------------------
+https://fluentassertions.com/
+Copyright (c) Dennis Doomen
+
+Licensed under the Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+
+Bogus 35.6.1
+------------
+https://github.com/bchavez/Bogus
+Copyright (c) 2015-2024 Brian Chavez
+
+Licensed under the MIT License.
+
+--------------------------------------------------------------------------------
+
+Coverlet 6.0.2
+--------------
+https://github.com/coverlet-coverage/coverlet
+Copyright (c) 2018 Toni Solarin-Sodara
+
+Licensed under the MIT License.
+
+================================================================================
+
+                          MAP DATA AND SERVICES
+
+================================================================================
+
+OpenStreetMap
+-------------
+https://www.openstreetmap.org/
+Copyright (c) OpenStreetMap contributors
+
+Map data is made available under the Open Database License (ODbL).
+https://opendatacommons.org/licenses/odbl/
+
+Note: This application uses a local tile cache to respect OpenStreetMap's
+fair use policy. See https://operations.osmfoundation.org/policies/tiles/
+
+================================================================================
+
+                          LICENSE TEXTS
+
+================================================================================
+
+MIT License
+-----------
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Apache License, Version 2.0
+---------------------------
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+================================================================================
 
 Copyright 2025 Stef Kariotidis / Wayfarer
 
