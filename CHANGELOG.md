@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### 2026-01-24
+- Restructured documentation for open-source release (#146)
+- Added 50+ screenshots throughout user and developer documentation
+- Added Docsify theme with Wayfarer brand colors (teal/coral)
+- Added local docs serving at /docs/ via ASP.NET static files
+- Added Docs and Mobile links to navigation and footer
+- Fixed broken internal documentation links
+- Fixed missing API endpoint documentation (Icons, Tags, Users, Visit, Backfill)
+- Simplified technical jargon in user-facing documentation
+- Updated home page tagline to "Track Your Timeline - Manage Your Trips"
+
 ### 2026-01-22
 - Added centralized Wikipedia search utility with dual search strategy (#142)
 - Combines geosearch and text search for better Wikipedia article discovery

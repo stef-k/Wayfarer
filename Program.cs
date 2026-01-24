@@ -604,9 +604,15 @@ static async Task ConfigureMiddleware(WebApplication app)
     var docsPath = Path.Combine(app.Environment.ContentRootPath, "docs");
     if (Directory.Exists(docsPath))
     {
+        var docsFileProvider = new PhysicalFileProvider(docsPath);
+        app.UseDefaultFiles(new DefaultFilesOptions
+        {
+            FileProvider = docsFileProvider,
+            RequestPath = "/docs"
+        });
         app.UseStaticFiles(new StaticFileOptions
         {
-            FileProvider = new PhysicalFileProvider(docsPath),
+            FileProvider = docsFileProvider,
             RequestPath = "/docs"
         });
     }
