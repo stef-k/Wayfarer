@@ -4,7 +4,7 @@ Welcome to Wayfarer — a self‑hosted trip planning and personal location time
 
 Links
 - Backend (web app): https://github.com/stef-k/Wayfarer
-- Mobile app: https://github.com/stef-k/Wayfarer.Mobile
+- Mobile app: https://github.com/stef-k/WayfarerMobile
 - Example live instance: https://wayfarer.stefk.me/
 - License: see repository `LICENSE.txt`
 - Author: Stef Karyotidis — https://stefk.me — https://github.com/stef-k
@@ -16,9 +16,8 @@ Contents
 - [4 - Trips](04-Trips.md)
 - [5 - Groups](05-Groups.md)
 - [6 - Timeline (Public/Private, Hidden Areas, Embed)](06-Timeline.md)
-- [7 - Importing Data](07-Importing-Data.md)
-- [8 - Exporting Data](08-Exporting-Data.md)
-- [9 - Mobile App](09-Mobile.md)
-- [10 - Troubleshooting](10-Troubleshooting.md)
-- [11 - FAQ](11-FAQ.md)
-- [12 - About](12-About.md)
+- [7 - Importing & Exporting](07-Importing-Exporting.md)
+- [8 - Mobile App](08-Mobile.md)
+- [9 - Troubleshooting](09-Troubleshooting.md)
+- [10 - FAQ](10-FAQ.md)
+- [11 - About](11-About.md)

@@ -1,48 +1,268 @@
-:root{
-  --wf-accent:#e45141;  /* action / highlight */
-  --wf-primary:#105562; /* links / headings */
-  --wf-secondary:#96e0d6; /* subtle accents */
-  --wf-text:#212529;    /* body text */
-  --wf-bg:#f3f5f7;      /* page background */
-  --wf-white:#ffffff;   /* cards / content */
+/* Wayfarer Documentation Theme
+   Brand colors: Teal primary with coral accent
+*/
+
+:root {
+  /* Primary brand colors */
+  --wf-accent: #e45141;      /* Coral red - primary action/highlight */
+  --wf-primary: #105562;     /* Dark teal - headings/links */
+  --wf-secondary: #96e0d6;   /* Light teal - subtle accents */
+
+  /* Neutral colors */
+  --wf-text: #333333;        /* Body text */
+  --wf-text-light: #666666;  /* Secondary text */
+  --wf-bg: #FAFBFC;          /* Page background */
+  --wf-white: #FFFFFF;       /* Cards/content */
+  --wf-border: #E1E4E8;      /* Borders */
+
+  /* Status colors */
+  --wf-success: #28A745;
+  --wf-warning: #FFC107;
+  --wf-error: #DC3545;
+  --wf-info: #17A2B8;
 }
 
 /* Layout & base */
-body{ background:var(--wf-bg); color:var(--wf-text); }
-.content{ background:var(--wf-white); }
+body {
+  background: var(--wf-bg);
+  color: var(--wf-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+.content {
+  background: var(--wf-white);
+}
 
 /* App name (top of sidebar) */
-.app-name, .app-name-link{ color:var(--wf-primary)!important; }
+.app-name,
+.app-name-link {
+  color: var(--wf-primary) !important;
+  font-weight: 700 !important;
+  font-size: 1.2rem !important;
+}
 
 /* Sidebar */
-.sidebar{ background:var(--wf-white); }
-.sidebar ul li a{ color:var(--wf-primary); }
-.sidebar ul li a:hover{ color:var(--wf-accent); }
-.sidebar ul li.active > a{ color:var(--wf-accent)!important; }
+.sidebar {
+  background: var(--wf-white);
+  border-right: 1px solid var(--wf-border);
+}
+
+.sidebar ul li a {
+  color: var(--wf-text);
+  font-weight: 400;
+  transition: color 0.2s ease;
+}
+
+.sidebar ul li a:hover {
+  color: var(--wf-accent);
+  text-decoration: none;
+}
+
+.sidebar ul li.active > a {
+  color: var(--wf-accent) !important;
+  font-weight: 600;
+  border-right: 3px solid var(--wf-accent);
+}
+
+.sidebar-nav > ul > li > a {
+  font-weight: 600;
+  color: var(--wf-primary);
+}
 
 /* Headings */
-.markdown-section h1, .markdown-section h2, .markdown-section h3,
-.markdown-section h4, .markdown-section h5, .markdown-section h6{
-  color:var(--wf-primary);
+.markdown-section h1 {
+  color: var(--wf-accent);
+  border-bottom: 2px solid var(--wf-accent);
+  padding-bottom: 0.5rem;
+}
+
+.markdown-section h2 {
+  color: var(--wf-primary);
+  border-bottom: 1px solid var(--wf-border);
+  padding-bottom: 0.3rem;
+}
+
+.markdown-section h3,
+.markdown-section h4,
+.markdown-section h5,
+.markdown-section h6 {
+  color: var(--wf-primary);
 }
 
 /* Links in content */
-.markdown-section a{ color:var(--wf-primary); }
-.markdown-section a:hover{ color:var(--wf-accent); }
+.markdown-section a {
+  color: var(--wf-primary);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--wf-secondary);
+}
+
+.markdown-section a:hover {
+  color: var(--wf-accent);
+  border-bottom-color: var(--wf-accent);
+}
 
 /* Code blocks & inline code */
-code, .markdown-section code{ background:#f8f9fa; color:#111; }
-pre>code{ border-left:4px solid var(--wf-secondary); }
+.markdown-section code {
+  background: #F6F8FA;
+  color: var(--wf-text);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.markdown-section pre {
+  background: #F6F8FA;
+  border-radius: 6px;
+  border-left: 4px solid var(--wf-secondary);
+}
+
+.markdown-section pre > code {
+  background: transparent;
+  padding: 0;
+}
 
 /* Tables */
-.markdown-section table thead th{ background:#eef3f5; color:var(--wf-text); }
+.markdown-section table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.markdown-section table thead th {
+  background: var(--wf-primary);
+  color: var(--wf-white);
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.markdown-section table tbody td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--wf-border);
+}
+
+.markdown-section table tbody tr:hover {
+  background: #F0F8F7;
+}
 
 /* Blockquotes */
-.markdown-section blockquote{ border-left-color:var(--wf-secondary); }
+.markdown-section blockquote {
+  border-left: 4px solid var(--wf-secondary);
+  background: #F0F8F7;
+  padding: 1rem;
+  margin: 1rem 0;
+  color: var(--wf-text);
+}
 
-/* Search (if enabled later) */
-input.search{ border-color:var(--wf-secondary); }
+.markdown-section blockquote p {
+  margin: 0;
+}
 
-/* Buttons (plugin-dependent) */
-.github-corner svg{ fill:var(--wf-primary)!important; color:var(--wf-white)!important; }
+/* Tip/Warning boxes */
+.markdown-section .tip {
+  background: #E8F5E9;
+  border-left-color: var(--wf-success);
+}
 
+.markdown-section .warn {
+  background: #FFF8E1;
+  border-left-color: var(--wf-warning);
+}
+
+/* Search */
+.search input {
+  border: 2px solid var(--wf-border) !important;
+  border-radius: 6px !important;
+  padding: 0.5rem !important;
+}
+
+.search input:focus {
+  border-color: var(--wf-primary) !important;
+  box-shadow: 0 0 0 3px rgba(16, 85, 98, 0.2) !important;
+}
+
+.search .matching-post {
+  border-bottom: 1px solid var(--wf-border);
+}
+
+.search .matching-post .search-keyword {
+  background: var(--wf-secondary);
+  color: var(--wf-text);
+}
+
+/* GitHub corner */
+.github-corner svg {
+  fill: var(--wf-primary) !important;
+  color: var(--wf-white) !important;
+}
+
+/* Pagination */
+.pagination-item-title {
+  color: var(--wf-primary) !important;
+}
+
+/* Cover page (if used) */
+.cover {
+  background: linear-gradient(135deg, var(--wf-primary) 0%, #0A3A44 100%) !important;
+}
+
+.cover h1 {
+  color: var(--wf-white) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .sidebar {
+    background: var(--wf-white);
+  }
+
+  .markdown-section {
+    padding: 1rem;
+  }
+}
+
+/* Feature badges */
+.badge {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  font-size: 0.75em;
+  font-weight: 600;
+  border-radius: 20px;
+  margin-left: 0.5em;
+}
+
+.badge-new {
+  background: var(--wf-success);
+  color: white;
+}
+
+.badge-beta {
+  background: var(--wf-warning);
+  color: var(--wf-text);
+}
+
+/* Screenshot images - limit height for tall screenshots */
+.markdown-section img {
+  max-height: 600px;
+  width: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: zoom-in;
+  transition: box-shadow 0.2s ease;
+}
+
+.markdown-section img:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Medium-zoom overlay background */
+.medium-zoom-overlay {
+  background: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Zoomed image styling */
+.medium-zoom-image--opened {
+  max-height: none !important;
+  border-radius: 0;
+}

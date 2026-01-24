@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-- ASP.NET Core MVC (.NET 9) with PostgreSQL + PostGIS.
+- ASP.NET Core MVC (.NET 10) with PostgreSQL + PostGIS.
 - Entry: `Program.cs`; project: `Wayfarer.csproj`.
 - Areas: `Areas/Admin`, `Areas/Api`, `Areas/Identity`, `Areas/Manager`, `Areas/User`, `Areas/Public`.
 - Views: `Views/**` and per‑area Razor views.
@@ -16,7 +16,7 @@
 
 ## Development Environment
 
-- Primary dev OS: Windows 10; install .NET 9 SDK.
+- Primary dev OS: Windows 10; install .NET 10 SDK.
 - Database: PostgreSQL with PostGIS. Configure via `ConnectionStrings:DefaultConnection`.
 - Front end: plain modern JavaScript (prefer arrow functions).
 - Maps: Leaflet with OpenStreetMap tiles and local cache. Configure cache directories under `CacheSettings:*` in `appsettings*.json`.

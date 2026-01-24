@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Wayfarer - Self-hosted location tracking and trip planning documentation" />
     <title>Wayfarer Docs</title>
     <link
       rel="stylesheet"
@@ -11,24 +12,42 @@
     <link rel="stylesheet" href="./theme.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">Loading...</div>
     <script>
       window.$docsify = {
         name: "Wayfarer",
         repo: "https://github.com/stef-k/Wayfarer",
         homepage: "README.md",
         loadSidebar: true,
-        subMaxLevel: 2,
+        subMaxLevel: 3,
+        auto2top: true,
         search: {
           paths: "auto",
-          placeholder: "Type to search",
+          placeholder: "Search documentation...",
+          noData: "No results found",
+          depth: 3,
         },
         alias: {
           "/.*/_sidebar.md": "/_sidebar.md",
         },
+        pagination: {
+          previousText: "Previous",
+          nextText: "Next",
+          crossChapter: true,
+        },
+        plugins: [
+          function(hook) {
+            hook.doneEach(function() {
+              var pageTitle = document.querySelector('#main h1');
+              document.title = 'Wayfarer - ' + (pageTitle ? pageTitle.textContent : 'Docs');
+            });
+          }
+        ],
       };
     </script>
     <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
     <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/zoom-image.min.js"></script>
   </body>
 </html>

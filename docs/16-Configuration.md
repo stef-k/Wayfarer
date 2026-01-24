@@ -37,9 +37,27 @@ Location Thresholds (Admin UI)
 - **GPS Accuracy Threshold** — maximum acceptable accuracy value (default 50m); readings with higher values are rejected.
 
 Visit Detection (Admin UI)
-- **Detection Radius** — distance (meters) from place center to trigger visit detection.
-- **Notification Cooldown** — minimum delay (seconds) between visit notifications for the same place, reducing SSE spam.
-- **End-Visit Timeout** — time without pings before a visit is considered ended.
+
+**Core Settings:**
+- **Required Hits** — number of GPS pings needed to confirm a visit (2–5, default 2).
+- **Min Radius** — minimum detection radius in meters (10–200m).
+- **Max Radius** — maximum detection radius in meters (50–500m).
+- **Accuracy Multiplier** — scales detection radius based on GPS accuracy (0.5–5.0×).
+- **Accuracy Reject** — reject locations with accuracy worse than this value (0–1000m).
+- **Max Search Radius** — maximum search distance for nearby places (50–2000m).
+
+**Timing Settings:**
+- **Notification Cooldown** — minimum delay between visit notifications for same place (-1 to disable, up to 720 hours).
+- **Notes Snapshot Max Chars** — maximum HTML characters preserved in visit snapshot (1000–200000).
+
+**Derived Settings (auto-calculated from Time Threshold):**
+- **Hit Window** — time window for confirming hits.
+- **Candidate Stale** — time before unconfirmed candidates are cleaned up.
+- **Visit End After** — timeout before a visit is considered ended.
+
+**Backfill Suggestions:**
+- **Suggestion Radius Multiplier** — outer search radius for "Consider Also" suggestions (2–100×, default 50×).
+- **Derived Tiers** — admin panel shows 3 tiers with calculated radii and hit requirements.
 
 Tile Rate Limiting
 - Anonymous tile requests are rate-limited (default: 500 requests/minute per IP).

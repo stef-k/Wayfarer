@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using Microsoft.Extensions.FileProviders;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -598,6 +599,23 @@ static async Task ConfigureMiddleware(WebApplication app)
 
     // Serve static files (includes runtime-generated files like thumbnails)
     app.UseStaticFiles();
+
+    // Serve documentation at /docs/ - works locally and matches GitHub Pages structure
+    var docsPath = Path.Combine(app.Environment.ContentRootPath, "docs");
+    if (Directory.Exists(docsPath))
+    {
+        var docsFileProvider = new PhysicalFileProvider(docsPath);
+        app.UseDefaultFiles(new DefaultFilesOptions
+        {
+            FileProvider = docsFileProvider,
+            RequestPath = "/docs"
+        });
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = docsFileProvider,
+            RequestPath = "/docs"
+        });
+    }
 
     // Map static assets (e.g., CSS, JS) to routes
     app.MapStaticAssets();
