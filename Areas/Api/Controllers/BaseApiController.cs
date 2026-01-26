@@ -59,8 +59,7 @@ namespace Wayfarer.Areas.Api.Controllers
 
                 if (user != null)
                 {
-                    _logger.LogInformation("API request authenticated. Token info: {TokenInfo}, User: {UserName}",
-                        tokenInfo, user.UserName);
+                    _logger.LogDebug("API request authenticated. UserId: {UserId}", user.Id);
                 }
 
                 return user;

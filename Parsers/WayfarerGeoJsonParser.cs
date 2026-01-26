@@ -35,7 +35,7 @@ namespace Wayfarer.Parsers
         /// <returns>All parsed <see cref="Location"/> entities ready for persistence.</returns>
         public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
         {
-            _logger.LogInformation("Parsing Wayfarer-exported GeoJSON for user {UserId}.", userId);
+            _logger.LogDebug("Parsing Wayfarer-exported GeoJSON for user {UserId}.", userId);
 
             // 1) Read the entire JSON export
             string json;

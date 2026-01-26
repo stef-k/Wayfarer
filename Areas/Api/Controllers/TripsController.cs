@@ -1314,7 +1314,7 @@ return Ok(dto);
             _dbContext.Trips.Add(clonedTrip);
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
+            _logger.LogDebug("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
                 user.Id, sourceTrip.Id, clonedTrip.Id);
 
             return Ok(new

@@ -62,7 +62,7 @@ public class UsersController : ControllerBase
                 .Where(l => l.UserId == userId)
                 .ExecuteDeleteAsync();
 
-            _logger.LogInformation("Deleted all locations for user {UserId}", userId);
+            _logger.LogDebug("Deleted all locations for user {UserId}", userId);
             return NoContent();
         }
         catch (DbUpdateException dbEx)

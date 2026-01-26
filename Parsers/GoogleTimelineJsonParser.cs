@@ -16,7 +16,7 @@ public class GoogleTimelineJsonParser : ILocationDataParser
 
     public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
     {
-        _logger.LogInformation("Parsing Google Timeline data for user {UserId}.", userId);
+        _logger.LogDebug("Parsing Google Timeline data for user {UserId}.", userId);
 
         string json = await new StreamReader(fileStream).ReadToEndAsync();
         var opts = new JsonSerializerOptions {
