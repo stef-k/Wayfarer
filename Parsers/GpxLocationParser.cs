@@ -26,7 +26,7 @@ public sealed class GpxLocationParser : ILocationDataParser
     /// <inheritdoc />
     public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
     {
-        _logger.LogInformation("Parsing GPX data for user {UserId}.", userId);
+        _logger.LogDebug("Parsing GPX data for user {UserId}.", userId);
 
         var document = await XDocument.LoadAsync(fileStream, LoadOptions.None, default);
         var gpxRoot = document.Root ?? throw new FormatException("GPX file does not contain a root element.");

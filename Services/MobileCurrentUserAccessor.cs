@@ -74,8 +74,7 @@ public class MobileCurrentUserAccessor : IMobileCurrentUserAccessor
 
             if (_user != null)
             {
-                _logger.LogInformation("Mobile API request authenticated. Token info: {TokenInfo}, User: {UserName}",
-                    tokenInfo, _user.UserName);
+                _logger.LogDebug("Mobile API request authenticated. UserId: {UserId}", _user.Id);
             }
 
             return _user;

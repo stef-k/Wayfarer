@@ -27,7 +27,7 @@ public sealed class KmlLocationParser : ILocationDataParser
     /// <inheritdoc />
     public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
     {
-        _logger.LogInformation("Parsing KML data for user {UserId}.", userId);
+        _logger.LogDebug("Parsing KML data for user {UserId}.", userId);
 
         var document = await XDocument.LoadAsync(fileStream, LoadOptions.None, default);
         var root = document.Root ?? throw new FormatException("KML file does not contain a root element.");

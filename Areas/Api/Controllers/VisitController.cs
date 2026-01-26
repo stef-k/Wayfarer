@@ -204,7 +204,7 @@ public class VisitController : BaseApiController
             _dbContext.PlaceVisitEvents.RemoveRange(visits);
             await _dbContext.SaveChangesAsync();
 
-            _logger.LogInformation("User {UserId} deleted {Count} visits", userId, visits.Count);
+            _logger.LogDebug("User {UserId} deleted {Count} visits", userId, visits.Count);
 
             return Ok(new
             {

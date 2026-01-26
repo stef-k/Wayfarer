@@ -28,7 +28,7 @@ public sealed class CsvLocationParser : ILocationDataParser
     /// <inheritdoc />
     public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
     {
-        _logger.LogInformation("Parsing CSV location data for user {UserId}.", userId);
+        _logger.LogDebug("Parsing CSV location data for user {UserId}.", userId);
 
         var config = new CsvConfiguration(ParsingCulture)
         {

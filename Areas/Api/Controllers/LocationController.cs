@@ -100,7 +100,7 @@ public class LocationController : BaseApiController
 
                 if (existingLocation != null)
                 {
-                    _logger.LogInformation("Check-in idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
+                    _logger.LogDebug("Check-in idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
                         user.Id, idempotencyKey);
                     return Ok(new { Message = "Check-in logged successfully", Location = existingLocation });
                 }
@@ -509,7 +509,7 @@ public class LocationController : BaseApiController
 
                 if (existingLocation != null)
                 {
-                    _logger.LogInformation("Log-location idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
+                    _logger.LogDebug("Log-location idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
                         user.Id, idempotencyKey);
                     return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
                 }
@@ -913,7 +913,7 @@ public class LocationController : BaseApiController
             // Broadcast deletion to group members
             await BroadcastLocationDeletionAsync(user.Id, new[] { id });
 
-            _logger.LogInformation("Deleted location {LocationId} for user {UserId}", id, user.Id);
+            _logger.LogDebug("Deleted location {LocationId} for user {UserId}", id, user.Id);
             return Ok(new { success = true, message = "Location deleted.", id });
         }
         catch (Exception ex)
@@ -1079,7 +1079,7 @@ public class LocationController : BaseApiController
             if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location });
 
             await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("Updated location {LocationId} for user {UserId}", id, user.Id);
+            _logger.LogDebug("Updated location {LocationId} for user {UserId}", id, user.Id);
             return Ok(new { success = true, message = "Location updated.", location });
         }
         catch (Exception ex)

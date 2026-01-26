@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### 2026-01-26
+- Fixed API logging privacy for production release (#157)
+- Changed authentication success logs to Debug level (silent in production)
+- Removed usernames from logs, replaced with UserId
+- Removed token info from success logs (retained in failure logs)
+- Downgraded routine operation logs to Debug level
+
 ### 2026-01-24
 - Restructured documentation for open-source release (#146)
 - Added 50+ screenshots throughout user and developer documentation

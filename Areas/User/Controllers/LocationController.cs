@@ -267,7 +267,7 @@ namespace Wayfarer.Areas.User.Controllers
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId == null) return Unauthorized();
 
-            _logger.LogInformation("Edit[GET] start for LocationId={Id}, UserId={User}", id, userId);
+            _logger.LogDebug("Edit[GET] start for LocationId={Id}, UserId={User}", id, userId);
 
             try
             {
