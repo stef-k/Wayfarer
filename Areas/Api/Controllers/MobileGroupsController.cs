@@ -107,7 +107,7 @@ public class MobileGroupsController : MobileApiController
         var memberCountLookup = memberCounts.ToDictionary(x => x.GroupId, x => x.Count);
         var membershipLookup = userMemberships
             .GroupBy(x => x.GroupId)
-            .ToDictionary(g => g.Key, g => g.First());
+            .ToDictionary(g => g.Key, g => g.OrderBy(m => m.Role).First());
 
         var payload = groups
             .Select(g =>

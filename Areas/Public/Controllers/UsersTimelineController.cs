@@ -136,7 +136,7 @@ namespace Wayfarer.Areas.Public.Controllers
                     CancellationToken.None
                 );
 
-                var settings = await _dbContext.ApplicationSettings.FirstOrDefaultAsync();
+                var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync();
 
                 // check against "now" threshold
                 if (threshold != "now")

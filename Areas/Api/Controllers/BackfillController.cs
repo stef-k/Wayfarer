@@ -244,7 +244,7 @@ public class BackfillController : BaseApiController
         try
         {
             // Use provided radius or fall back to suggestion max radius (for showing all pings in context)
-            var settings = _dbContext.ApplicationSettings.FirstOrDefault();
+            var settings = _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
             var searchRadius = radius ?? settings?.SuggestionMaxRadius ?? 7500;
 
             var (locations, totalCount) = await _backfillService.GetCandidateLocationsAsync(

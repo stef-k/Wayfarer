@@ -161,7 +161,7 @@ public class GroupsController : ControllerBase
             .ToList();
 
         // settings for threshold
-        var settings = await _db.ApplicationSettings.FirstOrDefaultAsync(ct);
+        var settings = await _db.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(ct);
         var locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
 
         var result = latestPerUser.Select(t => new PublicLocationDto

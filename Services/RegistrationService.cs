@@ -21,7 +21,7 @@ public class RegistrationService : IRegistrationService
     public void CheckRegistration(HttpContext context)
     {
         // Fetch the settings from the database (or cache, depending on your design)
-        var settings = _context.ApplicationSettings.FirstOrDefault();
+        var settings = _context.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
         
         if (settings != null && !settings.IsRegistrationOpen)
         {
