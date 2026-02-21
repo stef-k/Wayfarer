@@ -4,6 +4,8 @@
 - Fixed EF Core warnings for First/FirstOrDefault without OrderBy on ApplicationSettings queries (#159)
 - Fixed latent crash in LocationImportController when ApplicationSettings table is empty
 - Added deterministic ordering to in-memory GroupBy deduplication patterns
+- Fixed frontend.config.yaml missing from publish output causing startup warning (#160)
+- Upgraded MvcFrontendKit from 1.0.0-preview.24 to 1.0.0
 
 ## [2026-02-10]
 ### Changed

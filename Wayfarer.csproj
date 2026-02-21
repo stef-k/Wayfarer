@@ -28,7 +28,7 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
 
-        <PackageReference Include="MvcFrontendKit" Version="1.0.0-preview.24" />
+        <PackageReference Include="MvcFrontendKit" Version="1.0.0" />
         <PackageReference Include="NetTopologySuite" Version="2.6.0" />
         <PackageReference Include="NetTopologySuite.Features" Version="2.2.0" />
         <PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
@@ -73,6 +73,11 @@
     <!-- Include docs folder for local serving at /docs/ -->
     <ItemGroup>
         <Content Include="docs\**\*.*" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <!-- Include frontend config so it's available in production (MvcFrontendKit reads it at runtime) -->
+    <ItemGroup>
+        <Content Include="frontend.config.yaml" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>
