@@ -59,7 +59,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var model = managed
             .Concat(owned)
             .GroupBy(g => g.Id)
-            .Select(g => g.First())
+            .Select(g => g.OrderBy(x => x.CreatedAt).First())
             .OrderBy(g => g.Name)
             .ToList();
 

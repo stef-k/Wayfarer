@@ -54,7 +54,7 @@ namespace Wayfarer.Parsers
             int totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync(cancellationToken));
 
             // 2.5) Load settings
-            var settings = await _dbContext.ApplicationSettings.FirstOrDefaultAsync(cancellationToken);
+            var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(cancellationToken);
             int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
 
             // 3) EARLY-EXIT if small
@@ -387,7 +387,7 @@ namespace Wayfarer.Parsers
             CancellationToken cancellationToken = default)
         {
             // Load settings
-            var settings = await _dbContext.ApplicationSettings.FirstOrDefaultAsync(cancellationToken);
+            var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(cancellationToken);
             int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
 
             // Build date range based on dateType

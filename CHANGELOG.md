@@ -1,11 +1,13 @@
 # CHANGELOG
 
-## Unreleased
+### 2026-02-21
+- Fixed EF Core warnings for First/FirstOrDefault without OrderBy on ApplicationSettings queries (#159)
+- Fixed latent crash in LocationImportController when ApplicationSettings table is empty
+- Added deterministic ordering to in-memory GroupBy deduplication patterns
 
 ## [2026-02-10]
 ### Changed
 - Bumped HtmlSanitizer dependency from 8.1.870 to 9.0.892 (PR #158)
-
 
 ### 2026-01-26
 - Fixed API logging privacy for production release (#157)

@@ -253,7 +253,8 @@ namespace Wayfarer.Areas.User.Controllers
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             ViewBag.AcceptedExtensions = string.Join(",", acceptedExtensions);
 
-            ViewBag.UploadLimit = _dbContext.ApplicationSettings.First().UploadSizeLimitMB.ToString();
+            var uploadSettings = _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
+            ViewBag.UploadLimit = (uploadSettings?.UploadSizeLimitMB ?? ApplicationSettings.DefaultUploadSizeLimitMB).ToString();
 
             SetPageTitle("Upload File");
             return View(new LocationImportUploadViewModel());
