@@ -391,7 +391,7 @@ import {
             const region = item.regionName || 'Unknown';
             if (region !== currentRegion) {
                 currentRegion = region;
-                html += `<div class="list-group-item bg-light fw-semibold small text-muted py-1 pe-none user-select-none">${escapeHtml(region)}</div>`;
+                html += `<div class="list-group-item backfill-region-header fw-semibold small py-1 pe-none user-select-none">${escapeHtml(region)}</div>`;
             }
             html += renderItemFn(item);
         }
@@ -825,11 +825,25 @@ import {
     applyBtn?.addEventListener('click', handleApplyClick);
 
     // Search input handler: re-renders all tabs with filtered data (debounced to avoid
-    // excessive DOM rebuilds during fast typing)
+    // excessive DOM rebuilds during fast typing). Shows/hides the inline clear button.
     let searchDebounceTimer = null;
-    document.getElementById('backfill-search')?.addEventListener('input', (e) => {
+    const backfillSearchInput = document.getElementById('backfill-search');
+    const backfillSearchClear = document.getElementById('backfill-search-clear');
+
+    backfillSearchInput?.addEventListener('input', (e) => {
         clearTimeout(searchDebounceTimer);
-        searchDebounceTimer = setTimeout(() => rerenderBackfillTabs(e.target.value.trim()), 180);
+        const val = e.target.value.trim();
+        searchDebounceTimer = setTimeout(() => rerenderBackfillTabs(val), 180);
+        // Toggle clear button visibility
+        backfillSearchClear?.classList.toggle('d-none', !val);
+    });
+
+    // Clear button clears the search and re-renders all tabs immediately
+    backfillSearchClear?.addEventListener('click', () => {
+        if (backfillSearchInput) backfillSearchInput.value = '';
+        backfillSearchClear.classList.add('d-none');
+        rerenderBackfillTabs();
+        backfillSearchInput?.focus();
     });
 
     // Reset modal when hidden

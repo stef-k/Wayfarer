@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [1.1.1] - 2026-02-27
+- Fixed region headers not respecting dark theme in trip analysis modal
+- Added inline clear button to analysis search field
+
 ## [1.1.0] - 2026-02-27
 - Improved trip analysis: group results by region and place name across all tabs (#163)
 - Added fuzzy search filtering across all analysis tabs (#163)
