@@ -2177,3 +2177,40 @@ html[data-bs-theme="dark"] .ql-editor a {
 [data-bs-theme="dark"] .place-context-tooltip::before {
     border-top-color: #2c3034;
 }
+
+/* Backfill analysis region group headers */
+.backfill-region-header {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    border-color: #dee2e6;
+}
+
+[data-bs-theme="dark"] .backfill-region-header {
+    background-color: #2b3035 !important;
+    color: #adb5bd !important;
+    border-color: #495057 !important;
+}
+
+/* Backfill search field with inline clear button */
+.backfill-search-group {
+    position: relative;
+}
+
+.backfill-search-group .btn-search-clear {
+    position: absolute;
+    right: 0.4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: none;
+    padding: 0.1rem 0.35rem;
+    color: #6c757d;
+    cursor: pointer;
+    line-height: 1;
+    font-size: 0.85rem;
+    z-index: 2;
+}
+
+.backfill-search-group .btn-search-clear:hover {
+    color: #dc3545;
+}

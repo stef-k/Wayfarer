@@ -240,8 +240,14 @@ else
 
                     <!-- Search filter (shown with results) -->
                     <div id="backfill-search-wrapper" class="mb-2 d-none">
-                        <input type="text" class="form-control form-control-sm"
-                               id="backfill-search" placeholder="Search places, regions...">
+                        <div class="backfill-search-group">
+                            <input type="text" class="form-control form-control-sm pe-4"
+                                   id="backfill-search" placeholder="Search places, regions...">
+                            <button type="button" class="btn-search-clear d-none"
+                                    id="backfill-search-clear" title="Clear search">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Tab Navigation -->
