@@ -838,8 +838,9 @@ import {
         backfillSearchClear?.classList.toggle('d-none', !val);
     });
 
-    // Clear button clears the search and re-renders all tabs immediately
+    // Clear button cancels pending debounce, clears the search, and re-renders all tabs immediately
     backfillSearchClear?.addEventListener('click', () => {
+        clearTimeout(searchDebounceTimer);
         if (backfillSearchInput) backfillSearchInput.value = '';
         backfillSearchClear.classList.add('d-none');
         rerenderBackfillTabs();
