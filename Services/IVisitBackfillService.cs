@@ -11,6 +11,7 @@ public interface IVisitBackfillService
     /// <summary>
     /// Analyzes location history against trip places to find potential visits.
     /// Does not modify any data - preview only.
+    /// Results are deduplicated by (PlaceId, Date) and grouped by region, place name, then date descending.
     /// </summary>
     /// <param name="userId">The user ID.</param>
     /// <param name="tripId">The trip ID to analyze.</param>

@@ -104,6 +104,17 @@ import {
     let currentTripId = null;
     let previewData = null;
 
+    /** @type {{ newVisits: Array, suggestedVisits: Array, staleVisits: Array, existingVisits: Array }|null} */
+    let rawBackfillData = null;
+
+    /**
+     * Persistent checkbox selection state that survives DOM rebuilds and search filtering.
+     * Maps checkbox id → boolean (true=checked, false=unchecked).
+     * Only stores explicit user interactions; items not in this map use their HTML defaults.
+     * @type {Map<string, boolean>}
+     */
+    const persistentCheckState = new Map();
+
     // DOM elements for backfill modal
     const configSection = document.getElementById('backfill-config');
     const loadingSection = document.getElementById('backfill-loading');
@@ -134,6 +145,14 @@ import {
         if (fromDateInput) fromDateInput.value = '';
         if (toDateInput) toDateInput.value = '';
         previewData = null;
+        rawBackfillData = null;
+        persistentCheckState.clear();
+
+        // Reset search input and hide wrapper
+        const searchInput = document.getElementById('backfill-search');
+        const searchWrapper = document.getElementById('backfill-search-wrapper');
+        if (searchInput) searchInput.value = '';
+        searchWrapper?.classList.add('d-none');
 
         // Reset to first tab
         const confirmedTab = document.getElementById('confirmed-tab');
@@ -163,7 +182,8 @@ import {
     };
 
     /**
-     * Renders the backfill preview results.
+     * Renders the backfill preview results with grouped display and search support.
+     * Stores raw data for search filtering and delegates rendering to rerenderBackfillTabs.
      * @param {Object} data - The preview data from the API.
      */
     const renderBackfillResults = (data) => {
@@ -178,200 +198,30 @@ import {
         document.getElementById('result-places').textContent = data.placesAnalyzed.toLocaleString();
         document.getElementById('result-time').textContent = `${data.analysisDurationMs}ms`;
 
-        // New visits
-        const newVisitsList = document.getElementById('new-visits-list');
-        const noNewVisits = document.getElementById('no-new-visits');
-        const newVisitsHint = document.getElementById('new-visits-hint');
-        document.getElementById('new-visits-count').textContent = data.newVisits.length;
+        // Cache raw data for search filtering
+        rawBackfillData = {
+            newVisits: data.newVisits || [],
+            suggestedVisits: data.suggestedVisits || [],
+            staleVisits: data.staleVisits || [],
+            existingVisits: data.existingVisits || []
+        };
 
-        if (data.newVisits.length === 0) {
-            newVisitsList?.classList.add('d-none');
-            noNewVisits?.classList.remove('d-none');
-            newVisitsHint?.classList.add('d-none');
-        } else {
-            newVisitsList?.classList.remove('d-none');
-            noNewVisits?.classList.add('d-none');
-            newVisitsHint?.classList.remove('d-none');
-            newVisitsList.innerHTML = data.newVisits.map(v => `
-                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 place-context-item"
-                     style="cursor: pointer;"
-                     data-place-id="${v.placeId}"
-                     data-place-name="${escapeHtml(v.placeName)}"
-                     data-region-name="${escapeHtml(v.regionName)}"
-                     data-latitude="${v.latitude || ''}"
-                     data-longitude="${v.longitude || ''}"
-                     data-icon-name="${v.iconName || ''}"
-                     data-marker-color="${v.markerColor || ''}"
-                     data-first-seen="${v.firstSeenUtc}"
-                     data-last-seen="${v.lastSeenUtc}"
-                     data-type="candidate">
-                    <div>
-                        <div class="fw-medium text-success"><i class="bi bi-plus-circle me-1"></i>${escapeHtml(v.placeName)}</div>
-                        <small class="text-muted">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
-                    </div>
-                    <div class="text-end d-flex align-items-center gap-2">
-                        <div>
-                            <span class="badge ${getConfidenceBadgeClass(v.confidence)}"
-                                  title="Confidence based on location count and proximity (avg ${Math.round(v.avgDistanceMeters)}m from place)">${v.confidence}% Confidence</span>
-                            <small class="text-muted d-block">${v.locationCount} hits</small>
-                        </div>
-                        <i class="bi bi-geo-alt text-muted" title="View on map"></i>
-                    </div>
-                </div>
-            `).join('');
-        }
+        // Show search input
+        const searchWrapper = document.getElementById('backfill-search-wrapper');
+        const searchInput = document.getElementById('backfill-search');
+        searchWrapper?.classList.remove('d-none');
+        if (searchInput) searchInput.value = '';
 
-        // Suggested visits (Consider Also tab)
-        const suggestedVisitsList = document.getElementById('suggested-visits-list');
-        const noSuggestedVisits = document.getElementById('no-suggested-visits');
-        const suggestedVisitsHint = document.getElementById('suggested-visits-hint');
-        const suggestedSelectAllWrapper = document.getElementById('suggested-select-all-wrapper');
-        const suggestedVisits = data.suggestedVisits || [];
-        document.getElementById('suggested-visits-count').textContent = suggestedVisits.length;
-
-        if (suggestedVisits.length === 0) {
-            suggestedVisitsList?.classList.add('d-none');
-            noSuggestedVisits?.classList.remove('d-none');
-            suggestedVisitsHint?.classList.add('d-none');
-            suggestedSelectAllWrapper?.classList.add('d-none');
-        } else {
-            suggestedVisitsList?.classList.remove('d-none');
-            noSuggestedVisits?.classList.add('d-none');
-            suggestedVisitsHint?.classList.remove('d-none');
-            suggestedSelectAllWrapper?.classList.remove('d-none');
-            suggestedVisitsList.innerHTML = suggestedVisits.map(v => `
-                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div class="form-check flex-grow-1">
-                        <input class="form-check-input suggested-visit-check" type="checkbox"
-                               value="${v.placeId}"
-                               data-visit-date="${v.visitDate}"
-                               data-first-seen="${v.firstSeenUtc}"
-                               data-last-seen="${v.lastSeenUtc}"
-                               id="suggested-${v.placeId}-${v.visitDate}">
-                        <label class="form-check-label" for="suggested-${v.placeId}-${v.visitDate}">
-                            <span class="fw-medium text-info"><i class="bi bi-lightbulb me-1"></i>${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
-                        </label>
-                    </div>
-                    <div class="text-end d-flex align-items-center gap-2">
-                        <div>
-                            <span class="badge bg-info" title="${escapeHtml(v.suggestionReason)}">
-                                ${v.hasUserCheckin ? '<i class="bi bi-check-circle me-1"></i>' : ''}
-                                ${escapeHtml(v.suggestionReason)}
-                            </span>
-                            <small class="text-muted d-block">${Math.round(v.minDistanceMeters)}m min dist</small>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary place-context-btn"
-                                data-place-id="${v.placeId}"
-                                data-place-name="${escapeHtml(v.placeName)}"
-                                data-region-name="${escapeHtml(v.regionName)}"
-                                data-latitude="${v.latitude || ''}"
-                                data-longitude="${v.longitude || ''}"
-                                data-icon-name="${v.iconName || ''}"
-                                data-marker-color="${v.markerColor || ''}"
-                                data-first-seen="${v.firstSeenUtc}"
-                                data-last-seen="${v.lastSeenUtc}"
-                                data-type="suggestion"
-                                title="View on map">
-                            <i class="bi bi-geo-alt"></i>
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-
-            // Add change listeners to update action summary
-            suggestedVisitsList.querySelectorAll('.suggested-visit-check').forEach(cb => {
-                cb.addEventListener('change', updateActionSummary);
-            });
-        }
-
-        // Stale visits
-        const staleVisitsList = document.getElementById('stale-visits-list');
-        const noStaleVisits = document.getElementById('no-stale-visits');
-        const staleVisitsHint = document.getElementById('stale-visits-hint');
-        const staleSelectAllWrapper = document.getElementById('stale-select-all-wrapper');
-        document.getElementById('stale-visits-count').textContent = data.staleVisits.length;
-
-        if (data.staleVisits.length === 0) {
-            staleVisitsList?.classList.add('d-none');
-            noStaleVisits?.classList.remove('d-none');
-            staleVisitsHint?.classList.add('d-none');
-            staleSelectAllWrapper?.classList.add('d-none');
-        } else {
-            staleVisitsList?.classList.remove('d-none');
-            noStaleVisits?.classList.add('d-none');
-            staleVisitsHint?.classList.remove('d-none');
-            staleSelectAllWrapper?.classList.remove('d-none');
-            staleVisitsList.innerHTML = data.staleVisits.map(v => `
-                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div class="form-check flex-grow-1">
-                        <input class="form-check-input stale-visit-check" type="checkbox"
-                               value="${v.visitId}" id="stale-${v.visitId}" checked>
-                        <label class="form-check-label" for="stale-${v.visitId}">
-                            <span class="fw-medium text-danger"><i class="bi bi-trash me-1"></i>${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
-                        </label>
-                    </div>
-                    <span class="badge bg-warning text-dark">${escapeHtml(v.reason)}</span>
-                </div>
-            `).join('');
-
-            // Add change listeners to update action summary
-            staleVisitsList.querySelectorAll('.stale-visit-check').forEach(cb => {
-                cb.addEventListener('change', updateActionSummary);
-            });
-        }
-
-        // Existing visits (with checkboxes for manual deletion)
-        const existingVisitsList = document.getElementById('existing-visits-list');
-        const noExistingVisits = document.getElementById('no-existing-visits');
-        const existingVisitsHint = document.getElementById('existing-visits-hint');
-        const existingSelectAllWrapper = document.getElementById('existing-select-all-wrapper');
-        const existingVisits = data.existingVisits || [];
-        document.getElementById('existing-visits-count').textContent = existingVisits.length;
-
-        if (existingVisits.length === 0) {
-            existingVisitsList?.classList.add('d-none');
-            noExistingVisits?.classList.remove('d-none');
-            existingVisitsHint?.classList.add('d-none');
-            existingSelectAllWrapper?.classList.add('d-none');
-        } else {
-            existingVisitsList?.classList.remove('d-none');
-            noExistingVisits?.classList.add('d-none');
-            existingVisitsHint?.classList.remove('d-none');
-            existingSelectAllWrapper?.classList.remove('d-none');
-            existingVisitsList.innerHTML = existingVisits.map(v => `
-                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
-                    <div class="form-check flex-grow-1">
-                        <input class="form-check-input existing-visit-check" type="checkbox"
-                               value="${v.visitId}" id="existing-${v.visitId}">
-                        <label class="form-check-label" for="existing-${v.visitId}">
-                            <span class="fw-medium">${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
-                        </label>
-                    </div>
-                    <div class="text-end">
-                        ${v.isOpen
-                            ? '<span class="badge bg-success">Open</span>'
-                            : '<span class="badge bg-secondary">Closed</span>'}
-                    </div>
-                </div>
-            `).join('');
-
-            // Add change listeners to update action summary
-            existingVisitsList.querySelectorAll('.existing-visit-check').forEach(cb => {
-                cb.addEventListener('change', updateActionSummary);
-            });
-        }
-
-        // Add click handlers for place context map
-        addPlaceContextClickHandlers();
+        // Render all tabs (unfiltered)
+        rerenderBackfillTabs();
 
         // Show apply button and action summary (always show for any available actions)
-        const hasChanges = data.newVisits.length > 0 || suggestedVisits.length > 0 || data.staleVisits.length > 0 || existingVisits.length > 0;
+        const hasChanges = rawBackfillData.newVisits.length > 0 ||
+            rawBackfillData.suggestedVisits.length > 0 ||
+            rawBackfillData.staleVisits.length > 0 ||
+            rawBackfillData.existingVisits.length > 0;
         if (hasChanges) {
             applyBtn?.classList.remove('d-none');
-            updateActionSummary();
         }
     };
 
@@ -441,10 +291,25 @@ import {
 
         if (!actionSummary || !previewData) return;
 
+        // Count checked items from persistentCheckState to include items hidden by search filter.
+        // For items never interacted with, use their HTML default (stale=checked, others=unchecked).
+        const countChecked = (items, idFn, defaultChecked) =>
+            items.reduce((n, v) => {
+                const id = idFn(v);
+                const checked = persistentCheckState.has(id) ? persistentCheckState.get(id) : defaultChecked;
+                return n + (checked ? 1 : 0);
+            }, 0);
+
         const newVisitsCount = previewData.newVisits?.length || 0;
-        const confirmedSuggestionsCount = document.querySelectorAll('.suggested-visit-check:checked').length;
-        const staleDeleteCount = document.querySelectorAll('.stale-visit-check:checked').length;
-        const manualDeleteCount = document.querySelectorAll('.existing-visit-check:checked').length;
+        const confirmedSuggestionsCount = rawBackfillData
+            ? countChecked(rawBackfillData.suggestedVisits, v => `suggested-${v.placeId}-${v.visitDate}`, false)
+            : document.querySelectorAll('.suggested-visit-check:checked').length;
+        const staleDeleteCount = rawBackfillData
+            ? countChecked(rawBackfillData.staleVisits, v => `stale-${v.visitId}`, true)
+            : document.querySelectorAll('.stale-visit-check:checked').length;
+        const manualDeleteCount = rawBackfillData
+            ? countChecked(rawBackfillData.existingVisits, v => `existing-${v.visitId}`, false)
+            : document.querySelectorAll('.existing-visit-check:checked').length;
 
         // Update counts
         if (summaryCreateCount) summaryCreateCount.textContent = newVisitsCount;
@@ -509,6 +374,270 @@ import {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    };
+
+    /**
+     * Renders a list of items grouped by regionName with sticky region headers.
+     * Items are expected to be pre-sorted by region from the backend.
+     * @param {Array} items - Array of objects with at least a regionName property.
+     * @param {Function} renderItemFn - Function that receives an item and returns an HTML string.
+     * @returns {string} Combined HTML string with region headers and items.
+     */
+    const renderGroupedList = (items, renderItemFn) => {
+        if (!items || items.length === 0) return '';
+        let html = '';
+        let currentRegion = null;
+        for (const item of items) {
+            const region = item.regionName || 'Unknown';
+            if (region !== currentRegion) {
+                currentRegion = region;
+                html += `<div class="list-group-item bg-light fw-semibold small text-muted py-1 pe-none user-select-none">${escapeHtml(region)}</div>`;
+            }
+            html += renderItemFn(item);
+        }
+        return html;
+    };
+
+    /**
+     * Filters an array of items by matching query against placeName and regionName.
+     * Uses case-insensitive substring matching.
+     * @param {Array} items - Array of objects with placeName and regionName properties.
+     * @param {string} query - The search query string.
+     * @returns {Array} Filtered items.
+     */
+    const filterBySearch = (items, query) => {
+        if (!query) return items;
+        const q = query.toLowerCase();
+        return items.filter(v =>
+            (v.placeName || '').toLowerCase().includes(q) ||
+            (v.regionName || '').toLowerCase().includes(q)
+        );
+    };
+
+    /**
+     * Re-renders all backfill tabs with optionally filtered data.
+     * Called on search input changes and on initial render.
+     * @param {string} [searchQuery=''] - Optional search query to filter results.
+     */
+    const rerenderBackfillTabs = (searchQuery = '') => {
+        if (!rawBackfillData) return;
+
+        // Snapshot current DOM checkbox states into persistent store before rebuild.
+        // This captures user interactions even for items about to be filtered out.
+        document.querySelectorAll('.suggested-visit-check, .stale-visit-check, .existing-visit-check')
+            .forEach(cb => persistentCheckState.set(cb.id, cb.checked));
+
+        const filteredNew = filterBySearch(rawBackfillData.newVisits, searchQuery);
+        const filteredSuggested = filterBySearch(rawBackfillData.suggestedVisits, searchQuery);
+        const filteredStale = filterBySearch(rawBackfillData.staleVisits, searchQuery);
+        const filteredExisting = filterBySearch(rawBackfillData.existingVisits, searchQuery);
+
+        const isFiltered = searchQuery.length > 0;
+        const totalNew = rawBackfillData.newVisits.length;
+        const totalSuggested = rawBackfillData.suggestedVisits.length;
+        const totalStale = rawBackfillData.staleVisits.length;
+        const totalExisting = rawBackfillData.existingVisits.length;
+
+        // Helper: format badge count, showing "filtered of total" when searching
+        const badgeText = (filtered, total) => isFiltered ? `${filtered} of ${total}` : `${total}`;
+
+        // --- Confirmed (New Visits) ---
+        const newVisitsList = document.getElementById('new-visits-list');
+        const noNewVisits = document.getElementById('no-new-visits');
+        const newVisitsHint = document.getElementById('new-visits-hint');
+        document.getElementById('new-visits-count').textContent = badgeText(filteredNew.length, totalNew);
+
+        if (filteredNew.length === 0) {
+            newVisitsList?.classList.add('d-none');
+            noNewVisits?.classList.remove('d-none');
+            newVisitsHint?.classList.add('d-none');
+        } else {
+            newVisitsList?.classList.remove('d-none');
+            noNewVisits?.classList.add('d-none');
+            newVisitsHint?.classList.remove('d-none');
+            newVisitsList.innerHTML = renderGroupedList(filteredNew, v => `
+                <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-2 place-context-item"
+                     style="cursor: pointer;"
+                     data-place-id="${v.placeId}"
+                     data-place-name="${escapeHtml(v.placeName)}"
+                     data-region-name="${escapeHtml(v.regionName)}"
+                     data-latitude="${v.latitude || ''}"
+                     data-longitude="${v.longitude || ''}"
+                     data-icon-name="${v.iconName || ''}"
+                     data-marker-color="${v.markerColor || ''}"
+                     data-first-seen="${v.firstSeenUtc}"
+                     data-last-seen="${v.lastSeenUtc}"
+                     data-type="candidate">
+                    <div>
+                        <div class="fw-medium text-success"><i class="bi bi-plus-circle me-1"></i>${escapeHtml(v.placeName)}</div>
+                        <small class="text-muted">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                    </div>
+                    <div class="text-end d-flex align-items-center gap-2">
+                        <div>
+                            <span class="badge ${getConfidenceBadgeClass(v.confidence)}"
+                                  title="Confidence based on location count and proximity (avg ${Math.round(v.avgDistanceMeters)}m from place)">${v.confidence}% Confidence</span>
+                            <small class="text-muted d-block">${v.locationCount} hits</small>
+                        </div>
+                        <i class="bi bi-geo-alt text-muted" title="View on map"></i>
+                    </div>
+                </div>
+            `);
+        }
+
+        // --- Consider Also (Suggestions) ---
+        const suggestedVisitsList = document.getElementById('suggested-visits-list');
+        const noSuggestedVisits = document.getElementById('no-suggested-visits');
+        const suggestedVisitsHint = document.getElementById('suggested-visits-hint');
+        const suggestedSelectAllWrapper = document.getElementById('suggested-select-all-wrapper');
+        document.getElementById('suggested-visits-count').textContent = badgeText(filteredSuggested.length, totalSuggested);
+
+        if (filteredSuggested.length === 0) {
+            suggestedVisitsList?.classList.add('d-none');
+            noSuggestedVisits?.classList.remove('d-none');
+            suggestedVisitsHint?.classList.add('d-none');
+            suggestedSelectAllWrapper?.classList.add('d-none');
+        } else {
+            suggestedVisitsList?.classList.remove('d-none');
+            noSuggestedVisits?.classList.add('d-none');
+            suggestedVisitsHint?.classList.remove('d-none');
+            suggestedSelectAllWrapper?.classList.remove('d-none');
+            suggestedVisitsList.innerHTML = renderGroupedList(filteredSuggested, v => `
+                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <div class="form-check flex-grow-1">
+                        <input class="form-check-input suggested-visit-check" type="checkbox"
+                               value="${v.placeId}"
+                               data-visit-date="${v.visitDate}"
+                               data-first-seen="${v.firstSeenUtc}"
+                               data-last-seen="${v.lastSeenUtc}"
+                               id="suggested-${v.placeId}-${v.visitDate}">
+                        <label class="form-check-label" for="suggested-${v.placeId}-${v.visitDate}">
+                            <span class="fw-medium text-info"><i class="bi bi-lightbulb me-1"></i>${escapeHtml(v.placeName)}</span>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                        </label>
+                    </div>
+                    <div class="text-end d-flex align-items-center gap-2">
+                        <div>
+                            <span class="badge bg-info" title="${escapeHtml(v.suggestionReason)}">
+                                ${v.hasUserCheckin ? '<i class="bi bi-check-circle me-1"></i>' : ''}
+                                ${escapeHtml(v.suggestionReason)}
+                            </span>
+                            <small class="text-muted d-block">${Math.round(v.minDistanceMeters)}m min dist</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary place-context-btn"
+                                data-place-id="${v.placeId}"
+                                data-place-name="${escapeHtml(v.placeName)}"
+                                data-region-name="${escapeHtml(v.regionName)}"
+                                data-latitude="${v.latitude || ''}"
+                                data-longitude="${v.longitude || ''}"
+                                data-icon-name="${v.iconName || ''}"
+                                data-marker-color="${v.markerColor || ''}"
+                                data-first-seen="${v.firstSeenUtc}"
+                                data-last-seen="${v.lastSeenUtc}"
+                                data-type="suggestion"
+                                title="View on map">
+                            <i class="bi bi-geo-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            `);
+            suggestedVisitsList.querySelectorAll('.suggested-visit-check').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    persistentCheckState.set(cb.id, cb.checked);
+                    updateActionSummary();
+                });
+            });
+        }
+
+        // --- Stale Visits ---
+        const staleVisitsList = document.getElementById('stale-visits-list');
+        const noStaleVisits = document.getElementById('no-stale-visits');
+        const staleVisitsHint = document.getElementById('stale-visits-hint');
+        const staleSelectAllWrapper = document.getElementById('stale-select-all-wrapper');
+        document.getElementById('stale-visits-count').textContent = badgeText(filteredStale.length, totalStale);
+
+        if (filteredStale.length === 0) {
+            staleVisitsList?.classList.add('d-none');
+            noStaleVisits?.classList.remove('d-none');
+            staleVisitsHint?.classList.add('d-none');
+            staleSelectAllWrapper?.classList.add('d-none');
+        } else {
+            staleVisitsList?.classList.remove('d-none');
+            noStaleVisits?.classList.add('d-none');
+            staleVisitsHint?.classList.remove('d-none');
+            staleSelectAllWrapper?.classList.remove('d-none');
+            staleVisitsList.innerHTML = renderGroupedList(filteredStale, v => `
+                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <div class="form-check flex-grow-1">
+                        <input class="form-check-input stale-visit-check" type="checkbox"
+                               value="${v.visitId}" id="stale-${v.visitId}" checked>
+                        <label class="form-check-label" for="stale-${v.visitId}">
+                            <span class="fw-medium text-danger"><i class="bi bi-trash me-1"></i>${escapeHtml(v.placeName)}</span>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                        </label>
+                    </div>
+                    <span class="badge bg-warning text-dark">${escapeHtml(v.reason)}</span>
+                </div>
+            `);
+            staleVisitsList.querySelectorAll('.stale-visit-check').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    persistentCheckState.set(cb.id, cb.checked);
+                    updateActionSummary();
+                });
+            });
+        }
+
+        // --- Existing Visits ---
+        const existingVisitsList = document.getElementById('existing-visits-list');
+        const noExistingVisits = document.getElementById('no-existing-visits');
+        const existingVisitsHint = document.getElementById('existing-visits-hint');
+        const existingSelectAllWrapper = document.getElementById('existing-select-all-wrapper');
+        document.getElementById('existing-visits-count').textContent = badgeText(filteredExisting.length, totalExisting);
+
+        if (filteredExisting.length === 0) {
+            existingVisitsList?.classList.add('d-none');
+            noExistingVisits?.classList.remove('d-none');
+            existingVisitsHint?.classList.add('d-none');
+            existingSelectAllWrapper?.classList.add('d-none');
+        } else {
+            existingVisitsList?.classList.remove('d-none');
+            noExistingVisits?.classList.add('d-none');
+            existingVisitsHint?.classList.remove('d-none');
+            existingSelectAllWrapper?.classList.remove('d-none');
+            existingVisitsList.innerHTML = renderGroupedList(filteredExisting, v => `
+                <div class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <div class="form-check flex-grow-1">
+                        <input class="form-check-input existing-visit-check" type="checkbox"
+                               value="${v.visitId}" id="existing-${v.visitId}">
+                        <label class="form-check-label" for="existing-${v.visitId}">
+                            <span class="fw-medium">${escapeHtml(v.placeName)}</span>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                        </label>
+                    </div>
+                    <div class="text-end">
+                        ${v.isOpen
+                            ? '<span class="badge bg-success">Open</span>'
+                            : '<span class="badge bg-secondary">Closed</span>'}
+                    </div>
+                </div>
+            `);
+            existingVisitsList.querySelectorAll('.existing-visit-check').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    persistentCheckState.set(cb.id, cb.checked);
+                    updateActionSummary();
+                });
+            });
+        }
+
+        // Restore checkbox states from persistent store after DOM rebuild.
+        // Items filtered out by search retain their state in the Map for when they reappear.
+        persistentCheckState.forEach((wasChecked, id) => {
+            const cb = document.getElementById(id);
+            if (cb) cb.checked = wasChecked;
+        });
+
+        // Re-add click handlers for place context map
+        addPlaceContextClickHandlers();
+        updateActionSummary();
     };
 
     /**
@@ -577,6 +706,14 @@ import {
      */
     const handleApplyClick = async () => {
         if (!currentTripId || !previewData) return;
+
+        // Clear any active search filter so all items are in the DOM when building the payload.
+        // This prevents checked-but-filtered items from being silently dropped.
+        const searchInput = document.getElementById('backfill-search');
+        if (searchInput && searchInput.value) {
+            searchInput.value = '';
+            rerenderBackfillTabs();
+        }
 
         // Build the request payload for strict matches
         const createVisits = previewData.newVisits.map(v => ({
@@ -687,6 +824,14 @@ import {
     analyzeBtn?.addEventListener('click', handleAnalyzeClick);
     applyBtn?.addEventListener('click', handleApplyClick);
 
+    // Search input handler: re-renders all tabs with filtered data (debounced to avoid
+    // excessive DOM rebuilds during fast typing)
+    let searchDebounceTimer = null;
+    document.getElementById('backfill-search')?.addEventListener('input', (e) => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => rerenderBackfillTabs(e.target.value.trim()), 180);
+    });
+
     // Reset modal when hidden
     backfillModalEl?.addEventListener('hidden.bs.modal', resetBackfillModal);
 
@@ -715,15 +860,21 @@ import {
         }
     });
 
-    // Select/Deselect all handlers for suggested visits
+    // Select/Deselect all handlers for suggested visits.
+    // Must update persistentCheckState for ALL items (including those hidden by search filter)
+    // to prevent filtered-out items from retaining stale state when the filter is cleared.
     document.getElementById('suggested-select-all')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.suggested-visit-check').forEach(cb => cb.checked = true);
+        rawBackfillData?.suggestedVisits.forEach(v =>
+            persistentCheckState.set(`suggested-${v.placeId}-${v.visitDate}`, true));
         updateActionSummary();
     });
     document.getElementById('suggested-deselect-all')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.suggested-visit-check').forEach(cb => cb.checked = false);
+        rawBackfillData?.suggestedVisits.forEach(v =>
+            persistentCheckState.set(`suggested-${v.placeId}-${v.visitDate}`, false));
         updateActionSummary();
     });
 
@@ -731,11 +882,15 @@ import {
     document.getElementById('stale-select-all')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.stale-visit-check').forEach(cb => cb.checked = true);
+        rawBackfillData?.staleVisits.forEach(v =>
+            persistentCheckState.set(`stale-${v.visitId}`, true));
         updateActionSummary();
     });
     document.getElementById('stale-deselect-all')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.stale-visit-check').forEach(cb => cb.checked = false);
+        rawBackfillData?.staleVisits.forEach(v =>
+            persistentCheckState.set(`stale-${v.visitId}`, false));
         updateActionSummary();
     });
 
@@ -743,11 +898,15 @@ import {
     document.getElementById('existing-select-all')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.existing-visit-check').forEach(cb => cb.checked = true);
+        rawBackfillData?.existingVisits.forEach(v =>
+            persistentCheckState.set(`existing-${v.visitId}`, true));
         updateActionSummary();
     });
     document.getElementById('existing-deselect-all')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.existing-visit-check').forEach(cb => cb.checked = false);
+        rawBackfillData?.existingVisits.forEach(v =>
+            persistentCheckState.set(`existing-${v.visitId}`, false));
         updateActionSummary();
     });
 

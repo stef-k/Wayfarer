@@ -60,9 +60,11 @@ public class VisitBackfillService : IVisitBackfillService
             .SelectMany(r => r.Places)
             .ToList();
 
-        // Get places with coordinates (for spatial analysis)
+        // Get places with coordinates (for spatial analysis), dedup by Id to prevent
+        // duplicate suggestions when the same place appears via multiple includes
         var placesWithCoords = allPlaces
             .Where(p => p.Location != null)
+            .DistinctBy(p => p.Id)
             .ToList();
 
         // Get all place IDs from this trip
@@ -193,10 +195,16 @@ public class VisitBackfillService : IVisitBackfillService
             LocationsScanned = totalLocationsScanned,
             PlacesAnalyzed = placesWithCoords.Count,
             AnalysisDurationMs = stopwatch.ElapsedMilliseconds,
-            NewVisits = candidates.OrderByDescending(c => c.VisitDate).ThenBy(c => c.PlaceName).ToList(),
-            StaleVisits = staleVisits,
+            NewVisits = candidates
+                .OrderBy(c => c.RegionName).ThenBy(c => c.PlaceName).ThenByDescending(c => c.VisitDate)
+                .ToList(),
+            StaleVisits = staleVisits
+                .OrderBy(s => s.RegionName).ThenBy(s => s.PlaceName).ThenByDescending(s => s.VisitDate)
+                .ToList(),
             ExistingVisits = MapToExistingVisitDtos(unchangedVisits),
-            SuggestedVisits = suggestions.OrderByDescending(s => s.VisitDate).ThenBy(s => s.PlaceName).ToList()
+            SuggestedVisits = suggestions
+                .OrderBy(s => s.RegionName).ThenBy(s => s.PlaceName).ThenBy(s => s.MinDistanceMeters).ThenByDescending(s => s.VisitDate)
+                .ToList()
         };
     }
 
@@ -927,11 +935,12 @@ public class VisitBackfillService : IVisitBackfillService
 
     /// <summary>
     /// Maps PlaceVisitEvent entities to ExistingVisitDto objects.
+    /// Results are grouped by region, place name, then date descending.
     /// </summary>
     private static List<ExistingVisitDto> MapToExistingVisitDtos(List<PlaceVisitEvent> visits)
     {
         return visits
-            .OrderByDescending(v => v.ArrivedAtUtc)
+            .OrderBy(v => v.RegionNameSnapshot).ThenBy(v => v.PlaceNameSnapshot).ThenByDescending(v => v.ArrivedAtUtc)
             .Select(v => new ExistingVisitDto
             {
                 VisitId = v.Id,
@@ -1212,6 +1221,10 @@ public class VisitBackfillService : IVisitBackfillService
                 var sw = Stopwatch.StartNew();
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
+                // Track seen (PlaceId, Date) pairs to eliminate duplicate suggestions
+                // that can arise from chunked queries or edge cases
+                var seen = new HashSet<(Guid, DateOnly)>();
+
                 while (await reader.ReadAsync(cancellationToken))
                 {
                     var placeId = reader.GetGuid(0);
@@ -1232,6 +1245,10 @@ public class VisitBackfillService : IVisitBackfillService
                     {
                         continue;
                     }
+
+                    // Skip duplicate (PlaceId, Date) suggestions
+                    if (!seen.Add((placeId, visitDate)))
+                        continue;
 
                     if (!placesById.TryGetValue(placeId, out var place))
                         continue;
