@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [1.1.2] - 2026-02-27
+- Fixed search clear button not cancelling pending debounce timer (#166)
+
 ## [1.1.1] - 2026-02-27
 - Fixed region headers not respecting dark theme in trip analysis modal
 - Added inline clear button to analysis search field
