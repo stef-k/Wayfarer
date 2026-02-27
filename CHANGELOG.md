@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [1.1.0] - 2026-02-27
+- Improved trip analysis: group results by region and place name across all tabs (#163)
+- Added fuzzy search filtering across all analysis tabs (#163)
+- Fixed duplicate suggestions in Consider Also tab (#163)
+- Increased analysis modal list height responsively for better data visibility (#163)
+
 ### 2026-02-21
 - Fixed EF Core warnings for First/FirstOrDefault without OrderBy on ApplicationSettings queries (#159)
 - Fixed latent crash in LocationImportController when ApplicationSettings table is empty

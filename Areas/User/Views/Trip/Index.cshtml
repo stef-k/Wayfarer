@@ -238,6 +238,12 @@ else
                         </div>
                     </div>
 
+                    <!-- Search filter (shown with results) -->
+                    <div id="backfill-search-wrapper" class="mb-2 d-none">
+                        <input type="text" class="form-control form-control-sm"
+                               id="backfill-search" placeholder="Search places, regions...">
+                    </div>
+
                     <!-- Tab Navigation -->
                     <ul class="nav nav-tabs" id="backfillTabs" role="tablist">
                         <li class="nav-item" role="presentation">
@@ -281,7 +287,7 @@ else
                                 <i class="bi bi-question-circle text-muted ms-1 backfill-help" role="button" tabindex="0"
                                    data-tippy-content="<strong>Confirmed visits</strong> are days when your location history shows you were near a place (within ~150m), with multiple GPS points confirming your presence.<br><br><strong>Confidence %</strong> indicates certainty — based on how many GPS points matched and how close they were to the place center."></i>
                             </div>
-                            <div id="new-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                            <div id="new-visits-list" class="list-group list-group-flush" style="max-height: min(50vh, 500px); overflow-y: auto;">
                                 <!-- Populated by JS -->
                             </div>
                             <div id="no-new-visits" class="text-muted small d-none">
@@ -305,7 +311,7 @@ else
                                 <span class="text-muted mx-1">|</span>
                                 <a href="#" class="small text-decoration-none" id="suggested-deselect-all">Deselect all</a>
                             </div>
-                            <div id="suggested-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                            <div id="suggested-visits-list" class="list-group list-group-flush" style="max-height: min(50vh, 500px); overflow-y: auto;">
                                 <!-- Populated by JS -->
                             </div>
                             <div id="no-suggested-visits" class="text-muted small d-none">
@@ -329,7 +335,7 @@ else
                                 <span class="text-muted mx-1">|</span>
                                 <a href="#" class="small text-decoration-none" id="stale-deselect-all">Deselect all</a>
                             </div>
-                            <div id="stale-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                            <div id="stale-visits-list" class="list-group list-group-flush" style="max-height: min(50vh, 500px); overflow-y: auto;">
                                 <!-- Populated by JS -->
                             </div>
                             <div id="no-stale-visits" class="text-muted small d-none">
@@ -352,7 +358,7 @@ else
                                 <span class="text-muted mx-1">|</span>
                                 <a href="#" class="small text-decoration-none" id="existing-deselect-all">Deselect all</a>
                             </div>
-                            <div id="existing-visits-list" class="list-group list-group-flush" style="max-height: 250px; overflow-y: auto;">
+                            <div id="existing-visits-list" class="list-group list-group-flush" style="max-height: min(50vh, 500px); overflow-y: auto;">
                                 <!-- Populated by JS -->
                             </div>
                             <div id="no-existing-visits" class="text-muted small d-none">
