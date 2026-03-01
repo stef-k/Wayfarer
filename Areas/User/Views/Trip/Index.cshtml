@@ -94,6 +94,17 @@ else
                                         Copy public trip page embed
                                     </a>
                                 </li>
+                                @if (trip.ShareProgressEnabled)
+                                {
+                                    <li>
+                                        <a class="dropdown-item copy-url"
+                                           href="#"
+                                           data-url="/Public/Trips/@trip.Id?progress=1"
+                                           title="Click to copy progress link to clipboard">
+                                            <i class="bi bi-broadcast me-1"></i>Copy progress link
+                                        </a>
+                                    </li>
+                                }
                             </ul>
                         </div>
                     }
