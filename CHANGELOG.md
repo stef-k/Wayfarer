@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [1.1.3] - 2026-03-01
+- Fixed public trips grid view title unreadable in dark theme (#168)
+
 ## [1.1.2] - 2026-02-27
 - Fixed search clear button not cancelling pending debounce timer (#166)
 
