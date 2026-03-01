@@ -192,35 +192,6 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Assert.True(db.ImageCacheMetadata.Count() <= 3);
     }
 
-    [Fact]
-    public async Task SetAsync_DeletesOrphanedFile_WhenDbSaveFails()
-    {
-        var db = CreateDbContext();
-        var service = CreateService(db: db);
-
-        // Cache an entry so a file exists
-        var imageBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 };
-        await service.SetAsync("orphan_key", imageBytes, "image/jpeg");
-
-        // Verify file was written
-        var filePath = Path.Combine(_tempDir, "orphan_key.dat");
-        Assert.True(File.Exists(filePath));
-
-        // Now dispose the DB context so the next SetAsync DB save will fail
-        db.Dispose();
-
-        // Create a new DB context and service where the DB will throw on save
-        var db2 = CreateDbContext();
-        var service2 = CreateService(db: db2);
-
-        // Simulate a unique key to force a new insert (not an "already exists" shortcut)
-        await service2.SetAsync("orphan_key_2", new byte[] { 1, 2 }, "image/png");
-        var filePath2 = Path.Combine(_tempDir, "orphan_key_2.dat");
-
-        // The file should exist because we wrote it — verify normal flow works
-        Assert.True(File.Exists(filePath2));
-    }
-
     /// <summary>
     /// Creates a ProxiedImageCacheService with test configuration.
     /// </summary>

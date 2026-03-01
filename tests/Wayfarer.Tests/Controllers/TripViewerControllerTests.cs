@@ -356,7 +356,7 @@ public class TripViewerControllerTests : TestBase
             ProxyImageRateLimitPerMinute = 1
         });
 
-        var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        var handler = new FakeHandler(() => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent(new byte[] { 1, 2 })
             {
@@ -419,15 +419,19 @@ public class TripViewerControllerTests : TestBase
         return controller;
     }
 
+    /// <summary>
+    /// Fake HTTP handler that returns a preconfigured response.
+    /// Use the factory constructor for tests that make multiple HTTP calls
+    /// to avoid reusing a disposed <see cref="HttpResponseMessage"/>.
+    /// </summary>
     private sealed class FakeHandler : HttpMessageHandler
     {
-        private readonly HttpResponseMessage _response;
+        private readonly Func<HttpResponseMessage> _responseFactory;
 
-        public FakeHandler(HttpResponseMessage response) => _response = response;
+        public FakeHandler(HttpResponseMessage response) => _responseFactory = () => response;
+        public FakeHandler(Func<HttpResponseMessage> responseFactory) => _responseFactory = responseFactory;
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(_response);
-        }
+            => Task.FromResult(_responseFactory());
     }
 }

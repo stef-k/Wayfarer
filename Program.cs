@@ -561,6 +561,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
                 }
 
                 // Try all resolved addresses (v4+v6) — CDN hosts often return multiple IPs
+                Exception? lastException = null;
                 foreach (var addr in addresses)
                 {
                     var socket = new System.Net.Sockets.Socket(
@@ -571,14 +572,16 @@ static void ConfigureServices(WebApplicationBuilder builder)
                         await socket.ConnectAsync(addr, context.DnsEndPoint.Port, cancellationToken);
                         return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
                     }
-                    catch
+                    catch (Exception ex)
                     {
                         socket.Dispose();
+                        lastException = ex;
                     }
                 }
 
                 throw new HttpRequestException(
-                    $"Could not connect to any resolved address for {context.DnsEndPoint.Host}");
+                    $"Could not connect to any resolved address for {context.DnsEndPoint.Host}",
+                    lastException);
             }
         });
 
