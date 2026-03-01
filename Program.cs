@@ -540,11 +540,27 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton<IUserColorService, UserColorService>();
     builder.Services.Configure<MobileSseOptions>(builder.Configuration.GetSection("MobileSse"));
     builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<MobileSseOptions>>().Value);
+
+    // Proxied image cache service (disk + DB backed, scoped for DbContext access)
+    builder.Services.AddScoped<IProxiedImageCacheService, ProxiedImageCacheService>();
+
+    // Response compression for dynamic content (HTML, JSON, images served by controllers)
+    builder.Services.AddResponseCompression(options =>
+    {
+        options.EnableForHttps = true;
+        options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+        options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+        options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes
+            .Concat(new[] { "image/svg+xml", "application/json" });
+    });
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
 static async Task ConfigureMiddleware(WebApplication app)
 {
+    // Response compression must be early in the pipeline to compress all subsequent responses
+    app.UseResponseCompression();
+
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
     app.UseForwardedHeaders();
 
@@ -584,6 +600,13 @@ static async Task ConfigureMiddleware(WebApplication app)
     {
         var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         tileCacheService.Initialize();
+    }
+
+    // Image proxy cache initialization
+    using (var scope = app.Services.CreateScope())
+    {
+        var imageCacheService = scope.ServiceProvider.GetRequiredService<IProxiedImageCacheService>();
+        imageCacheService.Initialize();
     }
 
     // Load upload size limit from settings

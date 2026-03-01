@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Admin.Controllers
@@ -14,6 +15,7 @@ namespace Wayfarer.Areas.Admin.Controllers
     {
         private readonly IApplicationSettingsService _settingsService;
         private readonly TileCacheService _tileCacheService;
+        private readonly IProxiedImageCacheService _imageCacheService;
         private readonly IWebHostEnvironment _env;
         private readonly IServiceScopeFactory _scopeFactory;
 
@@ -22,12 +24,14 @@ namespace Wayfarer.Areas.Admin.Controllers
             ApplicationDbContext dbContext,
             IApplicationSettingsService settingsService,
             TileCacheService tileCacheService,
+            IProxiedImageCacheService imageCacheService,
             IWebHostEnvironment env,
             IServiceScopeFactory scopeFactory)
             : base(logger, dbContext)
         {
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _tileCacheService = tileCacheService ?? throw new ArgumentNullException(nameof(tileCacheService));
+            _imageCacheService = imageCacheService ?? throw new ArgumentNullException(nameof(imageCacheService));
             _env = env ?? throw new ArgumentNullException(nameof(env));
             _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         }
@@ -80,8 +84,13 @@ namespace Wayfarer.Areas.Admin.Controllers
             ViewData["UploadsSizeGB"] = Math.Round(uploadsSizeGB, 3);
             ViewData["UploadsFileCount"] = uploadFileCount;
 
-            // Combined
-            double combinedTotalMB = tileCacheSizeMB  + uploadsSizeMB;
+            // Image proxy cache stats
+            ViewData["ImageCacheCount"] = await _imageCacheService.GetCachedImageCountAsync();
+            double imageCacheSizeMB = await _imageCacheService.GetCacheSizeInMbAsync();
+            ViewData["ImageCacheSizeMB"] = Math.Round(imageCacheSizeMB, 2);
+
+            // Combined (tile cache + image cache + uploads)
+            double combinedTotalMB = tileCacheSizeMB + imageCacheSizeMB + uploadsSizeMB;
             double combinedTotalGB = combinedTotalMB / 1024.0;
             ViewData["CombinedStorageMB"] = Math.Round(combinedTotalMB, 2);
             ViewData["CombinedStorageGB"] = Math.Round(combinedTotalGB, 3);
@@ -145,6 +154,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("LocationDistanceThresholdMeters", currentSettings.LocationDistanceThresholdMeters, updatedSettings.LocationDistanceThresholdMeters);
                     Track("LocationAccuracyThresholdMeters", currentSettings.LocationAccuracyThresholdMeters, updatedSettings.LocationAccuracyThresholdMeters);
                     Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
+                    Track("MaxCacheImageSizeInMB", currentSettings.MaxCacheImageSizeInMB, updatedSettings.MaxCacheImageSizeInMB);
+                    Track("ImageCacheExpiryDays", currentSettings.ImageCacheExpiryDays, updatedSettings.ImageCacheExpiryDays);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
                     Track("TileProviderKey", currentSettings.TileProviderKey, updatedSettings.TileProviderKey);
                     Track("TileProviderUrlTemplate", currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate);
@@ -188,6 +199,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
                     currentSettings.LocationAccuracyThresholdMeters = updatedSettings.LocationAccuracyThresholdMeters;
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
+                    currentSettings.MaxCacheImageSizeInMB = updatedSettings.MaxCacheImageSizeInMB;
+                    currentSettings.ImageCacheExpiryDays = updatedSettings.ImageCacheExpiryDays;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
                     currentSettings.TileProviderKey = updatedSettings.TileProviderKey;
                     currentSettings.TileProviderUrlTemplate = updatedSettings.TileProviderUrlTemplate;

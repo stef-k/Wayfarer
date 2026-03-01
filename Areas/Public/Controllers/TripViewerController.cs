@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,18 +19,21 @@ public class TripViewerController : BaseController
     private readonly HttpClient _httpClient;
     private readonly ITripThumbnailService _thumbnailService;
     private readonly ITripTagService _tripTagService;
+    private readonly IProxiedImageCacheService _imageCacheService;
 
     public TripViewerController(
         ILogger<TripViewerController> logger,
         ApplicationDbContext dbContext,
         HttpClient httpClient,
         ITripThumbnailService thumbnailService,
-        ITripTagService tripTagService)
+        ITripTagService tripTagService,
+        IProxiedImageCacheService imageCacheService)
         : base(logger, dbContext)
     {
         _httpClient = httpClient;
         _thumbnailService = thumbnailService;
         _tripTagService = tripTagService;
+        _imageCacheService = imageCacheService;
     }
 
     /// <summary>
@@ -376,16 +381,35 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Proxy external images with optional optimization.
-    /// Default: 95% quality (visually lossless, faster loading)
-    /// Print: Can specify maxWidth=600&quality=85 for smaller PDFs
-    /// Disable: Use optimize=false to serve original image
-    /// GET: /Public/ProxyImage?url=...&maxWidth=600&quality=85&optimize=true
+    /// Proxy external images with optional optimization and disk-based caching.
+    /// Cached images are served directly from disk on subsequent requests, avoiding
+    /// repeated external downloads and ImageSharp processing.
+    /// Default: 95% quality (visually lossless, faster loading).
+    /// Print: Can specify maxWidth=600&amp;quality=85 for smaller PDFs.
+    /// Disable: Use optimize=false to serve original image.
+    /// GET: /Public/ProxyImage?url=...&amp;maxWidth=600&amp;quality=85&amp;optimize=true
     /// </summary>
     [AllowAnonymous]
     [HttpGet("Public/ProxyImage")]
     public async Task<IActionResult> ProxyImage(string url, int? maxWidth = null, int? maxHeight = null, int? quality = null, bool optimize = true)
     {
+        // SSRF protection: reject non-http/https or private/loopback addresses
+        if (!IsUrlAllowed(url))
+            return BadRequest("Invalid or disallowed image URL.");
+
+        // Compute deterministic cache key from all parameters
+        var cacheKey = ComputeImageCacheKey(url, maxWidth, maxHeight, quality, optimize);
+
+        // Try to serve from cache
+        var cached = await _imageCacheService.GetAsync(cacheKey);
+        if (cached.HasValue)
+        {
+            Response.Headers["Cache-Control"] = "public, max-age=86400";
+            Response.Headers["ETag"] = $"\"{cacheKey}\"";
+            return File(cached.Value.Bytes, cached.Value.ContentType);
+        }
+
+        // Cache miss: download from origin
         using var resp = await _httpClient.GetAsync(url);
         if (!resp.IsSuccessStatusCode)
             return StatusCode((int)resp.StatusCode);
@@ -399,19 +423,22 @@ public class TripViewerController : BaseController
         {
             try
             {
-                // Default to 95% quality if not specified (visually lossless)
-                // This provides faster loading with minimal quality loss
                 var optimizedBytes = OptimizeImage(bytes, maxWidth, maxHeight, quality ?? 95, out bool isPng);
                 bytes = optimizedBytes;
-                // Content type depends on whether transparency was preserved
                 contentType = isPng ? "image/png" : "image/jpeg";
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to optimize image from {Url}, serving original", url);
-                // Fall through to return original bytes
             }
         }
+
+        // Cache the result for future requests (non-blocking: don't delay the response)
+        _ = _imageCacheService.SetAsync(cacheKey, bytes, contentType);
+
+        // Set browser cache headers
+        Response.Headers["Cache-Control"] = "public, max-age=86400";
+        Response.Headers["ETag"] = $"\"{cacheKey}\"";
 
         return File(bytes, contentType);
     }
@@ -479,6 +506,64 @@ public class TripViewerController : BaseController
         }
 
         return outputStream.ToArray();
+    }
+
+    /// <summary>
+    /// Computes a deterministic SHA-256 cache key from the proxy request parameters.
+    /// The same URL with the same optimization parameters always produces the same key.
+    /// </summary>
+    private static string ComputeImageCacheKey(
+        string url, int? maxWidth, int? maxHeight, int? quality, bool optimize)
+    {
+        var raw = $"{url}|{maxWidth}|{maxHeight}|{quality}|{optimize}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Validates that a proxy URL is safe to fetch: must use http/https scheme
+    /// and must not target private/loopback IP addresses (SSRF prevention).
+    /// Inspects only the hostname literal; DNS resolution is intentionally not performed
+    /// here to avoid added latency on every request.
+    /// </summary>
+    internal static bool IsUrlAllowed(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return false;
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        var host = uri.Host;
+
+        // Block localhost hostnames
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Block private/loopback IP address literals
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            if (System.Net.IPAddress.IsLoopback(ip))
+                return false;
+
+            var bytes = ip.GetAddressBytes();
+            if (bytes.Length == 4)
+            {
+                if (bytes[0] == 10) return false;                                  // 10.0.0.0/8
+                if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return false; // 172.16.0.0/12
+                if (bytes[0] == 192 && bytes[1] == 168) return false;              // 192.168.0.0/16
+                if (bytes[0] == 169 && bytes[1] == 254) return false;              // 169.254.0.0/16 link-local
+            }
+
+            // IPv6 link-local (fe80::/10)
+            if (bytes.Length == 16 && bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80)
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>

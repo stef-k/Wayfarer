@@ -706,7 +706,75 @@
                         </div>
 
                         <hr/>
-                        
+
+                        @* ── Image Proxy Cache Settings ── *@
+                        <div class="row">
+                            <h3 class="text-center fs-2">Image Proxy Cache</h3>
+
+                            <div class="col-6 mb-2">
+                                <strong>Cached Images:</strong>
+                                <code id="ImageCacheCount">@ViewData["ImageCacheCount"]</code>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <strong>Cache Size:</strong>
+                                <code id="ImageCacheSizeMB">@ViewData["ImageCacheSizeMB"] MB</code>
+                            </div>
+
+                            <hr/>
+
+                            <div class="col-md-6">
+                                <label asp-for="MaxCacheImageSizeInMB" class="form-label">
+                                    Maximum Size for Image Cache in Megabytes:
+                                </label>
+
+                                <div class="input-group">
+                                    <input asp-for="MaxCacheImageSizeInMB"
+                                           class="form-control"
+                                           type="number"
+                                           step="1"
+                                           min="-1"/>
+                                    <span class="input-group-text">MB</span>
+                                </div>
+
+                                <span asp-validation-for="MaxCacheImageSizeInMB" class="text-danger"></span>
+
+                                <div class="form-text">
+                                    • Controls the maximum disk space for cached proxy images.<br/>
+                                    • Set to <code>-1</code> to disable image proxy caching entirely.<br/>
+                                    • Default: <code>@ApplicationSettings.DefaultMaxCacheImageSizeInMB MB</code>.<br/>
+                                    • Cached images are typically 20–200 KB each.<br/>
+                                    • When exceeded, least-recently-used images are purged automatically.<br/>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label asp-for="ImageCacheExpiryDays" class="form-label">
+                                    Image Cache Expiry in Days:
+                                </label>
+
+                                <div class="input-group">
+                                    <input asp-for="ImageCacheExpiryDays"
+                                           class="form-control"
+                                           type="number"
+                                           step="1"
+                                           min="1"
+                                           max="365"/>
+                                    <span class="input-group-text">days</span>
+                                </div>
+
+                                <span asp-validation-for="ImageCacheExpiryDays" class="text-danger"></span>
+
+                                <div class="form-text">
+                                    • Cached images older than this are re-fetched from the original source.<br/>
+                                    • Images in trip descriptions rarely change, so a long expiry is
+                                    recommended.<br/>
+                                    • Default: <code>@ApplicationSettings.DefaultImageCacheExpiryDays days</code>.<br/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr/>
+
                         <div class="row">
                             <h3 class="text-center fs-2">Total Disk Usage</h3>
 
@@ -714,6 +782,11 @@
                                 <strong>Map Tiles Cache (zoom ≥ 9):</strong><br/>
                                 <code>@ViewData["TotalCacheSize"] MB</code> /
                                 <code>@ViewData["TotalCacheSizeGB"] GB</code>
+                            </div>
+
+                            <div class="col-4 mb-2 fs-5">
+                                <strong>Image Proxy Cache:</strong><br/>
+                                <code>@ViewData["ImageCacheSizeMB"] MB</code>
                             </div>
 
                             <div class="col-4 mb-2 fs-5">

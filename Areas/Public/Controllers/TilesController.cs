@@ -152,6 +152,10 @@ public class TilesController : Controller
             return NotFound("Tile not found.");
         }
 
+        // Set browser cache headers. Tiles are stable and rarely change;
+        // 1-day browser caching eliminates redundant requests.
+        Response.Headers["Cache-Control"] = "public, max-age=86400";
+
         // Return the tile data with the appropriate content type.
         return File(tileData, "image/png");
     }

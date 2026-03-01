@@ -33,6 +33,9 @@ namespace Wayfarer.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ImageCacheExpiryDays")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsRegistrationOpen")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -45,6 +48,9 @@ namespace Wayfarer.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("LocationTimeThresholdMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxCacheImageSizeInMB")
                         .HasColumnType("integer");
 
                     b.Property<int>("MaxCacheTileSizeInMB")
@@ -650,6 +656,56 @@ namespace Wayfarer.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("HiddenAreas");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.ImageCacheMetadata", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CacheKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("LastAccessed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("Size")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CacheKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ImageCacheMetadata_CacheKey");
+
+                    b.ToTable("ImageCacheMetadata");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.JobHistory", b =>

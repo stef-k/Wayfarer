@@ -27,6 +27,8 @@ namespace Wayfarer.Models
 
         public DbSet<TileCacheMetadata> TileCacheMetadata { get; set; }
 
+        public DbSet<ImageCacheMetadata> ImageCacheMetadata { get; set; }
+
         public DbSet<LocationImport> LocationImports { get; set; }
 
         public DbSet<HiddenArea> HiddenAreas { get; set; }
@@ -139,6 +141,35 @@ namespace Wayfarer.Models
             builder.Entity<TileCacheMetadata>()
                 .HasIndex(t => t.TileLocation)
                 .HasMethod("GIST"); // This creates a spatial index (if you're using PostGIS)
+
+            // Image Cache Metadata
+            // EF to use the RowVersion in order to handle race conditions in code
+            builder.Entity<ImageCacheMetadata>(b =>
+            {
+                b.Property(e => e.RowVersion)
+                    .HasColumnName("xmin")
+                    .IsRowVersion()
+                    .ValueGeneratedOnAddOrUpdate();
+            });
+
+            builder.Entity<ImageCacheMetadata>()
+                .HasIndex(i => i.CacheKey)
+                .IsUnique()
+                .HasDatabaseName("IX_ImageCacheMetadata_CacheKey");
+
+            builder.Entity<ImageCacheMetadata>()
+                .Property(i => i.CreatedAt)
+                .IsRequired()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            builder.Entity<ImageCacheMetadata>()
+                .Property(i => i.LastAccessed)
+                .IsRequired()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            builder.Entity<ImageCacheMetadata>()
+                .Property(i => i.Size)
+                .IsRequired();
 
             // Application Settings
             builder.Entity<ApplicationSettings>()
