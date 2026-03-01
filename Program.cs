@@ -540,11 +540,68 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton<IUserColorService, UserColorService>();
     builder.Services.Configure<MobileSseOptions>(builder.Configuration.GetSection("MobileSse"));
     builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<MobileSseOptions>>().Value);
+
+    // Proxied image cache service (disk + DB backed, scoped for DbContext access)
+    builder.Services.AddScoped<IProxiedImageCacheService, ProxiedImageCacheService>();
+
+    // Typed HttpClient for TripViewerController with DNS-level SSRF protection.
+    // The ConnectCallback resolves DNS and checks all IPs against the private/loopback deny-list
+    // before allowing a connection, preventing DNS rebinding attacks.
+    builder.Services.AddHttpClient<Wayfarer.Areas.Public.Controllers.TripViewerController>()
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            ConnectCallback = async (context, cancellationToken) =>
+            {
+                var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+                foreach (var address in addresses)
+                {
+                    if (Wayfarer.Areas.Public.Controllers.TripViewerController.IsPrivateOrLoopback(address))
+                        throw new HttpRequestException(
+                            $"Connection to private/loopback address {address} is blocked (SSRF protection).");
+                }
+
+                // Try all resolved addresses (v4+v6) — CDN hosts often return multiple IPs
+                Exception? lastException = null;
+                foreach (var addr in addresses)
+                {
+                    var socket = new System.Net.Sockets.Socket(
+                        System.Net.Sockets.SocketType.Stream,
+                        System.Net.Sockets.ProtocolType.Tcp);
+                    try
+                    {
+                        await socket.ConnectAsync(addr, context.DnsEndPoint.Port, cancellationToken);
+                        return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        socket.Dispose();
+                        lastException = ex;
+                    }
+                }
+
+                throw new HttpRequestException(
+                    $"Could not connect to any resolved address for {context.DnsEndPoint.Host}",
+                    lastException);
+            }
+        });
+
+    // Response compression for dynamic content (HTML, JSON, images served by controllers)
+    builder.Services.AddResponseCompression(options =>
+    {
+        options.EnableForHttps = true;
+        options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+        options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+        options.MimeTypes = Microsoft.AspNetCore.ResponseCompression.ResponseCompressionDefaults.MimeTypes
+            .Concat(new[] { "image/svg+xml", "application/json" });
+    });
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
 static async Task ConfigureMiddleware(WebApplication app)
 {
+    // Response compression must be early in the pipeline to compress all subsequent responses
+    app.UseResponseCompression();
+
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
     app.UseForwardedHeaders();
 
@@ -584,6 +641,13 @@ static async Task ConfigureMiddleware(WebApplication app)
     {
         var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         tileCacheService.Initialize();
+    }
+
+    // Image proxy cache initialization
+    using (var scope = app.Services.CreateScope())
+    {
+        var imageCacheService = scope.ServiceProvider.GetRequiredService<IProxiedImageCacheService>();
+        imageCacheService.Initialize();
     }
 
     // Load upload size limit from settings

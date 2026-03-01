@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.2.0] - 2026-03-01
+- Added disk-cached image proxy with LRU eviction for proxied images (#169)
+- Added SSRF protection to ProxyImage endpoint blocking private IPs and non-HTTP schemes (#169)
+- Added Cache-Control and ETag headers to proxied images and tile responses (#169)
+- Added response compression middleware (Brotli + Gzip) (#169)
+- Added admin-configurable image cache size limit and expiry duration (#169)
+- Added image cache stats to admin settings dashboard (#169)
+- Updated deployment docs and scripts for ImageCache directory (#169)
+
 ## [1.1.4] - 2026-03-01
 - Added trip progress share link toggle and copy button to trip Viewer page (#170)
 - Added copy progress link option to trip Index public dropdown (#170)

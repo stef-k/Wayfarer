@@ -6,6 +6,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 /// </summary>
 public class ApplicationSettings
 {
+    public const int DefaultMaxCacheImageSizeInMB = 512;
+    public const int DefaultImageCacheExpiryDays = 90;
     public const int DefaultMaxCacheTileSizeInMB = 1024;
     public const int DefaultMaxCacheMbtilesSizeInMB = 6144;
     public const int DefaultUploadSizeLimitMB = 100;
@@ -13,8 +15,9 @@ public class ApplicationSettings
     public const string DefaultTileProviderUrlTemplate = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 500;
+    public const int DefaultProxyImageRateLimitPerMinute = 200;
 
-    
+
     [Key]
     public int Id { get; set; } = 1;
 
@@ -87,6 +90,39 @@ public class ApplicationSettings
     [Required]
     [Range(50, 10000, ErrorMessage = "Rate limit must be between 50 and 10,000 requests per minute.")]
     public int TileRateLimitPerMinute { get; set; } = DefaultTileRateLimitPerMinute;
+
+    /// <summary>
+    /// Whether to rate limit anonymous proxy image requests to prevent abuse and origin flooding.
+    /// Authenticated users are never rate limited.
+    /// </summary>
+    [Required]
+    public bool ProxyImageRateLimitEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Maximum proxy image requests per minute per IP address for anonymous users.
+    /// Default is 200 which is generous for normal browsing but blocks abuse.
+    /// </summary>
+    [Required]
+    [Range(10, 5000, ErrorMessage = "Rate limit must be between 10 and 5,000 requests per minute.")]
+    public int ProxyImageRateLimitPerMinute { get; set; } = DefaultProxyImageRateLimitPerMinute;
+
+    /// <summary>
+    /// Maximum image proxy cache size in megabytes. LRU eviction triggers when exceeded.
+    /// Set to -1 to disable image proxy caching entirely.
+    /// Default is 512 MB. Cached images are typically 20-200 KB each.
+    /// </summary>
+    [Required]
+    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or a positive size up to 100 GB.")]
+    public int MaxCacheImageSizeInMB { get; set; } = DefaultMaxCacheImageSizeInMB;
+
+    /// <summary>
+    /// Number of days before cached proxy images expire and are re-fetched from origin.
+    /// Images in trip descriptions rarely change, so a long expiry is appropriate.
+    /// Default is 90 days.
+    /// </summary>
+    [Required]
+    [Range(1, 365, ErrorMessage = "Expiry must be between 1 and 365 days.")]
+    public int ImageCacheExpiryDays { get; set; } = DefaultImageCacheExpiryDays;
 
     /// <summary>
     /// Flag to control whether user registration is open or closed.

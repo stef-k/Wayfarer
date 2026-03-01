@@ -24,6 +24,10 @@ Uploads/Temp/*
 TileCache/*
 !TileCache/.gitkeep
 
+# Image Proxy Cache
+ImageCache/*
+!ImageCache/.gitkeep
+
 # mbtiles cache
 MbtileCache/*
 !MbtileCache/.gitkeep

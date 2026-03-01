@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +10,7 @@ using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -191,21 +193,225 @@ public class TripViewerControllerTests : TestBase
         Assert.Equal(404, status.StatusCode);
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1/secret")]
+    [InlineData("http://localhost/secret")]
+    [InlineData("http://10.0.0.1/secret")]
+    [InlineData("http://192.168.1.1/secret")]
+    [InlineData("http://172.16.0.1/secret")]
+    [InlineData("http://[::1]/secret")]
+    [InlineData("http://[fc00::1]/secret")]
+    [InlineData("http://[fd12:3456::1]/secret")]
+    [InlineData("http://[::ffff:10.0.0.1]/secret")]
+    [InlineData("http://[::ffff:192.168.1.1]/secret")]
+    [InlineData("http://[fe80::1]/secret")]
+    [InlineData("ftp://example.com/file")]
+    [InlineData("file:///etc/passwd")]
+    [InlineData("")]
+    public async Task ProxyImage_ReturnsBadRequest_ForDisallowedUrls(string url)
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = await controller.ProxyImage(url);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Theory]
+    [InlineData("http://example.com/image.jpg")]
+    [InlineData("https://cdn.example.com/photo.png")]
+    [InlineData("https://mymaps.usercontent.google.com/img.jpg")]
+    public void IsUrlAllowed_ReturnsTrue_ForValidExternalUrls(string url)
+    {
+        Assert.True(TripViewerController.IsUrlAllowed(url));
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("::1", true)]
+    [InlineData("10.0.0.1", true)]
+    [InlineData("172.16.0.1", true)]
+    [InlineData("192.168.1.1", true)]
+    [InlineData("169.254.1.1", true)]
+    [InlineData("fc00::1", true)]
+    [InlineData("fd12:3456::1", true)]
+    [InlineData("fe80::1", true)]
+    [InlineData("::ffff:10.0.0.1", true)]
+    [InlineData("::ffff:192.168.1.1", true)]
+    [InlineData("8.8.8.8", false)]
+    [InlineData("2607:f8b0:4004:800::200e", false)]
+    public void IsPrivateOrLoopback_ReturnsExpected(string ipStr, bool expected)
+    {
+        var ip = System.Net.IPAddress.Parse(ipStr);
+        Assert.Equal(expected, TripViewerController.IsPrivateOrLoopback(ip));
+    }
+
+    [Fact]
+    public async Task ProxyImage_Returns304_WhenIfNoneMatchMatchesETag()
+    {
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object);
+
+        // Compute the expected cache key for the request parameters
+        // Call ProxyImage once to learn the ETag, then test with If-None-Match
+        var url = "http://example.com/img.jpg";
+
+        // Use reflection to call ComputeImageCacheKey to get the expected ETag
+        var method = typeof(TripViewerController).GetMethod("ComputeImageCacheKey",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var cacheKey = (string)method!.Invoke(null, new object?[] { url, null, null, null, true })!;
+
+        controller.ControllerContext.HttpContext.Request.Headers["If-None-Match"] = $"\"{cacheKey}\"";
+
+        var result = await controller.ProxyImage(url);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(304, status.StatusCode);
+    }
+
+    [Fact]
+    public async Task ProxyImage_ServesCachedImage_OnCacheHit()
+    {
+        var cachedBytes = new byte[] { 0xFF, 0xD8, 0xFF };
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync((cachedBytes, "image/jpeg"));
+
+        var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object);
+
+        var result = await controller.ProxyImage("http://example.com/img.jpg");
+
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal(cachedBytes, file.FileContents);
+        Assert.Equal("image/jpeg", file.ContentType);
+    }
+
+    [Fact]
+    public async Task ProxyImage_CallsSetAsync_OnCacheMiss()
+    {
+        var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
+            {
+                Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png") }
+            }
+        });
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(((byte[], string)?)null);
+
+        var controller = BuildController(CreateDbContext(), handler: handler, imageCacheService: cacheMock.Object);
+
+        await controller.ProxyImage("http://example.com/photo.png", optimize: false);
+
+        cacheMock.Verify(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProxyImage_ReturnsBadRequest_WhenContentLengthExceedsLimit()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
+        };
+        // Set Content-Length header to exceed the 20 MB limit
+        response.Content.Headers.ContentLength = 21L * 1024 * 1024;
+        var handler = new FakeHandler(response);
+        var controller = BuildController(CreateDbContext(), handler: handler);
+
+        var result = await controller.ProxyImage("http://example.com/huge.bin", optimize: false);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("too large", badRequest.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProxyImage_ReturnsBadRequest_WhenStreamExceedsLimit()
+    {
+        // Response with no Content-Length but body exceeding 20 MB
+        var oversizedBytes = new byte[21 * 1024 * 1024];
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(oversizedBytes)
+        };
+        // Remove content-length to force streaming path
+        response.Content.Headers.ContentLength = null;
+        var handler = new FakeHandler(response);
+        var controller = BuildController(CreateDbContext(), handler: handler);
+
+        var result = await controller.ProxyImage("http://example.com/huge-stream.bin", optimize: false);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("too large", badRequest.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProxyImage_Returns429_WhenRateLimitExceeded()
+    {
+        // Configure very low rate limit
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            ProxyImageRateLimitEnabled = true,
+            ProxyImageRateLimitPerMinute = 1
+        });
+
+        var handler = new FakeHandler(() => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(new byte[] { 1, 2 })
+            {
+                Headers = { ContentType = new MediaTypeHeaderValue("image/png") }
+            }
+        });
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(((byte[], string)?)null);
+
+        var controller = BuildController(
+            CreateDbContext(),
+            handler: handler,
+            imageCacheService: cacheMock.Object,
+            settingsService: settingsMock.Object);
+
+        // Set a unique remote IP for this test to avoid cross-test pollution
+        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.1");
+
+        // First request should succeed
+        var result1 = await controller.ProxyImage("http://example.com/rate1.png", optimize: false);
+        Assert.IsType<FileContentResult>(result1);
+
+        // Second request should be rate limited
+        var result2 = await controller.ProxyImage("http://example.com/rate2.png", optimize: false);
+        var status = Assert.IsType<ObjectResult>(result2);
+        Assert.Equal(429, status.StatusCode);
+    }
+
     private TripViewerController BuildController(
         ApplicationDbContext db,
         HttpMessageHandler? handler = null,
         ITripThumbnailService? thumbnailService = null,
-        ITripTagService? tagService = null)
+        ITripTagService? tagService = null,
+        IProxiedImageCacheService? imageCacheService = null,
+        IApplicationSettingsService? settingsService = null)
     {
         var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 1, 2 }) }));
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         tagService ??= Mock.Of<ITripTagService>();
+        imageCacheService ??= Mock.Of<IProxiedImageCacheService>();
+        if (settingsService == null)
+        {
+            var settingsMock = new Mock<IApplicationSettingsService>();
+            settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+            settingsService = settingsMock.Object;
+        }
         var controller = new TripViewerController(
             NullLogger<TripViewerController>.Instance,
             db,
             client,
             thumbnailService,
-            tagService);
+            tagService,
+            imageCacheService,
+            settingsService);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -213,15 +419,19 @@ public class TripViewerControllerTests : TestBase
         return controller;
     }
 
+    /// <summary>
+    /// Fake HTTP handler that returns a preconfigured response.
+    /// Use the factory constructor for tests that make multiple HTTP calls
+    /// to avoid reusing a disposed <see cref="HttpResponseMessage"/>.
+    /// </summary>
     private sealed class FakeHandler : HttpMessageHandler
     {
-        private readonly HttpResponseMessage _response;
+        private readonly Func<HttpResponseMessage> _responseFactory;
 
-        public FakeHandler(HttpResponseMessage response) => _response = response;
+        public FakeHandler(HttpResponseMessage response) => _responseFactory = () => response;
+        public FakeHandler(Func<HttpResponseMessage> responseFactory) => _responseFactory = responseFactory;
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(_response);
-        }
+            => Task.FromResult(_responseFactory());
     }
 }

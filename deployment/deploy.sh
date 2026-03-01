@@ -174,10 +174,11 @@ echo "[7/8] Stopping $SERVICE_NAME service..."
 sudo systemctl stop "$SERVICE_NAME"
 
 # Step 7: Deploy files
-echo "Deploying to $DEPLOY_DIR (excluding Uploads, TileCache, ChromeCache, Logs, wwwroot/thumbs)..."
+echo "Deploying to $DEPLOY_DIR (excluding Uploads, TileCache, ImageCache, ChromeCache, Logs, wwwroot/thumbs)..."
 sudo rsync -av --delete \
   --exclude 'Uploads' \
   --exclude 'TileCache' \
+  --exclude 'ImageCache' \
   --exclude 'ChromeCache' \
   --exclude 'Logs' \
   --exclude 'wwwroot/thumbs/' \
@@ -193,9 +194,9 @@ sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR"
 
 # Ensure writable directories exist and have correct permissions
 echo "Ensuring writable directories exist..."
-sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
-sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
-sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
+sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
+sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
+sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 
 echo "[8/8] Starting $SERVICE_NAME service..."
 sudo systemctl start "$SERVICE_NAME"

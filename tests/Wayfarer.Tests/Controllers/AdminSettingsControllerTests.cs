@@ -11,6 +11,7 @@ using Moq;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -54,7 +55,7 @@ public class AdminSettingsControllerTests : TestBase
             Mock.Of<IServiceScopeFactory>());
 
         var scopeFactory = BuildScopeFactory(tileCache);
-        var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, env.Object, scopeFactory);
+        var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory);
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("admin", "Admin") };
 
         var result = await controller.Index();
@@ -225,6 +226,7 @@ public class AdminSettingsControllerTests : TestBase
             db,
             settingsService ?? settingsMock!.Object,
             tileCache,
+            Mock.Of<IProxiedImageCacheService>(),
             env.Object,
             scopeFactory);
 

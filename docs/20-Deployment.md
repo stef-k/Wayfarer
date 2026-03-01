@@ -35,6 +35,7 @@ This guide covers installation, deployment, logging, and operational commands fo
 - 1 GB RAM
 - **5 GB disk space** minimum:
   - ~2 GB for tile cache (zoom <= 8: ~1 GB, zoom >= 9: 1 GB configurable)
+  - ~512 MB for image proxy cache (configurable in Admin Settings)
   - Plus storage for uploaded location data, logs, and application files
 - ARM or x64 CPU (Raspberry Pi 3+ or equivalent)
 
@@ -232,6 +233,7 @@ The following directories are **auto-created** if missing:
 
 - `Logs/` - Application log files (auto-cleaned after 1 month)
 - `TileCache/` - Cached map tiles
+- `ImageCache/` - Cached proxied images (LRU-evicted, admin-configurable size)
 - `ChromeCache/` - Chrome browser binaries for PDF export
 - `Uploads/` - User uploaded files
 
@@ -382,7 +384,7 @@ dotnet publish -c Release -o ./out
 # Deploy
 sudo systemctl stop wayfarer
 sudo rsync -av --delete \
-  --exclude 'Uploads' --exclude 'TileCache' --exclude 'ChromeCache' --exclude 'Logs' \
+  --exclude 'Uploads' --exclude 'TileCache' --exclude 'ImageCache' --exclude 'ChromeCache' --exclude 'Logs' \
   ./out/ /var/www/wayfarer/
 sudo chown -R wayfarer:wayfarer /var/www/wayfarer
 sudo systemctl start wayfarer
@@ -502,6 +504,7 @@ sudo du -sh /var/www/wayfarer/*
 **Clean up:**
 - Logs: Auto-cleaned by LogCleanupJob
 - Tile cache: Admin → Settings → Clear Tile Cache
+- Image cache: Auto-evicted via LRU; size configurable in Admin → Settings
 - Uploads: User → Import History
 
 ---

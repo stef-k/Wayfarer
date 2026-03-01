@@ -8,6 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Wayfarer.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="CsvHelper" Version="33.1.0" />
         <PackageReference Include="GeoTimeZone" Version="6.0.0" />
         <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
