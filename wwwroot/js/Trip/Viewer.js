@@ -25,6 +25,7 @@ import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
 } from '../util/wikipedia-utils.js';
+import { initShareProgressToggle } from '../Areas/User/Trip/shareProgressToggle.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -790,6 +791,9 @@ const init = () => {
             }
         }
     }
+
+    /* ----- share progress toggle (owner only) ----- */
+    initShareProgressToggle();
 
 };
 

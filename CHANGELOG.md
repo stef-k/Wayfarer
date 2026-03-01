@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [1.1.4] - 2026-03-01
+- Added trip progress share link toggle and copy button to trip Viewer page (#170)
+- Added copy progress link option to trip Index public dropdown (#170)
+
 ## [1.1.3] - 2026-03-01
 - Fixed public trips grid view title unreadable in dark theme (#168)
 

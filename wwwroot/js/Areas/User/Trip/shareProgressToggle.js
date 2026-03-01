@@ -46,7 +46,7 @@ const syncToggles = (enabled) => {
  * @param {boolean} enabled - The new enabled state
  */
 const saveShareProgress = async (enabled) => {
-    const tripId = shareProgressSwitch?.dataset.tripId;
+    const tripId = shareProgressSwitch?.dataset.tripId || modalShareSwitch?.dataset.tripId;
     if (!tripId) return;
 
     // Show saving state
