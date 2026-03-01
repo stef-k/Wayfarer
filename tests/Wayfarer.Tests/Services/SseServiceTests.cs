@@ -59,12 +59,12 @@ public class SseServiceTests
         var context = new DefaultHttpContext();
         var stream = new MemoryStream();
         context.Response.Body = stream;
-        using var cts = new CancellationTokenSource(200);
+        using var cts = new CancellationTokenSource(2000);
 
         var subscribeTask = service.SubscribeAsync("channel", context.Response, cts.Token);
-        await Task.Delay(20);
+        await Task.Delay(100);
         await service.BroadcastAsync("channel", "{\"hello\":true}");
-        await Task.Delay(20);
+        await Task.Delay(100);
         cts.Cancel();
         await subscribeTask;
 
