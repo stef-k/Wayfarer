@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -11,16 +12,66 @@ using SixLabors.ImageSharp.Processing;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Public.Controllers;
 
 public class TripViewerController : BaseController
 {
+    /// <summary>
+    /// Maximum number of IPs to track for rate limiting to prevent memory exhaustion.
+    /// </summary>
+    private const int MaxTrackedIps = 100000;
+
+    /// <summary>
+    /// Thread-safe dictionary for rate limiting anonymous proxy image requests by IP address.
+    /// Uses atomic operations to prevent race conditions between check and increment.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, RateLimitEntry> RateLimitCache = new();
+
+    /// <summary>
+    /// Tracks the request count and window expiration for rate limiting.
+    /// Same pattern as <see cref="TilesController"/>.
+    /// </summary>
+    private sealed class RateLimitEntry
+    {
+        private int _count;
+        private long _expirationTicks;
+
+        public RateLimitEntry(long expirationTicks)
+        {
+            _count = 0;
+            _expirationTicks = expirationTicks;
+        }
+
+        /// <summary>
+        /// Atomically increments the counter and returns the new count.
+        /// If the window has expired, resets the counter and updates expiration using
+        /// compare-and-swap to avoid TOCTOU race conditions.
+        /// </summary>
+        public int IncrementAndGet(long currentTicks, long newExpirationTicks)
+        {
+            var currentExpiration = Interlocked.Read(ref _expirationTicks);
+            if (currentTicks > currentExpiration)
+            {
+                if (Interlocked.CompareExchange(ref _expirationTicks, newExpirationTicks, currentExpiration) == currentExpiration)
+                {
+                    Interlocked.Exchange(ref _count, 0);
+                }
+            }
+
+            return Interlocked.Increment(ref _count);
+        }
+
+        public bool IsExpired(long currentTicks) => currentTicks > Interlocked.Read(ref _expirationTicks);
+    }
+
     private readonly HttpClient _httpClient;
     private readonly ITripThumbnailService _thumbnailService;
     private readonly ITripTagService _tripTagService;
     private readonly IProxiedImageCacheService _imageCacheService;
+    private readonly IApplicationSettingsService _settingsService;
 
     public TripViewerController(
         ILogger<TripViewerController> logger,
@@ -28,13 +79,15 @@ public class TripViewerController : BaseController
         HttpClient httpClient,
         ITripThumbnailService thumbnailService,
         ITripTagService tripTagService,
-        IProxiedImageCacheService imageCacheService)
+        IProxiedImageCacheService imageCacheService,
+        IApplicationSettingsService settingsService)
         : base(logger, dbContext)
     {
         _httpClient = httpClient;
         _thumbnailService = thumbnailService;
         _tripTagService = tripTagService;
         _imageCacheService = imageCacheService;
+        _settingsService = settingsService;
     }
 
     /// <summary>
@@ -382,6 +435,12 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
+    /// Maximum response body size in bytes for proxied images (20 MB).
+    /// Prevents OOM from attacker-supplied URLs pointing to very large files.
+    /// </summary>
+    private const long MaxProxyImageBytes = 20 * 1024 * 1024;
+
+    /// <summary>
     /// Proxy external images with optional optimization and disk-based caching.
     /// Cached images are served directly from disk on subsequent requests, avoiding
     /// repeated external downloads and ImageSharp processing.
@@ -408,6 +467,19 @@ public class TripViewerController : BaseController
             return StatusCode(304);
         }
 
+        // Rate limit anonymous requests to prevent abuse and origin flooding.
+        // Authenticated users (logged-in) are never rate limited.
+        var settings = _settingsService.GetSettings();
+        if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
+        {
+            var clientIp = GetClientIpAddress();
+            if (IsRateLimitExceeded(clientIp, settings.ProxyImageRateLimitPerMinute))
+            {
+                _logger.LogWarning("Proxy image rate limit exceeded for IP: {ClientIp}", clientIp);
+                return StatusCode(429, "Too many requests. Please try again later.");
+            }
+        }
+
         // Try to serve from cache
         var cached = await _imageCacheService.GetAsync(cacheKey);
         if (cached.HasValue)
@@ -418,13 +490,33 @@ public class TripViewerController : BaseController
         }
 
         // Cache miss: download from origin
-        using var resp = await _httpClient.GetAsync(url);
+        using var resp = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         if (!resp.IsSuccessStatusCode)
             return StatusCode((int)resp.StatusCode);
 
+        // Reject early if Content-Length is known and exceeds the limit
+        if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
+            return BadRequest("Image too large to proxy.");
+
+        // Stream-read with a hard cap to guard against missing/lying Content-Length
         var contentType = resp.Content.Headers.ContentType?.MediaType
                           ?? "application/octet-stream";
-        var bytes = await resp.Content.ReadAsByteArrayAsync();
+        byte[] bytes;
+        await using (var bodyStream = await resp.Content.ReadAsStreamAsync())
+        {
+            using var limitedStream = new MemoryStream();
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int read;
+            while ((read = await bodyStream.ReadAsync(buffer)) > 0)
+            {
+                totalRead += read;
+                if (totalRead > MaxProxyImageBytes)
+                    return BadRequest("Image too large to proxy.");
+                limitedStream.Write(buffer, 0, read);
+            }
+            bytes = limitedStream.ToArray();
+        }
 
         // Optimize images if enabled (default is true for performance)
         if (optimize && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
@@ -662,5 +754,68 @@ public class TripViewerController : BaseController
             .Select(s => s.ToLowerInvariant())
             .Distinct()
             .ToArray();
+    }
+
+    /// <summary>
+    /// Gets the client IP address, respecting X-Forwarded-For header only when behind a trusted proxy.
+    /// Only trusts the header if the direct connection is from localhost or private IP ranges,
+    /// which indicates a reverse proxy is in use. This prevents spoofing attacks.
+    /// </summary>
+    private string GetClientIpAddress()
+    {
+        var directIp = HttpContext.Connection.RemoteIpAddress;
+        var directIpString = directIp?.ToString() ?? "unknown";
+
+        // Only trust X-Forwarded-For if the direct connection is from a trusted proxy
+        if (directIp != null && IsPrivateOrLoopback(directIp))
+        {
+            var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(forwardedFor))
+            {
+                var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault()?.Trim();
+                if (!string.IsNullOrEmpty(clientIp))
+                {
+                    return clientIp;
+                }
+            }
+        }
+
+        return directIpString;
+    }
+
+    /// <summary>
+    /// Checks if the given IP has exceeded the rate limit and atomically increments the counter.
+    /// Uses a fixed window approach with 1-minute expiration.
+    /// Thread-safe: uses atomic operations to prevent race conditions.
+    /// </summary>
+    private static bool IsRateLimitExceeded(string clientIp, int maxRequestsPerMinute)
+    {
+        var currentTicks = DateTime.UtcNow.Ticks;
+        var expirationTicks = currentTicks + TimeSpan.FromMinutes(1).Ticks;
+
+        if (RateLimitCache.Count > MaxTrackedIps)
+        {
+            CleanupExpiredEntries(currentTicks);
+        }
+
+        var entry = RateLimitCache.GetOrAdd(clientIp, _ => new RateLimitEntry(expirationTicks));
+        var count = entry.IncrementAndGet(currentTicks, expirationTicks);
+
+        return count > maxRequestsPerMinute;
+    }
+
+    /// <summary>
+    /// Removes expired entries from the rate limit cache to prevent memory growth.
+    /// </summary>
+    private static void CleanupExpiredEntries(long currentTicks)
+    {
+        foreach (var kvp in RateLimitCache)
+        {
+            if (kvp.Value.IsExpired(currentTicks))
+            {
+                RateLimitCache.TryRemove(kvp.Key, out _);
+            }
+        }
     }
 }

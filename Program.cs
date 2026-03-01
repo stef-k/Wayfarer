@@ -560,20 +560,25 @@ static void ConfigureServices(WebApplicationBuilder builder)
                             $"Connection to private/loopback address {address} is blocked (SSRF protection).");
                 }
 
-                // Connect to the first resolved address
-                var socket = new System.Net.Sockets.Socket(
-                    System.Net.Sockets.SocketType.Stream,
-                    System.Net.Sockets.ProtocolType.Tcp);
-                try
+                // Try all resolved addresses (v4+v6) — CDN hosts often return multiple IPs
+                foreach (var addr in addresses)
                 {
-                    await socket.ConnectAsync(addresses[0], context.DnsEndPoint.Port, cancellationToken);
-                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+                    var socket = new System.Net.Sockets.Socket(
+                        System.Net.Sockets.SocketType.Stream,
+                        System.Net.Sockets.ProtocolType.Tcp);
+                    try
+                    {
+                        await socket.ConnectAsync(addr, context.DnsEndPoint.Port, cancellationToken);
+                        return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+                    }
+                    catch
+                    {
+                        socket.Dispose();
+                    }
                 }
-                catch
-                {
-                    socket.Dispose();
-                    throw;
-                }
+
+                throw new HttpRequestException(
+                    $"Could not connect to any resolved address for {context.DnsEndPoint.Host}");
             }
         });
 

@@ -135,6 +135,10 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         if (settings.MaxCacheImageSizeInMB < 0)
             return null;
 
+        string? filePath;
+        string? contentType;
+
+        // Lock only for DB operations and size counter mutations
         await _cacheLock.WaitAsync();
         try
         {
@@ -153,24 +157,12 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 return null;
             }
 
-            // Check file still exists on disk
-            if (!File.Exists(metadata.FilePath))
-            {
-                _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
-                _dbContext.ImageCacheMetadata.Remove(metadata);
-                Interlocked.Add(ref _currentCacheSize, -metadata.Size);
-                await _dbContext.SaveChangesAsync();
-                return null;
-            }
-
-            // Read the file bytes
-            var bytes = await File.ReadAllBytesAsync(metadata.FilePath);
-
             // Update LastAccessed for LRU ordering
             metadata.LastAccessed = DateTime.UtcNow;
             await SaveWithConcurrencyRetryAsync(metadata);
 
-            return (bytes, metadata.ContentType);
+            filePath = metadata.FilePath;
+            contentType = metadata.ContentType;
         }
         catch (Exception ex)
         {
@@ -180,6 +172,42 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         finally
         {
             _cacheLock.Release();
+        }
+
+        // File I/O outside the lock — unique filename per cache key prevents conflicts.
+        // If the file was evicted between the DB check and this read, return null (cache miss).
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                // File missing on disk — clean up the DB entry
+                _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
+                await _cacheLock.WaitAsync();
+                try
+                {
+                    var staleMetadata = await _dbContext.ImageCacheMetadata
+                        .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
+                    if (staleMetadata != null)
+                    {
+                        _dbContext.ImageCacheMetadata.Remove(staleMetadata);
+                        Interlocked.Add(ref _currentCacheSize, -staleMetadata.Size);
+                        await _dbContext.SaveChangesAsync();
+                    }
+                }
+                finally
+                {
+                    _cacheLock.Release();
+                }
+                return null;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(filePath);
+            return (bytes, contentType!);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading cached image file for key {CacheKey}.", cacheKey);
+            return null;
         }
     }
 
@@ -192,6 +220,20 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         if (settings.MaxCacheImageSizeInMB < 0)
             return;
 
+        // Write the file to disk outside the lock — filename is unique per cache key,
+        // so no two requests write the same path.
+        var filePath = Path.Combine(_cacheDirectory, $"{cacheKey}.dat");
+        try
+        {
+            await File.WriteAllBytesAsync(filePath, bytes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error writing proxy image file for key {CacheKey}.", cacheKey);
+            return;
+        }
+
+        // Lock only for DB operations and size counter mutations
         await _cacheLock.WaitAsync();
         try
         {
@@ -215,11 +257,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 if (evictedCount == 0) break;
             }
 
-            // Write the file to disk
-            var filePath = Path.Combine(_cacheDirectory, $"{cacheKey}.dat");
-            await File.WriteAllBytesAsync(filePath, bytes);
-
-            // Create DB metadata entry
+            // Create DB metadata entry — wrap in try/catch to delete orphaned file on failure
             var metadata = new ImageCacheMetadata
             {
                 CacheKey = cacheKey,
@@ -231,8 +269,17 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             };
 
             _dbContext.ImageCacheMetadata.Add(metadata);
-            await _dbContext.SaveChangesAsync();
-            Interlocked.Add(ref _currentCacheSize, bytes.Length);
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+                Interlocked.Add(ref _currentCacheSize, bytes.Length);
+            }
+            catch
+            {
+                // DB save failed — delete the orphaned file so it doesn't linger uncounted
+                try { File.Delete(filePath); } catch { /* best-effort cleanup */ }
+                throw;
+            }
 
             _logger.LogInformation("Cached proxy image: key={CacheKey}, size={Size} bytes.", cacheKey, bytes.Length);
         }

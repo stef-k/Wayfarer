@@ -15,8 +15,9 @@ public class ApplicationSettings
     public const string DefaultTileProviderUrlTemplate = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 500;
+    public const int DefaultProxyImageRateLimitPerMinute = 200;
 
-    
+
     [Key]
     public int Id { get; set; } = 1;
 
@@ -89,6 +90,21 @@ public class ApplicationSettings
     [Required]
     [Range(50, 10000, ErrorMessage = "Rate limit must be between 50 and 10,000 requests per minute.")]
     public int TileRateLimitPerMinute { get; set; } = DefaultTileRateLimitPerMinute;
+
+    /// <summary>
+    /// Whether to rate limit anonymous proxy image requests to prevent abuse and origin flooding.
+    /// Authenticated users are never rate limited.
+    /// </summary>
+    [Required]
+    public bool ProxyImageRateLimitEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Maximum proxy image requests per minute per IP address for anonymous users.
+    /// Default is 200 which is generous for normal browsing but blocks abuse.
+    /// </summary>
+    [Required]
+    [Range(10, 5000, ErrorMessage = "Rate limit must be between 10 and 5,000 requests per minute.")]
+    public int ProxyImageRateLimitPerMinute { get; set; } = DefaultProxyImageRateLimitPerMinute;
 
     /// <summary>
     /// Maximum image proxy cache size in megabytes. LRU eviction triggers when exceeded.

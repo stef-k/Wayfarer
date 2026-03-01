@@ -56,6 +56,12 @@ namespace Wayfarer.Migrations
                     b.Property<int>("MaxCacheTileSizeInMB")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ProxyImageRateLimitEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ProxyImageRateLimitPerMinute")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TileProviderApiKey")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");

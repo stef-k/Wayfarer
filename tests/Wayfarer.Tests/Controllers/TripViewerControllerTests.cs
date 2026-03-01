@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +10,7 @@ using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -305,24 +307,111 @@ public class TripViewerControllerTests : TestBase
         cacheMock.Verify(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
     }
 
+    [Fact]
+    public async Task ProxyImage_ReturnsBadRequest_WhenContentLengthExceedsLimit()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
+        };
+        // Set Content-Length header to exceed the 20 MB limit
+        response.Content.Headers.ContentLength = 21L * 1024 * 1024;
+        var handler = new FakeHandler(response);
+        var controller = BuildController(CreateDbContext(), handler: handler);
+
+        var result = await controller.ProxyImage("http://example.com/huge.bin", optimize: false);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("too large", badRequest.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProxyImage_ReturnsBadRequest_WhenStreamExceedsLimit()
+    {
+        // Response with no Content-Length but body exceeding 20 MB
+        var oversizedBytes = new byte[21 * 1024 * 1024];
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(oversizedBytes)
+        };
+        // Remove content-length to force streaming path
+        response.Content.Headers.ContentLength = null;
+        var handler = new FakeHandler(response);
+        var controller = BuildController(CreateDbContext(), handler: handler);
+
+        var result = await controller.ProxyImage("http://example.com/huge-stream.bin", optimize: false);
+
+        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Contains("too large", badRequest.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProxyImage_Returns429_WhenRateLimitExceeded()
+    {
+        // Configure very low rate limit
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            ProxyImageRateLimitEnabled = true,
+            ProxyImageRateLimitPerMinute = 1
+        });
+
+        var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(new byte[] { 1, 2 })
+            {
+                Headers = { ContentType = new MediaTypeHeaderValue("image/png") }
+            }
+        });
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(((byte[], string)?)null);
+
+        var controller = BuildController(
+            CreateDbContext(),
+            handler: handler,
+            imageCacheService: cacheMock.Object,
+            settingsService: settingsMock.Object);
+
+        // Set a unique remote IP for this test to avoid cross-test pollution
+        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.1");
+
+        // First request should succeed
+        var result1 = await controller.ProxyImage("http://example.com/rate1.png", optimize: false);
+        Assert.IsType<FileContentResult>(result1);
+
+        // Second request should be rate limited
+        var result2 = await controller.ProxyImage("http://example.com/rate2.png", optimize: false);
+        var status = Assert.IsType<ObjectResult>(result2);
+        Assert.Equal(429, status.StatusCode);
+    }
+
     private TripViewerController BuildController(
         ApplicationDbContext db,
         HttpMessageHandler? handler = null,
         ITripThumbnailService? thumbnailService = null,
         ITripTagService? tagService = null,
-        IProxiedImageCacheService? imageCacheService = null)
+        IProxiedImageCacheService? imageCacheService = null,
+        IApplicationSettingsService? settingsService = null)
     {
         var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 1, 2 }) }));
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         tagService ??= Mock.Of<ITripTagService>();
         imageCacheService ??= Mock.Of<IProxiedImageCacheService>();
+        if (settingsService == null)
+        {
+            var settingsMock = new Mock<IApplicationSettingsService>();
+            settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+            settingsService = settingsMock.Object;
+        }
         var controller = new TripViewerController(
             NullLogger<TripViewerController>.Instance,
             db,
             client,
             thumbnailService,
             tagService,
-            imageCacheService);
+            imageCacheService,
+            settingsService);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
