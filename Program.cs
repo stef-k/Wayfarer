@@ -544,6 +544,39 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Proxied image cache service (disk + DB backed, scoped for DbContext access)
     builder.Services.AddScoped<IProxiedImageCacheService, ProxiedImageCacheService>();
 
+    // Typed HttpClient for TripViewerController with DNS-level SSRF protection.
+    // The ConnectCallback resolves DNS and checks all IPs against the private/loopback deny-list
+    // before allowing a connection, preventing DNS rebinding attacks.
+    builder.Services.AddHttpClient<Wayfarer.Areas.Public.Controllers.TripViewerController>()
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            ConnectCallback = async (context, cancellationToken) =>
+            {
+                var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+                foreach (var address in addresses)
+                {
+                    if (Wayfarer.Areas.Public.Controllers.TripViewerController.IsPrivateOrLoopback(address))
+                        throw new HttpRequestException(
+                            $"Connection to private/loopback address {address} is blocked (SSRF protection).");
+                }
+
+                // Connect to the first resolved address
+                var socket = new System.Net.Sockets.Socket(
+                    System.Net.Sockets.SocketType.Stream,
+                    System.Net.Sockets.ProtocolType.Tcp);
+                try
+                {
+                    await socket.ConnectAsync(addresses[0], context.DnsEndPoint.Port, cancellationToken);
+                    return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
+            }
+        });
+
     // Response compression for dynamic content (HTML, JSON, images served by controllers)
     builder.Services.AddResponseCompression(options =>
     {

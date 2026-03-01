@@ -17,14 +17,14 @@ namespace Wayfarer.Migrations
                 table: "ApplicationSettings",
                 type: "integer",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: 90);
 
             migrationBuilder.AddColumn<int>(
                 name: "MaxCacheImageSizeInMB",
                 table: "ApplicationSettings",
                 type: "integer",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: 512);
 
             migrationBuilder.CreateTable(
                 name: "ImageCacheMetadata",

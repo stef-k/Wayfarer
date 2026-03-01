@@ -75,7 +75,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     /// <summary>
     /// Whether the cache size has been initialized from the database.
     /// </summary>
-    private static bool _cacheSizeInitialized;
+    private static volatile bool _cacheSizeInitialized;
 
     /// <summary>
     /// Lock for one-time cache size initialization.
@@ -207,11 +207,12 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 return;
             }
 
-            // Check if adding this entry would exceed the cache size limit
+            // Evict in a loop until enough space is available or no more entries remain
             var maxSizeBytes = settings.MaxCacheImageSizeInMB * 1024L * 1024L;
-            if (Interlocked.Read(ref _currentCacheSize) + bytes.Length > maxSizeBytes)
+            while (Interlocked.Read(ref _currentCacheSize) + bytes.Length > maxSizeBytes)
             {
-                await EvictLruEntriesAsync();
+                var evictedCount = await EvictLruEntriesAsync();
+                if (evictedCount == 0) break;
             }
 
             // Write the file to disk
@@ -289,13 +290,17 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     /// <summary>
     /// Evicts the least recently accessed images in batches to free up cache space.
     /// Deletes both disk files and DB metadata entries.
+    /// Returns the number of entries evicted (0 when no entries remain).
     /// </summary>
-    private async Task EvictLruEntriesAsync()
+    private async Task<int> EvictLruEntriesAsync()
     {
         var entriesToEvict = await _dbContext.ImageCacheMetadata
             .OrderBy(m => m.LastAccessed)
             .Take(LruEvictionBatchSize)
             .ToListAsync();
+
+        if (entriesToEvict.Count == 0)
+            return 0;
 
         foreach (var entry in entriesToEvict)
         {
@@ -317,6 +322,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
 
         await _dbContext.SaveChangesAsync();
         _logger.LogInformation("Evicted {Count} LRU image cache entries.", entriesToEvict.Count);
+        return entriesToEvict.Count;
     }
 
     /// <summary>

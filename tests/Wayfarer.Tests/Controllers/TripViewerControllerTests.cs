@@ -197,6 +197,12 @@ public class TripViewerControllerTests : TestBase
     [InlineData("http://10.0.0.1/secret")]
     [InlineData("http://192.168.1.1/secret")]
     [InlineData("http://172.16.0.1/secret")]
+    [InlineData("http://[::1]/secret")]
+    [InlineData("http://[fc00::1]/secret")]
+    [InlineData("http://[fd12:3456::1]/secret")]
+    [InlineData("http://[::ffff:10.0.0.1]/secret")]
+    [InlineData("http://[::ffff:192.168.1.1]/secret")]
+    [InlineData("http://[fe80::1]/secret")]
     [InlineData("ftp://example.com/file")]
     [InlineData("file:///etc/passwd")]
     [InlineData("")]
@@ -216,6 +222,49 @@ public class TripViewerControllerTests : TestBase
     public void IsUrlAllowed_ReturnsTrue_ForValidExternalUrls(string url)
     {
         Assert.True(TripViewerController.IsUrlAllowed(url));
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("::1", true)]
+    [InlineData("10.0.0.1", true)]
+    [InlineData("172.16.0.1", true)]
+    [InlineData("192.168.1.1", true)]
+    [InlineData("169.254.1.1", true)]
+    [InlineData("fc00::1", true)]
+    [InlineData("fd12:3456::1", true)]
+    [InlineData("fe80::1", true)]
+    [InlineData("::ffff:10.0.0.1", true)]
+    [InlineData("::ffff:192.168.1.1", true)]
+    [InlineData("8.8.8.8", false)]
+    [InlineData("2607:f8b0:4004:800::200e", false)]
+    public void IsPrivateOrLoopback_ReturnsExpected(string ipStr, bool expected)
+    {
+        var ip = System.Net.IPAddress.Parse(ipStr);
+        Assert.Equal(expected, TripViewerController.IsPrivateOrLoopback(ip));
+    }
+
+    [Fact]
+    public async Task ProxyImage_Returns304_WhenIfNoneMatchMatchesETag()
+    {
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object);
+
+        // Compute the expected cache key for the request parameters
+        // Call ProxyImage once to learn the ETag, then test with If-None-Match
+        var url = "http://example.com/img.jpg";
+
+        // Use reflection to call ComputeImageCacheKey to get the expected ETag
+        var method = typeof(TripViewerController).GetMethod("ComputeImageCacheKey",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var cacheKey = (string)method!.Invoke(null, new object?[] { url, null, null, null, true })!;
+
+        controller.ControllerContext.HttpContext.Request.Headers["If-None-Match"] = $"\"{cacheKey}\"";
+
+        var result = await controller.ProxyImage(url);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(304, status.StatusCode);
     }
 
     [Fact]

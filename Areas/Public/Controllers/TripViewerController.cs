@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -400,6 +401,13 @@ public class TripViewerController : BaseController
         // Compute deterministic cache key from all parameters
         var cacheKey = ComputeImageCacheKey(url, maxWidth, maxHeight, quality, optimize);
 
+        // Return 304 Not Modified if the client already has this version
+        if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
+            && ifNoneMatch == $"\"{cacheKey}\"")
+        {
+            return StatusCode(304);
+        }
+
         // Try to serve from cache
         var cached = await _imageCacheService.GetAsync(cacheKey);
         if (cached.HasValue)
@@ -433,8 +441,8 @@ public class TripViewerController : BaseController
             }
         }
 
-        // Cache the result for future requests (non-blocking: don't delay the response)
-        _ = _imageCacheService.SetAsync(cacheKey, bytes, contentType);
+        // Cache the result for future requests (awaited to prevent DbContext disposal before completion)
+        await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
 
         // Set browser cache headers
         Response.Headers["Cache-Control"] = "public, max-age=86400";
@@ -510,12 +518,14 @@ public class TripViewerController : BaseController
 
     /// <summary>
     /// Computes a deterministic SHA-256 cache key from the proxy request parameters.
-    /// The same URL with the same optimization parameters always produces the same key.
+    /// Normalizes quality so that quality=null with optimize=true produces the same key
+    /// as quality=95 with optimize=true (both resolve to the same output).
     /// </summary>
     private static string ComputeImageCacheKey(
         string url, int? maxWidth, int? maxHeight, int? quality, bool optimize)
     {
-        var raw = $"{url}|{maxWidth}|{maxHeight}|{quality}|{optimize}";
+        var effectiveQuality = optimize ? (quality ?? 95) : quality;
+        var raw = $"{url}|{maxWidth}|{maxHeight}|{effectiveQuality}|{optimize}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
@@ -523,8 +533,8 @@ public class TripViewerController : BaseController
     /// <summary>
     /// Validates that a proxy URL is safe to fetch: must use http/https scheme
     /// and must not target private/loopback IP addresses (SSRF prevention).
-    /// Inspects only the hostname literal; DNS resolution is intentionally not performed
-    /// here to avoid added latency on every request.
+    /// Inspects the hostname literal; DNS-level validation is performed separately
+    /// via the <see cref="SocketsHttpHandler.ConnectCallback"/> registered in Program.cs.
     /// </summary>
     internal static bool IsUrlAllowed(string url)
     {
@@ -543,27 +553,51 @@ public class TripViewerController : BaseController
         if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        // Block private/loopback IP address literals
-        if (System.Net.IPAddress.TryParse(host, out var ip))
-        {
-            if (System.Net.IPAddress.IsLoopback(ip))
-                return false;
-
-            var bytes = ip.GetAddressBytes();
-            if (bytes.Length == 4)
-            {
-                if (bytes[0] == 10) return false;                                  // 10.0.0.0/8
-                if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return false; // 172.16.0.0/12
-                if (bytes[0] == 192 && bytes[1] == 168) return false;              // 192.168.0.0/16
-                if (bytes[0] == 169 && bytes[1] == 254) return false;              // 169.254.0.0/16 link-local
-            }
-
-            // IPv6 link-local (fe80::/10)
-            if (bytes.Length == 16 && bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80)
-                return false;
-        }
+        // Block private/loopback IP address literals (including IPv6)
+        if (IPAddress.TryParse(host, out var ip) && IsPrivateOrLoopback(ip))
+            return false;
 
         return true;
+    }
+
+    /// <summary>
+    /// Returns true if the IP address is loopback, private (RFC 1918), link-local,
+    /// IPv6 unique-local (fc00::/7), or an IPv4-mapped IPv6 address that maps to a private range.
+    /// Used by both <see cref="IsUrlAllowed"/> and the DNS-level ConnectCallback in Program.cs.
+    /// </summary>
+    internal static bool IsPrivateOrLoopback(IPAddress ip)
+    {
+        // Covers both 127.0.0.1 and ::1
+        if (IPAddress.IsLoopback(ip))
+            return true;
+
+        // IPv4-mapped IPv6 (e.g. ::ffff:10.0.0.1) — extract the mapped IPv4 and re-check
+        if (ip.IsIPv4MappedToIPv6)
+            return IsPrivateOrLoopback(ip.MapToIPv4());
+
+        var bytes = ip.GetAddressBytes();
+
+        if (bytes.Length == 4)
+        {
+            if (bytes[0] == 10) return true;                                       // 10.0.0.0/8
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;  // 172.16.0.0/12
+            if (bytes[0] == 192 && bytes[1] == 168) return true;                   // 192.168.0.0/16
+            if (bytes[0] == 169 && bytes[1] == 254) return true;                   // 169.254.0.0/16 link-local
+            if (bytes[0] == 0) return true;                                         // 0.0.0.0/8
+        }
+
+        if (bytes.Length == 16)
+        {
+            // IPv6 link-local (fe80::/10)
+            if (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80)
+                return true;
+
+            // IPv6 unique-local (fc00::/7)
+            if (bytes[0] == 0xfc || bytes[0] == 0xfd)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

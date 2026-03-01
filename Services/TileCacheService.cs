@@ -42,7 +42,7 @@ public class TileCacheService
     /// <summary>
     /// Indicates whether _currentCacheSize has been initialized from the database.
     /// </summary>
-    private static bool _cacheSizeInitialized = false;
+    private static volatile bool _cacheSizeInitialized = false;
 
     /// <summary>
     /// Lock object for one-time cache size initialization.

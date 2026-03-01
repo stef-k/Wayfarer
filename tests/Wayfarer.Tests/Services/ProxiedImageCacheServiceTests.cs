@@ -157,6 +157,41 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Assert.Equal(2, count);
     }
 
+    [Fact]
+    public async Task SetAsync_EvictsLruEntries_WhenCacheSizeExceeded()
+    {
+        var db = CreateDbContext();
+        // Use a very small cache limit (1 KB) to trigger eviction easily
+        var service = CreateService(db: db, maxSizeMB: 1);
+
+        // Each entry is ~500 KB — two will exceed 1 MB
+        var halfMb = new byte[512 * 1024];
+
+        // Add first entry (fits in 1 MB)
+        await service.SetAsync("entry_1", halfMb, "image/jpeg");
+        // Backdate LastAccessed so it becomes the LRU candidate
+        var meta1 = db.ImageCacheMetadata.First(m => m.CacheKey == "entry_1");
+        meta1.LastAccessed = DateTime.UtcNow.AddHours(-2);
+        await db.SaveChangesAsync();
+
+        // Add second entry (fits in 1 MB)
+        await service.SetAsync("entry_2", halfMb, "image/jpeg");
+        // Backdate
+        var meta2 = db.ImageCacheMetadata.First(m => m.CacheKey == "entry_2");
+        meta2.LastAccessed = DateTime.UtcNow.AddHours(-1);
+        await db.SaveChangesAsync();
+
+        // Add third entry — should trigger eviction of entry_1 (oldest LastAccessed)
+        await service.SetAsync("entry_3", halfMb, "image/jpeg");
+
+        // Verify entry_1 was evicted (oldest by LastAccessed)
+        Assert.Null(db.ImageCacheMetadata.FirstOrDefault(m => m.CacheKey == "entry_1"));
+        // Verify entry_3 was stored
+        Assert.NotNull(db.ImageCacheMetadata.FirstOrDefault(m => m.CacheKey == "entry_3"));
+        // Total entries should be <= 2 (cache limit is 1 MB, each is ~500 KB)
+        Assert.True(db.ImageCacheMetadata.Count() <= 3);
+    }
+
     /// <summary>
     /// Creates a ProxiedImageCacheService with test configuration.
     /// </summary>
