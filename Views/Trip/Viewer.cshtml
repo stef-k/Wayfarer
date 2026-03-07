@@ -66,7 +66,14 @@
             @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
             {
                 <div class="ratio ratio-21x9">
-                    <img src="@Model.CoverImageUrl" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
+                    @if (Model.IsPublic)
+                    {
+                        <img src="/Public/Trips/@Model.Id/CoverImage" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
+                    }
+                    else
+                    {
+                        <img src="@Model.CoverImageUrl" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
+                    }
                 </div>
             }
 

@@ -441,7 +441,27 @@ public class TripViewerController : BaseController
             }
         }
 
-        // Try to serve from cache
+        return await FetchAndCacheImage(url, cacheKey, maxWidth, maxHeight, quality, optimize);
+    }
+
+    /// <summary>
+    /// Shared pipeline for downloading, optimizing, caching, and serving a proxied image.
+    /// Checks disk cache first; on miss downloads from origin with size guard,
+    /// optionally optimizes via ImageSharp, stores in <see cref="IProxiedImageCacheService"/>,
+    /// and returns the image bytes with Cache-Control and ETag headers.
+    /// </summary>
+    /// <param name="imageUrl">The external image URL to fetch.</param>
+    /// <param name="cacheKey">Pre-computed deterministic cache key.</param>
+    /// <param name="maxWidth">Optional maximum width for resize.</param>
+    /// <param name="maxHeight">Optional maximum height for resize.</param>
+    /// <param name="quality">JPEG quality (defaults to 95 when optimize is true).</param>
+    /// <param name="optimize">Whether to run ImageSharp optimization.</param>
+    /// <returns>Cached or freshly-fetched image file result.</returns>
+    private async Task<IActionResult> FetchAndCacheImage(
+        string imageUrl, string cacheKey,
+        int? maxWidth, int? maxHeight, int? quality, bool optimize)
+    {
+        // Try to serve from disk cache
         var cached = await _imageCacheService.GetAsync(cacheKey);
         if (cached.HasValue)
         {
@@ -451,9 +471,12 @@ public class TripViewerController : BaseController
         }
 
         // Cache miss: download from origin
-        using var resp = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        using var resp = await _httpClient.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
         if (!resp.IsSuccessStatusCode)
-            return StatusCode((int)resp.StatusCode);
+        {
+            _logger.LogWarning("Failed to fetch proxied image from {Url}: {StatusCode}", imageUrl, (int)resp.StatusCode);
+            return NotFound();
+        }
 
         // Reject early if Content-Length is known and exceeds the limit
         if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
@@ -490,7 +513,7 @@ public class TripViewerController : BaseController
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to optimize image from {Url}, serving original", url);
+                _logger.LogWarning(ex, "Failed to optimize image from {Url}, serving original", imageUrl);
             }
         }
 
@@ -684,19 +707,47 @@ public class TripViewerController : BaseController
     private string GetClientIpAddress() => RateLimitHelper.GetClientIpAddress(HttpContext);
 
     /// <summary>
-    /// Returns a 302 redirect to the cover image URL for a public trip.
+    /// Serves the cover image for a public trip through the proxied image cache.
+    /// Downloads, optimizes via ImageSharp, and caches the image on first request;
+    /// subsequent requests are served from disk cache with ETag/304 support.
     /// Returns 404 if the trip is not found, not public, or has no cover image.
     /// Rate limited for anonymous users using <see cref="RateLimitHelper"/>.
     /// GET: /Public/Trips/{id}/CoverImage
     /// </summary>
     /// <param name="id">The trip identifier.</param>
-    /// <returns>302 redirect to cover image URL, or 404.</returns>
+    /// <returns>Image file bytes, 304 Not Modified, or 404.</returns>
     [HttpGet]
     [Route("/Public/Trips/{id}/CoverImage", Order = 0)]
     [AllowAnonymous]
     public async Task<IActionResult> GetCoverImage(Guid id)
     {
-        // Rate limit anonymous requests to prevent abuse
+        var coverImageUrl = await _dbContext.Trips
+            .Where(t => t.IsPublic && t.Id == id)
+            .Select(t => t.CoverImageUrl)
+            .FirstOrDefaultAsync();
+
+        if (string.IsNullOrWhiteSpace(coverImageUrl))
+        {
+            return NotFound();
+        }
+
+        // SSRF protection: reject non-http/https or private/loopback addresses
+        if (!IsUrlAllowed(coverImageUrl))
+        {
+            return BadRequest("Invalid or disallowed image URL.");
+        }
+
+        // Compute deterministic cache key (no resize params for cover images)
+        var cacheKey = ComputeImageCacheKey(coverImageUrl, maxWidth: null, maxHeight: null, quality: null, optimize: true);
+
+        // Return 304 Not Modified if the client already has this version (before rate limit)
+        if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
+            && ifNoneMatch == $"\"{cacheKey}\"")
+        {
+            return StatusCode(304);
+        }
+
+        // Rate limit anonymous requests to prevent abuse (after ETag check so 304s are free)
         var settings = _settingsService.GetSettings();
         if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
         {
@@ -708,17 +759,7 @@ public class TripViewerController : BaseController
             }
         }
 
-        var coverImageUrl = await _dbContext.Trips
-            .Where(t => t.IsPublic && t.Id == id)
-            .Select(t => t.CoverImageUrl)
-            .FirstOrDefaultAsync();
-
-        if (string.IsNullOrWhiteSpace(coverImageUrl))
-        {
-            return NotFound();
-        }
-
-        return Redirect(coverImageUrl);
+        return await FetchAndCacheImage(coverImageUrl, cacheKey, maxWidth: null, maxHeight: null, quality: null, optimize: true);
     }
 
     /// <summary>

@@ -18,7 +18,7 @@ namespace Wayfarer.Tests.Controllers;
 public class PublicTripImagesTests : TestBase
 {
     [Fact]
-    public async Task CoverImage_ReturnsRedirect_ForPublicTripWithCoverImage()
+    public async Task CoverImage_ReturnsFile_ForPublicTripWithCachedCoverImage()
     {
         var db = CreateDbContext();
         var tripId = Guid.NewGuid();
@@ -31,12 +31,16 @@ public class PublicTripImagesTests : TestBase
         });
         db.SaveChanges();
 
-        var controller = BuildController(db);
+        // Mock cache to return a hit so the endpoint serves bytes
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(((byte[] Bytes, string ContentType)?)(new byte[] { 0xFF, 0xD8 }, "image/jpeg"));
+
+        var controller = BuildController(db, imageCacheService: cacheMock.Object);
         var result = await controller.GetCoverImage(tripId);
 
-        var redirect = Assert.IsType<RedirectResult>(result);
-        Assert.Equal(coverUrl, redirect.Url);
-        Assert.False(redirect.Permanent);
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("image/jpeg", file.ContentType);
     }
 
     [Fact]
@@ -173,13 +177,18 @@ public class PublicTripImagesTests : TestBase
             ProxyImageRateLimitPerMinute = 1
         });
 
-        var controller = BuildController(db, settingsService: settingsMock.Object);
+        // Mock cache to return a hit so the first request succeeds
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(((byte[] Bytes, string ContentType)?)(new byte[] { 0xFF, 0xD8 }, "image/jpeg"));
+
+        var controller = BuildController(db, settingsService: settingsMock.Object, imageCacheService: cacheMock.Object);
         // Set a unique IP per test to avoid cross-test pollution
         controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.50");
 
-        // First request should succeed
+        // First request should succeed (served from cache)
         var result1 = await controller.GetCoverImage(tripId);
-        Assert.IsType<RedirectResult>(result1);
+        Assert.IsType<FileContentResult>(result1);
 
         // Second request should be rate limited
         var result2 = await controller.GetCoverImage(tripId);
@@ -190,12 +199,13 @@ public class PublicTripImagesTests : TestBase
     private TripViewerController BuildController(
         ApplicationDbContext db,
         ITripThumbnailService? thumbnailService = null,
-        IApplicationSettingsService? settingsService = null)
+        IApplicationSettingsService? settingsService = null,
+        IProxiedImageCacheService? imageCacheService = null)
     {
         var client = new System.Net.Http.HttpClient();
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         var tagService = Mock.Of<ITripTagService>();
-        var imageCacheService = Mock.Of<IProxiedImageCacheService>();
+        imageCacheService ??= Mock.Of<IProxiedImageCacheService>();
         if (settingsService == null)
         {
             var settingsMock = new Mock<IApplicationSettingsService>();
