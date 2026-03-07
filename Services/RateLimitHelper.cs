@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Net;
+using Microsoft.AspNetCore.Http;
 
 namespace Wayfarer.Services;
 
@@ -103,5 +105,69 @@ public static class RateLimitHelper
                 cache.TryRemove(kvp.Key, out _);
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the client IP address from an HTTP context, respecting X-Forwarded-For header
+    /// only when the direct connection is from a trusted proxy (localhost or private IP).
+    /// This prevents spoofing attacks.
+    /// </summary>
+    /// <param name="context">The HTTP context to extract the IP from.</param>
+    /// <returns>The client IP address string.</returns>
+    public static string GetClientIpAddress(HttpContext context)
+    {
+        var directIp = context.Connection.RemoteIpAddress;
+        var directIpString = directIp?.ToString() ?? "unknown";
+
+        // Only trust X-Forwarded-For if the direct connection is from a trusted proxy
+        if (directIp != null && IsPrivateOrLoopback(directIp))
+        {
+            var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(forwardedFor))
+            {
+                var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault()?.Trim();
+                if (!string.IsNullOrEmpty(clientIp))
+                {
+                    return clientIp;
+                }
+            }
+        }
+
+        return directIpString;
+    }
+
+    /// <summary>
+    /// Returns true if the IP address is loopback, private (RFC 1918), link-local,
+    /// IPv6 unique-local (fc00::/7), or an IPv4-mapped IPv6 address that maps to a private range.
+    /// </summary>
+    /// <param name="ip">The IP address to check.</param>
+    /// <returns>True if the address is private or loopback.</returns>
+    public static bool IsPrivateOrLoopback(IPAddress ip)
+    {
+        if (IPAddress.IsLoopback(ip))
+            return true;
+
+        if (ip.IsIPv4MappedToIPv6)
+            return IsPrivateOrLoopback(ip.MapToIPv4());
+
+        var bytes = ip.GetAddressBytes();
+
+        if (bytes.Length == 4)
+        {
+            if (bytes[0] == 10) return true;
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+            if (bytes[0] == 192 && bytes[1] == 168) return true;
+            if (bytes[0] == 169 && bytes[1] == 254) return true;
+            if (bytes[0] == 0) return true;
+        }
+
+        if (bytes.Length == 16)
+        {
+            if (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) return true;
+            if (bytes[0] == 0xfc || bytes[0] == 0xfd) return true;
+        }
+
+        return false;
     }
 }

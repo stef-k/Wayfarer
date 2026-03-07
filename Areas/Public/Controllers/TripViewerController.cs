@@ -718,32 +718,9 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Gets the client IP address, respecting X-Forwarded-For header only when behind a trusted proxy.
-    /// Only trusts the header if the direct connection is from localhost or private IP ranges,
-    /// which indicates a reverse proxy is in use. This prevents spoofing attacks.
+    /// Gets the client IP address using the shared <see cref="RateLimitHelper.GetClientIpAddress"/> utility.
     /// </summary>
-    private string GetClientIpAddress()
-    {
-        var directIp = HttpContext.Connection.RemoteIpAddress;
-        var directIpString = directIp?.ToString() ?? "unknown";
-
-        // Only trust X-Forwarded-For if the direct connection is from a trusted proxy
-        if (directIp != null && IsPrivateOrLoopback(directIp))
-        {
-            var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(forwardedFor))
-            {
-                var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault()?.Trim();
-                if (!string.IsNullOrEmpty(clientIp))
-                {
-                    return clientIp;
-                }
-            }
-        }
-
-        return directIpString;
-    }
+    private string GetClientIpAddress() => RateLimitHelper.GetClientIpAddress(HttpContext);
 
     /// <summary>
     /// Returns a 302 redirect to the cover image URL for a public trip.
@@ -843,8 +820,15 @@ public class TripViewerController : BaseController
         // The thumbnail URL is a relative path like /thumbs/trips/{id}-800x450.jpg
         // Convert to a physical file path and serve directly
         var relativePath = thumbUrl.TrimStart('/');
-        var webRootPath = Path.Combine(
-            Directory.GetCurrentDirectory(), "wwwroot", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        var wwwRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"));
+        var webRootPath = Path.GetFullPath(
+            Path.Combine(wwwRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+        // Path traversal guard: ensure resolved path stays within wwwroot
+        if (!webRootPath.StartsWith(wwwRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return NotFound();
+        }
 
         if (!System.IO.File.Exists(webRootPath))
         {

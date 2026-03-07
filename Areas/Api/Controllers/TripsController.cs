@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -1167,7 +1166,7 @@ return Ok(dto);
         var settings = _settingsService.GetSettings();
         if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
         {
-            var clientIp = GetClientIpAddress();
+            var clientIp = RateLimitHelper.GetClientIpAddress(HttpContext);
             if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
             {
                 _logger.LogWarning("Trip images API rate limit exceeded for IP: {ClientIp}", clientIp);
@@ -1209,59 +1208,6 @@ return Ok(dto);
             coverImageUrl,
             mapSnapshotUrl
         });
-    }
-
-    /// <summary>
-    /// Gets the client IP address, respecting X-Forwarded-For header only when behind a trusted proxy.
-    /// Only trusts the header if the direct connection is from localhost or private IP ranges.
-    /// </summary>
-    private string GetClientIpAddress()
-    {
-        var directIp = HttpContext.Connection.RemoteIpAddress;
-        var directIpString = directIp?.ToString() ?? "unknown";
-
-        if (directIp != null && (IPAddress.IsLoopback(directIp) || IsPrivateIp(directIp)))
-        {
-            var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(forwardedFor))
-            {
-                var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault()?.Trim();
-                if (!string.IsNullOrEmpty(clientIp))
-                {
-                    return clientIp;
-                }
-            }
-        }
-
-        return directIpString;
-    }
-
-    /// <summary>
-    /// Returns true if the IP address is in a private range (RFC 1918 or link-local).
-    /// </summary>
-    private static bool IsPrivateIp(IPAddress ip)
-    {
-        if (ip.IsIPv4MappedToIPv6)
-            return IsPrivateIp(ip.MapToIPv4());
-
-        var bytes = ip.GetAddressBytes();
-
-        if (bytes.Length == 4)
-        {
-            if (bytes[0] == 10) return true;
-            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
-            if (bytes[0] == 192 && bytes[1] == 168) return true;
-            if (bytes[0] == 169 && bytes[1] == 254) return true;
-        }
-
-        if (bytes.Length == 16)
-        {
-            if (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) return true;
-            if (bytes[0] == 0xfc || bytes[0] == 0xfd) return true;
-        }
-
-        return false;
     }
 
     /// <summary>

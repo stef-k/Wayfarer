@@ -137,67 +137,7 @@ public class TilesController : Controller
     }
 
     /// <summary>
-    /// Gets the client IP address, respecting X-Forwarded-For header only when behind a trusted proxy.
-    /// Only trusts the header if the direct connection is from localhost or private IP ranges,
-    /// which indicates a reverse proxy is in use. This prevents spoofing attacks.
+    /// Gets the client IP address using the shared <see cref="RateLimitHelper.GetClientIpAddress"/> utility.
     /// </summary>
-    private string GetClientIpAddress()
-    {
-        var directIp = HttpContext.Connection.RemoteIpAddress;
-        var directIpString = directIp?.ToString() ?? "unknown";
-
-        // Only trust X-Forwarded-For if the direct connection is from a trusted proxy
-        // (localhost or private IP range indicates reverse proxy setup)
-        if (directIp != null && IsTrustedProxyIp(directIp))
-        {
-            var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(forwardedFor))
-            {
-                // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
-                // The first IP is the original client
-                var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault()?.Trim();
-                if (!string.IsNullOrEmpty(clientIp))
-                {
-                    return clientIp;
-                }
-            }
-        }
-
-        // Fallback to direct connection IP
-        return directIpString;
-    }
-
-    /// <summary>
-    /// Determines if an IP address is from a trusted proxy (localhost or private range).
-    /// </summary>
-    private static bool IsTrustedProxyIp(System.Net.IPAddress ip)
-    {
-        // Loopback (127.0.0.1, ::1)
-        if (System.Net.IPAddress.IsLoopback(ip))
-            return true;
-
-        var bytes = ip.GetAddressBytes();
-
-        // IPv4 private ranges
-        if (bytes.Length == 4)
-        {
-            // 10.0.0.0/8
-            if (bytes[0] == 10)
-                return true;
-            // 172.16.0.0/12
-            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
-                return true;
-            // 192.168.0.0/16
-            if (bytes[0] == 192 && bytes[1] == 168)
-                return true;
-        }
-
-        // IPv6 link-local (fe80::/10) - common in Docker/container setups
-        if (bytes.Length == 16 && bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80)
-            return true;
-
-        return false;
-    }
-
+    private string GetClientIpAddress() => RateLimitHelper.GetClientIpAddress(HttpContext);
 }
