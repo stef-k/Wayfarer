@@ -560,7 +560,9 @@ import {
             noSuggestedVisits?.classList.add('d-none');
             suggestedVisitsHint?.classList.remove('d-none');
             suggestedSelectAllWrapper?.classList.remove('d-none');
-            suggestedVisitsList.innerHTML = renderGroupedList(filteredSuggested, v => `
+            suggestedVisitsList.innerHTML = renderGroupedList(filteredSuggested, v => {
+                const isLinked = linkedPlaceIds.has(v.placeId);
+                return `
                 <div class="list-group-item d-flex justify-content-between align-items-center py-2">
                     <div class="form-check flex-grow-1">
                         <input class="form-check-input suggested-visit-check" type="checkbox"
@@ -570,7 +572,7 @@ import {
                                data-last-seen="${v.lastSeenUtc}"
                                id="suggested-${v.placeId}-${v.visitDate}">
                         <label class="form-check-label" for="suggested-${v.placeId}-${v.visitDate}">
-                            <span class="fw-medium ${linkedPlaceIds.has(v.placeId) ? 'text-success' : 'text-info'}"><i class="bi bi-lightbulb me-1"${linkedPlaceIds.has(v.placeId) ? ' title="A visit to this place is already linked to this trip"' : ''}></i>${escapeHtml(v.placeName)}</span>
+                            <span class="fw-medium ${isLinked ? 'text-success' : 'text-info'}"><i class="bi bi-lightbulb me-1"${isLinked ? ' title="A visit to this place is already linked to this trip"' : ''}></i>${escapeHtml(v.placeName)}</span>
                             <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
                         </label>
                     </div>
@@ -598,7 +600,7 @@ import {
                         </button>
                     </div>
                 </div>
-            `);
+            `});
             suggestedVisitsList.querySelectorAll('.suggested-visit-check').forEach(cb => {
                 cb.addEventListener('change', () => {
                     persistentCheckState.set(cb.id, cb.checked);
