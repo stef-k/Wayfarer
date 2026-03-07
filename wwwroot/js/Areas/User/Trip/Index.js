@@ -491,6 +491,12 @@ import {
         const totalStale = rawBackfillData.staleVisits.length;
         const totalExisting = rawBackfillData.existingVisits.length;
 
+        // Collect placeIds already linked (confirmed + existing) to hint suggested duplicates
+        const linkedPlaceIds = new Set([
+            ...rawBackfillData.newVisits.map(v => v.placeId),
+            ...rawBackfillData.existingVisits.map(v => v.placeId)
+        ]);
+
         // Helper: format badge count, showing "filtered of total" when searching
         const badgeText = (filtered, total) => isFiltered ? `${filtered} of ${total}` : `${total}`;
 
@@ -564,7 +570,7 @@ import {
                                data-last-seen="${v.lastSeenUtc}"
                                id="suggested-${v.placeId}-${v.visitDate}">
                         <label class="form-check-label" for="suggested-${v.placeId}-${v.visitDate}">
-                            <span class="fw-medium text-info"><i class="bi bi-lightbulb me-1"></i>${escapeHtml(v.placeName)}</span>
+                            <span class="fw-medium ${linkedPlaceIds.has(v.placeId) ? 'text-success' : 'text-info'}"><i class="bi bi-lightbulb me-1"${linkedPlaceIds.has(v.placeId) ? ' title="A visit to this place is already linked to this trip"' : ''}></i>${escapeHtml(v.placeName)}</span>
                             <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
                         </label>
                     </div>

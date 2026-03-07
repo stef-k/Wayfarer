@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [1.2.6] - 2026-03-07
+- Added visual hint in backfill "Consider Also" tab for suggested locations already linked to the trip (#183)
+- Suggested locations whose place is already confirmed or existing show a green lightbulb icon with tooltip
+
 ## [1.2.5] - 2026-03-07
 - Added search and filter functionality to user trips index page (#182)
 - Search field filters trips by name and notes with debounced input
