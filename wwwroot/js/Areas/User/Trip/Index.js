@@ -40,6 +40,7 @@ import {
         if (rows.length === 0) {
             const table = tripTableBody.closest('table');
             if (table) table.style.display = 'none';
+            document.getElementById('trip-search')?.closest('.ms-auto')?.classList.add('d-none');
             return;
         }
 
