@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.2.9] - 2026-03-07
+- Fixed map snapshot URL returning 404 due to query string not being stripped from file path
+- Added server-side proxy rewriting for external images in trip/region/place notes HTML
+- Notes images now load through /Public/ProxyImage cache endpoint instead of directly from external servers
+
 ## [1.2.8] - 2026-03-07
 - Routed public cover images through ProxiedImageCacheService disk cache instead of raw 302 redirects
 - Cover images in public trip grid, list, and Viewer hero are now served via /Public/Trips/{id}/CoverImage endpoint

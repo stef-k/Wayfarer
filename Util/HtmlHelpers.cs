@@ -54,6 +54,35 @@ namespace Wayfarer.Util
             return new HtmlString(linked);
         }
 
+        /// <summary>
+        /// Matches external http(s):// URLs inside &lt;img src="..."&gt; attributes.
+        /// </summary>
+        private static readonly Regex _externalImgSrcRegex = new Regex(
+            @"(<img\b[^>]*?\bsrc\s*=\s*[""'])(?<url>https?://[^""']+)([""'])",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>
+        /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
+        /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
+        /// Leaves relative, data-URI, and already-proxied URLs unchanged.
+        /// </summary>
+        public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)
+        {
+            if (string.IsNullOrEmpty(htmlContent))
+                return HtmlString.Empty;
+
+            var result = _externalImgSrcRegex.Replace(htmlContent, m =>
+            {
+                var prefix = m.Groups[1].Value;
+                var url = m.Groups["url"].Value;
+                var suffix = m.Groups[3].Value;
+                var encoded = System.Net.WebUtility.UrlEncode(url);
+                return $"{prefix}/Public/ProxyImage?url={encoded}{suffix}";
+            });
+
+            return new HtmlString(result);
+        }
+
         // Regex to strip HTML tags for content detection
         private static readonly Regex _htmlTagRegex = new Regex(
             @"<[^>]+>",

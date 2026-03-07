@@ -468,7 +468,7 @@
                     <div class="trip-notes-readable mb-4">
                         <h6 class="text-muted mb-2">Notes</h6>
                         <div class="fs-6">
-                            @Html.Raw(Model.Notes)
+                            @Html.ProxyNotesImages(Model.Notes)
                         </div>
                     </div>
                 }
@@ -495,7 +495,7 @@
                             @if (!string.IsNullOrWhiteSpace(region.Notes))
                             {
                                 <div class="mb-3 text-muted">
-                                    @Html.Raw(region.Notes)
+                                    @Html.ProxyNotesImages(region.Notes)
                                 </div>
                             }
 
@@ -515,7 +515,7 @@
                                                     @if (!string.IsNullOrWhiteSpace(place.Notes))
                                                     {
                                                         <div class="small text-muted mt-1">
-                                                            @Html.Raw(place.Notes)
+                                                            @Html.ProxyNotesImages(place.Notes)
                                                         </div>
                                                     }
                                                 </div>

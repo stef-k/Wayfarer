@@ -122,7 +122,7 @@
                 <div class="modal-body">
                     @if (Model != null)
                     {
-                        @Html.Raw(Model.Notes ?? string.Empty)
+                        @Html.ProxyNotesImages(Model.Notes ?? string.Empty)
                     }
                 </div>
                 <div class="modal-footer">
