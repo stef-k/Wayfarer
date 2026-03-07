@@ -441,7 +441,27 @@ public class TripViewerController : BaseController
             }
         }
 
-        // Try to serve from cache
+        return await FetchAndCacheImage(url, cacheKey, maxWidth, maxHeight, quality, optimize);
+    }
+
+    /// <summary>
+    /// Shared pipeline for downloading, optimizing, caching, and serving a proxied image.
+    /// Checks disk cache first; on miss downloads from origin with size guard,
+    /// optionally optimizes via ImageSharp, stores in <see cref="IProxiedImageCacheService"/>,
+    /// and returns the image bytes with Cache-Control and ETag headers.
+    /// </summary>
+    /// <param name="imageUrl">The external image URL to fetch.</param>
+    /// <param name="cacheKey">Pre-computed deterministic cache key.</param>
+    /// <param name="maxWidth">Optional maximum width for resize.</param>
+    /// <param name="maxHeight">Optional maximum height for resize.</param>
+    /// <param name="quality">JPEG quality (defaults to 95 when optimize is true).</param>
+    /// <param name="optimize">Whether to run ImageSharp optimization.</param>
+    /// <returns>Cached or freshly-fetched image file result.</returns>
+    private async Task<IActionResult> FetchAndCacheImage(
+        string imageUrl, string cacheKey,
+        int? maxWidth, int? maxHeight, int? quality, bool optimize)
+    {
+        // Try to serve from disk cache
         var cached = await _imageCacheService.GetAsync(cacheKey);
         if (cached.HasValue)
         {
@@ -451,9 +471,12 @@ public class TripViewerController : BaseController
         }
 
         // Cache miss: download from origin
-        using var resp = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        using var resp = await _httpClient.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
         if (!resp.IsSuccessStatusCode)
-            return StatusCode((int)resp.StatusCode);
+        {
+            _logger.LogWarning("Failed to fetch proxied image from {Url}: {StatusCode}", imageUrl, (int)resp.StatusCode);
+            return NotFound();
+        }
 
         // Reject early if Content-Length is known and exceeds the limit
         if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
@@ -490,7 +513,7 @@ public class TripViewerController : BaseController
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to optimize image from {Url}, serving original", url);
+                _logger.LogWarning(ex, "Failed to optimize image from {Url}, serving original", imageUrl);
             }
         }
 
@@ -698,18 +721,6 @@ public class TripViewerController : BaseController
     [AllowAnonymous]
     public async Task<IActionResult> GetCoverImage(Guid id)
     {
-        // Rate limit anonymous requests to prevent abuse
-        var settings = _settingsService.GetSettings();
-        if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
-        {
-            var clientIp = GetClientIpAddress();
-            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
-            {
-                _logger.LogWarning("Cover image rate limit exceeded for IP: {ClientIp}", clientIp);
-                return StatusCode(429, "Too many requests. Please try again later.");
-            }
-        }
-
         var coverImageUrl = await _dbContext.Trips
             .Where(t => t.IsPublic && t.Id == id)
             .Select(t => t.CoverImageUrl)
@@ -729,78 +740,26 @@ public class TripViewerController : BaseController
         // Compute deterministic cache key (no resize params for cover images)
         var cacheKey = ComputeImageCacheKey(coverImageUrl, maxWidth: null, maxHeight: null, quality: null, optimize: true);
 
-        // Return 304 Not Modified if the client already has this version
+        // Return 304 Not Modified if the client already has this version (before rate limit)
         if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
             && ifNoneMatch == $"\"{cacheKey}\"")
         {
             return StatusCode(304);
         }
 
-        // Try to serve from disk cache
-        var cached = await _imageCacheService.GetAsync(cacheKey);
-        if (cached.HasValue)
+        // Rate limit anonymous requests to prevent abuse (after ETag check so 304s are free)
+        var settings = _settingsService.GetSettings();
+        if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
         {
-            Response.Headers["Cache-Control"] = "public, max-age=86400";
-            Response.Headers["ETag"] = $"\"{cacheKey}\"";
-            return File(cached.Value.Bytes, cached.Value.ContentType);
-        }
-
-        // Cache miss: download from origin
-        using var resp = await _httpClient.GetAsync(coverImageUrl, HttpCompletionOption.ResponseHeadersRead);
-        if (!resp.IsSuccessStatusCode)
-        {
-            return StatusCode((int)resp.StatusCode);
-        }
-
-        // Reject early if Content-Length is known and exceeds the limit
-        if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
-        {
-            return BadRequest("Image too large to proxy.");
-        }
-
-        // Stream-read with a hard cap to guard against missing/lying Content-Length
-        var contentType = resp.Content.Headers.ContentType?.MediaType
-                          ?? "application/octet-stream";
-        byte[] bytes;
-        await using (var bodyStream = await resp.Content.ReadAsStreamAsync())
-        {
-            using var limitedStream = new MemoryStream();
-            var buffer = new byte[81920];
-            long totalRead = 0;
-            int read;
-            while ((read = await bodyStream.ReadAsync(buffer)) > 0)
+            var clientIp = GetClientIpAddress();
+            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
             {
-                totalRead += read;
-                if (totalRead > MaxProxyImageBytes)
-                    return BadRequest("Image too large to proxy.");
-                limitedStream.Write(buffer, 0, read);
-            }
-            bytes = limitedStream.ToArray();
-        }
-
-        // Optimize image if possible (default quality 95, visually lossless)
-        if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                var optimizedBytes = OptimizeImage(bytes, maxWidth: null, maxHeight: null, quality: 95, out bool isPng);
-                bytes = optimizedBytes;
-                contentType = isPng ? "image/png" : "image/jpeg";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to optimize cover image from {Url}, serving original", coverImageUrl);
+                _logger.LogWarning("Cover image rate limit exceeded for IP: {ClientIp}", clientIp);
+                return StatusCode(429, "Too many requests. Please try again later.");
             }
         }
 
-        // Cache the result for future requests
-        await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
-
-        // Set browser cache headers
-        Response.Headers["Cache-Control"] = "public, max-age=86400";
-        Response.Headers["ETag"] = $"\"{cacheKey}\"";
-
-        return File(bytes, contentType);
+        return await FetchAndCacheImage(coverImageUrl, cacheKey, maxWidth: null, maxHeight: null, quality: null, optimize: true);
     }
 
     /// <summary>

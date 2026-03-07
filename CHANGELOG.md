@@ -4,7 +4,8 @@
 - Routed public cover images through ProxiedImageCacheService disk cache instead of raw 302 redirects
 - Cover images in public trip grid, list, and Viewer hero are now served via /Public/Trips/{id}/CoverImage endpoint
 - Cached cover images benefit from SSRF protection, ImageSharp optimization, ETag/304 support, and LRU eviction
-- Private trip cover images continue to load directly from external URL for the owner
+- Private (non-public) trip cover images in Viewer continue to load directly from external URL for the owner
+- Extracted shared FetchAndCacheImage pipeline used by both ProxyImage and CoverImage endpoints
 
 ## [1.2.7] - 2026-03-07
 - Fixed copy cover image and map snapshot URL options showing on public trip page to non-owners (#181)

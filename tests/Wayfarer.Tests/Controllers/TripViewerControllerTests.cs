@@ -182,15 +182,14 @@ public class TripViewerControllerTests : TestBase
     }
 
     [Fact]
-    public async Task ProxyImage_ReturnsStatusCode_FromHttpClient()
+    public async Task ProxyImage_ReturnsNotFound_WhenUpstreamFails()
     {
         var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.NotFound));
         var controller = BuildController(CreateDbContext(), handler: handler);
 
         var result = await controller.ProxyImage("http://example.com/img.png");
 
-        var status = Assert.IsType<StatusCodeResult>(result);
-        Assert.Equal(404, status.StatusCode);
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Theory]
