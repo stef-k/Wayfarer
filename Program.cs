@@ -544,46 +544,20 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Proxied image cache service (disk + DB backed, scoped for DbContext access)
     builder.Services.AddScoped<IProxiedImageCacheService, ProxiedImageCacheService>();
 
+    // Image proxy service for fetch+optimize+cache pipeline (used by warm-up job)
+    // Uses the same DNS-level SSRF protection as TripViewerController's HttpClient.
+    builder.Services.AddHttpClient<IImageProxyService, ImageProxyService>()
+        .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
+
+    // Cache warm-up job and debounced scheduler
+    builder.Services.AddTransient<CacheWarmupJob>();
+    builder.Services.AddSingleton<ICacheWarmupScheduler, CacheWarmupScheduler>();
+
     // Typed HttpClient for TripViewerController with DNS-level SSRF protection.
     // The ConnectCallback resolves DNS and checks all IPs against the private/loopback deny-list
     // before allowing a connection, preventing DNS rebinding attacks.
     builder.Services.AddHttpClient<Wayfarer.Areas.Public.Controllers.TripViewerController>()
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-        {
-            ConnectCallback = async (context, cancellationToken) =>
-            {
-                var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
-                foreach (var address in addresses)
-                {
-                    if (Wayfarer.Services.RateLimitHelper.IsPrivateOrLoopback(address))
-                        throw new HttpRequestException(
-                            $"Connection to private/loopback address {address} is blocked (SSRF protection).");
-                }
-
-                // Try all resolved addresses (v4+v6) — CDN hosts often return multiple IPs
-                Exception? lastException = null;
-                foreach (var addr in addresses)
-                {
-                    var socket = new System.Net.Sockets.Socket(
-                        System.Net.Sockets.SocketType.Stream,
-                        System.Net.Sockets.ProtocolType.Tcp);
-                    try
-                    {
-                        await socket.ConnectAsync(addr, context.DnsEndPoint.Port, cancellationToken);
-                        return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
-                    }
-                    catch (Exception ex)
-                    {
-                        socket.Dispose();
-                        lastException = ex;
-                    }
-                }
-
-                throw new HttpRequestException(
-                    $"Could not connect to any resolved address for {context.DnsEndPoint.Host}",
-                    lastException);
-            }
-        });
+        .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
 
     // Response compression for dynamic content (HTML, JSON, images served by controllers)
     builder.Services.AddResponseCompression(options =>
@@ -595,6 +569,49 @@ static void ConfigureServices(WebApplicationBuilder builder)
             .Concat(new[] { "image/svg+xml", "application/json" });
     });
 }
+
+/// <summary>
+/// Creates a SocketsHttpHandler with DNS-level SSRF protection.
+/// The ConnectCallback resolves DNS and checks all IPs against the private/loopback deny-list
+/// before allowing a connection, preventing DNS rebinding attacks.
+/// Shared by TripViewerController and ImageProxyService HttpClients.
+/// </summary>
+static SocketsHttpHandler CreateSsrfProtectedHandler() => new()
+{
+    ConnectCallback = async (context, cancellationToken) =>
+    {
+        var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+        foreach (var address in addresses)
+        {
+            if (Wayfarer.Services.RateLimitHelper.IsPrivateOrLoopback(address))
+                throw new HttpRequestException(
+                    $"Connection to private/loopback address {address} is blocked (SSRF protection).");
+        }
+
+        // Try all resolved addresses (v4+v6) — CDN hosts often return multiple IPs
+        Exception? lastException = null;
+        foreach (var addr in addresses)
+        {
+            var socket = new System.Net.Sockets.Socket(
+                System.Net.Sockets.SocketType.Stream,
+                System.Net.Sockets.ProtocolType.Tcp);
+            try
+            {
+                await socket.ConnectAsync(addr, context.DnsEndPoint.Port, cancellationToken);
+                return new System.Net.Sockets.NetworkStream(socket, ownsSocket: true);
+            }
+            catch (Exception ex)
+            {
+                socket.Dispose();
+                lastException = ex;
+            }
+        }
+
+        throw new HttpRequestException(
+            $"Could not connect to any resolved address for {context.DnsEndPoint.Host}",
+            lastException);
+    }
+};
 
 // Method to configure middleware components such as error handling and performance monitoring
 static async Task ConfigureMiddleware(WebApplication app)

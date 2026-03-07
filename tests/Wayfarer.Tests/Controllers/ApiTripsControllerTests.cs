@@ -1446,7 +1446,7 @@ public class ApiTripsControllerTests : TestBase
             settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
             settingsService = settingsMock.Object;
         }
-        var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, tagService, settingsService);
+        var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, tagService, settingsService, Mock.Of<ICacheWarmupScheduler>());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

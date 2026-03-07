@@ -596,8 +596,9 @@ public class TripViewerController : BaseController
     /// Computes a deterministic SHA-256 cache key from the proxy request parameters.
     /// Normalizes quality so that quality=null with optimize=true produces the same key
     /// as quality=95 with optimize=true (both resolve to the same output).
+    /// Internal for reuse by <see cref="Wayfarer.Services.ImageProxyService"/>.
     /// </summary>
-    private static string ComputeImageCacheKey(
+    internal static string ComputeImageCacheKey(
         string url, int? maxWidth, int? maxHeight, int? quality, bool optimize)
     {
         var effectiveQuality = optimize ? (quality ?? 95) : quality;

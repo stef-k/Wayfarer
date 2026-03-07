@@ -20,6 +20,7 @@ public class TripsController : BaseApiController
 
     private readonly ITripTagService _tripTagService;
     private readonly IApplicationSettingsService _settingsService;
+    private readonly ICacheWarmupScheduler _warmupScheduler;
 
     /// <summary>
     /// Initializes a new instance of <see cref="TripsController"/>.
@@ -28,11 +29,13 @@ public class TripsController : BaseApiController
         ApplicationDbContext dbContext,
         ILogger<BaseApiController> logger,
         ITripTagService tripTagService,
-        IApplicationSettingsService settingsService)
+        IApplicationSettingsService settingsService,
+        ICacheWarmupScheduler warmupScheduler)
         : base(dbContext, logger)
     {
         _tripTagService = tripTagService;
         _settingsService = settingsService;
+        _warmupScheduler = warmupScheduler;
     }
 
     private const string ShadowRegionName = "Unassigned Places";
@@ -670,6 +673,10 @@ return Ok(dto);
         if (!anyChange) return Ok(new { success = true, message = "No changes applied.", place = placeDto });
 
         await _dbContext.SaveChangesAsync();
+
+        // Schedule background cache warm-up for external images (debounced)
+        await _warmupScheduler.ScheduleWarmupAsync(place.Region.TripId);
+
         return Ok(new { success = true, place = placeDto });
     }
 
@@ -896,6 +903,10 @@ return Ok(dto);
         if (!anyChange) return Ok(new { success = true, message = "No changes applied.", region = regionDto });
 
         await _dbContext.SaveChangesAsync();
+
+        // Schedule background cache warm-up for external images (debounced)
+        await _warmupScheduler.ScheduleWarmupAsync(region.TripId);
+
         return Ok(new { success = true, region = regionDto });
     }
 
@@ -948,6 +959,10 @@ return Ok(dto);
         if (!anyChange) return Ok(new { success = true, message = "No changes applied.", id = area.Id, notes = area.Notes });
 
         await _dbContext.SaveChangesAsync();
+
+        // Schedule background cache warm-up for external images (debounced)
+        await _warmupScheduler.ScheduleWarmupAsync(area.Region.TripId);
+
         return Ok(new { success = true, id = area.Id, notes = area.Notes });
     }
 

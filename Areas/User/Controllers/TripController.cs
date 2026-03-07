@@ -13,16 +13,19 @@ namespace Wayfarer.Areas.User.Controllers
     {
         private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
         private readonly ITripTagService _tripTagService;
+        private readonly ICacheWarmupScheduler _warmupScheduler;
 
         public TripController(
             ILogger<TripController> logger,
             ApplicationDbContext dbContext,
             ITripMapThumbnailGenerator thumbnailGenerator,
-            ITripTagService tripTagService)
+            ITripTagService tripTagService,
+            ICacheWarmupScheduler warmupScheduler)
             : base(logger, dbContext)
         {
             _thumbnailGenerator = thumbnailGenerator;
             _tripTagService = tripTagService;
+            _warmupScheduler = warmupScheduler;
         }
 
         /// <summary>
@@ -296,6 +299,9 @@ namespace Wayfarer.Areas.User.Controllers
 
                 // Invalidate old thumbnails (will regenerate on next request)
                 _thumbnailGenerator.InvalidateThumbnails(id, updatedAt);
+
+                // Schedule background cache warm-up for external images (debounced)
+                await _warmupScheduler.ScheduleWarmupAsync(id);
 
                 SetAlert("Trip updated successfully!");
 

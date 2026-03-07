@@ -44,7 +44,8 @@ public class TripControllerTests : TestBase
             NullLogger<TripController>.Instance,
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
-            Mock.Of<ITripTagService>());
+            Mock.Of<ITripTagService>(),
+            Mock.Of<ICacheWarmupScheduler>());
         ConfigureControllerWithUser(controller, currentUser.Id);
 
         // Act
@@ -606,7 +607,8 @@ public class TripControllerTests : TestBase
             NullLogger<TripController>.Instance,
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
-            Mock.Of<ITripTagService>());
+            Mock.Of<ITripTagService>(),
+            Mock.Of<ICacheWarmupScheduler>());
 
         var httpContext = new DefaultHttpContext();
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
@@ -622,7 +624,8 @@ public class TripControllerTests : TestBase
             NullLogger<TripController>.Instance,
             db,
             thumbnailMock?.Object ?? Mock.Of<ITripMapThumbnailGenerator>(),
-            Mock.Of<ITripTagService>());
+            Mock.Of<ITripTagService>(),
+            Mock.Of<ICacheWarmupScheduler>());
 
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
