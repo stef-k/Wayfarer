@@ -392,12 +392,6 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Maximum response body size in bytes for proxied images (20 MB).
-    /// Prevents OOM from attacker-supplied URLs pointing to very large files.
-    /// </summary>
-    private const long MaxProxyImageBytes = 20 * 1024 * 1024;
-
-    /// <summary>
     /// Proxy external images with optional optimization and disk-based caching.
     /// Cached images are served directly from disk on subsequent requests, avoiding
     /// repeated external downloads and ImageSharp processing.
@@ -475,7 +469,7 @@ public class TripViewerController : BaseController
         }
 
         // Reject early if Content-Length is known and exceeds the limit
-        if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
+        if (resp.Content.Headers.ContentLength > ImageProxyHelper.MaxProxyImageBytes)
             return BadRequest("Image too large to proxy.");
 
         // Stream-read with a hard cap to guard against missing/lying Content-Length
@@ -491,7 +485,7 @@ public class TripViewerController : BaseController
             while ((read = await bodyStream.ReadAsync(buffer)) > 0)
             {
                 totalRead += read;
-                if (totalRead > MaxProxyImageBytes)
+                if (totalRead > ImageProxyHelper.MaxProxyImageBytes)
                     return BadRequest("Image too large to proxy.");
                 limitedStream.Write(buffer, 0, read);
             }

@@ -27,10 +27,6 @@ public interface IImageProxyService
 /// </summary>
 public class ImageProxyService : IImageProxyService
 {
-    /// <summary>
-    /// Maximum response body size in bytes for proxied images (20 MB).
-    /// </summary>
-    private const long MaxProxyImageBytes = 20 * 1024 * 1024;
 
     private readonly HttpClient _httpClient;
     private readonly IProxiedImageCacheService _imageCacheService;
@@ -85,7 +81,7 @@ public class ImageProxyService : IImageProxyService
             }
 
             // Reject early if Content-Length exceeds limit
-            if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
+            if (resp.Content.Headers.ContentLength > ImageProxyHelper.MaxProxyImageBytes)
             {
                 _logger.LogWarning("Image too large ({Size} bytes) from {Url}.", resp.Content.Headers.ContentLength, imageUrl);
                 return false;
@@ -103,7 +99,7 @@ public class ImageProxyService : IImageProxyService
                 while ((read = await bodyStream.ReadAsync(buffer, ct)) > 0)
                 {
                     totalRead += read;
-                    if (totalRead > MaxProxyImageBytes)
+                    if (totalRead > ImageProxyHelper.MaxProxyImageBytes)
                     {
                         _logger.LogWarning("Image exceeded size limit during download from {Url}.", imageUrl);
                         return false;

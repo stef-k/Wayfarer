@@ -241,5 +241,16 @@ public class HtmlHelpersTests
         Assert.Equal("https://example.com/photo.jpg", result[0]);
     }
 
+    [Fact]
+    public void ExtractExternalImageUrls_HandlesUrlEncodedCharacters()
+    {
+        var html = "<img src=\"https://example.com/photo%20name.jpg\">";
+
+        var result = HtmlHelpers.ExtractExternalImageUrls(html).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("https://example.com/photo%20name.jpg", result[0]);
+    }
+
     #endregion
 }
