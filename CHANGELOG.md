@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [1.2.7] - 2026-03-07
+- Fixed copy cover image and map snapshot URL options showing on public trip page to non-owners (#181)
+- These options now only appear for the trip owner in the Viewer dropdown
+
 ## [1.2.6] - 2026-03-07
 - Added visual hint in backfill "Consider Also" tab for suggested locations already linked to the trip (#183)
 - Suggested locations whose place is already confirmed or existing show a green lightbulb icon with tooltip
