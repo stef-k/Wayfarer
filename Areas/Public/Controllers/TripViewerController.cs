@@ -820,8 +820,12 @@ public class TripViewerController : BaseController
         }
 
         // The thumbnail URL is a relative path like /thumbs/trips/{id}-800x450.jpg
+        // Strip query string (?v=timestamp) used for browser cache busting
+        var queryIndex = thumbUrl.IndexOf('?');
+        var pathOnly = queryIndex >= 0 ? thumbUrl[..queryIndex] : thumbUrl;
+
         // Convert to a physical file path and serve directly
-        var relativePath = thumbUrl.TrimStart('/');
+        var relativePath = pathOnly.TrimStart('/');
         var wwwRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"));
         var webRootPath = Path.GetFullPath(
             Path.Combine(wwwRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));

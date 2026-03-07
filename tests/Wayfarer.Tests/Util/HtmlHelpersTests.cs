@@ -19,6 +19,18 @@ public class HtmlHelpersTests
         return writer.ToString();
     }
 
+    /// <summary>
+    /// Extracts the raw string value from an IHtmlContent without HTML encoding.
+    /// Used for testing helpers that return pre-built HtmlString content.
+    /// </summary>
+    private static string RenderRaw(IHtmlContent content)
+    {
+        if (content is HtmlString hs)
+            return hs.Value ?? string.Empty;
+
+        return Render(content);
+    }
+
     [Fact]
     public void AutoLink_EncodesHtmlAndLinksUrls()
     {
@@ -83,6 +95,93 @@ public class HtmlHelpersTests
     {
         var result = HtmlHelpers.HasVisibleContent(input);
         Assert.Equal(expected, result);
+    }
+
+    #endregion
+
+    #region ProxyNotesImages Tests
+
+    [Fact]
+    public void ProxyNotesImages_RewritesExternalImgSrc()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<p>Photo: <img src=\"https://example.com/photo.jpg\" alt=\"pic\"></p>";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Contains("/Public/ProxyImage?url=", result);
+        Assert.DoesNotContain("src=\"https://example.com/photo.jpg\"", result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_LeavesRelativeImagesAlone()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<img src=\"/images/local.jpg\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_LeavesDataUrisAlone()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<img src=\"data:image/png;base64,iVBOR\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_LeavesAlreadyProxiedAlone()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<img src=\"/Public/ProxyImage?url=https%3A%2F%2Fexample.com%2Fphoto.jpg\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_ReturnsEmptyForNull()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+
+        var result = RenderRaw(helper.ProxyNotesImages(null));
+
+        Assert.Equal(RenderRaw(HtmlString.Empty), result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_PreservesNonImageHtml()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<p>Hello <strong>world</strong></p>";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_HandlesMultipleImages()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<img src=\"https://a.com/1.jpg\"><img src=\"/local.jpg\"><img src=\"https://b.com/2.png\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        // External images should be proxied
+        Assert.DoesNotContain("src=\"https://a.com/1.jpg\"", result);
+        Assert.DoesNotContain("src=\"https://b.com/2.png\"", result);
+        // Local image should remain unchanged
+        Assert.Contains("src=\"/local.jpg\"", result);
+        // Proxy URLs should be present (2 external images)
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(result, "/Public/ProxyImage").Count);
     }
 
     #endregion

@@ -196,6 +196,49 @@ public class PublicTripImagesTests : TestBase
         Assert.Equal(429, status.StatusCode);
     }
 
+    [Fact]
+    public async Task MapSnapshot_ReturnsFile_WhenThumbnailUrlHasQueryString()
+    {
+        var db = CreateDbContext();
+        var tripId = Guid.NewGuid();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        db.Trips.Add(new Trip
+        {
+            Id = tripId, UserId = "owner", Name = "QS Trip",
+            IsPublic = true, CenterLat = 40.0, CenterLon = 25.0, Zoom = 10,
+            UpdatedAt = DateTime.UtcNow
+        });
+        db.SaveChanges();
+
+        // Create a temp thumbnail file in wwwroot/thumbs/trips/
+        var thumbDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "thumbs", "trips");
+        Directory.CreateDirectory(thumbDir);
+        var thumbFile = Path.Combine(thumbDir, $"{tripId}-800x450.jpg");
+
+        try
+        {
+            // Write a minimal JPEG header so the file exists
+            await System.IO.File.WriteAllBytesAsync(thumbFile, new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 });
+
+            // Mock thumbnail service to return URL with cache-busting query string
+            var thumbMock = new Mock<ITripThumbnailService>();
+            thumbMock.Setup(s => s.GetThumbUrlAsync(
+                    tripId, 40.0, 25.0, 10, null, It.IsAny<DateTime>(), "800x450", default))
+                .ReturnsAsync($"/thumbs/trips/{tripId}-800x450.jpg?v=638770000000000000");
+
+            var controller = BuildController(db, thumbnailService: thumbMock.Object);
+            var result = await controller.GetMapSnapshot(tripId);
+
+            var file = Assert.IsType<PhysicalFileResult>(result);
+            Assert.Equal("image/jpeg", file.ContentType);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(thumbFile))
+                System.IO.File.Delete(thumbFile);
+        }
+    }
+
     private TripViewerController BuildController(
         ApplicationDbContext db,
         ITripThumbnailService? thumbnailService = null,
