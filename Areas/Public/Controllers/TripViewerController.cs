@@ -684,13 +684,15 @@ public class TripViewerController : BaseController
     private string GetClientIpAddress() => RateLimitHelper.GetClientIpAddress(HttpContext);
 
     /// <summary>
-    /// Returns a 302 redirect to the cover image URL for a public trip.
+    /// Serves the cover image for a public trip through the proxied image cache.
+    /// Downloads, optimizes via ImageSharp, and caches the image on first request;
+    /// subsequent requests are served from disk cache with ETag/304 support.
     /// Returns 404 if the trip is not found, not public, or has no cover image.
     /// Rate limited for anonymous users using <see cref="RateLimitHelper"/>.
     /// GET: /Public/Trips/{id}/CoverImage
     /// </summary>
     /// <param name="id">The trip identifier.</param>
-    /// <returns>302 redirect to cover image URL, or 404.</returns>
+    /// <returns>Image file bytes, 304 Not Modified, or 404.</returns>
     [HttpGet]
     [Route("/Public/Trips/{id}/CoverImage", Order = 0)]
     [AllowAnonymous]
@@ -718,7 +720,87 @@ public class TripViewerController : BaseController
             return NotFound();
         }
 
-        return Redirect(coverImageUrl);
+        // SSRF protection: reject non-http/https or private/loopback addresses
+        if (!IsUrlAllowed(coverImageUrl))
+        {
+            return BadRequest("Invalid or disallowed image URL.");
+        }
+
+        // Compute deterministic cache key (no resize params for cover images)
+        var cacheKey = ComputeImageCacheKey(coverImageUrl, maxWidth: null, maxHeight: null, quality: null, optimize: true);
+
+        // Return 304 Not Modified if the client already has this version
+        if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
+            && ifNoneMatch == $"\"{cacheKey}\"")
+        {
+            return StatusCode(304);
+        }
+
+        // Try to serve from disk cache
+        var cached = await _imageCacheService.GetAsync(cacheKey);
+        if (cached.HasValue)
+        {
+            Response.Headers["Cache-Control"] = "public, max-age=86400";
+            Response.Headers["ETag"] = $"\"{cacheKey}\"";
+            return File(cached.Value.Bytes, cached.Value.ContentType);
+        }
+
+        // Cache miss: download from origin
+        using var resp = await _httpClient.GetAsync(coverImageUrl, HttpCompletionOption.ResponseHeadersRead);
+        if (!resp.IsSuccessStatusCode)
+        {
+            return StatusCode((int)resp.StatusCode);
+        }
+
+        // Reject early if Content-Length is known and exceeds the limit
+        if (resp.Content.Headers.ContentLength > MaxProxyImageBytes)
+        {
+            return BadRequest("Image too large to proxy.");
+        }
+
+        // Stream-read with a hard cap to guard against missing/lying Content-Length
+        var contentType = resp.Content.Headers.ContentType?.MediaType
+                          ?? "application/octet-stream";
+        byte[] bytes;
+        await using (var bodyStream = await resp.Content.ReadAsStreamAsync())
+        {
+            using var limitedStream = new MemoryStream();
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int read;
+            while ((read = await bodyStream.ReadAsync(buffer)) > 0)
+            {
+                totalRead += read;
+                if (totalRead > MaxProxyImageBytes)
+                    return BadRequest("Image too large to proxy.");
+                limitedStream.Write(buffer, 0, read);
+            }
+            bytes = limitedStream.ToArray();
+        }
+
+        // Optimize image if possible (default quality 95, visually lossless)
+        if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var optimizedBytes = OptimizeImage(bytes, maxWidth: null, maxHeight: null, quality: 95, out bool isPng);
+                bytes = optimizedBytes;
+                contentType = isPng ? "image/png" : "image/jpeg";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to optimize cover image from {Url}, serving original", coverImageUrl);
+            }
+        }
+
+        // Cache the result for future requests
+        await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
+
+        // Set browser cache headers
+        Response.Headers["Cache-Control"] = "public, max-age=86400";
+        Response.Headers["ETag"] = $"\"{cacheKey}\"";
+
+        return File(bytes, contentType);
     }
 
     /// <summary>
