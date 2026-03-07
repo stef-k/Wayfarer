@@ -74,8 +74,23 @@ public class CacheWarmupScheduler : ICacheWarmupScheduler
                     .StartAt(DateTimeOffset.UtcNow.Add(WarmupDelay))
                     .Build();
 
-                await _scheduler.ScheduleJob(job, trigger);
-                _logger.LogInformation("Scheduled cache warm-up for trip {TripId} in {Delay} minutes.", tripId, WarmupDelay.TotalMinutes);
+                try
+                {
+                    await _scheduler.ScheduleJob(job, trigger);
+                    _logger.LogInformation("Scheduled cache warm-up for trip {TripId} in {Delay} minutes.", tripId, WarmupDelay.TotalMinutes);
+                }
+                catch (ObjectAlreadyExistsException)
+                {
+                    // TOCTOU race: another request created the trigger between CheckExists and ScheduleJob.
+                    // Fall back to reschedule (debounce).
+                    var rescheduleTrigger = TriggerBuilder.Create()
+                        .WithIdentity(triggerKey)
+                        .ForJob(jobKey)
+                        .StartAt(DateTimeOffset.UtcNow.Add(WarmupDelay))
+                        .Build();
+                    await _scheduler.RescheduleJob(triggerKey, rescheduleTrigger);
+                    _logger.LogDebug("Rescheduled cache warm-up for trip {TripId} (concurrent race resolved).", tripId);
+                }
             }
         }
         catch (Exception ex)

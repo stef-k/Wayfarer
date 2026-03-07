@@ -1,5 +1,3 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 using Wayfarer.Areas.Public.Controllers;
 
 namespace Wayfarer.Services;
@@ -24,8 +22,8 @@ public interface IImageProxyService
 
 /// <summary>
 /// Fetches external images, optimizes them via ImageSharp, and stores them in the
-/// proxied image disk cache. Replicates the fetch+optimize+cache pipeline from
-/// <see cref="TripViewerController"/> without any HTTP response handling.
+/// proxied image disk cache. Delegates to <see cref="TripViewerController"/> for
+/// shared SSRF checks, cache key computation, and image optimization.
 /// </summary>
 public class ImageProxyService : IImageProxyService
 {
@@ -51,7 +49,7 @@ public class ImageProxyService : IImageProxyService
     /// <inheritdoc />
     public async Task<bool> FetchAndCacheAsync(string imageUrl, CancellationToken ct = default)
     {
-        // SSRF protection
+        // SSRF protection — shared with TripViewerController
         if (!TripViewerController.IsUrlAllowed(imageUrl))
         {
             _logger.LogDebug("Image URL disallowed by SSRF check: {Url}", imageUrl);
@@ -59,7 +57,6 @@ public class ImageProxyService : IImageProxyService
         }
 
         // Compute cache key with default proxy params (no resize, optimize=true)
-        // Uses TripViewerController's shared method to ensure key consistency.
         var cacheKey = TripViewerController.ComputeImageCacheKey(imageUrl, null, null, null, true);
 
         // Already cached — skip
@@ -116,12 +113,12 @@ public class ImageProxyService : IImageProxyService
                 bytes = limitedStream.ToArray();
             }
 
-            // Optimize via ImageSharp (same logic as TripViewerController.OptimizeImage)
+            // Optimize via shared ImageSharp pipeline (same as TripViewerController)
             if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    bytes = OptimizeImage(bytes, quality: 95, out bool isPng);
+                    bytes = TripViewerController.OptimizeImage(bytes, null, null, 95, out bool isPng);
                     contentType = isPng ? "image/png" : "image/jpeg";
                 }
                 catch (Exception ex)
@@ -135,38 +132,5 @@ public class ImageProxyService : IImageProxyService
             _logger.LogDebug("Warm-up cached image: {Url} ({Size} bytes).", imageUrl, bytes.Length);
             return true;
         }
-    }
-
-    /// <summary>
-    /// Optimize image using ImageSharp — resize and compress while maintaining quality.
-    /// Preserves PNG transparency for icons, converts photos to JPEG.
-    /// </summary>
-    private static byte[] OptimizeImage(byte[] imageBytes, int quality, out bool isPng)
-    {
-        using var inputStream = new MemoryStream(imageBytes);
-        using var image = SixLabors.ImageSharp.Image.Load(inputStream);
-
-        bool hasTransparency = image.Metadata.DecodedImageFormat?.Name is "PNG" or "WEBP" or "GIF";
-
-        using var outputStream = new MemoryStream();
-
-        if (hasTransparency)
-        {
-            image.SaveAsPng(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder
-            {
-                CompressionLevel = SixLabors.ImageSharp.Formats.Png.PngCompressionLevel.BestCompression
-            });
-            isPng = true;
-        }
-        else
-        {
-            image.SaveAsJpeg(outputStream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
-            {
-                Quality = quality
-            });
-            isPng = false;
-        }
-
-        return outputStream.ToArray();
     }
 }

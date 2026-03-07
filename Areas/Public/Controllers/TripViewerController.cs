@@ -531,8 +531,9 @@ public class TripViewerController : BaseController
     /// Optimize image using ImageSharp - resize and compress while maintaining quality.
     /// Preserves PNG transparency for icons, converts photos to JPEG.
     /// Uses pure managed code with no native dependencies for cross-platform support.
+    /// Internal for reuse by <see cref="Wayfarer.Services.ImageProxyService"/>.
     /// </summary>
-    private byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
+    internal static byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
     {
         using var inputStream = new MemoryStream(imageBytes);
         using var image = SixLabors.ImageSharp.Image.Load(inputStream);

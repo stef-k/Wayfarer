@@ -1,8 +1,8 @@
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.Jobs;
 
@@ -15,14 +15,6 @@ namespace Wayfarer.Jobs;
 [DisallowConcurrentExecution]
 public class CacheWarmupJob : IJob
 {
-    /// <summary>
-    /// Regex matching external http(s):// URLs inside &lt;img src="..."&gt; attributes.
-    /// Same pattern as <see cref="Wayfarer.Util.HtmlHelpers._externalImgSrcRegex"/>.
-    /// </summary>
-    private static readonly Regex ExternalImgSrcRegex = new(
-        @"<img\b[^>]*?\bsrc\s*=\s*[""'](?<url>https?://[^""']+)[""']",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     private readonly ApplicationDbContext _dbContext;
     private readonly IImageProxyService _imageProxyService;
     private readonly ILogger<CacheWarmupJob> _logger;
@@ -128,15 +120,12 @@ public class CacheWarmupJob : IJob
 
     /// <summary>
     /// Extracts external http(s) image URLs from &lt;img src="..."&gt; tags in HTML content.
+    /// Delegates to <see cref="HtmlHelpers.ExtractExternalImageUrls"/> for regex consistency.
     /// </summary>
     private static void ExtractImageUrls(string? html, HashSet<string> urls)
     {
-        if (string.IsNullOrWhiteSpace(html))
-            return;
-
-        foreach (Match match in ExternalImgSrcRegex.Matches(html))
+        foreach (var url in HtmlHelpers.ExtractExternalImageUrls(html))
         {
-            var url = match.Groups["url"].Value;
             urls.Add(url);
         }
     }
