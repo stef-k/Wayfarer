@@ -52,6 +52,12 @@ else
                                     <img class="w-100 h-100 object-fit-cover js-lazy" data-src="@item.CoverImageUrl"
                                         alt="@item.Name" style="background-color: #e9ecef;" />
                                 }
+                                else if (item.CenterLat.HasValue && item.CenterLon.HasValue)
+                                {
+                                    <!-- Show map thumbnail via async thumbnail system if no cover image but has coordinates -->
+                                    <img class="w-100 h-100 object-fit-cover" data-thumb-placeholder
+                                        alt="Map of @item.Name" style="background-color: #e9ecef;" />
+                                }
                                 else
                                 {
                                     <div class="w-100 h-100 bg-body-secondary d-flex align-items-center justify-content-center">

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [1.2.1] - 2026-03-07
+- Fixed trips with no cover image showing broken image instead of map snapshot fallback in grid view (#176)
+- Added map snapshot fallback to list view cover image column for trips with coordinates but no cover image (#176)
+
 ## [1.2.0] - 2026-03-01
 - Added disk-cached image proxy with LRU eviction for proxied images (#169)
 - Added SSRF protection to ProxyImage endpoint blocking private IPs and non-HTTP schemes (#169)
