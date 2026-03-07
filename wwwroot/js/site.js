@@ -421,24 +421,38 @@ wayfarer.initHelpTooltips = () => {
 /**
  * Initializes the back-to-top button.
  * Shows the button after the user scrolls past 300px and smooth-scrolls to top on click.
+ * Uses requestAnimationFrame to coalesce scroll events for performance.
  */
-(() => {
+wayfarer.initBackToTop = () => {
     const btn = document.getElementById('backToTopBtn');
     if (!btn) return;
 
+    let ticking = false;
     window.addEventListener('scroll', () => {
-        btn.classList.toggle('show', window.scrollY > 300);
+        if (!ticking) {
+            requestAnimationFrame(() => {
+                const visible = window.scrollY > 300;
+                btn.classList.toggle('show', visible);
+                btn.setAttribute('aria-hidden', String(!visible));
+                ticking = false;
+            });
+            ticking = true;
+        }
     }, { passive: true });
 
     btn.addEventListener('click', () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
-})();
+};
 
 // Initialize when DOM is ready (or immediately if already ready)
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wayfarer.initHelpTooltips);
+    document.addEventListener('DOMContentLoaded', () => {
+        wayfarer.initHelpTooltips();
+        wayfarer.initBackToTop();
+    });
 } else {
     wayfarer.initHelpTooltips();
+    wayfarer.initBackToTop();
 }
 
