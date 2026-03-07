@@ -243,7 +243,7 @@ public class TripViewerControllerTests : TestBase
     public void IsPrivateOrLoopback_ReturnsExpected(string ipStr, bool expected)
     {
         var ip = System.Net.IPAddress.Parse(ipStr);
-        Assert.Equal(expected, TripViewerController.IsPrivateOrLoopback(ip));
+        Assert.Equal(expected, Wayfarer.Services.RateLimitHelper.IsPrivateOrLoopback(ip));
     }
 
     [Fact]

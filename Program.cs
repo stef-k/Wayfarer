@@ -555,7 +555,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
                 var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
                 foreach (var address in addresses)
                 {
-                    if (Wayfarer.Areas.Public.Controllers.TripViewerController.IsPrivateOrLoopback(address))
+                    if (Wayfarer.Services.RateLimitHelper.IsPrivateOrLoopback(address))
                         throw new HttpRequestException(
                             $"Connection to private/loopback address {address} is blocked (SSRF protection).");
                 }

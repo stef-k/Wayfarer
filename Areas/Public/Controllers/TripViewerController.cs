@@ -607,51 +607,12 @@ public class TripViewerController : BaseController
             return false;
 
         // Block private/loopback IP address literals (including IPv6)
-        if (IPAddress.TryParse(host, out var ip) && IsPrivateOrLoopback(ip))
+        if (IPAddress.TryParse(host, out var ip) && RateLimitHelper.IsPrivateOrLoopback(ip))
             return false;
 
         return true;
     }
 
-    /// <summary>
-    /// Returns true if the IP address is loopback, private (RFC 1918), link-local,
-    /// IPv6 unique-local (fc00::/7), or an IPv4-mapped IPv6 address that maps to a private range.
-    /// Used by both <see cref="IsUrlAllowed"/> and the DNS-level ConnectCallback in Program.cs.
-    /// </summary>
-    internal static bool IsPrivateOrLoopback(IPAddress ip)
-    {
-        // Covers both 127.0.0.1 and ::1
-        if (IPAddress.IsLoopback(ip))
-            return true;
-
-        // IPv4-mapped IPv6 (e.g. ::ffff:10.0.0.1) — extract the mapped IPv4 and re-check
-        if (ip.IsIPv4MappedToIPv6)
-            return IsPrivateOrLoopback(ip.MapToIPv4());
-
-        var bytes = ip.GetAddressBytes();
-
-        if (bytes.Length == 4)
-        {
-            if (bytes[0] == 10) return true;                                       // 10.0.0.0/8
-            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;  // 172.16.0.0/12
-            if (bytes[0] == 192 && bytes[1] == 168) return true;                   // 192.168.0.0/16
-            if (bytes[0] == 169 && bytes[1] == 254) return true;                   // 169.254.0.0/16 link-local
-            if (bytes[0] == 0) return true;                                         // 0.0.0.0/8
-        }
-
-        if (bytes.Length == 16)
-        {
-            // IPv6 link-local (fe80::/10)
-            if (bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80)
-                return true;
-
-            // IPv6 unique-local (fc00::/7)
-            if (bytes[0] == 0xfc || bytes[0] == 0xfd)
-                return true;
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// API endpoint to generate thumbnail for a specific trip asynchronously.
