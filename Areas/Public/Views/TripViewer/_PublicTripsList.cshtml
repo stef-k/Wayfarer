@@ -138,6 +138,12 @@ else
                                         <i class="bi bi-bounding-box"></i> @item.RegionsCount
                                     </span>
                                 }
+                                @if (item.AreasCount > 0)
+                                {
+                                    <span title="@item.AreasCount area@(item.AreasCount == 1 ? "" : "s")">
+                                        <i class="bi bi-hexagon"></i> @item.AreasCount
+                                    </span>
+                                }
                                 @if (item.PlacesCount > 0)
                                 {
                                     <span title="@item.PlacesCount place@(item.PlacesCount == 1 ? "" : "s")">

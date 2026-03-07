@@ -49,6 +49,14 @@
             region@(Model.RegionsCount == 1 ? "" : "s")
         </div>
     }
+    @if (Model.AreasCount > 0)
+    {
+        <div>
+            <i class="bi bi-hexagon"></i>
+            <strong>@Model.AreasCount</strong>
+            area@(Model.AreasCount == 1 ? "" : "s")
+        </div>
+    }
     @if (Model.PlacesCount > 0)
     {
         <div>
