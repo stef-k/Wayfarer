@@ -20,52 +20,10 @@ namespace Wayfarer.Areas.Public.Controllers;
 public class TripViewerController : BaseController
 {
     /// <summary>
-    /// Maximum number of IPs to track for rate limiting to prevent memory exhaustion.
+    /// Thread-safe dictionary for rate limiting anonymous requests by IP address.
+    /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
     /// </summary>
-    private const int MaxTrackedIps = 100000;
-
-    /// <summary>
-    /// Thread-safe dictionary for rate limiting anonymous proxy image requests by IP address.
-    /// Uses atomic operations to prevent race conditions between check and increment.
-    /// </summary>
-    private static readonly ConcurrentDictionary<string, RateLimitEntry> RateLimitCache = new();
-
-    /// <summary>
-    /// Tracks the request count and window expiration for rate limiting.
-    /// Same pattern as <see cref="TilesController"/>.
-    /// </summary>
-    private sealed class RateLimitEntry
-    {
-        private int _count;
-        private long _expirationTicks;
-
-        public RateLimitEntry(long expirationTicks)
-        {
-            _count = 0;
-            _expirationTicks = expirationTicks;
-        }
-
-        /// <summary>
-        /// Atomically increments the counter and returns the new count.
-        /// If the window has expired, resets the counter and updates expiration using
-        /// compare-and-swap to avoid TOCTOU race conditions.
-        /// </summary>
-        public int IncrementAndGet(long currentTicks, long newExpirationTicks)
-        {
-            var currentExpiration = Interlocked.Read(ref _expirationTicks);
-            if (currentTicks > currentExpiration)
-            {
-                if (Interlocked.CompareExchange(ref _expirationTicks, newExpirationTicks, currentExpiration) == currentExpiration)
-                {
-                    Interlocked.Exchange(ref _count, 0);
-                }
-            }
-
-            return Interlocked.Increment(ref _count);
-        }
-
-        public bool IsExpired(long currentTicks) => currentTicks > Interlocked.Read(ref _expirationTicks);
-    }
+    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
 
     private readonly HttpClient _httpClient;
     private readonly ITripThumbnailService _thumbnailService;
@@ -476,7 +434,7 @@ public class TripViewerController : BaseController
         if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
         {
             var clientIp = GetClientIpAddress();
-            if (IsRateLimitExceeded(clientIp, settings.ProxyImageRateLimitPerMinute))
+            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
             {
                 _logger.LogWarning("Proxy image rate limit exceeded for IP: {ClientIp}", clientIp);
                 return StatusCode(429, "Too many requests. Please try again later.");
@@ -788,37 +746,111 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Checks if the given IP has exceeded the rate limit and atomically increments the counter.
-    /// Uses a fixed window approach with 1-minute expiration.
-    /// Thread-safe: uses atomic operations to prevent race conditions.
+    /// Returns a 302 redirect to the cover image URL for a public trip.
+    /// Returns 404 if the trip is not found, not public, or has no cover image.
+    /// Rate limited for anonymous users using <see cref="RateLimitHelper"/>.
+    /// GET: /Public/Trips/{id}/CoverImage
     /// </summary>
-    private static bool IsRateLimitExceeded(string clientIp, int maxRequestsPerMinute)
+    /// <param name="id">The trip identifier.</param>
+    /// <returns>302 redirect to cover image URL, or 404.</returns>
+    [HttpGet]
+    [Route("/Public/Trips/{id}/CoverImage", Order = 0)]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetCoverImage(Guid id)
     {
-        var currentTicks = DateTime.UtcNow.Ticks;
-        var expirationTicks = currentTicks + TimeSpan.FromMinutes(1).Ticks;
-
-        if (RateLimitCache.Count > MaxTrackedIps)
+        // Rate limit anonymous requests to prevent abuse
+        var settings = _settingsService.GetSettings();
+        if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
         {
-            CleanupExpiredEntries(currentTicks);
+            var clientIp = GetClientIpAddress();
+            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
+            {
+                _logger.LogWarning("Cover image rate limit exceeded for IP: {ClientIp}", clientIp);
+                return StatusCode(429, "Too many requests. Please try again later.");
+            }
         }
 
-        var entry = RateLimitCache.GetOrAdd(clientIp, _ => new RateLimitEntry(expirationTicks));
-        var count = entry.IncrementAndGet(currentTicks, expirationTicks);
+        var coverImageUrl = await _dbContext.Trips
+            .Where(t => t.IsPublic && t.Id == id)
+            .Select(t => t.CoverImageUrl)
+            .FirstOrDefaultAsync();
 
-        return count > maxRequestsPerMinute;
+        if (string.IsNullOrWhiteSpace(coverImageUrl))
+        {
+            return NotFound();
+        }
+
+        return Redirect(coverImageUrl);
     }
 
     /// <summary>
-    /// Removes expired entries from the rate limit cache to prevent memory growth.
+    /// Serves the map snapshot JPEG directly for a public trip.
+    /// Generates via Playwright if not cached. Returns 404 if the trip is not found,
+    /// not public, has no coordinates, or snapshot generation fails.
+    /// Rate limited for anonymous users using <see cref="RateLimitHelper"/>.
+    /// GET: /Public/Trips/{id}/MapSnapshot
     /// </summary>
-    private static void CleanupExpiredEntries(long currentTicks)
+    /// <param name="id">The trip identifier.</param>
+    /// <returns>JPEG image file, or 404.</returns>
+    [HttpGet]
+    [Route("/Public/Trips/{id}/MapSnapshot", Order = 0)]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetMapSnapshot(Guid id)
     {
-        foreach (var kvp in RateLimitCache)
+        // Rate limit anonymous requests to prevent abuse
+        var settings = _settingsService.GetSettings();
+        if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
         {
-            if (kvp.Value.IsExpired(currentTicks))
+            var clientIp = GetClientIpAddress();
+            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
             {
-                RateLimitCache.TryRemove(kvp.Key, out _);
+                _logger.LogWarning("Map snapshot rate limit exceeded for IP: {ClientIp}", clientIp);
+                return StatusCode(429, "Too many requests. Please try again later.");
             }
         }
+
+        var trip = await _dbContext.Trips
+            .Where(t => t.IsPublic && t.Id == id)
+            .Select(t => new
+            {
+                t.Id,
+                t.CenterLat,
+                t.CenterLon,
+                t.Zoom,
+                t.UpdatedAt
+            })
+            .FirstOrDefaultAsync();
+
+        if (trip == null || !trip.CenterLat.HasValue || !trip.CenterLon.HasValue || !trip.Zoom.HasValue)
+        {
+            return NotFound();
+        }
+
+        var thumbUrl = await _thumbnailService.GetThumbUrlAsync(
+            trip.Id,
+            trip.CenterLat,
+            trip.CenterLon,
+            trip.Zoom,
+            null, // Do not fall back to cover image — this endpoint serves map snapshots only
+            trip.UpdatedAt);
+
+        // Reject data URIs (placeholder SVGs) and null results
+        if (string.IsNullOrWhiteSpace(thumbUrl) || thumbUrl.StartsWith("data:", StringComparison.Ordinal))
+        {
+            return NotFound();
+        }
+
+        // The thumbnail URL is a relative path like /thumbs/trips/{id}-800x450.jpg
+        // Convert to a physical file path and serve directly
+        var relativePath = thumbUrl.TrimStart('/');
+        var webRootPath = Path.Combine(
+            Directory.GetCurrentDirectory(), "wwwroot", relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        if (!System.IO.File.Exists(webRootPath))
+        {
+            return NotFound();
+        }
+
+        return PhysicalFile(webRootPath, "image/jpeg");
     }
 }
