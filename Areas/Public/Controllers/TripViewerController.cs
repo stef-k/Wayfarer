@@ -1,19 +1,15 @@
 using System.Collections.Concurrent;
-using System.Net;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Public.Controllers;
 
@@ -528,115 +524,23 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Optimize image using ImageSharp - resize and compress while maintaining quality.
-    /// Preserves PNG transparency for icons, converts photos to JPEG.
-    /// Uses pure managed code with no native dependencies for cross-platform support.
-    /// Internal for reuse by <see cref="Wayfarer.Services.ImageProxyService"/>.
+    /// Optimize image using ImageSharp - delegates to <see cref="ImageProxyHelper.OptimizeImage"/>.
     /// </summary>
-    internal static byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
-    {
-        using var inputStream = new MemoryStream(imageBytes);
-        using var image = SixLabors.ImageSharp.Image.Load(inputStream);
-
-        // Check if image has transparency (alpha channel)
-        // PNG and WebP formats typically have alpha, JPEG does not
-        bool hasTransparency = image.Metadata.DecodedImageFormat?.Name == "PNG" ||
-                               image.Metadata.DecodedImageFormat?.Name == "WEBP" ||
-                               image.Metadata.DecodedImageFormat?.Name == "GIF";
-
-        // Calculate new dimensions maintaining aspect ratio
-        int targetWidth = image.Width;
-        int targetHeight = image.Height;
-
-        if (maxWidth.HasValue && targetWidth > maxWidth.Value)
-        {
-            var ratio = (float)maxWidth.Value / targetWidth;
-            targetWidth = maxWidth.Value;
-            targetHeight = (int)(targetHeight * ratio);
-        }
-
-        if (maxHeight.HasValue && targetHeight > maxHeight.Value)
-        {
-            var ratio = (float)maxHeight.Value / targetHeight;
-            targetHeight = maxHeight.Value;
-            targetWidth = (int)(targetWidth * ratio);
-        }
-
-        // Resize if needed
-        if (targetWidth != image.Width || targetHeight != image.Height)
-        {
-            image.Mutate(x => x.Resize(targetWidth, targetHeight, SixLabors.ImageSharp.Processing.KnownResamplers.Lanczos3));
-        }
-
-        // Choose format based on transparency
-        using var outputStream = new MemoryStream();
-
-        if (hasTransparency)
-        {
-            // Preserve transparency with PNG (for icons, logos, etc.)
-            image.SaveAsPng(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder
-            {
-                CompressionLevel = SixLabors.ImageSharp.Formats.Png.PngCompressionLevel.BestCompression
-            });
-            isPng = true;
-        }
-        else
-        {
-            // Use JPEG for photos (better compression)
-            image.SaveAsJpeg(outputStream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
-            {
-                Quality = quality
-            });
-            isPng = false;
-        }
-
-        return outputStream.ToArray();
-    }
+    private static byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
+        => ImageProxyHelper.OptimizeImage(imageBytes, maxWidth, maxHeight, quality, out isPng);
 
     /// <summary>
-    /// Computes a deterministic SHA-256 cache key from the proxy request parameters.
-    /// Normalizes quality so that quality=null with optimize=true produces the same key
-    /// as quality=95 with optimize=true (both resolve to the same output).
-    /// Internal for reuse by <see cref="Wayfarer.Services.ImageProxyService"/>.
+    /// Computes a deterministic cache key - delegates to <see cref="ImageProxyHelper.ComputeImageCacheKey"/>.
     /// </summary>
-    internal static string ComputeImageCacheKey(
+    private static string ComputeImageCacheKey(
         string url, int? maxWidth, int? maxHeight, int? quality, bool optimize)
-    {
-        var effectiveQuality = optimize ? (quality ?? 95) : quality;
-        var raw = $"{url}|{maxWidth}|{maxHeight}|{effectiveQuality}|{optimize}";
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
-        return Convert.ToHexString(hash).ToLowerInvariant();
-    }
+        => ImageProxyHelper.ComputeImageCacheKey(url, maxWidth, maxHeight, quality, optimize);
 
     /// <summary>
-    /// Validates that a proxy URL is safe to fetch: must use http/https scheme
-    /// and must not target private/loopback IP addresses (SSRF prevention).
-    /// Inspects the hostname literal; DNS-level validation is performed separately
-    /// via the <see cref="SocketsHttpHandler.ConnectCallback"/> registered in Program.cs.
+    /// SSRF URL validation - delegates to <see cref="ImageProxyHelper.IsUrlAllowed"/>.
     /// </summary>
-    internal static bool IsUrlAllowed(string url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-            return false;
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return false;
-
-        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
-            return false;
-
-        var host = uri.Host;
-
-        // Block localhost hostnames
-        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        // Block private/loopback IP address literals (including IPv6)
-        if (IPAddress.TryParse(host, out var ip) && RateLimitHelper.IsPrivateOrLoopback(ip))
-            return false;
-
-        return true;
-    }
+    private static bool IsUrlAllowed(string url)
+        => ImageProxyHelper.IsUrlAllowed(url);
 
 
     /// <summary>

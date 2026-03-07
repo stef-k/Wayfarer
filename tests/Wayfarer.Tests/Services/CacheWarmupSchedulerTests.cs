@@ -87,4 +87,34 @@ public class CacheWarmupSchedulerTests
             It.Is<ITrigger>(t => t.Key.Name == $"CacheWarmup-{tripId2}"),
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task ScheduleWarmupAsync_FallsBackToReschedule_WhenScheduleRaces()
+    {
+        var schedulerMock = new Mock<IScheduler>();
+        var tripId = Guid.NewGuid();
+        var triggerKey = new TriggerKey($"CacheWarmup-{tripId}", "CacheWarmup");
+
+        // CheckExists returns false (no existing trigger)
+        schedulerMock.Setup(s => s.CheckExists(triggerKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        // ScheduleJob throws ObjectAlreadyExistsException (TOCTOU race)
+        schedulerMock.Setup(s => s.ScheduleJob(
+                It.IsAny<IJobDetail>(),
+                It.IsAny<ITrigger>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ObjectAlreadyExistsException("trigger already exists"));
+
+        var service = new CacheWarmupScheduler(schedulerMock.Object, NullLogger<CacheWarmupScheduler>.Instance);
+
+        // Should not throw — falls back to RescheduleJob
+        await service.ScheduleWarmupAsync(tripId);
+
+        // Verify fallback path: RescheduleJob called once
+        schedulerMock.Verify(s => s.RescheduleJob(
+            triggerKey,
+            It.IsAny<ITrigger>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

@@ -1,11 +1,15 @@
 # CHANGELOG
 
-## [1.2.10] - 2026-03-07
+## [1.2.10] - 2026-03-08
 - Improved image cache read performance by removing global lock serialization from cache hits
 - LastAccessed updates are now conditional (only when stale >1 hour) reducing DB writes
 - Added background cache warm-up: external images in notes and cover images are pre-cached
   5 minutes after trip/region/place/area save (debounced)
 - Extracted ImageProxyService for shared image fetch+optimize+cache logic
+- Extracted ImageProxyHelper utility (IsUrlAllowed, ComputeImageCacheKey, OptimizeImage) to
+  fix inverted service→controller dependency
+- Added dedicated tests for HtmlHelpers.ExtractExternalImageUrls and CacheWarmupScheduler
+  TOCTOU fallback path
 
 ## [1.2.9] - 2026-03-07
 - Fixed map snapshot URL returning 404 due to query string not being stripped from file path

@@ -1,4 +1,4 @@
-using Wayfarer.Areas.Public.Controllers;
+using Wayfarer.Util;
 
 namespace Wayfarer.Services;
 
@@ -22,7 +22,7 @@ public interface IImageProxyService
 
 /// <summary>
 /// Fetches external images, optimizes them via ImageSharp, and stores them in the
-/// proxied image disk cache. Delegates to <see cref="TripViewerController"/> for
+/// proxied image disk cache. Delegates to <see cref="ImageProxyHelper"/> for
 /// shared SSRF checks, cache key computation, and image optimization.
 /// </summary>
 public class ImageProxyService : IImageProxyService
@@ -50,14 +50,14 @@ public class ImageProxyService : IImageProxyService
     public async Task<bool> FetchAndCacheAsync(string imageUrl, CancellationToken ct = default)
     {
         // SSRF protection — shared with TripViewerController
-        if (!TripViewerController.IsUrlAllowed(imageUrl))
+        if (!ImageProxyHelper.IsUrlAllowed(imageUrl))
         {
             _logger.LogDebug("Image URL disallowed by SSRF check: {Url}", imageUrl);
             return false;
         }
 
         // Compute cache key with default proxy params (no resize, optimize=true)
-        var cacheKey = TripViewerController.ComputeImageCacheKey(imageUrl, null, null, null, true);
+        var cacheKey = ImageProxyHelper.ComputeImageCacheKey(imageUrl, null, null, null, true);
 
         // Already cached — skip
         var existing = await _imageCacheService.GetAsync(cacheKey);
@@ -118,7 +118,7 @@ public class ImageProxyService : IImageProxyService
             {
                 try
                 {
-                    bytes = TripViewerController.OptimizeImage(bytes, null, null, 95, out bool isPng);
+                    bytes = ImageProxyHelper.OptimizeImage(bytes, null, null, 95, out bool isPng);
                     contentType = isPng ? "image/png" : "image/jpeg";
                 }
                 catch (Exception ex)
