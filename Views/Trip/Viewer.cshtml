@@ -122,7 +122,10 @@
                                     </li>
                                     @if ((bool)(ViewBag.IsOwner ?? false))
                                     {
-                                        <li><hr class="dropdown-divider"/></li>
+                                        @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl) || (Model.CenterLat.HasValue && Model.CenterLon.HasValue && Model.Zoom.HasValue))
+                                        {
+                                            <li><hr class="dropdown-divider"/></li>
+                                        }
                                         @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
                                         {
                                             <li>
