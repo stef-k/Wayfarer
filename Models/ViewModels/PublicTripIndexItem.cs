@@ -40,6 +40,9 @@ public sealed class PublicTripIndexItem
     /// <summary>Number of regions in this trip.</summary>
     public int RegionsCount { get; set; }
 
+    /// <summary>Number of areas across all regions in this trip.</summary>
+    public int AreasCount { get; set; }
+
     /// <summary>Number of places across all regions in this trip.</summary>
     public int PlacesCount { get; set; }
 

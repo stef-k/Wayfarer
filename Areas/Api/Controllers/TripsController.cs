@@ -1075,6 +1075,7 @@ return Ok(dto);
                     Zoom = t.Zoom,
                     UpdatedAt = t.UpdatedAt,
                     RegionsCount = t.Regions!.Count(),
+                    AreasCount = t.Regions!.Where(r => r.Areas != null).SelectMany(r => r.Areas!).Count(),
                     PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
                     SegmentsCount = t.Segments!.Count(),
                     IsOwner = t.UserId == currentUserId,

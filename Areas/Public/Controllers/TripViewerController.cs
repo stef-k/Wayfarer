@@ -175,6 +175,7 @@ public class TripViewerController : BaseController
                 Zoom = t.Zoom,
                 UpdatedAt = t.UpdatedAt,
                 RegionsCount = t.Regions!.Count(),
+                AreasCount = t.Regions!.Where(r => r.Areas != null).SelectMany(r => r.Areas!).Count(),
                 PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
                 SegmentsCount = t.Segments!.Count(),
                 IsOwner = t.UserId == currentUserId,
@@ -358,6 +359,7 @@ public class TripViewerController : BaseController
                 t.Zoom,
                 t.UpdatedAt,
                 RegionsCount = t.Regions!.Count(),
+                AreasCount = t.Regions!.Where(r => r.Areas != null).SelectMany(r => r.Areas!).Count(),
                 PlacesCount = t.Regions!.Where(r => r.Places != null).SelectMany(r => r.Places!).Count(),
                 SegmentsCount = t.Segments!.Count(),
                 Tags = t.Tags
@@ -385,6 +387,7 @@ public class TripViewerController : BaseController
             Zoom = trip.Zoom,
             UpdatedAt = trip.UpdatedAt,
             RegionsCount = trip.RegionsCount,
+            AreasCount = trip.AreasCount,
             PlacesCount = trip.PlacesCount,
             SegmentsCount = trip.SegmentsCount,
             IsOwner = trip.UserId == currentUserId,

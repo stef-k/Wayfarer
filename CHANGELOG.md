@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [1.2.3] - 2026-03-07
+- Added area stats to trip summaries in list, grid, and quick preview views (#179)
+
 ## [1.2.2] - 2026-03-07
 - Added site-wide back-to-top button that appears after scrolling, with smooth scroll and theme support (#175)
 
