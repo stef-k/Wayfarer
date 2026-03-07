@@ -9,6 +9,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -1436,10 +1437,16 @@ public class ApiTripsControllerTests : TestBase
         Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
-    private TripsController BuildController(ApplicationDbContext db, string? token = null, ITripTagService? tagService = null)
+    private TripsController BuildController(ApplicationDbContext db, string? token = null, ITripTagService? tagService = null, IApplicationSettingsService? settingsService = null)
     {
         tagService ??= Mock.Of<ITripTagService>();
-        var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, tagService);
+        if (settingsService == null)
+        {
+            var settingsMock = new Mock<IApplicationSettingsService>();
+            settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+            settingsService = settingsMock.Object;
+        }
+        var controller = new TripsController(db, NullLogger<BaseApiController>.Instance, tagService, settingsService);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

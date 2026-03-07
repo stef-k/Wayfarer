@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -11,12 +13,26 @@ namespace Wayfarer.Areas.Api.Controllers;
 [ApiController]
 public class TripsController : BaseApiController
 {
-    private readonly ITripTagService _tripTagService;
+    /// <summary>
+    /// Thread-safe dictionary for rate limiting anonymous image metadata requests by IP address.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
 
-    public TripsController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger, ITripTagService tripTagService)
+    private readonly ITripTagService _tripTagService;
+    private readonly IApplicationSettingsService _settingsService;
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="TripsController"/>.
+    /// </summary>
+    public TripsController(
+        ApplicationDbContext dbContext,
+        ILogger<BaseApiController> logger,
+        ITripTagService tripTagService,
+        IApplicationSettingsService settingsService)
         : base(dbContext, logger)
     {
         _tripTagService = tripTagService;
+        _settingsService = settingsService;
     }
 
     private const string ShadowRegionName = "Unassigned Places";
@@ -1128,6 +1144,69 @@ return Ok(dto);
             totalPages,
             selectedTags,
             tagMode = normalizedTagMode
+        });
+    }
+
+    /// <summary>
+    /// Returns JSON metadata with absolute URLs for a public trip's cover image and map snapshot.
+    /// Either URL may be null if the trip lacks a cover image or coordinates respectively.
+    /// Rate limited for anonymous users.
+    /// GET: /api/trips/public/{id}/images
+    /// </summary>
+    /// <param name="id">The trip identifier.</param>
+    /// <returns>JSON with tripId, coverImageUrl, and mapSnapshotUrl.</returns>
+    /// <response code="200">Returns image URLs for the public trip</response>
+    /// <response code="404">If trip does not exist or is not public</response>
+    /// <response code="429">If rate limit exceeded for anonymous users</response>
+    [HttpGet("public/{id}/images")]
+    [Route("api/trips/public/{id}/images", Order = 0)]
+    public async Task<IActionResult> GetPublicTripImages(Guid id)
+    {
+        // Rate limit anonymous requests to prevent abuse
+        var settings = _settingsService.GetSettings();
+        if (User.Identity?.IsAuthenticated != true && settings.ProxyImageRateLimitEnabled)
+        {
+            var clientIp = RateLimitHelper.GetClientIpAddress(HttpContext);
+            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.ProxyImageRateLimitPerMinute))
+            {
+                _logger.LogWarning("Trip images API rate limit exceeded for IP: {ClientIp}", clientIp);
+                return StatusCode(429, "Too many requests. Please try again later.");
+            }
+        }
+
+        var trip = await _dbContext.Trips
+            .Where(t => t.IsPublic && t.Id == id)
+            .Select(t => new
+            {
+                t.Id,
+                t.CoverImageUrl,
+                t.CenterLat,
+                t.CenterLon,
+                t.Zoom
+            })
+            .FirstOrDefaultAsync();
+
+        if (trip == null)
+        {
+            return NotFound(new { error = "Trip not found or not public" });
+        }
+
+        var scheme = Request.Scheme;
+        var host = Request.Host.ToString();
+
+        string? coverImageUrl = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
+            ? $"{scheme}://{host}/Public/Trips/{trip.Id}/CoverImage"
+            : null;
+
+        string? mapSnapshotUrl = trip.CenterLat.HasValue && trip.CenterLon.HasValue && trip.Zoom.HasValue
+            ? $"{scheme}://{host}/Public/Trips/{trip.Id}/MapSnapshot"
+            : null;
+
+        return Ok(new
+        {
+            tripId = trip.Id,
+            coverImageUrl,
+            mapSnapshotUrl
         });
     }
 

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.2.4] - 2026-03-07
+- Added public endpoints for trip cover image and map snapshot (#181)
+- Added GET /Public/Trips/{id}/CoverImage — 302 redirect to cover image URL
+- Added GET /Public/Trips/{id}/MapSnapshot — serves map snapshot JPEG directly
+- Added GET /api/trips/public/{id}/images — JSON metadata with absolute image URLs
+- Extracted shared rate limiting utility (RateLimitHelper) from TripViewerController and TilesController
+- All new endpoints are rate limited for anonymous users
+- Added copy URL options for cover image and map snapshot in trip Viewer dropdown and User Trip Index public dropdown
+
 ## [1.2.3] - 2026-03-07
 - Added area stats to trip summaries in list, grid, and quick preview views (#179)
 
