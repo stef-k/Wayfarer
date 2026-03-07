@@ -2216,11 +2216,13 @@ html[data-bs-theme="dark"] .ql-editor a {
     border-color: #495057 !important;
 }
 
-/* Backfill search field with inline clear button */
+/* Search field with inline clear button */
+.search-group,
 .backfill-search-group {
     position: relative;
 }
 
+.search-group .btn-search-clear,
 .backfill-search-group .btn-search-clear {
     position: absolute;
     right: 0.4rem;
@@ -2236,6 +2238,17 @@ html[data-bs-theme="dark"] .ql-editor a {
     z-index: 2;
 }
 
+.search-group .btn-search-clear:hover,
 .backfill-search-group .btn-search-clear:hover {
     color: #dc3545;
+}
+
+[data-bs-theme="dark"] .search-group .btn-search-clear,
+[data-bs-theme="dark"] .backfill-search-group .btn-search-clear {
+    color: #adb5bd;
+}
+
+[data-bs-theme="dark"] .search-group .btn-search-clear:hover,
+[data-bs-theme="dark"] .backfill-search-group .btn-search-clear:hover {
+    color: #f8d7da;
 }

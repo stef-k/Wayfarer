@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [1.2.5] - 2026-03-07
+- Added search and filter functionality to user trips index page (#182)
+- Search field filters trips by name and notes with debounced input
+- Tri-state radio filter for All/Public/Private trip visibility
+- Client-side filtering with combined AND logic
+
 ## [1.2.4] - 2026-03-07
 - Added public endpoints for trip cover image and map snapshot (#181)
 - Added GET /Public/Trips/{id}/CoverImage — 302 redirect to cover image URL
