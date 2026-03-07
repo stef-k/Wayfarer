@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## [1.2.2] - 2026-03-07
+- Added site-wide back-to-top button that appears after scrolling, with smooth scroll and theme support (#175)
+
 ## [1.2.1] - 2026-03-07
 - Fixed trips with no cover image showing broken image instead of map snapshot fallback in grid view (#176)
 - Added map snapshot fallback to list view cover image column for trips with coordinates but no cover image (#176)
