@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Util;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -222,7 +223,7 @@ public class TripViewerControllerTests : TestBase
     [InlineData("https://mymaps.usercontent.google.com/img.jpg")]
     public void IsUrlAllowed_ReturnsTrue_ForValidExternalUrls(string url)
     {
-        Assert.True(TripViewerController.IsUrlAllowed(url));
+        Assert.True(ImageProxyHelper.IsUrlAllowed(url));
     }
 
     [Theory]
@@ -255,10 +256,7 @@ public class TripViewerControllerTests : TestBase
         // Call ProxyImage once to learn the ETag, then test with If-None-Match
         var url = "http://example.com/img.jpg";
 
-        // Use reflection to call ComputeImageCacheKey to get the expected ETag
-        var method = typeof(TripViewerController).GetMethod("ComputeImageCacheKey",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        var cacheKey = (string)method!.Invoke(null, new object?[] { url, null, null, null, true })!;
+        var cacheKey = ImageProxyHelper.ComputeImageCacheKey(url, null, null, null, true);
 
         controller.ControllerContext.HttpContext.Request.Headers["If-None-Match"] = $"\"{cacheKey}\"";
 

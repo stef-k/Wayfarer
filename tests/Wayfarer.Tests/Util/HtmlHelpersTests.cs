@@ -185,4 +185,72 @@ public class HtmlHelpersTests
     }
 
     #endregion
+
+    #region ExtractExternalImageUrls Tests
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void ExtractExternalImageUrls_ReturnsEmpty_ForNullOrEmpty(string? input)
+    {
+        var result = HtmlHelpers.ExtractExternalImageUrls(input);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractExternalImageUrls_ExtractsHttpsUrls()
+    {
+        var html = "<p>Photo: <img src=\"https://example.com/photo.jpg\" alt=\"pic\"></p>";
+
+        var result = HtmlHelpers.ExtractExternalImageUrls(html).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("https://example.com/photo.jpg", result[0]);
+    }
+
+    [Fact]
+    public void ExtractExternalImageUrls_ExtractsMultipleUrls()
+    {
+        var html = "<img src=\"https://a.com/1.jpg\"><img src=\"http://b.com/2.png\">";
+
+        var result = HtmlHelpers.ExtractExternalImageUrls(html).ToList();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("https://a.com/1.jpg", result[0]);
+        Assert.Equal("http://b.com/2.png", result[1]);
+    }
+
+    [Fact]
+    public void ExtractExternalImageUrls_IgnoresRelativeAndDataUrls()
+    {
+        var html = "<img src=\"/local.jpg\"><img src=\"data:image/png;base64,iVBOR\">";
+
+        var result = HtmlHelpers.ExtractExternalImageUrls(html);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractExternalImageUrls_HandlesSingleQuotes()
+    {
+        var html = "<img src='https://example.com/photo.jpg'/>";
+
+        var result = HtmlHelpers.ExtractExternalImageUrls(html).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("https://example.com/photo.jpg", result[0]);
+    }
+
+    [Fact]
+    public void ExtractExternalImageUrls_HandlesUrlEncodedCharacters()
+    {
+        var html = "<img src=\"https://example.com/photo%20name.jpg\">";
+
+        var result = HtmlHelpers.ExtractExternalImageUrls(html).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("https://example.com/photo%20name.jpg", result[0]);
+    }
+
+    #endregion
 }

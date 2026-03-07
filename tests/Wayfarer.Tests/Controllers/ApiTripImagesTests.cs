@@ -178,7 +178,8 @@ public class ApiTripImagesTests : TestBase
             db,
             NullLogger<BaseApiController>.Instance,
             tagService,
-            settingsService);
+            settingsService,
+            Mock.Of<ICacheWarmupScheduler>());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext

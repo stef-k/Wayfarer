@@ -192,6 +192,52 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Assert.True(db.ImageCacheMetadata.Count() <= 3);
     }
 
+    [Fact]
+    public async Task GetAsync_SkipsLastAccessedUpdate_WhenRecent()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+        var imageBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 1, 2 };
+
+        await service.SetAsync("recent_key", imageBytes, "image/jpeg");
+
+        // Record the LastAccessed time right after SetAsync
+        var metaBefore = db.ImageCacheMetadata.First(m => m.CacheKey == "recent_key");
+        var lastAccessedBefore = metaBefore.LastAccessed;
+
+        // Read immediately (within 1-hour window) — should NOT update LastAccessed
+        await service.GetAsync("recent_key");
+
+        // Re-query to get current value
+        await db.Entry(metaBefore).ReloadAsync();
+        Assert.Equal(lastAccessedBefore, metaBefore.LastAccessed);
+    }
+
+    [Fact]
+    public async Task GetAsync_UpdatesLastAccessed_WhenStale()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+        var imageBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 3, 4 };
+
+        await service.SetAsync("stale_key", imageBytes, "image/jpeg");
+
+        // Backdate LastAccessed by 2 hours to make it stale
+        var metadata = db.ImageCacheMetadata.First(m => m.CacheKey == "stale_key");
+        metadata.LastAccessed = DateTime.UtcNow.AddHours(-2);
+        await db.SaveChangesAsync();
+
+        var staleBefore = metadata.LastAccessed;
+
+        // Read — should update LastAccessed because it's >1 hour old
+        await service.GetAsync("stale_key");
+
+        await db.Entry(metadata).ReloadAsync();
+        Assert.True(metadata.LastAccessed > staleBefore);
+        // Should be within the last few seconds (recently updated)
+        Assert.True(DateTime.UtcNow - metadata.LastAccessed < TimeSpan.FromSeconds(10));
+    }
+
     /// <summary>
     /// Creates a ProxiedImageCacheService with test configuration.
     /// </summary>

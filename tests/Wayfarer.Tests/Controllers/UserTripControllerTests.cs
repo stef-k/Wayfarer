@@ -206,7 +206,8 @@ public class UserTripControllerTests : TestBase
             NullLogger<TripController>.Instance,
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
-            Mock.Of<ITripTagService>());
+            Mock.Of<ITripTagService>(),
+            Mock.Of<ICacheWarmupScheduler>());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContextWithUser(userId)

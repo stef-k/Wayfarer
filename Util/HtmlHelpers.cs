@@ -62,6 +62,22 @@ namespace Wayfarer.Util
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         /// <summary>
+        /// Extracts all external http(s) image URLs from &lt;img src="..."&gt; tags in HTML content.
+        /// Returns an empty collection for null/empty input.
+        /// Shared by <see cref="Wayfarer.Jobs.CacheWarmupJob"/> and view helpers.
+        /// </summary>
+        public static IEnumerable<string> ExtractExternalImageUrls(string? htmlContent)
+        {
+            if (string.IsNullOrEmpty(htmlContent))
+                yield break;
+
+            foreach (Match match in _externalImgSrcRegex.Matches(htmlContent))
+            {
+                yield return match.Groups["url"].Value;
+            }
+        }
+
+        /// <summary>
         /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
         /// Leaves relative, data-URI, and already-proxied URLs unchanged.

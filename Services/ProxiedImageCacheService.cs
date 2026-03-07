@@ -8,12 +8,14 @@ namespace Wayfarer.Services;
 /// Defines the contract for caching proxied and optimized external images on disk.
 /// Provides disk-based caching with DB-tracked LRU eviction, following the same
 /// pattern as <see cref="TileCacheService"/>.
+/// Read operations are lock-free for performance; writes and eviction use a global lock.
 /// </summary>
 public interface IProxiedImageCacheService
 {
     /// <summary>
     /// Returns cached image bytes and content type if a valid (non-expired) entry exists.
-    /// Updates the LastAccessed timestamp on cache hits for LRU ordering.
+    /// Conditionally updates LastAccessed (only when stale &gt;1 hour) for LRU ordering.
+    /// Lock-free on the read path for concurrent performance.
     /// Returns null on cache miss or expired entry.
     /// </summary>
     Task<(byte[] Bytes, string ContentType)?> GetAsync(string cacheKey);
@@ -45,7 +47,8 @@ public interface IProxiedImageCacheService
 /// Disk-based image proxy cache with DB-tracked LRU eviction.
 /// Caches optimized images from the ProxyImage endpoint to avoid repeated
 /// downloads and ImageSharp processing on every request.
-/// Thread-safe via static SemaphoreSlim (same pattern as <see cref="TileCacheService"/>).
+/// Read operations are lock-free for concurrent performance; writes and eviction
+/// are serialized via static SemaphoreSlim (same pattern as <see cref="TileCacheService"/>).
 /// </summary>
 public class ProxiedImageCacheService : IProxiedImageCacheService
 {
@@ -59,6 +62,12 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     /// Matches <see cref="TileCacheService"/>'s eviction batch size.
     /// </summary>
     private const int LruEvictionBatchSize = 50;
+
+    /// <summary>
+    /// Minimum interval between LastAccessed updates on cache reads.
+    /// Reduces DB writes on hot entries — concurrent updates both write "now" (harmless).
+    /// </summary>
+    private static readonly TimeSpan LastAccessedUpdateInterval = TimeSpan.FromHours(1);
 
     /// <summary>
     /// Lock for serializing file system and DB operations across all service instances.
@@ -138,8 +147,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         string? filePath;
         string? contentType;
 
-        // Lock only for DB operations and size counter mutations
-        await _cacheLock.WaitAsync();
+        // Lock-free DB read — scoped DbContext makes concurrent reads safe
         try
         {
             var metadata = await _dbContext.ImageCacheMetadata
@@ -148,18 +156,42 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             if (metadata == null)
                 return null;
 
-            // Check time-based expiry
+            // Check time-based expiry — acquire lock only for removal (rare path)
             var maxAge = TimeSpan.FromDays(settings.ImageCacheExpiryDays);
             if (DateTime.UtcNow - metadata.CreatedAt > maxAge)
             {
                 _logger.LogInformation("Image cache entry expired for key {CacheKey}. Removing.", cacheKey);
-                await RemoveEntryAsync(metadata);
+                await _cacheLock.WaitAsync();
+                try
+                {
+                    // Re-fetch inside lock to avoid double-remove race
+                    var refetched = await _dbContext.ImageCacheMetadata
+                        .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
+                    if (refetched != null)
+                        await RemoveEntryAsync(refetched);
+                }
+                finally
+                {
+                    _cacheLock.Release();
+                }
                 return null;
             }
 
-            // Update LastAccessed for LRU ordering
-            metadata.LastAccessed = DateTime.UtcNow;
-            await SaveWithConcurrencyRetryAsync(metadata);
+            // Conditional LastAccessed update — only when stale (>1 hour)
+            // No lock needed; concurrent updates both write "now" (harmless)
+            if (DateTime.UtcNow - metadata.LastAccessed > LastAccessedUpdateInterval)
+            {
+                try
+                {
+                    metadata.LastAccessed = DateTime.UtcNow;
+                    await SaveWithConcurrencyRetryAsync(metadata);
+                }
+                catch (Exception ex)
+                {
+                    // Non-critical — log and continue serving the cached image
+                    _logger.LogWarning(ex, "Failed to update LastAccessed for cache key {CacheKey}.", cacheKey);
+                }
+            }
 
             filePath = metadata.FilePath;
             contentType = metadata.ContentType;
@@ -169,10 +201,6 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             _logger.LogError(ex, "Error reading image cache for key {CacheKey}.", cacheKey);
             return null;
         }
-        finally
-        {
-            _cacheLock.Release();
-        }
 
         // File I/O outside the lock — unique filename per cache key prevents conflicts.
         // If the file was evicted between the DB check and this read, return null (cache miss).
@@ -180,7 +208,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         {
             if (!File.Exists(filePath))
             {
-                // File missing on disk — clean up the DB entry
+                // File missing on disk — clean up the DB entry (rare error path, uses lock)
                 _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
                 await _cacheLock.WaitAsync();
                 try
