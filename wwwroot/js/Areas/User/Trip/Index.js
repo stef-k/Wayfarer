@@ -36,6 +36,13 @@ import {
             if (visible) visibleCount++;
         });
 
+        // If all real rows have been deleted, hide the table entirely
+        if (rows.length === 0) {
+            const table = tripTableBody.closest('table');
+            if (table) table.style.display = 'none';
+            return;
+        }
+
         let noMatchRow = tripTableBody.querySelector('.no-match-row');
         if (visibleCount === 0) {
             if (!noMatchRow) {
@@ -1430,12 +1437,12 @@ import {
         // Search & filter event listeners
         const tripSearchInput = document.getElementById('trip-search');
         const tripSearchClear = document.getElementById('trip-search-clear');
+        let tripSearchDebounce;
 
         if (tripSearchInput) {
-            let debounceTimer;
             tripSearchInput.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => {
+                clearTimeout(tripSearchDebounce);
+                tripSearchDebounce = setTimeout(() => {
                     filterTrips();
                     if (tripSearchClear) {
                         tripSearchClear.classList.toggle('d-none', !tripSearchInput.value);
@@ -1446,6 +1453,7 @@ import {
 
         if (tripSearchClear) {
             tripSearchClear.addEventListener('click', () => {
+                clearTimeout(tripSearchDebounce);
                 if (tripSearchInput) {
                     tripSearchInput.value = '';
                     tripSearchInput.focus();
