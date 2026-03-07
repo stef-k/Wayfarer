@@ -120,6 +120,33 @@
                                             <i class="bi bi-share me-1"></i>Share (Copy URL)
                                         </a>
                                     </li>
+                                    <li><hr class="dropdown-divider"/></li>
+                                    @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
+                                    {
+                                        <li>
+                                            <a class="dropdown-item copy-url"
+                                               href="#"
+                                               data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}/CoverImage")"
+                                               title="Copy cover image URL to clipboard">
+                                                <i class="bi bi-image me-1"></i>Copy Cover Image URL
+                                            </a>
+                                        </li>
+                                    }
+                                    @if (Model.CenterLat.HasValue && Model.CenterLon.HasValue && Model.Zoom.HasValue)
+                                    {
+                                        <li>
+                                            <a class="dropdown-item copy-url"
+                                               href="#"
+                                               data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}/MapSnapshot")"
+                                               title="Copy map snapshot URL to clipboard">
+                                                <i class="bi bi-card-image me-1"></i>Copy Map Snapshot URL
+                                            </a>
+                                        </li>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl) || (Model.CenterLat.HasValue && Model.CenterLon.HasValue && Model.Zoom.HasValue))
+                                    {
+                                        <li><hr class="dropdown-divider"/></li>
+                                    }
                                     @* Clone button - show for authenticated users, login prompt for others *@
                                     @if (User.Identity?.IsAuthenticated == true)
                                     {

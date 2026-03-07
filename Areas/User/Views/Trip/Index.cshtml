@@ -94,6 +94,29 @@ else
                                         Copy public trip page embed
                                     </a>
                                 </li>
+                                <li><hr class="dropdown-divider"></li>
+                                @if (!string.IsNullOrWhiteSpace(trip.CoverImageUrl))
+                                {
+                                    <li>
+                                        <a class="dropdown-item copy-url"
+                                           href="#"
+                                           data-url="/Public/Trips/@trip.Id/CoverImage"
+                                           title="Click to copy cover image URL to clipboard">
+                                            <i class="bi bi-image me-1"></i>Copy Cover Image URL
+                                        </a>
+                                    </li>
+                                }
+                                @if (trip.CenterLat.HasValue && trip.CenterLon.HasValue && trip.Zoom.HasValue)
+                                {
+                                    <li>
+                                        <a class="dropdown-item copy-url"
+                                           href="#"
+                                           data-url="/Public/Trips/@trip.Id/MapSnapshot"
+                                           title="Click to copy map snapshot URL to clipboard">
+                                            <i class="bi bi-card-image me-1"></i>Copy Map Snapshot URL
+                                        </a>
+                                    </li>
+                                }
                                 @if (trip.ShareProgressEnabled)
                                 {
                                     <li>
