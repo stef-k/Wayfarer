@@ -6,6 +6,50 @@ import {
 } from '../../../util/wikipedia-utils.js';
 
 (() => {
+    /* ------------------------------------------------ Search & filter trips */
+
+    /**
+     * Filters trip table rows by search text and visibility radio selection.
+     * Uses AND logic: row must match both search term and visibility filter.
+     */
+    const filterTrips = () => {
+        const tripTableBody = document.querySelector('table.table tbody');
+        if (!tripTableBody) return;
+
+        const searchTerm = (document.getElementById('trip-search')?.value || '').trim().toLowerCase();
+        const filterValue = document.querySelector('input[name="tripFilter"]:checked')?.value || 'all';
+        const rows = tripTableBody.querySelectorAll('tr:not(.no-match-row)');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const name = row.cells[0]?.textContent?.toLowerCase() || '';
+            const notes = row.cells[1]?.textContent?.toLowerCase() || '';
+            const matchesSearch = !searchTerm || name.includes(searchTerm) || notes.includes(searchTerm);
+
+            const isPublic = row.dataset.isPublic === 'true';
+            const matchesFilter = filterValue === 'all'
+                || (filterValue === 'public' && isPublic)
+                || (filterValue === 'private' && !isPublic);
+
+            const visible = matchesSearch && matchesFilter;
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        let noMatchRow = tripTableBody.querySelector('.no-match-row');
+        if (visibleCount === 0) {
+            if (!noMatchRow) {
+                noMatchRow = document.createElement('tr');
+                noMatchRow.className = 'no-match-row';
+                noMatchRow.innerHTML = '<td colspan="4" class="text-center text-muted py-3">No trips match your search or filter.</td>';
+                tripTableBody.appendChild(noMatchRow);
+            }
+            noMatchRow.style.display = '';
+        } else if (noMatchRow) {
+            noMatchRow.style.display = 'none';
+        }
+    };
+
     /* ------------------------------------------------ Delete trip */
     const handleDeleteClick = (btn, e) => {
         if (e) e.preventDefault();
@@ -28,6 +72,7 @@ import {
 
                 if (resp.ok) {
                     document.querySelector(`[data-trip-id="${tripId}"]`)?.closest('tr')?.remove();
+                    filterTrips();
                     wayfarer.showAlert("success", "Trip deleted.");
                 } else {
                     wayfarer.showAlert("danger", "Failed to delete trip.");
@@ -1381,6 +1426,37 @@ import {
                 }
             }
         });
+
+        // Search & filter event listeners
+        const tripSearchInput = document.getElementById('trip-search');
+        const tripSearchClear = document.getElementById('trip-search-clear');
+
+        if (tripSearchInput) {
+            let debounceTimer;
+            tripSearchInput.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    filterTrips();
+                    if (tripSearchClear) {
+                        tripSearchClear.classList.toggle('d-none', !tripSearchInput.value);
+                    }
+                }, 180);
+            });
+        }
+
+        if (tripSearchClear) {
+            tripSearchClear.addEventListener('click', () => {
+                if (tripSearchInput) {
+                    tripSearchInput.value = '';
+                    tripSearchInput.focus();
+                }
+                tripSearchClear.classList.add('d-none');
+                filterTrips();
+            });
+        }
+
+        document.querySelectorAll('input[name="tripFilter"]')
+            .forEach(radio => radio.addEventListener('change', filterTrips));
 
         // Delete trip handlers (both standalone buttons and dropdown items)
         document.querySelectorAll('.btn-trip-delete')
