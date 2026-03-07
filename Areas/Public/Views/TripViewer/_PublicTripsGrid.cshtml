@@ -43,10 +43,10 @@ else
                         }
                         else if (item.CenterLat.HasValue && item.CenterLon.HasValue)
                         {
-                            <!-- Show map thumbnail if no cover image but has coordinates -->
-                            <img class="trip-photo js-lazy"
-                                 data-src="/thumbs/trips/@item.Id-800x450.jpg?v=@item.UpdatedAt.Ticks"
-                                 alt="Map of @item.Name">
+                            <!-- Show map thumbnail via async thumbnail system if no cover image but has coordinates -->
+                            <img class="trip-photo" data-thumb-placeholder
+                                 alt="Map of @item.Name"
+                                 style="background-color: #e9ecef;">
                         }
                         else
                         {
