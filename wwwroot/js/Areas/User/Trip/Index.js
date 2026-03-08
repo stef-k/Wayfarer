@@ -41,6 +41,8 @@ import {
             const table = tripTableBody.closest('table');
             if (table) table.style.display = 'none';
             document.getElementById('trip-search')?.closest('.ms-auto')?.classList.add('d-none');
+            const statsBar = document.getElementById('trip-stats');
+            if (statsBar) statsBar.style.display = 'none';
             return;
         }
 
@@ -55,6 +57,22 @@ import {
             noMatchRow.style.display = '';
         } else if (noMatchRow) {
             noMatchRow.style.display = 'none';
+        }
+
+        /* Update the stats summary bar with current visible counts */
+        const statTotal = document.getElementById('stat-total');
+        if (statTotal) {
+            let publicCount = 0;
+            let privateCount = 0;
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    if (row.dataset.isPublic === 'true') publicCount++;
+                    else privateCount++;
+                }
+            });
+            statTotal.textContent = visibleCount;
+            document.getElementById('stat-public').textContent = publicCount;
+            document.getElementById('stat-private').textContent = privateCount;
         }
     };
 

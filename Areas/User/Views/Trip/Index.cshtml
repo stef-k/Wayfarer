@@ -48,6 +48,16 @@
     }
 </div>
 
+@if (Model.Any())
+{
+    <!-- Summary stats: dynamically updated by Index.js on search/filter changes -->
+    <div id="trip-stats" class="d-flex gap-3 mb-3 text-muted small">
+        <span><strong id="stat-total">@Model.Count</strong> total</span>
+        <span><strong id="stat-public">@Model.Count(t => t.IsPublic)</strong> public</span>
+        <span><strong id="stat-private">@Model.Count(t => !t.IsPublic)</strong> private</span>
+    </div>
+}
+
 @if (!Model.Any())
 {
     <p>You don't have any trips yet.</p>

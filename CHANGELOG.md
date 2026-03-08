@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.2.14] - 2026-03-08
+
+### Added
+- Trip index page now shows a stats summary bar (total, public, private counts) that updates dynamically with search and filters (#194)
+
 ## [1.2.13] - 2026-03-08
 
 ### Fixed
