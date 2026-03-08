@@ -9,6 +9,40 @@ import {
     /* ------------------------------------------------ Search & filter trips */
 
     /**
+     * Updates the stats summary bar (#trip-stats) with counts derived from
+     * currently visible table rows.
+     * @param {NodeList} rows  - All trip rows (excluding the no-match placeholder).
+     * @param {number} visibleCount - Number of rows currently visible after filtering.
+     */
+    const updateTripStats = (rows, visibleCount) => {
+        const statTotal = document.getElementById('stat-total');
+        if (!statTotal) return;
+
+        let publicCount = 0;
+        let privateCount = 0;
+        rows.forEach(row => {
+            if (row.style.display !== 'none') {
+                if (row.dataset.isPublic === 'true') publicCount++;
+                else privateCount++;
+            }
+        });
+
+        statTotal.textContent = visibleCount;
+
+        /* Swap label between "total" and "matching" based on active search/filter */
+        const searchTerm = document.getElementById('trip-search')?.value?.trim();
+        const filterValue = document.querySelector('input[name="tripFilter"]:checked')?.value;
+        const isFiltered = !!searchTerm || (filterValue && filterValue !== 'all');
+        const labelNode = statTotal.nextSibling;
+        if (labelNode) labelNode.textContent = isFiltered ? ' matching' : ' total';
+
+        const statPublic = document.getElementById('stat-public');
+        const statPrivate = document.getElementById('stat-private');
+        if (statPublic) statPublic.textContent = publicCount;
+        if (statPrivate) statPrivate.textContent = privateCount;
+    };
+
+    /**
      * Filters trip table rows by search text and visibility radio selection.
      * Uses AND logic: row must match both search term and visibility filter.
      */
@@ -41,6 +75,8 @@ import {
             const table = tripTableBody.closest('table');
             if (table) table.style.display = 'none';
             document.getElementById('trip-search')?.closest('.ms-auto')?.classList.add('d-none');
+            const statsBar = document.getElementById('trip-stats');
+            if (statsBar) statsBar.style.display = 'none';
             return;
         }
 
@@ -56,6 +92,9 @@ import {
         } else if (noMatchRow) {
             noMatchRow.style.display = 'none';
         }
+
+        /* Update the stats summary bar with current visible counts */
+        updateTripStats(rows, visibleCount);
     };
 
     /* ------------------------------------------------ Delete trip */
