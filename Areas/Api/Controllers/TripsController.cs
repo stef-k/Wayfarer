@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -112,8 +111,8 @@ public class TripsController : BaseApiController
         string? q = null,
         string? visibility = null)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
+        var user = GetUserFromTokenOrCookie();
+        if (user == null)
             return Unauthorized(new { success = false, message = "Unauthorized." });
 
         try
@@ -122,7 +121,7 @@ public class TripsController : BaseApiController
             if (page < 1) page = 1;
 
             var query = _dbContext.Trips
-                .Where(t => t.UserId == userId)
+                .Where(t => t.UserId == user.Id)
                 .AsQueryable();
 
             // Apply text search on Name and Notes (case-insensitive).
@@ -177,7 +176,15 @@ public class TripsController : BaseApiController
                 string? notesPreview = null;
                 if (!string.IsNullOrWhiteSpace(t.Notes))
                 {
-                    notesPreview = HtmlTagRegex.Replace(t.Notes, string.Empty);
+                    try
+                    {
+                        notesPreview = HtmlTagRegex.Replace(t.Notes, string.Empty);
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        notesPreview = t.Notes;
+                    }
+
                     if (notesPreview.Length > 100)
                         notesPreview = notesPreview[..97] + "...";
                 }
@@ -211,7 +218,7 @@ public class TripsController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to search trips for user {UserId}", userId);
+            _logger.LogError(ex, "Failed to search trips for user {UserId}", user.Id);
             return StatusCode(500, new { success = false, message = "An error occurred while searching trips." });
         }
     }

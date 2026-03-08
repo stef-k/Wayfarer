@@ -50,6 +50,8 @@ import {
             const response = await fetch(`/api/Trips/search?${params.toString()}`, { credentials: 'include' });
             if (!response.ok) {
                 console.error('Trip search API error:', response.status, response.statusText);
+                const tbody = document.getElementById('trip-table-body');
+                if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">Failed to load trips. Please refresh the page.</td></tr>';
                 return;
             }
 
@@ -638,18 +640,6 @@ import {
         if (confidence >= 60) return 'bg-info';
         if (confidence >= 40) return 'bg-warning text-dark';
         return 'bg-secondary';
-    };
-
-    /**
-     * Escapes HTML special characters to prevent XSS.
-     * @param {string} text - The text to escape.
-     * @returns {string} Escaped text.
-     */
-    const escapeHtml = (text) => {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     };
 
     /**
