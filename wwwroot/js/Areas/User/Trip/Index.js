@@ -27,9 +27,14 @@ import {
             }
         });
 
-        const isFiltered = visibleCount !== rows.length;
-        const totalLabel = statTotal.closest('span');
-        if (totalLabel) totalLabel.innerHTML = `<strong id="stat-total">${visibleCount}</strong> ${isFiltered ? 'matching' : 'total'}`;
+        statTotal.textContent = visibleCount;
+
+        /* Swap label between "total" and "matching" based on active search/filter */
+        const searchTerm = document.getElementById('trip-search')?.value?.trim();
+        const filterValue = document.querySelector('input[name="tripFilter"]:checked')?.value;
+        const isFiltered = !!searchTerm || (filterValue && filterValue !== 'all');
+        const labelNode = statTotal.nextSibling;
+        if (labelNode) labelNode.textContent = isFiltered ? ' matching' : ' total';
 
         const statPublic = document.getElementById('stat-public');
         const statPrivate = document.getElementById('stat-private');
