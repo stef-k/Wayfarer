@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -86,6 +88,112 @@ public class TripsController : BaseApiController
             .ToList();
 
         return Ok(trips);
+    }
+
+    /// <summary>
+    /// Searches user trips with server-side pagination, text search and visibility filtering.
+    /// Used by the Trip index page for AJAX-driven table rendering.
+    /// </summary>
+    /// <param name="page">Page number (1-based, default 1)</param>
+    /// <param name="pageSize">Items per page (default 10, clamped 1-50)</param>
+    /// <param name="q">Optional search text matched against trip name and notes</param>
+    /// <param name="visibility">Visibility filter: "all" (default), "public", or "private"</param>
+    /// <returns>Paginated trip list with stats counts for the summary bar.</returns>
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        int page = 1,
+        int pageSize = 10,
+        string? q = null,
+        string? visibility = null)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { success = false, message = "Unauthorized." });
+
+        try
+        {
+            pageSize = Math.Clamp(pageSize, 1, 50);
+            if (page < 1) page = 1;
+
+            var query = _dbContext.Trips
+                .Where(t => t.UserId == userId)
+                .AsQueryable();
+
+            // Apply text search on Name and Notes (case-insensitive)
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var searchTerm = $"%{q.Trim()}%";
+                query = query.Where(t =>
+                    EF.Functions.ILike(t.Name, searchTerm) ||
+                    (t.Notes != null && EF.Functions.ILike(t.Notes, searchTerm)));
+            }
+
+            // Compute stats before visibility filter (for the summary bar)
+            var totalAll = await query.CountAsync();
+            var publicCount = await query.CountAsync(t => t.IsPublic);
+            var privateCount = totalAll - publicCount;
+
+            // Apply visibility filter
+            if (!string.IsNullOrEmpty(visibility))
+            {
+                if (visibility.Equals("public", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(t => t.IsPublic);
+                else if (visibility.Equals("private", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(t => !t.IsPublic);
+            }
+
+            var totalItems = await query.CountAsync();
+
+            // Apply ordering and pagination — fetch entities, then project in-memory
+            // (Regex.Replace cannot be translated to SQL)
+            var tripEntities = await query
+                .OrderByDescending(t => t.UpdatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var trips = tripEntities.Select(t =>
+            {
+                string? notesPreview = null;
+                if (!string.IsNullOrWhiteSpace(t.Notes))
+                {
+                    notesPreview = Regex.Replace(t.Notes, "<.*?>", string.Empty);
+                    if (notesPreview.Length > 100)
+                        notesPreview = notesPreview[..97] + "...";
+                }
+
+                return new
+                {
+                    t.Id,
+                    t.Name,
+                    Notes = notesPreview,
+                    t.IsPublic,
+                    t.UpdatedAt,
+                    t.CoverImageUrl,
+                    t.CenterLat,
+                    t.CenterLon,
+                    t.Zoom,
+                    t.ShareProgressEnabled
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                success = true,
+                data = trips,
+                totalItems,
+                totalAll,
+                publicCount,
+                privateCount,
+                page,
+                pageSize
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to search trips for user {UserId}", userId);
+            return StatusCode(500, new { success = false, message = "An error occurred while searching trips." });
+        }
     }
 
     /// <summary>

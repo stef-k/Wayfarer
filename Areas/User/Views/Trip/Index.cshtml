@@ -1,10 +1,10 @@
-@model List<Wayfarer.Models.Trip>
-
 @{
     ViewData["LoadLeaflet"] = true;
 }
 
 <h2>@ViewData["Title"]</h2>
+
+@Html.AntiForgeryToken()
 
 <div class="d-flex flex-wrap gap-2 mb-3">
     <a asp-area="User" asp-controller="Trip" asp-action="Create"
@@ -25,206 +25,62 @@
         <input type="file" id="importFileMyMaps" accept=".kml" class="d-none">
     </label>
 
-    @if (Model.Any())
-    {
-        <div class="ms-auto d-flex gap-2 align-items-center">
-            <div class="search-group">
-                <input type="text" class="form-control form-control-sm pe-4"
-                       id="trip-search" placeholder="Search trips...">
-                <button type="button" class="btn-search-clear d-none"
-                        id="trip-search-clear" title="Clear search">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Trip visibility filter">
-                <input type="radio" class="btn-check" name="tripFilter" id="filterAll" value="all" checked autocomplete="off">
-                <label class="btn btn-outline-primary" for="filterAll">All</label>
-                <input type="radio" class="btn-check" name="tripFilter" id="filterPublic" value="public" autocomplete="off">
-                <label class="btn btn-outline-primary" for="filterPublic">Public</label>
-                <input type="radio" class="btn-check" name="tripFilter" id="filterPrivate" value="private" autocomplete="off">
-                <label class="btn btn-outline-primary" for="filterPrivate">Private</label>
-            </div>
+    <div class="ms-auto d-flex gap-2 align-items-center">
+        <div class="search-group">
+            <input type="text" class="form-control form-control-sm pe-4"
+                   id="trip-search" placeholder="Search trips...">
+            <button type="button" class="btn-search-clear d-none"
+                    id="trip-search-clear" title="Clear search">
+                <i class="bi bi-x-lg"></i>
+            </button>
         </div>
-    }
+        <div class="btn-group btn-group-sm" role="group" aria-label="Trip visibility filter">
+            <input type="radio" class="btn-check" name="tripFilter" id="filterAll" value="all" checked autocomplete="off">
+            <label class="btn btn-outline-primary" for="filterAll">All</label>
+            <input type="radio" class="btn-check" name="tripFilter" id="filterPublic" value="public" autocomplete="off">
+            <label class="btn btn-outline-primary" for="filterPublic">Public</label>
+            <input type="radio" class="btn-check" name="tripFilter" id="filterPrivate" value="private" autocomplete="off">
+            <label class="btn btn-outline-primary" for="filterPrivate">Private</label>
+        </div>
+    </div>
 </div>
 
-@if (Model.Any())
-{
-    <!-- Summary stats: dynamically updated by Index.js on search/filter changes -->
-    <div id="trip-stats" class="d-flex gap-3 mb-3 text-muted small" aria-live="polite">
-        <span><strong id="stat-total">@Model.Count()</strong> total</span>
-        <span><strong id="stat-public">@Model.Count(t => t.IsPublic)</strong> public</span>
-        <span><strong id="stat-private">@Model.Count(t => !t.IsPublic)</strong> private</span>
-    </div>
-}
+<!-- Summary stats: dynamically updated by Index.js from API response -->
+<div id="trip-stats" class="d-flex gap-3 mb-3 text-muted small" aria-live="polite">
+    <span><strong id="stat-total">0</strong> <span id="stat-total-label">total</span></span>
+    <span><strong id="stat-public">0</strong> public</span>
+    <span><strong id="stat-private">0</strong> private</span>
+</div>
 
-@if (!Model.Any())
-{
-    <p>You don't have any trips yet.</p>
-}
-else
-{
-    <table class="table table-bordered table-striped table-hover">
-        <thead>
-        <tr>
-            <th class="w-auto">Name</th>
-            <th class="w-auto">Notes</th>
-            <th class="w-auto">Public</th>
-            <th class="w-25">Actions</th>
-        </tr>
-        </thead>
-        <tbody>
-        @foreach (var trip in Model)
-        {
-            <tr data-is-public="@trip.IsPublic.ToString().ToLower()">
-                <td>@trip.Name</td>
-                <td>
-                    @{
-                        var notesPreview = trip.Notes;
-                        if (!string.IsNullOrWhiteSpace(notesPreview))
-                        {
-                            // Strip all HTML tags for display in table
-                            notesPreview = System.Text.RegularExpressions.Regex.Replace(notesPreview, "<.*?>", string.Empty);
-                            // Truncate to 100 characters
-                            if (notesPreview.Length > 100)
-                            {
-                                notesPreview = notesPreview.Substring(0, 97) + "...";
-                            }
-                        }
-                    }
-                    @notesPreview
-                </td>
-                <td>
-                    @if (trip.IsPublic)
-                    {
-                        <div class="dropdown text-center">
-                            <button class="btn btn-success btn-sm dropdown-toggle"
-                                    type="button"
-                                    data-bs-display="static"
-                                    data-bs-toggle="dropdown"
-                                    title="Click to see public page or for copy URL options"
-                                    aria-expanded="false">
-                                Yes
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" 
-                                       href="/Public/Trips/@trip.Id"
-                                       target="_blank">Visit public trip page</a></li>
-                                <li>
-                                    <a class="dropdown-item copy-url" 
-                                       href="#"
-                                       data-url="/Public/Trips/@trip.Id"
-                                       title="Click to copy to clipboard">
-                                        Copy public trip page URL
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item copy-url"
-                                       href="#"
-                                       data-url="/Public/Trips/@trip.Id?embed=true"
-                                       title="Click to copy to clipboard">
-                                        Copy public trip page embed
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                @if (!string.IsNullOrWhiteSpace(trip.CoverImageUrl))
-                                {
-                                    <li>
-                                        <a class="dropdown-item copy-url"
-                                           href="#"
-                                           data-url="/Public/Trips/@trip.Id/CoverImage?v=@trip.UpdatedAt.Ticks"
-                                           title="Click to copy cover image URL to clipboard">
-                                            <i class="bi bi-image me-1"></i>Copy Cover Image URL
-                                        </a>
-                                    </li>
-                                }
-                                @if (trip.CenterLat.HasValue && trip.CenterLon.HasValue && trip.Zoom.HasValue)
-                                {
-                                    <li>
-                                        <a class="dropdown-item copy-url"
-                                           href="#"
-                                           data-url="/Public/Trips/@trip.Id/MapSnapshot"
-                                           title="Click to copy map snapshot URL to clipboard">
-                                            <i class="bi bi-card-image me-1"></i>Copy Map Snapshot URL
-                                        </a>
-                                    </li>
-                                }
-                                @if (trip.ShareProgressEnabled)
-                                {
-                                    <li>
-                                        <a class="dropdown-item copy-url"
-                                           href="#"
-                                           data-url="/Public/Trips/@trip.Id?progress=1"
-                                           title="Click to copy progress link to clipboard">
-                                            <i class="bi bi-broadcast me-1"></i>Copy progress link
-                                        </a>
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="badge rounded-pill text-bg-danger">No</span>
-                    }
-                </td>
-                <td>
-                    <a asp-area="User" asp-controller="Trip" asp-action="View" title="View/Export Trip"
-                       asp-route-id="@trip.Id"
-                       class="btn btn-sm btn-primary">View</a>
-                    <a asp-area="User" asp-controller="Trip" asp-action="Edit" title="Edit Trip" asp-route-id="@trip.Id"
-                       class="btn btn-sm btn-secondary">Edit</a>
-                    <div class="dropdown d-inline-block">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                type="button"
-                                data-bs-toggle="dropdown"
-                                data-bs-display="static"
-                                aria-expanded="false">
-                            More
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <a class="dropdown-item btn-backfill-analyze"
-                                   href="#"
-                                   data-trip-id="@trip.Id"
-                                   data-trip-name="@trip.Name"
-                                   title="Scan your location history to find and create visit records for places in this trip">
-                                    <i class="bi bi-clock-history me-2"></i>Analyze History
-                                    <small class="d-block text-muted ps-4">Find visits from your location data</small>
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item btn-backfill-clear text-warning"
-                                   href="#"
-                                   data-trip-id="@trip.Id"
-                                   data-trip-name="@trip.Name"
-                                   title="Remove all visit records associated with this trip">
-                                    <i class="bi bi-trash me-2"></i>Clear All Visits
-                                    <small class="d-block text-muted ps-4">Delete all visit records for this trip</small>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item text-danger btn-trip-delete"
-                                   href="#"
-                                   data-trip-id="@trip.Id">
-                                    <i class="bi bi-x-circle me-2"></i>Delete Trip
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-                    <form id="delete-form-@trip.Id"
-                          asp-action="Delete"
-                          method="post"
-                          class="d-none">
-                        <input type="hidden" name="id" value="@trip.Id"/>
-                    </form>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-}
+<!-- Empty state message (shown/hidden by JS) -->
+<p id="no-trips-message" class="d-none">You don't have any trips yet.</p>
+
+<table id="trip-table" class="table table-bordered table-striped table-hover">
+    <thead>
+    <tr>
+        <th class="w-auto">Name</th>
+        <th class="w-auto">Notes</th>
+        <th class="w-auto">Public</th>
+        <th class="w-25">Actions</th>
+    </tr>
+    </thead>
+    <tbody id="trip-table-body">
+    <!-- Populated by Index.js via AJAX -->
+    </tbody>
+</table>
+
+<!-- Pagination controls and page-size selector -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+    <div id="pagination" class="pagination-container"></div>
+    <div class="d-flex align-items-center gap-2">
+        <label for="page-size-select" class="form-label mb-0 small text-muted">Per page:</label>
+        <select id="page-size-select" class="form-select form-select-sm" style="width: auto;">
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+        </select>
+    </div>
+</div>
 
 <!-- ▼ Backfill analysis modal -->
 <div class="modal fade" id="backfillModal" tabindex="-1">

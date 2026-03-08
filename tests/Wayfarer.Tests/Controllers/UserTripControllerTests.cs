@@ -18,19 +18,18 @@ namespace Wayfarer.Tests.Controllers;
 public class UserTripControllerTests : TestBase
 {
     [Fact]
-    public async Task Index_ReturnsTrips_ForCurrentUser()
+    public void Index_ReturnsViewResult_WithNoModel()
     {
         var db = CreateDbContext();
         db.Users.Add(TestDataFixtures.CreateUser(id: "u1", username: "alice"));
-        db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "Trip1", UpdatedAt = DateTime.UtcNow });
         db.SaveChanges();
         var controller = BuildController(db, "u1");
 
-        var result = await controller.Index();
+        var result = controller.Index();
 
+        // Index now returns a model-less view shell (data loaded via AJAX)
         var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<Trip>>(view.Model);
-        Assert.Single(model);
+        Assert.Null(view.Model);
     }
 
     [Fact]

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.2.15] - 2026-03-08
+
+### Added
+- Server-side pagination for the user trips index page with page navigation (first, last, previous, next, go-to-page) and configurable entries per page (10/25/50, default 10) (#195)
+- New `/api/Trips/search` endpoint for paginated trip queries with text search and visibility filtering
+
+### Changed
+- Trip index page now loads data via AJAX instead of server-rendering all trips, improving performance for users with many trips
+
 ## [1.2.14] - 2026-03-08
 
 ### Added

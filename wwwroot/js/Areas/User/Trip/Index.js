@@ -6,98 +6,262 @@ import {
 } from '../../../util/wikipedia-utils.js';
 
 (() => {
-    /* ------------------------------------------------ Search & filter trips */
+    /* ------------------------------------------------ Pagination state */
+
+    /** @type {number} Current page number (1-based) */
+    let currentPage = 1;
+
+    /** @type {number} Items per page */
+    let pageSize = 10;
+
+    /** @type {number} Stored total pages for jump-to-page validation */
+    let totalPages = 0;
+
+    /* ------------------------------------------------ API-driven trip loading */
 
     /**
-     * Updates the stats summary bar (#trip-stats) with counts derived from
-     * currently visible table rows.
-     * @param {NodeList} rows  - All trip rows (excluding the no-match placeholder).
-     * @param {number} visibleCount - Number of rows currently visible after filtering.
+     * Fetches paginated trip data from the search API and renders the table,
+     * pagination controls, and stats summary bar.
+     * @param {number} [page=1] - The page number to load.
      */
-    const updateTripStats = (rows, visibleCount) => {
-        const statTotal = document.getElementById('stat-total');
-        if (!statTotal) return;
+    const loadTrips = async (page = 1) => {
+        currentPage = page;
 
-        let publicCount = 0;
-        let privateCount = 0;
-        rows.forEach(row => {
-            if (row.style.display !== 'none') {
-                if (row.dataset.isPublic === 'true') publicCount++;
-                else privateCount++;
+        const searchTerm = (document.getElementById('trip-search')?.value || '').trim();
+        const visibility = document.querySelector('input[name="tripFilter"]:checked')?.value || 'all';
+
+        const params = new URLSearchParams({ page, pageSize });
+        if (searchTerm) params.set('q', searchTerm);
+        if (visibility && visibility !== 'all') params.set('visibility', visibility);
+
+        try {
+            const response = await fetch(`/api/Trips/search?${params.toString()}`, { credentials: 'include' });
+            if (!response.ok) {
+                console.error('Trip search API error:', response.status, response.statusText);
+                return;
             }
-        });
 
-        statTotal.textContent = visibleCount;
+            const res = await response.json();
+            const trips = res.data || [];
 
-        /* Swap label between "total" and "matching" based on active search/filter */
-        const searchTerm = document.getElementById('trip-search')?.value?.trim();
-        const filterValue = document.querySelector('input[name="tripFilter"]:checked')?.value;
-        const isFiltered = !!searchTerm || (filterValue && filterValue !== 'all');
-        const labelNode = statTotal.nextSibling;
-        if (labelNode) labelNode.textContent = isFiltered ? ' matching' : ' total';
-
-        const statPublic = document.getElementById('stat-public');
-        const statPrivate = document.getElementById('stat-private');
-        if (statPublic) statPublic.textContent = publicCount;
-        if (statPrivate) statPrivate.textContent = privateCount;
+            renderTable(trips);
+            updatePagination(res.totalItems || 0, currentPage);
+            updateTripStats(res.totalAll, res.publicCount, res.privateCount, searchTerm, visibility);
+            updateEmptyState(res.totalAll);
+        } catch (err) {
+            console.error('[Trip] Failed to load trips:', err);
+        }
     };
 
     /**
-     * Filters trip table rows by search text and visibility radio selection.
-     * Uses AND logic: row must match both search term and visibility filter.
+     * Renders trip rows into the table body from API data.
+     * Reproduces the same HTML structure as the original server-rendered Razor template.
+     * @param {Array<Object>} trips - Array of trip objects from the search API.
      */
-    const filterTrips = () => {
-        const tripTableBody = document.querySelector('table.table tbody');
-        if (!tripTableBody) return;
+    const renderTable = (trips) => {
+        const tbody = document.getElementById('trip-table-body');
+        if (!tbody) return;
 
-        const searchTerm = (document.getElementById('trip-search')?.value || '').trim().toLowerCase();
-        const filterValue = document.querySelector('input[name="tripFilter"]:checked')?.value || 'all';
-        const rows = tripTableBody.querySelectorAll('tr:not(.no-match-row)');
-        let visibleCount = 0;
-
-        rows.forEach(row => {
-            const name = row.cells[0]?.textContent?.toLowerCase() || '';
-            const notes = row.cells[1]?.textContent?.toLowerCase() || '';
-            const matchesSearch = !searchTerm || name.includes(searchTerm) || notes.includes(searchTerm);
-
-            const isPublic = row.dataset.isPublic === 'true';
-            const matchesFilter = filterValue === 'all'
-                || (filterValue === 'public' && isPublic)
-                || (filterValue === 'private' && !isPublic);
-
-            const visible = matchesSearch && matchesFilter;
-            row.style.display = visible ? '' : 'none';
-            if (visible) visibleCount++;
-        });
-
-        // If all real rows have been deleted, hide the table entirely
-        if (rows.length === 0) {
-            const table = tripTableBody.closest('table');
-            if (table) table.style.display = 'none';
-            document.getElementById('trip-search')?.closest('.ms-auto')?.classList.add('d-none');
-            const statsBar = document.getElementById('trip-stats');
-            if (statsBar) statsBar.style.display = 'none';
+        if (!trips.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No trips match your search or filter.</td></tr>';
             return;
         }
 
-        let noMatchRow = tripTableBody.querySelector('.no-match-row');
-        if (visibleCount === 0) {
-            if (!noMatchRow) {
-                noMatchRow = document.createElement('tr');
-                noMatchRow.className = 'no-match-row';
-                noMatchRow.innerHTML = '<td colspan="4" class="text-center text-muted py-3">No trips match your search or filter.</td>';
-                tripTableBody.appendChild(noMatchRow);
+        tbody.innerHTML = trips.map(t => {
+            // Public column: dropdown with links or badge
+            let publicCell;
+            if (t.isPublic) {
+                let extraItems = '';
+                if (t.coverImageUrl) {
+                    extraItems += `<li><a class="dropdown-item copy-url" href="#"
+                        data-url="/Public/Trips/${t.id}/CoverImage?v=${new Date(t.updatedAt).getTime()}"
+                        title="Click to copy cover image URL to clipboard">
+                        <i class="bi bi-image me-1"></i>Copy Cover Image URL</a></li>`;
+                }
+                if (t.centerLat != null && t.centerLon != null && t.zoom != null) {
+                    extraItems += `<li><a class="dropdown-item copy-url" href="#"
+                        data-url="/Public/Trips/${t.id}/MapSnapshot"
+                        title="Click to copy map snapshot URL to clipboard">
+                        <i class="bi bi-card-image me-1"></i>Copy Map Snapshot URL</a></li>`;
+                }
+                if (t.shareProgressEnabled) {
+                    extraItems += `<li><a class="dropdown-item copy-url" href="#"
+                        data-url="/Public/Trips/${t.id}?progress=1"
+                        title="Click to copy progress link to clipboard">
+                        <i class="bi bi-broadcast me-1"></i>Copy progress link</a></li>`;
+                }
+
+                publicCell = `<div class="dropdown text-center">
+                    <button class="btn btn-success btn-sm dropdown-toggle" type="button"
+                        data-bs-display="static" data-bs-toggle="dropdown"
+                        title="Click to see public page or for copy URL options" aria-expanded="false">Yes</button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/Public/Trips/${t.id}" target="_blank">Visit public trip page</a></li>
+                        <li><a class="dropdown-item copy-url" href="#" data-url="/Public/Trips/${t.id}"
+                            title="Click to copy to clipboard">Copy public trip page URL</a></li>
+                        <li><a class="dropdown-item copy-url" href="#" data-url="/Public/Trips/${t.id}?embed=true"
+                            title="Click to copy to clipboard">Copy public trip page embed</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        ${extraItems}
+                    </ul>
+                </div>`;
+            } else {
+                publicCell = '<span class="badge rounded-pill text-bg-danger">No</span>';
             }
-            noMatchRow.style.display = '';
-        } else if (noMatchRow) {
-            noMatchRow.style.display = 'none';
+
+            // Escape trip name for use in data attributes
+            const escapedName = (t.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+            return `<tr data-is-public="${t.isPublic}">
+                <td>${t.name || ''}</td>
+                <td>${t.notes || ''}</td>
+                <td>${publicCell}</td>
+                <td>
+                    <a href="/User/Trip/View/${t.id}" title="View/Export Trip" class="btn btn-sm btn-primary">View</a>
+                    <a href="/User/Trip/Edit/${t.id}" title="Edit Trip" class="btn btn-sm btn-secondary">Edit</a>
+                    <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">More</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item btn-backfill-analyze" href="#"
+                                data-trip-id="${t.id}" data-trip-name="${escapedName}"
+                                title="Scan your location history to find and create visit records for places in this trip">
+                                <i class="bi bi-clock-history me-2"></i>Analyze History
+                                <small class="d-block text-muted ps-4">Find visits from your location data</small></a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item btn-backfill-clear text-warning" href="#"
+                                data-trip-id="${t.id}" data-trip-name="${escapedName}"
+                                title="Remove all visit records associated with this trip">
+                                <i class="bi bi-trash me-2"></i>Clear All Visits
+                                <small class="d-block text-muted ps-4">Delete all visit records for this trip</small></a></li>
+                            <li><a class="dropdown-item text-danger btn-trip-delete" href="#"
+                                data-trip-id="${t.id}">
+                                <i class="bi bi-x-circle me-2"></i>Delete Trip</a></li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    };
+
+    /**
+     * Updates the stats summary bar from API response counts.
+     * @param {number} totalAll - Total trips matching search (before visibility filter).
+     * @param {number} publicCount - Public trips matching search.
+     * @param {number} privateCount - Private trips matching search.
+     * @param {string} searchTerm - Current search text.
+     * @param {string} visibility - Current visibility filter value.
+     */
+    const updateTripStats = (totalAll, publicCount, privateCount, searchTerm, visibility) => {
+        const statTotal = document.getElementById('stat-total');
+        const statTotalLabel = document.getElementById('stat-total-label');
+        const statPublic = document.getElementById('stat-public');
+        const statPrivate = document.getElementById('stat-private');
+
+        if (statTotal) statTotal.textContent = totalAll;
+        if (statPublic) statPublic.textContent = publicCount;
+        if (statPrivate) statPrivate.textContent = privateCount;
+
+        // Swap label between "total" and "matching" based on active search/filter
+        const isFiltered = !!searchTerm || (visibility && visibility !== 'all');
+        if (statTotalLabel) statTotalLabel.textContent = isFiltered ? 'matching' : 'total';
+    };
+
+    /**
+     * Shows or hides the empty state message and table based on whether the user has any trips.
+     * @param {number} totalAll - Total trips (before any filters).
+     */
+    const updateEmptyState = (totalAll) => {
+        const noTripsMsg = document.getElementById('no-trips-message');
+        const tripTable = document.getElementById('trip-table');
+        const tripStats = document.getElementById('trip-stats');
+        const searchBar = document.getElementById('trip-search')?.closest('.ms-auto');
+
+        if (totalAll === 0) {
+            noTripsMsg?.classList.remove('d-none');
+            tripTable?.classList.add('d-none');
+            tripStats?.classList.add('d-none');
+            searchBar?.classList.add('d-none');
+        } else {
+            noTripsMsg?.classList.add('d-none');
+            tripTable?.classList.remove('d-none');
+            tripStats?.classList.remove('d-none');
+            searchBar?.classList.remove('d-none');
+        }
+    };
+
+    /**
+     * Renders pagination controls (First/Prev/pages/Next/Last + Jump-to-page).
+     * Follows the same pattern as Visit Index pagination.
+     * @param {number} totalItems - Total items matching current filters.
+     * @param {number} page - Current page number (1-based).
+     */
+    const updatePagination = (totalItems, page) => {
+        totalPages = Math.ceil(totalItems / pageSize);
+        const container = document.getElementById('pagination');
+        if (!container) return;
+
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
         }
 
-        /* Update the stats summary bar with current visible counts */
-        updateTripStats(rows, visibleCount);
+        const delta = 3;
+        const start = Math.max(1, page - delta);
+        const end = Math.min(totalPages, page + delta);
+
+        let html = `
+            <nav aria-label="Trip page navigation" class="mt-2">
+                <div class="d-flex justify-content-center align-items-center">
+                    <ul class="pagination mb-0">
+                        <li class="page-item ${page === 1 ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-page="1">First</a>
+                        </li>
+                        <li class="page-item ${page === 1 ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-page="${Math.max(1, page - 1)}">Previous</a>
+                        </li>`;
+
+        if (start > 1) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+
+        for (let i = start; i <= end; i++) {
+            html += `
+                <li class="page-item ${i === page ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>`;
+        }
+
+        if (end < totalPages) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+
+        html += `
+                        <li class="page-item ${page === totalPages ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-page="${Math.min(totalPages, page + 1)}">Next</a>
+                        </li>
+                        <li class="page-item ${page === totalPages ? 'disabled' : ''}">
+                            <a class="page-link" href="#" data-page="${totalPages}">Last</a>
+                        </li>
+                    </ul>
+                    <div class="input-group input-group-sm ms-2" style="width:120px;">
+                        <input type="number" id="jumpPageInput" class="form-control" min="1" max="${totalPages}" placeholder="Page" />
+                        <button class="btn btn-outline-secondary" type="button" id="jumpPageBtn">Go</button>
+                    </div>
+                </div>
+            </nav>`;
+
+        container.innerHTML = html;
     };
 
     /* ------------------------------------------------ Delete trip */
+
+    /**
+     * Handles trip deletion via confirmation modal and AJAX POST.
+     * After successful deletion, reloads the current page of trips.
+     * @param {HTMLElement} btn - The delete button element with data-trip-id attribute.
+     * @param {Event} e - The click event.
+     */
     const handleDeleteClick = (btn, e) => {
         if (e) e.preventDefault();
         const tripId = btn.dataset.tripId;
@@ -118,9 +282,9 @@ import {
                 });
 
                 if (resp.ok) {
-                    document.querySelector(`[data-trip-id="${tripId}"]`)?.closest('tr')?.remove();
-                    filterTrips();
                     wayfarer.showAlert("success", "Trip deleted.");
+                    // Reload current page; if it becomes empty, go to previous page
+                    loadTrips(currentPage);
                 } else {
                     wayfarer.showAlert("danger", "Failed to delete trip.");
                 }
@@ -1457,7 +1621,7 @@ import {
 
     /* ------------------------------------------------ boot */
     document.addEventListener('DOMContentLoaded', () => {
-        // Clipboard copy handling
+        // Clipboard copy handling (event delegation — works with dynamic rows)
         document.addEventListener('click', async (e) => {
             const el = e.target.closest('a.copy-url');
             if (!el) return;
@@ -1467,7 +1631,6 @@ import {
             const url = el.dataset.url;
             try {
                 await navigator.clipboard.writeText(`${window.location.origin}${url}`);
-                // Use toast instead of alert to avoid viewport jumps
                 if (wayfarer.showToast) {
                     wayfarer.showToast('success', 'URL copied to clipboard!');
                 } else {
@@ -1482,7 +1645,7 @@ import {
             }
         });
 
-        // Search & filter event listeners
+        // Search input with debounced server-side search
         const tripSearchInput = document.getElementById('trip-search');
         const tripSearchClear = document.getElementById('trip-search-clear');
         let tripSearchDebounce;
@@ -1491,11 +1654,11 @@ import {
             tripSearchInput.addEventListener('input', () => {
                 clearTimeout(tripSearchDebounce);
                 tripSearchDebounce = setTimeout(() => {
-                    filterTrips();
+                    loadTrips(1);
                     if (tripSearchClear) {
                         tripSearchClear.classList.toggle('d-none', !tripSearchInput.value);
                     }
-                }, 180);
+                }, 300);
             });
         }
 
@@ -1507,32 +1670,90 @@ import {
                     tripSearchInput.focus();
                 }
                 tripSearchClear.classList.add('d-none');
-                filterTrips();
+                loadTrips(1);
             });
         }
 
+        // Visibility filter radios — reload from page 1 on change
         document.querySelectorAll('input[name="tripFilter"]')
-            .forEach(radio => radio.addEventListener('change', filterTrips));
+            .forEach(radio => radio.addEventListener('change', () => loadTrips(1)));
 
-        // Delete trip handlers (both standalone buttons and dropdown items)
-        document.querySelectorAll('.btn-trip-delete')
-            .forEach(btn => btn.addEventListener('click', (e) => handleDeleteClick(btn, e)));
+        // Page-size selector
+        const pageSizeSelect = document.getElementById('page-size-select');
+        if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', () => {
+                pageSize = parseInt(pageSizeSelect.value, 10) || 10;
+                loadTrips(1);
+            });
+        }
 
-        // Backfill analyze handlers
-        document.querySelectorAll('.btn-backfill-analyze')
-            .forEach(btn => btn.addEventListener('click', (e) => {
+        // Pagination click handling (event delegation on pagination container)
+        const paginationContainer = document.getElementById('pagination');
+        if (paginationContainer) {
+            paginationContainer.addEventListener('click', (e) => {
+                const link = e.target.closest('a.page-link[data-page]');
+                if (!link) return;
                 e.preventDefault();
-                currentTripId = btn.dataset.tripId;
-                if (tripNameEl) tripNameEl.textContent = btn.dataset.tripName || '';
-                resetBackfillModal();
-                backfillModal?.show();
-            }));
+                const page = parseInt(link.dataset.page, 10);
+                if (!isNaN(page) && page >= 1 && page <= totalPages) {
+                    loadTrips(page);
+                }
+            });
 
-        // Clear all visits handlers
-        document.querySelectorAll('.btn-backfill-clear')
-            .forEach(btn => btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                handleClearVisits(btn.dataset.tripId, btn.dataset.tripName || 'this trip');
-            }));
+            // Jump-to-page button (event delegation since pagination is re-rendered)
+            paginationContainer.addEventListener('click', (e) => {
+                if (e.target.id === 'jumpPageBtn') {
+                    const inp = document.getElementById('jumpPageInput');
+                    const val = parseInt(inp?.value, 10);
+                    if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                        loadTrips(val);
+                    } else if (inp) {
+                        inp.value = '';
+                    }
+                }
+            });
+
+            // Allow Enter key in jump-to-page input
+            paginationContainer.addEventListener('keydown', (e) => {
+                if (e.target.id === 'jumpPageInput' && e.key === 'Enter') {
+                    e.preventDefault();
+                    document.getElementById('jumpPageBtn')?.click();
+                }
+            });
+        }
+
+        // Event delegation for dynamically rendered table action buttons
+        const tripTableBody = document.getElementById('trip-table-body');
+        if (tripTableBody) {
+            tripTableBody.addEventListener('click', (e) => {
+                // Delete trip
+                const deleteBtn = e.target.closest('.btn-trip-delete');
+                if (deleteBtn) {
+                    handleDeleteClick(deleteBtn, e);
+                    return;
+                }
+
+                // Backfill analyze
+                const analyzeBtn = e.target.closest('.btn-backfill-analyze');
+                if (analyzeBtn) {
+                    e.preventDefault();
+                    currentTripId = analyzeBtn.dataset.tripId;
+                    if (tripNameEl) tripNameEl.textContent = analyzeBtn.dataset.tripName || '';
+                    resetBackfillModal();
+                    backfillModal?.show();
+                    return;
+                }
+
+                // Clear all visits
+                const clearBtn = e.target.closest('.btn-backfill-clear');
+                if (clearBtn) {
+                    e.preventDefault();
+                    handleClearVisits(clearBtn.dataset.tripId, clearBtn.dataset.tripName || 'this trip');
+                }
+            });
+        }
+
+        // Initial load
+        loadTrips(1);
     });
 })();
