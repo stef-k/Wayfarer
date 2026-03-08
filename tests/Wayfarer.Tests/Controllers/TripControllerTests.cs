@@ -631,4 +631,145 @@ public class TripControllerTests : TestBase
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
+
+    /// <summary>
+    /// Builds a TripController with a mock warmup scheduler for verifying scheduling calls.
+    /// </summary>
+    private TripController BuildControllerWithWarmupMock(
+        ApplicationDbContext db, string userId, Mock<ICacheWarmupScheduler> warmupMock)
+    {
+        var httpContext = BuildHttpContextWithUser(userId);
+        var controller = new TripController(
+            NullLogger<TripController>.Instance,
+            db,
+            Mock.Of<ITripMapThumbnailGenerator>(),
+            Mock.Of<ITripTagService>(),
+            warmupMock.Object);
+
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
+        return controller;
+    }
+
+    [Fact]
+    public async Task Edit_Post_SchedulesImmediateWarmup_WhenImagesNewlyIntroduced()
+    {
+        // Arrange: trip with no images
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "No Images");
+        trip.CoverImageUrl = null;
+        trip.Notes = "Plain text, no images";
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var warmupMock = new Mock<ICacheWarmupScheduler>();
+        var controller = BuildControllerWithWarmupMock(db, user.Id, warmupMock);
+
+        // Act: add a cover image (0 → some transition)
+        var model = new Trip
+        {
+            Id = trip.Id,
+            Name = trip.Name,
+            CoverImageUrl = "https://example.com/cover.jpg",
+            Notes = trip.Notes
+        };
+        await controller.Edit(trip.Id, model, submitAction: null!);
+
+        // Assert: immediate warmup scheduled
+        warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, true), Times.Once);
+    }
+
+    [Fact]
+    public async Task Edit_Post_SchedulesNonImmediateWarmup_WhenImagesAlreadyExisted()
+    {
+        // Arrange: trip that already has a cover image
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Has Images");
+        trip.CoverImageUrl = "https://example.com/old-cover.jpg";
+        trip.Notes = "Some notes";
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var warmupMock = new Mock<ICacheWarmupScheduler>();
+        var controller = BuildControllerWithWarmupMock(db, user.Id, warmupMock);
+
+        // Act: change cover image (images existed before and after)
+        var model = new Trip
+        {
+            Id = trip.Id,
+            Name = trip.Name,
+            CoverImageUrl = "https://example.com/new-cover.jpg",
+            Notes = trip.Notes
+        };
+        await controller.Edit(trip.Id, model, submitAction: null!);
+
+        // Assert: non-immediate (debounced) warmup scheduled
+        warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, false), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_Post_DoesNotScheduleWarmup_WhenNoImages()
+    {
+        // Arrange
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "creator");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var warmupMock = new Mock<ICacheWarmupScheduler>();
+        var controller = BuildControllerWithWarmupMock(db, user.Id, warmupMock);
+
+        // Act: create a trip with no images
+        var model = new Trip
+        {
+            Id = Guid.NewGuid(),
+            Name = "Plain Trip",
+            Notes = null,
+            CoverImageUrl = null
+        };
+        await controller.Create(model, "save");
+
+        // Assert: no warmup scheduled
+        warmupMock.Verify(w => w.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Clone_SchedulesImmediateWarmup_WhenSourceTripHasImages()
+    {
+        // Arrange: a public trip with images owned by another user
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var cloner = TestDataFixtures.CreateUser(id: "cloner");
+        db.Users.AddRange(owner, cloner);
+
+        var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip", isPublic: true);
+        sourceTrip.CoverImageUrl = "https://example.com/cover.jpg";
+        sourceTrip.Notes = "<p>Trip notes with <img src=\"https://example.com/photo.jpg\"></p>";
+        // Add required shadow region for the source trip
+        var shadowRegion = new Region
+        {
+            Id = Guid.NewGuid(),
+            TripId = sourceTrip.Id,
+            UserId = owner.Id,
+            Name = "Unassigned Places",
+            DisplayOrder = 0
+        };
+        sourceTrip.Regions = new List<Region> { shadowRegion };
+        db.Trips.Add(sourceTrip);
+        await db.SaveChangesAsync();
+
+        var warmupMock = new Mock<ICacheWarmupScheduler>();
+        var controller = BuildControllerWithWarmupMock(db, cloner.Id, warmupMock);
+
+        // Act: clone the trip
+        await controller.Clone(sourceTrip.Id);
+
+        // Assert: immediate warmup scheduled for the cloned trip (not the source)
+        warmupMock.Verify(w => w.ScheduleWarmupAsync(
+            It.Is<Guid>(id => id != sourceTrip.Id), true), Times.Once);
+    }
 }

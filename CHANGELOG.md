@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [1.2.13] - 2026-03-08
+
+### Fixed
+- Fix trip images appearing broken until first cache warm-up runs (#193)
+  - Reduce debounce delay from 5 minutes to 1 minute
+  - Add immediate mode (~5 seconds) for first-time image introductions
+  - Schedule warm-up on trip creation, cloning, and API trip updates (previously missing)
+
 ## [1.2.12] - 2026-03-08
 
 ### Performance

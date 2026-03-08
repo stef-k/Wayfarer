@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -159,7 +160,14 @@ namespace Wayfarer.Areas.User.Controllers
                         CoverImageUrl = null
                     };
                     _dbContext.Regions.Add(shadowRegion);
-                    await _dbContext.SaveChangesAsync();    
+                    await _dbContext.SaveChangesAsync();
+
+                    // Schedule immediate cache warm-up if the new trip has images
+                    if (!string.IsNullOrWhiteSpace(model.CoverImageUrl)
+                        || HtmlHelpers.ExtractExternalImageUrls(model.Notes).Any())
+                    {
+                        await _warmupScheduler.ScheduleWarmupAsync(model.Id, immediate: true);
+                    }
 
                     SetAlert("Trip created successfully!");
 
@@ -282,6 +290,10 @@ namespace Wayfarer.Areas.User.Controllers
                     return RedirectToAction(nameof(Index));
                 }
 
+                // Capture prior image state to detect first-time image introductions
+                bool hadImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
+                    || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
+
                 // Update editable fields only
                 trip.Name = model.Name;
                 trip.IsPublic = model.IsPublic;
@@ -300,8 +312,13 @@ namespace Wayfarer.Areas.User.Controllers
                 // Invalidate old thumbnails (will regenerate on next request)
                 _thumbnailGenerator.InvalidateThumbnails(id, updatedAt);
 
-                // Schedule background cache warm-up for external images (debounced)
-                await _warmupScheduler.ScheduleWarmupAsync(id);
+                // Schedule background cache warm-up for external images.
+                // Use immediate mode when images are newly introduced (0 -> some)
+                // for near-instant caching; otherwise use standard debounce.
+                bool hasImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
+                    || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
+                bool imagesNewlyIntroduced = !hadImages && hasImages;
+                await _warmupScheduler.ScheduleWarmupAsync(id, immediate: imagesNewlyIntroduced);
 
                 SetAlert("Trip updated successfully!");
 
@@ -559,6 +576,13 @@ namespace Wayfarer.Areas.User.Controllers
 
                 _dbContext.Trips.Add(clonedTrip);
                 await _dbContext.SaveChangesAsync();
+
+                // Schedule immediate cache warm-up if the cloned trip has images
+                if (!string.IsNullOrWhiteSpace(clonedTrip.CoverImageUrl)
+                    || HtmlHelpers.ExtractExternalImageUrls(clonedTrip.Notes).Any())
+                {
+                    await _warmupScheduler.ScheduleWarmupAsync(clonedTrip.Id, immediate: true);
+                }
 
                 SetAlert($"Trip '{sourceTrip.Name}' has been cloned to your account!", "success");
                 return RedirectToAction("Edit", new { id = clonedTrip.Id });
