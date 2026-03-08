@@ -5,6 +5,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -805,10 +806,10 @@ return Ok(dto);
         trip.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
-        // Schedule cache warm-up when notes change (may contain images).
-        // Uses immediate mode since API lacks cheap prior-state context;
+        // Schedule cache warm-up when notes contain external images.
+        // Uses immediate mode for near-instant caching of newly introduced images;
         // the scheduler debounces if a trigger already exists.
-        if (request.Notes != null)
+        if (request.Notes != null && HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any())
         {
             await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: true);
         }

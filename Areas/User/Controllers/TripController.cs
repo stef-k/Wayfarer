@@ -574,6 +574,9 @@ namespace Wayfarer.Areas.User.Controllers
                 _dbContext.Trips.Add(clonedTrip);
                 await _dbContext.SaveChangesAsync();
 
+                // Schedule immediate cache warm-up if the cloned trip has images
+                await _warmupScheduler.ScheduleWarmupAsync(clonedTrip.Id, immediate: true);
+
                 SetAlert($"Trip '{sourceTrip.Name}' has been cloned to your account!", "success");
                 return RedirectToAction("Edit", new { id = clonedTrip.Id });
             }

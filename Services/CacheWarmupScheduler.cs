@@ -27,7 +27,7 @@ public interface ICacheWarmupScheduler
 
 /// <summary>
 /// Schedules debounced <see cref="CacheWarmupJob"/> instances via Quartz.
-/// Uses a per-trip trigger identity so repeated calls within 5 minutes
+/// Uses a per-trip trigger identity so repeated calls within 1 minute
 /// reschedule instead of creating duplicate jobs.
 /// </summary>
 public class CacheWarmupScheduler : ICacheWarmupScheduler
