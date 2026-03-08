@@ -61,7 +61,7 @@ import {
             renderTable(trips);
             updatePagination(res.totalItems || 0, currentPage);
             updateTripStats(res.totalAll, res.publicCount, res.privateCount, searchTerm, visibility);
-            updateEmptyState(res.totalAll);
+            updateEmptyState(res.userTripCount ?? res.totalAll);
         } catch (err) {
             console.error('[Trip] Failed to load trips:', err);
         }
@@ -126,7 +126,7 @@ import {
             // Escape trip name for safe use in HTML content and attributes
             const safeName = escapeHtml(t.name);
             const safeNotes = escapeHtml(t.notes);
-            const escapedName = safeName.replace(/"/g, '&quot;');
+            const nameForAttr = safeName.replace(/"/g, '&quot;');
 
             return `<tr data-is-public="${t.isPublic}">
                 <td>${safeName}</td>
@@ -140,13 +140,13 @@ import {
                             data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">More</button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item btn-backfill-analyze" href="#"
-                                data-trip-id="${t.id}" data-trip-name="${escapedName}"
+                                data-trip-id="${t.id}" data-trip-name="${nameForAttr}"
                                 title="Scan your location history to find and create visit records for places in this trip">
                                 <i class="bi bi-clock-history me-2"></i>Analyze History
                                 <small class="d-block text-muted ps-4">Find visits from your location data</small></a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item btn-backfill-clear text-warning" href="#"
-                                data-trip-id="${t.id}" data-trip-name="${escapedName}"
+                                data-trip-id="${t.id}" data-trip-name="${nameForAttr}"
                                 title="Remove all visit records associated with this trip">
                                 <i class="bi bi-trash me-2"></i>Clear All Visits
                                 <small class="d-block text-muted ps-4">Delete all visit records for this trip</small></a></li>

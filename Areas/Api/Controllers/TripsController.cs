@@ -120,9 +120,13 @@ public class TripsController : BaseApiController
             pageSize = Math.Clamp(pageSize, 1, 50);
             if (page < 1) page = 1;
 
-            var query = _dbContext.Trips
-                .Where(t => t.UserId == user.Id)
-                .AsQueryable();
+            var baseQuery = _dbContext.Trips.Where(t => t.UserId == user.Id);
+
+            // Unfiltered count used by the client to distinguish "no trips at all"
+            // from "no trips matching search/filters" for the empty state message.
+            var userTripCount = await baseQuery.CountAsync();
+
+            var query = baseQuery;
 
             // Apply text search on Name and Notes (case-insensitive).
             // Escape LIKE metacharacters so %, _ and \ are treated as literals.
@@ -182,7 +186,9 @@ public class TripsController : BaseApiController
                     }
                     catch (RegexMatchTimeoutException)
                     {
-                        notesPreview = t.Notes;
+                        // Safe fallback: truncate without HTML stripping to avoid
+                        // leaking raw HTML to consumers that may not escape it.
+                        notesPreview = t.Notes.Length > 100 ? t.Notes[..97] + "..." : t.Notes;
                     }
 
                     if (notesPreview.Length > 100)
@@ -212,6 +218,7 @@ public class TripsController : BaseApiController
                 totalAll,
                 publicCount,
                 privateCount,
+                userTripCount,
                 page,
                 pageSize
             });
