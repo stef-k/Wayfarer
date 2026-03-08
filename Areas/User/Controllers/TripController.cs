@@ -313,7 +313,7 @@ namespace Wayfarer.Areas.User.Controllers
                 _thumbnailGenerator.InvalidateThumbnails(id, updatedAt);
 
                 // Schedule background cache warm-up for external images.
-                // Use immediate mode when images are newly introduced (0 → some)
+                // Use immediate mode when images are newly introduced (0 -> some)
                 // for near-instant caching; otherwise use standard debounce.
                 bool hasImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
                     || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();

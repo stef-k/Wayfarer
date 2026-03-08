@@ -789,9 +789,16 @@ return Ok(dto);
 
         bool anyChange = false;
 
-        // Capture prior image state before mutations to detect first-time introductions
-        bool hadImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
-            || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
+        // Capture prior image state before notes mutation to detect first-time introductions.
+        // Only computed when notes are actually changing to avoid unnecessary regex scans.
+        // Note: CoverImageUrl is not part of TripUpdateRequestDto — if it is added in the
+        // future, the warmup gate below must be updated to also trigger on cover image changes.
+        bool? hadImages = null;
+        if (request.Notes != null)
+        {
+            hadImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
+                || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
+        }
 
         if (request.Name != null)
         {
@@ -811,13 +818,13 @@ return Ok(dto);
         await _dbContext.SaveChangesAsync();
 
         // Schedule cache warm-up when notes were updated.
-        // Use immediate mode when images are newly introduced (0 → some)
+        // Use immediate mode when images are newly introduced (0 -> some)
         // for near-instant caching; otherwise use standard debounce.
         if (request.Notes != null)
         {
             bool hasImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
                 || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
-            bool imagesNewlyIntroduced = !hadImages && hasImages;
+            bool imagesNewlyIntroduced = !hadImages.GetValueOrDefault() && hasImages;
             await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: imagesNewlyIntroduced);
         }
 
