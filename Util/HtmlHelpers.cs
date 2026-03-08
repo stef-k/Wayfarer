@@ -55,6 +55,13 @@ namespace Wayfarer.Util
         }
 
         /// <summary>
+        /// Detects an existing loading attribute (e.g. loading="eager") on an &lt;img&gt; tag.
+        /// Uses word boundary to avoid false positives from class names like "downloading".
+        /// </summary>
+        private static readonly Regex _loadingAttrRegex = new Regex(
+            @"\bloading\s*=", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        /// <summary>
         /// Matches external http(s):// URLs inside &lt;img src="..."&gt; attributes.
         /// </summary>
         private static readonly Regex _externalImgSrcRegex = new Regex(
@@ -80,6 +87,7 @@ namespace Wayfarer.Util
         /// <summary>
         /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
+        /// Injects loading="lazy" on proxied images unless the tag already has a loading attribute.
         /// Leaves relative, data-URI, and already-proxied URLs unchanged.
         /// </summary>
         public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)
@@ -93,7 +101,23 @@ namespace Wayfarer.Util
                 var url = m.Groups["url"].Value;
                 var suffix = m.Groups[3].Value;
                 var encoded = System.Net.WebUtility.UrlEncode(url);
-                return $"{prefix}/Public/ProxyImage?url={encoded}{suffix}";
+                var proxied = $"{prefix}/Public/ProxyImage?url={encoded}{suffix}";
+
+                // Inject loading="lazy" unless the tag already has a loading attribute
+                var hasLoading = _loadingAttrRegex.IsMatch(prefix);
+                if (!hasLoading)
+                {
+                    var afterMatch = htmlContent.AsSpan(m.Index + m.Length);
+                    var closingBracket = afterMatch.IndexOf('>');
+                    if (closingBracket >= 0)
+                        hasLoading = _loadingAttrRegex.IsMatch(
+                            afterMatch[..closingBracket].ToString());
+                }
+
+                if (!hasLoading)
+                    proxied += " loading=\"lazy\"";
+
+                return proxied;
             });
 
             return new HtmlString(result);

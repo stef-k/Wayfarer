@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.2.12] - 2026-03-08
+
+### Performance
+- Add loading="lazy" to proxied images in trip notes to defer off-screen image loading
+
 ## [1.2.11] - 2026-03-08
 
 ### Fixed
