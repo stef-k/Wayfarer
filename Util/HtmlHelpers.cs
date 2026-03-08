@@ -87,6 +87,7 @@ namespace Wayfarer.Util
         /// <summary>
         /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
+        /// Injects loading="lazy" on proxied images unless the tag already has a loading attribute.
         /// Leaves relative, data-URI, and already-proxied URLs unchanged.
         /// </summary>
         public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)

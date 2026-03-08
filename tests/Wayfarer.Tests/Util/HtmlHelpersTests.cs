@@ -227,6 +227,32 @@ public class HtmlHelpersTests
         Assert.DoesNotContain("loading=\"lazy\"", result);
     }
 
+    [Fact]
+    public void ProxyNotesImages_DoesNotFalsePositiveOnDownloadingClass()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        // "downloading" contains "loading" as substring — must not trigger the guard
+        var input = "<img class=\"downloading\" src=\"https://example.com/photo.jpg\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Contains("loading=\"lazy\"", result);
+        Assert.Contains("/Public/ProxyImage?url=", result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_HandlesSelfClosingImgTag()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<img src=\"https://example.com/photo.jpg\" />";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Contains("/Public/ProxyImage?url=", result);
+        Assert.Contains("loading=\"lazy\"", result);
+        Assert.Contains("/>", result);
+    }
+
     #endregion
 
     #region ExtractExternalImageUrls Tests
