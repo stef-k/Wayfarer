@@ -17,6 +17,18 @@ import {
     /** @type {number} Stored total pages for jump-to-page validation */
     let totalPages = 0;
 
+    /**
+     * Escapes a string for safe insertion into HTML to prevent XSS.
+     * @param {string} str - The string to escape.
+     * @returns {string} HTML-safe string.
+     */
+    const escapeHtml = (str) => {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    };
+
     /* ------------------------------------------------ API-driven trip loading */
 
     /**
@@ -109,12 +121,14 @@ import {
                 publicCell = '<span class="badge rounded-pill text-bg-danger">No</span>';
             }
 
-            // Escape trip name for use in data attributes
-            const escapedName = (t.name || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            // Escape trip name for safe use in HTML content and attributes
+            const safeName = escapeHtml(t.name);
+            const safeNotes = escapeHtml(t.notes);
+            const escapedName = safeName.replace(/"/g, '&quot;');
 
             return `<tr data-is-public="${t.isPublic}">
-                <td>${t.name || ''}</td>
-                <td>${t.notes || ''}</td>
+                <td>${safeName}</td>
+                <td>${safeNotes}</td>
                 <td>${publicCell}</td>
                 <td>
                     <a href="/User/Trip/View/${t.id}" title="View/Export Trip" class="btn btn-sm btn-primary">View</a>
@@ -176,17 +190,20 @@ import {
         const tripTable = document.getElementById('trip-table');
         const tripStats = document.getElementById('trip-stats');
         const searchBar = document.getElementById('trip-search')?.closest('.ms-auto');
+        const paginationRow = document.getElementById('pagination')?.closest('.d-flex.justify-content-between');
 
         if (totalAll === 0) {
             noTripsMsg?.classList.remove('d-none');
             tripTable?.classList.add('d-none');
             tripStats?.classList.add('d-none');
             searchBar?.classList.add('d-none');
+            paginationRow?.classList.add('d-none');
         } else {
             noTripsMsg?.classList.add('d-none');
             tripTable?.classList.remove('d-none');
             tripStats?.classList.remove('d-none');
             searchBar?.classList.remove('d-none');
+            paginationRow?.classList.remove('d-none');
         }
     };
 
@@ -283,8 +300,11 @@ import {
 
                 if (resp.ok) {
                     wayfarer.showAlert("success", "Trip deleted.");
-                    // Reload current page; if it becomes empty, go to previous page
-                    loadTrips(currentPage);
+                    // If only one row left on current page, go back one page
+                    const tbody = document.getElementById('trip-table-body');
+                    const rowCount = tbody?.querySelectorAll('tr[data-is-public]')?.length ?? 0;
+                    const targetPage = (rowCount <= 1 && currentPage > 1) ? currentPage - 1 : currentPage;
+                    loadTrips(targetPage);
                 } else {
                     wayfarer.showAlert("danger", "Failed to delete trip.");
                 }

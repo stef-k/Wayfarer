@@ -41,6 +41,12 @@ public class TripsController : BaseApiController
         _warmupScheduler = warmupScheduler;
     }
 
+    /// <summary>
+    /// Pre-compiled regex for stripping HTML tags from notes preview text.
+    /// Uses a 100ms timeout to guard against adversarial input.
+    /// </summary>
+    private static readonly Regex HtmlTagRegex = new("<.*?>", RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
+
     private const string ShadowRegionName = "Unassigned Places";
 
     /// <summary>
@@ -119,18 +125,32 @@ public class TripsController : BaseApiController
                 .Where(t => t.UserId == userId)
                 .AsQueryable();
 
-            // Apply text search on Name and Notes (case-insensitive)
+            // Apply text search on Name and Notes (case-insensitive).
+            // Escape LIKE metacharacters so %, _ and \ are treated as literals.
             if (!string.IsNullOrWhiteSpace(q))
             {
-                var searchTerm = $"%{q.Trim()}%";
+                var escaped = q.Trim()
+                    .Replace("\\", "\\\\")
+                    .Replace("%", "\\%")
+                    .Replace("_", "\\_");
+                var searchTerm = $"%{escaped}%";
                 query = query.Where(t =>
-                    EF.Functions.ILike(t.Name, searchTerm) ||
-                    (t.Notes != null && EF.Functions.ILike(t.Notes, searchTerm)));
+                    EF.Functions.ILike(t.Name, searchTerm, "\\") ||
+                    (t.Notes != null && EF.Functions.ILike(t.Notes, searchTerm, "\\")));
             }
 
-            // Compute stats before visibility filter (for the summary bar)
-            var totalAll = await query.CountAsync();
-            var publicCount = await query.CountAsync(t => t.IsPublic);
+            // Compute stats before visibility filter (for the summary bar).
+            // Single query: totalAll and publicCount in one round-trip.
+            var stats = await query
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Total = g.Count(),
+                    Public = g.Count(t => t.IsPublic)
+                })
+                .FirstOrDefaultAsync();
+            var totalAll = stats?.Total ?? 0;
+            var publicCount = stats?.Public ?? 0;
             var privateCount = totalAll - publicCount;
 
             // Apply visibility filter
@@ -157,7 +177,7 @@ public class TripsController : BaseApiController
                 string? notesPreview = null;
                 if (!string.IsNullOrWhiteSpace(t.Notes))
                 {
-                    notesPreview = Regex.Replace(t.Notes, "<.*?>", string.Empty);
+                    notesPreview = HtmlTagRegex.Replace(t.Notes, string.Empty);
                     if (notesPreview.Length > 100)
                         notesPreview = notesPreview[..97] + "...";
                 }
