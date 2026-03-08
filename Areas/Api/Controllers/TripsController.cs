@@ -789,6 +789,10 @@ return Ok(dto);
 
         bool anyChange = false;
 
+        // Capture prior image state before mutations to detect first-time introductions
+        bool hadImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
+            || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
+
         if (request.Name != null)
         {
             trip.Name = request.Name;
@@ -806,12 +810,15 @@ return Ok(dto);
         trip.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
-        // Schedule cache warm-up when notes contain external images.
-        // Uses immediate mode for near-instant caching of newly introduced images;
-        // the scheduler debounces if a trigger already exists.
-        if (request.Notes != null && HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any())
+        // Schedule cache warm-up when notes were updated.
+        // Use immediate mode when images are newly introduced (0 → some)
+        // for near-instant caching; otherwise use standard debounce.
+        if (request.Notes != null)
         {
-            await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: true);
+            bool hasImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
+                || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
+            bool imagesNewlyIntroduced = !hadImages && hasImages;
+            await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: imagesNewlyIntroduced);
         }
 
         return Ok(new { success = true, trip = new { trip.Id, trip.Name, trip.Notes } });

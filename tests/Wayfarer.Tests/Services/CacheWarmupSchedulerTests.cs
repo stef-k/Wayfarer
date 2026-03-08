@@ -14,6 +14,7 @@ public class CacheWarmupSchedulerTests
 {
     /// <summary>Tolerance for comparing trigger start times.</summary>
     private static readonly TimeSpan TimeTolerance = TimeSpan.FromSeconds(2);
+
     [Fact]
     public async Task ScheduleWarmupAsync_CreatesNewTrigger_WhenNoneExists()
     {

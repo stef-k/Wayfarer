@@ -162,9 +162,12 @@ namespace Wayfarer.Areas.User.Controllers
                     _dbContext.Regions.Add(shadowRegion);
                     await _dbContext.SaveChangesAsync();
 
-                    // Schedule immediate cache warm-up for any images in the new trip
-                    // (no-op if trip has no images yet)
-                    await _warmupScheduler.ScheduleWarmupAsync(model.Id, immediate: true);
+                    // Schedule immediate cache warm-up if the new trip has images
+                    if (!string.IsNullOrWhiteSpace(model.CoverImageUrl)
+                        || HtmlHelpers.ExtractExternalImageUrls(model.Notes).Any())
+                    {
+                        await _warmupScheduler.ScheduleWarmupAsync(model.Id, immediate: true);
+                    }
 
                     SetAlert("Trip created successfully!");
 
@@ -575,7 +578,11 @@ namespace Wayfarer.Areas.User.Controllers
                 await _dbContext.SaveChangesAsync();
 
                 // Schedule immediate cache warm-up if the cloned trip has images
-                await _warmupScheduler.ScheduleWarmupAsync(clonedTrip.Id, immediate: true);
+                if (!string.IsNullOrWhiteSpace(clonedTrip.CoverImageUrl)
+                    || HtmlHelpers.ExtractExternalImageUrls(clonedTrip.Notes).Any())
+                {
+                    await _warmupScheduler.ScheduleWarmupAsync(clonedTrip.Id, immediate: true);
+                }
 
                 SetAlert($"Trip '{sourceTrip.Name}' has been cloned to your account!", "success");
                 return RedirectToAction("Edit", new { id = clonedTrip.Id });
