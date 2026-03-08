@@ -815,6 +815,9 @@
                         img.setAttribute('data-original', orig);
                         img.src = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
                     }
+                    if (!img.hasAttribute('loading')) {
+                        img.setAttribute('loading', 'lazy');
+                    }
                 });
 
                 // Linkify plain text URLs in the modal

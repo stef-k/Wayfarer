@@ -111,6 +111,7 @@ public class HtmlHelpersTests
 
         Assert.Contains("/Public/ProxyImage?url=", result);
         Assert.DoesNotContain("src=\"https://example.com/photo.jpg\"", result);
+        Assert.Contains("loading=\"lazy\"", result);
     }
 
     [Fact]
@@ -182,6 +183,48 @@ public class HtmlHelpersTests
         Assert.Contains("src=\"/local.jpg\"", result);
         // Proxy URLs should be present (2 external images)
         Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(result, "/Public/ProxyImage").Count);
+        // Both proxied images should have loading="lazy"
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(result, "loading=\"lazy\"").Count);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_AddsLoadingLazy_ToProxiedImages()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        var input = "<img src=\"https://example.com/photo.jpg\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Contains("loading=\"lazy\"", result);
+        Assert.Contains("/Public/ProxyImage?url=", result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_DoesNotDuplicateLoading_WhenAlreadyPresent()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        // loading attribute appears BEFORE src
+        var input = "<img loading=\"eager\" src=\"https://example.com/photo.jpg\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Contains("/Public/ProxyImage?url=", result);
+        Assert.Contains("loading=\"eager\"", result);
+        Assert.DoesNotContain("loading=\"lazy\"", result);
+    }
+
+    [Fact]
+    public void ProxyNotesImages_DoesNotDuplicateLoading_WhenLoadingAfterSrc()
+    {
+        var helper = Mock.Of<IHtmlHelper>();
+        // loading attribute appears AFTER src
+        var input = "<img src=\"https://example.com/photo.jpg\" loading=\"eager\">";
+
+        var result = RenderRaw(helper.ProxyNotesImages(input));
+
+        Assert.Contains("/Public/ProxyImage?url=", result);
+        Assert.Contains("loading=\"eager\"", result);
+        Assert.DoesNotContain("loading=\"lazy\"", result);
     }
 
     #endregion
