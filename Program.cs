@@ -549,7 +549,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddHttpClient<IImageProxyService, ImageProxyService>(client =>
     {
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+            Wayfarer.Util.ImageProxyHelper.ProxyUserAgent);
     })
     .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
 
@@ -563,7 +563,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddHttpClient<Wayfarer.Areas.Public.Controllers.TripViewerController>(client =>
     {
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+            Wayfarer.Util.ImageProxyHelper.ProxyUserAgent);
     })
     .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
 

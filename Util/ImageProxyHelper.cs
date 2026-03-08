@@ -15,6 +15,13 @@ namespace Wayfarer.Util;
 public static class ImageProxyHelper
 {
     /// <summary>
+    /// Browser-like User-Agent sent by image proxy HttpClients to avoid 403 rejections
+    /// from servers (e.g. Wikipedia/Wikimedia) that block requests without a User-Agent.
+    /// </summary>
+    public const string ProxyUserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+    /// <summary>
     /// Validates that a proxy URL is safe to fetch: must use http/https scheme
     /// and must not target private/loopback IP addresses (SSRF prevention).
     /// Inspects the hostname literal; DNS-level validation is performed separately
