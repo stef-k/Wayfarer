@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.2.11] - 2026-03-08
+
+### Fixed
+- Fix Wikipedia/Wikimedia images returning 403 when proxied (missing User-Agent header)
+- Use admin-configurable image cache expiry for browser Cache-Control headers instead of hardcoded 24h
+- Add cache-busting to trip cover image URLs to prevent stale browser cache after URL changes
+
+### Changed
+- Max proxy image download size is now admin-configurable (default raised from 20 MB to 50 MB)
+
 ## [1.2.10] - 2026-03-08
 - Improved image cache read performance by removing global lock serialization from cache hits
 - LastAccessed updates are now conditional (only when stale >1 hour) reducing DB writes

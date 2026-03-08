@@ -68,7 +68,7 @@
                 <div class="ratio ratio-21x9">
                     @if (Model.IsPublic)
                     {
-                        <img src="/Public/Trips/@Model.Id/CoverImage" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
+                        <img src="/Public/Trips/@Model.Id/CoverImage?v=@Model.UpdatedAt.Ticks" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
                     }
                     else
                     {
@@ -138,7 +138,7 @@
                                             <li>
                                                 <a class="dropdown-item copy-url"
                                                    href="#"
-                                                   data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}/CoverImage")"
+                                                   data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}/CoverImage?v={Model.UpdatedAt.Ticks}")"
                                                    title="Copy cover image URL to clipboard">
                                                     <i class="bi bi-image me-1"></i>Copy Cover Image URL
                                                 </a>

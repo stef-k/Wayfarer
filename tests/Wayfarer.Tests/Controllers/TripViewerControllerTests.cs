@@ -311,8 +311,8 @@ public class TripViewerControllerTests : TestBase
         {
             Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
         };
-        // Set Content-Length header to exceed the 20 MB limit
-        response.Content.Headers.ContentLength = 21L * 1024 * 1024;
+        // Set Content-Length header to exceed the default 50 MB limit
+        response.Content.Headers.ContentLength = 55L * 1024 * 1024;
         var handler = new FakeHandler(response);
         var controller = BuildController(CreateDbContext(), handler: handler);
 
@@ -323,23 +323,52 @@ public class TripViewerControllerTests : TestBase
     }
 
     [Fact]
-    public async Task ProxyImage_ReturnsBadRequest_WhenStreamExceedsLimit()
+    public async Task ProxyImage_ReturnsBadRequest_WhenStreamExceedsConfiguredLimit()
     {
-        // Response with no Content-Length but body exceeding 20 MB
-        var oversizedBytes = new byte[21 * 1024 * 1024];
+        // Configure a low limit of 5 MB and send 6 MB body
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            MaxProxyImageDownloadMB = 5
+        });
+
+        var oversizedBytes = new byte[6 * 1024 * 1024];
         var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent(oversizedBytes)
         };
-        // Remove content-length to force streaming path
         response.Content.Headers.ContentLength = null;
         var handler = new FakeHandler(response);
-        var controller = BuildController(CreateDbContext(), handler: handler);
+        var controller = BuildController(CreateDbContext(), handler: handler, settingsService: settingsMock.Object);
 
         var result = await controller.ProxyImage("http://example.com/huge-stream.bin", optimize: false);
 
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Contains("too large", badRequest.Value?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProxyImage_CacheControlUsesSettingsExpiryDays()
+    {
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            ImageCacheExpiryDays = 180
+        });
+
+        var cachedBytes = new byte[] { 0xFF, 0xD8, 0xFF };
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync((cachedBytes, "image/jpeg"));
+
+        var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object, settingsService: settingsMock.Object);
+
+        var result = await controller.ProxyImage("http://example.com/img.jpg");
+
+        Assert.IsType<FileContentResult>(result);
+        var cacheControl = controller.Response.Headers["Cache-Control"].ToString();
+        // 180 days = 15552000 seconds
+        Assert.Contains("max-age=15552000", cacheControl);
     }
 
     [Fact]

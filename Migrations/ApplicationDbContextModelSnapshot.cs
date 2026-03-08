@@ -56,6 +56,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("MaxCacheTileSizeInMB")
                         .HasColumnType("integer");
 
+                    b.Property<int>("MaxProxyImageDownloadMB")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("ProxyImageRateLimitEnabled")
                         .HasColumnType("boolean");
 

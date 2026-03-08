@@ -156,6 +156,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("MaxCacheTileSizeInMB", currentSettings.MaxCacheTileSizeInMB, updatedSettings.MaxCacheTileSizeInMB);
                     Track("MaxCacheImageSizeInMB", currentSettings.MaxCacheImageSizeInMB, updatedSettings.MaxCacheImageSizeInMB);
                     Track("ImageCacheExpiryDays", currentSettings.ImageCacheExpiryDays, updatedSettings.ImageCacheExpiryDays);
+                    Track("MaxProxyImageDownloadMB", currentSettings.MaxProxyImageDownloadMB, updatedSettings.MaxProxyImageDownloadMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
                     Track("TileProviderKey", currentSettings.TileProviderKey, updatedSettings.TileProviderKey);
                     Track("TileProviderUrlTemplate", currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate);
@@ -201,6 +202,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.MaxCacheTileSizeInMB = updatedSettings.MaxCacheTileSizeInMB;
                     currentSettings.MaxCacheImageSizeInMB = updatedSettings.MaxCacheImageSizeInMB;
                     currentSettings.ImageCacheExpiryDays = updatedSettings.ImageCacheExpiryDays;
+                    currentSettings.MaxProxyImageDownloadMB = updatedSettings.MaxProxyImageDownloadMB;
                     currentSettings.UploadSizeLimitMB = updatedSettings.UploadSizeLimitMB;
                     currentSettings.TileProviderKey = updatedSettings.TileProviderKey;
                     currentSettings.TileProviderUrlTemplate = updatedSettings.TileProviderUrlTemplate;

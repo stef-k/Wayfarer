@@ -16,6 +16,7 @@ public class ApplicationSettings
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 500;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
+    public const int DefaultMaxProxyImageDownloadMB = 50;
 
 
     [Key]
@@ -123,6 +124,15 @@ public class ApplicationSettings
     [Required]
     [Range(1, 365, ErrorMessage = "Expiry must be between 1 and 365 days.")]
     public int ImageCacheExpiryDays { get; set; } = DefaultImageCacheExpiryDays;
+
+    /// <summary>
+    /// Maximum single image download size in megabytes for the proxy pipeline.
+    /// Images larger than this are rejected before optimization.
+    /// Default is 50 MB.
+    /// </summary>
+    [Required]
+    [Range(5, 200, ErrorMessage = "Max proxy image download size must be between 5 and 200 MB.")]
+    public int MaxProxyImageDownloadMB { get; set; } = DefaultMaxProxyImageDownloadMB;
 
     /// <summary>
     /// Flag to control whether user registration is open or closed.

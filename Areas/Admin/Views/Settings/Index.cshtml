@@ -773,6 +773,29 @@
                             </div>
                         </div>
 
+                        <div class="row mb-3">
+                            <div class="col-12 col-md-6">
+                                <label asp-for="MaxProxyImageDownloadMB" class="form-label fw-semibold">
+                                    Max Proxy Image Download Size
+                                </label>
+                                <div class="input-group">
+                                    <input asp-for="MaxProxyImageDownloadMB" class="form-control"
+                                           type="number"
+                                           min="5"
+                                           max="200"/>
+                                    <span class="input-group-text">MB</span>
+                                </div>
+
+                                <span asp-validation-for="MaxProxyImageDownloadMB" class="text-danger"></span>
+
+                                <div class="form-text">
+                                    • Maximum single image file size the proxy will download from external sources.<br/>
+                                    • Images are optimized after download, so cached versions are typically much smaller.<br/>
+                                    • Default: <code>@ApplicationSettings.DefaultMaxProxyImageDownloadMB MB</code>.<br/>
+                                </div>
+                            </div>
+                        </div>
+
                         <hr/>
 
                         <div class="row">

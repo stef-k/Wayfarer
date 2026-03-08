@@ -546,8 +546,12 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Image proxy service for fetch+optimize+cache pipeline (used by warm-up job)
     // Uses the same DNS-level SSRF protection as TripViewerController's HttpClient.
-    builder.Services.AddHttpClient<IImageProxyService, ImageProxyService>()
-        .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
+    builder.Services.AddHttpClient<IImageProxyService, ImageProxyService>(client =>
+    {
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(
+            Wayfarer.Util.ImageProxyHelper.ProxyUserAgent);
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
 
     // Cache warm-up job and debounced scheduler
     builder.Services.AddTransient<CacheWarmupJob>();
@@ -556,8 +560,12 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Typed HttpClient for TripViewerController with DNS-level SSRF protection.
     // The ConnectCallback resolves DNS and checks all IPs against the private/loopback deny-list
     // before allowing a connection, preventing DNS rebinding attacks.
-    builder.Services.AddHttpClient<Wayfarer.Areas.Public.Controllers.TripViewerController>()
-        .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
+    builder.Services.AddHttpClient<Wayfarer.Areas.Public.Controllers.TripViewerController>(client =>
+    {
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(
+            Wayfarer.Util.ImageProxyHelper.ProxyUserAgent);
+    })
+    .ConfigurePrimaryHttpMessageHandler(() => CreateSsrfProtectedHandler());
 
     // Response compression for dynamic content (HTML, JSON, images served by controllers)
     builder.Services.AddResponseCompression(options =>

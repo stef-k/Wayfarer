@@ -38,7 +38,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(item.CoverImageUrl))
                         {
                             <img class="trip-photo js-lazy"
-                                 data-src="/Public/Trips/@item.Id/CoverImage"
+                                 data-src="/Public/Trips/@item.Id/CoverImage?v=@item.UpdatedAt.Ticks"
                                  alt="@item.Name">
                         }
                         else if (item.CenterLat.HasValue && item.CenterLon.HasValue)

@@ -157,6 +157,82 @@ public class PublicTripImagesTests : TestBase
     }
 
     [Fact]
+    public async Task CoverImage_Returns304_WithETag()
+    {
+        var db = CreateDbContext();
+        var tripId = Guid.NewGuid();
+        var coverUrl = "https://example.com/cover.jpg";
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        db.Trips.Add(new Trip
+        {
+            Id = tripId, UserId = "owner", Name = "ETag Trip",
+            IsPublic = true, CoverImageUrl = coverUrl, UpdatedAt = DateTime.UtcNow
+        });
+        db.SaveChanges();
+
+        var cacheKey = Wayfarer.Util.ImageProxyHelper.ComputeImageCacheKey(coverUrl, null, null, null, true);
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext.Request.Headers["If-None-Match"] = $"\"{cacheKey}\"";
+
+        var result = await controller.GetCoverImage(tripId);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(304, status.StatusCode);
+    }
+
+    [Fact]
+    public async Task CoverImage_CacheControlUsesSettingsExpiryDays()
+    {
+        var db = CreateDbContext();
+        var tripId = Guid.NewGuid();
+        var coverUrl = "https://example.com/cover.jpg";
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        db.Trips.Add(new Trip
+        {
+            Id = tripId, UserId = "owner", Name = "Cache Trip",
+            IsPublic = true, CoverImageUrl = coverUrl, UpdatedAt = DateTime.UtcNow
+        });
+        db.SaveChanges();
+
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            ImageCacheExpiryDays = 30
+        });
+
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(((byte[] Bytes, string ContentType)?)(new byte[] { 0xFF, 0xD8 }, "image/jpeg"));
+
+        var controller = BuildController(db, settingsService: settingsMock.Object, imageCacheService: cacheMock.Object);
+        var result = await controller.GetCoverImage(tripId);
+
+        Assert.IsType<FileContentResult>(result);
+        var cacheControl = controller.Response.Headers["Cache-Control"].ToString();
+        // 30 days = 2592000 seconds
+        Assert.Contains("max-age=2592000", cacheControl);
+    }
+
+    [Fact]
+    public async Task CoverImage_ReturnsBadRequest_ForDisallowedUrl()
+    {
+        var db = CreateDbContext();
+        var tripId = Guid.NewGuid();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        db.Trips.Add(new Trip
+        {
+            Id = tripId, UserId = "owner", Name = "SSRF Trip",
+            IsPublic = true, CoverImageUrl = "http://localhost/evil.jpg", UpdatedAt = DateTime.UtcNow
+        });
+        db.SaveChanges();
+
+        var controller = BuildController(db);
+        var result = await controller.GetCoverImage(tripId);
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
     public async Task CoverImage_Returns429_WhenRateLimitExceeded()
     {
         var db = CreateDbContext();
