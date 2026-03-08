@@ -30,29 +30,13 @@ namespace Wayfarer.Areas.User.Controllers
         }
 
         /// <summary>
-        /// Shows all user's Trips
+        /// Shows the Trip index page shell. Trip data is loaded via AJAX
+        /// from the <c>/api/Trips/search</c> endpoint with server-side pagination.
         /// </summary>
-        /// <returns></returns>
-        public async Task<IActionResult> Index()
+        public IActionResult Index()
         {
-            try
-            {
-                SetPageTitle("My Trips");
-
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                var trips = await _dbContext.Trips
-                    .Where(t => t.UserId == userId)
-                    .OrderByDescending(t => t.UpdatedAt)
-                    .ToListAsync();
-
-                return View(trips);
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-                return View(new List<Trip>()); // return empty list on error
-            }
+            SetPageTitle("My Trips");
+            return View();
         }
         
         // GET: /User/Trips/View/{id}

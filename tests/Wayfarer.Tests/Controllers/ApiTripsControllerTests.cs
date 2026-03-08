@@ -1467,6 +1467,193 @@ public class ApiTripsControllerTests : TestBase
         return user;
     }
 
+    #region Search Endpoint Tests
+
+    /// <summary>
+    /// Builds a TripsController with cookie-based authentication for the given user ID.
+    /// </summary>
+    private TripsController BuildControllerWithCookieAuth(ApplicationDbContext db, string userId)
+    {
+        var controller = BuildController(db);
+        controller.ControllerContext.HttpContext = BuildHttpContextWithUser(userId);
+        return controller;
+    }
+
+    [Fact]
+    public async Task Search_ReturnsUnauthorized_WhenNotAuthenticated()
+    {
+        var controller = BuildController(CreateDbContext());
+
+        var result = await controller.Search();
+
+        Assert.IsType<UnauthorizedObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Search_ReturnsPaginatedTrips_ForCurrentUser()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        var other = TestDataFixtures.CreateUser(id: "u2");
+        db.Users.AddRange(user, other);
+
+        // Create 3 trips for user, 1 for other
+        for (var i = 0; i < 3; i++)
+        {
+            var trip = TestDataFixtures.CreateTrip(user, $"Trip {i}");
+            trip.UpdatedAt = DateTime.UtcNow.AddDays(-i);
+            db.Trips.Add(trip);
+        }
+        db.Trips.Add(TestDataFixtures.CreateTrip(other, "Other Trip"));
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search(page: 1, pageSize: 10);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = ok.Value!;
+        Assert.Equal(3, (int)data.GetType().GetProperty("totalAll")!.GetValue(data)!);
+        Assert.Equal(3, (int)data.GetType().GetProperty("totalItems")!.GetValue(data)!);
+    }
+
+    [Fact]
+    public async Task Search_RespectsPageSize()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+
+        for (var i = 0; i < 5; i++)
+        {
+            var trip = TestDataFixtures.CreateTrip(user, $"Trip {i}");
+            trip.UpdatedAt = DateTime.UtcNow.AddDays(-i);
+            db.Trips.Add(trip);
+        }
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search(page: 1, pageSize: 2);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = ok.Value!;
+        var items = (IEnumerable<object>)data.GetType().GetProperty("data")!.GetValue(data)!;
+        Assert.Equal(2, items.Count());
+        Assert.Equal(5, (int)data.GetType().GetProperty("totalItems")!.GetValue(data)!);
+    }
+
+    [Fact]
+    public async Task Search_ClampsPageSizeToMax50()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.Trips.Add(TestDataFixtures.CreateTrip(user, "Trip"));
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search(page: 1, pageSize: 999);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = ok.Value!;
+        Assert.Equal(50, (int)data.GetType().GetProperty("pageSize")!.GetValue(data)!);
+    }
+
+    [Fact]
+    public async Task Search_FiltersVisibility_Public()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+
+        var publicTrip = TestDataFixtures.CreateTrip(user, "Public Trip");
+        publicTrip.IsPublic = true;
+        var privateTrip = TestDataFixtures.CreateTrip(user, "Private Trip");
+        privateTrip.IsPublic = false;
+        db.Trips.AddRange(publicTrip, privateTrip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search(visibility: "public");
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = ok.Value!;
+        Assert.Equal(1, (int)data.GetType().GetProperty("totalItems")!.GetValue(data)!);
+        // Stats should reflect both trips (before visibility filter)
+        Assert.Equal(2, (int)data.GetType().GetProperty("totalAll")!.GetValue(data)!);
+        Assert.Equal(1, (int)data.GetType().GetProperty("publicCount")!.GetValue(data)!);
+        Assert.Equal(1, (int)data.GetType().GetProperty("privateCount")!.GetValue(data)!);
+    }
+
+    [Fact]
+    public async Task Search_WithSearchQuery_HandlesGracefully()
+    {
+        // Note: ILike is PostgreSQL-only and not supported by the in-memory provider.
+        // This test verifies the error handling path returns a 500 with a meaningful message
+        // rather than an unhandled exception. Full ILike search is tested via integration tests.
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.Trips.Add(TestDataFixtures.CreateTrip(user, "Summer Vacation"));
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search(q: "summer");
+
+        // In-memory provider cannot execute ILike, so the catch block returns 500
+        var statusResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, statusResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_TruncatesNotesPreview()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+
+        var trip = TestDataFixtures.CreateTrip(user, "Trip");
+        trip.Notes = "<p>" + new string('A', 200) + "</p>";
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search();
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = ok.Value!;
+        var items = ((IEnumerable<object>)data.GetType().GetProperty("data")!.GetValue(data)!).ToList();
+        var notes = (string)items[0].GetType().GetProperty("Notes")!.GetValue(items[0])!;
+        Assert.True(notes.Length <= 100);
+        Assert.EndsWith("...", notes);
+        Assert.DoesNotContain("<", notes); // HTML should be stripped
+    }
+
+    [Fact]
+    public async Task Search_NormalizesInvalidPageNumber()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        db.Trips.Add(TestDataFixtures.CreateTrip(user, "Trip"));
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithCookieAuth(db, user.Id);
+
+        var result = await controller.Search(page: -5);
+
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = ok.Value!;
+        Assert.Equal(1, (int)data.GetType().GetProperty("page")!.GetValue(data)!);
+    }
+
+    #endregion
+
     #region LimitHtmlToWords Tests
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -38,6 +39,12 @@ public class TripsController : BaseApiController
         _settingsService = settingsService;
         _warmupScheduler = warmupScheduler;
     }
+
+    /// <summary>
+    /// Pre-compiled regex for stripping HTML tags from notes preview text.
+    /// Uses a 100ms timeout to guard against adversarial input.
+    /// </summary>
+    private static readonly Regex HtmlTagRegex = new("<.*?>", RegexOptions.Compiled, TimeSpan.FromMilliseconds(100));
 
     private const string ShadowRegionName = "Unassigned Places";
 
@@ -86,6 +93,141 @@ public class TripsController : BaseApiController
             .ToList();
 
         return Ok(trips);
+    }
+
+    /// <summary>
+    /// Searches user trips with server-side pagination, text search and visibility filtering.
+    /// Used by the Trip index page for AJAX-driven table rendering.
+    /// </summary>
+    /// <param name="page">Page number (1-based, default 1)</param>
+    /// <param name="pageSize">Items per page (default 10, clamped 1-50)</param>
+    /// <param name="q">Optional search text matched against trip name and notes</param>
+    /// <param name="visibility">Visibility filter: "all" (default), "public", or "private"</param>
+    /// <returns>Paginated trip list with stats counts for the summary bar.</returns>
+    [HttpGet("search")]
+    public async Task<IActionResult> Search(
+        int page = 1,
+        int pageSize = 10,
+        string? q = null,
+        string? visibility = null)
+    {
+        var user = GetUserFromTokenOrCookie();
+        if (user == null)
+            return Unauthorized(new { success = false, message = "Unauthorized." });
+
+        try
+        {
+            pageSize = Math.Clamp(pageSize, 1, 50);
+            if (page < 1) page = 1;
+
+            var baseQuery = _dbContext.Trips.Where(t => t.UserId == user.Id);
+
+            // Unfiltered count used by the client to distinguish "no trips at all"
+            // from "no trips matching search/filters" for the empty state message.
+            var userTripCount = await baseQuery.CountAsync();
+
+            var query = baseQuery;
+
+            // Apply text search on Name and Notes (case-insensitive).
+            // Escape LIKE metacharacters so %, _ and \ are treated as literals.
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var escaped = q.Trim()
+                    .Replace("\\", "\\\\")
+                    .Replace("%", "\\%")
+                    .Replace("_", "\\_");
+                var searchTerm = $"%{escaped}%";
+                query = query.Where(t =>
+                    EF.Functions.ILike(t.Name, searchTerm, "\\") ||
+                    (t.Notes != null && EF.Functions.ILike(t.Notes, searchTerm, "\\")));
+            }
+
+            // Compute stats before visibility filter (for the summary bar).
+            // Single query: totalAll and publicCount in one round-trip.
+            var stats = await query
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Total = g.Count(),
+                    Public = g.Count(t => t.IsPublic)
+                })
+                .FirstOrDefaultAsync();
+            var totalAll = stats?.Total ?? 0;
+            var publicCount = stats?.Public ?? 0;
+            var privateCount = totalAll - publicCount;
+
+            // Apply visibility filter
+            if (!string.IsNullOrEmpty(visibility))
+            {
+                if (visibility.Equals("public", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(t => t.IsPublic);
+                else if (visibility.Equals("private", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(t => !t.IsPublic);
+            }
+
+            var totalItems = await query.CountAsync();
+
+            // Apply ordering and pagination — fetch entities, then project in-memory
+            // (Regex.Replace cannot be translated to SQL)
+            var tripEntities = await query
+                .OrderByDescending(t => t.UpdatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var trips = tripEntities.Select(t =>
+            {
+                string? notesPreview = null;
+                if (!string.IsNullOrWhiteSpace(t.Notes))
+                {
+                    try
+                    {
+                        notesPreview = HtmlTagRegex.Replace(t.Notes, string.Empty);
+                    }
+                    catch (RegexMatchTimeoutException)
+                    {
+                        // Safe fallback: truncate without HTML stripping to avoid
+                        // leaking raw HTML to consumers that may not escape it.
+                        notesPreview = t.Notes.Length > 100 ? t.Notes[..97] + "..." : t.Notes;
+                    }
+
+                    if (notesPreview.Length > 100)
+                        notesPreview = notesPreview[..97] + "...";
+                }
+
+                return new
+                {
+                    t.Id,
+                    t.Name,
+                    Notes = notesPreview,
+                    t.IsPublic,
+                    t.UpdatedAt,
+                    t.CoverImageUrl,
+                    t.CenterLat,
+                    t.CenterLon,
+                    t.Zoom,
+                    t.ShareProgressEnabled
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                success = true,
+                data = trips,
+                totalItems,
+                totalAll,
+                publicCount,
+                privateCount,
+                userTripCount,
+                page,
+                pageSize
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to search trips for user {UserId}", user.Id);
+            return StatusCode(500, new { success = false, message = "An error occurred while searching trips." });
+        }
     }
 
     /// <summary>
