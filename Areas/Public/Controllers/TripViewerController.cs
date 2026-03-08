@@ -451,11 +451,16 @@ public class TripViewerController : BaseController
         string imageUrl, string cacheKey,
         int? maxWidth, int? maxHeight, int? quality, bool optimize)
     {
+        // Compute cache duration and download limit from admin settings
+        var settings = _settingsService.GetSettings();
+        var maxAgeSeconds = settings.ImageCacheExpiryDays * 86400;
+        var maxBytes = settings.MaxProxyImageDownloadMB * 1024L * 1024;
+
         // Try to serve from disk cache
         var cached = await _imageCacheService.GetAsync(cacheKey);
         if (cached.HasValue)
         {
-            Response.Headers["Cache-Control"] = "public, max-age=86400";
+            Response.Headers["Cache-Control"] = $"public, max-age={maxAgeSeconds}";
             Response.Headers["ETag"] = $"\"{cacheKey}\"";
             return File(cached.Value.Bytes, cached.Value.ContentType);
         }
@@ -469,7 +474,7 @@ public class TripViewerController : BaseController
         }
 
         // Reject early if Content-Length is known and exceeds the limit
-        if (resp.Content.Headers.ContentLength > ImageProxyHelper.MaxProxyImageBytes)
+        if (resp.Content.Headers.ContentLength > maxBytes)
             return BadRequest("Image too large to proxy.");
 
         // Stream-read with a hard cap to guard against missing/lying Content-Length
@@ -485,7 +490,7 @@ public class TripViewerController : BaseController
             while ((read = await bodyStream.ReadAsync(buffer)) > 0)
             {
                 totalRead += read;
-                if (totalRead > ImageProxyHelper.MaxProxyImageBytes)
+                if (totalRead > maxBytes)
                     return BadRequest("Image too large to proxy.");
                 limitedStream.Write(buffer, 0, read);
             }
@@ -511,7 +516,7 @@ public class TripViewerController : BaseController
         await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
 
         // Set browser cache headers
-        Response.Headers["Cache-Control"] = "public, max-age=86400";
+        Response.Headers["Cache-Control"] = $"public, max-age={maxAgeSeconds}";
         Response.Headers["ETag"] = $"\"{cacheKey}\"";
 
         return File(bytes, contentType);

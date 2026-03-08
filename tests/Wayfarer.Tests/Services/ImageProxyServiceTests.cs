@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -77,8 +78,8 @@ public class ImageProxyServiceTests : TestBase
     [Fact]
     public async Task FetchAndCacheAsync_ReturnsFalse_ForOversizedImage()
     {
-        // Content-Length header indicates 25 MB (exceeds 20 MB limit)
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 25 * 1024 * 1024);
+        // Content-Length header indicates 55 MB (exceeds default 50 MB limit)
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 55L * 1024 * 1024);
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
             .ReturnsAsync((ValueTuple<byte[], string>?)null);
@@ -91,20 +92,50 @@ public class ImageProxyServiceTests : TestBase
         cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Fact]
+    public async Task FetchAndCacheAsync_RespectsConfigurableDownloadLimit()
+    {
+        // Set limit to 10 MB — image at 12 MB should be rejected
+        var settingsMock = new Mock<IApplicationSettingsService>();
+        settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings
+        {
+            MaxProxyImageDownloadMB = 10
+        });
+
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 12L * 1024 * 1024);
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync((ValueTuple<byte[], string>?)null);
+
+        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock, settingsMock: settingsMock);
+
+        var result = await service.FetchAndCacheAsync("https://example.com/big.jpg");
+
+        Assert.False(result);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+    }
+
     /// <summary>
     /// Creates an <see cref="ImageProxyService"/> with test doubles.
     /// </summary>
     private ImageProxyService CreateImageProxyService(
         MockHttpMessageHandler? handler = null,
-        Mock<IProxiedImageCacheService>? cacheMock = null)
+        Mock<IProxiedImageCacheService>? cacheMock = null,
+        Mock<IApplicationSettingsService>? settingsMock = null)
     {
         handler ??= new MockHttpMessageHandler(HttpStatusCode.OK, new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 }, "image/jpeg");
         cacheMock ??= new Mock<IProxiedImageCacheService>();
+        if (settingsMock == null)
+        {
+            settingsMock = new Mock<IApplicationSettingsService>();
+            settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+        }
 
         var httpClient = new HttpClient(handler);
         return new ImageProxyService(
             httpClient,
             cacheMock.Object,
+            settingsMock.Object,
             NullLogger<ImageProxyService>.Instance);
     }
 

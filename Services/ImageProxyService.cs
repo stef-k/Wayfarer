@@ -1,3 +1,4 @@
+using Wayfarer.Parsers;
 using Wayfarer.Util;
 
 namespace Wayfarer.Services;
@@ -27,18 +28,20 @@ public interface IImageProxyService
 /// </summary>
 public class ImageProxyService : IImageProxyService
 {
-
     private readonly HttpClient _httpClient;
     private readonly IProxiedImageCacheService _imageCacheService;
+    private readonly IApplicationSettingsService _settingsService;
     private readonly ILogger<ImageProxyService> _logger;
 
     public ImageProxyService(
         HttpClient httpClient,
         IProxiedImageCacheService imageCacheService,
+        IApplicationSettingsService settingsService,
         ILogger<ImageProxyService> logger)
     {
         _httpClient = httpClient;
         _imageCacheService = imageCacheService;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -61,6 +64,7 @@ public class ImageProxyService : IImageProxyService
             return false;
 
         // Download from origin
+        var maxBytes = _settingsService.GetSettings().MaxProxyImageDownloadMB * 1024L * 1024;
         HttpResponseMessage resp;
         try
         {
@@ -81,7 +85,7 @@ public class ImageProxyService : IImageProxyService
             }
 
             // Reject early if Content-Length exceeds limit
-            if (resp.Content.Headers.ContentLength > ImageProxyHelper.MaxProxyImageBytes)
+            if (resp.Content.Headers.ContentLength > maxBytes)
             {
                 _logger.LogWarning("Image too large ({Size} bytes) from {Url}.", resp.Content.Headers.ContentLength, imageUrl);
                 return false;
@@ -99,7 +103,7 @@ public class ImageProxyService : IImageProxyService
                 while ((read = await bodyStream.ReadAsync(buffer, ct)) > 0)
                 {
                     totalRead += read;
-                    if (totalRead > ImageProxyHelper.MaxProxyImageBytes)
+                    if (totalRead > maxBytes)
                     {
                         _logger.LogWarning("Image exceeded size limit during download from {Url}.", imageUrl);
                         return false;

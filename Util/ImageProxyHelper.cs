@@ -15,13 +15,6 @@ namespace Wayfarer.Util;
 public static class ImageProxyHelper
 {
     /// <summary>
-    /// Maximum response body size in bytes for proxied images (20 MB).
-    /// Prevents OOM from attacker-supplied URLs pointing to very large files.
-    /// Shared by TripViewerController and ImageProxyService.
-    /// </summary>
-    public const long MaxProxyImageBytes = 20 * 1024 * 1024;
-
-    /// <summary>
     /// Validates that a proxy URL is safe to fetch: must use http/https scheme
     /// and must not target private/loopback IP addresses (SSRF prevention).
     /// Inspects the hostname literal; DNS-level validation is performed separately
