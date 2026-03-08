@@ -8,10 +8,12 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>
 /// Tests for <see cref="CacheWarmupScheduler"/>: new trigger creation,
-/// debounce rescheduling, and per-trip trigger identity.
+/// debounce rescheduling, per-trip trigger identity, and immediate mode.
 /// </summary>
 public class CacheWarmupSchedulerTests
 {
+    /// <summary>Tolerance for comparing trigger start times.</summary>
+    private static readonly TimeSpan TimeTolerance = TimeSpan.FromSeconds(2);
     [Fact]
     public async Task ScheduleWarmupAsync_CreatesNewTrigger_WhenNoneExists()
     {
@@ -116,5 +118,103 @@ public class CacheWarmupSchedulerTests
             triggerKey,
             It.IsAny<ITrigger>(),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ScheduleWarmupAsync_UsesImmediateDelay_WhenImmediateAndNoTriggerExists()
+    {
+        var schedulerMock = new Mock<IScheduler>();
+        var tripId = Guid.NewGuid();
+        var triggerKey = new TriggerKey($"CacheWarmup-{tripId}", "CacheWarmup");
+        ITrigger? capturedTrigger = null;
+
+        schedulerMock.Setup(s => s.CheckExists(triggerKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        schedulerMock.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .Callback<IJobDetail, ITrigger, CancellationToken>((_, t, _) => capturedTrigger = t)
+            .ReturnsAsync(DateTimeOffset.UtcNow);
+
+        var service = new CacheWarmupScheduler(schedulerMock.Object, NullLogger<CacheWarmupScheduler>.Instance);
+
+        await service.ScheduleWarmupAsync(tripId, immediate: true);
+
+        // Trigger should fire ~5 seconds from now (not 1 minute)
+        Assert.NotNull(capturedTrigger);
+        var expectedStart = DateTimeOffset.UtcNow.AddSeconds(5);
+        Assert.InRange(capturedTrigger!.StartTimeUtc, expectedStart.Subtract(TimeTolerance), expectedStart.Add(TimeTolerance));
+    }
+
+    [Fact]
+    public async Task ScheduleWarmupAsync_UsesNormalDelay_WhenImmediateButTriggerExists()
+    {
+        var schedulerMock = new Mock<IScheduler>();
+        var tripId = Guid.NewGuid();
+        var triggerKey = new TriggerKey($"CacheWarmup-{tripId}", "CacheWarmup");
+        ITrigger? capturedTrigger = null;
+
+        schedulerMock.Setup(s => s.CheckExists(triggerKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        schedulerMock.Setup(s => s.RescheduleJob(triggerKey, It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .Callback<TriggerKey, ITrigger, CancellationToken>((_, t, _) => capturedTrigger = t)
+            .ReturnsAsync((DateTimeOffset?)DateTimeOffset.UtcNow);
+
+        var service = new CacheWarmupScheduler(schedulerMock.Object, NullLogger<CacheWarmupScheduler>.Instance);
+
+        await service.ScheduleWarmupAsync(tripId, immediate: true);
+
+        // Debounce always wins — should use 1-minute delay even with immediate flag
+        Assert.NotNull(capturedTrigger);
+        var expectedStart = DateTimeOffset.UtcNow.AddMinutes(1);
+        Assert.InRange(capturedTrigger!.StartTimeUtc, expectedStart.Subtract(TimeTolerance), expectedStart.Add(TimeTolerance));
+    }
+
+    [Fact]
+    public async Task ScheduleWarmupAsync_RaceFallback_UsesNormalDelay_RegardlessOfImmediate()
+    {
+        var schedulerMock = new Mock<IScheduler>();
+        var tripId = Guid.NewGuid();
+        var triggerKey = new TriggerKey($"CacheWarmup-{tripId}", "CacheWarmup");
+        ITrigger? capturedTrigger = null;
+
+        schedulerMock.Setup(s => s.CheckExists(triggerKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        schedulerMock.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ObjectAlreadyExistsException("trigger already exists"));
+        schedulerMock.Setup(s => s.RescheduleJob(triggerKey, It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .Callback<TriggerKey, ITrigger, CancellationToken>((_, t, _) => capturedTrigger = t)
+            .ReturnsAsync((DateTimeOffset?)DateTimeOffset.UtcNow);
+
+        var service = new CacheWarmupScheduler(schedulerMock.Object, NullLogger<CacheWarmupScheduler>.Instance);
+
+        await service.ScheduleWarmupAsync(tripId, immediate: true);
+
+        // Race fallback always uses normal delay
+        Assert.NotNull(capturedTrigger);
+        var expectedStart = DateTimeOffset.UtcNow.AddMinutes(1);
+        Assert.InRange(capturedTrigger!.StartTimeUtc, expectedStart.Subtract(TimeTolerance), expectedStart.Add(TimeTolerance));
+    }
+
+    [Fact]
+    public async Task ScheduleWarmupAsync_UsesNormalDelay_WhenNotImmediateAndNoTriggerExists()
+    {
+        var schedulerMock = new Mock<IScheduler>();
+        var tripId = Guid.NewGuid();
+        var triggerKey = new TriggerKey($"CacheWarmup-{tripId}", "CacheWarmup");
+        ITrigger? capturedTrigger = null;
+
+        schedulerMock.Setup(s => s.CheckExists(triggerKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        schedulerMock.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .Callback<IJobDetail, ITrigger, CancellationToken>((_, t, _) => capturedTrigger = t)
+            .ReturnsAsync(DateTimeOffset.UtcNow);
+
+        var service = new CacheWarmupScheduler(schedulerMock.Object, NullLogger<CacheWarmupScheduler>.Instance);
+
+        await service.ScheduleWarmupAsync(tripId, immediate: false);
+
+        // Default (non-immediate) should use 1-minute delay
+        Assert.NotNull(capturedTrigger);
+        var expectedStart = DateTimeOffset.UtcNow.AddMinutes(1);
+        Assert.InRange(capturedTrigger!.StartTimeUtc, expectedStart.Subtract(TimeTolerance), expectedStart.Add(TimeTolerance));
     }
 }

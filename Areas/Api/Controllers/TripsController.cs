@@ -804,6 +804,15 @@ return Ok(dto);
 
         trip.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
+
+        // Schedule cache warm-up when notes change (may contain images).
+        // Uses immediate mode since API lacks cheap prior-state context;
+        // the scheduler debounces if a trigger already exists.
+        if (request.Notes != null)
+        {
+            await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: true);
+        }
+
         return Ok(new { success = true, trip = new { trip.Id, trip.Name, trip.Notes } });
     }
 
