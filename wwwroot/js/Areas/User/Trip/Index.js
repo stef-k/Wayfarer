@@ -9,6 +9,35 @@ import {
     /* ------------------------------------------------ Search & filter trips */
 
     /**
+     * Updates the stats summary bar (#trip-stats) with counts derived from
+     * currently visible table rows.
+     * @param {NodeList} rows  - All trip rows (excluding the no-match placeholder).
+     * @param {number} visibleCount - Number of rows currently visible after filtering.
+     */
+    const updateTripStats = (rows, visibleCount) => {
+        const statTotal = document.getElementById('stat-total');
+        if (!statTotal) return;
+
+        let publicCount = 0;
+        let privateCount = 0;
+        rows.forEach(row => {
+            if (row.style.display !== 'none') {
+                if (row.dataset.isPublic === 'true') publicCount++;
+                else privateCount++;
+            }
+        });
+
+        const isFiltered = visibleCount !== rows.length;
+        const totalLabel = statTotal.closest('span');
+        if (totalLabel) totalLabel.innerHTML = `<strong id="stat-total">${visibleCount}</strong> ${isFiltered ? 'matching' : 'total'}`;
+
+        const statPublic = document.getElementById('stat-public');
+        const statPrivate = document.getElementById('stat-private');
+        if (statPublic) statPublic.textContent = publicCount;
+        if (statPrivate) statPrivate.textContent = privateCount;
+    };
+
+    /**
      * Filters trip table rows by search text and visibility radio selection.
      * Uses AND logic: row must match both search term and visibility filter.
      */
@@ -60,20 +89,7 @@ import {
         }
 
         /* Update the stats summary bar with current visible counts */
-        const statTotal = document.getElementById('stat-total');
-        if (statTotal) {
-            let publicCount = 0;
-            let privateCount = 0;
-            rows.forEach(row => {
-                if (row.style.display !== 'none') {
-                    if (row.dataset.isPublic === 'true') publicCount++;
-                    else privateCount++;
-                }
-            });
-            statTotal.textContent = visibleCount;
-            document.getElementById('stat-public').textContent = publicCount;
-            document.getElementById('stat-private').textContent = privateCount;
-        }
+        updateTripStats(rows, visibleCount);
     };
 
     /* ------------------------------------------------ Delete trip */
