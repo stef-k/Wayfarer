@@ -455,6 +455,8 @@
                                         <input type="checkbox" class="form-check-input form-check-input-lg"
                                                id="IsRegistrationOpen" name="IsRegistrationOpen"
                                                value="true" @(Model.IsRegistrationOpen ? "checked" : "")/>
+                                        @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
+                                        <input type="hidden" name="IsRegistrationOpen" value="false"/>
                                         <label class="form-check-label" for="IsRegistrationOpen">Enable new user
                                             registrations</label>
                                     </div>
@@ -587,6 +589,8 @@
                                     <input type="checkbox" class="form-check-input"
                                            id="TileRateLimitEnabled" name="TileRateLimitEnabled"
                                            value="true" @(Model.TileRateLimitEnabled ? "checked" : "")/>
+                                    @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
+                                    <input type="hidden" name="TileRateLimitEnabled" value="false"/>
                                     <label class="form-check-label" for="TileRateLimitEnabled">
                                         Enable tile rate limiting
                                         <i class="bi bi-question-circle text-muted ms-1"
