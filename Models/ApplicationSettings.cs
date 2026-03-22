@@ -12,7 +12,7 @@ public class ApplicationSettings
     public const int DefaultMaxCacheMbtilesSizeInMB = 6144;
     public const int DefaultUploadSizeLimitMB = 100;
     public const string DefaultTileProviderKey = "osm";
-    public const string DefaultTileProviderUrlTemplate = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    public const string DefaultTileProviderUrlTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 500;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
@@ -47,7 +47,7 @@ public class ApplicationSettings
     /// Default is 1024 MB = 1 GB.
     /// </summary>
     [Required]
-    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or a positive size up to 100 GB.")]
+    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or 256–102400 MB. OSM policy requires at least 7 days of tiles cached (minimum 256 MB).")]
     public int MaxCacheTileSizeInMB { get; set; } = 1024;
 
     /// <summary>

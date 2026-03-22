@@ -86,7 +86,7 @@ public class AdminSettingsControllerTests : TestBase
             Id = 1,
             IsRegistrationOpen = false,
             LocationTimeThresholdMinutes = 10,
-            MaxCacheTileSizeInMB = 100,
+            MaxCacheTileSizeInMB = 512,
             UploadSizeLimitMB = 50
         };
         db.ApplicationSettings.Add(existingSettings);
@@ -99,7 +99,7 @@ public class AdminSettingsControllerTests : TestBase
             Id = 1,
             IsRegistrationOpen = true,
             LocationTimeThresholdMinutes = 15,
-            MaxCacheTileSizeInMB = 200,
+            MaxCacheTileSizeInMB = 1024,
             UploadSizeLimitMB = 100
         };
 
@@ -112,7 +112,7 @@ public class AdminSettingsControllerTests : TestBase
         Assert.NotNull(updated);
         Assert.True(updated.IsRegistrationOpen);
         Assert.Equal(15, updated.LocationTimeThresholdMinutes);
-        Assert.Equal(200, updated.MaxCacheTileSizeInMB);
+        Assert.Equal(1024, updated.MaxCacheTileSizeInMB);
         Assert.Equal(100, updated.UploadSizeLimitMB);
 
         settingsMock.Verify(s => s.RefreshSettings(), Times.Once);

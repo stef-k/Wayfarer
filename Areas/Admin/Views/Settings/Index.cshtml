@@ -680,6 +680,8 @@
                                     • Set to <code>-1</code> to disable this cache entirely.<br/>
                                     • Set to <code>0</code> to fallback to the default:
                                     <code>@ApplicationSettings.DefaultMaxCacheTileSizeInMB MB</code>.<br/>
+                                    • <strong>Minimum: 256 MB.</strong> OSM tile usage policy requires tiles to be cached
+                                    for at least 7 days. Values below 256 MB are rejected.<br/>
                                     • Tiles are ~10–20 KB each. The default (1024 MB) holds roughly 100,000–200,000
                                     tiles.<br/>
                                     • Zoom levels 0–8 are cached permanently and do not count against this size. They

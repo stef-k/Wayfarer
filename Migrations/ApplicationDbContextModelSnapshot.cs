@@ -1177,10 +1177,20 @@ namespace Wayfarer.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("ETag")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("LastAccessed")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("LastModifiedUpstream")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()

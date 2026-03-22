@@ -125,6 +125,15 @@ namespace Wayfarer.Areas.Admin.Controllers
                     "Search radius must be greater than or equal to max radius.");
             }
 
+            // OSM tile usage policy requires tiles to be cached for at least 7 days.
+            // 256 MB is the minimum floor that can reasonably hold 7 days of tiles.
+            // -1 (disable cache) and 0 (use default) are allowed; values 1-255 are rejected.
+            if (updatedSettings.MaxCacheTileSizeInMB is > 0 and < 256)
+            {
+                ModelState.AddModelError(nameof(updatedSettings.MaxCacheTileSizeInMB),
+                    "Minimum cache size is 256 MB (OSM requires at least 7 days of cached tiles). Use -1 to disable.");
+            }
+
             if (currentSettings != null)
             {
                 // Validate tile provider settings before model validation.
