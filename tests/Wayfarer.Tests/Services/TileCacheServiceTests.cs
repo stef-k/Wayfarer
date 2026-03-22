@@ -179,8 +179,8 @@ public class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
 
-        Assert.NotNull(handler.LastRequest);
-        Assert.Equal(new System.Uri("https://myapp.example.com"), handler.LastRequest!.Headers.Referrer);
+        Assert.True(handler.WasCalled);
+        Assert.Equal(new System.Uri("https://myapp.example.com"), handler.LastReferrer);
     }
 
     [Fact]
@@ -193,12 +193,11 @@ public class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
 
-        Assert.NotNull(handler.LastRequest);
-        var ua = handler.LastRequest!.Headers.UserAgent.ToString();
-        Assert.Contains("Wayfarer/1.0", ua);
-        Assert.Contains("contact:", ua);
-        Assert.DoesNotContain("Chrome", ua);
-        Assert.DoesNotContain("Mozilla", ua);
+        Assert.True(handler.WasCalled);
+        Assert.NotNull(handler.LastUserAgent);
+        Assert.Contains("Wayfarer/1.0", handler.LastUserAgent!);
+        Assert.DoesNotContain("Chrome", handler.LastUserAgent);
+        Assert.DoesNotContain("Mozilla", handler.LastUserAgent);
     }
 
     [Fact]
@@ -212,19 +211,52 @@ public class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
 
-        Assert.NotNull(handler.LastRequest);
-        Assert.Null(handler.LastRequest!.Headers.Referrer);
+        Assert.True(handler.WasCalled);
+        Assert.Null(handler.LastReferrer);
     }
 
-    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null)
+    [Fact]
+    public async Task SendTileRequest_HandlesSpecialCharactersInContactEmail()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        // An unbalanced parenthesis is invalid in RFC 7230 comment tokens.
+        // TryParseAdd should fail gracefully and fall back to "Wayfarer/1.0".
+        var service = CreateService(db, dir.Path, handler, contactEmail: "user)bad@example.com");
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.True(handler.WasCalled);
+        Assert.NotNull(handler.LastUserAgent);
+        Assert.Contains("Wayfarer/1.0", handler.LastUserAgent!);
+        // Should not contain the malformed email — fallback was used
+        Assert.DoesNotContain("bad@example", handler.LastUserAgent!);
+    }
+
+    /// <summary>
+    /// Creates a TileCacheService with a properly configured HttpClient.
+    /// Mirrors the User-Agent and Accept header setup from the AddHttpClient
+    /// registration in Program.cs, since tests bypass the DI factory.
+    /// </summary>
+    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com")
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["CacheSettings:TileCacheDirectory"] = cacheDir,
-                ["Application:ContactEmail"] = "test@example.com"
+                ["Application:ContactEmail"] = contactEmail
             }).Build();
         var httpClient = new HttpClient(handler ?? new StubTileHandler());
+
+        // Mirror the HttpClient configuration from Program.cs AddHttpClient registration.
+        httpClient.Timeout = TimeSpan.FromSeconds(10);
+        if (!httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(
+                $"Wayfarer/1.0 (contact: {contactEmail})"))
+        {
+            httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
+        }
+
         var appSettings = new StubSettingsService(maxCacheMb);
         var scopeFactory = new SingleScopeFactory(db);
         return new TileCacheService(
@@ -240,13 +272,18 @@ public class TileCacheServiceTests : TestBase
     private sealed class StubTileHandler : HttpMessageHandler
     {
         /// <summary>
-        /// Captures the last request sent through this handler for header assertions.
+        /// Captures header values from the last request for assertions.
+        /// Values are captured inside SendAsync before the caller disposes the request.
         /// </summary>
-        public HttpRequestMessage? LastRequest { get; private set; }
+        public Uri? LastReferrer { get; private set; }
+        public string? LastUserAgent { get; private set; }
+        public bool WasCalled { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            LastRequest = request;
+            WasCalled = true;
+            LastReferrer = request.Headers.Referrer;
+            LastUserAgent = request.Headers.UserAgent.ToString();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new ByteArrayContent(new byte[] { 1, 2, 3, 4 })

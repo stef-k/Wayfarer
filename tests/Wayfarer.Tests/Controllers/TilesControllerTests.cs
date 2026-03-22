@@ -307,8 +307,10 @@ public class TilesControllerTests : TestBase
 
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("http://example.com")
+            BaseAddress = new Uri("http://example.com"),
+            Timeout = TimeSpan.FromSeconds(10)
         };
+        httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0 (contact: test@example.com)");
 
         return new TileCacheService(
             NullLogger<TileCacheService>.Instance,

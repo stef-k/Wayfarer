@@ -153,6 +153,15 @@ ConfigureMiddleware(app).GetAwaiter().GetResult();
 
 #endregion Middleware Setup
 
+// Warn if tile provider contact email is not configured in non-Development environments.
+if (!app.Environment.IsDevelopment()
+    && string.IsNullOrEmpty(app.Configuration.GetSection("Application:ContactEmail").Value))
+{
+    app.Logger.LogWarning("Application:ContactEmail is not configured. Tile requests to upstream providers " +
+                          "will use a default contact email. Set this via the Application__ContactEmail " +
+                          "environment variable in your systemd service file.");
+}
+
 app.Run();
 
 static Task<long> LoadUploadSizeLimitFromDatabaseAsync()
@@ -493,11 +502,34 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Reverse geocoding Mapbox service
     builder.Services.AddHttpClient<ReverseGeocodingService>();
 
-    // Tile Cache service
-    builder.Services.AddScoped<TileCacheService>();
-
-    // add the Http client to the Tile Cache service (manual redirects handled in service)
+    // Tile Cache service — typed HttpClient with OSM-compliant headers.
+    // Manual redirects are handled in TileCacheService.SendTileRequestAsync.
     builder.Services.AddHttpClient<TileCacheService>()
+        .ConfigureHttpClient((sp, client) =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            client.Timeout = TimeSpan.FromSeconds(10);
+
+            // OSM requires an honest User-Agent identifying the application.
+            // See: https://operations.osmfoundation.org/policies/tiles/
+            var contactEmail = config.GetSection("Application:ContactEmail").Value
+                               ?? "noreply@wayfarer.app";
+            if (!client.DefaultRequestHeaders.UserAgent.TryParseAdd(
+                    $"Wayfarer/1.0 (contact: {contactEmail})"))
+            {
+                // Fallback if the email contains characters invalid in an RFC 7230 comment.
+                client.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
+            }
+
+            client.DefaultRequestHeaders.Accept.Add(
+                new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("image/png"));
+            client.DefaultRequestHeaders.Accept.Add(
+                new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("image/*", 0.8));
+            client.DefaultRequestHeaders.AcceptLanguage.Add(
+                new System.Net.Http.Headers.StringWithQualityHeaderValue("en-US"));
+            client.DefaultRequestHeaders.AcceptLanguage.Add(
+                new System.Net.Http.Headers.StringWithQualityHeaderValue("en", 0.9));
+        })
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         {
             AllowAutoRedirect = false

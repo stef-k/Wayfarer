@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -85,7 +84,6 @@ public class TileCacheService
                 : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), _cacheDirectory));
         }
 
-        ConfigureHttpClient();
     }
 
     /// <summary>
@@ -146,32 +144,6 @@ public class TileCacheService
     public string GetCacheDirectory()
     {
         return _cacheDirectory;
-    }
-
-    /// <summary>
-    /// Configures the HttpClient with headers that comply with OSM's tile usage policy.
-    /// Sets an honest User-Agent identifying the application (OSM prohibits browser masquerading)
-    /// and standard Accept headers. The Referer header is set per-request in
-    /// <see cref="SendTileRequestAsync"/> using the incoming request's scheme and host.
-    /// </summary>
-    private void ConfigureHttpClient()
-    {
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.Timeout = TimeSpan.FromSeconds(10);
-
-        // OSM requires an honest User-Agent identifying the application.
-        // See: https://operations.osmfoundation.org/policies/tiles/
-        var contactEmail = _configuration.GetSection("Application:ContactEmail").Value
-                           ?? "noreply@wayfarer.app";
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-            $"Wayfarer/1.0 (contact: {contactEmail})");
-
-        _httpClient.DefaultRequestHeaders.Accept.Clear();
-        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/png"));
-        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/*", 0.8));
-        _httpClient.DefaultRequestHeaders.AcceptLanguage.Clear();
-        _httpClient.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
-        _httpClient.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("en", 0.9));
     }
 
     /// <summary>

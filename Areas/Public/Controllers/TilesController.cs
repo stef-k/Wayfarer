@@ -116,8 +116,10 @@ public class TilesController : Controller
     }
 
     /// <summary>
-    /// Validates that the request's Referer header originates from our own domain.
-    /// This method dynamically infers the base URL from the current request.
+    /// Best-effort check that the request's Referer header matches our own domain.
+    /// This is an abuse deterrent for accidental third-party embedding, not a security
+    /// boundary — the Referer header is trivially spoofable by non-browser clients.
+    /// The rate limiter is the primary defense against tile proxy abuse.
     /// </summary>
     private bool IsValidReferer(string referer)
     {
