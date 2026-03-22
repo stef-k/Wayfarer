@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## [1.2.17] - 2026-03-22
+
+### Added
+- Conditional requests (ETag / If-Modified-Since) for tile cache re-validation — expired tiles send conditional headers to upstream, serving cached data on 304 Not Modified (#201)
+- Cache header compliance — parse and honour `Cache-Control: max-age` and `Expires` headers from upstream tile servers, with 7-day default fallback per OSM policy (#201)
+- Per-tile request coalescing — concurrent requests for the same expired tile are coalesced into a single upstream HTTP request (#201)
+- In-memory sidecar metadata cache for zoom 0-8 tiles, eliminating disk I/O on the hot path (#201)
+- Sidecar `.meta` JSON files alongside zoom 0-8 tiles to persist ETag/Last-Modified/expiry across restarts (#201)
+- `ETag`, `LastModifiedUpstream`, and `ExpiresAtUtc` columns on `TileCacheMetadata` for zoom >= 9 tiles (#201)
+
+### Changed
+- Use canonical OSM tile URL `https://tile.openstreetmap.org/` instead of non-canonical `https://a.tile.openstreetmap.org/` (#201)
+- Enforce minimum tile cache size of 256 MB in Admin Settings (OSM requires at least 7 days of cached tiles) (#201)
+- Throttle `LastAccessed` DB updates to once per 5 minutes per tile, reducing DB writes by ~99% for popular tiles (#201)
+- Graceful degradation: serve stale cached tiles when upstream re-validation fails (#201)
+
+### Performance
+- Single DB round-trip for metadata load + conditional LastAccessed update on zoom >= 9 hot path (#201)
+- Request coalescing reduces outbound HTTP requests under concurrent load (#201)
+- 304 Not Modified responses avoid re-downloading unchanged tile content (#201)
+
 ## [1.2.16] - 2026-03-22
 
 ### Fixed
