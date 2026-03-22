@@ -142,6 +142,14 @@ namespace Wayfarer.Models
                 .HasIndex(t => t.TileLocation)
                 .HasMethod("GIST"); // This creates a spatial index (if you're using PostGIS)
 
+            // Composite unique index on (Zoom, X, Y) for fast tile lookups.
+            // Every tile request queries by these three columns; without this index,
+            // all FirstOrDefaultAsync(t => t.Zoom == z && t.X == x && t.Y == y)
+            // calls result in sequential scans.
+            builder.Entity<TileCacheMetadata>()
+                .HasIndex(t => new { t.Zoom, t.X, t.Y })
+                .IsUnique();
+
             // Image Cache Metadata
             // EF to use the RowVersion in order to handle race conditions in code
             builder.Entity<ImageCacheMetadata>(b =>

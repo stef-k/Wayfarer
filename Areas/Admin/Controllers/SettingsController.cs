@@ -134,6 +134,13 @@ namespace Wayfarer.Areas.Admin.Controllers
                     "Minimum cache size is 256 MB (OSM requires at least 7 days of cached tiles). Use -1 to disable.");
             }
 
+            // Authenticated users should always have at least the same rate limit as anonymous users.
+            if (updatedSettings.TileRateLimitAuthenticatedPerMinute < updatedSettings.TileRateLimitPerMinute)
+            {
+                ModelState.AddModelError(nameof(updatedSettings.TileRateLimitAuthenticatedPerMinute),
+                    "Authenticated rate limit must be equal to or greater than the anonymous rate limit.");
+            }
+
             if (currentSettings != null)
             {
                 // Validate tile provider settings before model validation.
@@ -176,6 +183,10 @@ namespace Wayfarer.Areas.Admin.Controllers
                     }
                     Track("TileRateLimitEnabled", currentSettings.TileRateLimitEnabled, updatedSettings.TileRateLimitEnabled);
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
+                    Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
+                    Track("TileOutboundBudgetPerIpPerMinute", currentSettings.TileOutboundBudgetPerIpPerMinute, updatedSettings.TileOutboundBudgetPerIpPerMinute);
+                    Track("ProxyImageRateLimitEnabled", currentSettings.ProxyImageRateLimitEnabled, updatedSettings.ProxyImageRateLimitEnabled);
+                    Track("ProxyImageRateLimitPerMinute", currentSettings.ProxyImageRateLimitPerMinute, updatedSettings.ProxyImageRateLimitPerMinute);
 
                     // Trip Place Auto-Visited settings
                     Track("VisitedRequiredHits", currentSettings.VisitedRequiredHits, updatedSettings.VisitedRequiredHits);
@@ -219,6 +230,10 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileProviderApiKey = updatedSettings.TileProviderApiKey;
                     currentSettings.TileRateLimitEnabled = updatedSettings.TileRateLimitEnabled;
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
+                    currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;
+                    currentSettings.TileOutboundBudgetPerIpPerMinute = updatedSettings.TileOutboundBudgetPerIpPerMinute;
+                    currentSettings.ProxyImageRateLimitEnabled = updatedSettings.ProxyImageRateLimitEnabled;
+                    currentSettings.ProxyImageRateLimitPerMinute = updatedSettings.ProxyImageRateLimitPerMinute;
 
                     // Trip Place Auto-Visited settings
                     currentSettings.VisitedRequiredHits = updatedSettings.VisitedRequiredHits;

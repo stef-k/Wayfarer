@@ -1,5 +1,78 @@
 # CHANGELOG
 
+## [1.2.20] - 2026-03-22
+
+### Added
+- Per-IP outbound budget tracking (default 30 cache misses/min/IP) — prevents a single client from monopolizing the global outbound token budget (#204)
+- Admin UI field for configuring per-IP outbound budget limit (0 = disabled) (#204)
+
+### Fixed
+- **HIGH:** Outbound budget starvation DoS — a single attacker could exhaust all outbound tokens with uncached tile requests, denying service to legitimate users (#204)
+- **HIGH:** IPv4-mapped IPv6 addresses not normalized on direct-IP path — `::ffff:x.x.x.x` and `x.x.x.x` created separate rate-limit buckets, bypassing limits (#204)
+- **HIGH:** Concurrent insert race in `CacheTileAsync` — two requests for the same uncached tile could trigger an unhandled `DbUpdateException` from the unique index; now caught as a benign race (#204)
+- **MEDIUM:** `PurgeBatchAsync` and `PurgeLRUCacheAsync` decremented `_currentCacheSize` using stale projected sizes instead of re-fetched entity sizes, causing cache size drift (#204)
+- **MEDIUM:** `PurgeAllCacheAsync` loaded full entities into memory for the metadata dictionary; now projects only `Id` and `TileFilePath` with `AsNoTracking` to reduce memory usage on large caches (#204)
+- **MEDIUM:** `RetryOperationAsync` caught all exceptions including non-transient ones; now catches only `DbUpdateException` so non-recoverable errors propagate immediately (#204)
+- **MEDIUM-LOW:** Revalidation coalescing captured first caller's `CancellationToken` — client disconnect cancelled outbound request for all coalesced waiters (#204)
+
+## [1.2.19] - 2026-03-22
+
+### Added
+- Unique composite index on `TileCacheMetadata(Zoom, X, Y)` — eliminates sequential scans on every tile request (#204)
+- Periodic tile cache size reconciliation via `RateLimitCleanupJob` — corrects `_currentCacheSize` drift from non-atomic updates every 5 minutes (#204)
+- Hard cap (50K entries) on rate limit caches with oldest-entry eviction — prevents unbounded memory growth from sustained low-rate attacks (#204)
+- `CancellationToken` propagation through tile request chain — requests abort when client disconnects instead of blocking threads (#204)
+
+### Changed
+- Outbound budget `AcquireTimeout` reduced from 10s to 3s to prevent thread pool starvation under sustained cold-cache load (#204)
+- `PurgeAllCacheAsync` loads all DB metadata in a single query instead of O(N) individual queries per file (#204)
+- `PurgeLRUCacheAsync` now deletes in chunks of 1000 IDs to prevent PostgreSQL query plan explosion from large IN clauses (#204)
+- Eviction and purge file deletion consolidated into single lock acquisition per batch, eliminating convoy effects (#204)
+- `X-Forwarded-For` IP addresses normalized to canonical form — prevents IPv4/IPv6 aliasing from creating separate rate limit buckets (#204)
+- Eviction `_currentCacheSize` decrement now uses re-fetched entity sizes instead of stale projected sizes (#204)
+
+### Fixed
+- **CRITICAL:** Missing database index on hot-path tile lookup queries (`Zoom, X, Y`) — every tile request was a sequential scan (#204)
+- **CRITICAL:** `PurgeAllCacheAsync` issued individual DB query per cached file — 100K files caused 100K sequential-scan queries (#204)
+- **HIGH:** `_currentCacheSize` drift from eviction using pre-fetched sizes instead of actual deleted sizes (#204)
+- **HIGH:** Thread pool starvation risk from 10-second outbound budget timeout under cold-cache load (#204)
+- **HIGH:** Lock convoy during eviction/purge — per-file lock acquisition serialized all concurrent writes (#204)
+- **MEDIUM:** Sliding-window rate limiter documentation understated worst-case jitter (up to full prevCount, not ~0.5) (#204)
+
+## [1.2.18] - 2026-03-22
+
+### Added
+- Sliding-window rate limiter replacing fixed-window — prevents boundary-batching attacks where bursts at window edges could double the effective limit (#204)
+- Authenticated user rate limiting by user ID (default 2000 req/min) — previously authenticated users bypassed rate limiting entirely (#204)
+- `TileRateLimitAuthenticatedPerMinute` application setting for configurable authenticated tile rate limit, exposed in Admin Settings UI (#204)
+- Outbound request budget (token-bucket at 2 req/sec, burst 10) — prevents cache-miss cascading from overwhelming upstream OSM and risking a fair-use block; complies with OSM 2-connection policy via transport-level enforcement (#204)
+- `X-Content-Type-Options: nosniff` header on tile proxy responses to prevent MIME-sniffing (#204)
+
+### Changed
+- Rate limiter now uses sliding-window counter approximation instead of fixed-window, smoothing request counting across window boundaries (#204)
+- Default anonymous tile rate limit increased from 500 to 600 req/min to compensate for the stricter sliding-window algorithm (#204)
+- Rate limiting applies to both anonymous (by IP) and authenticated (by user ID) requests with separate configurable thresholds (#204)
+- Admin Settings UI updated to show both anonymous and authenticated rate limit fields; removed incorrect "never limited" text (#204)
+- Outbound tile requests gracefully degrade (serve stale cache) when upstream budget is exhausted (#204)
+- Rate limit cleanup flag is now per-cache instance instead of a shared global flag, allowing independent cleanup of anonymous, authenticated, and image proxy caches (#204)
+- `X-Forwarded-For` header values are now validated with `IPAddress.TryParse` before use as rate limit keys (#204)
+- Outbound budget `StopReplenisher` now cancels the old CTS before creating replacements, eliminating brief replenisher overlap (#204)
+
+### Added
+- `RateLimitCleanupJob` — periodic Quartz job (every 5 minutes) sweeps expired entries from all in-memory rate limit caches, preventing unbounded memory growth (#204)
+- Log warning when authenticated user lacks `NameIdentifier` claim and falls back to IP-based rate limiting (#204)
+
+### Fixed
+- Eviction `_currentCacheSize` tracking now decrements after successful DB commit, preventing permanent undercount on failed eviction (#204)
+- Tile cache eviction now commits DB deletions before deleting files — previously files were deleted first, leaving orphaned DB records pointing to missing files if `SaveChangesAsync` failed (#204)
+- Admin settings checkbox hidden-field fallback for `TileRateLimitEnabled` and `IsRegistrationOpen` — unchecking now correctly posts `false` instead of falling back to C# default (#204)
+- **CRITICAL:** Remove global read-lock on tile cache — file reads no longer serialize through `_cacheLock`, eliminating a throughput bottleneck under concurrent map viewers. Writes and deletes retain the exclusive lock; reads catch `IOException` as cache miss (#204)
+- **CRITICAL:** Increase outbound budget burst capacity from 2 to 10, reducing cold-cache map load times. OSM's 2-connection policy is now enforced at the transport layer via `SocketsHttpHandler.MaxConnectionsPerServer` (#204)
+- **HIGH:** Eviction coalescing — concurrent `CacheTileAsync` calls can no longer trigger simultaneous eviction runs (double-evict). Uses `Interlocked.CompareExchange` guard with `DbUpdateConcurrencyException` handling (#204)
+- **HIGH:** `EvictDbTilesAsync` now uses a dedicated `IServiceScope` instead of the per-request `_dbContext`, preventing disposed-context failures when eviction outlives the originating request (#204)
+- **HIGH:** `CacheTileAsync` no longer retries on outbound budget exhaustion — breaks immediately instead of blocking up to 30 seconds (3 retries × 10s timeout) (#204)
+- **MEDIUM:** Admin settings cross-field validation: authenticated rate limit must be >= anonymous rate limit (#204)
+
 ## [1.2.17] - 2026-03-22
 
 ### Added

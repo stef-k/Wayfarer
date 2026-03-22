@@ -455,6 +455,8 @@
                                         <input type="checkbox" class="form-check-input form-check-input-lg"
                                                id="IsRegistrationOpen" name="IsRegistrationOpen"
                                                value="true" @(Model.IsRegistrationOpen ? "checked" : "")/>
+                                        @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
+                                        <input type="hidden" name="IsRegistrationOpen" value="false"/>
                                         <label class="form-check-label" for="IsRegistrationOpen">Enable new user
                                             registrations</label>
                                     </div>
@@ -578,28 +580,30 @@
                         <div class="row">
                             <h3 class="text-center fs-4">Tile Request Rate Limiting</h3>
                             <p class="text-muted">
-                                Protect the tile proxy from abuse by rate limiting anonymous requests.
-                                Authenticated users (logged-in) are never rate limited.
+                                Protect the tile proxy from abuse by rate limiting tile requests.
+                                Anonymous users are limited by IP address; authenticated users by user ID at a higher threshold.
                             </p>
 
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
                                 <div class="form-check form-switch">
                                     <input type="checkbox" class="form-check-input"
                                            id="TileRateLimitEnabled" name="TileRateLimitEnabled"
                                            value="true" @(Model.TileRateLimitEnabled ? "checked" : "")/>
+                                    @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
+                                    <input type="hidden" name="TileRateLimitEnabled" value="false"/>
                                     <label class="form-check-label" for="TileRateLimitEnabled">
-                                        Enable rate limiting for anonymous requests
+                                        Enable tile rate limiting
                                         <i class="bi bi-question-circle text-muted ms-1"
-                                           data-tippy-content="Protects your tile proxy from abuse. Logged-in users are never limited. Affects embeds, public timeline views, and anonymous visitors."></i>
+                                           data-tippy-content="Protects your tile proxy from abuse. Applies separate limits to anonymous and authenticated users."></i>
                                     </label>
                                 </div>
                                 <small class="form-text text-muted">
-                                    When enabled, anonymous tile requests are limited per IP address.
+                                    When enabled, tile requests are limited for all users.
                                 </small>
                             </div>
 
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="TileRateLimitPerMinute" class="form-label">Requests per Minute (per IP)</label>
+                            <div class="col-md-3 mb-3">
+                                <label asp-for="TileRateLimitPerMinute" class="form-label">Anonymous (per IP)</label>
                                 <div class="input-group">
                                     <input asp-for="TileRateLimitPerMinute" class="form-control" type="number" min="50" max="10000" />
                                     <span class="input-group-text">req/min</span>
@@ -610,14 +614,39 @@
                                 <span asp-validation-for="TileRateLimitPerMinute" class="text-danger"></span>
                             </div>
 
-                            <div class="col-md-4 mb-3">
+                            <div class="col-md-3 mb-3">
+                                <label asp-for="TileRateLimitAuthenticatedPerMinute" class="form-label">Authenticated (per user)</label>
+                                <div class="input-group">
+                                    <input asp-for="TileRateLimitAuthenticatedPerMinute" class="form-control" type="number" min="100" max="50000" />
+                                    <span class="input-group-text">req/min</span>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Default: @ApplicationSettings.DefaultTileRateLimitAuthenticatedPerMinute. Higher limit for trusted users.
+                                </small>
+                                <span asp-validation-for="TileRateLimitAuthenticatedPerMinute" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-3 mb-3">
+                                <label asp-for="TileOutboundBudgetPerIpPerMinute" class="form-label">Cache miss budget (per IP)</label>
+                                <div class="input-group">
+                                    <input asp-for="TileOutboundBudgetPerIpPerMinute" class="form-control" type="number" min="0" max="1000" />
+                                    <span class="input-group-text">miss/min</span>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Default: @ApplicationSettings.DefaultTileOutboundBudgetPerIpPerMinute. Max upstream fetches per IP per minute. 0 = disabled.
+                                </small>
+                                <span asp-validation-for="TileOutboundBudgetPerIpPerMinute" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
                                 <div class="alert alert-info mb-0">
                                     <strong><i class="bi bi-shield-check me-1"></i>Who is affected:</strong>
                                     <ul class="mb-0 mt-1">
-                                        <li><strong>Not limited:</strong> Logged-in users</li>
-                                        <li><strong>Limited:</strong> Embeds, public pages, anonymous visitors</li>
+                                        <li><strong>Logged-in:</strong> Limited per user ID</li>
+                                        <li><strong>Anonymous:</strong> Limited per IP address</li>
                                     </ul>
-                                    <small class="text-muted">500/min is generous for normal viewing.</small>
+                                    <small class="text-muted">Both limits use sliding-window counting.</small>
                                 </div>
                             </div>
                         </div>
@@ -795,6 +824,44 @@
                                     • Images are optimized after download, so cached versions are typically much smaller.<br/>
                                     • Default: <code>@ApplicationSettings.DefaultMaxProxyImageDownloadMB MB</code>.<br/>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <h3 class="text-center fs-4">Image Proxy Rate Limiting</h3>
+                            <p class="text-muted">
+                                Protect upstream image origins from abuse by rate limiting anonymous proxy image requests.
+                                Authenticated users are never rate limited.
+                            </p>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input type="checkbox" class="form-check-input"
+                                           id="ProxyImageRateLimitEnabled" name="ProxyImageRateLimitEnabled"
+                                           value="true" @(Model.ProxyImageRateLimitEnabled ? "checked" : "")/>
+                                    @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
+                                    <input type="hidden" name="ProxyImageRateLimitEnabled" value="false"/>
+                                    <label class="form-check-label" for="ProxyImageRateLimitEnabled">
+                                        Enable image proxy rate limiting
+                                        <i class="bi bi-question-circle text-muted ms-1"
+                                           data-tippy-content="Rate limits anonymous proxy image requests by IP address to prevent abuse and origin flooding."></i>
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    When enabled, anonymous image proxy requests are limited per IP.
+                                </small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="ProxyImageRateLimitPerMinute" class="form-label">Anonymous (per IP)</label>
+                                <div class="input-group">
+                                    <input asp-for="ProxyImageRateLimitPerMinute" class="form-control" type="number" min="10" max="5000" />
+                                    <span class="input-group-text">req/min</span>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Default: @ApplicationSettings.DefaultProxyImageRateLimitPerMinute. Max proxy image requests per minute per IP.
+                                </small>
+                                <span asp-validation-for="ProxyImageRateLimitPerMinute" class="text-danger"></span>
                             </div>
                         </div>
 

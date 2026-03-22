@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -29,8 +30,26 @@ public class TilesController : Controller
     /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous tile requests by IP address.
     /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
+
+    /// <summary>
+    /// Thread-safe dictionary for rate limiting authenticated tile requests by user ID.
+    /// Separate from anonymous rate limiting to apply different (higher) limits for trusted users
+    /// while still preventing abuse from compromised accounts.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
+    /// </summary>
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> AuthRateLimitCache = new();
+
+    /// <summary>
+    /// Thread-safe dictionary for tracking per-IP outbound budget consumption (cache miss rate).
+    /// Prevents a single IP from monopolizing the global outbound token budget by limiting how
+    /// many upstream tile fetches a single client can trigger per minute.
+    /// Uses the same sliding-window pattern as request rate limiting.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
+    /// </summary>
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> OutboundBudgetCache = new();
 
     private readonly ILogger<TilesController> _logger;
     private readonly TileCacheService _tileCacheService;
@@ -51,6 +70,11 @@ public class TilesController : Controller
     public async Task<IActionResult> GetTile(int z, int x, int y)
     {
         // Validate the referer header to prevent third-party exploitation.
+        // Intentionally restrictive: rejects requests without a same-origin Referer.
+        // Acceptable because: mobile app fetches tiles directly from OSM (not this proxy),
+        // embedded maps (iframes) work because tile requests originate same-origin,
+        // and non-browser API clients are not expected to use this endpoint.
+        // The rate limiter is the primary abuse defense; this is an additional deterrent.
         string? refererValue = Request.Headers["Referer"].ToString();
         if (string.IsNullOrEmpty(refererValue) || !IsValidReferer(refererValue))
         {
@@ -77,15 +101,41 @@ public class TilesController : Controller
         // Resolve the tile provider template from settings or presets.
         var settings = _settingsService.GetSettings();
 
-        // Rate limit anonymous requests to prevent tile scraping abuse.
-        // Authenticated users (logged-in) are never rate limited.
-        if (User.Identity?.IsAuthenticated != true && settings.TileRateLimitEnabled)
+        // Rate limit strategy: anonymous by IP, authenticated by userId (mutually exclusive).
+        // An authenticated user is NOT also counted against the IP limit. This avoids
+        // unfairly penalizing users behind shared NATs (e.g., corporate networks).
+        // The outbound budget (OutboundBudget) provides system-wide protection regardless.
+        if (settings.TileRateLimitEnabled)
         {
-            var clientIp = GetClientIpAddress();
-            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
+            var userId = User.Identity?.IsAuthenticated == true
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+
+            if (userId != null)
             {
-                _logger.LogWarning("Tile rate limit exceeded for IP: {ClientIp}", clientIp);
-                return StatusCode(429, "Too many requests. Please try again later.");
+                // Authenticated user with a valid user ID — rate limit by userId.
+                if (RateLimitHelper.IsRateLimitExceeded(AuthRateLimitCache, userId, settings.TileRateLimitAuthenticatedPerMinute))
+                {
+                    _logger.LogWarning("Tile rate limit exceeded for authenticated user: {UserId}", userId);
+                    return StatusCode(429, "Too many requests. Please try again later.");
+                }
+            }
+            else
+            {
+                // Authenticated user without a NameIdentifier claim — unexpected, log for diagnostics.
+                // Falls back to the stricter anonymous (IP-based) rate limit as a safe-side default.
+                if (User.Identity?.IsAuthenticated == true)
+                {
+                    _logger.LogWarning("Authenticated user without NameIdentifier claim — falling back to IP-based rate limiting");
+                }
+
+                // Anonymous user or authenticated user without a NameIdentifier claim — rate limit by IP.
+                var clientIp = GetClientIpAddress();
+                if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
+                {
+                    _logger.LogWarning("Tile rate limit exceeded for IP: {ClientIp}", clientIp);
+                    return StatusCode(429, "Too many requests. Please try again later.");
+                }
             }
         }
         var preset = TileProviderCatalog.FindPreset(settings.TileProviderKey);
@@ -100,7 +150,7 @@ public class TilesController : Controller
 
         // Call the tile cache service to retrieve the tile.
         // The service will either return the cached tile data or (if missing) download, cache, and then return it.
-        var tileData = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl);
+        var tileData = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted);
         if (tileData == null)
         {
             _logger.LogError("Tile data not found for {z}/{x}/{y}", z, x, y);
@@ -110,6 +160,8 @@ public class TilesController : Controller
         // Set browser cache headers. Tiles are stable and rarely change;
         // 1-day browser caching eliminates redundant requests.
         Response.Headers["Cache-Control"] = "public, max-age=86400";
+        // Prevent browsers from MIME-sniffing PNG responses as a different content type.
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
 
         // Return the tile data with the appropriate content type.
         return File(tileData, "image/png");

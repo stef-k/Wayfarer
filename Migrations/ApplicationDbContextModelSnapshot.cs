@@ -65,6 +65,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("ProxyImageRateLimitPerMinute")
                         .HasColumnType("integer");
 
+                    b.Property<int>("TileOutboundBudgetPerIpPerMinute")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TileProviderApiKey")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -83,6 +86,9 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<int>("TileRateLimitAuthenticatedPerMinute")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("TileRateLimitEnabled")
                         .HasColumnType("boolean");
@@ -1222,6 +1228,9 @@ namespace Wayfarer.Migrations
                     b.HasIndex("TileLocation");
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TileLocation"), "GIST");
+
+                    b.HasIndex("Zoom", "X", "Y")
+                        .IsUnique();
 
                     b.ToTable("TileCacheMetadata");
                 });

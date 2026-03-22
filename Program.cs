@@ -162,6 +162,9 @@ if (!app.Environment.IsDevelopment()
                           "environment variable in your systemd service file.");
 }
 
+// Stop the outbound budget replenisher on graceful shutdown to avoid dangling background tasks.
+app.Lifetime.ApplicationStopping.Register(TileCacheService.StopOutboundBudget);
+
 app.Run();
 
 static Task<long> LoadUploadSizeLimitFromDatabaseAsync()
@@ -332,6 +335,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<LogCleanupJob>();
     builder.Services.AddTransient<AuditLogCleanupJob>();
     builder.Services.AddTransient<VisitCleanupJob>();
+    builder.Services.AddTransient<RateLimitCleanupJob>();
     // ...and any other IJob implementations you'll use
 
     // 1) Register your JobFactory & Listeners
@@ -423,6 +427,26 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
             scheduler.ScheduleJob(job, trigger).Wait();
         }
 
+        // Rate limit cache cleanup job — sweeps expired entries from all in-memory rate limit
+        // caches every 5 minutes to prevent unbounded memory growth from accumulated stale entries.
+        var rateLimitJobKey = new JobKey("RateLimitCleanupJob", "Maintenance");
+        if (!scheduler.CheckExists(rateLimitJobKey).Result)
+        {
+            var job = JobBuilder.Create<RateLimitCleanupJob>()
+                .WithIdentity(rateLimitJobKey)
+                .StoreDurably()
+                .Build();
+
+            var trigger = TriggerBuilder.Create()
+                .ForJob(job)
+                .WithIdentity("RateLimitCleanupTrigger", "Maintenance")
+                .StartNow()
+                .WithSimpleSchedule(x => x.WithIntervalInMinutes(5).RepeatForever())
+                .Build();
+
+            scheduler.ScheduleJob(job, trigger).Wait();
+        }
+
         return scheduler;
     });
 
@@ -433,6 +457,10 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
 // Method to configure services for the application
 static void ConfigureServices(WebApplicationBuilder builder)
 {
+    // Explicitly register IHttpContextAccessor for services that need it (e.g., TileCacheService).
+    // Some framework components may register it implicitly, but explicit registration is safer.
+    builder.Services.AddHttpContextAccessor();
+
     // Register memory cache for application services
     builder.Services.AddMemoryCache();
 
@@ -530,9 +558,13 @@ static void ConfigureServices(WebApplicationBuilder builder)
             client.DefaultRequestHeaders.AcceptLanguage.Add(
                 new System.Net.Http.Headers.StringWithQualityHeaderValue("en", 0.9));
         })
-        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
         {
-            AllowAutoRedirect = false
+            AllowAutoRedirect = false,
+            // OSM tile usage policy: "maximum of 2 download threads".
+            // Enforced at the transport layer so the token-bucket OutboundBudget
+            // can use a higher burst capacity without violating the connection limit.
+            MaxConnectionsPerServer = 2
         });
 
     // Location service, handles location results per zoom and bounds levels

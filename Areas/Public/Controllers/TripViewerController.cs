@@ -18,8 +18,9 @@ public class TripViewerController : BaseController
     /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous requests by IP address.
     /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
 
     private readonly HttpClient _httpClient;
     private readonly ITripThumbnailService _thumbnailService;

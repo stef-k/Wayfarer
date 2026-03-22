@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +24,17 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class TilesControllerTests : TestBase
 {
+    /// <summary>
+    /// Clears static rate limit caches before each test to prevent cross-test interference.
+    /// xUnit creates a new test class instance per test, so this runs before every test method.
+    /// </summary>
+    public TilesControllerTests()
+    {
+        TilesController.RateLimitCache.Clear();
+        TilesController.AuthRateLimitCache.Clear();
+        TilesController.OutboundBudgetCache.Clear();
+    }
+
     [Fact]
     public async Task GetTile_UnauthorizedWithoutReferer()
     {
@@ -102,6 +114,9 @@ public class TilesControllerTests : TestBase
             var file = Assert.IsType<FileContentResult>(result);
             Assert.Equal("image/png", file.ContentType);
             Assert.Equal(new byte[] { 1, 2, 3 }, file.FileContents);
+
+            // Verify security headers are set on tile responses.
+            Assert.Equal("nosniff", controller.Response.Headers["X-Content-Type-Options"].ToString());
         }
         finally
         {
@@ -179,9 +194,8 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        // Use a unique IP for this test to avoid interference from other tests
-        var uniqueIp = $"192.168.99.{new Random().Next(1, 255)}";
-        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(uniqueIp);
+        // Deterministic IP — caches are cleared in constructor so no cross-test interference.
+        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.99.1");
 
         try
         {
@@ -218,9 +232,8 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        // Use a unique IP for this test
-        var uniqueIp = $"192.168.88.{new Random().Next(1, 255)}";
-        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(uniqueIp);
+        // Deterministic IP — caches are cleared in constructor so no cross-test interference.
+        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.88.1");
 
         try
         {
@@ -255,10 +268,10 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        // Use unique IPs for this test
-        var proxyIp = $"10.0.0.{new Random().Next(1, 255)}";
-        var clientIp1 = $"203.0.113.{new Random().Next(1, 127)}";
-        var clientIp2 = $"203.0.113.{new Random().Next(128, 255)}";
+        // Deterministic IPs — caches are cleared in constructor so no cross-test interference.
+        var proxyIp = "10.0.0.1";
+        var clientIp1 = "203.0.113.10";
+        var clientIp2 = "203.0.113.20";
 
         controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(proxyIp);
 
@@ -276,6 +289,93 @@ public class TilesControllerTests : TestBase
 
             // Request from different client IP should succeed
             controller.ControllerContext.HttpContext.Request.Headers["X-Forwarded-For"] = clientIp2;
+            var result3 = await controller.GetTile(10, 0, 2);
+            Assert.IsNotType<ObjectResult>(result3);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetTile_AuthenticatedUser_RateLimitedAtHigherThreshold()
+    {
+        var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDir);
+
+        // Set a low authenticated limit to trigger it easily.
+        var settingsService = BuildSettingsService(rateLimitEnabled: true, rateLimitPerMinute: 2, rateLimitAuthenticatedPerMinute: 3);
+        var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
+        controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
+
+        // Set up an authenticated user identity.
+        var userId = Guid.NewGuid().ToString();
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity);
+
+        try
+        {
+            // Authenticated user should get the higher limit (3, not 2).
+            // Use valid coordinates: at z=10, max tile index is 1023.
+            var result1 = await controller.GetTile(10, 0, 0);
+            Assert.IsNotType<ObjectResult>(result1);
+
+            var result2 = await controller.GetTile(10, 0, 1);
+            Assert.IsNotType<ObjectResult>(result2);
+
+            var result3 = await controller.GetTile(10, 0, 2);
+            Assert.IsNotType<ObjectResult>(result3);
+
+            // Fourth request should be rate limited.
+            var result4 = await controller.GetTile(10, 0, 3);
+            var statusResult = Assert.IsType<ObjectResult>(result4);
+            Assert.Equal(429, statusResult.StatusCode);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetTile_AuthenticatedUser_UsesUserIdNotIp()
+    {
+        var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDir);
+
+        // Set very low limit to trigger quickly.
+        var settingsService = BuildSettingsService(rateLimitEnabled: true, rateLimitPerMinute: 1, rateLimitAuthenticatedPerMinute: 1);
+        var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
+        controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
+
+        // First user: exhaust their limit.
+        var user1Id = Guid.NewGuid().ToString();
+        var identity1 = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, user1Id) }, "TestAuth");
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity1);
+
+        try
+        {
+            var result1 = await controller.GetTile(10, 0, 0);
+            Assert.IsNotType<ObjectResult>(result1);
+
+            // User1 should now be rate limited.
+            var result2 = await controller.GetTile(10, 0, 1);
+            var statusResult = Assert.IsType<ObjectResult>(result2);
+            Assert.Equal(429, statusResult.StatusCode);
+
+            // Second user (same IP) should NOT be rate limited (keyed by userId, not IP).
+            var user2Id = Guid.NewGuid().ToString();
+            var identity2 = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, user2Id) }, "TestAuth");
+            controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity2);
+
             var result3 = await controller.GetTile(10, 0, 2);
             Assert.IsNotType<ObjectResult>(result3);
         }
@@ -334,7 +434,7 @@ public class TilesControllerTests : TestBase
             new HttpContextAccessor());
     }
 
-    private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500)
+    private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500, int rateLimitAuthenticatedPerMinute = 2000)
     {
         // Use a consistent settings instance for controller + cache service tests.
         var appSettings = new Mock<IApplicationSettingsService>();
@@ -345,7 +445,8 @@ public class TilesControllerTests : TestBase
             TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate,
             TileProviderAttribution = ApplicationSettings.DefaultTileProviderAttribution,
             TileRateLimitEnabled = rateLimitEnabled,
-            TileRateLimitPerMinute = rateLimitPerMinute
+            TileRateLimitPerMinute = rateLimitPerMinute,
+            TileRateLimitAuthenticatedPerMinute = rateLimitAuthenticatedPerMinute
         });
         return appSettings.Object;
     }
