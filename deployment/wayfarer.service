@@ -57,6 +57,12 @@ Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
 # HOME is required for Playwright's Chromium runtime profiles (PDF export)
 Environment=HOME=/home/wayfarer
 
+# TILE PROXY CONTACT EMAIL
+# Used in the User-Agent header sent to tile providers (e.g. OpenStreetMap).
+# OSM requires an honest User-Agent identifying the application. Set this to
+# a monitored email address so tile providers can contact you about usage issues.
+# Environment=Application__ContactEmail=admin@your-domain.example
+
 # DATABASE CONNECTION STRING
 # This overrides the placeholder in appsettings.json - REQUIRED for production!
 # The install.sh script will set this automatically, or configure it manually:

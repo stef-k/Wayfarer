@@ -21,6 +21,9 @@ Logging
 - `Logging:LogFilePath:Default` — path to rolling log file (ensure directory exists).
 - Serilog sinks: console, file, and PostgreSQL (table `AuditLogs`).
 
+Application
+- `Application:ContactEmail` — contact email included in the User-Agent header sent to tile providers (e.g. OpenStreetMap). OSM's tile usage policy requires an honest User-Agent identifying the application. Set this to a monitored email address. Default: `noreply@wayfarer.app`. In production, configure via systemd environment variable: `Application__ContactEmail=admin@your-domain.example`.
+
 CacheSettings
 - `CacheSettings:TileCacheDirectory` — local directory for map tile cache.
 
