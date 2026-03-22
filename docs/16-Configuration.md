@@ -26,6 +26,7 @@ Application
 
 CacheSettings
 - `CacheSettings:TileCacheDirectory` — local directory for map tile cache.
+- **Max Tile Cache Size** (Admin UI) — controls the LRU cache size for zoom >= 9 tiles. Default: 1024 MB. Minimum: 256 MB (OSM requires tiles cached for at least 7 days). Set to `-1` to disable the size limit (no LRU eviction). Zoom 0-8 tiles (~1 GB) are cached permanently and do not count against this limit.
 
 Tile Provider Settings (Admin UI)
 - **Tile Provider** — select from presets (OpenStreetMap, Carto Light/Dark, ESRI Satellite) or configure a custom URL template.

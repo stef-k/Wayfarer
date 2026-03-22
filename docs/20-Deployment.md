@@ -34,7 +34,7 @@ This guide covers installation, deployment, logging, and operational commands fo
 **Minimum:**
 - 1 GB RAM
 - **5 GB disk space** minimum:
-  - ~2 GB for tile cache (zoom <= 8: ~1 GB, zoom >= 9: 1 GB configurable)
+  - ~2 GB for tile cache (zoom <= 8: ~1 GB permanent, zoom >= 9: 1 GB default, 256 MB minimum per OSM 7-day caching policy)
   - ~512 MB for image proxy cache (configurable in Admin Settings)
   - Plus storage for uploaded location data, logs, and application files
 - ARM or x64 CPU (Raspberry Pi 3+ or equivalent)
