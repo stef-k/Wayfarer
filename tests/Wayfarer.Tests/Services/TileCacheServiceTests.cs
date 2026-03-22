@@ -236,8 +236,9 @@ public class TileCacheServiceTests : TestBase
 
     /// <summary>
     /// Creates a TileCacheService with a properly configured HttpClient.
-    /// Mirrors the User-Agent and Accept header setup from the AddHttpClient
-    /// registration in Program.cs, since tests bypass the DI factory.
+    /// Mirrors the User-Agent, Timeout, and TryParseAdd fallback logic from the
+    /// AddHttpClient registration in Program.cs. Accept and AcceptLanguage headers
+    /// are omitted because no current test exercises content negotiation.
     /// </summary>
     private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com")
     {
@@ -254,6 +255,7 @@ public class TileCacheServiceTests : TestBase
         if (!httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(
                 $"Wayfarer/1.0 (contact: {contactEmail})"))
         {
+            // "Wayfarer/1.0" is always a valid product token; TryParseAdd cannot fail here.
             httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
         }
 

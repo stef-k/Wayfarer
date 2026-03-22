@@ -517,7 +517,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
             if (!client.DefaultRequestHeaders.UserAgent.TryParseAdd(
                     $"Wayfarer/1.0 (contact: {contactEmail})"))
             {
-                // Fallback if the email contains characters invalid in an RFC 7230 comment.
+                // "Wayfarer/1.0" is always a valid product token; TryParseAdd cannot fail here.
                 client.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
             }
 

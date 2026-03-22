@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## [1.2.16] - 2026-03-22
+
+### Fixed
+- Fix OSM tile 403 "Referrer is required" by adding per-request Referer header and honest User-Agent to outbound tile proxy requests (#199)
+
+### Changed
+- Move HttpClient header configuration from TileCacheService constructor to AddHttpClient DI registration for correct lifecycle management
+- Remove redundant AddScoped<TileCacheService> registration (AddHttpClient already registers scoped)
+- Use TryParseAdd for User-Agent with fallback when Application:ContactEmail contains invalid RFC 7230 characters
+- Update TilesController IsValidReferer doc to clarify it is an abuse deterrent, not a security boundary
+
+### Added
+- `Application:ContactEmail` configuration setting for tile provider User-Agent compliance (configurable via systemd env var `Application__ContactEmail`)
+- Startup warning when ContactEmail is not configured in non-Development environments
+- Deployment template and install.sh support for the new ContactEmail setting
+
 ## [1.2.15] - 2026-03-08
 
 ### Added
