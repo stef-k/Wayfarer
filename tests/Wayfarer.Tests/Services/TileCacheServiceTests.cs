@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Linq;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -164,12 +165,64 @@ public class TileCacheServiceTests : TestBase
         Assert.Equal(2, total);
     }
 
-    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10)
+    [Fact]
+    public async Task SendTileRequest_SetsRefererFromHttpContext()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("myapp.example.com");
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor);
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.NotNull(handler.LastRequest);
+        Assert.Equal(new System.Uri("https://myapp.example.com"), handler.LastRequest!.Headers.Referrer);
+    }
+
+    [Fact]
+    public async Task SendTileRequest_SetsHonestUserAgent()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        var service = CreateService(db, dir.Path, handler);
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.NotNull(handler.LastRequest);
+        var ua = handler.LastRequest!.Headers.UserAgent.ToString();
+        Assert.Contains("Wayfarer/1.0", ua);
+        Assert.Contains("contact:", ua);
+        Assert.DoesNotContain("Chrome", ua);
+        Assert.DoesNotContain("Mozilla", ua);
+    }
+
+    [Fact]
+    public async Task SendTileRequest_NoReferer_WhenNoHttpContext()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        var accessor = new HttpContextAccessor(); // no HttpContext set
+        var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor);
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.NotNull(handler.LastRequest);
+        Assert.Null(handler.LastRequest!.Headers.Referrer);
+    }
+
+    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:TileCacheDirectory"] = cacheDir
+                ["CacheSettings:TileCacheDirectory"] = cacheDir,
+                ["Application:ContactEmail"] = "test@example.com"
             }).Build();
         var httpClient = new HttpClient(handler ?? new StubTileHandler());
         var appSettings = new StubSettingsService(maxCacheMb);
@@ -180,13 +233,20 @@ public class TileCacheServiceTests : TestBase
             httpClient,
             db,
             appSettings,
-            scopeFactory);
+            scopeFactory,
+            httpContextAccessor ?? new HttpContextAccessor());
     }
 
     private sealed class StubTileHandler : HttpMessageHandler
     {
+        /// <summary>
+        /// Captures the last request sent through this handler for header assertions.
+        /// </summary>
+        public HttpRequestMessage? LastRequest { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            LastRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new ByteArrayContent(new byte[] { 1, 2, 3, 4 })

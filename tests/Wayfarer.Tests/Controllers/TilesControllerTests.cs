@@ -300,7 +300,8 @@ public class TilesControllerTests : TestBase
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:TileCacheDirectory"] = cacheDir
+                ["CacheSettings:TileCacheDirectory"] = cacheDir,
+                ["Application:ContactEmail"] = "test@example.com"
             })
             .Build();
 
@@ -315,7 +316,8 @@ public class TilesControllerTests : TestBase
             httpClient,
             dbContext,
             settingsService,
-            Mock.Of<IServiceScopeFactory>());
+            Mock.Of<IServiceScopeFactory>(),
+            new HttpContextAccessor());
     }
 
     private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500)

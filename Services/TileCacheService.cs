@@ -15,6 +15,7 @@ public class TileCacheService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly IApplicationSettingsService _applicationSettings;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     /// <summary>
     /// Lock for serializing file system operations across all service instances.
@@ -51,7 +52,7 @@ public class TileCacheService
 
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
         ApplicationDbContext dbContext, IApplicationSettingsService applicationSettings,
-        IServiceScopeFactory serviceScopeFactory)
+        IServiceScopeFactory serviceScopeFactory, IHttpContextAccessor httpContextAccessor)
     {
         _logger = logger;
         _dbContext = dbContext;
@@ -59,6 +60,7 @@ public class TileCacheService
         _configuration = configuration;
         _applicationSettings = applicationSettings;
         _serviceScopeFactory = serviceScopeFactory;
+        _httpContextAccessor = httpContextAccessor;
         _maxCacheSizeInMB = _applicationSettings.GetSettings().MaxCacheTileSizeInMB;
 
         if (_maxCacheSizeInMB <= 0)
@@ -146,13 +148,24 @@ public class TileCacheService
         return _cacheDirectory;
     }
 
+    /// <summary>
+    /// Configures the HttpClient with headers that comply with OSM's tile usage policy.
+    /// Sets an honest User-Agent identifying the application (OSM prohibits browser masquerading)
+    /// and standard Accept headers. The Referer header is set per-request in
+    /// <see cref="SendTileRequestAsync"/> using the incoming request's scheme and host.
+    /// </summary>
     private void ConfigureHttpClient()
     {
         _httpClient.DefaultRequestHeaders.Clear();
         _httpClient.Timeout = TimeSpan.FromSeconds(10);
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                                                             "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                                                             "Chrome/90.0.4430.93 Safari/537.36");
+
+        // OSM requires an honest User-Agent identifying the application.
+        // See: https://operations.osmfoundation.org/policies/tiles/
+        var contactEmail = _configuration.GetSection("Application:ContactEmail").Value
+                           ?? "noreply@wayfarer.app";
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+            $"Wayfarer/1.0 (contact: {contactEmail})");
+
         _httpClient.DefaultRequestHeaders.Accept.Clear();
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/png"));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("image/*", 0.8));
@@ -163,6 +176,7 @@ public class TileCacheService
 
     /// <summary>
     /// Sends a tile request and applies a same-host redirect policy.
+    /// Sets the Referer header from the current HTTP request to comply with OSM's tile usage policy.
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl)
     {
@@ -173,6 +187,16 @@ public class TileCacheService
         for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+
+            // OSM requires a Referer header. Derive it from the incoming HTTP request
+            // so it automatically matches the public URL (works behind reverse proxies,
+            // Cloudflare Tunnel, etc. when forwarded headers are configured).
+            var ctx = _httpContextAccessor.HttpContext;
+            if (ctx != null)
+            {
+                request.Headers.Referrer = new Uri($"{ctx.Request.Scheme}://{ctx.Request.Host}");
+            }
+
             var response = await _httpClient.SendAsync(request);
 
             if (IsRedirectStatus(response.StatusCode))
