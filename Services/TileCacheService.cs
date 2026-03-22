@@ -838,10 +838,22 @@ public class TileCacheService
                         // Note: RowVersion is handled automatically by EF Core with [Timestamp]
                     };
 
-                    _dbContext.TileCacheMetadata.Add(tileMetadata);
-                    await _dbContext.SaveChangesAsync();
-                    Interlocked.Add(ref _currentCacheSize, tileData?.Length ?? 0);
-                    _logger.LogInformation("Tile metadata stored in database.");
+                    try
+                    {
+                        _dbContext.TileCacheMetadata.Add(tileMetadata);
+                        await _dbContext.SaveChangesAsync();
+                        Interlocked.Add(ref _currentCacheSize, tileData?.Length ?? 0);
+                        _logger.LogInformation("Tile metadata stored in database.");
+                    }
+                    catch (DbUpdateException)
+                    {
+                        // Benign race: another concurrent request already inserted this tile.
+                        // The unique index on (Zoom, X, Y) prevents duplicates. The file is already
+                        // written and the other request incremented _currentCacheSize.
+                        _logger.LogDebug(
+                            "Tile metadata insert skipped due to concurrent insert (non-critical) z={Zoom} x={X} y={Y}",
+                            zoom, x, y);
+                    }
                 }
                 else
                 {
@@ -1515,26 +1527,29 @@ public class TileCacheService
         // preventing connection pool exhaustion on large caches (100K+ tiles).
         // Uses foreach instead of ToDictionary to handle anomalous duplicate TileFilePath
         // values gracefully (last-wins) instead of throwing ArgumentException.
-        var allMetadataList = await dbContext.TileCacheMetadata.ToListAsync();
-        var allMetadata = new Dictionary<string, TileCacheMetadata>(allMetadataList.Count);
+        var allMetadataList = await dbContext.TileCacheMetadata
+            .AsNoTracking()
+            .Select(t => new { t.Id, t.TileFilePath })
+            .ToListAsync();
+        var allMetadata = new Dictionary<string, int>(allMetadataList.Count);
         foreach (var t in allMetadataList)
         {
-            allMetadata[t.TileFilePath ?? string.Empty] = t;
+            allMetadata[t.TileFilePath ?? string.Empty] = t.Id;
         }
 
         // Collect files and their DB metadata into batches.
         // DB deletions are committed first (consistent with EvictDbTilesAsync ordering).
         // If DB commit fails, no files are deleted — cache stays consistent.
-        var batch = new List<(TileCacheMetadata? Meta, string FilePath, long FileSize)>();
+        var batch = new List<(int? MetaId, string FilePath, long FileSize)>();
 
         foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*.png"))
         {
             try
             {
-                allMetadata.TryGetValue(file, out var fileToPurge);
+                int? metaId = allMetadata.TryGetValue(file, out var id) ? id : null;
 
                 long fileSize = File.Exists(file) ? new FileInfo(file).Length : 0;
-                batch.Add((fileToPurge, file, fileSize));
+                batch.Add((metaId, file, fileSize));
 
                 // Commit and delete in batches.
                 if (batch.Count >= batchSize)
@@ -1624,9 +1639,11 @@ public class TileCacheService
     /// Processes a purge batch: commits DB deletions first, then deletes files from disk.
     /// Consistent with <see cref="EvictDbTilesAsync"/> ordering — if DB commit fails,
     /// no files are deleted and cache stays consistent.
+    /// Uses lightweight (MetaId, FilePath, FileSize) tuples instead of full entities
+    /// to minimize memory usage during large purge operations.
     /// </summary>
     private async Task PurgeBatchAsync(ApplicationDbContext dbContext,
-        List<(TileCacheMetadata? Meta, string FilePath, long FileSize)> batch,
+        List<(int? MetaId, string FilePath, long FileSize)> batch,
         int maxRetries, int delayBetweenRetries)
     {
         // Phase 1: Commit DB deletions first.
@@ -1635,7 +1652,7 @@ public class TileCacheService
         // InvalidOperationException from retrying RemoveRange on already-Deleted entities.
         // Captures actual sizes from re-fetched entities (not stale projected sizes from the
         // initial bulk load) so Phase 2's _currentCacheSize decrement is accurate.
-        var ids = batch.Where(b => b.Meta != null).Select(b => b.Meta!.Id).ToList();
+        var ids = batch.Where(b => b.MetaId != null).Select(b => b.MetaId!.Value).ToList();
         var actualSizes = new Dictionary<int, long>();
         if (ids.Any())
         {
@@ -1670,14 +1687,14 @@ public class TileCacheService
             await _cacheLock.WaitAsync();
             try
             {
-                foreach (var (meta, filePath, fileSize) in chunk)
+                foreach (var (metaId, filePath, fileSize) in chunk)
                 {
                     try
                     {
                         if (File.Exists(filePath))
                         {
                             File.Delete(filePath);
-                            if (meta != null && actualSizes.TryGetValue(meta.Id, out var actualSize))
+                            if (metaId != null && actualSizes.TryGetValue(metaId.Value, out var actualSize))
                             {
                                 Interlocked.Add(ref _currentCacheSize, -actualSize);
                             }
@@ -1706,10 +1723,10 @@ public class TileCacheService
                 await operation();
                 break; // Operation succeeded; exit loop.
             }
-            catch (Exception e)
+            catch (DbUpdateException e)
             {
                 attempt++;
-                _logger.LogError(e, "Error during operation, retrying... Attempt {Attempt} of {MaxRetries}", attempt,
+                _logger.LogWarning(e, "Transient DB error during operation, retrying... Attempt {Attempt} of {MaxRetries}", attempt,
                     maxRetries);
                 if (attempt >= maxRetries)
                 {
