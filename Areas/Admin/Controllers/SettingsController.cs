@@ -185,6 +185,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
                     Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
                     Track("TileOutboundBudgetPerIpPerMinute", currentSettings.TileOutboundBudgetPerIpPerMinute, updatedSettings.TileOutboundBudgetPerIpPerMinute);
+                    Track("ProxyImageRateLimitEnabled", currentSettings.ProxyImageRateLimitEnabled, updatedSettings.ProxyImageRateLimitEnabled);
+                    Track("ProxyImageRateLimitPerMinute", currentSettings.ProxyImageRateLimitPerMinute, updatedSettings.ProxyImageRateLimitPerMinute);
 
                     // Trip Place Auto-Visited settings
                     Track("VisitedRequiredHits", currentSettings.VisitedRequiredHits, updatedSettings.VisitedRequiredHits);
@@ -230,6 +232,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
                     currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;
                     currentSettings.TileOutboundBudgetPerIpPerMinute = updatedSettings.TileOutboundBudgetPerIpPerMinute;
+                    currentSettings.ProxyImageRateLimitEnabled = updatedSettings.ProxyImageRateLimitEnabled;
+                    currentSettings.ProxyImageRateLimitPerMinute = updatedSettings.ProxyImageRateLimitPerMinute;
 
                     // Trip Place Auto-Visited settings
                     currentSettings.VisitedRequiredHits = updatedSettings.VisitedRequiredHits;

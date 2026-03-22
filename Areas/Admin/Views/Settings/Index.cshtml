@@ -827,6 +827,44 @@
                             </div>
                         </div>
 
+                        <div class="row mb-3">
+                            <h3 class="text-center fs-4">Image Proxy Rate Limiting</h3>
+                            <p class="text-muted">
+                                Protect upstream image origins from abuse by rate limiting anonymous proxy image requests.
+                                Authenticated users are never rate limited.
+                            </p>
+
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check form-switch">
+                                    <input type="checkbox" class="form-check-input"
+                                           id="ProxyImageRateLimitEnabled" name="ProxyImageRateLimitEnabled"
+                                           value="true" @(Model.ProxyImageRateLimitEnabled ? "checked" : "")/>
+                                    @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
+                                    <input type="hidden" name="ProxyImageRateLimitEnabled" value="false"/>
+                                    <label class="form-check-label" for="ProxyImageRateLimitEnabled">
+                                        Enable image proxy rate limiting
+                                        <i class="bi bi-question-circle text-muted ms-1"
+                                           data-tippy-content="Rate limits anonymous proxy image requests by IP address to prevent abuse and origin flooding."></i>
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    When enabled, anonymous image proxy requests are limited per IP.
+                                </small>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="ProxyImageRateLimitPerMinute" class="form-label">Anonymous (per IP)</label>
+                                <div class="input-group">
+                                    <input asp-for="ProxyImageRateLimitPerMinute" class="form-control" type="number" min="10" max="5000" />
+                                    <span class="input-group-text">req/min</span>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Default: @ApplicationSettings.DefaultProxyImageRateLimitPerMinute. Max proxy image requests per minute per IP.
+                                </small>
+                                <span asp-validation-for="ProxyImageRateLimitPerMinute" class="text-danger"></span>
+                            </div>
+                        </div>
+
                         <hr/>
 
                         <div class="row">
