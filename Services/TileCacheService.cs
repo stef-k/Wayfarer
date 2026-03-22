@@ -767,6 +767,8 @@ public class TileCacheService
     /// On failure: returns null (caller will serve stale cached tile).
     /// Called via the <see cref="_revalidationFlights"/> coalescing dictionary to ensure
     /// exactly one outbound request per expired tile.
+    /// Uses its own DB scope because the coalescing pattern means the originating request's
+    /// scoped DbContext may be disposed while other callers are still awaiting the result.
     /// </summary>
     private async Task<byte[]?> RevalidateTileAsync(string tileUrl, string tileFilePath, string tileKey,
         int zoom, int x, int y, string? etag, DateTime? lastModified)
@@ -787,7 +789,10 @@ public class TileCacheService
 
             if (zoom >= 9)
             {
-                await UpdateTileExpiryAsync(zoom, x, y, newEtag, lastModified, newExpiry);
+                // Use own scope to avoid disposed DbContext from the originating request.
+                using var scope = _serviceScopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                await UpdateTileExpiryScopedAsync(dbContext, zoom, x, y, newEtag, lastModified, newExpiry);
             }
             else
             {
@@ -849,8 +854,11 @@ public class TileCacheService
 
             if (zoom >= 9)
             {
-                await UpdateTileAfterRevalidationAsync(zoom, x, y, tileData.Length, newEtag, newLastModified,
-                    newExpiry);
+                // Use own scope to avoid disposed DbContext from the originating request.
+                using var scope = _serviceScopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                await UpdateTileAfterRevalidationScopedAsync(dbContext, zoom, x, y, tileData.Length, newEtag,
+                    newLastModified, newExpiry);
             }
 
             _logger.LogDebug("Tile {TileKey} re-validated (200 OK, replaced)", tileKey);
@@ -897,11 +905,12 @@ public class TileCacheService
 
     /// <summary>
     /// Updates only the cache expiry metadata after a 304 Not Modified response.
+    /// Uses the provided scoped DbContext (safe for use from coalesced tasks).
     /// </summary>
-    private async Task UpdateTileExpiryAsync(int zoom, int x, int y, string? etag,
-        DateTime? lastModified, DateTime newExpiry)
+    private async Task UpdateTileExpiryScopedAsync(ApplicationDbContext dbContext, int zoom, int x, int y,
+        string? etag, DateTime? lastModified, DateTime newExpiry)
     {
-        var meta = await _dbContext.TileCacheMetadata
+        var meta = await dbContext.TileCacheMetadata
             .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
         if (meta == null) return;
 
@@ -912,7 +921,7 @@ public class TileCacheService
 
         try
         {
-            await _dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -922,11 +931,12 @@ public class TileCacheService
 
     /// <summary>
     /// Updates tile metadata after a 200 OK re-validation response (tile content changed).
+    /// Uses the provided scoped DbContext (safe for use from coalesced tasks).
     /// </summary>
-    private async Task UpdateTileAfterRevalidationAsync(int zoom, int x, int y, int newSize,
-        string? etag, DateTime? lastModified, DateTime newExpiry)
+    private async Task UpdateTileAfterRevalidationScopedAsync(ApplicationDbContext dbContext, int zoom, int x, int y,
+        int newSize, string? etag, DateTime? lastModified, DateTime newExpiry)
     {
-        var meta = await _dbContext.TileCacheMetadata
+        var meta = await dbContext.TileCacheMetadata
             .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
         if (meta == null) return;
 
@@ -939,7 +949,7 @@ public class TileCacheService
 
         try
         {
-            await _dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync();
             Interlocked.Add(ref _currentCacheSize, newSize - oldSize);
         }
         catch (DbUpdateConcurrencyException)
