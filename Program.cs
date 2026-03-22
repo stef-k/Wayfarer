@@ -457,6 +457,10 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
 // Method to configure services for the application
 static void ConfigureServices(WebApplicationBuilder builder)
 {
+    // Explicitly register IHttpContextAccessor for services that need it (e.g., TileCacheService).
+    // Some framework components may register it implicitly, but explicit registration is safer.
+    builder.Services.AddHttpContextAccessor();
+
     // Register memory cache for application services
     builder.Services.AddMemoryCache();
 

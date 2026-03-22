@@ -436,28 +436,35 @@ public class TileCacheService
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
-        CancellationToken cancellationToken = default)
+        string? clientIp = null, CancellationToken cancellationToken = default)
     {
         // Per-IP outbound budget check: prevent a single client from monopolizing global tokens.
         // Checked before the global budget to fail fast without consuming a global token.
         // skipBudget is true on retries — the per-IP check was already passed on the first attempt.
+        // clientIp may be passed explicitly by callers (e.g., coalesced revalidation) where
+        // HttpContext is no longer available; falls back to HttpContext if not provided.
         if (!skipBudget)
         {
             var perIpLimit = _applicationSettings.GetSettings().TileOutboundBudgetPerIpPerMinute;
             if (perIpLimit > 0)
             {
-                var ctx = _httpContextAccessor.HttpContext;
-                if (ctx != null)
+                var resolvedIp = clientIp;
+                if (resolvedIp == null)
                 {
-                    var clientIp = RateLimitHelper.GetClientIpAddress(ctx);
-                    if (RateLimitHelper.IsRateLimitExceeded(
-                        TilesController.OutboundBudgetCache, clientIp, perIpLimit))
+                    var ctx = _httpContextAccessor.HttpContext;
+                    if (ctx != null)
                     {
-                        _logger.LogWarning(
-                            "Per-IP outbound budget exceeded for {ClientIp} — throttling upstream request for {TileUrl}",
-                            clientIp, TileProviderCatalog.RedactApiKey(tileUrl));
-                        return null;
+                        resolvedIp = RateLimitHelper.GetClientIpAddress(ctx);
                     }
+                }
+
+                if (resolvedIp != null && RateLimitHelper.IsRateLimitExceeded(
+                        TilesController.OutboundBudgetCache, resolvedIp, perIpLimit))
+                {
+                    _logger.LogWarning(
+                        "Per-IP outbound budget exceeded for {ClientIp} — throttling upstream request for {TileUrl}",
+                        resolvedIp, TileProviderCatalog.RedactApiKey(tileUrl));
+                    return null;
                 }
             }
         }
@@ -541,9 +548,9 @@ public class TileCacheService
     /// <param name="tileUrl">The upstream tile URL.</param>
     /// <param name="skipBudget">If true, skips outbound budget acquisition (used on retries).</param>
     private Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl, bool skipBudget = false,
-        CancellationToken cancellationToken = default)
+        string? clientIp = null, CancellationToken cancellationToken = default)
     {
-        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget, cancellationToken: cancellationToken);
+        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget, clientIp: clientIp, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -551,7 +558,7 @@ public class TileCacheService
     /// Returns the response (caller checks for 304 vs 200).
     /// </summary>
     private Task<HttpResponseMessage?> SendConditionalTileRequestAsync(string tileUrl, string? etag,
-        DateTime? lastModified, CancellationToken cancellationToken = default)
+        DateTime? lastModified, string? clientIp = null, CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
         {
@@ -568,7 +575,7 @@ public class TileCacheService
             {
                 request.Headers.IfModifiedSince = new DateTimeOffset(lastModified.Value, TimeSpan.Zero);
             }
-        }, cancellationToken: cancellationToken);
+        }, clientIp: clientIp, cancellationToken: cancellationToken);
     }
 
     private static bool IsRedirectStatus(HttpStatusCode statusCode)
@@ -914,6 +921,13 @@ public class TileCacheService
     {
         try
         {
+            // Capture client IP eagerly while HttpContext is available.
+            // Coalesced revalidation flights may execute after the originating request completes,
+            // at which point HttpContext is null. Passing the IP explicitly ensures the per-IP
+            // outbound budget check works for revalidation requests.
+            var httpContext = _httpContextAccessor.HttpContext;
+            var clientIp = httpContext != null ? RateLimitHelper.GetClientIpAddress(httpContext) : null;
+
             if (!int.TryParse(zoomLevel, out var zoomLvl) ||
                 !int.TryParse(xCoordinate, out var xVal) ||
                 !int.TryParse(yCoordinate, out var yVal))
@@ -1037,7 +1051,7 @@ public class TileCacheService
                     var flight = _revalidationFlights.GetOrAdd(tileKey,
                         _ => new Lazy<Task<byte[]?>>(
                             () => RevalidateTileAsync(tileUrl, tileFilePath, tileKey, zoomLvl,
-                                xVal, yVal, etag, lastModified, CancellationToken.None)));
+                                xVal, yVal, etag, lastModified, clientIp, CancellationToken.None)));
                     try
                     {
                         var result = await flight.Value;
@@ -1117,9 +1131,9 @@ public class TileCacheService
     /// </summary>
     private async Task<byte[]?> RevalidateTileAsync(string tileUrl, string tileFilePath, string tileKey,
         int zoom, int x, int y, string? etag, DateTime? lastModified,
-        CancellationToken cancellationToken = default)
+        string? clientIp = null, CancellationToken cancellationToken = default)
     {
-        using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, cancellationToken);
+        using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, clientIp, cancellationToken);
         if (response == null)
         {
             _logger.LogWarning("Conditional tile request rejected for {TileUrl}",
@@ -1499,8 +1513,14 @@ public class TileCacheService
         // Bulk-load all DB metadata into a dictionary keyed by file path.
         // This replaces O(N) individual DB queries (one per file) with a single query,
         // preventing connection pool exhaustion on large caches (100K+ tiles).
-        var allMetadata = await dbContext.TileCacheMetadata
-            .ToDictionaryAsync(t => t.TileFilePath ?? string.Empty, t => t);
+        // Uses foreach instead of ToDictionary to handle anomalous duplicate TileFilePath
+        // values gracefully (last-wins) instead of throwing ArgumentException.
+        var allMetadataList = await dbContext.TileCacheMetadata.ToListAsync();
+        var allMetadata = new Dictionary<string, TileCacheMetadata>(allMetadataList.Count);
+        foreach (var t in allMetadataList)
+        {
+            allMetadata[t.TileFilePath ?? string.Empty] = t;
+        }
 
         // Collect files and their DB metadata into batches.
         // DB deletions are committed first (consistent with EvictDbTilesAsync ordering).
@@ -1638,36 +1658,41 @@ public class TileCacheService
         }
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
-        // Single lock acquisition for the entire batch to avoid convoy effects.
+        // Chunked lock acquisition (100 files per lock) to avoid blocking CacheTileAsync writes
+        // for the entire purge duration when deleting thousands of files.
         // Only decrement _currentCacheSize for DB-tracked tiles (zoom >= 9, Meta != null).
         // Zoom 0-8 tiles are not tracked in _currentCacheSize, so decrementing them
         // would drive the counter negative and permanently disable eviction.
         // Uses actualSizes from re-fetched entities to minimize drift.
-        await _cacheLock.WaitAsync();
-        try
+        const int deleteChunkSize = 100;
+        foreach (var chunk in batch.Chunk(deleteChunkSize))
         {
-            foreach (var (meta, filePath, fileSize) in batch)
+            await _cacheLock.WaitAsync();
+            try
             {
-                try
+                foreach (var (meta, filePath, fileSize) in chunk)
                 {
-                    if (File.Exists(filePath))
+                    try
                     {
-                        File.Delete(filePath);
-                        if (meta != null && actualSizes.TryGetValue(meta.Id, out var actualSize))
+                        if (File.Exists(filePath))
                         {
-                            Interlocked.Add(ref _currentCacheSize, -actualSize);
+                            File.Delete(filePath);
+                            if (meta != null && actualSizes.TryGetValue(meta.Id, out var actualSize))
+                            {
+                                Interlocked.Add(ref _currentCacheSize, -actualSize);
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to delete purged file: {File}", filePath);
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to delete purged file: {File}", filePath);
+                    }
                 }
             }
-        }
-        finally
-        {
-            _cacheLock.Release();
+            finally
+            {
+                _cacheLock.Release();
+            }
         }
     }
 
@@ -1755,33 +1780,38 @@ public class TileCacheService
         _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
-        // Single lock acquisition for the entire batch to avoid convoy effects.
+        // Chunked lock acquisition (100 files per lock) to avoid blocking CacheTileAsync writes
+        // for the entire purge duration when deleting thousands of files.
         // Uses actualSizes from re-fetched entities to minimize _currentCacheSize drift.
-        await _cacheLock.WaitAsync();
-        try
+        const int deleteChunkSize = 100;
+        foreach (var chunk in fileInfo.Chunk(deleteChunkSize))
         {
-            foreach (var (id, filePath, _) in fileInfo)
+            await _cacheLock.WaitAsync();
+            try
             {
-                try
+                foreach (var (id, filePath, _) in chunk)
                 {
-                    if (File.Exists(filePath))
+                    try
                     {
-                        File.Delete(filePath);
-                        if (actualSizes.TryGetValue(id, out var actualSize))
+                        if (File.Exists(filePath))
                         {
-                            Interlocked.Add(ref _currentCacheSize, -actualSize);
+                            File.Delete(filePath);
+                            if (actualSizes.TryGetValue(id, out var actualSize))
+                            {
+                                Interlocked.Add(ref _currentCacheSize, -actualSize);
+                            }
                         }
                     }
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
+                    }
                 }
             }
-        }
-        finally
-        {
-            _cacheLock.Release();
+            finally
+            {
+                _cacheLock.Release();
+            }
         }
     }
 
