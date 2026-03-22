@@ -87,8 +87,10 @@ public class TilesController : Controller
         // Resolve the tile provider template from settings or presets.
         var settings = _settingsService.GetSettings();
 
-        // Rate limit tile requests to prevent abuse.
-        // Anonymous users are limited by IP; authenticated users by user ID at a higher threshold.
+        // Rate limit strategy: anonymous by IP, authenticated by userId (mutually exclusive).
+        // An authenticated user is NOT also counted against the IP limit. This avoids
+        // unfairly penalizing users behind shared NATs (e.g., corporate networks).
+        // The outbound budget (OutboundBudget) provides system-wide protection regardless.
         if (settings.TileRateLimitEnabled)
         {
             var userId = User.Identity?.IsAuthenticated == true

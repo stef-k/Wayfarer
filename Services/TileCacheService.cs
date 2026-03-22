@@ -21,7 +21,9 @@ public class TileCacheService
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     /// <summary>
-    /// Lock for serializing file system operations across all service instances.
+    /// Lock for serializing file write and delete operations across all service instances.
+    /// Read operations proceed without locking and catch <see cref="IOException"/> as a cache miss
+    /// (file may have been deleted by a concurrent eviction or purge).
     /// Static because TileCacheService is scoped (per-request) but file operations must be synchronized globally.
     /// </summary>
     private static readonly SemaphoreSlim _cacheLock = new(1, 1);
@@ -54,6 +56,13 @@ public class TileCacheService
     /// Initialized from database on first access via Initialize().
     /// </summary>
     private static long _currentCacheSize = 0;
+
+    /// <summary>
+    /// Guards against concurrent eviction runs. Only one eviction can proceed at a time;
+    /// concurrent callers skip eviction (the in-progress run will free enough space).
+    /// Uses <see cref="Interlocked.CompareExchange(ref int, int, int)"/> for lock-free coalescing.
+    /// </summary>
+    private static int _evictionInProgress = 0;
 
     /// <summary>
     /// Indicates whether _currentCacheSize has been initialized from the database.
@@ -92,17 +101,22 @@ public class TileCacheService
     /// Token-bucket rate limiter for outbound requests to upstream tile providers (e.g., OSM).
     /// Prevents cache-miss cascading from overwhelming the upstream server and risking a block
     /// under OSM's fair use policy. Replenishes at a sustained rate of 2 tokens/sec with a
-    /// burst capacity of 2 concurrent requests (matching OSM's 2-connection recommendation).
+    /// burst capacity of 10 queued requests. OSM's "maximum of 2 download threads" connection
+    /// policy is enforced at the transport layer via <c>SocketsHttpHandler.MaxConnectionsPerServer</c>
+    /// in Program.cs, not by this budget. The budget controls throughput (sustained request rate),
+    /// while MaxConnectionsPerServer controls concurrency (simultaneous TCP connections).
     /// Thread-safe: uses <see cref="SemaphoreSlim"/> for token management and
     /// <see cref="PeriodicTimer"/> for replenishment.
     /// </summary>
     internal static class OutboundBudget
     {
         /// <summary>
-        /// Maximum burst capacity — how many outbound requests can fire concurrently.
-        /// Set to 2 to comply with OSM tile usage policy ("maximum of 2 download threads").
+        /// Maximum burst capacity — how many outbound requests can proceed without waiting
+        /// for replenishment. Set to 10 to allow initial map loads to proceed quickly on
+        /// a cold cache. OSM's 2-connection limit is enforced at the transport layer via
+        /// <c>SocketsHttpHandler.MaxConnectionsPerServer = 2</c> in Program.cs.
         /// </summary>
-        internal const int BurstCapacity = 2;
+        internal const int BurstCapacity = 10;
 
         /// <summary>
         /// Replenishment interval — one token is released every this many milliseconds.
@@ -259,6 +273,7 @@ public class TileCacheService
         _revalidationFlights.Clear();
         _sidecarCache.Clear();
         Interlocked.Exchange(ref _currentCacheSize, 0);
+        Interlocked.Exchange(ref _evictionInProgress, 0);
         _cacheSizeInitialized = false;
         OutboundBudget.ResetForTesting();
     }
@@ -642,9 +657,11 @@ public class TileCacheService
                 using var response = await SendTileRequestAsync(tileUrl);
                 if (response == null)
                 {
-                    _logger.LogWarning("Tile request was rejected for URL: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
-                    retryCount--;
-                    continue;
+                    // Budget exhaustion means the system is at capacity — retrying is futile
+                    // and would only add latency (up to AcquireTimeout per attempt).
+                    _logger.LogWarning("Outbound budget exhausted, aborting fetch for: {TileUrl}",
+                        TileProviderCatalog.RedactApiKey(tileUrl));
+                    break;
                 }
 
                 if (response.IsSuccessStatusCode)
@@ -710,10 +727,21 @@ public class TileCacheService
                     .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
                 if (existingMetadata == null)
                 {
-                    // If adding a new tile would exceed the cache limit in Gigabytes, evict tiles.
+                    // If adding a new tile would exceed the cache limit, evict tiles.
+                    // Coalesce: only one eviction runs at a time; concurrent callers skip.
                     if ((Interlocked.Read(ref _currentCacheSize) + (tileData?.Length ?? 0)) > (_maxCacheSizeInMB * 1024L * 1024L))
                     {
-                        await EvictDbTilesAsync();
+                        if (Interlocked.CompareExchange(ref _evictionInProgress, 1, 0) == 0)
+                        {
+                            try
+                            {
+                                await EvictDbTilesAsync();
+                            }
+                            finally
+                            {
+                                Interlocked.Exchange(ref _evictionInProgress, 0);
+                            }
+                        }
                     }
 
                     var tileMetadata = new TileCacheMetadata
@@ -902,22 +930,23 @@ public class TileCacheService
                     }
                 }
 
-                // Fast path: tile is not expired — serve from cache
+                // Fast path: tile is not expired — serve from cache.
+                // No lock needed for reads: if a concurrent eviction/purge deletes the file
+                // between File.Exists and ReadAllBytesAsync, the IOException is caught and
+                // treated as a cache miss (falls through to re-fetch).
                 if (!isExpired)
                 {
                     byte[]? cachedTileData = null;
-                    await _cacheLock.WaitAsync();
                     try
                     {
-                        // Serialize file reads with purge/write operations.
                         if (File.Exists(tileFilePath))
                         {
                             cachedTileData = await File.ReadAllBytesAsync(tileFilePath);
                         }
                     }
-                    finally
+                    catch (IOException)
                     {
-                        _cacheLock.Release();
+                        // File deleted by concurrent eviction/purge — treat as cache miss.
                     }
 
                     if (cachedTileData != null) return cachedTileData;
@@ -947,9 +976,9 @@ public class TileCacheService
                     }
                 }
 
-                // Graceful degradation: serve stale cached tile if re-validation failed
+                // Graceful degradation: serve stale cached tile if re-validation failed.
+                // No lock needed for reads (see fast-path comment above).
                 byte[]? staleTileData = null;
-                await _cacheLock.WaitAsync();
                 try
                 {
                     if (File.Exists(tileFilePath))
@@ -957,9 +986,9 @@ public class TileCacheService
                         staleTileData = await File.ReadAllBytesAsync(tileFilePath);
                     }
                 }
-                finally
+                catch (IOException)
                 {
-                    _cacheLock.Release();
+                    // File deleted by concurrent eviction/purge — treat as cache miss.
                 }
 
                 if (staleTileData != null) return staleTileData;
@@ -975,9 +1004,8 @@ public class TileCacheService
             _logger.LogDebug("Tile not in cache. Fetching from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
             await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
 
-            // After fetching, read the file while holding the lock to prevent race with eviction.
+            // After fetching, read the file. No lock needed for reads (see fast-path comment above).
             byte[]? fetchedTileData = null;
-            await _cacheLock.WaitAsync();
             try
             {
                 if (File.Exists(tileFilePath))
@@ -985,9 +1013,9 @@ public class TileCacheService
                     fetchedTileData = await File.ReadAllBytesAsync(tileFilePath);
                 }
             }
-            finally
+            catch (IOException)
             {
-                _cacheLock.Release();
+                // File deleted by concurrent eviction/purge — treat as cache miss.
             }
 
             return fetchedTileData;
@@ -1223,11 +1251,17 @@ public class TileCacheService
 
     /// <summary>
     /// Evicts the least recently used tiles (in batches) from the database and file system to free up cache space.
+    /// Uses its own <see cref="IServiceScope"/> to avoid lifecycle issues with the per-request DbContext.
+    /// Guarded by <see cref="_evictionInProgress"/> to prevent concurrent eviction runs.
     /// </summary>
     private async Task EvictDbTilesAsync()
     {
+        // Use a dedicated scope so eviction is independent of the calling request's DbContext lifecycle.
+        using var scope = _serviceScopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
         // Retrieve a batch of the least recently accessed tiles.
-        var tilesToEvict = await _dbContext.TileCacheMetadata
+        var tilesToEvict = await dbContext.TileCacheMetadata
             .OrderBy(t => t.LastAccessed)
             .Take(LRU_TO_EVICT) // Adjust the eviction batch size as needed.
             .ToListAsync();
@@ -1241,14 +1275,22 @@ public class TileCacheService
 
         foreach (var tile in tilesToEvict)
         {
-            _dbContext.TileCacheMetadata.Remove(tile);
+            dbContext.TileCacheMetadata.Remove(tile);
             totalEvictedSize += tile.Size;
             filePaths.Add(Path.Combine(_cacheDirectory, $"{tile.Zoom}_{tile.X}_{tile.Y}.png"));
         }
 
-        await _dbContext.SaveChangesAsync();
-        // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
-        Interlocked.Add(ref _currentCacheSize, -totalEvictedSize);
+        try
+        {
+            await dbContext.SaveChangesAsync();
+            // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
+            Interlocked.Add(ref _currentCacheSize, -totalEvictedSize);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Eviction encountered concurrency conflict — tiles may have been evicted by another instance");
+            return; // Don't decrement _currentCacheSize; rows were not deleted.
+        }
 
         // Phase 2: Delete files (best-effort, after DB commit succeeded).
         foreach (var tileFilePath in filePaths)

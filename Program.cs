@@ -554,9 +554,13 @@ static void ConfigureServices(WebApplicationBuilder builder)
             client.DefaultRequestHeaders.AcceptLanguage.Add(
                 new System.Net.Http.Headers.StringWithQualityHeaderValue("en", 0.9));
         })
-        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
         {
-            AllowAutoRedirect = false
+            AllowAutoRedirect = false,
+            // OSM tile usage policy: "maximum of 2 download threads".
+            // Enforced at the transport layer so the token-bucket OutboundBudget
+            // can use a higher burst capacity without violating the connection limit.
+            MaxConnectionsPerServer = 2
         });
 
     // Location service, handles location results per zoom and bounds levels

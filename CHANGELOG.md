@@ -6,7 +6,7 @@
 - Sliding-window rate limiter replacing fixed-window — prevents boundary-batching attacks where bursts at window edges could double the effective limit (#204)
 - Authenticated user rate limiting by user ID (default 2000 req/min) — previously authenticated users bypassed rate limiting entirely (#204)
 - `TileRateLimitAuthenticatedPerMinute` application setting for configurable authenticated tile rate limit, exposed in Admin Settings UI (#204)
-- Outbound request budget (token-bucket at 2 req/sec, burst 2) — prevents cache-miss cascading from overwhelming upstream OSM and risking a fair-use block; complies with OSM 2-connection policy (#204)
+- Outbound request budget (token-bucket at 2 req/sec, burst 10) — prevents cache-miss cascading from overwhelming upstream OSM and risking a fair-use block; complies with OSM 2-connection policy via transport-level enforcement (#204)
 - `X-Content-Type-Options: nosniff` header on tile proxy responses to prevent MIME-sniffing (#204)
 
 ### Changed
@@ -27,6 +27,12 @@
 - Eviction `_currentCacheSize` tracking now decrements after successful DB commit, preventing permanent undercount on failed eviction (#204)
 - Tile cache eviction now commits DB deletions before deleting files — previously files were deleted first, leaving orphaned DB records pointing to missing files if `SaveChangesAsync` failed (#204)
 - Admin settings checkbox hidden-field fallback for `TileRateLimitEnabled` and `IsRegistrationOpen` — unchecking now correctly posts `false` instead of falling back to C# default (#204)
+- **CRITICAL:** Remove global read-lock on tile cache — file reads no longer serialize through `_cacheLock`, eliminating a throughput bottleneck under concurrent map viewers. Writes and deletes retain the exclusive lock; reads catch `IOException` as cache miss (#204)
+- **CRITICAL:** Increase outbound budget burst capacity from 2 to 10, reducing cold-cache map load times. OSM's 2-connection policy is now enforced at the transport layer via `SocketsHttpHandler.MaxConnectionsPerServer` (#204)
+- **HIGH:** Eviction coalescing — concurrent `CacheTileAsync` calls can no longer trigger simultaneous eviction runs (double-evict). Uses `Interlocked.CompareExchange` guard with `DbUpdateConcurrencyException` handling (#204)
+- **HIGH:** `EvictDbTilesAsync` now uses a dedicated `IServiceScope` instead of the per-request `_dbContext`, preventing disposed-context failures when eviction outlives the originating request (#204)
+- **HIGH:** `CacheTileAsync` no longer retries on outbound budget exhaustion — breaks immediately instead of blocking up to 30 seconds (3 retries × 10s timeout) (#204)
+- **MEDIUM:** Admin settings cross-field validation: authenticated rate limit must be >= anonymous rate limit (#204)
 
 ## [1.2.17] - 2026-03-22
 

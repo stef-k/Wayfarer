@@ -689,7 +689,7 @@ public class TileCacheServiceTests : TestBase
     {
         TileCacheService.OutboundBudget.ResetForTesting();
 
-        // Burst capacity is 2 — first 2 should succeed immediately.
+        // Burst capacity is 10 — first 10 should succeed immediately.
         for (int i = 0; i < TileCacheService.OutboundBudget.BurstCapacity; i++)
         {
             var acquired = await TileCacheService.OutboundBudget.AcquireAsync();

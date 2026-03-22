@@ -134,6 +134,13 @@ namespace Wayfarer.Areas.Admin.Controllers
                     "Minimum cache size is 256 MB (OSM requires at least 7 days of cached tiles). Use -1 to disable.");
             }
 
+            // Authenticated users should always have at least the same rate limit as anonymous users.
+            if (updatedSettings.TileRateLimitAuthenticatedPerMinute < updatedSettings.TileRateLimitPerMinute)
+            {
+                ModelState.AddModelError(nameof(updatedSettings.TileRateLimitAuthenticatedPerMinute),
+                    "Authenticated rate limit must be equal to or greater than the anonymous rate limit.");
+            }
+
             if (currentSettings != null)
             {
                 // Validate tile provider settings before model validation.
