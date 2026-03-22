@@ -162,6 +162,9 @@ if (!app.Environment.IsDevelopment()
                           "environment variable in your systemd service file.");
 }
 
+// Stop the outbound budget replenisher on graceful shutdown to avoid dangling background tasks.
+app.Lifetime.ApplicationStopping.Register(TileCacheService.StopOutboundBudget);
+
 app.Run();
 
 static Task<long> LoadUploadSizeLimitFromDatabaseAsync()

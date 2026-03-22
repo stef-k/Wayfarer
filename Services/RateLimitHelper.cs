@@ -7,7 +7,10 @@ namespace Wayfarer.Services;
 /// <summary>
 /// Shared rate limiting utility using a sliding-window counter approximation with 1-minute windows.
 /// Prevents boundary-batching attacks where a burst at the end of one window plus the start of the
-/// next could double the effective limit. Thread-safe: uses atomic operations to prevent race conditions.
+/// next could double the effective limit. Thread-safe: uses atomic operations to minimize race conditions.
+/// Note: during window rotation there is a narrow race where a thread can increment the old window's
+/// count after the CAS but before the reset, causing a minor undercount (off by ~1). This is acceptable
+/// for rate limiting purposes and does not compromise the overall throttling guarantee.
 /// Used by <see cref="Wayfarer.Areas.Public.Controllers.TripViewerController"/> and
 /// <see cref="Wayfarer.Areas.Public.Controllers.TilesController"/>.
 /// </summary>
@@ -23,7 +26,9 @@ public static class RateLimitHelper
     /// counter approximation. Maintains the previous window's count so that requests near a
     /// boundary are weighted, preventing the boundary-batching exploit where an attacker sends
     /// the full limit at :59s and again at :00s to achieve 2× the intended rate.
-    /// Uses atomic operations (Interlocked) for thread safety.
+    /// Uses atomic operations (Interlocked) for thread safety. The weighted count reads multiple
+    /// fields non-atomically, so it may jitter by ~1 request during window rotation — acceptable
+    /// for rate limiting.
     /// </summary>
     public sealed class RateLimitEntry
     {

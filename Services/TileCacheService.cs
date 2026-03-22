@@ -123,10 +123,16 @@ public class TileCacheService
         private static readonly SemaphoreSlim _tokens = new(BurstCapacity, BurstCapacity);
 
         /// <summary>
+        /// Cancellation source for stopping the replenishment task during shutdown or testing.
+        /// </summary>
+        private static CancellationTokenSource _replenisherCts = new();
+
+        /// <summary>
         /// Ensures the replenishment task is started exactly once, even under concurrent access.
         /// </summary>
-        private static readonly Lazy<Task> _replenisher = new(
-            StartReplenisher, LazyThreadSafetyMode.ExecutionAndPublication);
+        private static Lazy<Task> _replenisher = new(
+            () => StartReplenisher(_replenisherCts.Token),
+            LazyThreadSafetyMode.ExecutionAndPublication);
 
         /// <summary>
         /// Attempts to acquire a token for an outbound request. Returns true if a token was
@@ -146,45 +152,85 @@ public class TileCacheService
         /// Starts a long-running background task that releases one semaphore token every
         /// <see cref="ReplenishIntervalMs"/> milliseconds, maintaining the sustained outbound rate.
         /// Uses <see cref="PeriodicTimer"/> for efficient, non-blocking scheduling.
+        /// Stops cleanly when the <paramref name="ct"/> is cancelled (e.g., during app shutdown).
         /// </summary>
-        private static Task StartReplenisher()
+        /// <param name="ct">Cancellation token that stops the replenisher loop.</param>
+        private static Task StartReplenisher(CancellationToken ct)
         {
             return Task.Run(async () =>
             {
                 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(ReplenishIntervalMs));
-                while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
+                try
                 {
-                    // Release a token if below capacity. CurrentCount check avoids
-                    // SemaphoreFullException when replenishment outpaces consumption.
-                    if (_tokens.CurrentCount < BurstCapacity)
+                    while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
                     {
-                        try
+                        // Release a token if below capacity. CurrentCount check avoids
+                        // SemaphoreFullException when replenishment outpaces consumption.
+                        if (_tokens.CurrentCount < BurstCapacity)
                         {
-                            _tokens.Release();
-                        }
-                        catch (SemaphoreFullException)
-                        {
-                            // Harmless race: another thread released between our check and Release().
+                            try
+                            {
+                                _tokens.Release();
+                            }
+                            catch (SemaphoreFullException)
+                            {
+                                // Harmless race: another thread released between our check and Release().
+                            }
                         }
                     }
                 }
-            });
+                catch (OperationCanceledException)
+                {
+                    // Expected during shutdown or test reset — exit cleanly.
+                }
+            }, ct);
         }
 
         /// <summary>
-        /// Resets the outbound budget for testing. Drains and refills the semaphore to burst capacity.
+        /// Stops the replenishment task if running, resets the Lazy so a fresh replenisher
+        /// can start on the next <see cref="AcquireAsync"/> call.
+        /// Called by <see cref="TileCacheService.StopOutboundBudgetAsync"/> on app shutdown
+        /// and by <see cref="ResetForTesting"/> between tests.
+        /// </summary>
+        private static void StopReplenisher()
+        {
+            _replenisherCts.Cancel();
+            _replenisherCts.Dispose();
+            _replenisherCts = new CancellationTokenSource();
+            _replenisher = new Lazy<Task>(
+                () => StartReplenisher(_replenisherCts.Token),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+
+        /// <summary>
+        /// Resets the outbound budget for testing. Stops the replenisher, drains and refills
+        /// the semaphore to burst capacity, then allows a fresh replenisher on next acquire.
         /// </summary>
         internal static void ResetForTesting()
         {
+            StopReplenisher();
             // Drain all tokens.
             while (_tokens.CurrentCount > 0)
             {
                 _tokens.Wait(0);
             }
             // Refill to burst capacity.
-            _tokens.Release(BurstCapacity);
+            try
+            {
+                _tokens.Release(BurstCapacity);
+            }
+            catch (SemaphoreFullException)
+            {
+                // Already at capacity after drain — safe to ignore.
+            }
         }
     }
+
+    /// <summary>
+    /// Stops the outbound budget replenishment task for clean application shutdown.
+    /// Call from <c>IHostApplicationLifetime.ApplicationStopping</c> or equivalent.
+    /// </summary>
+    public static void StopOutboundBudget() => OutboundBudget.ResetForTesting();
 
     /// <summary>
     /// Resets all static state so each test starts with a clean slate.
