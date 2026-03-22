@@ -89,6 +89,104 @@ public class TileCacheService
     };
 
     /// <summary>
+    /// Token-bucket rate limiter for outbound requests to upstream tile providers (e.g., OSM).
+    /// Prevents cache-miss cascading from overwhelming the upstream server and risking a block
+    /// under OSM's fair use policy. Replenishes at a fixed rate (default: 2 tokens/sec)
+    /// with a small burst capacity (default: 4 concurrent requests).
+    /// Thread-safe: uses <see cref="SemaphoreSlim"/> for token management and
+    /// <see cref="PeriodicTimer"/> for replenishment.
+    /// </summary>
+    internal static class OutboundBudget
+    {
+        /// <summary>
+        /// Maximum burst capacity — how many outbound requests can fire concurrently
+        /// before throttling kicks in. Allows short bursts during cache warm-up.
+        /// </summary>
+        private const int BurstCapacity = 4;
+
+        /// <summary>
+        /// Replenishment interval — one token is released every this many milliseconds.
+        /// 500ms = 2 tokens/sec sustained rate, which is well within OSM's fair use policy.
+        /// </summary>
+        private const int ReplenishIntervalMs = 500;
+
+        /// <summary>
+        /// Maximum time to wait for a token before giving up. Callers that time out
+        /// serve stale cache or return 503 (graceful degradation).
+        /// </summary>
+        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Semaphore representing available outbound tokens. Initialized to <see cref="BurstCapacity"/>.
+        /// Each <see cref="AcquireAsync"/> call consumes one token; the replenishment task restores them.
+        /// </summary>
+        private static readonly SemaphoreSlim _tokens = new(BurstCapacity, BurstCapacity);
+
+        /// <summary>
+        /// Ensures the replenishment task is started exactly once, even under concurrent access.
+        /// </summary>
+        private static readonly Lazy<Task> _replenisher = new(
+            StartReplenisher, LazyThreadSafetyMode.ExecutionAndPublication);
+
+        /// <summary>
+        /// Attempts to acquire a token for an outbound request. Returns true if a token was
+        /// obtained within the timeout, false if the budget is exhausted.
+        /// Automatically starts the replenishment background task on first call.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token for the calling request.</param>
+        /// <returns>True if a token was acquired and the outbound request may proceed.</returns>
+        internal static async Task<bool> AcquireAsync(CancellationToken cancellationToken = default)
+        {
+            // Ensure the replenishment task is running (no-op after first call).
+            _ = _replenisher.Value;
+            return await _tokens.WaitAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Starts a long-running background task that releases one semaphore token every
+        /// <see cref="ReplenishIntervalMs"/> milliseconds, maintaining the sustained outbound rate.
+        /// Uses <see cref="PeriodicTimer"/> for efficient, non-blocking scheduling.
+        /// </summary>
+        private static Task StartReplenisher()
+        {
+            return Task.Run(async () =>
+            {
+                using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(ReplenishIntervalMs));
+                while (await timer.WaitForNextTickAsync().ConfigureAwait(false))
+                {
+                    // Release a token if below capacity. CurrentCount check avoids
+                    // SemaphoreFullException when replenishment outpaces consumption.
+                    if (_tokens.CurrentCount < BurstCapacity)
+                    {
+                        try
+                        {
+                            _tokens.Release();
+                        }
+                        catch (SemaphoreFullException)
+                        {
+                            // Harmless race: another thread released between our check and Release().
+                        }
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// Resets the outbound budget for testing. Drains and refills the semaphore to burst capacity.
+        /// </summary>
+        internal static void ResetForTesting()
+        {
+            // Drain all tokens.
+            while (_tokens.CurrentCount > 0)
+            {
+                _tokens.Wait(0);
+            }
+            // Refill to burst capacity.
+            _tokens.Release(BurstCapacity);
+        }
+    }
+
+    /// <summary>
     /// Resets all static state so each test starts with a clean slate.
     /// Must be called between tests to prevent cross-test interference from
     /// <see cref="_revalidationFlights"/>, <see cref="_sidecarCache"/>, and <see cref="_currentCacheSize"/>.
@@ -99,6 +197,7 @@ public class TileCacheService
         _sidecarCache.Clear();
         Interlocked.Exchange(ref _currentCacheSize, 0);
         _cacheSizeInitialized = false;
+        OutboundBudget.ResetForTesting();
     }
 
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
@@ -218,11 +317,23 @@ public class TileCacheService
 
     /// <summary>
     /// Core tile request method with same-host redirect policy and Referer header.
+    /// Acquires an outbound budget token before sending to comply with OSM's fair use policy.
+    /// Returns null if the budget is exhausted (callers degrade gracefully with stale cache).
     /// Accepts an optional delegate for customizing request headers (e.g., conditional headers).
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null)
     {
+        // Acquire an outbound request token. If the budget is exhausted, return null
+        // so callers can gracefully degrade (serve stale cache or return 503).
+        if (!await OutboundBudget.AcquireAsync().ConfigureAwait(false))
+        {
+            _logger.LogWarning(
+                "Outbound request budget exhausted — throttling upstream request for {TileUrl}",
+                TileProviderCatalog.RedactApiKey(tileUrl));
+            return null;
+        }
+
         const int maxRedirects = 3;
         var initialUri = new Uri(tileUrl);
         var currentUri = initialUri;

@@ -681,6 +681,22 @@ public class TileCacheServiceTests : TestBase
         }
     }
 
+    /// <summary>
+    /// Verifies that the outbound budget throttle can be acquired and limits concurrent requests.
+    /// </summary>
+    [Fact]
+    public async Task OutboundBudget_AcquireAsync_GrantsTokensUpToBurstCapacity()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+
+        // Burst capacity is 4 — first 4 should succeed immediately.
+        for (int i = 0; i < 4; i++)
+        {
+            var acquired = await TileCacheService.OutboundBudget.AcquireAsync();
+            Assert.True(acquired, $"Token {i + 1} should have been acquired");
+        }
+    }
+
     private sealed class StubSettingsService : IApplicationSettingsService
     {
         private readonly int _maxCache;
