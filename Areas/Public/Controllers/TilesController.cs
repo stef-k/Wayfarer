@@ -141,7 +141,7 @@ public class TilesController : Controller
 
         // Call the tile cache service to retrieve the tile.
         // The service will either return the cached tile data or (if missing) download, cache, and then return it.
-        var tileData = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl);
+        var tileData = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted);
         if (tileData == null)
         {
             _logger.LogError("Tile data not found for {z}/{x}/{y}", z, x, y);

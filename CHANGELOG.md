@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## [1.2.19] - 2026-03-22
+
+### Added
+- Unique composite index on `TileCacheMetadata(Zoom, X, Y)` — eliminates sequential scans on every tile request (#204)
+- Periodic tile cache size reconciliation via `RateLimitCleanupJob` — corrects `_currentCacheSize` drift from non-atomic updates every 5 minutes (#204)
+- Hard cap (50K entries) on rate limit caches with oldest-entry eviction — prevents unbounded memory growth from sustained low-rate attacks (#204)
+- `CancellationToken` propagation through tile request chain — requests abort when client disconnects instead of blocking threads (#204)
+
+### Changed
+- Outbound budget `AcquireTimeout` reduced from 10s to 3s to prevent thread pool starvation under sustained cold-cache load (#204)
+- `PurgeAllCacheAsync` loads all DB metadata in a single query instead of O(N) individual queries per file (#204)
+- `PurgeLRUCacheAsync` now deletes in chunks of 1000 IDs to prevent PostgreSQL query plan explosion from large IN clauses (#204)
+- Eviction and purge file deletion consolidated into single lock acquisition per batch, eliminating convoy effects (#204)
+- `X-Forwarded-For` IP addresses normalized to canonical form — prevents IPv4/IPv6 aliasing from creating separate rate limit buckets (#204)
+- Eviction `_currentCacheSize` decrement now uses re-fetched entity sizes instead of stale projected sizes (#204)
+
+### Fixed
+- **CRITICAL:** Missing database index on hot-path tile lookup queries (`Zoom, X, Y`) — every tile request was a sequential scan (#204)
+- **CRITICAL:** `PurgeAllCacheAsync` issued individual DB query per cached file — 100K files caused 100K sequential-scan queries (#204)
+- **HIGH:** `_currentCacheSize` drift from eviction using pre-fetched sizes instead of actual deleted sizes (#204)
+- **HIGH:** Thread pool starvation risk from 10-second outbound budget timeout under cold-cache load (#204)
+- **HIGH:** Lock convoy during eviction/purge — per-file lock acquisition serialized all concurrent writes (#204)
+- **MEDIUM:** Sliding-window rate limiter documentation understated worst-case jitter (up to full prevCount, not ~0.5) (#204)
+
 ## [1.2.18] - 2026-03-22
 
 ### Added

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Quartz;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Services;
@@ -5,7 +6,8 @@ using Wayfarer.Services;
 namespace Wayfarer.Jobs;
 
 /// <summary>
-/// Quartz job that periodically sweeps expired entries from all in-memory rate limit caches.
+/// Quartz job that periodically sweeps expired entries from all in-memory rate limit caches
+/// and reconciles the tile cache size counter with the database.
 /// Prevents unbounded memory growth from accumulated expired entries that would otherwise
 /// only be cleaned when the cache exceeds the 10,000-entry threshold.
 /// Runs every 5 minutes. Each cache is cleaned independently.
@@ -13,13 +15,15 @@ namespace Wayfarer.Jobs;
 public class RateLimitCleanupJob : IJob
 {
     private readonly ILogger<RateLimitCleanupJob> _logger;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
 
-    public RateLimitCleanupJob(ILogger<RateLimitCleanupJob> logger)
+    public RateLimitCleanupJob(ILogger<RateLimitCleanupJob> logger, IServiceScopeFactory serviceScopeFactory)
     {
         _logger = logger;
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
-    public Task Execute(IJobExecutionContext context)
+    public async Task Execute(IJobExecutionContext context)
     {
         var cancellationToken = context.CancellationToken;
         var jobDataMap = context.JobDetail.JobDataMap;
@@ -54,6 +58,17 @@ public class RateLimitCleanupJob : IJob
                     "RateLimitCleanupJob completed. Removed {RemovedCount} expired entries.", totalRemoved);
             }
 
+            // Reconcile tile cache size counter with database to correct accumulated drift
+            // from non-atomic size tracking during concurrent eviction/caching operations.
+            try
+            {
+                await TileCacheService.ReconcileCacheSizeAsync(_serviceScopeFactory);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Tile cache size reconciliation failed (non-critical)");
+            }
+
             jobDataMap["Status"] = "Completed";
             jobDataMap["StatusMessage"] = $"Removed {totalRemoved} expired entries";
         }
@@ -67,7 +82,5 @@ public class RateLimitCleanupJob : IJob
             jobDataMap["Status"] = "Failed";
             _logger.LogError(ex, "Error executing RateLimitCleanupJob");
         }
-
-        return Task.CompletedTask;
     }
 }

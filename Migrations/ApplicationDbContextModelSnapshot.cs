@@ -1226,6 +1226,9 @@ namespace Wayfarer.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TileLocation"), "GIST");
 
+                    b.HasIndex("Zoom", "X", "Y")
+                        .IsUnique();
+
                     b.ToTable("TileCacheMetadata");
                 });
 

@@ -136,8 +136,10 @@ public class TileCacheService
         /// <summary>
         /// Maximum time to wait for a token before giving up. Callers that time out
         /// serve stale cache or return 503 (graceful degradation).
+        /// Reduced from 10s to 3s to prevent thread pool starvation under sustained
+        /// cold-cache load (multiple users loading maps with many uncached tiles).
         /// </summary>
-        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(10);
+        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(3);
 
         /// <summary>
         /// Semaphore representing available outbound tokens. Initialized to <see cref="BurstCapacity"/>.
@@ -281,6 +283,20 @@ public class TileCacheService
     public static void StopOutboundBudget() => OutboundBudget.Stop();
 
     /// <summary>
+    /// Reconciles <see cref="_currentCacheSize"/> with the authoritative database sum.
+    /// Called periodically by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/> to correct drift
+    /// from non-atomic size tracking during concurrent eviction/caching operations.
+    /// </summary>
+    /// <param name="scopeFactory">Service scope factory for creating a database context.</param>
+    internal static async Task ReconcileCacheSizeAsync(IServiceScopeFactory scopeFactory)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var dbSum = await dbContext.TileCacheMetadata.SumAsync(t => (long)t.Size);
+        Interlocked.Exchange(ref _currentCacheSize, dbSum);
+    }
+
+    /// <summary>
     /// Resets all static state so each test starts with a clean slate.
     /// Must be called between tests to prevent cross-test interference from
     /// <see cref="_revalidationFlights"/>, <see cref="_sidecarCache"/>, and <see cref="_currentCacheSize"/>.
@@ -417,13 +433,14 @@ public class TileCacheService
     /// Accepts an optional delegate for customizing request headers (e.g., conditional headers).
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
-        Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false)
+        Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
+        CancellationToken cancellationToken = default)
     {
         // Acquire an outbound request token. If the budget is exhausted, return null
         // so callers can gracefully degrade (serve stale cache or return 503).
         // skipBudget is true on retries — the budget was already acquired on the first attempt,
         // so retries should not consume additional tokens.
-        if (!skipBudget && !await OutboundBudget.AcquireAsync().ConfigureAwait(false))
+        if (!skipBudget && !await OutboundBudget.AcquireAsync(cancellationToken).ConfigureAwait(false))
         {
             _logger.LogWarning(
                 "Outbound request budget exhausted — throttling upstream request for {TileUrl}",
@@ -451,7 +468,7 @@ public class TileCacheService
             // Let the caller add conditional headers (If-None-Match, If-Modified-Since, etc.)
             configureRequest?.Invoke(request);
 
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
 
             if (IsRedirectStatus(response.StatusCode))
             {
@@ -497,9 +514,10 @@ public class TileCacheService
     /// </summary>
     /// <param name="tileUrl">The upstream tile URL.</param>
     /// <param name="skipBudget">If true, skips outbound budget acquisition (used on retries).</param>
-    private Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl, bool skipBudget = false)
+    private Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl, bool skipBudget = false,
+        CancellationToken cancellationToken = default)
     {
-        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget);
+        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -507,7 +525,7 @@ public class TileCacheService
     /// Returns the response (caller checks for 304 vs 200).
     /// </summary>
     private Task<HttpResponseMessage?> SendConditionalTileRequestAsync(string tileUrl, string? etag,
-        DateTime? lastModified)
+        DateTime? lastModified, CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
         {
@@ -524,7 +542,7 @@ public class TileCacheService
             {
                 request.Headers.IfModifiedSince = new DateTimeOffset(lastModified.Value, TimeSpan.Zero);
             }
-        });
+        }, cancellationToken: cancellationToken);
     }
 
     private static bool IsRedirectStatus(HttpStatusCode statusCode)
@@ -655,7 +673,8 @@ public class TileCacheService
     /// For zoom levels >= 9, metadata is stored (or updated) in the database.
     /// For zoom levels 0-8, metadata is stored as a JSON sidecar file.
     /// </summary>
-    public async Task CacheTileAsync(string tileUrl, string zoomLevel, string xCoordinate, string yCoordinate)
+    public async Task CacheTileAsync(string tileUrl, string zoomLevel, string xCoordinate, string yCoordinate,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -679,7 +698,7 @@ public class TileCacheService
                 // On retries, skip budget acquisition — the token was already consumed
                 // on the first attempt. This prevents HTTP 5xx retries from exhausting
                 // the entire burst budget under upstream failures.
-                using var response = await SendTileRequestAsync(tileUrl, skipBudget: budgetAcquired);
+                using var response = await SendTileRequestAsync(tileUrl, skipBudget: budgetAcquired, cancellationToken: cancellationToken);
                 if (response == null)
                 {
                     // Budget exhaustion means the system is at capacity — retrying is futile
@@ -865,7 +884,7 @@ public class TileCacheService
     /// If the file is missing, downloads and caches the tile.
     /// </summary>
     public async Task<byte[]?> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
-        string? tileUrl = null)
+        string? tileUrl = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -987,7 +1006,7 @@ public class TileCacheService
                     var flight = _revalidationFlights.GetOrAdd(tileKey,
                         _ => new Lazy<Task<byte[]?>>(
                             () => RevalidateTileAsync(tileUrl, tileFilePath, tileKey, zoomLvl,
-                                xVal, yVal, etag, lastModified)));
+                                xVal, yVal, etag, lastModified, cancellationToken)));
                     try
                     {
                         var result = await flight.Value;
@@ -1030,7 +1049,7 @@ public class TileCacheService
             }
 
             _logger.LogDebug("Tile not in cache. Fetching from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
-            await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate);
+            await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate, cancellationToken);
 
             // After fetching, read the file. No lock needed for reads (see fast-path comment above).
             byte[]? fetchedTileData = null;
@@ -1066,9 +1085,10 @@ public class TileCacheService
     /// scoped DbContext may be disposed while other callers are still awaiting the result.
     /// </summary>
     private async Task<byte[]?> RevalidateTileAsync(string tileUrl, string tileFilePath, string tileKey,
-        int zoom, int x, int y, string? etag, DateTime? lastModified)
+        int zoom, int x, int y, string? etag, DateTime? lastModified,
+        CancellationToken cancellationToken = default)
     {
-        using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified);
+        using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, cancellationToken);
         if (response == null)
         {
             _logger.LogWarning("Conditional tile request rejected for {TileUrl}",
@@ -1305,8 +1325,7 @@ public class TileCacheService
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         // Retrieve a batch of the least recently accessed tile IDs and sizes.
-        // AsNoTracking avoids loading RowVersion into the change tracker, so a concurrent
-        // LastAccessed update won't cause DbUpdateConcurrencyException on our delete.
+        // AsNoTracking + projection avoids loading full entities or RowVersions.
         var tilesToEvict = await dbContext.TileCacheMetadata
             .OrderBy(t => t.LastAccessed)
             .Take(LRU_TO_EVICT)
@@ -1318,7 +1337,6 @@ public class TileCacheService
         // If the delete fails, no files are deleted — cache stays consistent.
         // If it succeeds but file deletion later fails, orphaned files are harmless
         // and self-correcting (next cache write for that tile overwrites them).
-        long totalEvictedSize = tilesToEvict.Sum(t => (long)t.Size);
         var filePaths = tilesToEvict
             .Select(t => Path.Combine(_cacheDirectory, $"{t.Zoom}_{t.X}_{t.Y}.png"))
             .ToList();
@@ -1326,11 +1344,13 @@ public class TileCacheService
 
         try
         {
-            // Re-fetch by ID and delete. The fresh fetch picks up the current RowVersion,
-            // so there is no stale-token conflict even if LastAccessed changed concurrently.
+            // Re-fetch by ID to get tracked entities with current RowVersion.
+            // Compute totalEvictedSize from the re-fetched entities (not the initial projection)
+            // to minimize drift when tile sizes change between the two queries.
             var toDelete = await dbContext.TileCacheMetadata
                 .Where(t => tileIds.Contains(t.Id))
                 .ToListAsync();
+            long totalEvictedSize = toDelete.Sum(t => (long)t.Size);
             dbContext.TileCacheMetadata.RemoveRange(toDelete);
             await dbContext.SaveChangesAsync();
             // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
@@ -1344,28 +1364,29 @@ public class TileCacheService
         }
 
         // Phase 2: Delete files (best-effort, after DB commit succeeded).
-        foreach (var tileFilePath in filePaths)
+        // Single lock acquisition for the entire batch to avoid convoy effects
+        // where per-file locking serializes all concurrent writes during eviction.
+        await _cacheLock.WaitAsync();
+        try
         {
-            try
+            foreach (var tileFilePath in filePaths)
             {
-                await _cacheLock.WaitAsync();
                 try
                 {
                     if (File.Exists(tileFilePath))
                     {
                         File.Delete(tileFilePath);
-                        _logger.LogInformation("Tile file deleted: {TileFilePath}", tileFilePath);
                     }
                 }
-                finally
+                catch (Exception ex)
                 {
-                    _cacheLock.Release();
+                    _logger.LogError(ex, "Failed to delete tile file: {TileFilePath}", tileFilePath);
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to delete tile file: {TileFilePath}", tileFilePath);
-            }
+        }
+        finally
+        {
+            _cacheLock.Release();
         }
 
         _logger.LogInformation("Evicted tiles to maintain cache size.");
@@ -1444,9 +1465,14 @@ public class TileCacheService
         const int maxRetries = 3; // Max number of retries
         const int delayBetweenRetries = 1000; // Delay between retries in milliseconds
 
-        // Phase 1: Collect files and their DB metadata into batches.
-        // Phase 2: Commit DB deletions first (consistent with EvictDbTilesAsync ordering).
-        // Phase 3: Delete files from disk after DB commit succeeds.
+        // Bulk-load all DB metadata into a dictionary keyed by file path.
+        // This replaces O(N) individual DB queries (one per file) with a single query,
+        // preventing connection pool exhaustion on large caches (100K+ tiles).
+        var allMetadata = await dbContext.TileCacheMetadata
+            .ToDictionaryAsync(t => t.TileFilePath ?? string.Empty, t => t);
+
+        // Collect files and their DB metadata into batches.
+        // DB deletions are committed first (consistent with EvictDbTilesAsync ordering).
         // If DB commit fails, no files are deleted — cache stays consistent.
         var batch = new List<(TileCacheMetadata? Meta, string FilePath, long FileSize)>();
 
@@ -1454,10 +1480,7 @@ public class TileCacheService
         {
             try
             {
-                // Use the full file path for querying DB records.
-                var fileToPurge = await dbContext.TileCacheMetadata
-                    .Where(t => t.TileFilePath == file)
-                    .FirstOrDefaultAsync();
+                allMetadata.TryGetValue(file, out var fileToPurge);
 
                 long fileSize = File.Exists(file) ? new FileInfo(file).Length : 0;
                 batch.Add((fileToPurge, file, fileSize));
@@ -1578,14 +1601,15 @@ public class TileCacheService
         }
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
+        // Single lock acquisition for the entire batch to avoid convoy effects.
         // Only decrement _currentCacheSize for DB-tracked tiles (zoom >= 9, Meta != null).
         // Zoom 0-8 tiles are not tracked in _currentCacheSize, so decrementing them
         // would drive the counter negative and permanently disable eviction.
-        foreach (var (meta, filePath, fileSize) in batch)
+        await _cacheLock.WaitAsync();
+        try
         {
-            try
+            foreach (var (meta, filePath, fileSize) in batch)
             {
-                await _cacheLock.WaitAsync();
                 try
                 {
                     if (File.Exists(filePath))
@@ -1597,15 +1621,15 @@ public class TileCacheService
                         }
                     }
                 }
-                finally
+                catch (Exception ex)
                 {
-                    _cacheLock.Release();
+                    _logger.LogError(ex, "Failed to delete purged file: {File}", filePath);
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to delete purged file: {File}", filePath);
-            }
+        }
+        finally
+        {
+            _cacheLock.Release();
         }
     }
 
@@ -1639,8 +1663,8 @@ public class TileCacheService
     /// Purges all LRU tile cache (zoom levels >= 9) from both file system and database.
     /// Uses DB-first ordering consistent with <see cref="EvictDbTilesAsync"/>:
     /// commit DB deletions first, then delete files. If DB fails, no files are deleted.
-    /// No explicit transaction needed — <see cref="ApplicationDbContext.SaveChangesAsync"/>
-    /// uses an implicit transaction.
+    /// Deletes are chunked (1000 IDs per batch) to avoid PostgreSQL query plan explosion
+    /// from large IN clauses.
     /// </summary>
     public async Task PurgeLRUCacheAsync()
     {
@@ -1661,36 +1685,55 @@ public class TileCacheService
             .Select(t => (FilePath: t.TileFilePath, Size: (long)t.Size))
             .ToList();
 
-        // Phase 1: Commit DB deletions first.
-        // Re-fetches by ID inside the retry lambda so each attempt starts with a clean
-        // change tracker — prevents entity tracking conflicts on retry.
+        // Phase 1: Commit DB deletions first in chunks of 1000 IDs.
+        // Chunking prevents PostgreSQL query plan explosion from large IN clauses.
+        // Re-fetches entities by ID inside the retry lambda so each attempt starts
+        // with a clean change tracker — prevents entity tracking conflicts on retry.
         var lruIds = lruCache.Select(t => t.Id).ToList();
-        await RetryOperationAsync(async () =>
+        const int chunkSize = 1000;
+        foreach (var chunk in lruIds.Chunk(chunkSize))
         {
-            dbContext.ChangeTracker.Clear();
-            var toDelete = await dbContext.TileCacheMetadata
-                .Where(t => lruIds.Contains(t.Id))
-                .ToListAsync();
-            if (toDelete.Any())
+            var chunkList = chunk.ToList();
+            await RetryOperationAsync(async () =>
             {
-                dbContext.TileCacheMetadata.RemoveRange(toDelete);
-                await dbContext.SaveChangesAsync();
-            }
-        }, 3, 1000);
+                dbContext.ChangeTracker.Clear();
+                var toDelete = await dbContext.TileCacheMetadata
+                    .Where(t => chunkList.Contains(t.Id))
+                    .ToListAsync();
+                if (toDelete.Any())
+                {
+                    dbContext.TileCacheMetadata.RemoveRange(toDelete);
+                    await dbContext.SaveChangesAsync();
+                }
+            }, 3, 1000);
+        }
 
         _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
-        foreach (var (filePath, fileSize) in fileInfo)
+        // Single lock acquisition for the entire batch to avoid convoy effects.
+        await _cacheLock.WaitAsync();
+        try
         {
-            try
+            foreach (var (filePath, fileSize) in fileInfo)
             {
-                await DeleteCacheFileAsync(filePath, fileSize);
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                        Interlocked.Add(ref _currentCacheSize, -fileSize);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
+                }
             }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
-            }
+        }
+        finally
+        {
+            _cacheLock.Release();
         }
     }
 

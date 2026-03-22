@@ -9,8 +9,9 @@ namespace Wayfarer.Services;
 /// Prevents boundary-batching attacks where a burst at the end of one window plus the start of the
 /// next could double the effective limit. Thread-safe: uses atomic operations to minimize race conditions.
 /// Note: during window rotation, the weighted count reads _windowStartTicks, _expirationTicks,
-/// and _prevCount non-atomically, so during rotation the weight can be skewed by up to
-/// prevCount × ~0.5 in the worst case. This is transient (lasting only the rotation instant)
+/// and _prevCount non-atomically, so during rotation the weight can be skewed by up to the full
+/// prevCount (not just ~0.5) in the worst case — a concurrent reader may see prevWeight = 0 if
+/// _windowStartTicks has not yet been updated. This is transient (lasting only the rotation instant)
 /// and acceptable for rate limiting.
 /// Used by <see cref="Wayfarer.Areas.Public.Controllers.TripViewerController"/> and
 /// <see cref="Wayfarer.Areas.Public.Controllers.TilesController"/>.
@@ -23,13 +24,21 @@ public static class RateLimitHelper
     internal static readonly long WindowTicks = TimeSpan.FromMinutes(1).Ticks;
 
     /// <summary>
+    /// Hard cap on the number of entries in a rate limit cache. When the cache exceeds this
+    /// limit after cleanup, the oldest entries (by expiration) are evicted to bring the count
+    /// down to 80% of the hard cap. Prevents unbounded memory growth from sustained low-rate
+    /// attacks from many unique IPs that keep entries alive across window rotations.
+    /// </summary>
+    private const int HardCap = 50_000;
+
+    /// <summary>
     /// Tracks the request count and window expiration for rate limiting using a sliding-window
     /// counter approximation. Maintains the previous window's count so that requests near a
     /// boundary are weighted, preventing the boundary-batching exploit where an attacker sends
     /// the full limit at :59s and again at :00s to achieve 2× the intended rate.
     /// Uses atomic operations (Interlocked) for thread safety. The weighted count reads multiple
-    /// fields non-atomically, so it may jitter by up to prevCount × ~0.5 during window rotation —
-    /// transient and acceptable for rate limiting.
+    /// fields non-atomically, so it may jitter by up to the full prevCount during the rotation
+    /// instant — transient and acceptable for rate limiting.
     /// </summary>
     public sealed class RateLimitEntry
     {
@@ -49,6 +58,12 @@ public static class RateLimitHelper
             _expirationTicks = expirationTicks;
             _windowStartTicks = expirationTicks - WindowTicks;
         }
+
+        /// <summary>
+        /// The current window expiration ticks. Used for hard-cap eviction ordering
+        /// (oldest entries are evicted first when the cache exceeds <see cref="HardCap"/>).
+        /// </summary>
+        public long ExpirationTicks => Interlocked.Read(ref _expirationTicks);
 
         /// <summary>
         /// Atomically increments the counter and returns the weighted sliding-window count.
@@ -141,6 +156,14 @@ public static class RateLimitHelper
                 try
                 {
                     CleanupExpiredEntries(cache, currentTicks);
+
+                    // Hard cap: if the cache still exceeds the limit after removing expired entries
+                    // (e.g., sustained low-rate attack from many unique IPs), evict the oldest
+                    // entries by expiration to bring the count down to 80% of the hard cap.
+                    if (cache.Count > HardCap)
+                    {
+                        EvictOldestEntries(cache);
+                    }
                 }
                 finally
                 {
@@ -173,8 +196,34 @@ public static class RateLimitHelper
     }
 
     /// <summary>
+    /// Evicts the oldest entries (by window expiration) from the cache to bring the count
+    /// down to 80% of <see cref="HardCap"/>. Prevents unbounded memory growth from sustained
+    /// low-rate attacks from many unique IPs that keep entries alive across window rotations.
+    /// </summary>
+    /// <param name="cache">The concurrent dictionary to evict from.</param>
+    private static void EvictOldestEntries(ConcurrentDictionary<string, RateLimitEntry> cache)
+    {
+        var targetCount = (int)(HardCap * 0.8);
+        var toEvictCount = cache.Count - targetCount;
+        if (toEvictCount <= 0) return;
+
+        var keysToEvict = cache
+            .OrderBy(kvp => kvp.Value.ExpirationTicks)
+            .Take(toEvictCount)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var key in keysToEvict)
+        {
+            cache.TryRemove(key, out _);
+        }
+    }
+
+    /// <summary>
     /// Gets the client IP address from an HTTP context, respecting X-Forwarded-For header
     /// only when the direct connection is from a trusted proxy (localhost or private IP).
+    /// Normalizes IPv4-mapped IPv6 addresses to their IPv4 form to prevent aliasing
+    /// (e.g., "::ffff:192.168.1.1" and "192.168.1.1" map to the same bucket key).
     /// This prevents spoofing attacks.
     /// </summary>
     /// <param name="context">The HTTP context to extract the IP from.</param>
@@ -192,11 +241,13 @@ public static class RateLimitHelper
             {
                 var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .FirstOrDefault()?.Trim();
-                // Validate as a well-formed IP to prevent arbitrary strings from being used
-                // as rate-limit bucket keys (e.g., a malformed header creating unique buckets).
-                if (!string.IsNullOrEmpty(clientIp) && IPAddress.TryParse(clientIp, out _))
+                // Validate as a well-formed IP and normalize to canonical form to prevent
+                // IPv4/IPv6 aliasing from creating separate rate-limit buckets for the same client.
+                if (!string.IsNullOrEmpty(clientIp) && IPAddress.TryParse(clientIp, out var parsed))
                 {
-                    return clientIp;
+                    return parsed.IsIPv4MappedToIPv6
+                        ? parsed.MapToIPv4().ToString()
+                        : parsed.ToString();
                 }
             }
         }
