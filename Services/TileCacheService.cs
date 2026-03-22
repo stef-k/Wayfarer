@@ -88,6 +88,19 @@ public class TileCacheService
         WriteIndented = false
     };
 
+    /// <summary>
+    /// Resets all static state so each test starts with a clean slate.
+    /// Must be called between tests to prevent cross-test interference from
+    /// <see cref="_revalidationFlights"/>, <see cref="_sidecarCache"/>, and <see cref="_currentCacheSize"/>.
+    /// </summary>
+    internal static void ResetStaticStateForTesting()
+    {
+        _revalidationFlights.Clear();
+        _sidecarCache.Clear();
+        Interlocked.Exchange(ref _currentCacheSize, 0);
+        _cacheSizeInitialized = false;
+    }
+
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
         ApplicationDbContext dbContext, IApplicationSettingsService applicationSettings,
         IServiceScopeFactory serviceScopeFactory, IHttpContextAccessor httpContextAccessor)
@@ -101,7 +114,14 @@ public class TileCacheService
         _httpContextAccessor = httpContextAccessor;
         _maxCacheSizeInMB = _applicationSettings.GetSettings().MaxCacheTileSizeInMB;
 
-        if (_maxCacheSizeInMB <= 0)
+        if (_maxCacheSizeInMB == -1)
+        {
+            // -1 means "disable cache size limit" — eviction never triggers.
+            _logger.LogInformation(
+                "Tile cache size limit disabled (MaxCacheTileSizeInMB = -1). LRU eviction will not run.");
+            _maxCacheSizeInMB = int.MaxValue;
+        }
+        else if (_maxCacheSizeInMB <= 0)
         {
             _logger.LogWarning("Invalid MaxCacheTileSizeInMB value: {MaxCacheTileSizeInMB}. Defaulting to 1024 MB.",
                 _maxCacheSizeInMB);
@@ -317,11 +337,13 @@ public class TileCacheService
     /// </summary>
     internal static DateTime ParseCacheExpiry(HttpResponseMessage response)
     {
+        var now = DateTime.UtcNow;
+
         // 1. Check Cache-Control for max-age=N
         var cacheControl = response.Headers.CacheControl;
         if (cacheControl?.MaxAge is { } maxAge && maxAge > TimeSpan.Zero)
         {
-            return DateTime.UtcNow.Add(maxAge);
+            return now.Add(maxAge);
         }
 
         // 2. Check Expires header
@@ -329,14 +351,14 @@ public class TileCacheService
         {
             var expiresUtc = expires.UtcDateTime;
             // Only use Expires if it's in the future
-            if (expiresUtc > DateTime.UtcNow)
+            if (expiresUtc > now)
             {
                 return expiresUtc;
             }
         }
 
         // 3. Fallback: 7 days (OSM's minimum caching requirement)
-        return DateTime.UtcNow.Add(DefaultCacheExpiry);
+        return now.Add(DefaultCacheExpiry);
     }
 
     // ── Sidecar metadata helpers (zoom 0-8) ─────────────────────────────
@@ -385,9 +407,12 @@ public class TileCacheService
     }
 
     /// <summary>
-    /// Writes sidecar metadata as a JSON file alongside the tile using atomic rename.
+    /// Writes sidecar metadata as a JSON file alongside the tile using rename.
     /// Also updates the in-memory sidecar cache.
-    /// Write to .meta.tmp first, then File.Move(overwrite: true) for atomicity.
+    /// Write to .meta.tmp first, then File.Move(overwrite: true).
+    /// Note: on Linux (ext4) rename is atomic; on Windows (NTFS) overwrite is delete+rename
+    /// which is not atomic — a crash between those steps could lose the metadata file.
+    /// This is acceptable because sidecar metadata is regenerated on next access.
     /// </summary>
     private void WriteSidecarMetadata(string tileFilePath, TileSidecarMetadata metadata)
     {
@@ -614,10 +639,18 @@ public class TileCacheService
     {
         try
         {
-            var tileFileName = $"{zoomLevel}_{xCoordinate}_{yCoordinate}.png";
-            var tileFilePath = Path.Combine(_cacheDirectory, tileFileName);
-            var zoomLvl = int.Parse(zoomLevel);
+            if (!int.TryParse(zoomLevel, out var zoomLvl) ||
+                !int.TryParse(xCoordinate, out var xVal) ||
+                !int.TryParse(yCoordinate, out var yVal))
+            {
+                _logger.LogWarning("Invalid tile coordinates: z={Zoom} x={X} y={Y}",
+                    zoomLevel, xCoordinate, yCoordinate);
+                return null;
+            }
+
             var tileKey = $"{zoomLevel}_{xCoordinate}_{yCoordinate}";
+            var tileFileName = $"{tileKey}.png";
+            var tileFilePath = Path.Combine(_cacheDirectory, tileFileName);
 
             // 1. Check the file system first.
             if (File.Exists(tileFilePath))
@@ -632,8 +665,7 @@ public class TileCacheService
                 if (zoomLvl >= 9)
                 {
                     // Single DB round-trip: load metadata + conditionally update LastAccessed
-                    var meta = await LoadAndTouchMetadataAsync(zoomLvl, int.Parse(xCoordinate),
-                        int.Parse(yCoordinate));
+                    var meta = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
                     if (meta != null)
                     {
                         if (meta.ExpiresAtUtc == null)
@@ -641,7 +673,7 @@ public class TileCacheService
                             // Legacy tile (pre-migration): no expiry metadata yet.
                             // Assume fresh for 7 days to avoid re-downloading all tiles on deploy.
                             // The first re-validation after 7 days will populate ETag/expiry properly.
-                            await SeedLegacyTileExpiryScopedAsync(meta);
+                            await SeedLegacyTileExpiryAsync(meta);
                             isExpired = false;
                         }
                         else
@@ -724,7 +756,7 @@ public class TileCacheService
                     var flight = _revalidationFlights.GetOrAdd(tileKey,
                         _ => new Lazy<Task<byte[]?>>(
                             () => RevalidateTileAsync(tileUrl, tileFilePath, tileKey, zoomLvl,
-                                int.Parse(xCoordinate), int.Parse(yCoordinate), etag, lastModified)));
+                                xVal, yVal, etag, lastModified)));
                     try
                     {
                         var result = await flight.Value;
@@ -827,23 +859,25 @@ public class TileCacheService
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await UpdateTileExpiryScopedAsync(dbContext, zoom, x, y, newEtag, lastModified, newExpiry);
             }
-            else
-            {
-                WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
-                {
-                    ETag = newEtag,
-                    LastModifiedUpstream = lastModified,
-                    ExpiresAtUtc = newExpiry
-                });
-            }
 
             _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", tileKey);
 
-            // Read and return cached file
+            // Read cached file (and write sidecar for zoom 0-8) under the same lock
+            // to prevent a concurrent purge from deleting the sidecar between write and read.
             byte[]? data = null;
             await _cacheLock.WaitAsync();
             try
             {
+                if (zoom < 9)
+                {
+                    WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
+                    {
+                        ETag = newEtag,
+                        LastModifiedUpstream = lastModified,
+                        ExpiresAtUtc = newExpiry
+                    });
+                }
+
                 if (File.Exists(tileFilePath))
                 {
                     data = await File.ReadAllBytesAsync(tileFilePath);
@@ -910,7 +944,7 @@ public class TileCacheService
     /// Prevents re-downloading all existing cached tiles on first access after deployment.
     /// The tile will be properly re-validated (with conditional headers) when this expiry passes.
     /// </summary>
-    private async Task SeedLegacyTileExpiryScopedAsync(TileCacheMetadata meta)
+    private async Task SeedLegacyTileExpiryAsync(TileCacheMetadata meta)
     {
         meta.ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry);
         try

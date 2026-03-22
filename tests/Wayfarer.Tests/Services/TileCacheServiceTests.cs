@@ -521,6 +521,9 @@ public class TileCacheServiceTests : TestBase
             httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
         }
 
+        // Reset static state so tests don't interfere with each other.
+        TileCacheService.ResetStaticStateForTesting();
+
         var appSettings = new StubSettingsService(maxCacheMb);
         var scopeFactory = new SingleScopeFactory(db);
         return new TileCacheService(

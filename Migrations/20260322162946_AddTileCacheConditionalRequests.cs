@@ -52,6 +52,12 @@ namespace Wayfarer.Migrations
             migrationBuilder.DropColumn(
                 name: "LastModifiedUpstream",
                 table: "TileCacheMetadata");
+
+            // Revert canonical URL back to non-canonical subdomain URL.
+            migrationBuilder.Sql(
+                "UPDATE \"ApplicationSettings\" " +
+                "SET \"TileProviderUrlTemplate\" = 'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png' " +
+                "WHERE \"TileProviderUrlTemplate\" = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'");
         }
     }
 }
