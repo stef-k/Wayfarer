@@ -16,6 +16,9 @@
 - Throttle `LastAccessed` DB updates to once per 5 minutes per tile, reducing DB writes by ~99% for popular tiles (#201)
 - Graceful degradation: serve stale cached tiles when upstream re-validation fails (#201)
 
+### Fixed
+- `MaxCacheTileSizeInMB = -1` (disable cache limit) now correctly skips LRU eviction instead of silently defaulting to 1024 MB (#201)
+
 ### Performance
 - Single DB round-trip for metadata load + conditional LastAccessed update on zoom >= 9 hot path (#201)
 - Request coalescing reduces outbound HTTP requests under concurrent load (#201)
