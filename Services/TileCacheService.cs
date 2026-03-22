@@ -109,12 +109,12 @@ public class TileCacheService
         }
         else if (_maxCacheSizeInMB < 256)
         {
-            // OSM tile usage policy requires tiles cached for at least 7 days.
-            // 256 MB is the minimum floor that can reasonably hold 7 days of tiles.
+            // OSM tile usage policy requires tiles cached for at least 7 days (minimum 256 MB).
+            // The admin UI validates this on save; this warning catches pre-existing DB values.
             _logger.LogWarning(
-                "MaxCacheTileSizeInMB ({MaxCacheTileSizeInMB}) is below OSM-required minimum. Clamping to 256 MB.",
+                "MaxCacheTileSizeInMB ({MaxCacheTileSizeInMB}) is below the OSM-recommended minimum of 256 MB. " +
+                "Consider increasing this value in Admin Settings.",
                 _maxCacheSizeInMB);
-            _maxCacheSizeInMB = 256;
         }
 
         // Read the cache directory from configuration, fallback to a default if not set.

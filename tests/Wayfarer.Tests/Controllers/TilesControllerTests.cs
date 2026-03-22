@@ -80,7 +80,19 @@ public class TilesControllerTests : TestBase
         var tilePath = Path.Combine(cacheDir, "10_100_100.png");
         await File.WriteAllBytesAsync(tilePath, new byte[] { 1, 2, 3 });
         var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, new byte[] { 9, 9, 9 });
-        var controller = BuildController(handler: handler, cacheDir: cacheDir);
+        var dbContext = CreateDbContext();
+        // Add DB metadata with future expiry so the tile is served from cache without re-validation.
+        dbContext.TileCacheMetadata.Add(new TileCacheMetadata
+        {
+            Zoom = 10, X = 100, Y = 100,
+            TileLocation = new NetTopologySuite.Geometries.Point(100, 100) { SRID = 4326 },
+            Size = 3,
+            TileFilePath = tilePath,
+            LastAccessed = DateTime.UtcNow,
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+        });
+        await dbContext.SaveChangesAsync();
+        var controller = BuildController(handler: handler, cacheDir: cacheDir, dbContext: dbContext);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
         var result = await controller.GetTile(10, 100, 100);
