@@ -24,6 +24,16 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class TilesControllerTests : TestBase
 {
+    /// <summary>
+    /// Clears static rate limit caches before each test to prevent cross-test interference.
+    /// xUnit creates a new test class instance per test, so this runs before every test method.
+    /// </summary>
+    public TilesControllerTests()
+    {
+        TilesController.RateLimitCache.Clear();
+        TilesController.AuthRateLimitCache.Clear();
+    }
+
     [Fact]
     public async Task GetTile_UnauthorizedWithoutReferer()
     {
@@ -183,9 +193,8 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        // Use a unique IP for this test to avoid interference from other tests
-        var uniqueIp = $"192.168.99.{new Random().Next(1, 255)}";
-        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(uniqueIp);
+        // Deterministic IP — caches are cleared in constructor so no cross-test interference.
+        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.99.1");
 
         try
         {
@@ -222,9 +231,8 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        // Use a unique IP for this test
-        var uniqueIp = $"192.168.88.{new Random().Next(1, 255)}";
-        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(uniqueIp);
+        // Deterministic IP — caches are cleared in constructor so no cross-test interference.
+        controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("192.168.88.1");
 
         try
         {
@@ -259,10 +267,10 @@ public class TilesControllerTests : TestBase
         var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
         controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
 
-        // Use unique IPs for this test
-        var proxyIp = $"10.0.0.{new Random().Next(1, 255)}";
-        var clientIp1 = $"203.0.113.{new Random().Next(1, 127)}";
-        var clientIp2 = $"203.0.113.{new Random().Next(128, 255)}";
+        // Deterministic IPs — caches are cleared in constructor so no cross-test interference.
+        var proxyIp = "10.0.0.1";
+        var clientIp1 = "203.0.113.10";
+        var clientIp2 = "203.0.113.20";
 
         controller.ControllerContext.HttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(proxyIp);
 

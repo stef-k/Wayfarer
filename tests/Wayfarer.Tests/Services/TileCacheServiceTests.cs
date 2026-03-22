@@ -4,6 +4,8 @@ using System.Net.Http.Headers;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -74,17 +76,18 @@ public class TileCacheServiceTests : TestBase
     public async Task CacheTileAsync_EvictsLru_WhenCacheOverLimit()
     {
         using var dir = new TempDir();
-        var db = CreateDbContext();
+        var (db, dbName) = CreateNamedDbContext();
         var handler = new SizedTileHandler(600_000); // ~0.57 MB tiles
-        var service = CreateService(db, dir.Path, handler, maxCacheMb: 1);
+        var service = CreateService(db, dir.Path, handler, maxCacheMb: 1, dbName: dbName);
 
         await service.CacheTileAsync("http://tiles/9/1/1.png", "9", "1", "1"); // fits
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2"); // triggers eviction of oldest
 
-        Assert.Equal(1, db.TileCacheMetadata.Count());
-        var meta = db.TileCacheMetadata.Single();
-        Assert.Equal(1, meta.X);
-        Assert.Equal(2, meta.Y);
+        // Reload from DB to see scoped eviction changes (eviction uses its own DbContext).
+        var remaining = db.TileCacheMetadata.ToList();
+        Assert.Single(remaining);
+        Assert.Equal(1, remaining[0].X);
+        Assert.Equal(2, remaining[0].Y);
     }
 
     [Fact]
@@ -502,7 +505,23 @@ public class TileCacheServiceTests : TestBase
     /// AddHttpClient registration in Program.cs. Accept and AcceptLanguage headers
     /// are omitted because no current test exercises content negotiation.
     /// </summary>
-    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com")
+    /// <summary>
+    /// Creates an <see cref="ApplicationDbContext"/> with a known database name, so that
+    /// <see cref="SingleScopeFactory"/> can create independent DbContext instances that
+    /// share the same in-memory database store.
+    /// </summary>
+    private (ApplicationDbContext Db, string DbName) CreateNamedDbContext()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(dbName)
+            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        var db = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        return (db, dbName);
+    }
+
+    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com", string? dbName = null)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -524,8 +543,19 @@ public class TileCacheServiceTests : TestBase
         // Reset static state so tests don't interfere with each other.
         TileCacheService.ResetStaticStateForTesting();
 
+        // Create a scope factory that returns independent DbContext instances sharing
+        // the same in-memory database by name. This mirrors production behavior where
+        // each scope gets its own DbContext with a separate change tracker.
         var appSettings = new StubSettingsService(maxCacheMb);
-        var scopeFactory = new SingleScopeFactory(db);
+        var scopeFactory = dbName != null
+            ? new SingleScopeFactory(() =>
+                new ApplicationDbContext(
+                    new DbContextOptionsBuilder<ApplicationDbContext>()
+                        .UseInMemoryDatabase(dbName)
+                        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                        .Options,
+                    new ServiceCollection().BuildServiceProvider()))
+            : new SingleScopeFactory(() => db);
         return new TileCacheService(
             NullLogger<TileCacheService>.Instance,
             config,
@@ -744,16 +774,24 @@ public class TileCacheServiceTests : TestBase
         public void RefreshSettings() { }
     }
 
+    /// <summary>
+    /// Creates independent <see cref="ApplicationDbContext"/> instances per scope, sharing the
+    /// same in-memory database by name. This mirrors production behavior where each scope gets
+    /// its own DbContext with a separate change tracker, preventing tests from masking
+    /// change-tracker conflicts between the request context and scoped contexts.
+    /// </summary>
     private sealed class SingleScopeFactory : IServiceScopeFactory
     {
-        private readonly ApplicationDbContext _db;
-        public SingleScopeFactory(ApplicationDbContext db) => _db = db;
+        private readonly Func<ApplicationDbContext> _dbFactory;
+
+        public SingleScopeFactory(Func<ApplicationDbContext> dbFactory) => _dbFactory = dbFactory;
 
         public IServiceScope CreateScope()
         {
+            var db = _dbFactory();
             var provider = new ServiceCollection()
-                .AddSingleton(_db)
-                .AddSingleton<ApplicationDbContext>(_db)
+                .AddSingleton(db)
+                .AddSingleton<ApplicationDbContext>(db)
                 .BuildServiceProvider();
             return new SimpleScope(provider);
         }

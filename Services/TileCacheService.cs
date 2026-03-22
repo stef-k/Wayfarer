@@ -400,11 +400,13 @@ public class TileCacheService
     /// Accepts an optional delegate for customizing request headers (e.g., conditional headers).
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
-        Action<HttpRequestMessage>? configureRequest = null)
+        Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false)
     {
         // Acquire an outbound request token. If the budget is exhausted, return null
         // so callers can gracefully degrade (serve stale cache or return 503).
-        if (!await OutboundBudget.AcquireAsync().ConfigureAwait(false))
+        // skipBudget is true on retries — the budget was already acquired on the first attempt,
+        // so retries should not consume additional tokens.
+        if (!skipBudget && !await OutboundBudget.AcquireAsync().ConfigureAwait(false))
         {
             _logger.LogWarning(
                 "Outbound request budget exhausted — throttling upstream request for {TileUrl}",
@@ -476,9 +478,11 @@ public class TileCacheService
     /// Sends a tile request without conditional headers.
     /// Sets the Referer header from the current HTTP request to comply with OSM's tile usage policy.
     /// </summary>
-    private Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl)
+    /// <param name="tileUrl">The upstream tile URL.</param>
+    /// <param name="skipBudget">If true, skips outbound budget acquisition (used on retries).</param>
+    private Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl, bool skipBudget = false)
     {
-        return SendTileRequestCoreAsync(tileUrl);
+        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget);
     }
 
     /// <summary>
@@ -651,10 +655,14 @@ public class TileCacheService
             string? etag = null;
             DateTime? lastModifiedUpstream = null;
             DateTime? expiresAtUtc = null;
+            bool budgetAcquired = false;
 
             while (retryCount > 0)
             {
-                using var response = await SendTileRequestAsync(tileUrl);
+                // On retries, skip budget acquisition — the token was already consumed
+                // on the first attempt. This prevents HTTP 5xx retries from exhausting
+                // the entire burst budget under upstream failures.
+                using var response = await SendTileRequestAsync(tileUrl, skipBudget: budgetAcquired);
                 if (response == null)
                 {
                     // Budget exhaustion means the system is at capacity — retrying is futile
@@ -663,6 +671,7 @@ public class TileCacheService
                         TileProviderCatalog.RedactApiKey(tileUrl));
                     break;
                 }
+                budgetAcquired = true;
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -1064,13 +1073,13 @@ public class TileCacheService
 
             _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", tileKey);
 
-            // Read cached file (and write sidecar for zoom 0-8) under the same lock
-            // to prevent a concurrent purge from deleting the sidecar between write and read.
             byte[]? data = null;
-            await _cacheLock.WaitAsync();
-            try
+            if (zoom < 9)
             {
-                if (zoom < 9)
+                // Sidecar write + file read under the same lock to prevent a concurrent
+                // purge from deleting the sidecar between write and read (TOCTOU).
+                await _cacheLock.WaitAsync();
+                try
                 {
                     WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
                     {
@@ -1078,16 +1087,32 @@ public class TileCacheService
                         LastModifiedUpstream = lastModified,
                         ExpiresAtUtc = newExpiry
                     });
-                }
 
-                if (File.Exists(tileFilePath))
+                    if (File.Exists(tileFilePath))
+                    {
+                        data = await File.ReadAllBytesAsync(tileFilePath);
+                    }
+                }
+                finally
                 {
-                    data = await File.ReadAllBytesAsync(tileFilePath);
+                    _cacheLock.Release();
                 }
             }
-            finally
+            else
             {
-                _cacheLock.Release();
+                // zoom >= 9: no sidecar write needed — lock-free read
+                // (consistent with other read paths in RetrieveTileAsync).
+                try
+                {
+                    if (File.Exists(tileFilePath))
+                    {
+                        data = await File.ReadAllBytesAsync(tileFilePath);
+                    }
+                }
+                catch (IOException)
+                {
+                    // File deleted by concurrent eviction/purge — treat as cache miss.
+                }
             }
 
             return data;
@@ -1392,7 +1417,12 @@ public class TileCacheService
         const int batchSize = 300; // Adjustable batch size for optimal performance
         const int maxRetries = 3; // Max number of retries
         const int delayBetweenRetries = 1000; // Delay between retries in milliseconds
-        var filesToDelete = new List<TileCacheMetadata>();
+
+        // Phase 1: Collect files and their DB metadata into batches.
+        // Phase 2: Commit DB deletions first (consistent with EvictDbTilesAsync ordering).
+        // Phase 3: Delete files from disk after DB commit succeeds.
+        // If DB commit fails, no files are deleted — cache stays consistent.
+        var batch = new List<(TileCacheMetadata? Meta, string FilePath, long FileSize)>();
 
         foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*.png"))
         {
@@ -1403,48 +1433,14 @@ public class TileCacheService
                     .Where(t => t.TileFilePath == file)
                     .FirstOrDefaultAsync();
 
-                long fileSize = new FileInfo(file).Length;
+                long fileSize = File.Exists(file) ? new FileInfo(file).Length : 0;
+                batch.Add((fileToPurge, file, fileSize));
 
-                if (File.Exists(file))
+                // Commit and delete in batches.
+                if (batch.Count >= batchSize)
                 {
-                    await _cacheLock.WaitAsync();
-                    try
-                    {
-                        // Serialize file deletes with cache reads/writes.
-                        File.Delete(file); // Delete the file from disk
-                        Interlocked.Add(ref _currentCacheSize, -fileSize); // Update cache size tracker
-                    }
-                    finally
-                    {
-                        _cacheLock.Release();
-                    }
-
-                    if (fileToPurge != null)
-                    {
-                        _logger.LogInformation("Marking file {File} for deletion in DB.", file);
-                        // Add the entity to the deletion list.
-                        filesToDelete.Add(fileToPurge);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("No DB record found for file {File}.", file);
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("File not found for deletion: {File}", file);
-                }
-
-                // Commit in batches
-                if (filesToDelete.Count >= batchSize)
-                {
-                    await RetryOperationAsync(async () =>
-                    {
-                        dbContext.TileCacheMetadata.RemoveRange(filesToDelete);
-                        var affectedRows = await dbContext.SaveChangesAsync();
-                        _logger.LogInformation("Batch commit completed. Rows affected: {Rows}", affectedRows);
-                        filesToDelete.Clear();
-                    }, maxRetries, delayBetweenRetries);
+                    await PurgeBatchAsync(dbContext, batch, maxRetries, delayBetweenRetries);
+                    batch.Clear();
                 }
             }
             catch (Exception e)
@@ -1453,15 +1449,11 @@ public class TileCacheService
             }
         }
 
-        // Commit any remaining entries if the batch size was not reached
-        if (filesToDelete.Any())
+        // Commit any remaining entries if the batch size was not reached.
+        if (batch.Any())
         {
-            await RetryOperationAsync(async () =>
-            {
-                dbContext.TileCacheMetadata.RemoveRange(filesToDelete);
-                var affectedRows = await dbContext.SaveChangesAsync();
-                _logger.LogInformation("Final commit completed. Rows affected: {Rows}", affectedRows);
-            }, maxRetries, delayBetweenRetries);
+            await PurgeBatchAsync(dbContext, batch, maxRetries, delayBetweenRetries);
+            batch.Clear();
         }
 
         // Clean up orphan DB records (records without corresponding files on disk)
@@ -1509,6 +1501,53 @@ public class TileCacheService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error during sidecar file cleanup");
+        }
+    }
+
+    /// <summary>
+    /// Processes a purge batch: commits DB deletions first, then deletes files from disk.
+    /// Consistent with <see cref="EvictDbTilesAsync"/> ordering — if DB commit fails,
+    /// no files are deleted and cache stays consistent.
+    /// </summary>
+    private async Task PurgeBatchAsync(ApplicationDbContext dbContext,
+        List<(TileCacheMetadata? Meta, string FilePath, long FileSize)> batch,
+        int maxRetries, int delayBetweenRetries)
+    {
+        // Phase 1: Commit DB deletions first.
+        var dbEntries = batch.Where(b => b.Meta != null).Select(b => b.Meta!).ToList();
+        if (dbEntries.Any())
+        {
+            await RetryOperationAsync(async () =>
+            {
+                dbContext.TileCacheMetadata.RemoveRange(dbEntries);
+                var affectedRows = await dbContext.SaveChangesAsync();
+                _logger.LogInformation("Purge batch DB commit completed. Rows affected: {Rows}", affectedRows);
+            }, maxRetries, delayBetweenRetries);
+        }
+
+        // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
+        foreach (var (_, filePath, fileSize) in batch)
+        {
+            try
+            {
+                await _cacheLock.WaitAsync();
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                        Interlocked.Add(ref _currentCacheSize, -fileSize);
+                    }
+                }
+                finally
+                {
+                    _cacheLock.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete purged file: {File}", filePath);
+            }
         }
     }
 
