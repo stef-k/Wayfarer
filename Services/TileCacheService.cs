@@ -215,9 +215,10 @@ public class TileCacheService
         {
             var oldCts = _replenisherCts;
             oldCts.Cancel();
-            _replenisherCts = new CancellationTokenSource();
+            var newCts = new CancellationTokenSource();
+            _replenisherCts = newCts;
             _replenisher = new Lazy<Task>(
-                () => StartReplenisher(_replenisherCts.Token),
+                () => StartReplenisher(newCts.Token),
                 LazyThreadSafetyMode.ExecutionAndPublication);
         }
 
@@ -803,7 +804,9 @@ public class TileCacheService
                             _logger.LogWarning(ex,
                                 "Concurrency conflict detected while updating tile metadata. Attempt {Attempt}.",
                                 attempts);
-                            // Reload the entity from the database.
+                            // Reload the tracked entity from the database to resolve the conflict.
+                            // Using ReloadAsync instead of ToObject() to avoid creating an untracked
+                            // entity that would conflict with the original tracked instance.
                             var entry = ex.Entries.Single();
                             var databaseValues = await entry.GetDatabaseValuesAsync();
                             if (databaseValues == null)
@@ -812,8 +815,8 @@ public class TileCacheService
                                 return;
                             }
 
-                            // Update the local copy with database values and reapply our changes.
-                            existingMetadata = (TileCacheMetadata)databaseValues.ToObject();
+                            await entry.ReloadAsync();
+                            existingMetadata = (TileCacheMetadata)entry.Entity;
                             existingMetadata.Size = tileData?.Length ?? 0;
                             existingMetadata.LastAccessed = DateTime.UtcNow;
                             existingMetadata.ETag = etag;
@@ -1285,35 +1288,42 @@ public class TileCacheService
         using var scope = _serviceScopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // Retrieve a batch of the least recently accessed tiles.
+        // Retrieve a batch of the least recently accessed tile IDs and sizes.
+        // AsNoTracking avoids loading RowVersion into the change tracker, so a concurrent
+        // LastAccessed update won't cause DbUpdateConcurrencyException on our delete.
         var tilesToEvict = await dbContext.TileCacheMetadata
             .OrderBy(t => t.LastAccessed)
-            .Take(LRU_TO_EVICT) // Adjust the eviction batch size as needed.
+            .Take(LRU_TO_EVICT)
+            .AsNoTracking()
+            .Select(t => new { t.Id, t.Zoom, t.X, t.Y, t.Size })
             .ToListAsync();
 
         // Phase 1: Commit DB deletions first.
-        // If SaveChangesAsync fails, no files are deleted — cache stays consistent.
+        // If the delete fails, no files are deleted — cache stays consistent.
         // If it succeeds but file deletion later fails, orphaned files are harmless
         // and self-correcting (next cache write for that tile overwrites them).
-        long totalEvictedSize = 0;
-        var filePaths = new List<string>(tilesToEvict.Count);
-
-        foreach (var tile in tilesToEvict)
-        {
-            dbContext.TileCacheMetadata.Remove(tile);
-            totalEvictedSize += tile.Size;
-            filePaths.Add(Path.Combine(_cacheDirectory, $"{tile.Zoom}_{tile.X}_{tile.Y}.png"));
-        }
+        long totalEvictedSize = tilesToEvict.Sum(t => (long)t.Size);
+        var filePaths = tilesToEvict
+            .Select(t => Path.Combine(_cacheDirectory, $"{t.Zoom}_{t.X}_{t.Y}.png"))
+            .ToList();
+        var tileIds = tilesToEvict.Select(t => t.Id).ToList();
 
         try
         {
+            // Re-fetch by ID and delete. The fresh fetch picks up the current RowVersion,
+            // so there is no stale-token conflict even if LastAccessed changed concurrently.
+            var toDelete = await dbContext.TileCacheMetadata
+                .Where(t => tileIds.Contains(t.Id))
+                .ToListAsync();
+            dbContext.TileCacheMetadata.RemoveRange(toDelete);
             await dbContext.SaveChangesAsync();
             // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
             Interlocked.Add(ref _currentCacheSize, -totalEvictedSize);
+            _logger.LogInformation("Evicted {Count} tiles from database.", toDelete.Count);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Eviction encountered concurrency conflict — tiles may have been evicted by another instance");
+            _logger.LogWarning(ex, "Eviction DB delete failed — tiles were not evicted");
             return; // Don't decrement _currentCacheSize; rows were not deleted.
         }
 
@@ -1456,10 +1466,15 @@ public class TileCacheService
             batch.Clear();
         }
 
-        // Clean up orphan DB records (records without corresponding files on disk)
-        var orphanRecords = await dbContext.TileCacheMetadata
-            .Where(t => !File.Exists(t.TileFilePath))
-            .ToListAsync();
+        // Clean up orphan DB records (records without corresponding files on disk).
+        // File.Exists cannot be translated to SQL, so load all records and filter client-side.
+        // Use a HashSet of existing files for O(1) lookups instead of per-record disk I/O.
+        var existingFiles = new HashSet<string>(
+            Directory.EnumerateFiles(_cacheDirectory, "*.png"));
+        var allRecords = await dbContext.TileCacheMetadata.ToListAsync();
+        var orphanRecords = allRecords
+            .Where(t => !existingFiles.Contains(t.TileFilePath))
+            .ToList();
 
         if (orphanRecords.Any())
         {
@@ -1579,59 +1594,48 @@ public class TileCacheService
 
     /// <summary>
     /// Purges all LRU tile cache (zoom levels >= 9) from both file system and database.
+    /// Uses DB-first ordering consistent with <see cref="EvictDbTilesAsync"/>:
+    /// commit DB deletions first, then delete files. If DB fails, no files are deleted.
+    /// No explicit transaction needed — <see cref="ApplicationDbContext.SaveChangesAsync"/>
+    /// uses an implicit transaction.
     /// </summary>
     public async Task PurgeLRUCacheAsync()
     {
         using var scope = _serviceScopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        using var transaction = await dbContext.Database.BeginTransactionAsync();
-
         var lruCache = await dbContext.TileCacheMetadata
             .Where(file => file.Zoom >= 9)
-            .AsTracking()
             .ToListAsync();
 
-        var recordsToDelete = new List<TileCacheMetadata>();
+        if (!lruCache.Any()) return;
 
-        foreach (var file in lruCache)
+        // Collect file paths and sizes before DB deletion.
+        var fileInfo = lruCache
+            .Select(t => (FilePath: t.TileFilePath, Size: (long)t.Size))
+            .ToList();
+
+        // Phase 1: Commit DB deletions first.
+        // If this fails, no files are deleted — cache stays consistent.
+        await RetryOperationAsync(async () =>
+        {
+            dbContext.TileCacheMetadata.RemoveRange(lruCache);
+            await dbContext.SaveChangesAsync();
+        }, 3, 1000);
+
+        _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);
+
+        // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
+        foreach (var (filePath, fileSize) in fileInfo)
         {
             try
             {
-                if (File.Exists(file.TileFilePath))
-                {
-                    // Use RetryOperationAsync for file deletion logic
-                    await RetryOperationAsync(() =>
-                    {
-                        return DeleteCacheFileAsync(file.TileFilePath, file.Size);
-                    }, 3, 500); // 3 retries, 500ms delay between retries
-                }
-                else
-                {
-                    _logger.LogWarning("File not found for deletion: {File}", file.TileFilePath);
-                }
-                // Always mark DB record for deletion, regardless of whether file existed
-                recordsToDelete.Add(file);
+                await DeleteCacheFileAsync(filePath, fileSize);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Error processing file {File}", file.TileFilePath);
+                _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
             }
-        }
-
-        if (recordsToDelete.Any())
-        {
-            // Use RetryOperationAsync for database save logic
-            await RetryOperationAsync(async () =>
-            {
-                dbContext.TileCacheMetadata.RemoveRange(recordsToDelete);
-                await dbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
-            }, 3, 1000); // 3 retries, 1000ms delay between retries
-        }
-        else
-        {
-            await transaction.RollbackAsync();
         }
     }
 
