@@ -110,6 +110,8 @@ public class TilesController : Controller
         // Set browser cache headers. Tiles are stable and rarely change;
         // 1-day browser caching eliminates redundant requests.
         Response.Headers["Cache-Control"] = "public, max-age=86400";
+        // Prevent browsers from MIME-sniffing PNG responses as a different content type.
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
 
         // Return the tile data with the appropriate content type.
         return File(tileData, "image/png");

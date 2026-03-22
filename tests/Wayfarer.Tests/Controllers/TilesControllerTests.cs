@@ -102,6 +102,9 @@ public class TilesControllerTests : TestBase
             var file = Assert.IsType<FileContentResult>(result);
             Assert.Equal("image/png", file.ContentType);
             Assert.Equal(new byte[] { 1, 2, 3 }, file.FileContents);
+
+            // Verify security headers are set on tile responses.
+            Assert.Equal("nosniff", controller.Response.Headers["X-Content-Type-Options"].ToString());
         }
         finally
         {
