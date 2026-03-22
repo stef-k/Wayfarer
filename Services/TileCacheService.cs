@@ -636,7 +636,19 @@ public class TileCacheService
                         int.Parse(yCoordinate));
                     if (meta != null)
                     {
-                        isExpired = meta.ExpiresAtUtc == null || meta.ExpiresAtUtc <= DateTime.UtcNow;
+                        if (meta.ExpiresAtUtc == null)
+                        {
+                            // Legacy tile (pre-migration): no expiry metadata yet.
+                            // Assume fresh for 7 days to avoid re-downloading all tiles on deploy.
+                            // The first re-validation after 7 days will populate ETag/expiry properly.
+                            await SeedLegacyTileExpiryScopedAsync(meta);
+                            isExpired = false;
+                        }
+                        else
+                        {
+                            isExpired = meta.ExpiresAtUtc <= DateTime.UtcNow;
+                        }
+
                         etag = meta.ETag;
                         lastModified = meta.LastModifiedUpstream;
                     }
@@ -652,14 +664,35 @@ public class TileCacheService
                     var sidecar = ReadSidecarMetadata(tileFilePath);
                     if (sidecar != null)
                     {
-                        isExpired = sidecar.ExpiresAtUtc == null || sidecar.ExpiresAtUtc <= DateTime.UtcNow;
+                        if (sidecar.ExpiresAtUtc == null)
+                        {
+                            // Legacy tile (pre-migration): seed 7-day expiry via sidecar.
+                            var seeded = new TileSidecarMetadata
+                            {
+                                ETag = sidecar.ETag,
+                                LastModifiedUpstream = sidecar.LastModifiedUpstream,
+                                ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry)
+                            };
+                            WriteSidecarMetadata(tileFilePath, seeded);
+                            isExpired = false;
+                        }
+                        else
+                        {
+                            isExpired = sidecar.ExpiresAtUtc <= DateTime.UtcNow;
+                        }
+
                         etag = sidecar.ETag;
                         lastModified = sidecar.LastModifiedUpstream;
                     }
                     else
                     {
-                        // No sidecar — treat as expired to populate it
-                        isExpired = true;
+                        // No sidecar at all — legacy tile with no metadata.
+                        // Seed a sidecar with 7-day expiry so next access hits the fast path.
+                        WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
+                        {
+                            ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry)
+                        });
+                        isExpired = false;
                     }
                 }
 
@@ -871,6 +904,26 @@ public class TileCacheService
     }
 
     // ── DB metadata helpers (zoom >= 9) ─────────────────────────────────
+
+    /// <summary>
+    /// Seeds a default 7-day expiry on a legacy tile that has no ExpiresAtUtc.
+    /// Prevents re-downloading all existing cached tiles on first access after deployment.
+    /// The tile will be properly re-validated (with conditional headers) when this expiry passes.
+    /// </summary>
+    private async Task SeedLegacyTileExpiryScopedAsync(TileCacheMetadata meta)
+    {
+        meta.ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry);
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+            _logger.LogDebug("Seeded 7-day expiry for legacy tile z={Zoom} x={X} y={Y}", meta.Zoom, meta.X, meta.Y);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another instance seeded concurrently; safe to ignore.
+            _logger.LogDebug("Legacy expiry seed skipped due to concurrency (non-critical)");
+        }
+    }
 
     /// <summary>
     /// Loads tile metadata from the database and conditionally updates LastAccessed
