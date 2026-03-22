@@ -16,6 +16,7 @@ public class ApplicationSettings
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 600;
     public const int DefaultTileRateLimitAuthenticatedPerMinute = 2000;
+    public const int DefaultTileOutboundBudgetPerIpPerMinute = 30;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
     public const int DefaultMaxProxyImageDownloadMB = 50;
 
@@ -103,6 +104,17 @@ public class ApplicationSettings
     [Required]
     [Range(100, 50000, ErrorMessage = "Authenticated rate limit must be between 100 and 50,000 requests per minute.")]
     public int TileRateLimitAuthenticatedPerMinute { get; set; } = DefaultTileRateLimitAuthenticatedPerMinute;
+
+    /// <summary>
+    /// Maximum outbound tile fetches (cache misses) per minute per IP address.
+    /// Prevents a single client from monopolizing the global outbound request budget.
+    /// A typical cold-cache map load requests 20-30 uncached tiles; default of 30 allows
+    /// one full map load per minute while preventing sustained scraping attacks.
+    /// Set to 0 to disable per-IP outbound budget tracking.
+    /// </summary>
+    [Required]
+    [Range(0, 1000, ErrorMessage = "Per-IP outbound budget must be between 0 (disabled) and 1,000 per minute.")]
+    public int TileOutboundBudgetPerIpPerMinute { get; set; } = DefaultTileOutboundBudgetPerIpPerMinute;
 
     /// <summary>
     /// Whether to rate limit anonymous proxy image requests to prevent abuse and origin flooding.

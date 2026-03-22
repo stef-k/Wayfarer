@@ -252,6 +252,11 @@ public static class RateLimitHelper
             }
         }
 
+        // Normalize direct IP the same way as forwarded IPs to prevent IPv4/IPv6 aliasing
+        // (e.g., "::ffff:192.168.1.1" and "192.168.1.1" map to the same rate-limit bucket).
+        if (directIp != null && directIp.IsIPv4MappedToIPv6)
+            return directIp.MapToIPv4().ToString();
+
         return directIpString;
     }
 

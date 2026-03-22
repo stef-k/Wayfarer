@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [1.2.20] - 2026-03-22
+
+### Added
+- Per-IP outbound budget tracking (default 30 cache misses/min/IP) — prevents a single client from monopolizing the global outbound token budget (#204)
+- Admin UI field for configuring per-IP outbound budget limit (0 = disabled) (#204)
+
+### Fixed
+- **HIGH:** Outbound budget starvation DoS — a single attacker could exhaust all outbound tokens with uncached tile requests, denying service to legitimate users (#204)
+- **HIGH:** IPv4-mapped IPv6 addresses not normalized on direct-IP path — `::ffff:x.x.x.x` and `x.x.x.x` created separate rate-limit buckets, bypassing limits (#204)
+- **MEDIUM:** `PurgeBatchAsync` and `PurgeLRUCacheAsync` decremented `_currentCacheSize` using stale projected sizes instead of re-fetched entity sizes, causing cache size drift (#204)
+- **MEDIUM-LOW:** Revalidation coalescing captured first caller's `CancellationToken` — client disconnect cancelled outbound request for all coalesced waiters (#204)
+
 ## [1.2.19] - 2026-03-22
 
 ### Added

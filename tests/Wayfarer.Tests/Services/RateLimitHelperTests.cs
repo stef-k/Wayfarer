@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Net;
+using Microsoft.AspNetCore.Http;
 using Wayfarer.Services;
 using Xunit;
 
@@ -187,5 +189,34 @@ public class RateLimitHelperTests
 
         // After full decay, most (or all) of the limit should be available again.
         Assert.True(allowed >= limit - 2, $"Expected at least {limit - 2} allowed after full decay, got {allowed}");
+    }
+
+    /// <summary>
+    /// Verifies that GetClientIpAddress normalizes IPv4-mapped IPv6 addresses on the direct-IP path
+    /// (not just the X-Forwarded-For path), preventing rate-limit bucket aliasing.
+    /// </summary>
+    [Fact]
+    public void GetClientIpAddress_NormalizesIPv4MappedIPv6_OnDirectPath()
+    {
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = IPAddress.Parse("::ffff:192.168.1.1");
+
+        var result = RateLimitHelper.GetClientIpAddress(context);
+
+        Assert.Equal("192.168.1.1", result);
+    }
+
+    /// <summary>
+    /// Verifies that a regular IPv4 direct IP is returned unchanged.
+    /// </summary>
+    [Fact]
+    public void GetClientIpAddress_ReturnsIPv4Unchanged_OnDirectPath()
+    {
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.5");
+
+        var result = RateLimitHelper.GetClientIpAddress(context);
+
+        Assert.Equal("203.0.113.5", result);
     }
 }

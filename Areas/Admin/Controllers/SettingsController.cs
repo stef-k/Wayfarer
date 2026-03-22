@@ -184,6 +184,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("TileRateLimitEnabled", currentSettings.TileRateLimitEnabled, updatedSettings.TileRateLimitEnabled);
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
                     Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
+                    Track("TileOutboundBudgetPerIpPerMinute", currentSettings.TileOutboundBudgetPerIpPerMinute, updatedSettings.TileOutboundBudgetPerIpPerMinute);
 
                     // Trip Place Auto-Visited settings
                     Track("VisitedRequiredHits", currentSettings.VisitedRequiredHits, updatedSettings.VisitedRequiredHits);
@@ -228,6 +229,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileRateLimitEnabled = updatedSettings.TileRateLimitEnabled;
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
                     currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;
+                    currentSettings.TileOutboundBudgetPerIpPerMinute = updatedSettings.TileOutboundBudgetPerIpPerMinute;
 
                     // Trip Place Auto-Visited settings
                     currentSettings.VisitedRequiredHits = updatedSettings.VisitedRequiredHits;

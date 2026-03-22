@@ -6,7 +6,9 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NetTopologySuite.Geometries;
+using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Services;
 using Wayfarer.Parsers;
 using Wayfarer.Util;
 
@@ -436,7 +438,31 @@ public class TileCacheService
         Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
         CancellationToken cancellationToken = default)
     {
-        // Acquire an outbound request token. If the budget is exhausted, return null
+        // Per-IP outbound budget check: prevent a single client from monopolizing global tokens.
+        // Checked before the global budget to fail fast without consuming a global token.
+        // skipBudget is true on retries — the per-IP check was already passed on the first attempt.
+        if (!skipBudget)
+        {
+            var perIpLimit = _applicationSettings.GetSettings().TileOutboundBudgetPerIpPerMinute;
+            if (perIpLimit > 0)
+            {
+                var ctx = _httpContextAccessor.HttpContext;
+                if (ctx != null)
+                {
+                    var clientIp = RateLimitHelper.GetClientIpAddress(ctx);
+                    if (RateLimitHelper.IsRateLimitExceeded(
+                        TilesController.OutboundBudgetCache, clientIp, perIpLimit))
+                    {
+                        _logger.LogWarning(
+                            "Per-IP outbound budget exceeded for {ClientIp} — throttling upstream request for {TileUrl}",
+                            clientIp, TileProviderCatalog.RedactApiKey(tileUrl));
+                        return null;
+                    }
+                }
+            }
+        }
+
+        // Acquire a global outbound request token. If the budget is exhausted, return null
         // so callers can gracefully degrade (serve stale cache or return 503).
         // skipBudget is true on retries — the budget was already acquired on the first attempt,
         // so retries should not consume additional tokens.
@@ -1003,10 +1029,15 @@ public class TileCacheService
                 if (!string.IsNullOrEmpty(tileUrl))
                 {
                     // Coalesce concurrent re-validations: only ONE HTTP request per expired tile.
+                    // Use CancellationToken.None so the outbound request completes even if the
+                    // first caller disconnects — other coalesced callers still need the result,
+                    // and the cached data benefits future requests. Individual callers respect their
+                    // own cancellation token when they await flight.Value. HttpClient.Timeout still
+                    // protects against unresponsive upstream servers.
                     var flight = _revalidationFlights.GetOrAdd(tileKey,
                         _ => new Lazy<Task<byte[]?>>(
                             () => RevalidateTileAsync(tileUrl, tileFilePath, tileKey, zoomLvl,
-                                xVal, yVal, etag, lastModified, cancellationToken)));
+                                xVal, yVal, etag, lastModified, CancellationToken.None)));
                     try
                     {
                         var result = await flight.Value;
@@ -1582,7 +1613,10 @@ public class TileCacheService
         // Re-fetches entities by ID inside the retry lambda so that each attempt starts
         // with a clean change tracker and freshly tracked entities — prevents
         // InvalidOperationException from retrying RemoveRange on already-Deleted entities.
+        // Captures actual sizes from re-fetched entities (not stale projected sizes from the
+        // initial bulk load) so Phase 2's _currentCacheSize decrement is accurate.
         var ids = batch.Where(b => b.Meta != null).Select(b => b.Meta!.Id).ToList();
+        var actualSizes = new Dictionary<int, long>();
         if (ids.Any())
         {
             await RetryOperationAsync(async () =>
@@ -1593,6 +1627,9 @@ public class TileCacheService
                     .ToListAsync();
                 if (toDelete.Any())
                 {
+                    // Capture sizes before deletion — these reflect the current DB state,
+                    // not the stale sizes from the initial bulk-load projection.
+                    actualSizes = toDelete.ToDictionary(t => t.Id, t => (long)t.Size);
                     dbContext.TileCacheMetadata.RemoveRange(toDelete);
                     var affectedRows = await dbContext.SaveChangesAsync();
                     _logger.LogInformation("Purge batch DB commit completed. Rows affected: {Rows}", affectedRows);
@@ -1605,6 +1642,7 @@ public class TileCacheService
         // Only decrement _currentCacheSize for DB-tracked tiles (zoom >= 9, Meta != null).
         // Zoom 0-8 tiles are not tracked in _currentCacheSize, so decrementing them
         // would drive the counter negative and permanently disable eviction.
+        // Uses actualSizes from re-fetched entities to minimize drift.
         await _cacheLock.WaitAsync();
         try
         {
@@ -1615,9 +1653,9 @@ public class TileCacheService
                     if (File.Exists(filePath))
                     {
                         File.Delete(filePath);
-                        if (meta != null)
+                        if (meta != null && actualSizes.TryGetValue(meta.Id, out var actualSize))
                         {
-                            Interlocked.Add(ref _currentCacheSize, -meta.Size);
+                            Interlocked.Add(ref _currentCacheSize, -actualSize);
                         }
                     }
                 }
@@ -1680,16 +1718,19 @@ public class TileCacheService
 
         if (!lruCache.Any()) return;
 
-        // Collect file paths and sizes before DB deletion.
+        // Collect file paths with IDs for Phase 2 size lookup.
         var fileInfo = lruCache
-            .Select(t => (FilePath: t.TileFilePath, Size: (long)t.Size))
+            .Select(t => (Id: t.Id, FilePath: t.TileFilePath, Size: (long)t.Size))
             .ToList();
 
         // Phase 1: Commit DB deletions first in chunks of 1000 IDs.
         // Chunking prevents PostgreSQL query plan explosion from large IN clauses.
         // Re-fetches entities by ID inside the retry lambda so each attempt starts
         // with a clean change tracker — prevents entity tracking conflicts on retry.
+        // Captures actual sizes from re-fetched entities (not stale projected sizes)
+        // so Phase 2's _currentCacheSize decrement is accurate.
         var lruIds = lruCache.Select(t => t.Id).ToList();
+        var actualSizes = new Dictionary<int, long>();
         const int chunkSize = 1000;
         foreach (var chunk in lruIds.Chunk(chunkSize))
         {
@@ -1702,6 +1743,9 @@ public class TileCacheService
                     .ToListAsync();
                 if (toDelete.Any())
                 {
+                    // Capture sizes before deletion — these reflect the current DB state.
+                    foreach (var t in toDelete)
+                        actualSizes[t.Id] = (long)t.Size;
                     dbContext.TileCacheMetadata.RemoveRange(toDelete);
                     await dbContext.SaveChangesAsync();
                 }
@@ -1712,17 +1756,21 @@ public class TileCacheService
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
         // Single lock acquisition for the entire batch to avoid convoy effects.
+        // Uses actualSizes from re-fetched entities to minimize _currentCacheSize drift.
         await _cacheLock.WaitAsync();
         try
         {
-            foreach (var (filePath, fileSize) in fileInfo)
+            foreach (var (id, filePath, _) in fileInfo)
             {
                 try
                 {
                     if (File.Exists(filePath))
                     {
                         File.Delete(filePath);
-                        Interlocked.Add(ref _currentCacheSize, -fileSize);
+                        if (actualSizes.TryGetValue(id, out var actualSize))
+                        {
+                            Interlocked.Add(ref _currentCacheSize, -actualSize);
+                        }
                     }
                 }
                 catch (Exception e)

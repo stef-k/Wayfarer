@@ -42,6 +42,15 @@ public class TilesController : Controller
     /// </summary>
     internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> AuthRateLimitCache = new();
 
+    /// <summary>
+    /// Thread-safe dictionary for tracking per-IP outbound budget consumption (cache miss rate).
+    /// Prevents a single IP from monopolizing the global outbound token budget by limiting how
+    /// many upstream tile fetches a single client can trigger per minute.
+    /// Uses the same sliding-window pattern as request rate limiting.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
+    /// </summary>
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> OutboundBudgetCache = new();
+
     private readonly ILogger<TilesController> _logger;
     private readonly TileCacheService _tileCacheService;
     private readonly IApplicationSettingsService _settingsService;

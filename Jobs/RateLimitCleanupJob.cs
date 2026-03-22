@@ -47,6 +47,11 @@ public class RateLimitCleanupJob : IJob
             RateLimitHelper.CleanupExpiredEntries(TilesController.AuthRateLimitCache, currentTicks);
             totalRemoved += before - TilesController.AuthRateLimitCache.Count;
 
+            // Tile per-IP outbound budget cache (keyed by IP).
+            before = TilesController.OutboundBudgetCache.Count;
+            RateLimitHelper.CleanupExpiredEntries(TilesController.OutboundBudgetCache, currentTicks);
+            totalRemoved += before - TilesController.OutboundBudgetCache.Count;
+
             // Image proxy rate limit cache (keyed by IP).
             before = TripViewerController.RateLimitCache.Count;
             RateLimitHelper.CleanupExpiredEntries(TripViewerController.RateLimitCache, currentTicks);

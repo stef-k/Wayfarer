@@ -32,6 +32,7 @@ public class TilesControllerTests : TestBase
     {
         TilesController.RateLimitCache.Clear();
         TilesController.AuthRateLimitCache.Clear();
+        TilesController.OutboundBudgetCache.Clear();
     }
 
     [Fact]

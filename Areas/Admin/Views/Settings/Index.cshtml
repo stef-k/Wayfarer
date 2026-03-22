@@ -627,6 +627,19 @@
                             </div>
 
                             <div class="col-md-3 mb-3">
+                                <label asp-for="TileOutboundBudgetPerIpPerMinute" class="form-label">Cache miss budget (per IP)</label>
+                                <div class="input-group">
+                                    <input asp-for="TileOutboundBudgetPerIpPerMinute" class="form-control" type="number" min="0" max="1000" />
+                                    <span class="input-group-text">miss/min</span>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Default: @ApplicationSettings.DefaultTileOutboundBudgetPerIpPerMinute. Max upstream fetches per IP per minute. 0 = disabled.
+                                </small>
+                                <span asp-validation-for="TileOutboundBudgetPerIpPerMinute" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
                                 <div class="alert alert-info mb-0">
                                     <strong><i class="bi bi-shield-check me-1"></i>Who is affected:</strong>
                                     <ul class="mb-0 mt-1">
