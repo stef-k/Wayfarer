@@ -18,6 +18,7 @@
 
 ### Fixed
 - Eviction `_currentCacheSize` tracking now decrements after successful DB commit, preventing permanent undercount on failed eviction (#204)
+- Admin settings checkbox hidden-field fallback for `TileRateLimitEnabled` and `IsRegistrationOpen` — unchecking now correctly posts `false` instead of falling back to C# default (#204)
 
 ## [1.2.17] - 2026-03-22
 
