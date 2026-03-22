@@ -8,12 +8,10 @@ namespace Wayfarer.Services;
 /// Shared rate limiting utility using a sliding-window counter approximation with 1-minute windows.
 /// Prevents boundary-batching attacks where a burst at the end of one window plus the start of the
 /// next could double the effective limit. Thread-safe: uses atomic operations to minimize race conditions.
-/// Note: during window rotation there are two sources of jitter:
-/// 1. A thread can increment the old window's count after the CAS but before the reset, causing an
-///    undercount by the number of concurrent threads in that window (typically 1-2, up to thread count).
-/// 2. The weighted count reads _windowStartTicks, _expirationTicks, and _prevCount non-atomically,
-///    so during rotation the weight can be skewed by up to prevCount × ~0.5 in the worst case.
-/// Both effects are transient (lasting only the rotation instant) and acceptable for rate limiting.
+/// Note: during window rotation, the weighted count reads _windowStartTicks, _expirationTicks,
+/// and _prevCount non-atomically, so during rotation the weight can be skewed by up to
+/// prevCount × ~0.5 in the worst case. This is transient (lasting only the rotation instant)
+/// and acceptable for rate limiting.
 /// Used by <see cref="Wayfarer.Areas.Public.Controllers.TripViewerController"/> and
 /// <see cref="Wayfarer.Areas.Public.Controllers.TilesController"/>.
 /// </summary>
@@ -54,8 +52,8 @@ public static class RateLimitHelper
 
         /// <summary>
         /// Atomically increments the counter and returns the weighted sliding-window count.
-        /// If the window has expired, rotates: copies current count to previous, resets current,
-        /// and updates expiration using compare-and-swap to avoid TOCTOU race conditions.
+        /// If the window has expired, rotates: atomically captures and zeroes the current count,
+        /// moves the captured value to previous, and updates expiration using compare-and-swap.
         /// The returned count is: prevCount * (1 - elapsed/windowSize) + currentCount,
         /// which smoothly decays the previous window's contribution over the new window.
         /// </summary>
@@ -69,9 +67,11 @@ public static class RateLimitHelper
             {
                 if (Interlocked.CompareExchange(ref _expirationTicks, newExpirationTicks, currentExpiration) == currentExpiration)
                 {
-                    // Won the CAS — rotate window: current becomes previous, reset current.
-                    Interlocked.Exchange(ref _prevCount, Volatile.Read(ref _count));
-                    Interlocked.Exchange(ref _count, 0);
+                    // Won the CAS — rotate window: atomically capture and zero current count,
+                    // then move captured value to previous. This eliminates the gap where
+                    // concurrent increments could be lost between read and reset.
+                    var captured = Interlocked.Exchange(ref _count, 0);
+                    Interlocked.Exchange(ref _prevCount, captured);
                     Interlocked.Exchange(ref _windowStartTicks, currentExpiration);
                 }
             }

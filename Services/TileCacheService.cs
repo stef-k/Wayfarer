@@ -13,6 +13,15 @@ using Wayfarer.Util;
 public class TileCacheService
 {
     private readonly ILogger<TileCacheService> _logger;
+
+    /// <summary>
+    /// Request-scoped database context injected via constructor.
+    /// Safe to use directly in CacheTileAsync/RetrieveTileAsync because TileCacheService is
+    /// Transient (one instance per injection via AddHttpClient) and DbContext is Scoped (one per
+    /// request). Each request gets its own TileCacheService + DbContext pair — no cross-request sharing.
+    /// Background operations (eviction, purge, revalidation) create their own scope via
+    /// <see cref="_serviceScopeFactory"/> to avoid disposed-context failures.
+    /// </summary>
     private readonly ApplicationDbContext _dbContext;
     private readonly string _cacheDirectory;
     private readonly HttpClient _httpClient;
@@ -208,18 +217,25 @@ public class TileCacheService
         /// starts on the next <see cref="AcquireAsync"/> call. Cancels the old CTS first to stop
         /// the running replenisher before creating replacements — this eliminates the brief window
         /// where two replenishers could overlap and double-release tokens.
+        /// Uses <see cref="_stopLock"/> to prevent concurrent calls from interleaving the
+        /// cancel-then-replace sequence and orphaning a replenisher.
         /// Does NOT dispose the old CTS — the replenisher task may still reference its token;
         /// abandoned CTS instances are GC'd.
         /// </summary>
+        private static readonly object _stopLock = new();
+
         private static void StopReplenisher()
         {
-            var oldCts = _replenisherCts;
-            oldCts.Cancel();
-            var newCts = new CancellationTokenSource();
-            _replenisherCts = newCts;
-            _replenisher = new Lazy<Task>(
-                () => StartReplenisher(newCts.Token),
-                LazyThreadSafetyMode.ExecutionAndPublication);
+            lock (_stopLock)
+            {
+                var oldCts = _replenisherCts;
+                oldCts.Cancel();
+                var newCts = new CancellationTokenSource();
+                _replenisherCts = newCts;
+                _replenisher = new Lazy<Task>(
+                    () => StartReplenisher(newCts.Token),
+                    LazyThreadSafetyMode.ExecutionAndPublication);
+            }
         }
 
         /// <summary>
@@ -1467,23 +1483,34 @@ public class TileCacheService
         }
 
         // Clean up orphan DB records (records without corresponding files on disk).
-        // File.Exists cannot be translated to SQL, so load all records and filter client-side.
-        // Use a HashSet of existing files for O(1) lookups instead of per-record disk I/O.
+        // File.Exists cannot be translated to SQL, so project only Id + TileFilePath
+        // with AsNoTracking to minimize memory, then filter client-side with a HashSet.
         var existingFiles = new HashSet<string>(
             Directory.EnumerateFiles(_cacheDirectory, "*.png"));
-        var allRecords = await dbContext.TileCacheMetadata.ToListAsync();
-        var orphanRecords = allRecords
+        var allPaths = await dbContext.TileCacheMetadata
+            .AsNoTracking()
+            .Select(t => new { t.Id, t.TileFilePath })
+            .ToListAsync();
+        var orphanIds = allPaths
             .Where(t => !existingFiles.Contains(t.TileFilePath))
+            .Select(t => t.Id)
             .ToList();
 
-        if (orphanRecords.Any())
+        if (orphanIds.Any())
         {
-            _logger.LogInformation("Found {Count} orphan DB records without files on disk.", orphanRecords.Count);
+            _logger.LogInformation("Found {Count} orphan DB records without files on disk.", orphanIds.Count);
             await RetryOperationAsync(async () =>
             {
-                dbContext.TileCacheMetadata.RemoveRange(orphanRecords);
-                var affectedRows = await dbContext.SaveChangesAsync();
-                _logger.LogInformation("Orphan records cleanup completed. Rows affected: {Rows}", affectedRows);
+                dbContext.ChangeTracker.Clear();
+                var toDelete = await dbContext.TileCacheMetadata
+                    .Where(t => orphanIds.Contains(t.Id))
+                    .ToListAsync();
+                if (toDelete.Any())
+                {
+                    dbContext.TileCacheMetadata.RemoveRange(toDelete);
+                    var affectedRows = await dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Orphan records cleanup completed. Rows affected: {Rows}", affectedRows);
+                }
             }, maxRetries, delayBetweenRetries);
         }
 
@@ -1529,14 +1556,24 @@ public class TileCacheService
         int maxRetries, int delayBetweenRetries)
     {
         // Phase 1: Commit DB deletions first.
-        var dbEntries = batch.Where(b => b.Meta != null).Select(b => b.Meta!).ToList();
-        if (dbEntries.Any())
+        // Re-fetches entities by ID inside the retry lambda so that each attempt starts
+        // with a clean change tracker and freshly tracked entities — prevents
+        // InvalidOperationException from retrying RemoveRange on already-Deleted entities.
+        var ids = batch.Where(b => b.Meta != null).Select(b => b.Meta!.Id).ToList();
+        if (ids.Any())
         {
             await RetryOperationAsync(async () =>
             {
-                dbContext.TileCacheMetadata.RemoveRange(dbEntries);
-                var affectedRows = await dbContext.SaveChangesAsync();
-                _logger.LogInformation("Purge batch DB commit completed. Rows affected: {Rows}", affectedRows);
+                dbContext.ChangeTracker.Clear();
+                var toDelete = await dbContext.TileCacheMetadata
+                    .Where(t => ids.Contains(t.Id))
+                    .ToListAsync();
+                if (toDelete.Any())
+                {
+                    dbContext.TileCacheMetadata.RemoveRange(toDelete);
+                    var affectedRows = await dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Purge batch DB commit completed. Rows affected: {Rows}", affectedRows);
+                }
             }, maxRetries, delayBetweenRetries);
         }
 
@@ -1610,8 +1647,11 @@ public class TileCacheService
         using var scope = _serviceScopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Project only the fields needed — AsNoTracking avoids change tracker overhead.
         var lruCache = await dbContext.TileCacheMetadata
+            .AsNoTracking()
             .Where(file => file.Zoom >= 9)
+            .Select(t => new { t.Id, t.TileFilePath, t.Size })
             .ToListAsync();
 
         if (!lruCache.Any()) return;
@@ -1622,11 +1662,20 @@ public class TileCacheService
             .ToList();
 
         // Phase 1: Commit DB deletions first.
-        // If this fails, no files are deleted — cache stays consistent.
+        // Re-fetches by ID inside the retry lambda so each attempt starts with a clean
+        // change tracker — prevents entity tracking conflicts on retry.
+        var lruIds = lruCache.Select(t => t.Id).ToList();
         await RetryOperationAsync(async () =>
         {
-            dbContext.TileCacheMetadata.RemoveRange(lruCache);
-            await dbContext.SaveChangesAsync();
+            dbContext.ChangeTracker.Clear();
+            var toDelete = await dbContext.TileCacheMetadata
+                .Where(t => lruIds.Contains(t.Id))
+                .ToListAsync();
+            if (toDelete.Any())
+            {
+                dbContext.TileCacheMetadata.RemoveRange(toDelete);
+                await dbContext.SaveChangesAsync();
+            }
         }, 3, 1000);
 
         _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);

@@ -61,6 +61,11 @@ public class TilesController : Controller
     public async Task<IActionResult> GetTile(int z, int x, int y)
     {
         // Validate the referer header to prevent third-party exploitation.
+        // Intentionally restrictive: rejects requests without a same-origin Referer.
+        // Acceptable because: mobile app fetches tiles directly from OSM (not this proxy),
+        // embedded maps (iframes) work because tile requests originate same-origin,
+        // and non-browser API clients are not expected to use this endpoint.
+        // The rate limiter is the primary abuse defense; this is an additional deterrent.
         string? refererValue = Request.Headers["Referer"].ToString();
         if (string.IsNullOrEmpty(refererValue) || !IsValidReferer(refererValue))
         {
