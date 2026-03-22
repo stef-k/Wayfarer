@@ -84,6 +84,9 @@ namespace Wayfarer.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int>("TileRateLimitAuthenticatedPerMinute")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("TileRateLimitEnabled")
                         .HasColumnType("boolean");
 

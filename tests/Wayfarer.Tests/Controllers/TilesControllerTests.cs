@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -291,6 +292,93 @@ public class TilesControllerTests : TestBase
         }
     }
 
+    [Fact]
+    public async Task GetTile_AuthenticatedUser_RateLimitedAtHigherThreshold()
+    {
+        var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDir);
+
+        // Set a low authenticated limit to trigger it easily.
+        var settingsService = BuildSettingsService(rateLimitEnabled: true, rateLimitPerMinute: 2, rateLimitAuthenticatedPerMinute: 3);
+        var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
+        controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
+
+        // Set up an authenticated user identity.
+        var userId = Guid.NewGuid().ToString();
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, userId) };
+        var identity = new ClaimsIdentity(claims, "TestAuth");
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity);
+
+        try
+        {
+            // Authenticated user should get the higher limit (3, not 2).
+            // Use valid coordinates: at z=10, max tile index is 1023.
+            var result1 = await controller.GetTile(10, 0, 0);
+            Assert.IsNotType<ObjectResult>(result1);
+
+            var result2 = await controller.GetTile(10, 0, 1);
+            Assert.IsNotType<ObjectResult>(result2);
+
+            var result3 = await controller.GetTile(10, 0, 2);
+            Assert.IsNotType<ObjectResult>(result3);
+
+            // Fourth request should be rate limited.
+            var result4 = await controller.GetTile(10, 0, 3);
+            var statusResult = Assert.IsType<ObjectResult>(result4);
+            Assert.Equal(429, statusResult.StatusCode);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetTile_AuthenticatedUser_UsesUserIdNotIp()
+    {
+        var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDir);
+
+        // Set very low limit to trigger quickly.
+        var settingsService = BuildSettingsService(rateLimitEnabled: true, rateLimitPerMinute: 1, rateLimitAuthenticatedPerMinute: 1);
+        var controller = BuildController(cacheDir: cacheDir, settingsService: settingsService);
+        controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
+
+        // First user: exhaust their limit.
+        var user1Id = Guid.NewGuid().ToString();
+        var identity1 = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, user1Id) }, "TestAuth");
+        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity1);
+
+        try
+        {
+            var result1 = await controller.GetTile(10, 0, 0);
+            Assert.IsNotType<ObjectResult>(result1);
+
+            // User1 should now be rate limited.
+            var result2 = await controller.GetTile(10, 0, 1);
+            var statusResult = Assert.IsType<ObjectResult>(result2);
+            Assert.Equal(429, statusResult.StatusCode);
+
+            // Second user (same IP) should NOT be rate limited (keyed by userId, not IP).
+            var user2Id = Guid.NewGuid().ToString();
+            var identity2 = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, user2Id) }, "TestAuth");
+            controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity2);
+
+            var result3 = await controller.GetTile(10, 0, 2);
+            Assert.IsNotType<ObjectResult>(result3);
+        }
+        finally
+        {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, true);
+            }
+        }
+    }
+
     private TilesController BuildController(TileCacheService? tileService = null, ApplicationDbContext? dbContext = null!, string? cacheDir = null, HttpMessageHandler? handler = null, IApplicationSettingsService? settingsService = null)
     {
         dbContext ??= CreateDbContext();
@@ -337,7 +425,7 @@ public class TilesControllerTests : TestBase
             new HttpContextAccessor());
     }
 
-    private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500)
+    private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500, int rateLimitAuthenticatedPerMinute = 2000)
     {
         // Use a consistent settings instance for controller + cache service tests.
         var appSettings = new Mock<IApplicationSettingsService>();
@@ -348,7 +436,8 @@ public class TilesControllerTests : TestBase
             TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate,
             TileProviderAttribution = ApplicationSettings.DefaultTileProviderAttribution,
             TileRateLimitEnabled = rateLimitEnabled,
-            TileRateLimitPerMinute = rateLimitPerMinute
+            TileRateLimitPerMinute = rateLimitPerMinute,
+            TileRateLimitAuthenticatedPerMinute = rateLimitAuthenticatedPerMinute
         });
         return appSettings.Object;
     }

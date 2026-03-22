@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -31,6 +32,13 @@ public class TilesController : Controller
     /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
     /// </summary>
     private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
+
+    /// <summary>
+    /// Thread-safe dictionary for rate limiting authenticated tile requests by user ID.
+    /// Separate from anonymous rate limiting to apply different (higher) limits for trusted users
+    /// while still preventing abuse from compromised accounts.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> AuthRateLimitCache = new();
 
     private readonly ILogger<TilesController> _logger;
     private readonly TileCacheService _tileCacheService;
@@ -77,15 +85,27 @@ public class TilesController : Controller
         // Resolve the tile provider template from settings or presets.
         var settings = _settingsService.GetSettings();
 
-        // Rate limit anonymous requests to prevent tile scraping abuse.
-        // Authenticated users (logged-in) are never rate limited.
-        if (User.Identity?.IsAuthenticated != true && settings.TileRateLimitEnabled)
+        // Rate limit tile requests to prevent abuse.
+        // Anonymous users are limited by IP; authenticated users by user ID at a higher threshold.
+        if (settings.TileRateLimitEnabled)
         {
-            var clientIp = GetClientIpAddress();
-            if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
+            if (User.Identity?.IsAuthenticated == true)
             {
-                _logger.LogWarning("Tile rate limit exceeded for IP: {ClientIp}", clientIp);
-                return StatusCode(429, "Too many requests. Please try again later.");
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
+                if (RateLimitHelper.IsRateLimitExceeded(AuthRateLimitCache, userId, settings.TileRateLimitAuthenticatedPerMinute))
+                {
+                    _logger.LogWarning("Tile rate limit exceeded for authenticated user: {UserId}", userId);
+                    return StatusCode(429, "Too many requests. Please try again later.");
+                }
+            }
+            else
+            {
+                var clientIp = GetClientIpAddress();
+                if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
+                {
+                    _logger.LogWarning("Tile rate limit exceeded for IP: {ClientIp}", clientIp);
+                    return StatusCode(429, "Too many requests. Please try again later.");
+                }
             }
         }
         var preset = TileProviderCatalog.FindPreset(settings.TileProviderKey);

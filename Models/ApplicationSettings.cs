@@ -15,6 +15,7 @@ public class ApplicationSettings
     public const string DefaultTileProviderUrlTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 500;
+    public const int DefaultTileRateLimitAuthenticatedPerMinute = 2000;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
     public const int DefaultMaxProxyImageDownloadMB = 50;
 
@@ -78,8 +79,9 @@ public class ApplicationSettings
     public string? TileProviderApiKey { get; set; }
 
     /// <summary>
-    /// Whether to rate limit anonymous tile requests to prevent abuse.
-    /// Authenticated users are never rate limited.
+    /// Whether to rate limit tile requests to prevent abuse.
+    /// When enabled, anonymous users are limited by <see cref="TileRateLimitPerMinute"/> (per IP)
+    /// and authenticated users by <see cref="TileRateLimitAuthenticatedPerMinute"/> (per user ID).
     /// </summary>
     [Required]
     public bool TileRateLimitEnabled { get; set; } = true;
@@ -91,6 +93,16 @@ public class ApplicationSettings
     [Required]
     [Range(50, 10000, ErrorMessage = "Rate limit must be between 50 and 10,000 requests per minute.")]
     public int TileRateLimitPerMinute { get; set; } = DefaultTileRateLimitPerMinute;
+
+    /// <summary>
+    /// Maximum tile requests per minute per user ID for authenticated users.
+    /// Higher than anonymous limit since authenticated users are trusted but should
+    /// still have a finite limit to prevent compromised account abuse.
+    /// Default is 2000.
+    /// </summary>
+    [Required]
+    [Range(100, 50000, ErrorMessage = "Authenticated rate limit must be between 100 and 50,000 requests per minute.")]
+    public int TileRateLimitAuthenticatedPerMinute { get; set; } = DefaultTileRateLimitAuthenticatedPerMinute;
 
     /// <summary>
     /// Whether to rate limit anonymous proxy image requests to prevent abuse and origin flooding.
