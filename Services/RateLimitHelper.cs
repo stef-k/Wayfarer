@@ -8,9 +8,12 @@ namespace Wayfarer.Services;
 /// Shared rate limiting utility using a sliding-window counter approximation with 1-minute windows.
 /// Prevents boundary-batching attacks where a burst at the end of one window plus the start of the
 /// next could double the effective limit. Thread-safe: uses atomic operations to minimize race conditions.
-/// Note: during window rotation there is a narrow race where a thread can increment the old window's
-/// count after the CAS but before the reset, causing a minor undercount (off by ~1). This is acceptable
-/// for rate limiting purposes and does not compromise the overall throttling guarantee.
+/// Note: during window rotation there are two sources of jitter:
+/// 1. A thread can increment the old window's count after the CAS but before the reset, causing an
+///    undercount by the number of concurrent threads in that window (typically 1-2, up to thread count).
+/// 2. The weighted count reads _windowStartTicks, _expirationTicks, and _prevCount non-atomically,
+///    so during rotation the weight can be skewed by up to prevCount × ~0.5 in the worst case.
+/// Both effects are transient (lasting only the rotation instant) and acceptable for rate limiting.
 /// Used by <see cref="Wayfarer.Areas.Public.Controllers.TripViewerController"/> and
 /// <see cref="Wayfarer.Areas.Public.Controllers.TilesController"/>.
 /// </summary>
@@ -27,8 +30,8 @@ public static class RateLimitHelper
     /// boundary are weighted, preventing the boundary-batching exploit where an attacker sends
     /// the full limit at :59s and again at :00s to achieve 2× the intended rate.
     /// Uses atomic operations (Interlocked) for thread safety. The weighted count reads multiple
-    /// fields non-atomically, so it may jitter by ~1 request during window rotation — acceptable
-    /// for rate limiting.
+    /// fields non-atomically, so it may jitter by up to prevCount × ~0.5 during window rotation —
+    /// transient and acceptable for rate limiting.
     /// </summary>
     public sealed class RateLimitEntry
     {
@@ -110,20 +113,37 @@ public static class RateLimitHelper
     /// <param name="cache">The concurrent dictionary tracking rate limit entries per IP.</param>
     /// <param name="clientIp">The client IP address to check.</param>
     /// <param name="maxRequestsPerMinute">Maximum allowed requests per minute.</param>
-    /// <param name="maxTrackedIps">Maximum number of IPs to track before cleanup triggers.</param>
+    /// <param name="maxTrackedIps">Maximum number of keys to track before cleanup triggers (default 10,000).</param>
     /// <returns>True if rate limit is exceeded, false otherwise.</returns>
+    /// <summary>
+    /// Coalesces concurrent cleanup runs. Only one thread runs cleanup at a time;
+    /// others skip and proceed with rate limiting.
+    /// </summary>
+    private static int _cleanupInProgress;
+
     public static bool IsRateLimitExceeded(
         ConcurrentDictionary<string, RateLimitEntry> cache,
         string clientIp,
         int maxRequestsPerMinute,
-        int maxTrackedIps = 100000)
+        int maxTrackedIps = 10000)
     {
         var currentTicks = DateTime.UtcNow.Ticks;
-        var expirationTicks = currentTicks + TimeSpan.FromMinutes(1).Ticks;
+        var expirationTicks = currentTicks + WindowTicks;
 
         if (cache.Count > maxTrackedIps)
         {
-            CleanupExpiredEntries(cache, currentTicks);
+            // Coalesce: only one thread runs cleanup at a time.
+            if (Interlocked.CompareExchange(ref _cleanupInProgress, 1, 0) == 0)
+            {
+                try
+                {
+                    CleanupExpiredEntries(cache, currentTicks);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _cleanupInProgress, 0);
+                }
+            }
         }
 
         var entry = cache.GetOrAdd(clientIp, _ => new RateLimitEntry(expirationTicks));

@@ -5,14 +5,19 @@
 ### Added
 - Sliding-window rate limiter replacing fixed-window — prevents boundary-batching attacks where bursts at window edges could double the effective limit (#204)
 - Authenticated user rate limiting by user ID (default 2000 req/min) — previously authenticated users bypassed rate limiting entirely (#204)
-- `TileRateLimitAuthenticatedPerMinute` application setting for configurable authenticated tile rate limit (#204)
-- Outbound request budget (token-bucket at 2 req/sec, burst 4) — prevents cache-miss cascading from overwhelming upstream OSM and risking a fair-use block (#204)
+- `TileRateLimitAuthenticatedPerMinute` application setting for configurable authenticated tile rate limit, exposed in Admin Settings UI (#204)
+- Outbound request budget (token-bucket at 2 req/sec, burst 2) — prevents cache-miss cascading from overwhelming upstream OSM and risking a fair-use block; complies with OSM 2-connection policy (#204)
 - `X-Content-Type-Options: nosniff` header on tile proxy responses to prevent MIME-sniffing (#204)
 
 ### Changed
 - Rate limiter now uses sliding-window counter approximation instead of fixed-window, smoothing request counting across window boundaries (#204)
+- Default anonymous tile rate limit increased from 500 to 600 req/min to compensate for the stricter sliding-window algorithm (#204)
 - Rate limiting applies to both anonymous (by IP) and authenticated (by user ID) requests with separate configurable thresholds (#204)
+- Admin Settings UI updated to show both anonymous and authenticated rate limit fields; removed incorrect "never limited" text (#204)
 - Outbound tile requests gracefully degrade (serve stale cache) when upstream budget is exhausted (#204)
+
+### Fixed
+- Eviction `_currentCacheSize` tracking now decrements after successful DB commit, preventing permanent undercount on failed eviction (#204)
 
 ## [1.2.17] - 2026-03-22
 

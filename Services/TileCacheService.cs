@@ -91,30 +91,30 @@ public class TileCacheService
     /// <summary>
     /// Token-bucket rate limiter for outbound requests to upstream tile providers (e.g., OSM).
     /// Prevents cache-miss cascading from overwhelming the upstream server and risking a block
-    /// under OSM's fair use policy. Replenishes at a fixed rate (default: 2 tokens/sec)
-    /// with a small burst capacity (default: 4 concurrent requests).
+    /// under OSM's fair use policy. Replenishes at a sustained rate of 2 tokens/sec with a
+    /// burst capacity of 2 concurrent requests (matching OSM's 2-connection recommendation).
     /// Thread-safe: uses <see cref="SemaphoreSlim"/> for token management and
     /// <see cref="PeriodicTimer"/> for replenishment.
     /// </summary>
     internal static class OutboundBudget
     {
         /// <summary>
-        /// Maximum burst capacity — how many outbound requests can fire concurrently
-        /// before throttling kicks in. Allows short bursts during cache warm-up.
+        /// Maximum burst capacity — how many outbound requests can fire concurrently.
+        /// Set to 2 to comply with OSM tile usage policy ("maximum of 2 download threads").
         /// </summary>
-        private const int BurstCapacity = 4;
+        internal const int BurstCapacity = 2;
 
         /// <summary>
         /// Replenishment interval — one token is released every this many milliseconds.
-        /// 500ms = 2 tokens/sec sustained rate, which is well within OSM's fair use policy.
+        /// 500ms = 2 tokens/sec sustained rate, complying with OSM's fair use policy.
         /// </summary>
-        private const int ReplenishIntervalMs = 500;
+        internal const int ReplenishIntervalMs = 500;
 
         /// <summary>
         /// Maximum time to wait for a token before giving up. Callers that time out
         /// serve stale cache or return 503 (graceful degradation).
         /// </summary>
-        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(5);
+        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(10);
 
         /// <summary>
         /// Semaphore representing available outbound tokens. Initialized to <see cref="BurstCapacity"/>.
@@ -124,13 +124,16 @@ public class TileCacheService
 
         /// <summary>
         /// Cancellation source for stopping the replenishment task during shutdown or testing.
+        /// Not disposed on stop — the replenisher task may still hold a reference to its token.
+        /// Old instances are abandoned for GC to avoid ObjectDisposedException races.
         /// </summary>
-        private static CancellationTokenSource _replenisherCts = new();
+        private static volatile CancellationTokenSource _replenisherCts = new();
 
         /// <summary>
         /// Ensures the replenishment task is started exactly once, even under concurrent access.
+        /// Declared volatile so replacement in <see cref="StopReplenisher"/> is visible across threads.
         /// </summary>
-        private static Lazy<Task> _replenisher = new(
+        private static volatile Lazy<Task> _replenisher = new(
             () => StartReplenisher(_replenisherCts.Token),
             LazyThreadSafetyMode.ExecutionAndPublication);
 
@@ -164,8 +167,8 @@ public class TileCacheService
                 {
                     while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
                     {
-                        // Release a token if below capacity. CurrentCount check avoids
-                        // SemaphoreFullException when replenishment outpaces consumption.
+                        // Release a token if below capacity. The catch handles the harmless race
+                        // where CurrentCount changes between the check and the Release.
                         if (_tokens.CurrentCount < BurstCapacity)
                         {
                             try
@@ -183,28 +186,39 @@ public class TileCacheService
                 {
                     // Expected during shutdown or test reset — exit cleanly.
                 }
-            }, ct);
+            }, CancellationToken.None);
         }
 
         /// <summary>
-        /// Stops the replenishment task if running, resets the Lazy so a fresh replenisher
-        /// can start on the next <see cref="AcquireAsync"/> call.
-        /// Called by <see cref="TileCacheService.StopOutboundBudgetAsync"/> on app shutdown
-        /// and by <see cref="ResetForTesting"/> between tests.
+        /// Cancels the current replenishment task and prepares a fresh Lazy so a new replenisher
+        /// starts on the next <see cref="AcquireAsync"/> call. Does NOT dispose the old CTS —
+        /// the replenisher task may still reference its token; abandoned CTS instances are GC'd.
         /// </summary>
         private static void StopReplenisher()
         {
-            _replenisherCts.Cancel();
-            _replenisherCts.Dispose();
+            var oldCts = _replenisherCts;
             _replenisherCts = new CancellationTokenSource();
             _replenisher = new Lazy<Task>(
                 () => StartReplenisher(_replenisherCts.Token),
                 LazyThreadSafetyMode.ExecutionAndPublication);
+            oldCts.Cancel();
+        }
+
+        /// <summary>
+        /// Stops the replenishment task for clean application shutdown. Does not drain or refill
+        /// tokens — simply cancels the background task. Called from
+        /// <c>IHostApplicationLifetime.ApplicationStopping</c>.
+        /// </summary>
+        internal static void Stop()
+        {
+            _replenisherCts.Cancel();
         }
 
         /// <summary>
         /// Resets the outbound budget for testing. Stops the replenisher, drains and refills
-        /// the semaphore to burst capacity, then allows a fresh replenisher on next acquire.
+        /// the semaphore to burst capacity, then prepares a fresh replenisher for the next acquire.
+        /// Must only be called when no concurrent <see cref="AcquireAsync"/> calls are in flight
+        /// (i.e., between tests in a single-threaded setup phase).
         /// </summary>
         internal static void ResetForTesting()
         {
@@ -230,7 +244,7 @@ public class TileCacheService
     /// Stops the outbound budget replenishment task for clean application shutdown.
     /// Call from <c>IHostApplicationLifetime.ApplicationStopping</c> or equivalent.
     /// </summary>
-    public static void StopOutboundBudget() => OutboundBudget.ResetForTesting();
+    public static void StopOutboundBudget() => OutboundBudget.Stop();
 
     /// <summary>
     /// Resets all static state so each test starts with a clean slate.
@@ -1215,10 +1229,14 @@ public class TileCacheService
             .Take(LRU_TO_EVICT) // Adjust the eviction batch size as needed.
             .ToListAsync();
 
+        // Track total evicted size; only decrement _currentCacheSize after SaveChangesAsync
+        // succeeds to avoid permanent undercount if the DB commit fails.
+        long totalEvictedSize = 0;
+
         foreach (var tile in tilesToEvict)
         {
             _dbContext.TileCacheMetadata.Remove(tile);
-            Interlocked.Add(ref _currentCacheSize, -tile.Size);
+            totalEvictedSize += tile.Size;
 
             // Remove the corresponding file.
             var tileFilePath = Path.Combine(_cacheDirectory, $"{tile.Zoom}_{tile.X}_{tile.Y}.png");
@@ -1230,19 +1248,19 @@ public class TileCacheService
 
             try
             {
-                if (File.Exists(tileFilePath))
+                await _cacheLock.WaitAsync();
+                try
                 {
-                    await _cacheLock.WaitAsync();
-                    try
+                    // Re-check under lock to avoid TOCTOU with concurrent cache reads/writes.
+                    if (File.Exists(tileFilePath))
                     {
-                        // Serialize file deletes with cache reads/writes.
                         File.Delete(tileFilePath);
+                        _logger.LogInformation("Tile file deleted: {TileFilePath}", tileFilePath);
                     }
-                    finally
-                    {
-                        _cacheLock.Release();
-                    }
-                    _logger.LogInformation("Tile file deleted: {TileFilePath}", tileFilePath);
+                }
+                finally
+                {
+                    _cacheLock.Release();
                 }
             }
             catch (Exception ex)
@@ -1252,6 +1270,8 @@ public class TileCacheService
         }
 
         await _dbContext.SaveChangesAsync();
+        // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
+        Interlocked.Add(ref _currentCacheSize, -totalEvictedSize);
         _logger.LogInformation("Evicted tiles to maintain cache size.");
     }
 

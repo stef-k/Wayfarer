@@ -89,9 +89,13 @@ public class TilesController : Controller
         // Anonymous users are limited by IP; authenticated users by user ID at a higher threshold.
         if (settings.TileRateLimitEnabled)
         {
-            if (User.Identity?.IsAuthenticated == true)
+            var userId = User.Identity?.IsAuthenticated == true
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+
+            if (userId != null)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
+                // Authenticated user with a valid user ID — rate limit by userId.
                 if (RateLimitHelper.IsRateLimitExceeded(AuthRateLimitCache, userId, settings.TileRateLimitAuthenticatedPerMinute))
                 {
                     _logger.LogWarning("Tile rate limit exceeded for authenticated user: {UserId}", userId);
@@ -100,6 +104,7 @@ public class TilesController : Controller
             }
             else
             {
+                // Anonymous user or authenticated user without a NameIdentifier claim — rate limit by IP.
                 var clientIp = GetClientIpAddress();
                 if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
                 {

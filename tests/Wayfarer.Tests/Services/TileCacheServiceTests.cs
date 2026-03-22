@@ -682,19 +682,49 @@ public class TileCacheServiceTests : TestBase
     }
 
     /// <summary>
-    /// Verifies that the outbound budget throttle can be acquired and limits concurrent requests.
+    /// Verifies that the outbound budget throttle can be acquired up to burst capacity.
     /// </summary>
     [Fact]
     public async Task OutboundBudget_AcquireAsync_GrantsTokensUpToBurstCapacity()
     {
         TileCacheService.OutboundBudget.ResetForTesting();
 
-        // Burst capacity is 4 — first 4 should succeed immediately.
-        for (int i = 0; i < 4; i++)
+        // Burst capacity is 2 — first 2 should succeed immediately.
+        for (int i = 0; i < TileCacheService.OutboundBudget.BurstCapacity; i++)
         {
             var acquired = await TileCacheService.OutboundBudget.AcquireAsync();
             Assert.True(acquired, $"Token {i + 1} should have been acquired");
         }
+    }
+
+    /// <summary>
+    /// Verifies that once all burst tokens are consumed and the replenisher hasn't ticked yet,
+    /// further acquire attempts time out (return false) rather than blocking forever.
+    /// </summary>
+    [Fact]
+    public async Task OutboundBudget_AcquireAsync_ReturnsFalse_WhenBudgetExhausted()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+
+        // Consume all burst tokens.
+        for (int i = 0; i < TileCacheService.OutboundBudget.BurstCapacity; i++)
+        {
+            await TileCacheService.OutboundBudget.AcquireAsync();
+        }
+
+        // Use a short timeout to verify exhaustion without waiting the full AcquireTimeout.
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        bool acquired;
+        try
+        {
+            acquired = await TileCacheService.OutboundBudget.AcquireAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            acquired = false;
+        }
+
+        Assert.False(acquired, "Should not acquire a token when budget is exhausted");
     }
 
     private sealed class StubSettingsService : IApplicationSettingsService

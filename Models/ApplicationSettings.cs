@@ -14,7 +14,7 @@ public class ApplicationSettings
     public const string DefaultTileProviderKey = "osm";
     public const string DefaultTileProviderUrlTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
-    public const int DefaultTileRateLimitPerMinute = 500;
+    public const int DefaultTileRateLimitPerMinute = 600;
     public const int DefaultTileRateLimitAuthenticatedPerMinute = 2000;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
     public const int DefaultMaxProxyImageDownloadMB = 50;
