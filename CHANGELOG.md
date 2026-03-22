@@ -15,9 +15,17 @@
 - Rate limiting applies to both anonymous (by IP) and authenticated (by user ID) requests with separate configurable thresholds (#204)
 - Admin Settings UI updated to show both anonymous and authenticated rate limit fields; removed incorrect "never limited" text (#204)
 - Outbound tile requests gracefully degrade (serve stale cache) when upstream budget is exhausted (#204)
+- Rate limit cleanup flag is now per-cache instance instead of a shared global flag, allowing independent cleanup of anonymous, authenticated, and image proxy caches (#204)
+- `X-Forwarded-For` header values are now validated with `IPAddress.TryParse` before use as rate limit keys (#204)
+- Outbound budget `StopReplenisher` now cancels the old CTS before creating replacements, eliminating brief replenisher overlap (#204)
+
+### Added
+- `RateLimitCleanupJob` — periodic Quartz job (every 5 minutes) sweeps expired entries from all in-memory rate limit caches, preventing unbounded memory growth (#204)
+- Log warning when authenticated user lacks `NameIdentifier` claim and falls back to IP-based rate limiting (#204)
 
 ### Fixed
 - Eviction `_currentCacheSize` tracking now decrements after successful DB commit, preventing permanent undercount on failed eviction (#204)
+- Tile cache eviction now commits DB deletions before deleting files — previously files were deleted first, leaving orphaned DB records pointing to missing files if `SaveChangesAsync` failed (#204)
 - Admin settings checkbox hidden-field fallback for `TileRateLimitEnabled` and `IsRegistrationOpen` — unchecking now correctly posts `false` instead of falling back to C# default (#204)
 
 ## [1.2.17] - 2026-03-22

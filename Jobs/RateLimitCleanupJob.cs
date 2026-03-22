@@ -1,0 +1,73 @@
+using Quartz;
+using Wayfarer.Areas.Public.Controllers;
+using Wayfarer.Services;
+
+namespace Wayfarer.Jobs;
+
+/// <summary>
+/// Quartz job that periodically sweeps expired entries from all in-memory rate limit caches.
+/// Prevents unbounded memory growth from accumulated expired entries that would otherwise
+/// only be cleaned when the cache exceeds the 10,000-entry threshold.
+/// Runs every 5 minutes. Each cache is cleaned independently.
+/// </summary>
+public class RateLimitCleanupJob : IJob
+{
+    private readonly ILogger<RateLimitCleanupJob> _logger;
+
+    public RateLimitCleanupJob(ILogger<RateLimitCleanupJob> logger)
+    {
+        _logger = logger;
+    }
+
+    public Task Execute(IJobExecutionContext context)
+    {
+        var cancellationToken = context.CancellationToken;
+        var jobDataMap = context.JobDetail.JobDataMap;
+        jobDataMap["Status"] = "Scheduled";
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            jobDataMap["Status"] = "In Progress";
+
+            var currentTicks = DateTime.UtcNow.Ticks;
+            var totalRemoved = 0;
+
+            // Tile anonymous rate limit cache (keyed by IP).
+            var before = TilesController.RateLimitCache.Count;
+            RateLimitHelper.CleanupExpiredEntries(TilesController.RateLimitCache, currentTicks);
+            totalRemoved += before - TilesController.RateLimitCache.Count;
+
+            // Tile authenticated rate limit cache (keyed by user ID).
+            before = TilesController.AuthRateLimitCache.Count;
+            RateLimitHelper.CleanupExpiredEntries(TilesController.AuthRateLimitCache, currentTicks);
+            totalRemoved += before - TilesController.AuthRateLimitCache.Count;
+
+            // Image proxy rate limit cache (keyed by IP).
+            before = TripViewerController.RateLimitCache.Count;
+            RateLimitHelper.CleanupExpiredEntries(TripViewerController.RateLimitCache, currentTicks);
+            totalRemoved += before - TripViewerController.RateLimitCache.Count;
+
+            if (totalRemoved > 0)
+            {
+                _logger.LogInformation(
+                    "RateLimitCleanupJob completed. Removed {RemovedCount} expired entries.", totalRemoved);
+            }
+
+            jobDataMap["Status"] = "Completed";
+            jobDataMap["StatusMessage"] = $"Removed {totalRemoved} expired entries";
+        }
+        catch (OperationCanceledException)
+        {
+            jobDataMap["Status"] = "Cancelled";
+            _logger.LogInformation("RateLimitCleanupJob was cancelled.");
+        }
+        catch (Exception ex)
+        {
+            jobDataMap["Status"] = "Failed";
+            _logger.LogError(ex, "Error executing RateLimitCleanupJob");
+        }
+
+        return Task.CompletedTask;
+    }
+}

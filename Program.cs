@@ -335,6 +335,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<LogCleanupJob>();
     builder.Services.AddTransient<AuditLogCleanupJob>();
     builder.Services.AddTransient<VisitCleanupJob>();
+    builder.Services.AddTransient<RateLimitCleanupJob>();
     // ...and any other IJob implementations you'll use
 
     // 1) Register your JobFactory & Listeners
@@ -421,6 +422,26 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
                 .WithIdentity("VisitCleanupTrigger", "Maintenance")
                 .StartNow()
                 .WithSimpleSchedule(x => x.WithIntervalInHours(24).RepeatForever())
+                .Build();
+
+            scheduler.ScheduleJob(job, trigger).Wait();
+        }
+
+        // Rate limit cache cleanup job — sweeps expired entries from all in-memory rate limit
+        // caches every 5 minutes to prevent unbounded memory growth from accumulated stale entries.
+        var rateLimitJobKey = new JobKey("RateLimitCleanupJob", "Maintenance");
+        if (!scheduler.CheckExists(rateLimitJobKey).Result)
+        {
+            var job = JobBuilder.Create<RateLimitCleanupJob>()
+                .WithIdentity(rateLimitJobKey)
+                .StoreDurably()
+                .Build();
+
+            var trigger = TriggerBuilder.Create()
+                .ForJob(job)
+                .WithIdentity("RateLimitCleanupTrigger", "Maintenance")
+                .StartNow()
+                .WithSimpleSchedule(x => x.WithIntervalInMinutes(5).RepeatForever())
                 .Build();
 
             scheduler.ScheduleJob(job, trigger).Wait();

@@ -191,17 +191,20 @@ public class TileCacheService
 
         /// <summary>
         /// Cancels the current replenishment task and prepares a fresh Lazy so a new replenisher
-        /// starts on the next <see cref="AcquireAsync"/> call. Does NOT dispose the old CTS —
-        /// the replenisher task may still reference its token; abandoned CTS instances are GC'd.
+        /// starts on the next <see cref="AcquireAsync"/> call. Cancels the old CTS first to stop
+        /// the running replenisher before creating replacements — this eliminates the brief window
+        /// where two replenishers could overlap and double-release tokens.
+        /// Does NOT dispose the old CTS — the replenisher task may still reference its token;
+        /// abandoned CTS instances are GC'd.
         /// </summary>
         private static void StopReplenisher()
         {
             var oldCts = _replenisherCts;
+            oldCts.Cancel();
             _replenisherCts = new CancellationTokenSource();
             _replenisher = new Lazy<Task>(
                 () => StartReplenisher(_replenisherCts.Token),
                 LazyThreadSafetyMode.ExecutionAndPublication);
-            oldCts.Cancel();
         }
 
         /// <summary>
@@ -1229,29 +1232,32 @@ public class TileCacheService
             .Take(LRU_TO_EVICT) // Adjust the eviction batch size as needed.
             .ToListAsync();
 
-        // Track total evicted size; only decrement _currentCacheSize after SaveChangesAsync
-        // succeeds to avoid permanent undercount if the DB commit fails.
+        // Phase 1: Commit DB deletions first.
+        // If SaveChangesAsync fails, no files are deleted — cache stays consistent.
+        // If it succeeds but file deletion later fails, orphaned files are harmless
+        // and self-correcting (next cache write for that tile overwrites them).
         long totalEvictedSize = 0;
+        var filePaths = new List<string>(tilesToEvict.Count);
 
         foreach (var tile in tilesToEvict)
         {
             _dbContext.TileCacheMetadata.Remove(tile);
             totalEvictedSize += tile.Size;
+            filePaths.Add(Path.Combine(_cacheDirectory, $"{tile.Zoom}_{tile.X}_{tile.Y}.png"));
+        }
 
-            // Remove the corresponding file.
-            var tileFilePath = Path.Combine(_cacheDirectory, $"{tile.Zoom}_{tile.X}_{tile.Y}.png");
-            if (!File.Exists(tileFilePath))
-            {
-                _logger.LogWarning("Tile file already deleted: {TileFilePath}", tileFilePath);
-                continue;
-            }
+        await _dbContext.SaveChangesAsync();
+        // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
+        Interlocked.Add(ref _currentCacheSize, -totalEvictedSize);
 
+        // Phase 2: Delete files (best-effort, after DB commit succeeded).
+        foreach (var tileFilePath in filePaths)
+        {
             try
             {
                 await _cacheLock.WaitAsync();
                 try
                 {
-                    // Re-check under lock to avoid TOCTOU with concurrent cache reads/writes.
                     if (File.Exists(tileFilePath))
                     {
                         File.Delete(tileFilePath);
@@ -1269,9 +1275,6 @@ public class TileCacheService
             }
         }
 
-        await _dbContext.SaveChangesAsync();
-        // Decrement after successful commit to keep _currentCacheSize consistent with DB reality.
-        Interlocked.Add(ref _currentCacheSize, -totalEvictedSize);
         _logger.LogInformation("Evicted tiles to maintain cache size.");
     }
 

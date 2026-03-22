@@ -116,10 +116,12 @@ public static class RateLimitHelper
     /// <param name="maxTrackedIps">Maximum number of keys to track before cleanup triggers (default 10,000).</param>
     /// <returns>True if rate limit is exceeded, false otherwise.</returns>
     /// <summary>
-    /// Coalesces concurrent cleanup runs. Only one thread runs cleanup at a time;
-    /// others skip and proceed with rate limiting.
+    /// Coalesces concurrent cleanup runs per cache instance. Only one thread runs cleanup
+    /// for a given cache at a time; others skip and proceed with rate limiting.
+    /// Keyed by cache instance reference so separate caches (anonymous, authenticated, image proxy)
+    /// can be cleaned independently without blocking each other.
     /// </summary>
-    private static int _cleanupInProgress;
+    private static readonly ConcurrentDictionary<object, byte> _cleanupFlags = new();
 
     public static bool IsRateLimitExceeded(
         ConcurrentDictionary<string, RateLimitEntry> cache,
@@ -132,8 +134,9 @@ public static class RateLimitHelper
 
         if (cache.Count > maxTrackedIps)
         {
-            // Coalesce: only one thread runs cleanup at a time.
-            if (Interlocked.CompareExchange(ref _cleanupInProgress, 1, 0) == 0)
+            // Coalesce: only one thread runs cleanup per cache at a time.
+            // TryAdd returns false if another thread is already cleaning this specific cache.
+            if (_cleanupFlags.TryAdd(cache, 0))
             {
                 try
                 {
@@ -141,7 +144,7 @@ public static class RateLimitHelper
                 }
                 finally
                 {
-                    Interlocked.Exchange(ref _cleanupInProgress, 0);
+                    _cleanupFlags.TryRemove(cache, out _);
                 }
             }
         }
@@ -189,7 +192,9 @@ public static class RateLimitHelper
             {
                 var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
                     .FirstOrDefault()?.Trim();
-                if (!string.IsNullOrEmpty(clientIp))
+                // Validate as a well-formed IP to prevent arbitrary strings from being used
+                // as rate-limit bucket keys (e.g., a malformed header creating unique buckets).
+                if (!string.IsNullOrEmpty(clientIp) && IPAddress.TryParse(clientIp, out _))
                 {
                     return clientIp;
                 }

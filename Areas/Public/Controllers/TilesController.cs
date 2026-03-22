@@ -30,15 +30,17 @@ public class TilesController : Controller
     /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous tile requests by IP address.
     /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
 
     /// <summary>
     /// Thread-safe dictionary for rate limiting authenticated tile requests by user ID.
     /// Separate from anonymous rate limiting to apply different (higher) limits for trusted users
     /// while still preventing abuse from compromised accounts.
+    /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> AuthRateLimitCache = new();
+    internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> AuthRateLimitCache = new();
 
     private readonly ILogger<TilesController> _logger;
     private readonly TileCacheService _tileCacheService;
@@ -104,6 +106,13 @@ public class TilesController : Controller
             }
             else
             {
+                // Authenticated user without a NameIdentifier claim — unexpected, log for diagnostics.
+                // Falls back to the stricter anonymous (IP-based) rate limit as a safe-side default.
+                if (User.Identity?.IsAuthenticated == true)
+                {
+                    _logger.LogWarning("Authenticated user without NameIdentifier claim — falling back to IP-based rate limiting");
+                }
+
                 // Anonymous user or authenticated user without a NameIdentifier claim — rate limit by IP.
                 var clientIp = GetClientIpAddress();
                 if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
