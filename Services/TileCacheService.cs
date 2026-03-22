@@ -1541,7 +1541,10 @@ public class TileCacheService
         }
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
-        foreach (var (_, filePath, fileSize) in batch)
+        // Only decrement _currentCacheSize for DB-tracked tiles (zoom >= 9, Meta != null).
+        // Zoom 0-8 tiles are not tracked in _currentCacheSize, so decrementing them
+        // would drive the counter negative and permanently disable eviction.
+        foreach (var (meta, filePath, fileSize) in batch)
         {
             try
             {
@@ -1551,7 +1554,10 @@ public class TileCacheService
                     if (File.Exists(filePath))
                     {
                         File.Delete(filePath);
-                        Interlocked.Add(ref _currentCacheSize, -fileSize);
+                        if (meta != null)
+                        {
+                            Interlocked.Add(ref _currentCacheSize, -meta.Size);
+                        }
                     }
                 }
                 finally
