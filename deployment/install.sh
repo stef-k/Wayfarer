@@ -604,6 +604,36 @@ else
   echo "  Environment=ConnectionStrings__DefaultConnection=${CONN_STR}"
 fi
 
+# ------------------------------
+# 10b. Contact email - configure via systemd environment variable
+# ------------------------------
+CONTACT_EMAIL="${CONTACT_EMAIL:-}"
+
+echo ""
+echo "========================================="
+echo " Configuring tile provider contact email"
+echo "========================================="
+echo ""
+echo "OpenStreetMap's tile usage policy requires an honest User-Agent header"
+echo "with a contact email. This is included in outbound tile requests."
+
+prompt_default "CONTACT_EMAIL" "Contact email for tile provider compliance" "admin@localhost"
+
+if [[ -f "$SERVICE_FILE" ]]; then
+  if grep -q "Application__ContactEmail" "$SERVICE_FILE"; then
+    sudo sed -i "s|^#*\s*Environment=Application__ContactEmail=.*|Environment=Application__ContactEmail=${CONTACT_EMAIL}|" "$SERVICE_FILE"
+    echo "✓ Updated contact email in $SERVICE_FILE"
+  else
+    sudo sed -i "/^Environment=HOME=/a Environment=Application__ContactEmail=${CONTACT_EMAIL}" "$SERVICE_FILE"
+    echo "✓ Added contact email to $SERVICE_FILE"
+  fi
+  sudo systemctl daemon-reload
+else
+  echo "⚠ Service file not found at $SERVICE_FILE"
+  echo "  Add this line to your systemd service file under [Service]:"
+  echo "  Environment=Application__ContactEmail=${CONTACT_EMAIL}"
+fi
+
 echo ""
 echo "Note: The appsettings.json files contain placeholder passwords."
 echo "      The systemd environment variable overrides these at runtime."

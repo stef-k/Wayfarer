@@ -7,6 +7,7 @@ Sign‑In Issues
 Maps Not Loading
 - Check connectivity.
 - Ask your admin if tile cache path is configured and accessible.
+- **403 "Referrer is required"**: The tile provider (e.g. OpenStreetMap) is blocking requests. Ensure the `Application:ContactEmail` setting is configured with a valid contact email (see Configuration docs). The application sends this in the User-Agent header and derives the Referer from the incoming request automatically.
 
 Imports Fail or Hang
 - Verify file format/size and required fields.

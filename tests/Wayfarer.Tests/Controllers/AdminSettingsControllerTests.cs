@@ -52,7 +52,8 @@ public class AdminSettingsControllerTests : TestBase
             new HttpClient(new FakeHandler()),
             db,
             settingsMock.Object,
-            Mock.Of<IServiceScopeFactory>());
+            Mock.Of<IServiceScopeFactory>(),
+            new HttpContextAccessor());
 
         var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory);
@@ -218,7 +219,8 @@ public class AdminSettingsControllerTests : TestBase
             new HttpClient(new FakeHandler()),
             db,
             settingsService ?? settingsMock!.Object,
-            Mock.Of<IServiceScopeFactory>());
+            Mock.Of<IServiceScopeFactory>(),
+            new HttpContextAccessor());
 
         var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(

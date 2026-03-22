@@ -147,6 +147,8 @@ This document covers the key services, file parsers, and background jobs in the 
 - LRU eviction for tiles at zoom levels ≥ 9.
 - Permanent caching for zoom levels 0–8.
 - Tracks metadata in database for cache management.
+- Sends an honest `User-Agent` header identifying the application (OSM policy compliance) with a configurable contact email (`Application:ContactEmail`).
+- Sets the `Referer` header automatically from the incoming HTTP request, so it matches the public URL even behind reverse proxies or Cloudflare Tunnel.
 - **Key File**: `Services/TileCacheService.cs`
 
 ---

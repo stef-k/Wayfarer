@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Linq;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -164,14 +165,100 @@ public class TileCacheServiceTests : TestBase
         Assert.Equal(2, total);
     }
 
-    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10)
+    [Fact]
+    public async Task SendTileRequest_SetsRefererFromHttpContext()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("myapp.example.com");
+        var accessor = new HttpContextAccessor { HttpContext = httpContext };
+        var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor);
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.True(handler.WasCalled);
+        Assert.Equal(new System.Uri("https://myapp.example.com"), handler.LastReferrer);
+    }
+
+    [Fact]
+    public async Task SendTileRequest_SetsHonestUserAgent()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        var service = CreateService(db, dir.Path, handler);
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.True(handler.WasCalled);
+        Assert.NotNull(handler.LastUserAgent);
+        Assert.Contains("Wayfarer/1.0", handler.LastUserAgent!);
+        Assert.DoesNotContain("Chrome", handler.LastUserAgent);
+        Assert.DoesNotContain("Mozilla", handler.LastUserAgent);
+    }
+
+    [Fact]
+    public async Task SendTileRequest_NoReferer_WhenNoHttpContext()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        var accessor = new HttpContextAccessor(); // no HttpContext set
+        var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor);
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.True(handler.WasCalled);
+        Assert.Null(handler.LastReferrer);
+    }
+
+    [Fact]
+    public async Task SendTileRequest_HandlesSpecialCharactersInContactEmail()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new StubTileHandler();
+        // An unbalanced parenthesis is invalid in RFC 7230 comment tokens.
+        // TryParseAdd should fail gracefully and fall back to "Wayfarer/1.0".
+        var service = CreateService(db, dir.Path, handler, contactEmail: "user)bad@example.com");
+
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        Assert.True(handler.WasCalled);
+        Assert.NotNull(handler.LastUserAgent);
+        Assert.Contains("Wayfarer/1.0", handler.LastUserAgent!);
+        // Should not contain the malformed email — fallback was used
+        Assert.DoesNotContain("bad@example", handler.LastUserAgent!);
+    }
+
+    /// <summary>
+    /// Creates a TileCacheService with a properly configured HttpClient.
+    /// Mirrors the User-Agent, Timeout, and TryParseAdd fallback logic from the
+    /// AddHttpClient registration in Program.cs. Accept and AcceptLanguage headers
+    /// are omitted because no current test exercises content negotiation.
+    /// </summary>
+    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com")
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:TileCacheDirectory"] = cacheDir
+                ["CacheSettings:TileCacheDirectory"] = cacheDir,
+                ["Application:ContactEmail"] = contactEmail
             }).Build();
         var httpClient = new HttpClient(handler ?? new StubTileHandler());
+
+        // Mirror the HttpClient configuration from Program.cs AddHttpClient registration.
+        httpClient.Timeout = TimeSpan.FromSeconds(10);
+        if (!httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(
+                $"Wayfarer/1.0 (contact: {contactEmail})"))
+        {
+            // "Wayfarer/1.0" is always a valid product token; TryParseAdd cannot fail here.
+            httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
+        }
+
         var appSettings = new StubSettingsService(maxCacheMb);
         var scopeFactory = new SingleScopeFactory(db);
         return new TileCacheService(
@@ -180,13 +267,25 @@ public class TileCacheServiceTests : TestBase
             httpClient,
             db,
             appSettings,
-            scopeFactory);
+            scopeFactory,
+            httpContextAccessor ?? new HttpContextAccessor());
     }
 
     private sealed class StubTileHandler : HttpMessageHandler
     {
+        /// <summary>
+        /// Captures header values from the last request for assertions.
+        /// Values are captured inside SendAsync before the caller disposes the request.
+        /// </summary>
+        public Uri? LastReferrer { get; private set; }
+        public string? LastUserAgent { get; private set; }
+        public bool WasCalled { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            WasCalled = true;
+            LastReferrer = request.Headers.Referrer;
+            LastUserAgent = request.Headers.UserAgent.ToString();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new ByteArrayContent(new byte[] { 1, 2, 3, 4 })

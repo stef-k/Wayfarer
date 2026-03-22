@@ -339,6 +339,8 @@ ExecStart=/usr/bin/dotnet /var/www/wayfarer/Wayfarer.dll --urls http://localhost
 Restart=always
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=HOME=/home/wayfarer
+# Contact email for tile provider User-Agent (OSM compliance)
+Environment=Application__ContactEmail=admin@your-domain.example
 
 [Install]
 WantedBy=multi-user.target

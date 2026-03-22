@@ -300,14 +300,17 @@ public class TilesControllerTests : TestBase
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:TileCacheDirectory"] = cacheDir
+                ["CacheSettings:TileCacheDirectory"] = cacheDir,
+                ["Application:ContactEmail"] = "test@example.com"
             })
             .Build();
 
         var httpClient = new HttpClient(handler)
         {
-            BaseAddress = new Uri("http://example.com")
+            BaseAddress = new Uri("http://example.com"),
+            Timeout = TimeSpan.FromSeconds(10)
         };
+        httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0 (contact: test@example.com)");
 
         return new TileCacheService(
             NullLogger<TileCacheService>.Instance,
@@ -315,7 +318,8 @@ public class TilesControllerTests : TestBase
             httpClient,
             dbContext,
             settingsService,
-            Mock.Of<IServiceScopeFactory>());
+            Mock.Of<IServiceScopeFactory>(),
+            new HttpContextAccessor());
     }
 
     private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500)
