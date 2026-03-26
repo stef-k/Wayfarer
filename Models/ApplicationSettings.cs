@@ -16,7 +16,7 @@ public class ApplicationSettings
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
     public const int DefaultTileRateLimitPerMinute = 600;
     public const int DefaultTileRateLimitAuthenticatedPerMinute = 2000;
-    public const int DefaultTileOutboundBudgetPerIpPerMinute = 30;
+    public const int DefaultTileOutboundBudgetPerIpPerMinute = 80;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
     public const int DefaultMaxProxyImageDownloadMB = 50;
 

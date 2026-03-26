@@ -4,20 +4,18 @@
  * while treating 404 as permanent failure.
  *
  * Concurrency control:
- * - Global pool limits concurrent tile fetches (default 6) to prevent overwhelming
- *   the server's outbound budget (10 burst, 2/sec) and per-IP budget (default 30/min).
- *   Without this, a cold-cache load at zoom 17 (~35 tiles) sends all requests
- *   simultaneously, exhausting both budgets and causing cascading 503 failures where
- *   retries also get rejected (the per-IP counter increments on every request, even
- *   rejected ones, so the count quickly snowballs past the limit).
+ * - Global pool limits concurrent tile fetches to prevent overwhelming the server's
+ *   outbound budget and per-IP budget. Pool size is derived from the server's burst
+ *   capacity (injected via wayfarerTileConfig.burstCapacity) — set to 60% of burst
+ *   to leave headroom for other concurrent users.
  *
  * Retry strategy (two phases):
  * - Fast phase: up to 5 retries with exponential backoff (respects Retry-After header)
  * - Slow phase: if fast retries exhaust on 503 or network error, enters indefinite
- *   30-second polling until the tile loads or is removed (panned/zoomed away).
- *   This handles cold-cache scenarios where the per-IP budget (30/min) is exceeded
- *   by the number of tiles needed — tiles that can't be served within the fast retry
- *   window will load once the sliding-window budget decays.
+ *   polling (interval derived from retryAfterSeconds * 3) until the tile loads or is
+ *   removed (panned/zoomed away). This handles cold-cache scenarios where the per-IP
+ *   budget is exceeded by the number of tiles needed — tiles that can't be served
+ *   within the fast retry window will load once the sliding-window budget decays (~60s).
  * - 404 and other HTTP errors are permanent failures (no retry)
  *
  * Design note: upstream HTTP 500/502/504 errors are treated as permanent failures
@@ -26,12 +24,14 @@
  * up stale retry timers. Users will see gray tiles until upstream recovers.
  */
 
+// ---------- Server config (injected by _Layout.cshtml) ----------
+const _config = window.wayfarerTileConfig || {};
+
 // ---------- Global concurrency pool ----------
-// Limits concurrent tile fetches to prevent overwhelming the server's per-IP outbound
-// budget (default 30/min) and global token budget (10 burst, 2/sec). Tiles beyond the
-// limit queue client-side and proceed as slots free up, producing the progressive
-// "stream-in" effect on cold-cache loads instead of a wall of 503s.
-const _poolSize = 6;
+// Pool size derived from server's outbound burst capacity: 60% of burst leaves headroom
+// for other concurrent users while still allowing a cold-cache load to progress quickly.
+// Falls back to 6 if config is unavailable (e.g., inline scripts outside _Layout).
+const _poolSize = Math.ceil((_config.burstCapacity || 10) * 0.6);
 let _inFlight = 0;
 const _waiting = [];
 
@@ -77,11 +77,18 @@ const _releaseSlot = () => {
     }
 };
 
+// ---------- Retry timing derived from server config ----------
+// retryAfterSeconds is the Retry-After value the server sends on 503 (matches the budget
+// replenishment cycle). Slow retry uses 3x that interval to give the per-IP sliding window
+// time to decay between attempts. Falls back to 5s if config unavailable.
+const _retryAfterSeconds = _config.retryAfterSeconds || 5;
+const _defaultSlowRetryDelayMs = _retryAfterSeconds * 3 * 1000;
+
 const RetryTileLayer = L.TileLayer.extend({
     options: {
         maxRetries: 5,
         retryDelayMs: 1000,
-        slowRetryDelayMs: 30000,
+        slowRetryDelayMs: _defaultSlowRetryDelayMs,
     },
 
     /**
@@ -139,9 +146,9 @@ const RetryTileLayer = L.TileLayer.extend({
 
     /**
      * Schedules a slow-phase retry for a tile whose fast retries have been exhausted.
-     * Fires every slowRetryDelayMs (default 30s) indefinitely until the tile either
-     * loads successfully or is removed (signal aborted). Resets the attempt counter
-     * to 0 so the tile gets a fresh fast-retry cycle on each slow-phase trigger.
+     * Fires every slowRetryDelayMs (derived from retryAfterSeconds * 3) indefinitely
+     * until the tile either loads successfully or is removed (signal aborted). Resets
+     * the attempt counter to 0 so the tile gets a fresh fast-retry cycle on each trigger.
      * @param {string} url - The tile URL.
      * @param {HTMLImageElement} tile - The tile image element.
      * @param {Function} done - Leaflet callback to signal completion.
@@ -164,8 +171,9 @@ const RetryTileLayer = L.TileLayer.extend({
      * Fetches a tile via fetch(), retries on 503 or network error with backoff.
      * Two retry phases:
      * - Fast: attempts 0..maxRetries with exponential backoff (seconds)
-     * - Slow: after fast retries exhaust on 503/network error, retries every 30s
-     *   indefinitely until the tile loads or is removed
+     * - Slow: after fast retries exhaust on 503/network error, retries every ~15s
+     *   (derived from server's retryAfterSeconds * 3) indefinitely until the tile
+     *   loads or is removed
      * Acquires a concurrency slot before each fetch attempt to prevent overwhelming
      * the server's budget. Respects AbortSignal so removed tiles stop immediately.
      * @param {string} url - The tile URL.
@@ -234,7 +242,7 @@ const RetryTileLayer = L.TileLayer.extend({
                     }
 
                     // Slow phase: fast retries exhausted but 503 is transient (budget will
-                    // recover). Keep retrying every ~30s until the tile loads or is removed.
+                    // recover). Keep retrying until the tile loads or is removed.
                     layer._scheduleSlowRetry(url, tile, done, signal);
                     return;
                 }
@@ -272,13 +280,12 @@ const RetryTileLayer = L.TileLayer.extend({
  * Reads URL and attribution from window.wayfarerTileConfig (injected by _Layout.cshtml).
  * @param {Object} [opts] - Additional L.TileLayer options to merge. Supports standard Leaflet
  *   options (e.g., {zoomAnimation: true}) plus retry tuning: maxRetries (default 5),
- *   retryDelayMs (default 1000), slowRetryDelayMs (default 30000).
+ *   retryDelayMs (default 1000), slowRetryDelayMs (derived from retryAfterSeconds * 3).
  * @returns {L.TileLayer} The tile layer instance (call .addTo(map) on the result).
  */
 export const createTileLayer = (opts) => {
-    const config = window.wayfarerTileConfig || {};
-    const url = config.tilesUrl || (window.location.origin + '/Public/tiles/{z}/{x}/{y}.png');
-    const attribution = config.attribution || '\u00a9 OpenStreetMap contributors';
+    const url = _config.tilesUrl || (window.location.origin + '/Public/tiles/{z}/{x}/{y}.png');
+    const attribution = _config.attribution || '\u00a9 OpenStreetMap contributors';
     return new RetryTileLayer(url, Object.assign({
         maxZoom: 19,
         attribution: attribution,
