@@ -112,6 +112,37 @@ public static class RateLimitHelper
         }
 
         /// <summary>
+        /// Returns the current weighted sliding-window count WITHOUT incrementing.
+        /// Used for speculative checks (e.g., per-IP outbound budget) where the
+        /// increment should be deferred until the request actually proceeds upstream.
+        /// </summary>
+        /// <param name="currentTicks">The current tick count.</param>
+        /// <returns>The weighted sliding-window request count (read-only).</returns>
+        public int PeekCount(long currentTicks)
+        {
+            var currentExpiration = Interlocked.Read(ref _expirationTicks);
+            // Don't rotate the window — this is a read-only peek.
+            // If the window has expired, the count will be stale (0 + prevWeight * prev),
+            // which is conservative: it underestimates if a rotation is pending,
+            // so the caller may allow a borderline request that IncrementAndGet would block.
+            // Acceptable for the two-phase pattern where the actual increment follows shortly.
+
+            var currentCount = Volatile.Read(ref _count);
+
+            var windowStart = Interlocked.Read(ref _windowStartTicks);
+            var windowEnd = Interlocked.Read(ref _expirationTicks);
+            var windowSize = windowEnd - windowStart;
+            if (windowSize <= 0) windowSize = WindowTicks;
+            var elapsed = currentTicks - windowStart;
+            if (elapsed < 0) elapsed = 0;
+            if (elapsed > windowSize) elapsed = windowSize;
+
+            var prevWeight = 1.0 - ((double)elapsed / windowSize);
+            var prev = Volatile.Read(ref _prevCount);
+            return (int)(prev * prevWeight) + currentCount;
+        }
+
+        /// <summary>
         /// Returns true if this entry's window has expired.
         /// Uses a 2-window horizon: an entry is considered expired only after 2 full windows
         /// have passed, since the sliding-window algorithm needs the previous window's count.
@@ -176,6 +207,48 @@ public static class RateLimitHelper
         var count = entry.IncrementAndGet(currentTicks, expirationTicks);
 
         return count > maxRequestsPerMinute;
+    }
+
+    /// <summary>
+    /// Checks if the given client key would exceed the rate limit WITHOUT incrementing the counter.
+    /// Used for speculative fast-fail checks (e.g., per-IP outbound budget) where the actual
+    /// increment is deferred until the request succeeds. This prevents budget-exhausted requests
+    /// from inflating the per-IP counter, which would cause cascading 503 rejections on retries.
+    /// </summary>
+    /// <param name="cache">The concurrent dictionary tracking rate limit entries per key.</param>
+    /// <param name="clientKey">The client key (IP address, user ID, etc.).</param>
+    /// <param name="maxRequestsPerMinute">Maximum allowed requests per minute.</param>
+    /// <returns>True if the rate limit would be exceeded, false otherwise.</returns>
+    public static bool WouldExceedRateLimit(
+        ConcurrentDictionary<string, RateLimitEntry> cache,
+        string clientKey,
+        int maxRequestsPerMinute)
+    {
+        var currentTicks = DateTime.UtcNow.Ticks;
+        var expirationTicks = currentTicks + WindowTicks;
+
+        var entry = cache.GetOrAdd(clientKey, _ => new RateLimitEntry(expirationTicks));
+        var count = entry.PeekCount(currentTicks);
+        return count >= maxRequestsPerMinute;
+    }
+
+    /// <summary>
+    /// Records a successful request against the rate limit counter. Call this AFTER the request
+    /// has actually been fulfilled (e.g., after acquiring the global outbound budget token).
+    /// Pairs with <see cref="WouldExceedRateLimit"/> for two-phase rate limiting where the
+    /// check and increment are separated to avoid counting rejected requests.
+    /// </summary>
+    /// <param name="cache">The concurrent dictionary tracking rate limit entries per key.</param>
+    /// <param name="clientKey">The client key (IP address, user ID, etc.).</param>
+    public static void RecordRateLimitHit(
+        ConcurrentDictionary<string, RateLimitEntry> cache,
+        string clientKey)
+    {
+        var currentTicks = DateTime.UtcNow.Ticks;
+        var expirationTicks = currentTicks + WindowTicks;
+
+        var entry = cache.GetOrAdd(clientKey, _ => new RateLimitEntry(expirationTicks));
+        entry.IncrementAndGet(currentTicks, expirationTicks);
     }
 
     /// <summary>
