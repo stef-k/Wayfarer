@@ -14,11 +14,18 @@
 ### Fixed
 - **HIGH:** Cold-cache tile loading returned 404 for budget-exhausted tiles — Leaflet treated as permanent failure, showing persistent gray areas. Now returns 503 + `Retry-After` header; client retries automatically (#206)
 - **MEDIUM:** Ghost metadata rows stored in DB when tile fetch was aborted by budget exhaustion — rows had `Size=0`, null `ETag`/`ExpiresAtUtc`, pointing to non-existent files (#206)
+- **MEDIUM:** Potential blob URL memory leak in `RetryTileLayer` — if a tile was removed (panned/zoomed away) while blob was being read, the revoke callback never fired; now guarded with `signal.aborted` check (#208)
+- **LOW:** Client-side retry thundering herd — all 503'd tiles retried at identical intervals; now adds ±25% jitter to backoff delays (#208)
+- **LOW:** Zero or negative `Retry-After` header values caused immediate retry; now clamped to base delay floor (#208)
+- **LOW:** `CacheTileAsync` upstream failure path relied on downstream null guard; now returns early with explicit intent (#208)
 
 ### Changed
 - `CacheTileAsync` now returns `bool` (`false` = budget exhaustion) instead of `void` (#206)
 - `RetrieveTileAsync` now returns `TileRetrievalResult` instead of `byte[]?` (#206)
 - `PerformanceMonitoringMiddleware` log line now includes explicit `RequestId` parameter (#206)
+- `BudgetRetryAfterSeconds` constant extracted with doc linking to `OutboundBudget` config (#208)
+- `ReadAsByteArrayAsync` and inter-retry `Task.Delay` now pass `CancellationToken` for prompt cancellation (#208)
+- `TileCacheServiceTests` and `TilesControllerTests` now share `[Collection("OutboundBudget")]` to prevent parallel test interference (#208)
 
 ## [1.2.20] - 2026-03-22
 
