@@ -5,17 +5,20 @@
  *
  * Concurrency control:
  * - Global pool limits concurrent tile fetches (default 6) to prevent overwhelming
- *   the server's outbound budget (10 burst, 2/sec) and per-IP budget (default 120/min).
+ *   the server's outbound budget (10 burst, 2/sec) and per-IP budget (default 30/min).
  *   Without this, a cold-cache load at zoom 17 (~35 tiles) sends all requests
  *   simultaneously, exhausting both budgets and causing cascading 503 failures where
  *   retries also get rejected (the per-IP counter increments on every request, even
  *   rejected ones, so the count quickly snowballs past the limit).
  *
- * Retry strategy:
- * - Only retries on HTTP 503 or network errors
- * - Reads Retry-After header from server (falls back to exponential backoff)
- * - Max 5 retries per tile, delay capped at 10 seconds
- * - 404 and other status codes are NOT retried
+ * Retry strategy (two phases):
+ * - Fast phase: up to 5 retries with exponential backoff (respects Retry-After header)
+ * - Slow phase: if fast retries exhaust on 503 or network error, enters indefinite
+ *   30-second polling until the tile loads or is removed (panned/zoomed away).
+ *   This handles cold-cache scenarios where the per-IP budget (30/min) is exceeded
+ *   by the number of tiles needed — tiles that can't be served within the fast retry
+ *   window will load once the sliding-window budget decays.
+ * - 404 and other HTTP errors are permanent failures (no retry)
  *
  * Design note: upstream HTTP 500/502/504 errors are treated as permanent failures
  * (not retried). The 503 retry strategy specifically targets outbound budget exhaustion
@@ -25,7 +28,7 @@
 
 // ---------- Global concurrency pool ----------
 // Limits concurrent tile fetches to prevent overwhelming the server's per-IP outbound
-// budget (default 120/min) and global token budget (10 burst, 2/sec). Tiles beyond the
+// budget (default 30/min) and global token budget (10 burst, 2/sec). Tiles beyond the
 // limit queue client-side and proceed as slots free up, producing the progressive
 // "stream-in" effect on cold-cache loads instead of a wall of 503s.
 const _poolSize = 6;
@@ -78,6 +81,7 @@ const RetryTileLayer = L.TileLayer.extend({
     options: {
         maxRetries: 5,
         retryDelayMs: 1000,
+        slowRetryDelayMs: 30000,
     },
 
     /**
@@ -134,7 +138,34 @@ const RetryTileLayer = L.TileLayer.extend({
     },
 
     /**
+     * Schedules a slow-phase retry for a tile whose fast retries have been exhausted.
+     * Fires every slowRetryDelayMs (default 30s) indefinitely until the tile either
+     * loads successfully or is removed (signal aborted). Resets the attempt counter
+     * to 0 so the tile gets a fresh fast-retry cycle on each slow-phase trigger.
+     * @param {string} url - The tile URL.
+     * @param {HTMLImageElement} tile - The tile image element.
+     * @param {Function} done - Leaflet callback to signal completion.
+     * @param {AbortSignal} signal - Abort signal from the tile's AbortController.
+     */
+    _scheduleSlowRetry: function (url, tile, done, signal) {
+        const layer = this;
+        var delayMs = this.options.slowRetryDelayMs;
+        // Jitter ±25% to spread slow retries across time and avoid synchronized bursts.
+        delayMs *= (0.75 + Math.random() * 0.5);
+        setTimeout(function () {
+            if (!signal.aborted) {
+                // Reset to attempt 0 — gives a full fast-retry cycle on each slow trigger.
+                layer._fetchWithRetry(url, tile, done, 0, signal);
+            }
+        }, delayMs);
+    },
+
+    /**
      * Fetches a tile via fetch(), retries on 503 or network error with backoff.
+     * Two retry phases:
+     * - Fast: attempts 0..maxRetries with exponential backoff (seconds)
+     * - Slow: after fast retries exhaust on 503/network error, retries every 30s
+     *   indefinitely until the tile loads or is removed
      * Acquires a concurrency slot before each fetch attempt to prevent overwhelming
      * the server's budget. Respects AbortSignal so removed tiles stop immediately.
      * @param {string} url - The tile URL.
@@ -182,26 +213,33 @@ const RetryTileLayer = L.TileLayer.extend({
 
                 // 503 = budget exhausted, transient — retry with Retry-After or backoff.
                 // Jitter (±25%) prevents thundering-herd retries when many tiles 503 simultaneously.
-                if (response.status === 503 && attempt < maxRetries) {
-                    const retryAfter = response.headers.get('Retry-After');
-                    const parsed = retryAfter ? parseInt(retryAfter, 10) : NaN;
-                    let delayMs = !isNaN(parsed) && parsed > 0
-                        ? parsed * 1000
-                        : baseDelay * Math.pow(2, attempt);
-                    delayMs = Math.max(delayMs, baseDelay); // floor: never below base delay
-                    delayMs = Math.min(delayMs, 10000);     // cap: never above 10s
-                    delayMs *= (0.75 + Math.random() * 0.5); // jitter ±25%
+                if (response.status === 503) {
+                    // Fast phase: exponential backoff with Retry-After support.
+                    if (attempt < maxRetries) {
+                        const retryAfter = response.headers.get('Retry-After');
+                        const parsed = retryAfter ? parseInt(retryAfter, 10) : NaN;
+                        let delayMs = !isNaN(parsed) && parsed > 0
+                            ? parsed * 1000
+                            : baseDelay * Math.pow(2, attempt);
+                        delayMs = Math.max(delayMs, baseDelay); // floor: never below base delay
+                        delayMs = Math.min(delayMs, 10000);     // cap: never above 10s
+                        delayMs *= (0.75 + Math.random() * 0.5); // jitter ±25%
 
-                    setTimeout(function () {
-                        // Check if tile was removed while waiting — abort signal is set.
-                        if (!signal.aborted) {
-                            layer._fetchWithRetry(url, tile, done, attempt + 1, signal);
-                        }
-                    }, delayMs);
+                        setTimeout(function () {
+                            if (!signal.aborted) {
+                                layer._fetchWithRetry(url, tile, done, attempt + 1, signal);
+                            }
+                        }, delayMs);
+                        return;
+                    }
+
+                    // Slow phase: fast retries exhausted but 503 is transient (budget will
+                    // recover). Keep retrying every ~30s until the tile loads or is removed.
+                    layer._scheduleSlowRetry(url, tile, done, signal);
                     return;
                 }
 
-                // Non-retryable (404, 400, 500, etc.)
+                // Non-retryable (404, 400, 500, etc.) — permanent failure.
                 done(new Error('Tile fetch failed: ' + response.status), tile);
             }).catch(function (err) {
                 _releaseSlot();
@@ -209,7 +247,7 @@ const RetryTileLayer = L.TileLayer.extend({
                 // Tile was removed (panned/zoomed away) — silently stop.
                 if (err.name === 'AbortError') return;
 
-                // Network error (or body-read failure mid-transfer) — retry if attempts remain
+                // Network error (or body-read failure mid-transfer) — retry if attempts remain.
                 if (attempt < maxRetries) {
                     let delayMs = Math.min(baseDelay * Math.pow(2, attempt), 10000);
                     delayMs *= (0.75 + Math.random() * 0.5); // jitter ±25%
@@ -220,7 +258,10 @@ const RetryTileLayer = L.TileLayer.extend({
                     }, delayMs);
                     return;
                 }
-                done(err, tile);
+
+                // Slow phase for network errors: could be transient (e.g., brief connectivity
+                // loss). Keep trying rather than leaving a permanent gray tile.
+                layer._scheduleSlowRetry(url, tile, done, signal);
             });
         });
     }
@@ -231,7 +272,7 @@ const RetryTileLayer = L.TileLayer.extend({
  * Reads URL and attribution from window.wayfarerTileConfig (injected by _Layout.cshtml).
  * @param {Object} [opts] - Additional L.TileLayer options to merge. Supports standard Leaflet
  *   options (e.g., {zoomAnimation: true}) plus retry tuning: maxRetries (default 5),
- *   retryDelayMs (default 1000).
+ *   retryDelayMs (default 1000), slowRetryDelayMs (default 30000).
  * @returns {L.TileLayer} The tile layer instance (call .addTo(map) on the result).
  */
 export const createTileLayer = (opts) => {
