@@ -308,6 +308,13 @@ public class TileCacheService
     public static void StopOutboundBudget() => OutboundBudget.Stop();
 
     /// <summary>
+    /// Exposes the outbound budget burst capacity for client-side configuration.
+    /// Injected into <c>wayfarerTileConfig.burstCapacity</c> by _Layout.cshtml so the
+    /// tile layer can derive its concurrency pool size without hardcoding the value.
+    /// </summary>
+    public static int OutboundBurstCapacity => OutboundBudget.BurstCapacity;
+
+    /// <summary>
     /// Reconciles <see cref="_currentCacheSize"/> with the authoritative database sum.
     /// Called periodically by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/> to correct drift
     /// from non-atomic size tracking during concurrent eviction/caching operations.

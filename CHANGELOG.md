@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [1.2.24] - 2026-03-26
+
+### Changed
+- Default per-IP outbound budget increased from 30 to 80 cache misses/min — 30 was too low for cold-cache zoom-17 loads (~35 tiles), causing immediate per-IP rejection before retries could succeed (#206)
+- Slow retry interval reduced from 30s to 15s — derived from server's `retryAfterSeconds * 3` instead of hardcoded (#206)
+- Client-side concurrency pool size now derived from server's `burstCapacity * 0.6` (injected via `wayfarerTileConfig`) instead of hardcoded 6 (#206)
+- Slow retry delay now derived from server's `retryAfterSeconds * 3` (injected via `wayfarerTileConfig`) instead of hardcoded 30s (#206)
+- `TilesController.BudgetRetryAfterSeconds` changed from `private string` to `internal int` for config injection (#206)
+- `TileCacheService.OutboundBurstCapacity` added as public accessor for `OutboundBudget.BurstCapacity` (#206)
+- `wayfarerTileConfig` in `_Layout.cshtml` now includes `burstCapacity` and `retryAfterSeconds` from server config (#206)
+
 ## [1.2.23] - 2026-03-26
 
 ### Fixed
