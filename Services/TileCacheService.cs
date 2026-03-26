@@ -461,32 +461,37 @@ public class TileCacheService
         Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
         string? clientIp = null, CancellationToken cancellationToken = default)
     {
-        // Per-IP outbound budget check: prevent a single client from monopolizing global tokens.
-        // Checked before the global budget to fail fast without consuming a global token.
+        // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
+        // then record the hit only after the global budget is acquired. This prevents
+        // budget-exhausted requests from inflating the per-IP counter, which previously
+        // caused cascading 503 rejections: on cold-cache loads with ~35 tiles, every
+        // request (including those rejected by the global budget) incremented the per-IP
+        // counter, so retries found the counter already past the limit and failed immediately.
         // skipBudget is true on retries — the per-IP check was already passed on the first attempt.
         // clientIp may be passed explicitly by callers (e.g., coalesced revalidation) where
         // HttpContext is no longer available; falls back to HttpContext if not provided.
+        string? resolvedIpForBudget = null;
         if (!skipBudget)
         {
             var perIpLimit = _applicationSettings.GetSettings().TileOutboundBudgetPerIpPerMinute;
             if (perIpLimit > 0)
             {
-                var resolvedIp = clientIp;
-                if (resolvedIp == null)
+                resolvedIpForBudget = clientIp;
+                if (resolvedIpForBudget == null)
                 {
                     var ctx = _httpContextAccessor.HttpContext;
                     if (ctx != null)
                     {
-                        resolvedIp = RateLimitHelper.GetClientIpAddress(ctx);
+                        resolvedIpForBudget = RateLimitHelper.GetClientIpAddress(ctx);
                     }
                 }
 
-                if (resolvedIp != null && RateLimitHelper.IsRateLimitExceeded(
-                        TilesController.OutboundBudgetCache, resolvedIp, perIpLimit))
+                if (resolvedIpForBudget != null && RateLimitHelper.WouldExceedRateLimit(
+                        TilesController.OutboundBudgetCache, resolvedIpForBudget, perIpLimit))
                 {
                     _logger.LogWarning(
                         "Per-IP outbound budget exceeded for {ClientIp} — throttling upstream request for {TileUrl}",
-                        resolvedIp, TileProviderCatalog.RedactApiKey(tileUrl));
+                        resolvedIpForBudget, TileProviderCatalog.RedactApiKey(tileUrl));
                     return null;
                 }
             }
@@ -502,6 +507,13 @@ public class TileCacheService
                 "Outbound request budget exhausted — throttling upstream request for {TileUrl}",
                 TileProviderCatalog.RedactApiKey(tileUrl));
             return null;
+        }
+
+        // Both budgets passed — record the per-IP hit now that an upstream fetch will proceed.
+        // This ensures only actual upstream fetches count against the per-IP limit.
+        if (resolvedIpForBudget != null)
+        {
+            RateLimitHelper.RecordRateLimitHit(TilesController.OutboundBudgetCache, resolvedIpForBudget);
         }
 
         const int maxRedirects = 3;
