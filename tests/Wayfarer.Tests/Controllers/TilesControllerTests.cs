@@ -22,6 +22,12 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>
 /// Public tiles endpoint behavior.
 /// </summary>
+/// <remarks>
+/// Shares the "OutboundBudget" collection with <see cref="Services.TileCacheServiceTests"/>
+/// to prevent parallel execution — both classes mutate <see cref="TileCacheService.OutboundBudget"/>
+/// static state via DrainForTesting/ResetForTesting.
+/// </remarks>
+[Collection("OutboundBudget")]
 public class TilesControllerTests : TestBase
 {
     /// <summary>
@@ -381,6 +387,39 @@ public class TilesControllerTests : TestBase
         }
         finally
         {
+            if (Directory.Exists(cacheDir))
+            {
+                Directory.Delete(cacheDir, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetTile_Returns503WithRetryAfter_WhenBudgetExhausted()
+    {
+        var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(cacheDir);
+        var handler = new FakeHttpMessageHandler(HttpStatusCode.OK, new byte[] { 1, 2, 3 });
+        var controller = BuildController(handler: handler, cacheDir: cacheDir);
+        controller.ControllerContext.HttpContext.Request.Headers["Referer"] = "http://example.com/page";
+
+        // Drain the outbound budget so the next tile fetch returns budget-exhausted.
+        TileCacheService.OutboundBudget.DrainForTesting();
+
+        try
+        {
+            // Use valid coordinates at zoom >= 9 (DB metadata threshold)
+            var result = await controller.GetTile(10, 100, 100);
+
+            var statusResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(503, statusResult.StatusCode);
+            Assert.Equal("Tile server busy. Please retry shortly.", statusResult.Value);
+            Assert.Equal("5", controller.Response.Headers["Retry-After"].ToString());
+        }
+        finally
+        {
+            // Restore budget for other tests.
+            TileCacheService.OutboundBudget.ResetForTesting();
             if (Directory.Exists(cacheDir))
             {
                 Directory.Delete(cacheDir, true);

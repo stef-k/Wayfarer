@@ -768,7 +768,7 @@ public class TileCacheService
 
                 if (response.IsSuccessStatusCode)
                 {
-                    tileData = await response.Content.ReadAsByteArrayAsync();
+                    tileData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 
                     // Extract cache headers from upstream response for conditional request support.
                     etag = response.Headers.ETag?.Tag;
@@ -822,18 +822,22 @@ public class TileCacheService
                 }
 
                 // Optional: Delay between retries to avoid rate limiting
-                await Task.Delay(500); // 500ms delay between retries
+                await Task.Delay(500, cancellationToken); // 500ms delay between retries
             }
 
             // Budget was never acquired — signal throttling to caller.
             if (tileData == null && !budgetAcquired)
                 return false;
 
+            // Upstream HTTP failure (all retries failed, but budget was acquired) — not budget-related,
+            // so return true to let the controller send 404 rather than 503.
+            if (tileData == null)
+                return true;
+
             // For zoom levels >= DbMetadataZoomThreshold, store or update metadata in the database.
-            // Only store metadata when tile data was actually downloaded — budget exhaustion
-            // or HTTP failures leave tileData null, and writing a row with Size=0 and no file
-            // would create ghost metadata that pollutes LRU eviction.
-            if (tileData != null && zoom >= DbMetadataZoomThreshold)
+            // tileData is guaranteed non-null here — the null cases (budget exhaustion, HTTP failure)
+            // return early above.
+            if (zoom >= DbMetadataZoomThreshold)
             {
                 var existingMetadata = await _dbContext.TileCacheMetadata
                     .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
@@ -841,7 +845,7 @@ public class TileCacheService
                 {
                     // If adding a new tile would exceed the cache limit, evict tiles.
                     // Coalesce: only one eviction runs at a time; concurrent callers skip.
-                    if ((Interlocked.Read(ref _currentCacheSize) + (tileData?.Length ?? 0)) > (_maxCacheSizeInMB * 1024L * 1024L))
+                    if ((Interlocked.Read(ref _currentCacheSize) + tileData.Length) > (_maxCacheSizeInMB * 1024L * 1024L))
                     {
                         if (Interlocked.CompareExchange(ref _evictionInProgress, 1, 0) == 0)
                         {
@@ -863,7 +867,7 @@ public class TileCacheService
                         Y = y,
                         // Storing the coordinates as a point (update as needed).
                         TileLocation = new Point(x, y),
-                        Size = tileData?.Length ?? 0,
+                        Size = tileData.Length,
                         TileFilePath = tileFilePath,
                         LastAccessed = DateTime.UtcNow,
                         ETag = etag,
@@ -876,7 +880,7 @@ public class TileCacheService
                     {
                         _dbContext.TileCacheMetadata.Add(tileMetadata);
                         await _dbContext.SaveChangesAsync();
-                        Interlocked.Add(ref _currentCacheSize, tileData?.Length ?? 0);
+                        Interlocked.Add(ref _currentCacheSize, tileData.Length);
                         _logger.LogInformation("Tile metadata stored in database.");
                     }
                     catch (DbUpdateException)
@@ -894,7 +898,7 @@ public class TileCacheService
                     // Save the old size for cache size adjustment
                     var oldSize = existingMetadata.Size;
                     // Prepare new values
-                    existingMetadata.Size = tileData?.Length ?? 0;
+                    existingMetadata.Size = tileData.Length;
                     existingMetadata.LastAccessed = DateTime.UtcNow;
                     existingMetadata.ETag = etag;
                     existingMetadata.LastModifiedUpstream = lastModifiedUpstream;
@@ -931,7 +935,7 @@ public class TileCacheService
 
                             await entry.ReloadAsync();
                             existingMetadata = (TileCacheMetadata)entry.Entity;
-                            existingMetadata.Size = tileData?.Length ?? 0;
+                            existingMetadata.Size = tileData.Length;
                             existingMetadata.LastAccessed = DateTime.UtcNow;
                             existingMetadata.ETag = etag;
                             existingMetadata.LastModifiedUpstream = lastModifiedUpstream;
@@ -947,7 +951,7 @@ public class TileCacheService
                     }
 
                     // Adjust the in-memory cache size using the previously saved value.
-                    Interlocked.Add(ref _currentCacheSize, (tileData?.Length ?? 0) - oldSize);
+                    Interlocked.Add(ref _currentCacheSize, tileData.Length - oldSize);
                 }
             }
 

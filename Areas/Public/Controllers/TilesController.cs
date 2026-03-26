@@ -28,6 +28,13 @@ public class TilesController : Controller
     private const int MaxZoomLevel = 22;
 
     /// <summary>
+    /// Retry-After header value (in seconds) sent with HTTP 503 when the outbound budget is exhausted.
+    /// Set to 5s to align with <see cref="TileCacheService.OutboundBudget"/>: at 2 tokens/sec
+    /// (ReplenishIntervalMs=500) with BurstCapacity=10, a full burst refills in ~5 seconds.
+    /// </summary>
+    private const string BudgetRetryAfterSeconds = "5";
+
+    /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous tile requests by IP address.
     /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
     /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
@@ -156,7 +163,7 @@ public class TilesController : Controller
         if (result.BudgetExhausted)
         {
             _logger.LogWarning("Tile budget exhausted for {Z}/{X}/{Y}", z, x, y);
-            Response.Headers["Retry-After"] = "5";
+            Response.Headers["Retry-After"] = BudgetRetryAfterSeconds;
             return StatusCode(503, "Tile server busy. Please retry shortly.");
         }
 

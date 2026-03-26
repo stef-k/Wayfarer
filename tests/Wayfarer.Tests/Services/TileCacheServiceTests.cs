@@ -19,6 +19,12 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// Tile cache behaviors: storing, retrieving, and purging cached tiles.
 /// </summary>
+/// <remarks>
+/// Shares the "OutboundBudget" collection with <see cref="Controllers.TilesControllerTests"/>
+/// to prevent parallel execution — both classes mutate <see cref="TileCacheService.OutboundBudget"/>
+/// static state via DrainForTesting/ResetForTesting.
+/// </remarks>
+[Collection("OutboundBudget")]
 public class TileCacheServiceTests : TestBase
 {
     [Fact]

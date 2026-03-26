@@ -90,6 +90,12 @@ const RetryTileLayer = L.TileLayer.extend({
         fetch(url, { signal: signal }).then(function (response) {
             if (response.ok) {
                 return response.blob().then(function (blob) {
+                    // Guard: if the tile was removed (panned/zoomed away) while the blob
+                    // was being read, skip assigning the blob URL. Without this check,
+                    // Leaflet's _removeTile would have already replaced onload/onerror
+                    // with falseFn, so the revokeObjectURL callback would never fire,
+                    // leaking the blob URL.
+                    if (signal.aborted) return;
                     tile.onload = function () {
                         URL.revokeObjectURL(tile.src);
                         done(null, tile);
@@ -102,14 +108,17 @@ const RetryTileLayer = L.TileLayer.extend({
                 });
             }
 
-            // 503 = budget exhausted, transient — retry with Retry-After or backoff
+            // 503 = budget exhausted, transient — retry with Retry-After or backoff.
+            // Jitter (±25%) prevents thundering-herd retries when many tiles 503 simultaneously.
             if (response.status === 503 && attempt < maxRetries) {
                 const retryAfter = response.headers.get('Retry-After');
                 const parsed = retryAfter ? parseInt(retryAfter, 10) : NaN;
-                let delayMs = !isNaN(parsed)
+                let delayMs = !isNaN(parsed) && parsed > 0
                     ? parsed * 1000
                     : baseDelay * Math.pow(2, attempt);
-                delayMs = Math.min(delayMs, 10000);
+                delayMs = Math.max(delayMs, baseDelay); // floor: never below base delay
+                delayMs = Math.min(delayMs, 10000);     // cap: never above 10s
+                delayMs *= (0.75 + Math.random() * 0.5); // jitter ±25%
 
                 setTimeout(function () {
                     // Check if tile was removed while waiting — abort signal is set.
@@ -126,9 +135,10 @@ const RetryTileLayer = L.TileLayer.extend({
             // Tile was removed (panned/zoomed away) — silently stop.
             if (err.name === 'AbortError') return;
 
-            // Network error — retry if attempts remain
+            // Network error (or body-read failure mid-transfer) — retry if attempts remain
             if (attempt < maxRetries) {
-                const delayMs = Math.min(baseDelay * Math.pow(2, attempt), 10000);
+                let delayMs = Math.min(baseDelay * Math.pow(2, attempt), 10000);
+                delayMs *= (0.75 + Math.random() * 0.5); // jitter ±25%
                 setTimeout(function () {
                     if (!signal.aborted) {
                         layer._fetchWithRetry(url, tile, done, attempt + 1, signal);
@@ -144,7 +154,9 @@ const RetryTileLayer = L.TileLayer.extend({
 /**
  * Creates a tile layer with retry support using the app's tile proxy config.
  * Reads URL and attribution from window.wayfarerTileConfig (injected by _Layout.cshtml).
- * @param {Object} [opts] - Additional L.TileLayer options to merge (e.g., {zoomAnimation: true}).
+ * @param {Object} [opts] - Additional L.TileLayer options to merge. Supports standard Leaflet
+ *   options (e.g., {zoomAnimation: true}) plus retry tuning: maxRetries (default 5),
+ *   retryDelayMs (default 1000).
  * @returns {L.TileLayer} The tile layer instance (call .addTo(map) on the result).
  */
 export const createTileLayer = (opts) => {
