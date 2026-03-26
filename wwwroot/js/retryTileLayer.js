@@ -11,11 +11,10 @@
  *
  * Retry strategy (two phases):
  * - Fast phase: up to 5 retries with exponential backoff (respects Retry-After header)
- * - Slow phase: if fast retries exhaust on 503 or network error, enters indefinite
- *   polling (interval derived from retryAfterSeconds * 3) until the tile loads or is
- *   removed (panned/zoomed away). This handles cold-cache scenarios where the per-IP
- *   budget is exceeded by the number of tiles needed — tiles that can't be served
- *   within the fast retry window will load once the sliding-window budget decays (~60s).
+ * - Slow phase: if fast retries exhaust on 503 or network error, makes single-shot
+ *   attempts at slowRetryDelayMs intervals (derived from retryAfterSeconds * 3) until
+ *   the tile loads or is removed. Each slow attempt is one fetch — if it gets 503,
+ *   it schedules the next slow poll directly (no fast-retry cycle replay).
  * - 404 and other HTTP errors are permanent failures (no retry)
  *
  * Design note: upstream HTTP 500/502/504 errors are treated as permanent failures
@@ -145,10 +144,65 @@ const RetryTileLayer = L.TileLayer.extend({
     },
 
     /**
-     * Schedules a slow-phase retry for a tile whose fast retries have been exhausted.
-     * Fires every slowRetryDelayMs (derived from retryAfterSeconds * 3) indefinitely
-     * until the tile either loads successfully or is removed (signal aborted). Resets
-     * the attempt counter to 0 so the tile gets a fresh fast-retry cycle on each trigger.
+     * Single-shot slow-phase fetch for a tile whose fast retries have been exhausted.
+     * Acquires a concurrency slot, makes ONE fetch attempt, and either:
+     * - Succeeds → loads the tile image
+     * - Gets 503 → schedules another slow poll after slowRetryDelayMs
+     * - Gets a permanent error (404, 500) → gives up
+     * - Network error → schedules another slow poll
+     * This avoids the ~30s lag of replaying a full fast-retry cycle on each slow poll.
+     * Each slow attempt consumes only 1 per-IP budget hit instead of 6.
+     * @param {string} url - The tile URL.
+     * @param {HTMLImageElement} tile - The tile image element.
+     * @param {Function} done - Leaflet callback to signal completion.
+     * @param {AbortSignal} signal - Abort signal from the tile's AbortController.
+     */
+    _slowRetryOnce: function (url, tile, done, signal) {
+        const layer = this;
+
+        _acquireSlot(signal).then(function (acquired) {
+            if (!acquired) return;
+            if (signal.aborted) { _releaseSlot(); return; }
+
+            fetch(url, { signal: signal }).then(function (response) {
+                _releaseSlot();
+
+                if (response.ok) {
+                    return response.blob().then(function (blob) {
+                        if (signal.aborted) return;
+                        tile.onload = function () {
+                            URL.revokeObjectURL(tile.src);
+                            done(null, tile);
+                        };
+                        tile.onerror = function (e) {
+                            URL.revokeObjectURL(tile.src);
+                            done(e, tile);
+                        };
+                        tile.src = URL.createObjectURL(blob);
+                    });
+                }
+
+                // Still 503 — schedule next slow poll.
+                if (response.status === 503) {
+                    layer._scheduleSlowRetry(url, tile, done, signal);
+                    return;
+                }
+
+                // Non-retryable (404, 400, 500, etc.) — permanent failure.
+                done(new Error('Tile fetch failed: ' + response.status), tile);
+            }).catch(function (err) {
+                _releaseSlot();
+                if (err.name === 'AbortError') return;
+                // Network error — schedule next slow poll.
+                layer._scheduleSlowRetry(url, tile, done, signal);
+            });
+        });
+    },
+
+    /**
+     * Schedules a slow-phase retry after slowRetryDelayMs (derived from retryAfterSeconds * 3).
+     * Uses single-shot fetch (_slowRetryOnce) — one request per poll, not a full fast-retry cycle.
+     * Jitter ±25% prevents synchronized bursts from multiple tiles polling simultaneously.
      * @param {string} url - The tile URL.
      * @param {HTMLImageElement} tile - The tile image element.
      * @param {Function} done - Leaflet callback to signal completion.
@@ -161,8 +215,7 @@ const RetryTileLayer = L.TileLayer.extend({
         delayMs *= (0.75 + Math.random() * 0.5);
         setTimeout(function () {
             if (!signal.aborted) {
-                // Reset to attempt 0 — gives a full fast-retry cycle on each slow trigger.
-                layer._fetchWithRetry(url, tile, done, 0, signal);
+                layer._slowRetryOnce(url, tile, done, signal);
             }
         }, delayMs);
     },
@@ -171,9 +224,9 @@ const RetryTileLayer = L.TileLayer.extend({
      * Fetches a tile via fetch(), retries on 503 or network error with backoff.
      * Two retry phases:
      * - Fast: attempts 0..maxRetries with exponential backoff (seconds)
-     * - Slow: after fast retries exhaust on 503/network error, retries every ~15s
-     *   (derived from server's retryAfterSeconds * 3) indefinitely until the tile
-     *   loads or is removed
+     * - Slow: after fast retries exhaust on 503/network error, single-shot polls
+     *   every ~15s (derived from retryAfterSeconds * 3) until the tile loads or
+     *   is removed — each poll is one fetch, not a full fast-retry cycle
      * Acquires a concurrency slot before each fetch attempt to prevent overwhelming
      * the server's budget. Respects AbortSignal so removed tiles stop immediately.
      * @param {string} url - The tile URL.
@@ -242,7 +295,7 @@ const RetryTileLayer = L.TileLayer.extend({
                     }
 
                     // Slow phase: fast retries exhausted but 503 is transient (budget will
-                    // recover). Keep retrying until the tile loads or is removed.
+                    // recover). Switch to single-shot polling.
                     layer._scheduleSlowRetry(url, tile, done, signal);
                     return;
                 }
@@ -268,7 +321,7 @@ const RetryTileLayer = L.TileLayer.extend({
                 }
 
                 // Slow phase for network errors: could be transient (e.g., brief connectivity
-                // loss). Keep trying rather than leaving a permanent gray tile.
+                // loss). Switch to single-shot polling.
                 layer._scheduleSlowRetry(url, tile, done, signal);
             });
         });
