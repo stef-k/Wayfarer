@@ -149,11 +149,20 @@ public class TilesController : Controller
         }
 
         // Call the tile cache service to retrieve the tile.
-        // The service will either return the cached tile data or (if missing) download, cache, and then return it.
-        var tileData = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted);
-        if (tileData == null)
+        // The service will either return the cached tile data, signal budget exhaustion (503),
+        // or indicate the tile was not found (404).
+        var result = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted);
+
+        if (result.BudgetExhausted)
         {
-            _logger.LogError("Tile data not found for {z}/{x}/{y}", z, x, y);
+            _logger.LogWarning("Tile budget exhausted for {Z}/{X}/{Y}", z, x, y);
+            Response.Headers["Retry-After"] = "5";
+            return StatusCode(503, "Tile server busy. Please retry shortly.");
+        }
+
+        if (result.TileData == null)
+        {
+            _logger.LogError("Tile data not found for {Z}/{X}/{Y}", z, x, y);
             return NotFound("Tile not found.");
         }
 
@@ -164,7 +173,7 @@ public class TilesController : Controller
         Response.Headers["X-Content-Type-Options"] = "nosniff";
 
         // Return the tile data with the appropriate content type.
-        return File(tileData, "image/png");
+        return File(result.TileData, "image/png");
     }
 
     /// <summary>

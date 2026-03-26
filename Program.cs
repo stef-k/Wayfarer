@@ -263,10 +263,16 @@ static void ConfigureLogging(WebApplicationBuilder builder)
         throw new InvalidOperationException(
             "Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
 
-    // Configure Serilog for logging to console, file, and PostgreSQL
+    // Configure Serilog for logging to console, file, and PostgreSQL.
+    // .Enrich.FromLogContext() enables LogContext properties (e.g., RequestId pushed by
+    // RequestIdLoggingMiddleware) to flow into all sinks automatically.
+    // {Properties:j} in output templates renders pushed properties as JSON.
     Log.Logger = new LoggerConfiguration()
-        .WriteTo.Console() // Logs to the console
-        .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day) // Logs to a file with daily rotation
+        .Enrich.FromLogContext()
+        .WriteTo.Console(outputTemplate:
+            "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
+        .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day, outputTemplate:
+            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
         .WriteTo.PostgreSQL(builder.Configuration.GetConnectionString("DefaultConnection"),
             "AuditLogs", // Table for storing logs
             needAutoCreateTable: true) // Auto-creates the table if it doesn't exist
@@ -694,6 +700,7 @@ static async Task ConfigureMiddleware(WebApplication app)
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
     app.UseForwardedHeaders();
 
+    app.UseMiddleware<RequestIdLoggingMiddleware>(); // Enriches Serilog LogContext with HttpContext.TraceIdentifier
     app.UseMiddleware<PerformanceMonitoringMiddleware>(); // Custom middleware for monitoring performance
 
     // Use specific middlewares based on the environment
