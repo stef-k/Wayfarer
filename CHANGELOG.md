@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [1.2.25] - 2026-03-26
+
+### Fixed
+- **HIGH:** Slow retry phase replayed full 5-attempt fast-retry cycle on each poll (~34s lag per attempt, 6 per-IP budget hits per cycle). Now makes single-shot fetches — one request per slow poll (~15s intervals), one budget hit each (#206)
+
+### Changed
+- `_scheduleSlowRetry` now calls `_slowRetryOnce` (single fetch + reschedule on 503) instead of resetting to `_fetchWithRetry` attempt 0 (#206)
+
+### Added
+- `_slowRetryOnce` method — lightweight single-fetch slow-phase handler that avoids the overhead of the full fast-retry state machine (#206)
+
 ## [1.2.24] - 2026-03-26
 
 ### Changed
