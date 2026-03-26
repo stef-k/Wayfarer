@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.2.23] - 2026-03-26
+
+### Fixed
+- **MEDIUM:** Tiles that exhausted fast retries on 503 went permanently gray with no recovery path — after the per-IP budget window decayed, those tiles could have loaded but never retried again (#206)
+
+### Added
+- Slow retry phase in `retryTileLayer.js` — after 5 fast retries exhaust on 503 or network error, tiles enter indefinite 30-second polling (with ±25% jitter) until they load or are removed; ensures all tiles eventually appear even when per-IP budget temporarily blocks them (#206)
+- `_scheduleSlowRetry` method and `slowRetryDelayMs` option (default 30s) on `RetryTileLayer` (#206)
+
 ## [1.2.22] - 2026-03-26
 
 ### Fixed
