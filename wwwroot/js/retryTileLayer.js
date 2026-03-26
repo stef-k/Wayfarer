@@ -150,8 +150,11 @@ const RetryTileLayer = L.TileLayer.extend({
 
         _acquireSlot(signal).then(function (acquired) {
             // No slot acquired — tile was removed while queued, nothing to do.
+            // done() is intentionally not called: Leaflet's _removeTile already replaced
+            // it with falseFn, so calling it would be a no-op at best.
             if (!acquired) return;
             // Slot acquired but tile removed in the meantime — release immediately.
+            // Same reasoning: _removeTile already handled Leaflet cleanup.
             if (signal.aborted) { _releaseSlot(); return; }
 
             fetch(url, { signal: signal }).then(function (response) {

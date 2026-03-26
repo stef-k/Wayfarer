@@ -229,6 +229,9 @@ public static class RateLimitHelper
 
         var entry = cache.GetOrAdd(clientKey, _ => new RateLimitEntry(expirationTicks));
         var count = entry.PeekCount(currentTicks);
+        // Uses >= (not >) because PeekCount reads without incrementing: if count is already
+        // AT the limit, the next IncrementAndGet would push it over. IsRateLimitExceeded
+        // uses > because it increments first (post-increment semantics).
         return count >= maxRequestsPerMinute;
     }
 
