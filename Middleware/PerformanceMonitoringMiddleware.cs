@@ -21,7 +21,8 @@ namespace Wayfarer.Middleware
 
             stopwatch.Stop(); // Stop measuring time
 
-            // Log the duration of the request
+            // Log the duration of the request. RequestId is automatically included via
+            // {Properties:j} from LogContext (pushed by RequestIdLoggingMiddleware).
             _logger.LogInformation("Request [{Method}] {Path} took {ElapsedMilliseconds} ms",
                 context.Request.Method,
                 context.Request.Path,

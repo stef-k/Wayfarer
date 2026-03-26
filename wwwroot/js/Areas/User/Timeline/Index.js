@@ -5,11 +5,8 @@ let mapBounds = null;
 let markerLayer, clusterLayer, highlightLayer;
 let stream;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
-// Map tiles config (proxy URL + attribution) injected by layout.
-const tilesConfig = window.wayfarerTileConfig || {};
-const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
 import {
     formatViewerAndSourceTimes,
     formatDate,
@@ -165,9 +162,7 @@ const initializeMap = () => {
     mapContainer = L.map('mapContainer', {
         zoomAnimation: true
     }).setView(initialCenter, zoomLevel);
-    L.tileLayer(tilesUrl, {
-        maxZoom: 19, attribution: tilesAttribution
-    }).addTo(mapContainer);
+    createTileLayer().addTo(mapContainer);
 
     mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
 

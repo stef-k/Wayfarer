@@ -1,9 +1,7 @@
-﻿let mapContainer = null;
+﻿import { createTileLayer } from '../../../retryTileLayer.js';
+
+let mapContainer = null;
 let data = null;
-// Map tiles config (proxy URL + attribution) injected by layout.
-const tilesConfig = window.wayfarerTileConfig || {};
-const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -17,10 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const mapContainer = L.map('mapContainer').setView([latitude, longitude], 13); // Center map at the location
 
         // Add the tile layer from the cache proxy.
-        L.tileLayer(tilesUrl, {
-            attribution: tilesAttribution,
-            zoomAnimation: true
-        }).addTo(mapContainer);
+        createTileLayer({ zoomAnimation: true }).addTo(mapContainer);
         mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
         // Marker variable to store the placed marker
         var marker;

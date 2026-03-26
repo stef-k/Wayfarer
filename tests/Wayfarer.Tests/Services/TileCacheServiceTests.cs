@@ -19,6 +19,12 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// Tile cache behaviors: storing, retrieving, and purging cached tiles.
 /// </summary>
+/// <remarks>
+/// Shares the "OutboundBudget" collection with <see cref="Controllers.TilesControllerTests"/>
+/// to prevent parallel execution — both classes mutate <see cref="TileCacheService.OutboundBudget"/>
+/// static state via DrainForTesting/ResetForTesting.
+/// </remarks>
+[Collection("OutboundBudget")]
 public class TileCacheServiceTests : TestBase
 {
     [Fact]
@@ -49,7 +55,8 @@ public class TileCacheServiceTests : TestBase
         meta.LastAccessed = old;
         db.SaveChanges();
 
-        var bytes = await service.RetrieveTileAsync("9", "3", "4");
+        var result = await service.RetrieveTileAsync("9", "3", "4");
+        var bytes = result.TileData;
 
         Assert.NotNull(bytes);
         Assert.True(db.TileCacheMetadata.Single().LastAccessed > old);
@@ -294,7 +301,8 @@ public class TileCacheServiceTests : TestBase
         var callCount = handler.CallCount;
 
         // Retrieve should serve from cache without HTTP call
-        var bytes = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var bytes = result.TileData;
 
         Assert.NotNull(bytes);
         Assert.Equal(callCount, handler.CallCount); // No additional HTTP calls
@@ -318,7 +326,8 @@ public class TileCacheServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // Retrieve should send conditional request because tile is expired
-        var bytes = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var bytes = result.TileData;
 
         Assert.NotNull(bytes);
         Assert.True(handler.CallCount > callCountAfterCache, "Expected conditional HTTP request");
@@ -342,7 +351,8 @@ public class TileCacheServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // Retrieve: tile is expired, handler returns 304 when If-None-Match matches
-        var bytes = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var bytes = result.TileData;
 
         Assert.NotNull(bytes);
         Assert.Equal(originalFile, bytes); // Same data, not re-downloaded
@@ -373,7 +383,8 @@ public class TileCacheServiceTests : TestBase
         // Force the handler to return 200 on revalidation (different etag = new content)
         handler.ForceRevalidation200 = true;
 
-        var bytes = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var bytes = result.TileData;
 
         Assert.NotNull(bytes);
         // DB metadata should now have the new etag
@@ -401,7 +412,8 @@ public class TileCacheServiceTests : TestBase
         handler.FailNextRequest = true;
 
         // Retrieve should serve stale cached file despite re-validation failure
-        var bytes = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        var bytes = result.TileData;
 
         Assert.NotNull(bytes);
     }
@@ -473,7 +485,7 @@ public class TileCacheServiceTests : TestBase
         var results = await Task.WhenAll(tasks);
 
         // All should return data
-        Assert.All(results, r => Assert.NotNull(r));
+        Assert.All(results, r => Assert.NotNull(r.TileData));
 
         // Only 1 additional HTTP request should have been made (coalesced)
         var additionalCalls = handler.CallCount - callCountAfterCache;
@@ -497,6 +509,41 @@ public class TileCacheServiceTests : TestBase
         var sidecar = JsonSerializer.Deserialize<TileSidecarMetadata>(json);
         Assert.NotNull(sidecar);
         Assert.NotNull(sidecar!.LastModifiedUpstream);
+    }
+
+    [Fact]
+    public async Task CacheTileAsync_ReturnsFalse_WhenBudgetExhausted()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+
+        // Drain all tokens and stop replenishment — next AcquireAsync returns false.
+        TileCacheService.OutboundBudget.DrainForTesting();
+
+        // CacheTileAsync should return false (budget exhausted) and not write any file or metadata.
+        var result = await service.CacheTileAsync("http://tiles/10/1/1.png", "10", "1", "1");
+
+        Assert.False(result);
+        Assert.False(File.Exists(Path.Combine(dir.Path, "10_1_1.png")));
+        Assert.Empty(db.TileCacheMetadata.ToList());
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_ReturnsThrottled_WhenBudgetExhausted()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+
+        // Drain all tokens and stop replenishment — next AcquireAsync returns false.
+        TileCacheService.OutboundBudget.DrainForTesting();
+
+        // RetrieveTileAsync should signal budget exhaustion (BudgetExhausted = true).
+        var result = await service.RetrieveTileAsync("10", "1", "1", "http://tiles/10/1/1.png");
+
+        Assert.True(result.BudgetExhausted);
+        Assert.Null(result.TileData);
     }
 
     /// <summary>

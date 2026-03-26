@@ -46,10 +46,31 @@ ViewData["LoadLeaflet"] = true;  // Make sure your _Layout includes leaflet and 
     const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 
     // Add tile layer from the cache proxy.
-    L.tileLayer(tilesUrl, {
+    const tileLayer = L.tileLayer(tilesUrl, {
         maxZoom: 19,
         attribution: tilesAttribution
     }).addTo(map);
+
+    // Retry failed tiles with backoff (max 5 attempts, matching retryTileLayer.js).
+    // Inline fallback for views that cannot use ES module imports.
+    // Note: unlike retryTileLayer.js (which uses fetch() to detect 503 vs 404),
+    // this img-based approach retries ALL errors indiscriminately. Acceptable for
+    // these admin-only views with low traffic — worst case is 5 wasted retries
+    // per genuinely missing tile.
+    (function () {
+        var retryCounts = {};
+        tileLayer.on('tileerror', function (e) {
+            var src = e.tile.src;
+            if (!src) return;
+            var key = src.split('?')[0];
+            retryCounts[key] = (retryCounts[key] || 0) + 1;
+            if (retryCounts[key] <= 5) {
+                setTimeout(function () {
+                    e.tile.src = src;
+                }, 1000 * Math.pow(2, retryCounts[key] - 1));
+            }
+        });
+    })();
 
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
 

@@ -45,6 +45,12 @@ public class TileCacheService
     private const int LRU_TO_EVICT = 50;
 
     /// <summary>
+    /// Zoom levels at or above this threshold use database-backed metadata.
+    /// Zoom levels below this use JSON sidecar files on disk (fewer tiles, simpler management).
+    /// </summary>
+    private const int DbMetadataZoomThreshold = 9;
+
+    /// <summary>
     /// Minimum staleness before updating LastAccessed in the database.
     /// Reduces DB writes by ~99% for popular tiles while maintaining adequate LRU precision.
     /// </summary>
@@ -275,6 +281,23 @@ public class TileCacheService
             {
                 // Already at capacity after drain — safe to ignore.
             }
+        }
+
+        /// <summary>
+        /// Drains all outbound budget tokens and stops replenishment for testing.
+        /// After this call, the next <see cref="AcquireAsync"/> will return false (budget exhausted).
+        /// Also pre-cancels the fresh CTS so the replenisher exits immediately when
+        /// <see cref="AcquireAsync"/> lazily starts it — prevents token refill during the test.
+        /// </summary>
+        internal static void DrainForTesting()
+        {
+            StopReplenisher();
+            while (_tokens.CurrentCount > 0)
+            {
+                _tokens.Wait(0);
+            }
+            // Pre-cancel the fresh CTS so the replenisher cannot refill tokens.
+            _replenisherCts.Cancel();
         }
     }
 
@@ -703,10 +726,11 @@ public class TileCacheService
     /// <summary>
     /// Downloads a tile from the given URL and caches it on the file system.
     /// Stores ETag, Last-Modified, and computed expiry from upstream response headers.
-    /// For zoom levels >= 9, metadata is stored (or updated) in the database.
-    /// For zoom levels 0-8, metadata is stored as a JSON sidecar file.
+    /// For zoom levels >= DbMetadataZoomThreshold, metadata is stored (or updated) in the database.
+    /// For zoom levels below that, metadata is stored as a JSON sidecar file.
+    /// Returns false if the outbound budget was exhausted (tile not downloaded), true otherwise.
     /// </summary>
-    public async Task CacheTileAsync(string tileUrl, string zoomLevel, string xCoordinate, string yCoordinate,
+    public async Task<bool> CacheTileAsync(string tileUrl, string zoomLevel, string xCoordinate, string yCoordinate,
         CancellationToken cancellationToken = default)
     {
         try
@@ -744,7 +768,7 @@ public class TileCacheService
 
                 if (response.IsSuccessStatusCode)
                 {
-                    tileData = await response.Content.ReadAsByteArrayAsync();
+                    tileData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 
                     // Extract cache headers from upstream response for conditional request support.
                     etag = response.Headers.ETag?.Tag;
@@ -759,9 +783,9 @@ public class TileCacheService
                             await File.WriteAllBytesAsync(tileFilePath, tileData);
                         }
 
-                        // For zoom < 9, write sidecar in the same lock acquisition as the tile file.
+                        // For zoom < DbMetadataZoomThreshold, write sidecar in the same lock acquisition as the tile file.
                         // This eliminates TOCTOU where a concurrent reader sees the tile but no metadata.
-                        if (zoom < 9)
+                        if (zoom < DbMetadataZoomThreshold)
                         {
                             WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
                             {
@@ -774,7 +798,7 @@ public class TileCacheService
                     catch (IOException ioEx)
                     {
                         _logger.LogError(ioEx, "Failed to write tile data to file: {TileFilePath}", tileFilePath);
-                        return;
+                        return true;
                     }
                     finally
                     {
@@ -790,16 +814,30 @@ public class TileCacheService
                 retryCount--;
                 if (retryCount == 0)
                 {
+                    // Returns true (not budget-exhausted) so the controller sends 404 rather than 503.
+                    // Upstream HTTP failures (500/502/504) are non-retryable at the client level —
+                    // retrying would not help if OSM is down and would only pile up stale requests.
                     _logger.LogError("Failed to download tile after multiple attempts: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
-                    return;
+                    return true;
                 }
 
                 // Optional: Delay between retries to avoid rate limiting
-                await Task.Delay(500); // 500ms delay between retries
+                await Task.Delay(500, cancellationToken); // 500ms delay between retries
             }
 
-            // For zoom levels >= 9, store or update metadata in the database.
-            if (zoom >= 9)
+            // Budget was never acquired — signal throttling to caller.
+            if (tileData == null && !budgetAcquired)
+                return false;
+
+            // Upstream HTTP failure (all retries failed, but budget was acquired) — not budget-related,
+            // so return true to let the controller send 404 rather than 503.
+            if (tileData == null)
+                return true;
+
+            // For zoom levels >= DbMetadataZoomThreshold, store or update metadata in the database.
+            // tileData is guaranteed non-null here — the null cases (budget exhaustion, HTTP failure)
+            // return early above.
+            if (zoom >= DbMetadataZoomThreshold)
             {
                 var existingMetadata = await _dbContext.TileCacheMetadata
                     .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
@@ -807,7 +845,7 @@ public class TileCacheService
                 {
                     // If adding a new tile would exceed the cache limit, evict tiles.
                     // Coalesce: only one eviction runs at a time; concurrent callers skip.
-                    if ((Interlocked.Read(ref _currentCacheSize) + (tileData?.Length ?? 0)) > (_maxCacheSizeInMB * 1024L * 1024L))
+                    if ((Interlocked.Read(ref _currentCacheSize) + tileData.Length) > (_maxCacheSizeInMB * 1024L * 1024L))
                     {
                         if (Interlocked.CompareExchange(ref _evictionInProgress, 1, 0) == 0)
                         {
@@ -829,7 +867,7 @@ public class TileCacheService
                         Y = y,
                         // Storing the coordinates as a point (update as needed).
                         TileLocation = new Point(x, y),
-                        Size = tileData?.Length ?? 0,
+                        Size = tileData.Length,
                         TileFilePath = tileFilePath,
                         LastAccessed = DateTime.UtcNow,
                         ETag = etag,
@@ -842,7 +880,7 @@ public class TileCacheService
                     {
                         _dbContext.TileCacheMetadata.Add(tileMetadata);
                         await _dbContext.SaveChangesAsync();
-                        Interlocked.Add(ref _currentCacheSize, tileData?.Length ?? 0);
+                        Interlocked.Add(ref _currentCacheSize, tileData.Length);
                         _logger.LogInformation("Tile metadata stored in database.");
                     }
                     catch (DbUpdateException)
@@ -860,7 +898,7 @@ public class TileCacheService
                     // Save the old size for cache size adjustment
                     var oldSize = existingMetadata.Size;
                     // Prepare new values
-                    existingMetadata.Size = tileData?.Length ?? 0;
+                    existingMetadata.Size = tileData.Length;
                     existingMetadata.LastAccessed = DateTime.UtcNow;
                     existingMetadata.ETag = etag;
                     existingMetadata.LastModifiedUpstream = lastModifiedUpstream;
@@ -892,12 +930,12 @@ public class TileCacheService
                             if (databaseValues == null)
                             {
                                 _logger.LogError("Tile metadata was deleted by another process.");
-                                return;
+                                return true;
                             }
 
                             await entry.ReloadAsync();
                             existingMetadata = (TileCacheMetadata)entry.Entity;
-                            existingMetadata.Size = tileData?.Length ?? 0;
+                            existingMetadata.Size = tileData.Length;
                             existingMetadata.LastAccessed = DateTime.UtcNow;
                             existingMetadata.ETag = etag;
                             existingMetadata.LastModifiedUpstream = lastModifiedUpstream;
@@ -909,17 +947,20 @@ public class TileCacheService
                     {
                         _logger.LogError(
                             "Failed to update tile metadata after multiple attempts due to concurrency conflicts.");
-                        return;
+                        return true;
                     }
 
                     // Adjust the in-memory cache size using the previously saved value.
-                    Interlocked.Add(ref _currentCacheSize, (tileData?.Length ?? 0) - oldSize);
+                    Interlocked.Add(ref _currentCacheSize, tileData.Length - oldSize);
                 }
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error caching tile from {TileUrl}.", TileProviderCatalog.RedactApiKey(tileUrl));
+            return true;
         }
     }
 
@@ -927,8 +968,9 @@ public class TileCacheService
     /// Retrieves a tile from the cache. If the tile exists on disk, checks whether it is
     /// expired and re-validates with the upstream server using conditional requests.
     /// If the file is missing, downloads and caches the tile.
+    /// Returns a <see cref="TileRetrievalResult"/> distinguishing success, not-found, and throttled states.
     /// </summary>
-    public async Task<byte[]?> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
+    public async Task<TileRetrievalResult> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
         string? tileUrl = null, CancellationToken cancellationToken = default)
     {
         try
@@ -946,7 +988,7 @@ public class TileCacheService
             {
                 _logger.LogWarning("Invalid tile coordinates: z={Zoom} x={X} y={Y}",
                     zoomLevel, xCoordinate, yCoordinate);
-                return null;
+                return TileRetrievalResult.NotFound();
             }
 
             var tileKey = $"{zoomLevel}_{xCoordinate}_{yCoordinate}";
@@ -963,7 +1005,7 @@ public class TileCacheService
                 string? etag = null;
                 DateTime? lastModified = null;
 
-                if (zoomLvl >= 9)
+                if (zoomLvl >= DbMetadataZoomThreshold)
                 {
                     // Single DB round-trip: load metadata + conditionally update LastAccessed
                     var meta = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
@@ -1048,7 +1090,7 @@ public class TileCacheService
                         // File deleted by concurrent eviction/purge — treat as cache miss.
                     }
 
-                    if (cachedTileData != null) return cachedTileData;
+                    if (cachedTileData != null) return TileRetrievalResult.Success(cachedTileData);
                 }
 
                 // Tile is expired — re-validate with upstream (if we have a URL)
@@ -1066,8 +1108,8 @@ public class TileCacheService
                                 xVal, yVal, etag, lastModified, clientIp, CancellationToken.None)));
                     try
                     {
-                        var result = await flight.Value;
-                        if (result != null) return result;
+                        var revalidationResult = await flight.Value;
+                        if (revalidationResult != null) return TileRetrievalResult.Success(revalidationResult);
                     }
                     catch (Exception ex)
                     {
@@ -1095,18 +1137,18 @@ public class TileCacheService
                     // File deleted by concurrent eviction/purge — treat as cache miss.
                 }
 
-                if (staleTileData != null) return staleTileData;
+                if (staleTileData != null) return TileRetrievalResult.Success(staleTileData);
             }
 
             // 2. If the tile is not on disk, but we have a URL, attempt to fetch it.
             if (string.IsNullOrEmpty(tileUrl))
             {
                 _logger.LogWarning("Tile not found and no URL provided: {TileFilePath}", tileFilePath);
-                return null;
+                return TileRetrievalResult.NotFound();
             }
 
             _logger.LogDebug("Tile not in cache. Fetching from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
-            await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate, cancellationToken);
+            var cached = await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate, cancellationToken);
 
             // After fetching, read the file. No lock needed for reads (see fast-path comment above).
             byte[]? fetchedTileData = null;
@@ -1122,12 +1164,16 @@ public class TileCacheService
                 // File deleted by concurrent eviction/purge — treat as cache miss.
             }
 
-            return fetchedTileData;
+            if (fetchedTileData != null)
+                return TileRetrievalResult.Success(fetchedTileData);
+
+            // File doesn't exist after CacheTileAsync — distinguish budget exhaustion from other failures.
+            return cached ? TileRetrievalResult.NotFound() : TileRetrievalResult.Throttled();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving tile from cache.");
-            return null;
+            return TileRetrievalResult.NotFound();
         }
     }
 
@@ -1159,7 +1205,7 @@ public class TileCacheService
             var newExpiry = ParseCacheExpiry(response);
             var newEtag = response.Headers.ETag?.Tag ?? etag;
 
-            if (zoom >= 9)
+            if (zoom >= DbMetadataZoomThreshold)
             {
                 // Use own scope to avoid disposed DbContext from the originating request.
                 using var scope = _serviceScopeFactory.CreateScope();
@@ -1170,7 +1216,7 @@ public class TileCacheService
             _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", tileKey);
 
             byte[]? data = null;
-            if (zoom < 9)
+            if (zoom < DbMetadataZoomThreshold)
             {
                 // Sidecar write + file read under the same lock to prevent a concurrent
                 // purge from deleting the sidecar between write and read (TOCTOU).
@@ -1227,7 +1273,7 @@ public class TileCacheService
             {
                 await File.WriteAllBytesAsync(tileFilePath, tileData);
 
-                if (zoom < 9)
+                if (zoom < DbMetadataZoomThreshold)
                 {
                     WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
                     {
@@ -1242,7 +1288,7 @@ public class TileCacheService
                 _cacheLock.Release();
             }
 
-            if (zoom >= 9)
+            if (zoom >= DbMetadataZoomThreshold)
             {
                 // Use own scope to avoid disposed DbContext from the originating request.
                 using var scope = _serviceScopeFactory.CreateScope();
@@ -1754,7 +1800,7 @@ public class TileCacheService
         // Project only the fields needed — AsNoTracking avoids change tracker overhead.
         var lruCache = await dbContext.TileCacheMetadata
             .AsNoTracking()
-            .Where(file => file.Zoom >= 9)
+            .Where(file => file.Zoom >= DbMetadataZoomThreshold)
             .Select(t => new { t.Id, t.TileFilePath, t.Size })
             .ToListAsync();
 

@@ -4,6 +4,7 @@ import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
 } from '../../../util/wikipedia-utils.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
 
 (() => {
     /* ------------------------------------------------ Pagination state */
@@ -1206,11 +1207,6 @@ import {
     let contextMarkersGroup = null;
     let mapResizeObserver = null;
 
-    // Map tiles config (proxy URL + attribution) injected by layout
-    const tilesConfig = window.wayfarerTileConfig || {};
-    const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-    const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
-
     // Wayfarer icon dimensions
     const WF_WIDTH = 28;
     const WF_HEIGHT = 45;
@@ -1256,10 +1252,7 @@ import {
 
         contextMap = L.map(container, { zoomAnimation: true }).setView([0, 0], 13);
 
-        L.tileLayer(tilesUrl, {
-            maxZoom: 19,
-            attribution: tilesAttribution
-        }).addTo(contextMap);
+        createTileLayer().addTo(contextMap);
 
         contextMap.attributionControl.setPrefix(
             '&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | ' +

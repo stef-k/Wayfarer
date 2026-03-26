@@ -3,14 +3,12 @@
  * Allows editing timestamps, location (via map click), appearance, and notes.
  */
 
+import { createTileLayer } from '../../../retryTileLayer.js';
+
 // Wayfarer marker icon dimensions (matches Trip mapManager)
 const WF_WIDTH = 28;
 const WF_HEIGHT = 45;
 const WF_ANCHOR = [WF_WIDTH / 2, WF_HEIGHT];
-// Map tiles config (proxy URL + attribution) injected by layout.
-const tilesConfig = window.wayfarerTileConfig || {};
-const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
 
 /**
  * Build PNG icon URL for wayfarer markers
@@ -47,10 +45,7 @@ const initMap = () => {
 
     map = L.map('mapContainer').setView([lat, lon], 15);
 
-    L.tileLayer(tilesUrl, {
-        maxZoom: 19,
-        attribution: tilesAttribution
-    }).addTo(map);
+    createTileLayer().addTo(map);
 
     // Set standard attribution prefix (matches Timeline)
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');

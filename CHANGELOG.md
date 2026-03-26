@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [1.2.21] - 2026-03-26
+
+### Added
+- `RetryTileLayer` — custom Leaflet TileLayer subclass using `fetch()` for HTTP status code access; retries on 503 with exponential backoff and `Retry-After` header support (#206)
+- `createTileLayer()` factory in `retryTileLayer.js` — centralizes tile layer creation, replacing duplicated boilerplate across 13 JS files (#206)
+- `TileRetrievalResult` — typed result class distinguishing tile success, not-found, and budget-throttled states (#206)
+- `RequestIdLoggingMiddleware` — pushes `HttpContext.TraceIdentifier` into Serilog `LogContext` so every log entry includes `RequestId` automatically (#206)
+- Serilog `.Enrich.FromLogContext()` and `{Properties:j}` output templates for console and file sinks (#206)
+- `DbMetadataZoomThreshold` constant replacing magic number `9` across `TileCacheService` (#206)
+- Inline `tileerror` retry fallback for HiddenAreas Create/Edit views (cshtml inline scripts) (#206)
+
+### Fixed
+- **HIGH:** Cold-cache tile loading returned 404 for budget-exhausted tiles — Leaflet treated as permanent failure, showing persistent gray areas. Now returns 503 + `Retry-After` header; client retries automatically (#206)
+- **MEDIUM:** Ghost metadata rows stored in DB when tile fetch was aborted by budget exhaustion — rows had `Size=0`, null `ETag`/`ExpiresAtUtc`, pointing to non-existent files (#206)
+
+### Changed
+- `CacheTileAsync` now returns `bool` (`false` = budget exhaustion) instead of `void` (#206)
+- `RetrieveTileAsync` now returns `TileRetrievalResult` instead of `byte[]?` (#206)
+- `PerformanceMonitoringMiddleware` log line now includes explicit `RequestId` parameter (#206)
+
 ## [1.2.20] - 2026-03-22
 
 ### Added
