@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## [1.2.22] - 2026-03-26
+
+### Fixed
+- **HIGH:** Cascading 503 on cold-cache tile loading — per-IP outbound budget counter incremented on every request (including those rejected by the global budget), so client-side retries found the counter already past the limit and failed immediately, causing all tiles to gray out permanently (#206)
+
+### Added
+- Client-side concurrency pool (6 slots) in `retryTileLayer.js` — tiles queue client-side and stream in progressively instead of blasting ~35 simultaneous requests that overwhelm server budgets (#206)
+- Two-phase per-IP rate limiting: `WouldExceedRateLimit` (peek without increment) and `RecordRateLimitHit` (increment only) in `RateLimitHelper` — enables check-then-record pattern where only actual upstream fetches count against the per-IP limit (#206)
+- `PeekCount` method on `RateLimitEntry` — read-only weighted sliding-window count for speculative checks (#206)
+
+### Changed
+- `SendTileRequestCoreAsync` now uses two-phase per-IP budget: peeks first (fast-fail), then records the hit only after global budget token is acquired (#206)
+
 ## [1.2.21] - 2026-03-26
 
 ### Added
