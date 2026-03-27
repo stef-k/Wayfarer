@@ -79,7 +79,7 @@ const _releaseSlot = () => {
 // ---------- Retry timing derived from server config ----------
 // retryAfterSeconds is the Retry-After value the server sends on 503 (matches the budget
 // replenishment cycle). Slow retry uses 3x that interval to give the per-IP sliding window
-// time to decay between attempts. Falls back to 5s if config unavailable.
+// time to decay between attempts. Falls back to 6s if config unavailable.
 const _retryAfterSeconds = _config.retryAfterSeconds || 6;
 const _defaultSlowRetryDelayMs = _retryAfterSeconds * 3 * 1000;
 
