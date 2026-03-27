@@ -916,17 +916,25 @@ public class TileCacheServiceTests : TestBase
     {
         using var dir = new TempDir();
         var (db, dbName) = CreateNamedDbContext();
-        var service = CreateService(db, dir.Path, dbName: dbName);
+        var service1 = CreateService(db, dir.Path, dbName: dbName);
 
-        // Seed a tile.
-        await service.CacheTileAsync("http://tiles/9/3/3.png", "9", "3", "3");
+        // Seed a tile so the purge has work to do.
+        await service1.CacheTileAsync("http://tiles/9/3/1.png", "9", "3", "1");
 
-        // Start first purge.
-        var firstPurge = service.PurgeLRUCacheAsync();
+        // Use a DelayingSseService to keep the first purge in flight — the "started"
+        // broadcast happens after the CompareExchange guard, so the delay keeps the
+        // guard held while the second call fires.
+        var delaySse = new DelayingSseService(delayMs: 200);
 
-        // Second purge should be rejected.
+        // Start first purge with the delaying SSE (do not await — keep it in flight).
+        var firstPurge = service1.PurgeLRUCacheAsync(delaySse, "test-channel");
+
+        // Give the first purge a moment to hit the CompareExchange guard.
+        await Task.Delay(10);
+
+        // Second purge should be rejected immediately.
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.PurgeLRUCacheAsync());
+            () => service1.PurgeLRUCacheAsync());
         Assert.Contains("already in progress", ex.Message);
 
         await firstPurge;
@@ -1000,6 +1008,23 @@ public class TileCacheServiceTests : TestBase
         {
             Messages.Add((channel, data));
             return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// SSE implementation that introduces a delay on each broadcast, keeping the purge
+    /// in-flight long enough for concurrent guard tests. The "started" broadcast happens
+    /// after the CompareExchange guard, so the delay holds the guard while the second
+    /// purge call fires.
+    /// </summary>
+    private sealed class DelayingSseService : SseService
+    {
+        private readonly int _delayMs;
+        public DelayingSseService(int delayMs = 200) => _delayMs = delayMs;
+
+        public override async Task BroadcastAsync(string channel, string data)
+        {
+            await Task.Delay(_delayMs);
         }
     }
 

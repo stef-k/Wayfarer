@@ -83,7 +83,9 @@ public class TileCacheService
 
     /// <summary>
     /// Guards against concurrent purge operations (manual or provider-change triggered).
-    /// Only one purge can proceed at a time; concurrent callers receive a 409 Conflict.
+    /// Only one purge can proceed at a time; concurrent callers receive an
+    /// <see cref="InvalidOperationException"/>. HTTP callers surface this as 409 Conflict;
+    /// internal callers (e.g. tile-provider-change) skip silently.
     /// Uses <see cref="Interlocked.CompareExchange(ref int, int, int)"/> for lock-free rejection.
     /// </summary>
     private static int _purgeInProgress = 0;
@@ -1601,6 +1603,10 @@ public class TileCacheService
         if (Interlocked.CompareExchange(ref _purgeInProgress, 1, 0) != 0)
             throw new InvalidOperationException("A cache purge is already in progress.");
 
+        // Broadcast "started" only after the guard is acquired — ensures no dangling
+        // "started" event if a concurrent request loses the CompareExchange race.
+        await BroadcastPurgeProgressAsync(sseService, sseChannel, "started", "all", 0, 0);
+
         try
         {
             if (!Directory.Exists(_cacheDirectory)) return;
@@ -1862,6 +1868,10 @@ public class TileCacheService
     {
         if (Interlocked.CompareExchange(ref _purgeInProgress, 1, 0) != 0)
             throw new InvalidOperationException("A cache purge is already in progress.");
+
+        // Broadcast "started" only after the guard is acquired — ensures no dangling
+        // "started" event if a concurrent request loses the CompareExchange race.
+        await BroadcastPurgeProgressAsync(sseService, sseChannel, "started", "lru", 0, 0);
 
         try
         {

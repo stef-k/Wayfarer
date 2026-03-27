@@ -344,28 +344,33 @@ namespace Wayfarer.Areas.Admin.Controllers
 
         /// <summary>
         /// Fires a cache purge in the background with SSE progress reporting.
-        /// Broadcasts "started", "progress", "completed", or "failed" events.
+        /// The purge methods broadcast "started" after acquiring the guard, and this
+        /// method broadcasts "completed" or "failed" based on the outcome.
+        /// Uses the captured <see cref="_sseService"/> singleton directly instead of
+        /// re-resolving from a new DI scope.
         /// </summary>
         private void QueuePurgeOperation(string purgeType)
         {
+            // Capture the singleton reference for the background task — avoids
+            // re-resolving the same singleton from a new DI scope.
+            var sseService = _sseService;
+
             _ = Task.Run(async () =>
             {
                 try
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
-                    var sseService = scope.ServiceProvider.GetRequiredService<SseService>();
 
-                    await sseService.BroadcastAsync(TileCachePurgeChannel,
-                        System.Text.Json.JsonSerializer.Serialize(new { eventType = "started", purgeType }));
-
+                    // "started" is broadcast inside the purge methods after the
+                    // CompareExchange guard succeeds — no dangling "started" on TOCTOU race.
                     if (purgeType == "lru")
                         await tileCacheService.PurgeLRUCacheAsync(sseService, TileCachePurgeChannel);
                     else
                         await tileCacheService.PurgeAllCacheAsync(sseService, TileCachePurgeChannel);
 
                     // Broadcast final cache status so the UI can update counters.
-                    var cacheStatus = await GetCacheStatusFromScope(scope);
+                    var cacheStatus = await BuildCacheStatusAsync(tileCacheService);
                     await sseService.BroadcastAsync(TileCachePurgeChannel,
                         System.Text.Json.JsonSerializer.Serialize(new
                         {
@@ -381,7 +386,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                 {
                     // Another purge won the CompareExchange race between the controller's
                     // IsPurgeInProgress check and the service's atomic guard. Safe to ignore —
-                    // the winning request is already broadcasting progress.
+                    // the winning request is already broadcasting progress. No "started" event
+                    // was sent for the losing request (it's broadcast after the guard).
                     _logger.LogInformation("Background {PurgeType} purge skipped: concurrent purge is running.", purgeType);
                 }
                 catch (Exception ex)
@@ -389,8 +395,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                     _logger.LogError(ex, "Background {PurgeType} cache purge failed.", purgeType);
                     try
                     {
-                        using var scope = _scopeFactory.CreateScope();
-                        var sseService = scope.ServiceProvider.GetRequiredService<SseService>();
                         await sseService.BroadcastAsync(TileCachePurgeChannel,
                             System.Text.Json.JsonSerializer.Serialize(new
                             {
@@ -407,12 +411,22 @@ namespace Wayfarer.Areas.Admin.Controllers
             });
         }
 
-        /// <summary>
-        /// Retrieves cache status using a pre-existing DI scope (for background operations).
-        /// </summary>
-        private static async Task<CacheStatus> GetCacheStatusFromScope(IServiceScope scope)
+        private class CacheStatus
         {
-            var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+            public int TotalCacheFiles { get; set; }
+            public int LruTotalFiles { get; set; }
+            public double TotalCacheSize { get; set; }
+            public double TotalCacheSizeGB { get; set; }
+            public double TotalLru { get; set; }
+            public double TotalLruGB { get; set; }
+        }
+
+        /// <summary>
+        /// Builds cache status from a <see cref="TileCacheService"/> instance.
+        /// Used by both the request-scoped path and the background purge task.
+        /// </summary>
+        private static async Task<CacheStatus> BuildCacheStatusAsync(TileCacheService tileCacheService)
+        {
             var cacheStatus = new CacheStatus();
             double total = await tileCacheService.GetCacheFileSizeInMbAsync();
             double lru = await tileCacheService.GetLruCachedInMbFilesAsync();
@@ -427,31 +441,10 @@ namespace Wayfarer.Areas.Admin.Controllers
             return cacheStatus;
         }
 
-        private class CacheStatus
-        {
-            public int TotalCacheFiles { get; set; }
-            public int LruTotalFiles { get; set; }
-            public double TotalCacheSize { get; set; }
-            public double TotalCacheSizeGB { get; set; }
-            public double TotalLru { get; set; }
-            public double TotalLruGB { get; set; }
-        }
-
-        private async Task<CacheStatus> GetCacheStatus()
-        {
-            var cacheStatus = new CacheStatus();
-            double total = await _tileCacheService.GetCacheFileSizeInMbAsync();
-            double lru = await _tileCacheService.GetLruCachedInMbFilesAsync();
-
-            cacheStatus.TotalCacheFiles = await _tileCacheService.GetTotalCachedFilesAsync();
-            cacheStatus.LruTotalFiles = await _tileCacheService.GetLruTotalFilesInDbAsync();
-            cacheStatus.TotalCacheSize = Math.Round(total, 2);
-            cacheStatus.TotalCacheSizeGB = Math.Round(total / 1024, 3);
-            cacheStatus.TotalLru = Math.Round(lru, 2);
-            cacheStatus.TotalLruGB = Math.Round(lru / 1024, 3);
-
-            return cacheStatus;
-        }
+        /// <summary>
+        /// Retrieves cache status using the request-scoped tile cache service.
+        /// </summary>
+        private Task<CacheStatus> GetCacheStatus() => BuildCacheStatusAsync(_tileCacheService);
 
         /// <summary>
         /// Normalizes and validates tile provider settings, applying presets when selected.
