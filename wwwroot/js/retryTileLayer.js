@@ -27,10 +27,10 @@
 const _config = window.wayfarerTileConfig || {};
 
 // ---------- Global concurrency pool ----------
-// Pool size derived from server's outbound burst capacity: 60% of burst leaves headroom
+// Pool size derived from server's outbound burst capacity: 75% of burst leaves headroom
 // for other concurrent users while still allowing a cold-cache load to progress quickly.
-// Falls back to 6 if config is unavailable (e.g., inline scripts outside _Layout).
-const _poolSize = Math.ceil((_config.burstCapacity || 10) * 0.6);
+// Falls back to 9 if config is unavailable (e.g., inline scripts outside _Layout).
+const _poolSize = Math.ceil((_config.burstCapacity || 12) * 0.75);
 let _inFlight = 0;
 const _waiting = [];
 
@@ -80,7 +80,7 @@ const _releaseSlot = () => {
 // retryAfterSeconds is the Retry-After value the server sends on 503 (matches the budget
 // replenishment cycle). Slow retry uses 3x that interval to give the per-IP sliding window
 // time to decay between attempts. Falls back to 5s if config unavailable.
-const _retryAfterSeconds = _config.retryAfterSeconds || 5;
+const _retryAfterSeconds = _config.retryAfterSeconds || 6;
 const _defaultSlowRetryDelayMs = _retryAfterSeconds * 3 * 1000;
 
 const RetryTileLayer = L.TileLayer.extend({
@@ -225,7 +225,7 @@ const RetryTileLayer = L.TileLayer.extend({
      * Two retry phases:
      * - Fast: attempts 0..maxRetries with exponential backoff (seconds)
      * - Slow: after fast retries exhaust on 503/network error, single-shot polls
-     *   every ~15s (derived from retryAfterSeconds * 3) until the tile loads or
+     *   every ~18s (derived from retryAfterSeconds * 3) until the tile loads or
      *   is removed — each poll is one fetch, not a full fast-retry cycle
      * Acquires a concurrency slot before each fetch attempt to prevent overwhelming
      * the server's budget. Respects AbortSignal so removed tiles stop immediately.

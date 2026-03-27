@@ -129,11 +129,11 @@ public class TileCacheService
     {
         /// <summary>
         /// Maximum burst capacity — how many outbound requests can proceed without waiting
-        /// for replenishment. Set to 10 to allow initial map loads to proceed quickly on
+        /// for replenishment. Set to 12 to allow initial map loads to proceed quickly on
         /// a cold cache. OSM's 2-connection limit is enforced at the transport layer via
         /// <c>SocketsHttpHandler.MaxConnectionsPerServer = 2</c> in Program.cs.
         /// </summary>
-        internal const int BurstCapacity = 10;
+        internal const int BurstCapacity = 12;
 
         /// <summary>
         /// Replenishment interval — one token is released every this many milliseconds.
@@ -145,9 +145,10 @@ public class TileCacheService
         /// Maximum time to wait for a token before giving up. Callers that time out
         /// serve stale cache or return 503 (graceful degradation).
         /// Reduced from 10s to 3s to prevent thread pool starvation under sustained
-        /// cold-cache load (multiple users loading maps with many uncached tiles).
+        /// cold-cache load, then raised to 3.5s to allow one extra token per wave
+        /// during cold-cache bootstrap without exceeding thread pool pressure.
         /// </summary>
-        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(3);
+        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(3.5);
 
         /// <summary>
         /// Semaphore representing available outbound tokens. Initialized to <see cref="BurstCapacity"/>.
@@ -741,6 +742,12 @@ public class TileCacheService
     }
 
     // ── Tile caching and retrieval ──────────────────────────────────────
+
+    // TODO #214-D: Investigate pre-warming adjacent zoom levels (z-1, z+1) after a successful
+    // fetch to avoid cold-cache penalties when users zoom in/out. Two approaches to evaluate:
+    // 1. Fire-and-forget from CacheTileAsync — simplest but competes equally for OutboundBudget tokens.
+    // 2. Background Channel<T> queue at lower priority — safer but requires a priority-aware token bucket.
+    // Deferred: OutboundBudget currently has no priority mechanism (SemaphoreSlim-based).
 
     /// <summary>
     /// Downloads a tile from the given URL and caches it on the file system.
