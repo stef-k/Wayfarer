@@ -82,6 +82,18 @@ public class TileCacheService
     private static int _evictionInProgress = 0;
 
     /// <summary>
+    /// Guards against concurrent purge operations (manual or provider-change triggered).
+    /// Only one purge can proceed at a time; concurrent callers receive a 409 Conflict.
+    /// Uses <see cref="Interlocked.CompareExchange(ref int, int, int)"/> for lock-free rejection.
+    /// </summary>
+    private static int _purgeInProgress = 0;
+
+    /// <summary>
+    /// Indicates whether a cache purge operation is currently running.
+    /// </summary>
+    public static bool IsPurgeInProgress => Volatile.Read(ref _purgeInProgress) == 1;
+
+    /// <summary>
     /// Indicates whether _currentCacheSize has been initialized from the database.
     /// </summary>
     private static volatile bool _cacheSizeInitialized = false;
@@ -340,6 +352,7 @@ public class TileCacheService
         _sidecarCache.Clear();
         Interlocked.Exchange(ref _currentCacheSize, 0);
         Interlocked.Exchange(ref _evictionInProgress, 0);
+        Interlocked.Exchange(ref _purgeInProgress, 0);
         _cacheSizeInitialized = false;
         OutboundBudget.ResetForTesting();
     }
@@ -1583,100 +1596,123 @@ public class TileCacheService
     /// Purges all tile cache both static (zoom levels &lt;= 8) and LRU cache (zoom levels &gt;= 9).
     /// Also cleans up sidecar metadata files (.meta) and temporary files (.meta.tmp).
     /// </summary>
-    public async Task PurgeAllCacheAsync()
+    public async Task PurgeAllCacheAsync(SseService? sseService = null, string? sseChannel = null)
     {
-        if (!Directory.Exists(_cacheDirectory)) return;
+        if (Interlocked.CompareExchange(ref _purgeInProgress, 1, 0) != 0)
+            throw new InvalidOperationException("A cache purge is already in progress.");
 
-        using var scope = _serviceScopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        const int batchSize = 300; // Adjustable batch size for optimal performance
-        const int maxRetries = 3; // Max number of retries
-        const int delayBetweenRetries = 1000; // Delay between retries in milliseconds
-
-        // Bulk-load all DB metadata into a dictionary keyed by file path.
-        // This replaces O(N) individual DB queries (one per file) with a single query,
-        // preventing connection pool exhaustion on large caches (100K+ tiles).
-        // Uses foreach instead of ToDictionary to handle anomalous duplicate TileFilePath
-        // values gracefully (last-wins) instead of throwing ArgumentException.
-        var allMetadataList = await dbContext.TileCacheMetadata
-            .AsNoTracking()
-            .Select(t => new { t.Id, t.TileFilePath })
-            .ToListAsync();
-        var allMetadata = new Dictionary<string, int>(allMetadataList.Count);
-        foreach (var t in allMetadataList)
+        try
         {
-            allMetadata[t.TileFilePath ?? string.Empty] = t.Id;
-        }
+            if (!Directory.Exists(_cacheDirectory)) return;
 
-        // Collect files and their DB metadata into batches.
-        // DB deletions are committed first (consistent with EvictDbTilesAsync ordering).
-        // If DB commit fails, no files are deleted — cache stays consistent.
-        var batch = new List<(int? MetaId, string FilePath, long FileSize)>();
+            using var scope = _serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        foreach (var file in Directory.EnumerateFiles(_cacheDirectory, "*.png"))
-        {
-            try
+            const int batchSize = 300; // Adjustable batch size for optimal performance
+            const int maxRetries = 3; // Max number of retries
+            const int delayBetweenRetries = 1000; // Delay between retries in milliseconds
+
+            // Bulk-load all DB metadata into a dictionary keyed by file path.
+            // This replaces O(N) individual DB queries (one per file) with a single query,
+            // preventing connection pool exhaustion on large caches (100K+ tiles).
+            // Uses foreach instead of ToDictionary to handle anomalous duplicate TileFilePath
+            // values gracefully (last-wins) instead of throwing ArgumentException.
+            var allMetadataList = await dbContext.TileCacheMetadata
+                .AsNoTracking()
+                .Select(t => new { t.Id, t.TileFilePath })
+                .ToListAsync();
+            var allMetadata = new Dictionary<string, int>(allMetadataList.Count);
+            foreach (var t in allMetadataList)
             {
-                int? metaId = allMetadata.TryGetValue(file, out var id) ? id : null;
+                allMetadata[t.TileFilePath ?? string.Empty] = t.Id;
+            }
 
-                long fileSize = File.Exists(file) ? new FileInfo(file).Length : 0;
-                batch.Add((metaId, file, fileSize));
+            // Count total files for progress reporting.
+            var allFiles = Directory.EnumerateFiles(_cacheDirectory, "*.png").ToList();
+            var totalFiles = allFiles.Count;
+            var deletedFiles = 0;
 
-                // Commit and delete in batches.
-                if (batch.Count >= batchSize)
+            await BroadcastPurgeProgressAsync(sseService, sseChannel, "progress", "all", 0, totalFiles);
+
+            // Collect files and their DB metadata into batches.
+            // DB deletions are committed first (consistent with EvictDbTilesAsync ordering).
+            // If DB commit fails, no files are deleted — cache stays consistent.
+            var batch = new List<(int? MetaId, string FilePath, long FileSize)>();
+
+            foreach (var file in allFiles)
+            {
+                try
                 {
-                    await PurgeBatchAsync(dbContext, batch, maxRetries, delayBetweenRetries);
-                    batch.Clear();
+                    int? metaId = allMetadata.TryGetValue(file, out var id) ? id : null;
+
+                    long fileSize = File.Exists(file) ? new FileInfo(file).Length : 0;
+                    batch.Add((metaId, file, fileSize));
+
+                    // Commit and delete in batches.
+                    if (batch.Count >= batchSize)
+                    {
+                        await PurgeBatchAsync(dbContext, batch, maxRetries, delayBetweenRetries);
+                        deletedFiles += batch.Count;
+                        batch.Clear();
+                        await BroadcastPurgeProgressAsync(sseService, sseChannel, "progress", "all",
+                            deletedFiles, totalFiles);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error purging file {File}", file);
                 }
             }
-            catch (Exception e)
+
+            // Commit any remaining entries if the batch size was not reached.
+            if (batch.Any())
             {
-                _logger.LogError(e, "Error purging file {File}", file);
+                await PurgeBatchAsync(dbContext, batch, maxRetries, delayBetweenRetries);
+                deletedFiles += batch.Count;
+                batch.Clear();
+                await BroadcastPurgeProgressAsync(sseService, sseChannel, "progress", "all",
+                    deletedFiles, totalFiles);
             }
-        }
 
-        // Commit any remaining entries if the batch size was not reached.
-        if (batch.Any())
-        {
-            await PurgeBatchAsync(dbContext, batch, maxRetries, delayBetweenRetries);
-            batch.Clear();
-        }
+            // Clean up orphan DB records (records without corresponding files on disk).
+            // File.Exists cannot be translated to SQL, so project only Id + TileFilePath
+            // with AsNoTracking to minimize memory, then filter client-side with a HashSet.
+            var existingFiles = new HashSet<string>(
+                Directory.EnumerateFiles(_cacheDirectory, "*.png"));
+            var allPaths = await dbContext.TileCacheMetadata
+                .AsNoTracking()
+                .Select(t => new { t.Id, t.TileFilePath })
+                .ToListAsync();
+            var orphanIds = allPaths
+                .Where(t => !existingFiles.Contains(t.TileFilePath))
+                .Select(t => t.Id)
+                .ToList();
 
-        // Clean up orphan DB records (records without corresponding files on disk).
-        // File.Exists cannot be translated to SQL, so project only Id + TileFilePath
-        // with AsNoTracking to minimize memory, then filter client-side with a HashSet.
-        var existingFiles = new HashSet<string>(
-            Directory.EnumerateFiles(_cacheDirectory, "*.png"));
-        var allPaths = await dbContext.TileCacheMetadata
-            .AsNoTracking()
-            .Select(t => new { t.Id, t.TileFilePath })
-            .ToListAsync();
-        var orphanIds = allPaths
-            .Where(t => !existingFiles.Contains(t.TileFilePath))
-            .Select(t => t.Id)
-            .ToList();
-
-        if (orphanIds.Any())
-        {
-            _logger.LogInformation("Found {Count} orphan DB records without files on disk.", orphanIds.Count);
-            await RetryOperationAsync(async () =>
+            if (orphanIds.Any())
             {
-                dbContext.ChangeTracker.Clear();
-                var toDelete = await dbContext.TileCacheMetadata
-                    .Where(t => orphanIds.Contains(t.Id))
-                    .ToListAsync();
-                if (toDelete.Any())
+                _logger.LogInformation("Found {Count} orphan DB records without files on disk.", orphanIds.Count);
+                await RetryOperationAsync(async () =>
                 {
-                    dbContext.TileCacheMetadata.RemoveRange(toDelete);
-                    var affectedRows = await dbContext.SaveChangesAsync();
-                    _logger.LogInformation("Orphan records cleanup completed. Rows affected: {Rows}", affectedRows);
-                }
-            }, maxRetries, delayBetweenRetries);
-        }
+                    dbContext.ChangeTracker.Clear();
+                    var toDelete = await dbContext.TileCacheMetadata
+                        .Where(t => orphanIds.Contains(t.Id))
+                        .ToListAsync();
+                    if (toDelete.Any())
+                    {
+                        dbContext.TileCacheMetadata.RemoveRange(toDelete);
+                        var affectedRows = await dbContext.SaveChangesAsync();
+                        _logger.LogInformation("Orphan records cleanup completed. Rows affected: {Rows}", affectedRows);
+                    }
+                }, maxRetries, delayBetweenRetries);
+            }
 
-        // Clean up sidecar metadata files and temp files as a final sweep.
-        CleanupSidecarFiles();
+            // Clean up sidecar metadata files and temp files as a final sweep.
+            CleanupSidecarFiles();
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _purgeInProgress, 0);
+        }
     }
 
     /// <summary>
@@ -1747,13 +1783,13 @@ public class TileCacheService
         }
 
         // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
-        // Chunked lock acquisition (100 files per lock) to avoid blocking CacheTileAsync writes
-        // for the entire purge duration when deleting thousands of files.
+        // Chunked lock acquisition (10 files per lock) to minimize contention with
+        // CacheTileAsync writes during large purge operations.
         // Only decrement _currentCacheSize for DB-tracked tiles (zoom >= 9, Meta != null).
         // Zoom 0-8 tiles are not tracked in _currentCacheSize, so decrementing them
         // would drive the counter negative and permanently disable eviction.
         // Uses actualSizes from re-fetched entities to minimize drift.
-        const int deleteChunkSize = 100;
+        const int deleteChunkSize = 10;
         foreach (var chunk in batch.Chunk(deleteChunkSize))
         {
             await _cacheLock.WaitAsync();
@@ -1782,6 +1818,10 @@ public class TileCacheService
             {
                 _cacheLock.Release();
             }
+
+            // Yield after each chunk to give CacheTileAsync callers a chance to acquire
+            // the lock, preventing writer starvation during large purge operations.
+            await Task.Yield();
         }
     }
 
@@ -1818,89 +1858,142 @@ public class TileCacheService
     /// Deletes are chunked (1000 IDs per batch) to avoid PostgreSQL query plan explosion
     /// from large IN clauses.
     /// </summary>
-    public async Task PurgeLRUCacheAsync()
+    public async Task PurgeLRUCacheAsync(SseService? sseService = null, string? sseChannel = null)
     {
-        using var scope = _serviceScopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (Interlocked.CompareExchange(ref _purgeInProgress, 1, 0) != 0)
+            throw new InvalidOperationException("A cache purge is already in progress.");
 
-        // Project only the fields needed — AsNoTracking avoids change tracker overhead.
-        var lruCache = await dbContext.TileCacheMetadata
-            .AsNoTracking()
-            .Where(file => file.Zoom >= DbMetadataZoomThreshold)
-            .Select(t => new { t.Id, t.TileFilePath, t.Size })
-            .ToListAsync();
-
-        if (!lruCache.Any()) return;
-
-        // Collect file paths with IDs for Phase 2 size lookup.
-        var fileInfo = lruCache
-            .Select(t => (Id: t.Id, FilePath: t.TileFilePath, Size: (long)t.Size))
-            .ToList();
-
-        // Phase 1: Commit DB deletions first in chunks of 1000 IDs.
-        // Chunking prevents PostgreSQL query plan explosion from large IN clauses.
-        // Re-fetches entities by ID inside the retry lambda so each attempt starts
-        // with a clean change tracker — prevents entity tracking conflicts on retry.
-        // Captures actual sizes from re-fetched entities (not stale projected sizes)
-        // so Phase 2's _currentCacheSize decrement is accurate.
-        var lruIds = lruCache.Select(t => t.Id).ToList();
-        var actualSizes = new Dictionary<int, long>();
-        const int chunkSize = 1000;
-        foreach (var chunk in lruIds.Chunk(chunkSize))
+        try
         {
-            var chunkList = chunk.ToList();
-            await RetryOperationAsync(async () =>
-            {
-                dbContext.ChangeTracker.Clear();
-                var toDelete = await dbContext.TileCacheMetadata
-                    .Where(t => chunkList.Contains(t.Id))
-                    .ToListAsync();
-                if (toDelete.Any())
-                {
-                    // Capture sizes before deletion — these reflect the current DB state.
-                    foreach (var t in toDelete)
-                        actualSizes[t.Id] = (long)t.Size;
-                    dbContext.TileCacheMetadata.RemoveRange(toDelete);
-                    await dbContext.SaveChangesAsync();
-                }
-            }, 3, 1000);
-        }
+            using var scope = _serviceScopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);
+            // Project only the fields needed — AsNoTracking avoids change tracker overhead.
+            var lruCache = await dbContext.TileCacheMetadata
+                .AsNoTracking()
+                .Where(file => file.Zoom >= DbMetadataZoomThreshold)
+                .Select(t => new { t.Id, t.TileFilePath, t.Size })
+                .ToListAsync();
 
-        // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
-        // Chunked lock acquisition (100 files per lock) to avoid blocking CacheTileAsync writes
-        // for the entire purge duration when deleting thousands of files.
-        // Uses actualSizes from re-fetched entities to minimize _currentCacheSize drift.
-        const int deleteChunkSize = 100;
-        foreach (var chunk in fileInfo.Chunk(deleteChunkSize))
-        {
-            await _cacheLock.WaitAsync();
-            try
+            if (!lruCache.Any()) return;
+
+            // Collect file paths with IDs for Phase 2 size lookup.
+            var fileInfo = lruCache
+                .Select(t => (Id: t.Id, FilePath: t.TileFilePath, Size: (long)t.Size))
+                .ToList();
+
+            var totalFiles = fileInfo.Count;
+            await BroadcastPurgeProgressAsync(sseService, sseChannel, "progress", "lru", 0, totalFiles);
+
+            // Phase 1: Commit DB deletions first in chunks of 1000 IDs.
+            // Chunking prevents PostgreSQL query plan explosion from large IN clauses.
+            // Re-fetches entities by ID inside the retry lambda so each attempt starts
+            // with a clean change tracker — prevents entity tracking conflicts on retry.
+            // Captures actual sizes from re-fetched entities (not stale projected sizes)
+            // so Phase 2's _currentCacheSize decrement is accurate.
+            var lruIds = lruCache.Select(t => t.Id).ToList();
+            var actualSizes = new Dictionary<int, long>();
+            const int chunkSize = 1000;
+            foreach (var chunk in lruIds.Chunk(chunkSize))
             {
-                foreach (var (id, filePath, _) in chunk)
+                var chunkList = chunk.ToList();
+                await RetryOperationAsync(async () =>
                 {
-                    try
+                    dbContext.ChangeTracker.Clear();
+                    var toDelete = await dbContext.TileCacheMetadata
+                        .Where(t => chunkList.Contains(t.Id))
+                        .ToListAsync();
+                    if (toDelete.Any())
                     {
-                        if (File.Exists(filePath))
+                        // Capture sizes before deletion — these reflect the current DB state.
+                        foreach (var t in toDelete)
+                            actualSizes[t.Id] = (long)t.Size;
+                        dbContext.TileCacheMetadata.RemoveRange(toDelete);
+                        await dbContext.SaveChangesAsync();
+                    }
+                }, 3, 1000);
+            }
+
+            _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);
+
+            // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
+            // Chunked lock acquisition (10 files per lock) to minimize contention with
+            // CacheTileAsync writes during large purge operations.
+            // Uses actualSizes from re-fetched entities to minimize _currentCacheSize drift.
+            const int deleteChunkSize = 10;
+            var deletedFiles = 0;
+            foreach (var chunk in fileInfo.Chunk(deleteChunkSize))
+            {
+                await _cacheLock.WaitAsync();
+                try
+                {
+                    foreach (var (id, filePath, _) in chunk)
+                    {
+                        try
                         {
-                            File.Delete(filePath);
-                            if (actualSizes.TryGetValue(id, out var actualSize))
+                            if (File.Exists(filePath))
                             {
-                                Interlocked.Add(ref _currentCacheSize, -actualSize);
+                                File.Delete(filePath);
+                                if (actualSizes.TryGetValue(id, out var actualSize))
+                                {
+                                    Interlocked.Add(ref _currentCacheSize, -actualSize);
+                                }
                             }
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
+                        catch (Exception e)
+                        {
+                            _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
+                        }
                     }
                 }
+                finally
+                {
+                    _cacheLock.Release();
+                }
+
+                // Yield after each chunk to give CacheTileAsync callers a chance to acquire
+                // the lock, preventing writer starvation during large purge operations.
+                await Task.Yield();
+
+                deletedFiles += chunk.Length;
+                await BroadcastPurgeProgressAsync(sseService, sseChannel, "progress", "lru",
+                    deletedFiles, totalFiles);
             }
-            finally
-            {
-                _cacheLock.Release();
-            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _purgeInProgress, 0);
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts a purge progress event via SSE if a service and channel are provided.
+    /// Safe to call with null parameters (no-op).
+    /// </summary>
+    private async Task BroadcastPurgeProgressAsync(SseService? sseService, string? sseChannel,
+        string eventType, string purgeType, int deletedFiles, int totalFiles,
+        string? errorMessage = null)
+    {
+        if (sseService == null || sseChannel == null) return;
+
+        var percent = totalFiles > 0 ? (int)((double)deletedFiles / totalFiles * 100) : 0;
+        var payload = JsonSerializer.Serialize(new
+        {
+            eventType,
+            purgeType,
+            deletedFiles,
+            totalFiles,
+            percentComplete = percent,
+            errorMessage
+        });
+
+        try
+        {
+            await sseService.BroadcastAsync(sseChannel, payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to broadcast purge progress via SSE");
         }
     }
 

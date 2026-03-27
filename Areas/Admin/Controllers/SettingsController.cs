@@ -13,11 +13,17 @@ namespace Wayfarer.Areas.Admin.Controllers
     [Area("Admin")]
     public class SettingsController : BaseController
     {
+        /// <summary>
+        /// SSE channel name for broadcasting tile cache purge progress to admin clients.
+        /// </summary>
+        public const string TileCachePurgeChannel = "admin-tile-cache-purge";
+
         private readonly IApplicationSettingsService _settingsService;
         private readonly TileCacheService _tileCacheService;
         private readonly IProxiedImageCacheService _imageCacheService;
         private readonly IWebHostEnvironment _env;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly SseService _sseService;
 
         public SettingsController(
             ILogger<BaseController> logger,
@@ -26,7 +32,8 @@ namespace Wayfarer.Areas.Admin.Controllers
             TileCacheService tileCacheService,
             IProxiedImageCacheService imageCacheService,
             IWebHostEnvironment env,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            SseService sseService)
             : base(logger, dbContext)
         {
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
@@ -34,6 +41,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             _imageCacheService = imageCacheService ?? throw new ArgumentNullException(nameof(imageCacheService));
             _env = env ?? throw new ArgumentNullException(nameof(env));
             _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+            _sseService = sseService ?? throw new ArgumentNullException(nameof(sseService));
         }
 
         [HttpGet]
@@ -273,50 +281,150 @@ namespace Wayfarer.Areas.Admin.Controllers
             }
         }
 
+        /// <summary>
+        /// Queues a full tile cache purge as a background operation.
+        /// Returns 202 Accepted immediately; progress is reported via SSE on
+        /// <see cref="TileCachePurgeChannel"/>.
+        /// Returns 409 Conflict if a purge is already running.
+        /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteAllMapTileCache()
+        public IActionResult DeleteAllMapTileCache()
         {
-            try
-            {
-                await _tileCacheService.PurgeAllCacheAsync();
+            if (TileCacheService.IsPurgeInProgress)
+                return Conflict(new { success = false, message = "A cache purge is already in progress." });
 
-                var cacheStatus = await GetCacheStatus();
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "The map tile cache has been deleted successfully.",
-                    cacheStatus
-                });
-            }
-            catch (Exception e)
-            {
-                return Ok(new { success = false, message = e.Message });
-            }
+            QueuePurgeOperation("all");
+            return Accepted(new { success = true, message = "Full cache purge started." });
         }
 
+        /// <summary>
+        /// Queues an LRU tile cache purge (zoom >= 9) as a background operation.
+        /// Returns 202 Accepted immediately; progress is reported via SSE on
+        /// <see cref="TileCachePurgeChannel"/>.
+        /// Returns 409 Conflict if a purge is already running.
+        /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteLruCache()
+        public IActionResult DeleteLruCache()
         {
-            try
+            if (TileCacheService.IsPurgeInProgress)
+                return Conflict(new { success = false, message = "A cache purge is already in progress." });
+
+            QueuePurgeOperation("lru");
+            return Accepted(new { success = true, message = "LRU cache purge started." });
+        }
+
+        /// <summary>
+        /// SSE endpoint for receiving real-time tile cache purge progress events.
+        /// Admin clients connect here after initiating a purge or on page load
+        /// when a purge is already in progress.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> TileCachePurgeSse(CancellationToken cancellationToken)
+        {
+            await _sseService.SubscribeAsync(
+                TileCachePurgeChannel,
+                Response,
+                cancellationToken,
+                enableHeartbeat: true,
+                heartbeatInterval: TimeSpan.FromSeconds(30));
+            return new EmptyResult();
+        }
+
+        /// <summary>
+        /// Returns whether a tile cache purge is currently in progress.
+        /// Used by the admin UI on page load to detect and reconnect to an ongoing purge.
+        /// </summary>
+        [HttpGet]
+        public IActionResult TileCachePurgeStatus()
+        {
+            return Ok(new { inProgress = TileCacheService.IsPurgeInProgress });
+        }
+
+        /// <summary>
+        /// Fires a cache purge in the background with SSE progress reporting.
+        /// Broadcasts "started", "progress", "completed", or "failed" events.
+        /// </summary>
+        private void QueuePurgeOperation(string purgeType)
+        {
+            _ = Task.Run(async () =>
             {
-                await _tileCacheService.PurgeLRUCacheAsync();
-
-                var cacheStatus = await GetCacheStatus();
-
-                return Ok(new
+                try
                 {
-                    success = true,
-                    message = "The map tile cache for zoom levels equal or greater of 9, has been deleted successfully.",
-                    cacheStatus
-                });
-            }
-            catch (Exception e)
-            {
-                return Ok(new { success = false, message = e.Message });
-            }
+                    using var scope = _scopeFactory.CreateScope();
+                    var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+                    var sseService = scope.ServiceProvider.GetRequiredService<SseService>();
+
+                    await sseService.BroadcastAsync(TileCachePurgeChannel,
+                        System.Text.Json.JsonSerializer.Serialize(new { eventType = "started", purgeType }));
+
+                    if (purgeType == "lru")
+                        await tileCacheService.PurgeLRUCacheAsync(sseService, TileCachePurgeChannel);
+                    else
+                        await tileCacheService.PurgeAllCacheAsync(sseService, TileCachePurgeChannel);
+
+                    // Broadcast final cache status so the UI can update counters.
+                    var cacheStatus = await GetCacheStatusFromScope(scope);
+                    await sseService.BroadcastAsync(TileCachePurgeChannel,
+                        System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            eventType = "completed",
+                            purgeType,
+                            message = purgeType == "lru"
+                                ? "LRU cache purge completed successfully."
+                                : "Full cache purge completed successfully.",
+                            cacheStatus
+                        }));
+                }
+                catch (InvalidOperationException)
+                {
+                    // Another purge won the CompareExchange race between the controller's
+                    // IsPurgeInProgress check and the service's atomic guard. Safe to ignore —
+                    // the winning request is already broadcasting progress.
+                    _logger.LogInformation("Background {PurgeType} purge skipped: concurrent purge is running.", purgeType);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background {PurgeType} cache purge failed.", purgeType);
+                    try
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var sseService = scope.ServiceProvider.GetRequiredService<SseService>();
+                        await sseService.BroadcastAsync(TileCachePurgeChannel,
+                            System.Text.Json.JsonSerializer.Serialize(new
+                            {
+                                eventType = "failed",
+                                purgeType,
+                                errorMessage = ex.Message
+                            }));
+                    }
+                    catch (Exception broadcastEx)
+                    {
+                        _logger.LogDebug(broadcastEx, "Failed to broadcast purge failure event.");
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// Retrieves cache status using a pre-existing DI scope (for background operations).
+        /// </summary>
+        private static async Task<CacheStatus> GetCacheStatusFromScope(IServiceScope scope)
+        {
+            var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+            var cacheStatus = new CacheStatus();
+            double total = await tileCacheService.GetCacheFileSizeInMbAsync();
+            double lru = await tileCacheService.GetLruCachedInMbFilesAsync();
+
+            cacheStatus.TotalCacheFiles = await tileCacheService.GetTotalCachedFilesAsync();
+            cacheStatus.LruTotalFiles = await tileCacheService.GetLruTotalFilesInDbAsync();
+            cacheStatus.TotalCacheSize = Math.Round(total, 2);
+            cacheStatus.TotalCacheSizeGB = Math.Round(total / 1024, 3);
+            cacheStatus.TotalLru = Math.Round(lru, 2);
+            cacheStatus.TotalLruGB = Math.Round(lru / 1024, 3);
+
+            return cacheStatus;
         }
 
         private class CacheStatus
@@ -423,9 +531,16 @@ namespace Wayfarer.Areas.Admin.Controllers
 
         /// <summary>
         /// Purges the tile cache in the background to avoid blocking the settings update.
+        /// Skips if another purge is already in progress to prevent conflicts.
         /// </summary>
         private void QueueTileCachePurge()
         {
+            if (TileCacheService.IsPurgeInProgress)
+            {
+                _logger.LogWarning("Skipping tile-provider-change purge: another purge is already in progress.");
+                return;
+            }
+
             _ = Task.Run(async () =>
             {
                 try
@@ -433,6 +548,11 @@ namespace Wayfarer.Areas.Admin.Controllers
                     using var scope = _scopeFactory.CreateScope();
                     var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
                     await tileCacheService.PurgeAllCacheAsync();
+                }
+                catch (InvalidOperationException)
+                {
+                    // Another purge started between our check and execution — safe to ignore.
+                    _logger.LogInformation("Tile-provider-change purge skipped: concurrent purge is running.");
                 }
                 catch (Exception ex)
                 {

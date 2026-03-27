@@ -56,7 +56,7 @@ public class AdminSettingsControllerTests : TestBase
             new HttpContextAccessor());
 
         var scopeFactory = BuildScopeFactory(tileCache);
-        var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory);
+        var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService());
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("admin", "Admin") };
 
         var result = await controller.Index();
@@ -230,7 +230,8 @@ public class AdminSettingsControllerTests : TestBase
             tileCache,
             Mock.Of<IProxiedImageCacheService>(),
             env.Object,
-            scopeFactory);
+            scopeFactory,
+            new SseService());
 
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };

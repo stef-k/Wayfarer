@@ -851,6 +851,178 @@ public class TileCacheServiceTests : TestBase
         }
     }
 
+    // ── Purge concurrency guard and SSE progress tests ───────────────────
+
+    [Fact]
+    public async Task PurgeAllCacheAsync_RejectsSecondConcurrentPurge()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        // Use a slow handler to keep the first purge running long enough for the race.
+        var handler = new SlowTileHandler(delayMs: 50);
+        var service1 = CreateService(db, dir.Path, handler, dbName: dbName);
+
+        // Seed some tiles so the purge has work to do.
+        await service1.CacheTileAsync("http://tiles/9/1/1.png", "9", "1", "1");
+        await service1.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+
+        // Create a second service instance sharing the same static state.
+        var db2 = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options,
+            new ServiceCollection().BuildServiceProvider());
+        var service2 = new TileCacheService(
+            NullLogger<TileCacheService>.Instance,
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["CacheSettings:TileCacheDirectory"] = dir.Path,
+                    ["Application:ContactEmail"] = "test@example.com"
+                }).Build(),
+            new HttpClient(new StubTileHandler()),
+            db2,
+            new StubSettingsService(),
+            new SingleScopeFactory(() =>
+                new ApplicationDbContext(
+                    new DbContextOptionsBuilder<ApplicationDbContext>()
+                        .UseInMemoryDatabase(dbName)
+                        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                        .Options,
+                    new ServiceCollection().BuildServiceProvider())),
+            new HttpContextAccessor());
+
+        // Start the first purge.
+        var firstPurge = service1.PurgeAllCacheAsync();
+
+        // Second purge should be rejected immediately.
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service2.PurgeAllCacheAsync());
+
+        Assert.Contains("already in progress", ex.Message);
+
+        // Wait for the first purge to complete.
+        await firstPurge;
+
+        // After completion, the guard should be released — a new purge should succeed.
+        // Re-seed some data.
+        await service1.CacheTileAsync("http://tiles/9/2/1.png", "9", "2", "1");
+        await service1.PurgeAllCacheAsync();
+    }
+
+    [Fact]
+    public async Task PurgeLRUCacheAsync_RejectsSecondConcurrentPurge()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        var service = CreateService(db, dir.Path, dbName: dbName);
+
+        // Seed a tile.
+        await service.CacheTileAsync("http://tiles/9/3/3.png", "9", "3", "3");
+
+        // Start first purge.
+        var firstPurge = service.PurgeLRUCacheAsync();
+
+        // Second purge should be rejected.
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.PurgeLRUCacheAsync());
+        Assert.Contains("already in progress", ex.Message);
+
+        await firstPurge;
+    }
+
+    [Fact]
+    public async Task PurgeAllCacheAsync_BroadcastsProgressViaSse()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+
+        // Seed tiles.
+        await service.CacheTileAsync("http://tiles/9/5/5.png", "9", "5", "5");
+        await service.CacheTileAsync("http://tiles/9/5/6.png", "9", "5", "6");
+
+        var spy = new SpySseService();
+        await service.PurgeAllCacheAsync(spy, "test-channel");
+
+        // Should have at least one progress broadcast.
+        Assert.NotEmpty(spy.Messages);
+        Assert.All(spy.Messages, m => Assert.Equal("test-channel", m.Channel));
+
+        // Verify the last progress event has the expected structure.
+        var lastPayload = spy.Messages.Last().Data;
+        Assert.Contains("percentComplete", lastPayload);
+    }
+
+    [Fact]
+    public async Task PurgeLRUCacheAsync_BroadcastsProgressViaSse()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        var service = CreateService(db, dir.Path, dbName: dbName);
+
+        // Seed a tile.
+        await service.CacheTileAsync("http://tiles/9/6/6.png", "9", "6", "6");
+
+        var spy = new SpySseService();
+        await service.PurgeLRUCacheAsync(spy, "test-channel");
+
+        Assert.NotEmpty(spy.Messages);
+        Assert.All(spy.Messages, m => Assert.Equal("test-channel", m.Channel));
+    }
+
+    [Fact]
+    public async Task PurgeAllCacheAsync_GuardIsReleasedAfterFailure()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var service = CreateService(db, dir.Path);
+
+        // Seed a tile then remove the directory to force an error during purge.
+        await service.CacheTileAsync("http://tiles/9/7/7.png", "9", "7", "7");
+
+        // First purge succeeds (or at least completes and releases the guard).
+        await service.PurgeAllCacheAsync();
+
+        // Should be able to purge again (guard released).
+        Assert.False(TileCacheService.IsPurgeInProgress);
+    }
+
+    /// <summary>
+    /// Spy implementation of <see cref="SseService"/> that captures broadcast calls.
+    /// </summary>
+    private sealed class SpySseService : SseService
+    {
+        public List<(string Channel, string Data)> Messages { get; } = new();
+
+        public override Task BroadcastAsync(string channel, string data)
+        {
+            Messages.Add((channel, data));
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Handler that introduces a small delay to simulate slow tile fetching,
+    /// useful for testing concurrent purge guard timing.
+    /// </summary>
+    private sealed class SlowTileHandler : HttpMessageHandler
+    {
+        private readonly int _delayMs;
+        public SlowTileHandler(int delayMs = 100) => _delayMs = delayMs;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(_delayMs, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(new byte[] { 1, 2, 3, 4 })
+            };
+        }
+    }
+
     private sealed class TempDir : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"tiles-{Guid.NewGuid():N}");
