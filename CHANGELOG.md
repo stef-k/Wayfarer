@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.2.26] - 2026-03-27
+
+### Changed
+- Outbound budget burst capacity raised from 10 to 12 — allows 2 more tiles through on initial burst before settling into sustained 2/sec rate, reducing 503s on cold-cache loads (#214)
+- Outbound budget acquire timeout raised from 3.0s to 3.5s — extra 0.5s yields 1 more token from replenishment per wave, reducing false timeouts (#214)
+- Client concurrency pool multiplier raised from 60% to 75% of burst capacity (pool size 6 → 9) — more tiles queue server-side instead of waiting client-side (#214)
+- Budget retry-after interval updated from 5s to 6s to align with new burst refill time (12 tokens / 2 per sec = 6s) (#214)
+- Client slow-retry interval auto-derives to 18s (was 15s) from updated retry-after × 3 (#214)
+
 ## [1.2.25] - 2026-03-26
 
 ### Fixed

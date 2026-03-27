@@ -29,12 +29,12 @@ public class TilesController : Controller
 
     /// <summary>
     /// Retry-After header value (in seconds) sent with HTTP 503 when the outbound budget is exhausted.
-    /// Set to 5s to align with <see cref="TileCacheService.OutboundBudget"/>: at 2 tokens/sec
-    /// (ReplenishIntervalMs=500) with BurstCapacity=10, a full burst refills in ~5 seconds.
+    /// Set to 6s to align with <see cref="TileCacheService.OutboundBudget"/>: at 2 tokens/sec
+    /// (ReplenishIntervalMs=500) with BurstCapacity=12, a full burst refills in ~6 seconds.
     /// Also exposed to the client via <c>wayfarerTileConfig.retryAfterSeconds</c> so the
     /// tile layer can derive its slow-retry interval without hardcoding the value.
     /// </summary>
-    internal const int BudgetRetryAfterSeconds = 5;
+    internal const int BudgetRetryAfterSeconds = 6;
 
     /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous tile requests by IP address.

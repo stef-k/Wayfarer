@@ -414,7 +414,7 @@ public class TilesControllerTests : TestBase
             var statusResult = Assert.IsType<ObjectResult>(result);
             Assert.Equal(503, statusResult.StatusCode);
             Assert.Equal("Tile server busy. Please retry shortly.", statusResult.Value);
-            Assert.Equal("5", controller.Response.Headers["Retry-After"].ToString());
+            Assert.Equal("6", controller.Response.Headers["Retry-After"].ToString());
         }
         finally
         {
