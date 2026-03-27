@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [1.2.27] - 2026-03-27
+
+### Fixed
+- **HIGH:** LRU/full cache purge timed out on large caches (~500MB), showing error page despite successful deletion. Purge now runs in background with immediate HTTP 202 response (#207)
+- Cache lock contention during purge blocked concurrent tile writes. Reduced file-delete chunk size from 100 to 10 with `Task.Yield()` between chunks to prevent writer starvation (#207)
+
+### Added
+- SSE-based real-time progress reporting for cache purge operations — admin UI shows animated progress bar with file count and percentage (#207)
+- Atomic purge-in-progress guard (`Interlocked.CompareExchange`) prevents concurrent purge operations; second request returns 409 Conflict (#207)
+- `TileCachePurgeSse` endpoint for SSE subscription and `TileCachePurgeStatus` endpoint for on-load reconnect (#207)
+- On page load, admin settings UI checks purge status and reconnects SSE if a purge is mid-flight (#207)
+- Tile-provider-change purge now respects the concurrency guard — skips gracefully if manual purge is running (#207)
+
+### Changed
+- `DeleteAllMapTileCache` and `DeleteLruCache` endpoints return HTTP 202 Accepted (was 200 with awaited result) (#207)
+- `PurgeAllCacheAsync` and `PurgeLRUCacheAsync` accept optional `SseService`/channel params for progress broadcasting (#207)
+
 ## [1.2.26] - 2026-03-27
 
 ### Changed
