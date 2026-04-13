@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [1.2.28] - 2026-04-13
+
+### Added
+- `TileMetadataHotCacheSizeMB` application setting with Admin Settings UI support and client-side derived entry-count hint for the zoom `>= 9` tile metadata hot cache (#217)
+
+### Changed
+- Warm zoom `>= 9` tile hits now use an in-process metadata hot cache to avoid the per-hit Postgres metadata read on the common fresh-cache path (#217)
+- Hot metadata cache invalidation now participates in purge, eviction, and tile-delete paths while preserving DB/file durability ordering and existing revalidation behavior (#217)
+
+### Fixed
+- Fresh hot-hit `LastAccessed` throttling is now atomic per tile and retries immediately after failed DB persists instead of suppressing writes for the full cooldown window (#217)
+
 ## [1.2.27] - 2026-03-27
 
 ### Fixed
