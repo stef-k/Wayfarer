@@ -1,4 +1,7 @@
 @model ApplicationSettings
+@{
+    var tileMetadataHotCacheEntries = Wayfarer.Services.TileMetadataHotCache.GetApproximateEntryLimit(Model.TileMetadataHotCacheSizeMB);
+}
 @using Wayfarer.Util
 @{
     var isRegistrationOpen = (ViewData["IsRegistrationOpen"] as bool?) ?? false;
@@ -717,6 +720,44 @@
                                     consume ~1.31 to 1.75 GB.<br/>
                                     • Increasing this value reduces OSM server usage. If exceeded, least-recently-used
                                     tiles are purged.<br/>
+                                </div>
+                            </div>
+
+                            <div class="col-md-8 mt-3">
+                                <label asp-for="TileMetadataHotCacheSizeMB" class="form-label">
+                                    Tile Metadata Hot Cache Budget:
+                                </label>
+
+                                <div class="input-group">
+                                    <input asp-for="TileMetadataHotCacheSizeMB"
+                                           class="form-control"
+                                           type="number"
+                                           min="-1"
+                                           max="512"
+                                           data-entry-bytes="@Wayfarer.Services.TileMetadataHotCache.EstimatedBytesPerHotMetadataEntry" />
+                                    <span class="input-group-text">MB</span>
+                                </div>
+
+                                <span asp-validation-for="TileMetadataHotCacheSizeMB" class="text-danger"></span>
+
+                                <div class="form-text">
+                                    • Approximate RAM budget for the in-process tile metadata hot cache used only for zoom levels
+                                    ≥ 9.<br/>
+                                    • Stores tile metadata only. It does not store tile image bytes.<br/>
+                                    • Set to <code>-1</code> to disable the feature.<br/>
+                                    • Allowed values are <code>-1</code> or <code>16-512 MB</code>.<br/>
+                                    • The derived entry count is approximate and does not represent exact process memory usage.<br/>
+                                </div>
+
+                                <div class="alert alert-secondary mt-2 mb-0 py-2" id="tileMetadataHotCacheHint">
+                                    @if (Model.TileMetadataHotCacheSizeMB == -1)
+                                    {
+                                        <span>Hot metadata cache disabled.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@Model.TileMetadataHotCacheSizeMB MB ≈ @tileMetadataHotCacheEntries metadata entries</span>
+                                    }
                                 </div>
                             </div>
 

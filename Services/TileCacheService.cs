@@ -30,6 +30,7 @@ public class TileCacheService
     private readonly IConfiguration _configuration;
     private readonly IApplicationSettingsService _applicationSettings;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly TileMetadataHotCache _tileMetadataHotCache;
 
     /// <summary>
     /// Lock for serializing file write and delete operations across all service instances.
@@ -361,7 +362,8 @@ public class TileCacheService
 
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
         ApplicationDbContext dbContext, IApplicationSettingsService applicationSettings,
-        IServiceScopeFactory serviceScopeFactory, IHttpContextAccessor httpContextAccessor)
+        IServiceScopeFactory serviceScopeFactory, IHttpContextAccessor httpContextAccessor,
+        TileMetadataHotCache tileMetadataHotCache)
     {
         _logger = logger;
         _dbContext = dbContext;
@@ -370,6 +372,7 @@ public class TileCacheService
         _applicationSettings = applicationSettings;
         _serviceScopeFactory = serviceScopeFactory;
         _httpContextAccessor = httpContextAccessor;
+        _tileMetadataHotCache = tileMetadataHotCache;
         _maxCacheSizeInMB = _applicationSettings.GetSettings().MaxCacheTileSizeInMB;
 
         if (_maxCacheSizeInMB == -1)
@@ -922,6 +925,7 @@ public class TileCacheService
                         _dbContext.TileCacheMetadata.Add(tileMetadata);
                         await _dbContext.SaveChangesAsync();
                         Interlocked.Add(ref _currentCacheSize, tileData.Length);
+                        TrySetHotMetadataEntry(zoom, x, y, tileMetadata);
                         _logger.LogInformation("Tile metadata stored in database.");
                     }
                     catch (DbUpdateException)
@@ -932,6 +936,13 @@ public class TileCacheService
                         _logger.LogDebug(
                             "Tile metadata insert skipped due to concurrent insert (non-critical) z={Zoom} x={X} y={Y}",
                             zoom, x, y);
+
+                        var persistedMetadata = await _dbContext.TileCacheMetadata
+                            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y, cancellationToken);
+                        if (persistedMetadata != null)
+                        {
+                            TrySetHotMetadataEntry(zoom, x, y, persistedMetadata);
+                        }
                     }
                 }
                 else
@@ -993,6 +1004,7 @@ public class TileCacheService
 
                     // Adjust the in-memory cache size using the previously saved value.
                     Interlocked.Add(ref _currentCacheSize, tileData.Length - oldSize);
+                    TrySetHotMetadataEntry(zoom, x, y, existingMetadata);
                 }
             }
 
@@ -1045,33 +1057,68 @@ public class TileCacheService
                 var isExpired = false;
                 string? etag = null;
                 DateTime? lastModified = null;
+                var servedByFreshHotMetadata = false;
 
                 if (zoomLvl >= DbMetadataZoomThreshold)
                 {
-                    // Single DB round-trip: load metadata + conditionally update LastAccessed
-                    var meta = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
-                    if (meta != null)
+                    if (TryGetHotMetadataEntry(zoomLvl, xVal, yVal, out var hotMetadata) && hotMetadata != null)
                     {
-                        if (meta.ExpiresAtUtc == null)
+                        etag = hotMetadata.ETag;
+                        lastModified = hotMetadata.LastModifiedUpstream;
+
+                        if (hotMetadata.ExpiresAtUtc == null)
                         {
-                            // Legacy tile (pre-migration): no expiry metadata yet.
-                            // Assume fresh for 7 days to avoid re-downloading all tiles on deploy.
-                            // The first re-validation after 7 days will populate ETag/expiry properly.
-                            await SeedLegacyTileExpiryAsync(meta);
-                            isExpired = false;
+                            // Null expiry is legacy metadata; seed and continue via the authoritative DB path.
+                            var seededMetadata = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
+                            if (seededMetadata != null)
+                            {
+                                if (seededMetadata.ExpiresAtUtc == null)
+                                {
+                                    await SeedLegacyTileExpiryAsync(seededMetadata);
+                                }
+
+                                isExpired = seededMetadata.ExpiresAtUtc <= DateTime.UtcNow;
+                                etag = seededMetadata.ETag;
+                                lastModified = seededMetadata.LastModifiedUpstream;
+                                TrySetHotMetadataEntry(zoomLvl, xVal, yVal, seededMetadata);
+                            }
+                            else
+                            {
+                                isExpired = true;
+                            }
                         }
                         else
                         {
-                            isExpired = meta.ExpiresAtUtc <= DateTime.UtcNow;
+                            isExpired = hotMetadata.ExpiresAtUtc <= DateTime.UtcNow;
+                            servedByFreshHotMetadata = !isExpired;
                         }
-
-                        etag = meta.ETag;
-                        lastModified = meta.LastModifiedUpstream;
                     }
                     else
                     {
-                        // No DB metadata — treat as expired to populate it
-                        isExpired = true;
+                        // Hot-cache miss: fall back to the authoritative DB path and seed the hot cache lazily.
+                        var meta = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
+                        if (meta != null)
+                        {
+                            if (meta.ExpiresAtUtc == null)
+                            {
+                                await SeedLegacyTileExpiryAsync(meta);
+                                TrySetHotMetadataEntry(zoomLvl, xVal, yVal, meta);
+                                isExpired = false;
+                            }
+                            else
+                            {
+                                isExpired = meta.ExpiresAtUtc <= DateTime.UtcNow;
+                                TrySetHotMetadataEntry(zoomLvl, xVal, yVal, meta);
+                            }
+
+                            etag = meta.ETag;
+                            lastModified = meta.LastModifiedUpstream;
+                        }
+                        else
+                        {
+                            // No DB metadata — treat as expired to populate it
+                            isExpired = true;
+                        }
                     }
                 }
                 else
@@ -1131,7 +1178,20 @@ public class TileCacheService
                         // File deleted by concurrent eviction/purge — treat as cache miss.
                     }
 
-                    if (cachedTileData != null) return TileRetrievalResult.Success(cachedTileData);
+                    if (cachedTileData != null)
+                    {
+                        if (servedByFreshHotMetadata)
+                        {
+                            await TouchLastAccessedFromHotHitAsync(zoomLvl, xVal, yVal);
+                        }
+
+                        return TileRetrievalResult.Success(cachedTileData);
+                    }
+
+                    if (servedByFreshHotMetadata)
+                    {
+                        TryRemoveHotMetadataEntry(zoomLvl, xVal, yVal);
+                    }
                 }
 
                 // Tile is expired — re-validate with upstream (if we have a URL)
@@ -1360,6 +1420,7 @@ public class TileCacheService
         try
         {
             await _dbContext.SaveChangesAsync();
+            TrySetHotMetadataEntry(meta.Zoom, meta.X, meta.Y, meta);
             _logger.LogDebug("Seeded 7-day expiry for legacy tile z={Zoom} x={X} y={Y}", meta.Zoom, meta.X, meta.Y);
         }
         catch (DbUpdateConcurrencyException)
@@ -1419,6 +1480,7 @@ public class TileCacheService
         try
         {
             await dbContext.SaveChangesAsync();
+            TrySetHotMetadataEntry(zoom, x, y, meta);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -1448,6 +1510,7 @@ public class TileCacheService
         {
             await dbContext.SaveChangesAsync();
             Interlocked.Add(ref _currentCacheSize, newSize - oldSize);
+            TrySetHotMetadataEntry(zoom, x, y, meta);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -1482,7 +1545,13 @@ public class TileCacheService
         // If it succeeds but file deletion later fails, orphaned files are harmless
         // and self-correcting (next cache write for that tile overwrites them).
         var filePaths = tilesToEvict
-            .Select(t => Path.Combine(_cacheDirectory, $"{t.Zoom}_{t.X}_{t.Y}.png"))
+            .Select(t => new
+            {
+                t.Zoom,
+                t.X,
+                t.Y,
+                FilePath = Path.Combine(_cacheDirectory, $"{t.Zoom}_{t.X}_{t.Y}.png")
+            })
             .ToList();
         var tileIds = tilesToEvict.Select(t => t.Id).ToList();
 
@@ -1513,18 +1582,19 @@ public class TileCacheService
         await _cacheLock.WaitAsync();
         try
         {
-            foreach (var tileFilePath in filePaths)
+            foreach (var tile in filePaths)
             {
                 try
                 {
-                    if (File.Exists(tileFilePath))
+                    TryRemoveHotMetadataEntry(tile.Zoom, tile.X, tile.Y);
+                    if (File.Exists(tile.FilePath))
                     {
-                        File.Delete(tileFilePath);
+                        File.Delete(tile.FilePath);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to delete tile file: {TileFilePath}", tileFilePath);
+                    _logger.LogError(ex, "Failed to delete tile file: {TileFilePath}", tile.FilePath);
                 }
             }
         }
@@ -1714,6 +1784,7 @@ public class TileCacheService
 
             // Clean up sidecar metadata files and temp files as a final sweep.
             CleanupSidecarFiles();
+            TryClearHotMetadataCache();
         }
         finally
         {
@@ -1811,6 +1882,7 @@ public class TileCacheService
                             if (metaId != null && actualSizes.TryGetValue(metaId.Value, out var actualSize))
                             {
                                 Interlocked.Add(ref _currentCacheSize, -actualSize);
+                                TryRemoveHotMetadataEntryFromPath(filePath);
                             }
                         }
                     }
@@ -1941,15 +2013,17 @@ public class TileCacheService
                     {
                         try
                         {
-                            if (File.Exists(filePath))
+                        if (File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                            if (actualSizes.TryGetValue(id, out var actualSize))
                             {
-                                File.Delete(filePath);
-                                if (actualSizes.TryGetValue(id, out var actualSize))
-                                {
-                                    Interlocked.Add(ref _currentCacheSize, -actualSize);
-                                }
+                                Interlocked.Add(ref _currentCacheSize, -actualSize);
                             }
+
+                            TryRemoveHotMetadataEntryFromPath(filePath);
                         }
+                    }
                         catch (Exception e)
                         {
                             _logger.LogError(e, "Error deleting LRU cache file {File}", filePath);
@@ -1969,6 +2043,8 @@ public class TileCacheService
                 await BroadcastPurgeProgressAsync(sseService, sseChannel, "progress", "lru",
                     deletedFiles, totalFiles);
             }
+
+            TryClearHotMetadataCache();
         }
         finally
         {
@@ -2019,6 +2095,7 @@ public class TileCacheService
             {
                 File.Delete(tileFilePath);
                 Interlocked.Add(ref _currentCacheSize, -tileSize);
+                TryRemoveHotMetadataEntryFromPath(tileFilePath);
             }
         }
         finally
@@ -2026,4 +2103,132 @@ public class TileCacheService
             _cacheLock.Release();
         }
     }
+
+    /// <summary>
+    /// Updates LastAccessed at most once per throttle window for fresh hot-cache hits.
+    /// </summary>
+    private async Task TouchLastAccessedFromHotHitAsync(int zoom, int x, int y)
+    {
+        if (!_tileMetadataHotCache.ShouldPersistLastAccessed(zoom, x, y))
+        {
+            return;
+        }
+
+        var meta = await _dbContext.TileCacheMetadata
+            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
+        if (meta == null)
+        {
+            TryRemoveHotMetadataEntry(zoom, x, y);
+            return;
+        }
+
+        meta.LastAccessed = DateTime.UtcNow;
+        try
+        {
+            await _dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            _logger.LogDebug(
+                "LastAccessed update skipped due to concurrency after hot-cache hit (non-critical)");
+        }
+    }
+
+    /// <summary>
+    /// Best-effort hot metadata lookup that degrades to the DB path on cache failures.
+    /// </summary>
+    private bool TryGetHotMetadataEntry(int zoom, int x, int y, out HotTileMetadataCacheEntry? metadata)
+    {
+        try
+        {
+            return _tileMetadataHotCache.TryGet(GetTileMetadataHotCacheSizeMb(), zoom, x, y, out metadata);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Tile metadata hot-cache lookup failed for z={Zoom} x={X} y={Y}", zoom, x, y);
+            metadata = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Best-effort hot metadata insert/update after durable tile metadata changes succeed.
+    /// </summary>
+    private void TrySetHotMetadataEntry(int zoom, int x, int y, TileCacheMetadata metadata)
+    {
+        TrySetHotMetadataEntry(zoom, x, y, new HotTileMetadataCacheEntry
+        {
+            ExpiresAtUtc = metadata.ExpiresAtUtc,
+            ETag = metadata.ETag,
+            LastModifiedUpstream = metadata.LastModifiedUpstream
+        });
+    }
+
+    /// <summary>
+    /// Best-effort hot metadata insert/update after durable tile metadata changes succeed.
+    /// </summary>
+    private void TrySetHotMetadataEntry(int zoom, int x, int y, HotTileMetadataCacheEntry metadata)
+    {
+        try
+        {
+            _tileMetadataHotCache.Set(GetTileMetadataHotCacheSizeMb(), zoom, x, y, metadata);
+            _tileMetadataHotCache.MarkLastAccessedPersisted(zoom, x, y);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Tile metadata hot-cache update failed for z={Zoom} x={X} y={Y}", zoom, x, y);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort hot metadata invalidation for an explicit tile delete path.
+    /// </summary>
+    private void TryRemoveHotMetadataEntry(int zoom, int x, int y)
+    {
+        try
+        {
+            _tileMetadataHotCache.Remove(zoom, x, y);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Tile metadata hot-cache removal failed for z={Zoom} x={X} y={Y}", zoom, x, y);
+        }
+    }
+
+    /// <summary>
+    /// Best-effort hot metadata invalidation for a cached file path with the standard z_x_y file name format.
+    /// </summary>
+    private void TryRemoveHotMetadataEntryFromPath(string tileFilePath)
+    {
+        var tileName = Path.GetFileNameWithoutExtension(tileFilePath)?.Split('_');
+        if (tileName is not { Length: 3 } ||
+            !int.TryParse(tileName[0], out var zoom) ||
+            !int.TryParse(tileName[1], out var x) ||
+            !int.TryParse(tileName[2], out var y))
+        {
+            return;
+        }
+
+        TryRemoveHotMetadataEntry(zoom, x, y);
+    }
+
+    /// <summary>
+    /// Best-effort full hot metadata clear after purge/reset operations.
+    /// </summary>
+    private void TryClearHotMetadataCache()
+    {
+        try
+        {
+            _tileMetadataHotCache.Clear();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Tile metadata hot-cache clear failed after purge/reset.");
+        }
+    }
+
+    /// <summary>
+    /// Reads the current admin-configured hot metadata cache budget.
+    /// </summary>
+    private int GetTileMetadataHotCacheSizeMb() => _applicationSettings.GetSettings().TileMetadataHotCacheSizeMB;
 }
