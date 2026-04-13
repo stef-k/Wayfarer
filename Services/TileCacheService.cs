@@ -2109,28 +2109,36 @@ public class TileCacheService
     /// </summary>
     private async Task TouchLastAccessedFromHotHitAsync(int zoom, int x, int y)
     {
-        if (!_tileMetadataHotCache.ShouldPersistLastAccessed(zoom, x, y))
+        if (!_tileMetadataHotCache.TryBeginLastAccessedPersist(zoom, x, y))
         {
             return;
         }
 
-        var meta = await _dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
-        if (meta == null)
-        {
-            TryRemoveHotMetadataEntry(zoom, x, y);
-            return;
-        }
-
-        meta.LastAccessed = DateTime.UtcNow;
         try
         {
+            var meta = await _dbContext.TileCacheMetadata
+                .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
+            if (meta == null)
+            {
+                _tileMetadataHotCache.AbortLastAccessedPersist(zoom, x, y);
+                TryRemoveHotMetadataEntry(zoom, x, y);
+                return;
+            }
+
+            meta.LastAccessed = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
+            _tileMetadataHotCache.CompleteLastAccessedPersist(zoom, x, y);
         }
         catch (DbUpdateConcurrencyException)
         {
+            _tileMetadataHotCache.AbortLastAccessedPersist(zoom, x, y);
             _logger.LogDebug(
                 "LastAccessed update skipped due to concurrency after hot-cache hit (non-critical)");
+        }
+        catch
+        {
+            _tileMetadataHotCache.AbortLastAccessedPersist(zoom, x, y);
+            throw;
         }
     }
 
@@ -2172,7 +2180,7 @@ public class TileCacheService
         try
         {
             _tileMetadataHotCache.Set(GetTileMetadataHotCacheSizeMb(), zoom, x, y, metadata);
-            _tileMetadataHotCache.MarkLastAccessedPersisted(zoom, x, y);
+            _tileMetadataHotCache.CompleteLastAccessedPersist(zoom, x, y);
         }
         catch (Exception ex)
         {

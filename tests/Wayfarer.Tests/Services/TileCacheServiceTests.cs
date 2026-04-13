@@ -151,6 +151,30 @@ public class TileCacheServiceTests : TestBase
     }
 
     [Fact]
+    public void TileMetadataHotCache_TryBeginLastAccessedPersist_IsAtomicPerTile()
+    {
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+
+        var results = Enumerable.Range(0, 10)
+            .AsParallel()
+            .Select(_ => hotCache.TryBeginLastAccessedPersist(9, 77, 88))
+            .ToList();
+
+        Assert.Equal(1, results.Count(r => r));
+    }
+
+    [Fact]
+    public void TileMetadataHotCache_AbortLastAccessedPersist_AllowsImmediateRetry()
+    {
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+
+        Assert.True(hotCache.TryBeginLastAccessedPersist(9, 90, 91));
+        hotCache.AbortLastAccessedPersist(9, 90, 91);
+
+        Assert.True(hotCache.TryBeginLastAccessedPersist(9, 90, 91));
+    }
+
+    [Fact]
     public async Task GetCacheFileSizeInMbAsync_ReturnsZeroWhenEmpty()
     {
         using var dir = new TempDir();

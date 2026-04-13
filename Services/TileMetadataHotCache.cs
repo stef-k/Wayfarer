@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Wayfarer.Services;
@@ -18,6 +19,7 @@ public sealed class TileMetadataHotCache : IDisposable
 
     private readonly ILogger<TileMetadataHotCache> _logger;
     private readonly object _syncLock = new();
+    private readonly ConcurrentDictionary<string, byte> _touchClaims = new();
 
     private IMemoryCache _metadataCache = new MemoryCache(new MemoryCacheOptions());
     private readonly IMemoryCache _touchMarkerCache = new MemoryCache(new MemoryCacheOptions());
@@ -69,8 +71,10 @@ public sealed class TileMetadataHotCache : IDisposable
     /// </summary>
     public void Remove(int zoom, int x, int y)
     {
+        var touchKey = BuildTouchMarkerKey(zoom, x, y);
         _metadataCache.Remove(BuildMetadataKey(zoom, x, y));
-        _touchMarkerCache.Remove(BuildTouchMarkerKey(zoom, x, y));
+        _touchMarkerCache.Remove(touchKey);
+        _touchClaims.TryRemove(touchKey, out _);
     }
 
     /// <summary>
@@ -87,13 +91,15 @@ public sealed class TileMetadataHotCache : IDisposable
             _configuredEntryLimit = -1;
         }
 
+        _touchClaims.Clear();
         CompactTouchMarkers();
     }
 
     /// <summary>
-    /// Returns true once per tile per five-minute window so callers can throttle LastAccessed DB writes.
+    /// Atomically claims responsibility for persisting LastAccessed for a tile.
+    /// Returns true for at most one caller while there is no active five-minute cooldown.
     /// </summary>
-    public bool ShouldPersistLastAccessed(int zoom, int x, int y)
+    public bool TryBeginLastAccessedPersist(int zoom, int x, int y)
     {
         var key = BuildTouchMarkerKey(zoom, x, y);
         if (_touchMarkerCache.TryGetValue(key, out _))
@@ -101,6 +107,15 @@ public sealed class TileMetadataHotCache : IDisposable
             return false;
         }
 
+        return _touchClaims.TryAdd(key, 0);
+    }
+
+    /// <summary>
+    /// Starts the five-minute LastAccessed cooldown after a durable DB-backed metadata operation succeeds.
+    /// </summary>
+    public void CompleteLastAccessedPersist(int zoom, int x, int y)
+    {
+        var key = BuildTouchMarkerKey(zoom, x, y);
         _touchMarkerCache.Set(
             key,
             true,
@@ -108,22 +123,16 @@ public sealed class TileMetadataHotCache : IDisposable
             {
                 AbsoluteExpirationRelativeToNow = LastAccessedThrottleInterval
             });
-
-        return true;
+        _touchClaims.TryRemove(key, out _);
     }
 
     /// <summary>
-    /// Seeds or refreshes the LastAccessed throttle marker after a durable DB-backed metadata operation.
+    /// Releases an in-flight LastAccessed claim without starting the cooldown.
+    /// Used when the DB update did not complete successfully so later requests can retry.
     /// </summary>
-    public void MarkLastAccessedPersisted(int zoom, int x, int y)
+    public void AbortLastAccessedPersist(int zoom, int x, int y)
     {
-        _touchMarkerCache.Set(
-            BuildTouchMarkerKey(zoom, x, y),
-            true,
-            new MemoryCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = LastAccessedThrottleInterval
-            });
+        _touchClaims.TryRemove(BuildTouchMarkerKey(zoom, x, y), out _);
     }
 
     /// <summary>
