@@ -17,6 +17,7 @@ public class ApplicationSettings
     public const int DefaultTileRateLimitPerMinute = 600;
     public const int DefaultTileRateLimitAuthenticatedPerMinute = 2000;
     public const int DefaultTileOutboundBudgetPerIpPerMinute = 80;
+    public const int DefaultTileMetadataHotCacheSizeMB = 64;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
     public const int DefaultMaxProxyImageDownloadMB = 50;
 
@@ -115,6 +116,15 @@ public class ApplicationSettings
     [Required]
     [Range(0, 1000, ErrorMessage = "Per-IP outbound budget must be between 0 (disabled) and 1,000 per minute.")]
     public int TileOutboundBudgetPerIpPerMinute { get; set; } = DefaultTileOutboundBudgetPerIpPerMinute;
+
+    /// <summary>
+    /// Approximate RAM budget in megabytes for the in-process tile metadata hot cache used
+    /// for zoom levels &gt;= 9. This cache stores metadata only, never tile image bytes.
+    /// Set to -1 to disable the feature entirely.
+    /// </summary>
+    [Required]
+    [Range(-1, 512, ErrorMessage = "Tile metadata hot cache size must be -1 (disable) or between 16 and 512 MB.")]
+    public int TileMetadataHotCacheSizeMB { get; set; } = DefaultTileMetadataHotCacheSizeMB;
 
     /// <summary>
     /// Whether to rate limit anonymous proxy image requests to prevent abuse and origin flooding.

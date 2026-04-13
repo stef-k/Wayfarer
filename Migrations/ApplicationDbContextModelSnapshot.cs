@@ -65,6 +65,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("ProxyImageRateLimitPerMinute")
                         .HasColumnType("integer");
 
+                    b.Property<int>("TileMetadataHotCacheSizeMB")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TileOutboundBudgetPerIpPerMinute")
                         .HasColumnType("integer");
 

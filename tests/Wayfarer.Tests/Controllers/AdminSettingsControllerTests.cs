@@ -53,7 +53,8 @@ public class AdminSettingsControllerTests : TestBase
             db,
             settingsMock.Object,
             Mock.Of<IServiceScopeFactory>(),
-            new HttpContextAccessor());
+            new HttpContextAccessor(),
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
 
         var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService());
@@ -146,6 +147,27 @@ public class AdminSettingsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Update_ReturnsView_WhenTileMetadataHotCacheSizeIsOutOfRange()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1 });
+        await db.SaveChangesAsync();
+
+        var (controller, settingsMock, _) = BuildController(db);
+
+        var result = await controller.Update(new ApplicationSettings
+        {
+            Id = 1,
+            TileMetadataHotCacheSizeMB = 8
+        });
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+        Assert.False(controller.ModelState.IsValid);
+        settingsMock.Verify(s => s.RefreshSettings(), Times.Never);
+    }
+
+    [Fact]
     public async Task Update_TracksChanges_InAuditLog()
     {
         var db = CreateDbContext();
@@ -220,7 +242,8 @@ public class AdminSettingsControllerTests : TestBase
             db,
             settingsService ?? settingsMock!.Object,
             Mock.Of<IServiceScopeFactory>(),
-            new HttpContextAccessor());
+            new HttpContextAccessor(),
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
 
         var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(

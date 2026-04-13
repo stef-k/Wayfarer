@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -48,12 +49,14 @@ public class TileCacheServiceTests : TestBase
     {
         using var dir = new TempDir();
         var db = CreateDbContext();
-        var service = CreateService(db, dir.Path);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
         await service.CacheTileAsync("http://tiles/9/3/4.png", "9", "3", "4");
         var meta = db.TileCacheMetadata.Single();
         var old = DateTime.UtcNow.AddMinutes(-10);
         meta.LastAccessed = old;
         db.SaveChanges();
+        hotCache.Remove(9, 3, 4);
 
         var result = await service.RetrieveTileAsync("9", "3", "4");
         var bytes = result.TileData;
@@ -67,16 +70,19 @@ public class TileCacheServiceTests : TestBase
     {
         using var dir = new TempDir();
         var db = CreateDbContext();
-        var service = CreateService(db, dir.Path);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
         await service.CacheTileAsync("http://tiles/9/5/6.png", "9", "5", "6");
         await service.CacheTileAsync("http://tiles/9/7/8.png", "9", "7", "8");
         Assert.True(Directory.GetFiles(dir.Path, "*.png").Length >= 2);
         Assert.Equal(2, db.TileCacheMetadata.Count());
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 5, 6, out _));
 
         await service.PurgeAllCacheAsync();
 
         Assert.Empty(Directory.GetFiles(dir.Path));
         Assert.Empty(db.TileCacheMetadata);
+        Assert.False(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 5, 6, out _));
     }
 
     [Fact]
@@ -85,7 +91,8 @@ public class TileCacheServiceTests : TestBase
         using var dir = new TempDir();
         var (db, dbName) = CreateNamedDbContext();
         var handler = new SizedTileHandler(600_000); // ~0.57 MB tiles
-        var service = CreateService(db, dir.Path, handler, maxCacheMb: 1, dbName: dbName);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, maxCacheMb: 1, dbName: dbName, hotCache: hotCache);
 
         await service.CacheTileAsync("http://tiles/9/1/1.png", "9", "1", "1"); // fits
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2"); // triggers eviction of oldest
@@ -95,6 +102,8 @@ public class TileCacheServiceTests : TestBase
         Assert.Single(remaining);
         Assert.Equal(1, remaining[0].X);
         Assert.Equal(2, remaining[0].Y);
+        Assert.False(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 1, 1, out _));
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 1, 2, out _));
     }
 
     [Fact]
@@ -102,17 +111,67 @@ public class TileCacheServiceTests : TestBase
     {
         using var dir = new TempDir();
         var db = CreateDbContext();
-        var service = CreateService(db, dir.Path);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
         await service.CacheTileAsync("http://tiles/9/3/4.png", "9", "3", "4");
         var meta = db.TileCacheMetadata.Single();
-        meta.LastAccessed = DateTime.UtcNow.AddMinutes(-5);
+        meta.LastAccessed = DateTime.UtcNow.AddMinutes(-6);
         db.SaveChanges();
+        hotCache.Remove(9, 3, 4);
         var old = meta.LastAccessed;
 
         await Task.Delay(5);
         await service.RetrieveTileAsync("9", "3", "4");
 
         Assert.True(db.TileCacheMetadata.Single().LastAccessed > old);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_HotHit_ThrottlesLastAccessedWritesToFiveMinutes()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
+        await service.CacheTileAsync("http://tiles/9/30/40.png", "9", "30", "40");
+
+        var meta = db.TileCacheMetadata.Single();
+        meta.LastAccessed = DateTime.UtcNow.AddMinutes(-10);
+        await db.SaveChangesAsync();
+
+        await service.RetrieveTileAsync("9", "30", "40", "http://tiles/9/30/40.png");
+        db.Entry(meta).Reload();
+        var touchedAt = meta.LastAccessed;
+
+        await Task.Delay(5);
+        await service.RetrieveTileAsync("9", "30", "40", "http://tiles/9/30/40.png");
+        db.Entry(meta).Reload();
+
+        Assert.Equal(touchedAt, meta.LastAccessed);
+    }
+
+    [Fact]
+    public void TileMetadataHotCache_TryBeginLastAccessedPersist_IsAtomicPerTile()
+    {
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+
+        var results = Enumerable.Range(0, 10)
+            .AsParallel()
+            .Select(_ => hotCache.TryBeginLastAccessedPersist(9, 77, 88))
+            .ToList();
+
+        Assert.Equal(1, results.Count(r => r));
+    }
+
+    [Fact]
+    public void TileMetadataHotCache_AbortLastAccessedPersist_AllowsImmediateRetry()
+    {
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+
+        Assert.True(hotCache.TryBeginLastAccessedPersist(9, 90, 91));
+        hotCache.AbortLastAccessedPersist(9, 90, 91);
+
+        Assert.True(hotCache.TryBeginLastAccessedPersist(9, 90, 91));
     }
 
     [Fact]
@@ -254,7 +313,8 @@ public class TileCacheServiceTests : TestBase
         using var dir = new TempDir();
         var db = CreateDbContext();
         var handler = new ConditionalTileHandler(etag: "\"abc123\"", maxAgeSeconds: 3600);
-        var service = CreateService(db, dir.Path, handler);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
 
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
 
@@ -262,6 +322,8 @@ public class TileCacheServiceTests : TestBase
         Assert.Equal("\"abc123\"", meta.ETag);
         Assert.NotNull(meta.ExpiresAtUtc);
         Assert.True(meta.ExpiresAtUtc > DateTime.UtcNow.AddMinutes(50)); // ~1 hour expiry
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 1, 2, out var entry));
+        Assert.Equal("\"abc123\"", entry!.ETag);
     }
 
     [Fact]
@@ -309,12 +371,71 @@ public class TileCacheServiceTests : TestBase
     }
 
     [Fact]
+    public async Task RetrieveTileAsync_FirstWarmHit_PopulatesHotMetadataCache()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
+
+        await service.CacheTileAsync("http://tiles/9/11/12.png", "9", "11", "12");
+
+        hotCache.Remove(9, 11, 12);
+        var result = await service.RetrieveTileAsync("9", "11", "12", "http://tiles/9/11/12.png");
+
+        Assert.NotNull(result.TileData);
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 11, 12, out var entry));
+        Assert.NotNull(entry);
+        Assert.NotNull(entry!.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_SecondWarmHit_ServesWithoutDbMetadataRead()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
+
+        await service.CacheTileAsync("http://tiles/9/13/14.png", "9", "13", "14");
+        await service.RetrieveTileAsync("9", "13", "14", "http://tiles/9/13/14.png");
+
+        db.TileCacheMetadata.RemoveRange(db.TileCacheMetadata.Where(t => t.Zoom == 9 && t.X == 13 && t.Y == 14));
+        await db.SaveChangesAsync();
+
+        var result = await service.RetrieveTileAsync("9", "13", "14", "http://tiles/9/13/14.png");
+
+        Assert.NotNull(result.TileData);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_FreshHotCacheHitWithMissingFile_RemovesEntryAndFallsBack()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new ConditionalTileHandler(etag: "\"fresh-missing\"", maxAgeSeconds: 3600);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
+
+        await service.CacheTileAsync("http://tiles/9/15/16.png", "9", "15", "16");
+        await service.RetrieveTileAsync("9", "15", "16", "http://tiles/9/15/16.png");
+        File.Delete(Path.Combine(dir.Path, "9_15_16.png"));
+
+        var result = await service.RetrieveTileAsync("9", "15", "16", "http://tiles/9/15/16.png");
+
+        Assert.NotNull(result.TileData);
+        Assert.True(File.Exists(Path.Combine(dir.Path, "9_15_16.png")));
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 15, 16, out _));
+    }
+
+    [Fact]
     public async Task RetrieveTileAsync_SendsConditionalRequest_WhenExpired()
     {
         using var dir = new TempDir();
         var db = CreateDbContext();
         var handler = new ConditionalTileHandler(etag: "\"expired\"", maxAgeSeconds: 3600);
-        var service = CreateService(db, dir.Path, handler);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
 
         // Cache the tile (1 HTTP call)
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
@@ -324,6 +445,7 @@ public class TileCacheServiceTests : TestBase
         var meta = db.TileCacheMetadata.Single();
         meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
         await db.SaveChangesAsync();
+        hotCache.Remove(9, 1, 2);
 
         // Retrieve should send conditional request because tile is expired
         var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
@@ -339,7 +461,8 @@ public class TileCacheServiceTests : TestBase
         using var dir = new TempDir();
         var db = CreateDbContext();
         var handler = new ConditionalTileHandler(etag: "\"v1\"", maxAgeSeconds: 3600);
-        var service = CreateService(db, dir.Path, handler);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
 
         // Cache the tile
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
@@ -349,6 +472,7 @@ public class TileCacheServiceTests : TestBase
         var meta = db.TileCacheMetadata.Single();
         meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
         await db.SaveChangesAsync();
+        hotCache.Remove(9, 1, 2);
 
         // Retrieve: tile is expired, handler returns 304 when If-None-Match matches
         var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
@@ -361,6 +485,8 @@ public class TileCacheServiceTests : TestBase
         db.Entry(meta).Reload();
         Assert.NotNull(meta.ExpiresAtUtc);
         Assert.True(meta.ExpiresAtUtc > DateTime.UtcNow);
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 1, 2, out var entry));
+        Assert.Equal(meta.ExpiresAtUtc, entry!.ExpiresAtUtc);
     }
 
     [Fact]
@@ -370,7 +496,8 @@ public class TileCacheServiceTests : TestBase
         var db = CreateDbContext();
         // First call returns etag "\"v1\"", revalidation returns new data with etag "\"v2\""
         var handler = new ConditionalTileHandler(etag: "\"v1\"", maxAgeSeconds: 3600, newEtagOnRevalidation: "\"v2\"");
-        var service = CreateService(db, dir.Path, handler);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
 
         // Cache the tile
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
@@ -379,6 +506,7 @@ public class TileCacheServiceTests : TestBase
         var meta = db.TileCacheMetadata.Single();
         meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
         await db.SaveChangesAsync();
+        hotCache.Remove(9, 1, 2);
 
         // Force the handler to return 200 on revalidation (different etag = new content)
         handler.ForceRevalidation200 = true;
@@ -390,6 +518,8 @@ public class TileCacheServiceTests : TestBase
         // DB metadata should now have the new etag
         db.Entry(meta).Reload();
         Assert.Equal("\"v2\"", meta.ETag);
+        Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 1, 2, out var entry));
+        Assert.Equal("\"v2\"", entry!.ETag);
     }
 
     [Fact]
@@ -398,7 +528,8 @@ public class TileCacheServiceTests : TestBase
         using var dir = new TempDir();
         var db = CreateDbContext();
         var handler = new ConditionalTileHandler(etag: "\"stale\"", maxAgeSeconds: 3600);
-        var service = CreateService(db, dir.Path, handler);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
 
         // Cache the tile
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
@@ -407,6 +538,7 @@ public class TileCacheServiceTests : TestBase
         var meta = db.TileCacheMetadata.Single();
         meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
         await db.SaveChangesAsync();
+        hotCache.Remove(9, 1, 2);
 
         // Make handler fail on next call
         handler.FailNextRequest = true;
@@ -466,7 +598,8 @@ public class TileCacheServiceTests : TestBase
         using var dir = new TempDir();
         var db = CreateDbContext();
         var handler = new ConditionalTileHandler(etag: "\"coalesce\"", maxAgeSeconds: 3600);
-        var service = CreateService(db, dir.Path, handler);
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
 
         // Cache the tile first
         await service.CacheTileAsync("http://tiles/9/5/5.png", "9", "5", "5");
@@ -476,6 +609,7 @@ public class TileCacheServiceTests : TestBase
         var meta = db.TileCacheMetadata.Single();
         meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
         await db.SaveChangesAsync();
+        hotCache.Remove(9, 5, 5);
 
         // Fire 5 concurrent retrieve requests for the same expired tile
         var tasks = Enumerable.Range(0, 5)
@@ -568,7 +702,9 @@ public class TileCacheServiceTests : TestBase
         return (db, dbName);
     }
 
-    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null, int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com", string? dbName = null)
+    private TileCacheService CreateService(ApplicationDbContext db, string cacheDir, HttpMessageHandler? handler = null,
+        int maxCacheMb = 10, IHttpContextAccessor? httpContextAccessor = null, string contactEmail = "test@example.com",
+        string? dbName = null, TileMetadataHotCache? hotCache = null)
     {
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -610,7 +746,8 @@ public class TileCacheServiceTests : TestBase
             db,
             appSettings,
             scopeFactory,
-            httpContextAccessor ?? new HttpContextAccessor());
+            httpContextAccessor ?? new HttpContextAccessor(),
+            hotCache ?? new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
     }
 
     /// <summary>
@@ -891,7 +1028,8 @@ public class TileCacheServiceTests : TestBase
                         .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
                         .Options,
                     new ServiceCollection().BuildServiceProvider())),
-            new HttpContextAccessor());
+            new HttpContextAccessor(),
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
 
         // Start the first purge.
         var firstPurge = service1.PurgeAllCacheAsync();

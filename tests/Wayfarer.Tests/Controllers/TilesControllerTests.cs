@@ -14,6 +14,7 @@ using Moq;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -470,7 +471,8 @@ public class TilesControllerTests : TestBase
             dbContext,
             settingsService,
             Mock.Of<IServiceScopeFactory>(),
-            new HttpContextAccessor());
+            new HttpContextAccessor(),
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
     }
 
     private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500, int rateLimitAuthenticatedPerMinute = 2000)

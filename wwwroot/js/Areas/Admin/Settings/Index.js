@@ -36,6 +36,31 @@ document.addEventListener('DOMContentLoaded', () => {
         timeThresholdSelect.addEventListener('change', updateWarningVisibility);
     }
 
+    const tileMetadataHotCacheInput = document.getElementById('TileMetadataHotCacheSizeMB');
+    const tileMetadataHotCacheHint = document.getElementById('tileMetadataHotCacheHint');
+    if (tileMetadataHotCacheInput && tileMetadataHotCacheHint) {
+        const estimatedBytesPerEntry = Number(tileMetadataHotCacheInput.dataset.entryBytes || '768');
+
+        const updateTileMetadataHotCacheHint = () => {
+            const sizeMb = Number(tileMetadataHotCacheInput.value);
+            if (Number.isNaN(sizeMb)) {
+                tileMetadataHotCacheHint.textContent = 'Enter a value of -1 or 16-512 MB.';
+                return;
+            }
+
+            if (sizeMb === -1) {
+                tileMetadataHotCacheHint.textContent = 'Hot metadata cache disabled.';
+                return;
+            }
+
+            const approximateEntries = Math.floor((sizeMb * 1024 * 1024) / estimatedBytesPerEntry);
+            tileMetadataHotCacheHint.textContent = `${sizeMb} MB ≈ ${approximateEntries} metadata entries`;
+        };
+
+        updateTileMetadataHotCacheHint();
+        tileMetadataHotCacheInput.addEventListener('input', updateTileMetadataHotCacheHint);
+    }
+
     // Tile provider UI: toggle preset details, custom inputs, and API key visibility.
     const tileProviderKey = document.getElementById('TileProviderKey');
     const tileProviderTemplate = document.getElementById('TileProviderUrlTemplate');

@@ -66,6 +66,11 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
             }
+
+            if (settings.TileMetadataHotCacheSizeMB == 0)
+            {
+                settings.TileMetadataHotCacheSizeMB = ApplicationSettings.DefaultTileMetadataHotCacheSizeMB;
+            }
             
             if (settings.UploadSizeLimitMB == 0)
             {
@@ -149,6 +154,13 @@ namespace Wayfarer.Areas.Admin.Controllers
                     "Authenticated rate limit must be equal to or greater than the anonymous rate limit.");
             }
 
+            if (updatedSettings.TileMetadataHotCacheSizeMB != -1 &&
+                (updatedSettings.TileMetadataHotCacheSizeMB < 16 || updatedSettings.TileMetadataHotCacheSizeMB > 512))
+            {
+                ModelState.AddModelError(nameof(updatedSettings.TileMetadataHotCacheSizeMB),
+                    "Tile metadata hot cache size must be -1 (disable) or between 16 and 512 MB.");
+            }
+
             if (currentSettings != null)
             {
                 // Validate tile provider settings before model validation.
@@ -193,6 +205,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
                     Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
                     Track("TileOutboundBudgetPerIpPerMinute", currentSettings.TileOutboundBudgetPerIpPerMinute, updatedSettings.TileOutboundBudgetPerIpPerMinute);
+                    Track("TileMetadataHotCacheSizeMB", currentSettings.TileMetadataHotCacheSizeMB, updatedSettings.TileMetadataHotCacheSizeMB);
                     Track("ProxyImageRateLimitEnabled", currentSettings.ProxyImageRateLimitEnabled, updatedSettings.ProxyImageRateLimitEnabled);
                     Track("ProxyImageRateLimitPerMinute", currentSettings.ProxyImageRateLimitPerMinute, updatedSettings.ProxyImageRateLimitPerMinute);
 
@@ -240,6 +253,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
                     currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;
                     currentSettings.TileOutboundBudgetPerIpPerMinute = updatedSettings.TileOutboundBudgetPerIpPerMinute;
+                    currentSettings.TileMetadataHotCacheSizeMB = updatedSettings.TileMetadataHotCacheSizeMB;
                     currentSettings.ProxyImageRateLimitEnabled = updatedSettings.ProxyImageRateLimitEnabled;
                     currentSettings.ProxyImageRateLimitPerMinute = updatedSettings.ProxyImageRateLimitPerMinute;
 

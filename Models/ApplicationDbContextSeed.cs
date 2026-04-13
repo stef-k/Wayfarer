@@ -90,6 +90,7 @@ public class ApplicationDbContextSeed
                 LocationTimeThresholdMinutes = 5,
                 LocationDistanceThresholdMeters = 15,
                 MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB,
+                TileMetadataHotCacheSizeMB = ApplicationSettings.DefaultTileMetadataHotCacheSizeMB,
                 UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB,
                 IsRegistrationOpen = false
             });
@@ -115,6 +116,12 @@ public class ApplicationDbContextSeed
             if (settings.MaxCacheTileSizeInMB == 0)
             {
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
+                changed = true;
+            }
+
+            if (settings.TileMetadataHotCacheSizeMB == 0)
+            {
+                settings.TileMetadataHotCacheSizeMB = ApplicationSettings.DefaultTileMetadataHotCacheSizeMB;
                 changed = true;
             }
 
