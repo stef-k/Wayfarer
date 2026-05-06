@@ -28,6 +28,7 @@
 - `dotnet run` – run locally (loads `appsettings.Development.json` if present).
 - `dotnet watch run` – hot‑reload during development.
 - Admin CLI: `dotnet run -- reset-password <username> <new-password>`.
+- LOC policy check after implementation edits: `dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600`.
 
 ## Coding Style & Naming Conventions
 
@@ -35,6 +36,8 @@
 - Document all code you touch or add (XML docs C#, comments Razor/JS).
 - Never create files unless absolutely necessary; prefer editing existing ones.
 - Prefer minimal services/classes/methods/variables; keep scope tight.
+- New and changed source files are subject to the LOC policy check: warn at 400 counted LOC and hard fail above 600 counted LOC. Existing legacy files are grandfathered by `tools/Wayfarer.LocCheck/loc-baseline.json`, but should not grow past baseline.
+- After any implementation edit, run `dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600`; summarize warnings and split files or request an explicit exception for failures.
 - C#: 4 spaces; PascalCase for types/properties; camelCase for locals/params; file name = primary type.
 - JS: modern style, prefer arrow functions; keep modules area‑scoped when applicable.
 
