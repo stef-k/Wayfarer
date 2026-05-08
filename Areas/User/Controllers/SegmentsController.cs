@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.User.Controllers;
 
@@ -22,21 +23,6 @@ public class SegmentsController : BaseController
         _logger = logger;
         _db = dbContext;
     }
-
-    // Transport modes and their travel speed in km/h
-    private static readonly Dictionary<string, double> ModeSpeedsKmh = new()
-    {
-        ["walk"] = 5,
-        ["bicycle"] = 15,
-        ["bike"] = 40,
-        ["car"] = 60,
-        ["bus"] = 35,
-        ["train"] = 100,
-        ["ferry"] = 30,
-        ["boat"] = 25,
-        ["flight"] = 800,
-        ["helicopter"] = 200
-    };
 
     // GET: /User/Segments/CreateOrUpdate?tripId=...
     [HttpGet]
@@ -105,7 +91,7 @@ public class SegmentsController : BaseController
         // Auto-calculate EstimatedDuration if missing but distance and mode are present
         if (model.EstimatedDistanceKm.HasValue && !model.EstimatedDuration.HasValue)
         {
-            if (ModeSpeedsKmh.TryGetValue(model.Mode?.ToLower() ?? "", out var speedKmh) && speedKmh > 0)
+            if (SegmentTransportModes.SpeedsKmh.TryGetValue(model.Mode ?? string.Empty, out var speedKmh) && speedKmh > 0)
             {
                 var hours = model.EstimatedDistanceKm.Value / speedKmh;
                 model.EstimatedDuration = TimeSpan.FromHours(hours);

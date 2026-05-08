@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Api.Controllers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -122,12 +123,8 @@ public class ApiIconsControllerTests : TestBase
 
         Assert.NotNull(bgList);
         Assert.NotNull(glyphList);
-        Assert.Equal(2, bgList.Count);
-        Assert.Contains("bg-blue", bgList);
-        Assert.Contains("bg-red", bgList);
-        Assert.Equal(2, glyphList.Count);
-        Assert.Contains("color-white", glyphList);
-        Assert.Contains("color-black", glyphList);
+        Assert.Equal(new[] { "bg-blue", "bg-red" }, bgList);
+        Assert.Equal(new[] { "color-black", "color-white" }, glyphList);
     }
 
     [Fact]
@@ -192,7 +189,7 @@ public class ApiIconsControllerTests : TestBase
 
     private IconsController BuildController(IWebHostEnvironment env)
     {
-        return new IconsController(CreateDbContext(), NullLogger<IconsController>.Instance, env);
+        return new IconsController(CreateDbContext(), NullLogger<IconsController>.Instance, env, new IconColorProvider(env));
     }
 
     private static IWebHostEnvironment CreateTempWebRoot()
