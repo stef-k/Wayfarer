@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using NetTopologySuite;
@@ -37,7 +38,7 @@ public sealed class TripEditorControllerTests : TestBase
 
         var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(result);
+        AssertForbiddenStatus(result);
     }
 
     [Fact]
@@ -50,7 +51,7 @@ public sealed class TripEditorControllerTests : TestBase
 
         var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(result);
+        AssertForbiddenStatus(result);
     }
 
     [Fact]
@@ -99,6 +100,12 @@ public sealed class TripEditorControllerTests : TestBase
         {
             HttpContext = BuildHttpContextWithUser(userId, role)
         };
+    }
+
+    private static void AssertForbiddenStatus(IActionResult result)
+    {
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
     }
 
     private static IWebHostEnvironment BuildEnvironment()

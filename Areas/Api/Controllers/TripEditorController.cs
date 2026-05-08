@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -39,7 +40,7 @@ public sealed class TripEditorController : ControllerBase
 
         if (User?.IsInRole("User") != true)
         {
-            return Forbid();
+            return StatusCode(StatusCodes.Status403Forbidden);
         }
 
         var trip = await _dbContext.Trips
@@ -56,7 +57,7 @@ public sealed class TripEditorController : ControllerBase
                 .AsNoTracking()
                 .AnyAsync(t => t.Id == tripId, cancellationToken);
 
-            return tripExists ? Forbid() : NotFound();
+            return tripExists ? StatusCode(StatusCodes.Status403Forbidden) : NotFound();
         }
 
         var placeIds = trip.Regions
