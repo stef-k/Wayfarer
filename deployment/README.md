@@ -19,6 +19,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 
 - Pulls code from Git
 - Builds the application
+- Builds the Trip Editor Vite assets when deploying branches that include the Vue workspace
 - Applies database migrations
 - Deploys to the production directory
 - Handles permissions automatically
@@ -199,6 +200,25 @@ Or deploy a specific version:
 ```bash
 REF=v1.3.0 ./deployment/deploy.sh
 ```
+
+### Frontend Build Requirement
+
+The Vue/Vite Trip Editor workspace is built into local static assets under
+`wwwroot/vite/trip-editor`. Production remains a single ASP.NET Core app; it
+does not run a Node service or SSR process.
+
+For the current server-build deployment model, the build host needs Node.js LTS
+with npm available before `dotnet publish` runs:
+
+```bash
+npm ci
+npm run build
+dotnet publish
+```
+
+If builds later move to CI or another artifact builder, Node/npm are required on
+that build host only. The production server can then receive the already-built
+published output.
 
 ---
 

@@ -848,6 +848,9 @@ static async Task ConfigureMiddleware(WebApplication app)
     });
 
     // Define the default route for controllers
+    app.MapControllers();
+
+    // Define the default route for controllers
     app.MapControllerRoute(
             "default",
             "{controller=Home}/{action=Index}/{id?}")
