@@ -27,8 +27,8 @@ type RegionDraft = {
   name: string;
   notesHtml: string;
   coverImageRawUrl: string;
-  centerLatitude: string;
-  centerLongitude: string;
+  centerLatitude: string | number;
+  centerLongitude: string | number;
 };
 
 const fields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
@@ -248,9 +248,9 @@ function toDraft(region: EditorRegion | null): RegionDraft {
 }
 
 function buildRequest(value: RegionDraft): EditorRegionSaveRequest {
-  const latitude = value.centerLatitude.trim();
-  const longitude = value.centerLongitude.trim();
-  const coverImageRawUrl = value.coverImageRawUrl.trim();
+  const latitude = draftText(value.centerLatitude);
+  const longitude = draftText(value.centerLongitude);
+  const coverImageRawUrl = draftText(value.coverImageRawUrl);
   const hasPartialCenter = Boolean(latitude || longitude);
 
   return {
@@ -259,6 +259,11 @@ function buildRequest(value: RegionDraft): EditorRegionSaveRequest {
     coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
     center: hasPartialCenter ? { latitude: latitude ? Number(latitude) : Number.NaN, longitude: longitude ? Number(longitude) : Number.NaN } : null
   };
+}
+
+/// Normalizes Vue number-input values before validation and API serialization.
+function draftText(value: string | number): string {
+  return String(value ?? '').trim();
 }
 
 function confirmDiscard(): boolean {
