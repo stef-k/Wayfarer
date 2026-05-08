@@ -12,6 +12,7 @@ namespace Wayfarer.Areas.Api.Controllers;
 /// </summary>
 [Area("Api")]
 [ApiController]
+[Route("api/trips/{tripId:guid}/editor")]
 public sealed class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
