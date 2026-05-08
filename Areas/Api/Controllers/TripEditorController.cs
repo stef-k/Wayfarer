@@ -1,10 +1,13 @@
 using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -13,12 +16,15 @@ namespace Wayfarer.Areas.Api.Controllers;
 /// </summary>
 [Area("Api")]
 [ApiController]
+[Authorize(Roles = "User")]
 [Route("api/trips/{tripId:guid}/editor")]
 public sealed class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
     private readonly IIconColorProvider _iconColorProvider;
+    private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
+    private readonly ICacheWarmupScheduler _warmupScheduler;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -28,11 +34,15 @@ public sealed class TripEditorController : ControllerBase
         ApplicationDbContext dbContext,
         IWebHostEnvironment environment,
         IIconColorProvider iconColorProvider,
+        ITripMapThumbnailGenerator thumbnailGenerator,
+        ICacheWarmupScheduler warmupScheduler,
         ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
         _environment = environment;
         _iconColorProvider = iconColorProvider;
+        _thumbnailGenerator = thumbnailGenerator;
+        _warmupScheduler = warmupScheduler;
         _logger = logger;
     }
 
@@ -105,6 +115,101 @@ public sealed class TripEditorController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Persists a complete metadata draft for an owned trip and returns the changed metadata slice.
+    /// </summary>
+    [HttpPatch("metadata")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PatchMetadata(Guid tripId, CancellationToken cancellationToken)
+    {
+        var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId) || User?.Identity?.IsAuthenticated != true)
+        {
+            return Unauthorized();
+        }
+
+        if (User?.IsInRole("User") != true)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        // Ownership is checked before request parsing so missing or non-owned trips stay hidden.
+        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+        if (trip == null)
+        {
+            return NotFound();
+        }
+
+        JsonElement request;
+        try
+        {
+            using var document = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken);
+            request = document.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return ValidationError(new Dictionary<string, string[]>
+            {
+                ["request"] = new[] { "Metadata update request must be valid JSON." }
+            });
+        }
+
+        if (!EditorTripMetadataUpdateRequestParser.TryParse(request, out var update, out var errors))
+        {
+            return ValidationError(errors);
+        }
+
+        var beforeExternalImages = BuildTripExternalImageSet(trip.CoverImageUrl, trip.Notes);
+        var disableShareProgress = !update.IsPublic && trip.ShareProgressEnabled;
+        var coverImageUrl = NormalizeOptionalUrl(update.CoverImage?.RawUrl);
+        var updatedAt = DateTime.UtcNow;
+
+        trip.Name = update.Name.Trim();
+        trip.IsPublic = update.IsPublic;
+        if (!update.IsPublic)
+        {
+            trip.ShareProgressEnabled = false;
+        }
+
+        trip.Notes = update.NotesHtml ?? string.Empty;
+        trip.CoverImageUrl = coverImageUrl;
+        trip.CenterLat = update.Center?.Latitude;
+        trip.CenterLon = update.Center?.Longitude;
+        trip.Zoom = update.Zoom;
+        trip.UpdatedAt = updatedAt;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _thumbnailGenerator.InvalidateThumbnails(tripId, updatedAt);
+
+        var afterExternalImages = BuildTripExternalImageSet(trip.CoverImageUrl, trip.Notes);
+        var imagesNewlyIntroduced = afterExternalImages.Any(url => !beforeExternalImages.Contains(url));
+        await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: imagesNewlyIntroduced);
+
+        var metadata = EditorTripStateMapper.ToMetadata(
+            trip,
+            trip.IsPublic ? GeneratePublicTripUrl(trip.Id) : null,
+            trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(trip.Id) : null);
+
+        var warnings = disableShareProgress
+            ? new[]
+            {
+                new EditorWarningDto(
+                    "share-progress-disabled",
+                    "Share progress was disabled because the trip is private.",
+                    "trip",
+                    trip.Id.ToString())
+            }
+            : Array.Empty<EditorWarningDto>();
+
+        return Ok(new EditorMutationResult<EditorTripMetadataDto>(
+            true,
+            metadata,
+            EditorAffectedSlicesDto.MetadataOnly(metadata),
+            EditorDeletedIdsDto.Empty,
+            warnings));
+    }
+
     private EditorOptionsDto BuildOptions()
     {
         var colors = _iconColorProvider.GetAvailableColors();
@@ -150,4 +255,38 @@ public sealed class TripEditorController : ControllerBase
             ? Directory.GetFiles(iconDir, "*.svg").Select(Path.GetFileNameWithoutExtension).Where(n => n != null).Cast<string>().OrderBy(n => n).ToList()
             : Array.Empty<string>();
     }
+
+    private static HashSet<string> BuildTripExternalImageSet(string? coverImageUrl, string? notesHtml)
+    {
+        var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(coverImageUrl))
+        {
+            urls.Add(coverImageUrl.Trim());
+        }
+
+        foreach (var url in HtmlHelpers.ExtractExternalImageUrls(notesHtml))
+        {
+            urls.Add(url);
+        }
+
+        return urls;
+    }
+
+    private static string? NormalizeOptionalUrl(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static IActionResult ValidationError(Dictionary<string, string[]> errors)
+    {
+        var problem = new ValidationProblemDetails(errors)
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "One or more validation errors occurred."
+        };
+
+        return new BadRequestObjectResult(problem)
+        {
+            ContentTypes = { "application/problem+json" }
+        };
+    }
+
 }

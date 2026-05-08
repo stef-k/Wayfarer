@@ -34,7 +34,7 @@ public static class EditorTripStateMapper
         return new EditorTripStateDto
         {
             TripId = trip.Id,
-            Metadata = MapMetadata(trip, publicUrl, progressPublicUrl),
+            Metadata = ToMetadata(trip, publicUrl, progressPublicUrl),
             RegionsById = regions.ToDictionary(r => r.Id, MapRegion),
             RegionOrder = regions.Select(r => r.Id).ToList(),
             PlacesById = places.ToDictionary(p => p.Place.Id, p => MapPlace(trip.Id, p.Region.Id, p.Place, visitSummaries[p.Place.Id])),
@@ -66,7 +66,10 @@ public static class EditorTripStateMapper
         }
     }
 
-    private static EditorTripMetadataDto MapMetadata(Trip trip, string? publicUrl, string? progressPublicUrl) =>
+    /// <summary>
+    /// Maps only the top-level trip metadata slice used by read and mutation responses.
+    /// </summary>
+    public static EditorTripMetadataDto ToMetadata(Trip trip, string? publicUrl, string? progressPublicUrl) =>
         new(
             trip.Id,
             trip.Name,

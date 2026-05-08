@@ -14,6 +14,9 @@ public sealed record TripEditorWorkspaceViewModel
     /// <summary>Same-origin URL for the editor read endpoint.</summary>
     public required string EditorEndpointUrl { get; init; }
 
+    /// <summary>Same-origin URL used by Back to Trips and Save &amp; Exit.</summary>
+    public required string TripIndexUrl { get; init; }
+
     /// <summary>Local tile URL template used by the Leaflet adapter.</summary>
     public required string TilesUrl { get; init; }
 }

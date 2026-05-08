@@ -276,13 +276,19 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
     }
 
-    private static TripEditorController BuildController(ApplicationDbContext db, string? webRoot = null)
+    private static TripEditorController BuildController(
+        ApplicationDbContext db,
+        string? webRoot = null,
+        Mock<ITripMapThumbnailGenerator>? thumbnailMock = null,
+        Mock<ICacheWarmupScheduler>? warmupMock = null)
     {
         var environment = BuildEnvironment(webRoot);
         var controller = new TripEditorController(
             db,
             environment,
             new IconColorProvider(environment),
+            thumbnailMock?.Object ?? Mock.Of<ITripMapThumbnailGenerator>(),
+            warmupMock?.Object ?? Mock.Of<ICacheWarmupScheduler>(),
             Mock.Of<ILogger<TripEditorController>>());
 
         var url = new Mock<IUrlHelper>();

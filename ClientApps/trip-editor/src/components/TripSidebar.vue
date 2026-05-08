@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import type { EditorArea, EditorPlace, EditorRegion, EditorSegment, EditorTripState } from '../types';
+import MetadataEditor from './MetadataEditor.vue';
 
-defineProps<{ state: EditorTripState }>();
+defineProps<{
+  state: EditorTripState;
+  editorEndpoint: string;
+  antiforgeryToken: string;
+  tripIndexUrl: string;
+}>();
+
+const emit = defineEmits<{
+  metadataSaved: [metadata: EditorTripState['metadata']];
+}>();
 
 const orderedRegions = (state: EditorTripState): EditorRegion[] =>
   state.regionOrder
@@ -36,6 +46,14 @@ const segmentLabel = (state: EditorTripState, segment: EditorSegment): string =>
       </div>
       <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? 'Public' : 'Private' }}</span>
     </header>
+
+    <MetadataEditor
+      :metadata="state.metadata"
+      :editor-endpoint="editorEndpoint"
+      :antiforgery-token="antiforgeryToken"
+      :trip-index-url="tripIndexUrl"
+      @saved="metadata => emit('metadataSaved', metadata)"
+    />
 
     <section v-if="state.visitProgress.totalPlaces > 0" class="trip-editor-panel">
       <div class="trip-editor-panel__line">

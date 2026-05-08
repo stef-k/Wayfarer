@@ -158,6 +158,60 @@ export interface EditorImageReference {
   proxiedUrl: string;
 }
 
+export interface EditorTripMetadataUpdateRequest {
+  name: string;
+  notesHtml: string | null;
+  isPublic: boolean;
+  coverImage: { rawUrl: string | null } | null;
+  center: EditorCoordinate | null;
+  zoom: number | null;
+}
+
+export interface EditorMutationResult<TData> {
+  success: true;
+  data: TData;
+  affected: EditorAffectedSlices;
+  deletedIds: EditorDeletedIds;
+  warnings: EditorWarning[];
+}
+
+export interface EditorAffectedSlices {
+  metadata: EditorTripMetadata | null;
+  regions: EditorRegion[];
+  regionOrder: Guid[] | null;
+  places: EditorPlace[];
+  placeOrdersByRegionId: Record<Guid, Guid[]>;
+  areas: EditorArea[];
+  areaOrdersByRegionId: Record<Guid, Guid[]>;
+  segments: EditorSegment[];
+  segmentOrder: Guid[] | null;
+  tags: EditorTag[];
+  tagOrder: string[] | null;
+  visitProgress: EditorVisitProgress | null;
+  options: EditorOptions | null;
+}
+
+export interface EditorDeletedIds {
+  regions: Guid[];
+  places: Guid[];
+  areas: Guid[];
+  segments: Guid[];
+  tags: string[];
+}
+
+export interface EditorWarning {
+  code: string;
+  message: string;
+  entityType: string | null;
+  entityId: string | null;
+}
+
+export interface ValidationProblemDetails {
+  title?: string;
+  status?: number;
+  errors?: Record<string, string[]>;
+}
+
 export interface GeoJsonLineString {
   type: 'LineString';
   coordinates: Array<[number, number]>;
@@ -172,6 +226,7 @@ export interface BootstrapConfig {
   tripId: Guid;
   tripName: string;
   editorEndpoint: string;
+  tripIndexUrl: string;
   tilesUrl: string;
   antiforgeryToken: string;
 }
