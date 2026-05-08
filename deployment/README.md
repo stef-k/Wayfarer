@@ -9,6 +9,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 **`install.sh`** – Interactive installer
 
 - Installs system packages (PostgreSQL + PostGIS, Nginx, runtime libs)
+- Installs or verifies Node.js/npm build tooling for server-build deployments
 - Creates DB + user and enables PostGIS/citext
 - Creates deployment directory and app user
 - Installs systemd service, Nginx vhost, Fail2ban jails
@@ -18,6 +19,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 **`deploy.sh`** – Automated deployment script
 
 - Pulls code from Git
+- Runs `npm ci` and `npm run build` for Trip Editor Vite assets before `dotnet publish`
 - Builds the application
 - Applies database migrations
 - Deploys to the production directory
@@ -30,6 +32,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 - Removes systemd unit, Nginx vhost, Fail2ban jails
 - Optionally drops the Wayfarer DB and user (`--purge-db`)
 - Optionally deletes the Certbot certificate
+- Leaves system packages in place, including Node.js/npm build tooling
 
 **Usage:**
 
@@ -200,6 +203,29 @@ Or deploy a specific version:
 REF=v1.3.0 ./deployment/deploy.sh
 ```
 
+### Frontend Build Requirement
+
+The Vue/Vite Trip Editor workspace is built into local static assets under
+`wwwroot/vite/trip-editor`. These generated files are build output and are not
+committed. Production remains a single ASP.NET Core app; it does not run a Node
+service or SSR process.
+
+For the current server-build deployment model, `install.sh` installs or verifies
+Node.js/npm on the build host. Node/npm are build-host tooling only; no Node
+runtime service is installed or configured.
+
+During deployment, `deploy.sh` runs the frontend build before `dotnet publish`:
+
+```bash
+npm ci
+npm run build
+dotnet publish
+```
+
+If builds later move to CI or another artifact builder, Node/npm are required on
+that build host only. The production runtime remains the ASP.NET Core app serving
+local static Vite assets, with no SSR process.
+
 ---
 
 ## Secrets Management
@@ -265,7 +291,7 @@ All files use **placeholders** that must be customized for your deployment:
 
 For complete installation and deployment guide, see:
 
-- **[Deployment Guide](26-Deployment.md)** - Full deployment guide
+- **[Deployment Guide](../docs/20-Deployment.md)** - Full deployment guide
 - **[Quick Start](02-Install-and-Dependencies.md)** - Quick start guide
 
 ---

@@ -3,6 +3,7 @@
 Prerequisites
 - .NET 10 SDK
 - PostgreSQL with PostGIS extension
+- Node.js 22.x/npm for Trip Editor Vite builds
 - Windows 10 (primary dev OS) or Linux/macOS for development
 
 Restore, Build, Run
@@ -26,6 +27,9 @@ Frontend Development
   - Convention: JS files in `wwwroot/js/Areas/{Area}/{Controller}/{Action}.js` auto-link to matching views.
   - Development: runs unbundled for debugging.
   - Production: run `dotnet mvcfrontendkit build` to generate minified bundles in `/dist`.
+- **Trip Editor**: Vue/Vite workspace builds static assets under `wwwroot/vite/trip-editor`.
+  - Run `npm ci` and `npm run build` before publishing when building on the server.
+  - Generated Vite output is not committed. Production still runs as one ASP.NET Core app with no Node runtime service or SSR server.
 - **State Management**: Trip editing uses reactive store pattern inspired by [simple-reactive-store](https://github.com/stef-k/simple-reactive-store).
   - Key files: `wwwroot/js/Areas/User/Trip/store.js`, `storeInstance.js`
 - **Map Icons**: [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) provides consistent marker icons.

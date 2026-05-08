@@ -171,3 +171,7 @@ wayfarer-api.rest
 # MvcFrontendKit generated files
 wwwroot/dist/
 wwwroot/frontend.manifest.json
+
+# npm/Vite generated files
+node_modules/
+wwwroot/vite/trip-editor/

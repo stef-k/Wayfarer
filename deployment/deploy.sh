@@ -125,6 +125,37 @@ dotnet clean Wayfarer.csproj -c Release
 rm -rf "$APP_DIR/wwwroot/dist"
 rm -f "$APP_DIR/wwwroot/frontend.manifest.json"
 
+# Step 4.7: Build Trip Editor Vite assets
+echo "[4.7/8] Building Trip Editor Vite assets..."
+if [ ! -f "$APP_DIR/package.json" ]; then
+  echo "✖ Error: package.json not found at $APP_DIR/package.json" >&2
+  echo "  This branch requires the Trip Editor frontend build before dotnet publish." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "✖ Error: node is not installed or not on PATH." >&2
+  echo "  Install Node.js LTS/npm, or run deployment/install.sh to install build tooling." >&2
+  exit 1
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "✖ Error: npm is not installed or not on PATH." >&2
+  echo "  Install Node.js LTS/npm, or run deployment/install.sh to install build tooling." >&2
+  exit 1
+fi
+
+echo "  Node: $(node --version)"
+echo "  npm:  $(npm --version)"
+npm ci
+npm run build
+
+if [ ! -f "$APP_DIR/wwwroot/vite/trip-editor/.vite/manifest.json" ]; then
+  echo "✖ Error: Trip Editor Vite manifest was not generated." >&2
+  echo "  Expected: $APP_DIR/wwwroot/vite/trip-editor/.vite/manifest.json" >&2
+  exit 1
+fi
+
 # Step 5: Build and publish
 echo "[5/8] Building project to $OUT_DIR..."
 export DOTNET_ENVIRONMENT

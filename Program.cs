@@ -847,15 +847,15 @@ static async Task ConfigureMiddleware(WebApplication app)
         }
     });
 
-    // Define the default route for controllers
+    app.MapControllerRoute("trip-editor-workspace", "User/Trip/Workspace/{id:guid}", new { area = "User", controller = "TripWorkspace", action = "Workspace" });
+
     app.MapControllerRoute(
             "default",
             "{controller=Home}/{action=Index}/{id?}")
         .WithStaticAssets(); // Enable static assets on the controller route
 
     // Map Razor Pages
-    app.MapRazorPages()
-        .WithStaticAssets();
+    app.MapRazorPages().WithStaticAssets();
 }
 
 #region Area Configuration
