@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { EditorArea, EditorPlace, EditorRegion, EditorSegment, EditorTripState } from '../types';
+import type { EditorMutationResult, EditorSegment, EditorTripState } from '../types';
 import MetadataEditor from './MetadataEditor.vue';
+import RegionManager from './RegionManager.vue';
 
 defineProps<{
   state: EditorTripState;
@@ -11,24 +12,11 @@ defineProps<{
 
 const emit = defineEmits<{
   metadataSaved: [metadata: EditorTripState['metadata']];
+  mutationApplied: [result: EditorMutationResult<unknown>];
 }>();
-
-const orderedRegions = (state: EditorTripState): EditorRegion[] =>
-  state.regionOrder
-    .map(id => state.regionsById[id])
-    .filter(region => region && (!region.isShadow || hasRegionChildren(state, region))) as EditorRegion[];
-
-const orderedPlaces = (state: EditorTripState, regionId: string): EditorPlace[] =>
-  (state.placeOrderByRegionId[regionId] ?? []).map(id => state.placesById[id]).filter(Boolean) as EditorPlace[];
-
-const orderedAreas = (state: EditorTripState, regionId: string): EditorArea[] =>
-  (state.areaOrderByRegionId[regionId] ?? []).map(id => state.areasById[id]).filter(Boolean) as EditorArea[];
 
 const orderedSegments = (state: EditorTripState): EditorSegment[] =>
   state.segmentOrder.map(id => state.segmentsById[id]).filter(Boolean) as EditorSegment[];
-
-const hasRegionChildren = (state: EditorTripState, region: EditorRegion): boolean =>
-  (state.placeOrderByRegionId[region.id]?.length ?? 0) > 0 || (state.areaOrderByRegionId[region.id]?.length ?? 0) > 0;
 
 const segmentLabel = (state: EditorTripState, segment: EditorSegment): string => {
   const from = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;
@@ -73,22 +61,12 @@ const segmentLabel = (state: EditorTripState, segment: EditorSegment): string =>
       </div>
     </section>
 
-    <section class="trip-editor-panel">
-      <h2>Regions & Places</h2>
-      <article v-for="region in orderedRegions(state)" :key="region.id" class="trip-editor-region">
-        <h3>{{ region.name }}</h3>
-        <ul>
-          <li v-for="place in orderedPlaces(state, region.id)" :key="place.id">
-            <span>{{ place.name }}</span>
-            <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
-          </li>
-          <li v-for="area in orderedAreas(state, region.id)" :key="area.id">
-            <span>{{ area.name }}</span>
-            <small>Area</small>
-          </li>
-        </ul>
-      </article>
-    </section>
+    <RegionManager
+      :state="state"
+      :editor-endpoint="editorEndpoint"
+      :antiforgery-token="antiforgeryToken"
+      @mutation-applied="result => emit('mutationApplied', result)"
+    />
 
     <section v-if="state.segmentOrder.length > 0" class="trip-editor-panel">
       <h2>Segments</h2>

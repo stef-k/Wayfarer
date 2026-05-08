@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import TripSidebar from './components/TripSidebar.vue';
 import { createTripEditorMap } from './map/leafletAdapter';
-import type { BootstrapConfig, EditorTripMetadata, EditorTripState } from './types';
+import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
@@ -43,6 +43,83 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
   state.value = { ...state.value, metadata };
   mapAdapter?.render(state.value);
 };
+
+/// Applies mutation affected slices and authoritative deleted IDs to normalized editor state.
+const applyMutation = (result: EditorMutationResult<unknown>): void => {
+  if (!state.value) {
+    return;
+  }
+
+  const next: EditorTripState = {
+    ...state.value,
+    metadata: result.affected.metadata ?? state.value.metadata,
+    regionsById: { ...state.value.regionsById },
+    regionOrder: result.affected.regionOrder ?? [...state.value.regionOrder],
+    placesById: { ...state.value.placesById },
+    placeOrderByRegionId: { ...state.value.placeOrderByRegionId },
+    areasById: { ...state.value.areasById },
+    areaOrderByRegionId: { ...state.value.areaOrderByRegionId },
+    segmentsById: { ...state.value.segmentsById },
+    segmentOrder: result.affected.segmentOrder ?? [...state.value.segmentOrder],
+    tagsBySlug: { ...state.value.tagsBySlug },
+    tagOrder: result.affected.tagOrder ?? [...state.value.tagOrder],
+    visitProgress: result.affected.visitProgress ?? state.value.visitProgress,
+    options: result.affected.options ?? state.value.options
+  };
+
+  result.deletedIds.regions.forEach(id => {
+    delete next.regionsById[id];
+    delete next.placeOrderByRegionId[id];
+    delete next.areaOrderByRegionId[id];
+  });
+  result.deletedIds.places.forEach(id => {
+    delete next.placesById[id];
+  });
+  result.deletedIds.areas.forEach(id => {
+    delete next.areasById[id];
+  });
+  result.deletedIds.segments.forEach(id => {
+    delete next.segmentsById[id];
+  });
+  result.deletedIds.tags.forEach(slug => {
+    delete next.tagsBySlug[slug];
+  });
+
+  result.affected.regions.forEach(region => {
+    next.regionsById[region.id] = region;
+  });
+  result.affected.places.forEach(place => {
+    next.placesById[place.id] = place;
+  });
+  result.affected.areas.forEach(area => {
+    next.areasById[area.id] = area;
+  });
+  result.affected.segments.forEach(segment => {
+    next.segmentsById[segment.id] = segment;
+  });
+  result.affected.tags.forEach(tag => {
+    next.tagsBySlug[tag.slug] = tag;
+  });
+  Object.entries(result.affected.placeOrdersByRegionId).forEach(([regionId, order]) => {
+    next.placeOrderByRegionId[regionId] = order;
+  });
+  Object.entries(result.affected.areaOrdersByRegionId).forEach(([regionId, order]) => {
+    next.areaOrderByRegionId[regionId] = order;
+  });
+
+  next.regionOrder = next.regionOrder.filter(id => next.regionsById[id]);
+  next.segmentOrder = next.segmentOrder.filter(id => next.segmentsById[id]);
+  next.tagOrder = next.tagOrder.filter(slug => next.tagsBySlug[slug]);
+  Object.keys(next.placeOrderByRegionId).forEach(regionId => {
+    next.placeOrderByRegionId[regionId] = next.placeOrderByRegionId[regionId].filter(id => next.placesById[id]);
+  });
+  Object.keys(next.areaOrderByRegionId).forEach(regionId => {
+    next.areaOrderByRegionId[regionId] = next.areaOrderByRegionId[regionId].filter(id => next.areasById[id]);
+  });
+
+  state.value = next;
+  mapAdapter?.render(next);
+};
 </script>
 
 <template>
@@ -64,6 +141,7 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
         @metadata-saved="applyMetadata"
+        @mutation-applied="applyMutation"
       />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">

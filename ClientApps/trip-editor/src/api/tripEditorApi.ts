@@ -1,5 +1,9 @@
 import type {
   EditorMutationResult,
+  EditorRegion,
+  EditorRegionOrderRequest,
+  EditorRegionOrderResult,
+  EditorRegionSaveRequest,
   EditorTripMetadata,
   EditorTripMetadataUpdateRequest,
   EditorTripState,
@@ -54,4 +58,67 @@ export const patchMetadata = async (
   }
 
   return (await response.json()) as EditorMutationResult<EditorTripMetadata>;
+};
+
+/// Creates a region through the same-origin editor API.
+export const createRegion = async (
+  endpoint: string,
+  antiforgeryToken: string,
+  request: EditorRegionSaveRequest
+): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions`, 'POST', antiforgeryToken, request, 'region create');
+
+/// Updates a region through the same-origin editor API.
+export const updateRegion = async (
+  endpoint: string,
+  regionId: string,
+  antiforgeryToken: string,
+  request: EditorRegionSaveRequest
+): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/${regionId}`, 'PUT', antiforgeryToken, request, 'region update');
+
+/// Deletes a region through the same-origin editor API.
+export const deleteRegion = async (
+  endpoint: string,
+  regionId: string,
+  antiforgeryToken: string
+): Promise<EditorMutationResult<EditorRegion | null>> => sendMutation(`${endpoint}/regions/${regionId}`, 'DELETE', antiforgeryToken, null, 'region delete');
+
+/// Persists the complete normal-region order through the same-origin editor API.
+export const orderRegions = async (
+  endpoint: string,
+  antiforgeryToken: string,
+  request: EditorRegionOrderRequest
+): Promise<EditorMutationResult<EditorRegionOrderResult>> => sendMutation(`${endpoint}/regions/order`, 'PUT', antiforgeryToken, request, 'region order');
+
+const sendMutation = async <TData>(
+  url: string,
+  method: string,
+  antiforgeryToken: string,
+  request: unknown,
+  label: string
+): Promise<EditorMutationResult<TData>> => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    RequestVerificationToken: antiforgeryToken
+  };
+  const init: RequestInit = {
+    method,
+    headers,
+    credentials: 'same-origin'
+  };
+
+  if (request !== null) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(request);
+  }
+
+  const response = await fetch(url, init);
+  if (response.status === 400) {
+    throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Trip Editor ${label} returned ${response.status}`);
+  }
+
+  return (await response.json()) as EditorMutationResult<TData>;
 };

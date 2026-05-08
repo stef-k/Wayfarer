@@ -167,6 +167,21 @@ export interface EditorTripMetadataUpdateRequest {
   zoom: number | null;
 }
 
+export interface EditorRegionSaveRequest {
+  name: string;
+  notesHtml: string | null;
+  coverImage: { rawUrl: string | null } | null;
+  center: EditorCoordinate | null;
+}
+
+export interface EditorRegionOrderRequest {
+  regionIds: Guid[];
+}
+
+export interface EditorRegionOrderResult {
+  regionOrder: Guid[];
+}
+
 export interface EditorMutationResult<TData> {
   success: true;
   data: TData;

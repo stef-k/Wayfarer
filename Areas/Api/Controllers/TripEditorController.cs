@@ -262,20 +262,10 @@ public sealed class TripEditorController : ControllerBase
 
         var state = await LoadEditorStateForOwnedTrip(tripId, userId!, cancellationToken);
         var dto = state.RegionsById[region.Id];
-        var affected = new EditorAffectedSlicesDto(
-            null,
-            new[] { dto },
-            state.RegionOrder,
-            Array.Empty<EditorPlaceDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() },
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() },
-            Array.Empty<EditorSegmentDto>(),
-            null,
-            Array.Empty<EditorTagDto>(),
-            null,
-            null,
-            null);
+        var affected = new EditorAffectedSlicesDto(null, new[] { dto }, state.RegionOrder, Array.Empty<EditorPlaceDto>(),
+            new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() }, Array.Empty<EditorAreaDto>(),
+            new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() }, Array.Empty<EditorSegmentDto>(),
+            null, Array.Empty<EditorTagDto>(), null, null, null);
 
         return Ok(new EditorMutationResult<EditorRegionDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
     }
@@ -331,20 +321,9 @@ public sealed class TripEditorController : ControllerBase
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var dto = EditorTripStateMapper.ToRegion(region);
-        var affected = new EditorAffectedSlicesDto(
-            null,
-            new[] { dto },
-            null,
-            Array.Empty<EditorPlaceDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorSegmentDto>(),
-            null,
-            Array.Empty<EditorTagDto>(),
-            null,
-            null,
-            null);
+        var affected = new EditorAffectedSlicesDto(null, new[] { dto }, null, Array.Empty<EditorPlaceDto>(),
+            new Dictionary<Guid, IReadOnlyList<Guid>>(), Array.Empty<EditorAreaDto>(), new Dictionary<Guid, IReadOnlyList<Guid>>(),
+            Array.Empty<EditorSegmentDto>(), null, Array.Empty<EditorTagDto>(), null, null, null);
 
         return Ok(new EditorMutationResult<EditorRegionDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
     }
@@ -404,20 +383,9 @@ public sealed class TripEditorController : ControllerBase
         await NormalizeSegmentOrders(tripId, userId!, cancellationToken);
 
         var state = await LoadEditorStateForOwnedTrip(tripId, userId!, cancellationToken);
-        var affected = new EditorAffectedSlicesDto(
-            null,
-            Array.Empty<EditorRegionDto>(),
-            state.RegionOrder,
-            Array.Empty<EditorPlaceDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorSegmentDto>(),
-            state.SegmentOrder,
-            Array.Empty<EditorTagDto>(),
-            null,
-            state.VisitProgress,
-            null);
+        var affected = new EditorAffectedSlicesDto(null, Array.Empty<EditorRegionDto>(), state.RegionOrder, Array.Empty<EditorPlaceDto>(),
+            new Dictionary<Guid, IReadOnlyList<Guid>>(), Array.Empty<EditorAreaDto>(), new Dictionary<Guid, IReadOnlyList<Guid>>(),
+            Array.Empty<EditorSegmentDto>(), state.SegmentOrder, Array.Empty<EditorTagDto>(), null, state.VisitProgress, null);
         var deletedIds = new EditorDeletedIdsDto(
             new[] { regionId },
             deletedPlaceIds,
@@ -493,20 +461,9 @@ public sealed class TripEditorController : ControllerBase
 
         var state = await LoadEditorStateForOwnedTrip(tripId, userId!, cancellationToken);
         var updatedRegions = orderRequest.RegionIds.Select(id => state.RegionsById[id]).ToList();
-        var affected = new EditorAffectedSlicesDto(
-            null,
-            updatedRegions,
-            state.RegionOrder,
-            Array.Empty<EditorPlaceDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorSegmentDto>(),
-            null,
-            Array.Empty<EditorTagDto>(),
-            null,
-            null,
-            null);
+        var affected = new EditorAffectedSlicesDto(null, updatedRegions, state.RegionOrder, Array.Empty<EditorPlaceDto>(),
+            new Dictionary<Guid, IReadOnlyList<Guid>>(), Array.Empty<EditorAreaDto>(), new Dictionary<Guid, IReadOnlyList<Guid>>(),
+            Array.Empty<EditorSegmentDto>(), null, Array.Empty<EditorTagDto>(), null, null, null);
         var data = new EditorRegionOrderResult(state.RegionOrder);
 
         return Ok(new EditorMutationResult<EditorRegionOrderResult>(true, data, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
