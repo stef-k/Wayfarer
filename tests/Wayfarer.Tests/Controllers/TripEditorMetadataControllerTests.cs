@@ -538,4 +538,3 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         return trip;
     }
 }
-
