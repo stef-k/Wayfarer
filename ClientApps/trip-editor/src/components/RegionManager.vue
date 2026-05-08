@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { createRegion, deleteRegion, orderRegions, updateRegion } from '../api/tripEditorApi';
 import { EditorValidationError } from '../api/tripEditorApi';
+import { confirm } from '../composables/useConfirmDialog';
 import type { EditorArea, EditorMutationResult, EditorPlace, EditorRegion, EditorRegionSaveRequest, EditorTripState } from '../types';
 
 declare global {
@@ -103,8 +104,8 @@ onUnmounted(() => {
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
-const openCreate = (): void => {
-  if (!confirmDiscard()) {
+const openCreate = async (): Promise<void> => {
+  if (!(await confirmDiscard())) {
     return;
   }
 
@@ -113,8 +114,8 @@ const openCreate = (): void => {
   resetFeedback();
 };
 
-const openEdit = (region: EditorRegion): void => {
-  if (!region.capabilities.canEdit || !confirmDiscard()) {
+const openEdit = async (region: EditorRegion): Promise<void> => {
+  if (!region.capabilities.canEdit || !(await confirmDiscard())) {
     return;
   }
 
@@ -127,8 +128,8 @@ const resetDraft = (): void => {
   resetFeedback();
 };
 
-const cancelDraft = (): void => {
-  if (!confirmDiscard()) {
+const cancelDraft = async (): Promise<void> => {
+  if (!(await confirmDiscard())) {
     return;
   }
 
@@ -160,11 +161,17 @@ const deleteDraftRegion = async (): Promise<void> => {
     return;
   }
 
-  if (!confirmDiscard('Discard unsaved region draft changes before deleting?')) {
+  if (!(await confirmDiscard('Discard unsaved region draft changes before deleting?'))) {
     return;
   }
 
-  if (!window.confirm('Delete this region, its child places and areas, and any segments connected to deleted places?')) {
+  if (!(await confirm({
+    title: 'Delete region?',
+    message: 'Delete this region, its child places and areas, and any segments connected to deleted places?',
+    confirmLabel: 'Delete',
+    cancelLabel: 'Keep region',
+    variant: 'danger'
+  }))) {
     return;
   }
 
@@ -198,7 +205,7 @@ const onSortEnd = async (): Promise<void> => {
     return;
   }
 
-  if (isDirty.value && !window.confirm('Discard unsaved region draft changes before reordering?')) {
+  if (isDirty.value && !(await confirmDiscard('Discard unsaved region draft changes before reordering?'))) {
     await restoreRegionOrder(previousIds);
     return;
   }
@@ -298,8 +305,18 @@ function draftText(value: string | number): string {
   return String(value ?? '').trim();
 }
 
-function confirmDiscard(message = 'Discard unsaved region changes?'): boolean {
-  return !isDirty.value || window.confirm(message);
+function confirmDiscard(message = 'Discard unsaved region changes?'): Promise<boolean> {
+  if (!isDirty.value) {
+    return Promise.resolve(true);
+  }
+
+  return confirm({
+    title: 'Discard region changes?',
+    message,
+    confirmLabel: 'Discard',
+    cancelLabel: 'Keep editing',
+    variant: 'warning'
+  });
 }
 
 function resetFeedback(): void {

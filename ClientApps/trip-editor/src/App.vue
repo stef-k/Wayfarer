@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
+import ConfirmDialog from './components/ConfirmDialog.vue';
 import TripSidebar from './components/TripSidebar.vue';
+import { setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { createTripEditorMap } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
@@ -11,6 +13,7 @@ const state = ref<EditorTripState | null>(null);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
 const hasRegionDraftChanges = ref(false);
+const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 
@@ -19,6 +22,8 @@ const updatedLabel = computed(() =>
 );
 
 onMounted(async () => {
+  setConfirmDialogFocusFallback(workspaceElement.value);
+
   try {
     state.value = await loadEditorState(props.config.editorEndpoint);
     if (mapElement.value) {
@@ -33,6 +38,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  setConfirmDialogFocusFallback(null);
   mapAdapter?.dispose();
 });
 
@@ -129,7 +135,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
 </script>
 
 <template>
-  <div class="trip-editor-workspace">
+  <div ref="workspaceElement" class="trip-editor-workspace" tabindex="-1">
     <div v-if="isLoading" class="trip-editor-state trip-editor-state--loading">
       <div class="spinner-border" role="status" aria-label="Loading"></div>
       <span>Loading trip editor workspace...</span>
@@ -162,5 +168,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
         <div ref="mapElement" class="trip-editor-map" aria-label="Read-only trip map"></div>
       </main>
     </template>
+
+    <ConfirmDialog />
   </div>
 </template>
