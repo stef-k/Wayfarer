@@ -8,6 +8,14 @@ namespace Wayfarer.Models.Dtos.Editor;
 /// </summary>
 internal static class EditorTripMetadataUpdateRequestParser
 {
+    private static readonly string[] ServerOwnedFields =
+    {
+        "shareProgressEnabled",
+        "publicUrl",
+        "progressPublicUrl",
+        "updatedAt"
+    };
+
     private static readonly Regex DataImageSourceRegex = new(
         @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -25,9 +33,11 @@ internal static class EditorTripMetadataUpdateRequestParser
 
         if (request.ValueKind != JsonValueKind.Object)
         {
-            errors[""] = new[] { "Metadata update request must be a JSON object." };
+            errors["request"] = new[] { "Metadata update request must be a JSON object." };
             return false;
         }
+
+        RejectServerOwnedFields(request, errors);
 
         var name = ReadRequiredString(request, "name", errors);
         var notesHtml = ReadRequiredNullableString(request, "notesHtml", errors);
@@ -47,6 +57,17 @@ internal static class EditorTripMetadataUpdateRequestParser
 
         update = new EditorTripMetadataUpdateRequest(name!, notesHtml, isPublic!.Value, coverImage, center, zoom);
         return true;
+    }
+
+    private static void RejectServerOwnedFields(JsonElement request, Dictionary<string, string[]> errors)
+    {
+        foreach (var field in ServerOwnedFields)
+        {
+            if (request.TryGetProperty(field, out _))
+            {
+                errors[field] = new[] { "The field is server-owned and cannot be updated." };
+            }
+        }
     }
 
     private static string? ReadRequiredString(JsonElement request, string name, Dictionary<string, string[]> errors)

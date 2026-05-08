@@ -30,6 +30,7 @@ const lastSavedAt = ref<string | null>(null);
 const saveError = ref<string | null>(null);
 const validationErrors = ref<Record<string, string[]>>({});
 const warnings = ref<EditorWarning[]>([]);
+const savedExitInProgress = ref(false);
 
 const persistedDraft = computed(() => toDraft(props.metadata));
 const isDirty = computed(() => JSON.stringify(normalizeDraft(draft)) !== JSON.stringify(normalizeDraft(persistedDraft.value)));
@@ -76,6 +77,7 @@ const resetDraft = (): void => {
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   isSaving.value = true;
+  savedExitInProgress.value = false;
   saveError.value = null;
   validationErrors.value = {};
   warnings.value = [];
@@ -84,6 +86,10 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, buildRequest(draft));
     const metadata = result.affected.metadata ?? result.data;
     warnings.value = result.warnings;
+    if (exitAfterSave) {
+      savedExitInProgress.value = true;
+    }
+
     emit('saved', metadata);
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     if (exitAfterSave) {
@@ -108,6 +114,10 @@ const backToTrips = (): void => {
 };
 
 function confirmUnload(event: BeforeUnloadEvent): void {
+  if (savedExitInProgress.value) {
+    return;
+  }
+
   if (!isDirty.value) {
     return;
   }

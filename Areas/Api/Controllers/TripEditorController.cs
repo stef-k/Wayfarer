@@ -120,7 +120,7 @@ public sealed class TripEditorController : ControllerBase
     /// </summary>
     [HttpPatch("metadata")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> PatchMetadata(Guid tripId, [FromBody] JsonElement request, CancellationToken cancellationToken)
+    public async Task<IActionResult> PatchMetadata(Guid tripId, CancellationToken cancellationToken)
     {
         var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId) || User?.Identity?.IsAuthenticated != true)
@@ -138,6 +138,20 @@ public sealed class TripEditorController : ControllerBase
         if (trip == null)
         {
             return NotFound();
+        }
+
+        JsonElement request;
+        try
+        {
+            using var document = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken);
+            request = document.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return ValidationError(new Dictionary<string, string[]>
+            {
+                ["request"] = new[] { "Metadata update request must be valid JSON." }
+            });
         }
 
         if (!EditorTripMetadataUpdateRequestParser.TryParse(request, out var update, out var errors))

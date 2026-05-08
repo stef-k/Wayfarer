@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -29,7 +30,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db, thumbnailMock, warmupMock);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, Json("""
+        var result = await PatchMetadata(controller, trip.Id, Json("""
             {
               "name": " Updated Trip ",
               "notesHtml": "<p>Hello <img src=\"https://cdn.example.test/a.jpg\"></p>",
@@ -68,7 +69,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var trip = SeedTrip(db, "owner-user");
         var controller = BuildController(db);
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(), CancellationToken.None);
 
         Assert.IsType<UnauthorizedResult>(result);
     }
@@ -81,7 +82,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user", "Manager");
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(), CancellationToken.None);
 
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
@@ -95,8 +96,8 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "other-user");
 
-        var nonOwner = await controller.PatchMetadata(trip.Id, ValidMetadataJson(), CancellationToken.None);
-        var missing = await controller.PatchMetadata(Guid.NewGuid(), ValidMetadataJson(), CancellationToken.None);
+        var nonOwner = await PatchMetadata(controller, trip.Id, ValidMetadataJson(), CancellationToken.None);
+        var missing = await PatchMetadata(controller, Guid.NewGuid(), ValidMetadataJson(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(nonOwner);
         Assert.IsType<NotFoundResult>(missing);
@@ -112,7 +113,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(Guid.NewGuid(), IncompleteMetadataJson(), CancellationToken.None);
+        var result = await PatchMetadata(controller, Guid.NewGuid(), IncompleteMetadataJson(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -128,9 +129,49 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "other-user");
 
-        var result = await controller.PatchMetadata(trip.Id, IncompleteMetadataJson(), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, IncompleteMetadataJson(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    /// <summary>
+    /// Verifies missing and non-owned trips are hidden before body JSON parsing runs.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("{")]
+    public async Task PatchMetadataForMissingOrNonOwnedTripWithInvalidBodyReturnsNotFound(string requestBody)
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "other-user");
+
+        var nonOwner = await PatchMetadata(controller, trip.Id, requestBody, CancellationToken.None);
+        var missing = await PatchMetadata(controller, Guid.NewGuid(), requestBody, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(nonOwner);
+        Assert.IsType<NotFoundResult>(missing);
+    }
+
+    /// <summary>
+    /// Verifies owned trips return stable request-keyed validation errors for invalid bodies.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("{")]
+    [InlineData("[]")]
+    public async Task PatchMetadataForOwnedTripWithInvalidBodyReturnsRequestValidationProblem(string requestBody)
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await PatchMetadata(controller, trip.Id, requestBody, CancellationToken.None);
+
+        var problem = AssertValidationProblem(result);
+        Assert.Contains("request", problem.Errors.Keys);
     }
 
     /// <summary>
@@ -144,7 +185,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, Json("""{ "name": "Only name" }"""), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, Json("""{ "name": "Only name" }"""), CancellationToken.None);
 
         var problem = AssertValidationProblem(result);
         Assert.Contains("notesHtml", problem.Errors.Keys);
@@ -162,7 +203,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(notesHtml: "null"), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(notesHtml: "null"), CancellationToken.None);
 
         var envelope = AssertMutation(result);
         Assert.Equal(string.Empty, envelope.Data.NotesHtml);
@@ -182,7 +223,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(coverImage: coverImageJson), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(coverImage: coverImageJson), CancellationToken.None);
 
         var envelope = AssertMutation(result);
         Assert.Null(envelope.Data.CoverImage);
@@ -201,7 +242,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(center: "null", zoom: "null"), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(center: "null", zoom: "null"), CancellationToken.None);
 
         var envelope = AssertMutation(result);
         var stored = db.Trips.Single(t => t.Id == trip.Id);
@@ -222,7 +263,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(isPublic: "false"), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(isPublic: "false"), CancellationToken.None);
 
         var envelope = AssertMutation(result);
         Assert.False(envelope.Data.IsPublic);
@@ -246,7 +287,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, Json("""
+        var result = await PatchMetadata(controller, trip.Id, Json("""
             {
               "name": " ",
               "notesHtml": "<p><img src=\"data:image/png;base64,abc\"></p>",
@@ -266,6 +307,62 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         Assert.Contains("zoom", problem.Errors.Keys);
     }
 
+    /// <summary>
+    /// Verifies server-owned top-level fields are rejected and cannot change persisted metadata.
+    /// </summary>
+    [Theory]
+    [InlineData("shareProgressEnabled", "false")]
+    [InlineData("publicUrl", "\"https://attacker.example.test/trip\"")]
+    [InlineData("progressPublicUrl", "\"https://attacker.example.test/progress\"")]
+    [InlineData("updatedAt", "\"2030-01-01T00:00:00Z\"")]
+    public async Task PatchMetadataRejectsServerOwnedField(string fieldName, string fieldValue)
+    {
+        using var db = CreateDbContext();
+        var oldTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var trip = SeedTrip(db, "owner-user", isPublic: true, shareProgressEnabled: true);
+        trip.UpdatedAt = oldTime;
+        db.SaveChanges();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataBody($"""
+          "{fieldName}": {fieldValue}
+        """), CancellationToken.None);
+
+        var problem = AssertValidationProblem(result);
+        Assert.Contains(fieldName, problem.Errors.Keys);
+        var stored = db.Trips.Single(t => t.Id == trip.Id);
+        Assert.Equal("Test Trip", stored.Name);
+        Assert.True(stored.IsPublic);
+        Assert.True(stored.ShareProgressEnabled);
+        Assert.Equal(oldTime, stored.UpdatedAt);
+    }
+
+    /// <summary>
+    /// Verifies multiple server-owned fields produce deterministic field-keyed errors together.
+    /// </summary>
+    [Fact]
+    public async Task PatchMetadataRejectsMultipleServerOwnedFields()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataBody("""
+          "shareProgressEnabled": true,
+          "publicUrl": "https://attacker.example.test/trip",
+          "progressPublicUrl": "https://attacker.example.test/progress",
+          "updatedAt": "2030-01-01T00:00:00Z"
+        """), CancellationToken.None);
+
+        var problem = AssertValidationProblem(result);
+        Assert.Contains("shareProgressEnabled", problem.Errors.Keys);
+        Assert.Contains("publicUrl", problem.Errors.Keys);
+        Assert.Contains("progressPublicUrl", problem.Errors.Keys);
+        Assert.Contains("updatedAt", problem.Errors.Keys);
+    }
+
     [Fact]
     public async Task PatchMetadataUpdatesUpdatedAt()
     {
@@ -277,7 +374,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.PatchMetadata(trip.Id, ValidMetadataJson(), CancellationToken.None);
+        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(), CancellationToken.None);
 
         var envelope = AssertMutation(result);
         Assert.True(envelope.Data.UpdatedAt > oldTime);
@@ -295,7 +392,8 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var controller = BuildController(db, warmupMock: warmupMock);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        await controller.PatchMetadata(
+        await PatchMetadata(
+            controller,
             trip.Id,
             ValidMetadataJson(coverImage: """{ "rawUrl": "https://cdn.example.test/existing.jpg" }"""),
             CancellationToken.None);
@@ -339,6 +437,30 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         return controller;
     }
 
+    private static async Task<IActionResult> PatchMetadata(
+        TripEditorController controller,
+        Guid tripId,
+        JsonElement request,
+        CancellationToken cancellationToken) =>
+        await PatchMetadata(controller, tripId, request.GetRawText(), cancellationToken);
+
+    private static async Task<IActionResult> PatchMetadata(
+        TripEditorController controller,
+        Guid tripId,
+        string requestBody,
+        CancellationToken cancellationToken)
+    {
+        var httpContext = controller.ControllerContext.HttpContext ?? new DefaultHttpContext();
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+
+        var body = Encoding.UTF8.GetBytes(requestBody);
+        httpContext.Request.Body = new MemoryStream(body);
+        httpContext.Request.ContentLength = body.Length;
+        httpContext.Request.ContentType = "application/json";
+
+        return await controller.PatchMetadata(tripId, cancellationToken);
+    }
+
     private static IWebHostEnvironment BuildEnvironment()
     {
         var mock = new Mock<IWebHostEnvironment>();
@@ -347,6 +469,19 @@ public sealed class TripEditorMetadataControllerTests : TestBase
     }
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+    private static string ValidMetadataBody(string extraTopLevelFields) =>
+        $$"""
+        {
+          "name": "Attempted Change",
+          "notesHtml": "<p>Changed</p>",
+          "isPublic": false,
+          "coverImage": { "rawUrl": "https://cdn.example.test/changed.jpg" },
+          "center": { "latitude": 10, "longitude": 20 },
+          "zoom": 9,
+        {{extraTopLevelFields}}
+        }
+        """;
 
     private static JsonElement ValidMetadataJson(
         string name = "\"New Trip\"",
@@ -403,3 +538,4 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         return trip;
     }
 }
+
