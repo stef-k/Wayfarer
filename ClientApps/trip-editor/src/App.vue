@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import TripSidebar from './components/TripSidebar.vue';
 import { createTripEditorMap } from './map/leafletAdapter';
-import type { BootstrapConfig, EditorTripState } from './types';
+import type { BootstrapConfig, EditorTripMetadata, EditorTripState } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
@@ -34,6 +34,15 @@ onMounted(async () => {
 onUnmounted(() => {
   mapAdapter?.dispose();
 });
+
+const applyMetadata = (metadata: EditorTripMetadata): void => {
+  if (!state.value) {
+    return;
+  }
+
+  state.value = { ...state.value, metadata };
+  mapAdapter?.render(state.value);
+};
 </script>
 
 <template>
@@ -49,7 +58,13 @@ onUnmounted(() => {
     </div>
 
     <template v-else-if="state">
-      <TripSidebar :state="state" />
+      <TripSidebar
+        :state="state"
+        :editor-endpoint="props.config.editorEndpoint"
+        :antiforgery-token="props.config.antiforgeryToken"
+        :trip-index-url="props.config.tripIndexUrl"
+        @metadata-saved="applyMetadata"
+      />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">
           <div>

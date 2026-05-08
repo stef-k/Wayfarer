@@ -57,6 +57,7 @@ public sealed class TripWorkspaceController : Controller
             TripId = trip.Id,
             TripName = trip.Name,
             EditorEndpointUrl = $"/api/trips/{trip.Id}/editor",
+            TripIndexUrl = Url.Action("Index", "Trip", new { area = "User" }) ?? "/User/Trip/Index",
             TilesUrl = "/Public/tiles/{z}/{x}/{y}.png"
         });
     }

@@ -14,6 +14,7 @@ const config: BootstrapConfig = {
   tripId: mountElement.dataset.tripId ?? '',
   tripName: mountElement.dataset.tripName ?? '',
   editorEndpoint: mountElement.dataset.editorEndpoint ?? '',
+  tripIndexUrl: mountElement.dataset.tripIndexUrl ?? '/User/Trip/Index',
   tilesUrl: mountElement.dataset.tilesUrl ?? '/Public/tiles/{z}/{x}/{y}.png',
   antiforgeryToken: tokenInput?.value ?? ''
 };
