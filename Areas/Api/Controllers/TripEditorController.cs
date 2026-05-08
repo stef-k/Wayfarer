@@ -133,15 +133,16 @@ public sealed class TripEditorController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        if (!EditorTripMetadataUpdateRequestParser.TryParse(request, out var update, out var errors))
-        {
-            return ValidationError(errors);
-        }
-
+        // Ownership is checked before request parsing so missing or non-owned trips stay hidden.
         var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
         if (trip == null)
         {
             return NotFound();
+        }
+
+        if (!EditorTripMetadataUpdateRequestParser.TryParse(request, out var update, out var errors))
+        {
+            return ValidationError(errors);
         }
 
         var beforeExternalImages = BuildTripExternalImageSet(trip.CoverImageUrl, trip.Notes);

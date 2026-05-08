@@ -69,6 +69,16 @@
     {
         <script type="module" src="http://localhost:5173/@@vite/client"></script>
         <script type="module" src="http://localhost:5173/ClientApps/trip-editor/src/main.ts"></script>
+        <script>
+            // Development-only hint when the Vite server on port 5173 is not running.
+            setTimeout(() => {
+                const app = document.getElementById('trip-editor-app');
+                if (app?.querySelector('.trip-editor-shell-loading')) {
+                    app.innerHTML =
+                        '<div class="alert alert-danger m-3">Trip Editor development server is not available. Run npm run dev.</div>';
+                }
+            }, 4000);
+        </script>
     }
     else if (!string.IsNullOrWhiteSpace(manifest.Script))
     {

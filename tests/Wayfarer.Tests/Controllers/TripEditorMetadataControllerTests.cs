@@ -102,6 +102,40 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         Assert.IsType<NotFoundResult>(missing);
     }
 
+    /// <summary>
+    /// Verifies missing trips are hidden before complete-draft validation runs.
+    /// </summary>
+    [Fact]
+    public async Task PatchMetadataForMissingTripWithIncompleteDraftReturnsNotFound()
+    {
+        using var db = CreateDbContext();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.PatchMetadata(Guid.NewGuid(), IncompleteMetadataJson(), CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    /// <summary>
+    /// Verifies non-owned trips are hidden before complete-draft validation runs.
+    /// </summary>
+    [Fact]
+    public async Task PatchMetadataForNonOwnedTripWithIncompleteDraftReturnsNotFound()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "other-user");
+
+        var result = await controller.PatchMetadata(trip.Id, IncompleteMetadataJson(), CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    /// <summary>
+    /// Verifies owned trips still validate complete metadata drafts after ownership is confirmed.
+    /// </summary>
     [Fact]
     public async Task PatchMetadataRequiresCompleteDraftTopLevelFields()
     {
@@ -331,6 +365,8 @@ public sealed class TripEditorMetadataControllerTests : TestBase
           "zoom": {{zoom}}
         }
         """);
+
+    private static JsonElement IncompleteMetadataJson() => Json("""{ "name": "Only name" }""");
 
     private static EditorMutationResult<EditorTripMetadataDto> AssertMutation(IActionResult result)
     {

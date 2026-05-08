@@ -89,6 +89,16 @@ dotnet ef database update   # apply Postgres/PostGIS migrations
 dotnet run                  # launch locally (reads appsettings.Development.json)
 ```
 
+For Vue Trip Editor workspace development, run the ASP.NET Core app and the Vite
+dev server side-by-side:
+
+```bash
+npm run dev
+```
+
+Production and deployment builds still use `npm ci` and `npm run build` to emit
+static Trip Editor assets served by ASP.NET Core.
+
 1. Sign in with the seeded `admin` / `Admin1!` account and change the password.
 
 > **Warning**
