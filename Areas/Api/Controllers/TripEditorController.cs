@@ -1,9 +1,11 @@
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -17,14 +19,19 @@ public sealed class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
+    private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the Trip Editor API controller.
     /// </summary>
-    public TripEditorController(ApplicationDbContext dbContext, IWebHostEnvironment environment)
+    public TripEditorController(
+        ApplicationDbContext dbContext,
+        IWebHostEnvironment environment,
+        ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
         _environment = environment;
+        _logger = logger;
     }
 
     /// <summary>
@@ -75,7 +82,20 @@ public sealed class TripEditorController : ControllerBase
             .GroupBy(v => v.PlaceId!.Value)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
 
-        return Ok(EditorTripStateMapper.ToEditorState(trip, visitsByPlaceId, BuildOptions()));
+        try
+        {
+            return Ok(EditorTripStateMapper.ToEditorState(
+                trip,
+                visitsByPlaceId,
+                BuildOptions(),
+                GeneratePublicTripUrl(trip.Id),
+                GenerateProgressPublicTripUrl(trip.Id)));
+        }
+        catch (EditorInvalidAreaGeometryException ex)
+        {
+            _logger.LogError(ex, "Invalid area geometry while loading editor state for Trip {TripId}, Area {AreaId}.", ex.TripId, ex.AreaId);
+            return InvalidAreaGeometryProblem(ex);
+        }
     }
 
     private EditorOptionsDto BuildOptions() =>
@@ -83,16 +103,34 @@ public sealed class TripEditorController : ControllerBase
             ReadIconNames(),
             ReadMarkerColorClasses().Backgrounds,
             ReadMarkerColorClasses().Glyphs,
-            new[]
-            {
-                new EditorTransportModeDto("walk", "Walk", 5),
-                new EditorTransportModeDto("bike", "Bike", 15),
-                new EditorTransportModeDto("drive", "Drive", 60),
-                new EditorTransportModeDto("transit", "Transit", 35)
-            },
+            SegmentTransportModes.Options,
             new EditorAreaDefaultsDto("Area", "#ff6600"),
-            new EditorTagOptionsDto(25, 10, "Letters, numbers, spaces, hyphens, and apostrophes."),
-            new EditorLimitsDto(6, 2));
+            new EditorTagOptionsDto(25, 8, "Letters, numbers, spaces, hyphens, and apostrophes."),
+            new EditorLimitsDto(6, 1));
+
+    private string? GeneratePublicTripUrl(Guid tripId) =>
+        Url.Action("View", "TripViewer", new { area = "Public", id = tripId }, Request.Scheme);
+
+    private string? GenerateProgressPublicTripUrl(Guid tripId) =>
+        Url.Action("View", "TripViewer", new { area = "Public", id = tripId, progress = 1 }, Request.Scheme);
+
+    private static ObjectResult InvalidAreaGeometryProblem(EditorInvalidAreaGeometryException exception)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status500InternalServerError,
+            Type = "https://wayfarer/errors/editor-invalid-area-geometry",
+            Title = "Invalid persisted area geometry."
+        };
+        problem.Extensions["areaId"] = exception.AreaId;
+        problem.Extensions["tripId"] = exception.TripId;
+
+        return new ObjectResult(problem)
+        {
+            StatusCode = StatusCodes.Status500InternalServerError,
+            ContentTypes = { "application/problem+json" }
+        };
+    }
 
     private IReadOnlyList<string> ReadIconNames()
     {
@@ -115,11 +153,8 @@ public sealed class TripEditorController : ControllerBase
     }
 
     private static IReadOnlyList<string> ReadClasses(string css, string prefix) =>
-        css.Split('{', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => part.Trim())
-            .Where(part => part.StartsWith(prefix, StringComparison.Ordinal))
-            .Select(part => part.Split(',', ' ', '\r', '\n', '\t').First().TrimStart('.'))
+        Regex.Matches(css, $@"\.{Regex.Escape(prefix.TrimStart('.'))}[\w-]+")
+            .Select(match => match.Value.TrimStart('.'))
             .Distinct(StringComparer.Ordinal)
-            .OrderBy(name => name)
             .ToList();
 }

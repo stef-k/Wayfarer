@@ -63,7 +63,9 @@ public sealed record EditorTripMetadataDto(
     EditorCoordinateDto? Center,
     int? Zoom,
     EditorImageReferenceDto? CoverImage,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    string? PublicUrl,
+    string? ProgressPublicUrl);
 
 /// <summary>Region DTO with explicit shadow/capability flags.</summary>
 public sealed record EditorRegionDto(
@@ -100,7 +102,7 @@ public sealed record EditorAreaDto(
     string Name,
     string NotesHtml,
     string FillHex,
-    JsonElement? Geometry,
+    JsonElement Geometry,
     int DisplayOrder,
     EditorEntityCapabilitiesDto Capabilities);
 
@@ -125,9 +127,9 @@ public sealed record EditorTagDto(Guid Id, string Name, string Slug);
 public sealed record EditorVisitProgressDto(
     int TotalPlaces,
     int VisitedPlaces,
-    int PercentVisited,
+    double PercentVisited,
     IReadOnlyDictionary<Guid, EditorPlaceVisitSummaryDto> PlaceSummariesByPlaceId,
-    IReadOnlyList<object> HistoryRows);
+    IReadOnlyList<EditorVisitHistoryRowDto> HistoryRows);
 
 /// <summary>Read-only visit summary for a single place.</summary>
 public sealed record EditorPlaceVisitSummaryDto(
@@ -136,6 +138,15 @@ public sealed record EditorPlaceVisitSummaryDto(
     bool IsVisited,
     DateTime? FirstVisitAt,
     DateTime? LastVisitAt);
+
+/// <summary>Read-only visit history row for the editor visit progress state.</summary>
+public sealed record EditorVisitHistoryRowDto(
+    Guid VisitId,
+    Guid PlaceId,
+    Guid RegionId,
+    DateTime StartedAt,
+    DateTime? EndedAt,
+    int? DurationMinutes);
 
 /// <summary>Deterministic options object for the read-only spike and future editors.</summary>
 public sealed record EditorOptionsDto(

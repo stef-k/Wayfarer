@@ -28,6 +28,8 @@ export interface EditorTripMetadata {
   zoom: number | null;
   coverImage: EditorImageReference | null;
   updatedAt: string;
+  publicUrl: string | null;
+  progressPublicUrl: string | null;
 }
 
 export interface EditorRegion {
@@ -64,7 +66,7 @@ export interface EditorArea {
   name: string;
   notesHtml: string;
   fillHex: string;
-  geometry: GeoJsonPolygon | null;
+  geometry: GeoJsonPolygon;
   displayOrder: number;
   capabilities: EditorEntityCapabilities;
 }
@@ -94,7 +96,7 @@ export interface EditorVisitProgress {
   visitedPlaces: number;
   percentVisited: number;
   placeSummariesByPlaceId: Record<Guid, EditorPlaceVisitSummary>;
-  historyRows: unknown[];
+  historyRows: EditorVisitHistoryRow[];
 }
 
 export interface EditorPlaceVisitSummary {
@@ -103,6 +105,15 @@ export interface EditorPlaceVisitSummary {
   isVisited: boolean;
   firstVisitAt: string | null;
   lastVisitAt: string | null;
+}
+
+export interface EditorVisitHistoryRow {
+  visitId: Guid;
+  placeId: Guid;
+  regionId: Guid;
+  startedAt: string;
+  endedAt: string | null;
+  durationMinutes: number | null;
 }
 
 export interface EditorOptions {
