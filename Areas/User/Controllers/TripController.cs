@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
-using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 using Wayfarer.Util;
 
@@ -180,46 +179,6 @@ namespace Wayfarer.Areas.User.Controllers
             // ModelState invalid
             SetAlert("Could not create Trip", "danger");
             return View(model);
-        }
-
-        // GET: /User/Trip/Workspace/{id}
-        /// <summary>
-        /// Shows the Vue/Vite Trip Editor workspace spike shell for an owned trip.
-        /// </summary>
-        [HttpGet]
-        public async Task<IActionResult> Workspace(Guid id)
-        {
-            SetPageTitle("Trip Editor Workspace");
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                return Forbid();
-            }
-
-            var trip = await _dbContext.Trips
-                .AsNoTracking()
-                .Where(t => t.Id == id && t.UserId == userId)
-                .Select(t => new { t.Id, t.Name })
-                .FirstOrDefaultAsync();
-
-            if (trip == null)
-            {
-                SetAlert("Trip not found.", "warning");
-                return RedirectToAction(nameof(Index));
-            }
-
-            ViewData["BodyClass"] = "container-fluid";
-            ViewData["LoadLeaflet"] = false;
-            ViewData["LoadQuill"] = false;
-
-            return View(new TripEditorWorkspaceViewModel
-            {
-                TripId = trip.Id,
-                TripName = trip.Name,
-                EditorEndpointUrl = $"/api/trips/{trip.Id}/editor",
-                TilesUrl = "/Public/tiles/{z}/{x}/{y}.png"
-            });
         }
 
         // GET: /User/Trip/Edit/{id}

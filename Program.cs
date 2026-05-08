@@ -847,7 +847,6 @@ static async Task ConfigureMiddleware(WebApplication app)
         }
     });
 
-    // Define the default route for controllers
     app.MapControllers();
 
     // Define the default route for controllers
@@ -857,8 +856,7 @@ static async Task ConfigureMiddleware(WebApplication app)
         .WithStaticAssets(); // Enable static assets on the controller route
 
     // Map Razor Pages
-    app.MapRazorPages()
-        .WithStaticAssets();
+    app.MapRazorPages().WithStaticAssets();
 }
 
 #region Area Configuration
