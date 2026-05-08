@@ -8,6 +8,7 @@ const props = defineProps<{
   editorEndpoint: string;
   antiforgeryToken: string;
   tripIndexUrl: string;
+  hasRegionDraftChanges: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -108,7 +109,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 };
 
 const backToTrips = (): void => {
-  if (!isDirty.value || window.confirm('Discard unsaved metadata changes and return to Trips?')) {
+  if (!hasUnsavedEditorChanges() || window.confirm('Discard unsaved trip editor changes and return to Trips?')) {
     window.location.assign(props.tripIndexUrl);
   }
 };
@@ -118,12 +119,17 @@ function confirmUnload(event: BeforeUnloadEvent): void {
     return;
   }
 
-  if (!isDirty.value) {
+  if (!hasUnsavedEditorChanges()) {
     return;
   }
 
   event.preventDefault();
   event.returnValue = '';
+}
+
+/// Combines metadata changes with the active region draft dirty state owned by RegionManager.
+function hasUnsavedEditorChanges(): boolean {
+  return isDirty.value || props.hasRegionDraftChanges;
 }
 
 function toDraft(metadata: EditorTripMetadata): MetadataDraft {

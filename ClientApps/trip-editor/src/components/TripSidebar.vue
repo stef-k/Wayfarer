@@ -8,11 +8,13 @@ defineProps<{
   editorEndpoint: string;
   antiforgeryToken: string;
   tripIndexUrl: string;
+  hasRegionDraftChanges: boolean;
 }>();
 
 const emit = defineEmits<{
   metadataSaved: [metadata: EditorTripState['metadata']];
   mutationApplied: [result: EditorMutationResult<unknown>];
+  regionDraftDirtyChanged: [isDirty: boolean];
 }>();
 
 const orderedSegments = (state: EditorTripState): EditorSegment[] =>
@@ -40,6 +42,7 @@ const segmentLabel = (state: EditorTripState, segment: EditorSegment): string =>
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       :trip-index-url="tripIndexUrl"
+      :has-region-draft-changes="hasRegionDraftChanges"
       @saved="metadata => emit('metadataSaved', metadata)"
     />
 
@@ -66,6 +69,7 @@ const segmentLabel = (state: EditorTripState, segment: EditorSegment): string =>
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       @mutation-applied="result => emit('mutationApplied', result)"
+      @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
     />
 
     <section v-if="state.segmentOrder.length > 0" class="trip-editor-panel">

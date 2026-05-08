@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
+  dirtyStateChanged: [isDirty: boolean];
 }>();
 
 type RegionDraft = {
@@ -33,6 +34,7 @@ type RegionDraft = {
 
 const fields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
 const regionList = ref<HTMLElement | null>(null);
+const regionListKey = ref(0);
 const draft = reactive<RegionDraft>(emptyDraft());
 const isSaving = ref(false);
 const isOrdering = ref(false);
@@ -40,6 +42,7 @@ const saveError = ref<string | null>(null);
 const validationErrors = ref<Record<string, string[]>>({});
 const lastSavedAt = ref<string | null>(null);
 let sortable: { destroy: () => void } | null = null;
+let reorderSnapshotIds: string[] | null = null;
 
 const orderedRegions = computed(() =>
   props.state.regionOrder
@@ -83,6 +86,12 @@ watch(
   }
 );
 
+watch(
+  isDirty,
+  value => emit('dirtyStateChanged', value),
+  { immediate: true }
+);
+
 onMounted(() => {
   attachSortable();
   window.addEventListener('beforeunload', confirmUnload);
@@ -90,6 +99,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   sortable?.destroy();
+  emit('dirtyStateChanged', false);
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
@@ -150,6 +160,10 @@ const deleteDraftRegion = async (): Promise<void> => {
     return;
   }
 
+  if (!confirmDiscard('Discard unsaved region draft changes before deleting?')) {
+    return;
+  }
+
   if (!window.confirm('Delete this region, its child places and areas, and any segments connected to deleted places?')) {
     return;
   }
@@ -168,20 +182,29 @@ const deleteDraftRegion = async (): Promise<void> => {
   }
 };
 
+const onSortStart = (): void => {
+  reorderSnapshotIds = [...normalRegionIds.value];
+};
+
 const onSortEnd = async (): Promise<void> => {
   if (!regionList.value) {
     return;
   }
 
+  const previousIds = reorderSnapshotIds ?? [...normalRegionIds.value];
+  reorderSnapshotIds = null;
   const ids = Array.from(regionList.value.querySelectorAll<HTMLElement>('[data-region-id][data-reorderable="true"]')).map(element => element.dataset.regionId!);
-  if (ids.join('|') === normalRegionIds.value.join('|')) {
+  if (ids.join('|') === previousIds.join('|')) {
     return;
   }
 
   if (isDirty.value && !window.confirm('Discard unsaved region draft changes before reordering?')) {
-    await nextTick();
-    attachSortable();
+    await restoreRegionOrder(previousIds);
     return;
+  }
+
+  if (isDirty.value) {
+    Object.assign(draft, emptyDraft());
   }
 
   isOrdering.value = true;
@@ -193,6 +216,7 @@ const onSortEnd = async (): Promise<void> => {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
   } catch (error) {
     applyError(error, 'Region reorder failed.');
+    await restoreRegionOrder(previousIds);
   } finally {
     isOrdering.value = false;
   }
@@ -212,8 +236,16 @@ function attachSortable(): void {
     animation: 150,
     draggable: '.trip-editor-region-card--normal',
     handle: '.trip-editor-drag-handle',
+    onStart: onSortStart,
     onEnd: onSortEnd
   });
+}
+
+/// Rebuilds the Sortable-mutated list from persisted Vue state after canceled or failed reorder.
+async function restoreRegionOrder(_previousIds: string[]): Promise<void> {
+  regionListKey.value += 1;
+  await nextTick();
+  attachSortable();
 }
 
 function orderedPlaces(regionId: string): EditorPlace[] {
@@ -266,8 +298,8 @@ function draftText(value: string | number): string {
   return String(value ?? '').trim();
 }
 
-function confirmDiscard(): boolean {
-  return !isDirty.value || window.confirm('Discard unsaved region changes?');
+function confirmDiscard(message = 'Discard unsaved region changes?'): boolean {
+  return !isDirty.value || window.confirm(message);
 }
 
 function resetFeedback(): void {
@@ -306,7 +338,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
 
-    <div ref="regionList" class="trip-editor-region-list">
+    <div :key="regionListKey" ref="regionList" class="trip-editor-region-list">
       <article
         v-for="region in orderedRegions"
         :key="region.id"

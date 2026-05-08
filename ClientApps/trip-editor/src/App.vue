@@ -10,6 +10,7 @@ const props = defineProps<{ config: BootstrapConfig }>();
 const state = ref<EditorTripState | null>(null);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
+const hasRegionDraftChanges = ref(false);
 const mapElement = ref<HTMLElement | null>(null);
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 
@@ -42,6 +43,11 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
 
   state.value = { ...state.value, metadata };
   mapAdapter?.render(state.value);
+};
+
+/// Tracks region draft changes that live inside the sidebar child component.
+const setRegionDraftChanges = (isDirty: boolean): void => {
+  hasRegionDraftChanges.value = isDirty;
 };
 
 /// Applies mutation affected slices and authoritative deleted IDs to normalized editor state.
@@ -140,8 +146,10 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
         :editor-endpoint="props.config.editorEndpoint"
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
+        :has-region-draft-changes="hasRegionDraftChanges"
         @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
+        @region-draft-dirty-changed="setRegionDraftChanges"
       />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">
