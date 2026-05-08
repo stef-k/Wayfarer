@@ -9,6 +9,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 **`install.sh`** – Interactive installer
 
 - Installs system packages (PostgreSQL + PostGIS, Nginx, runtime libs)
+- Installs or verifies Node.js/npm build tooling for server-build deployments
 - Creates DB + user and enables PostGIS/citext
 - Creates deployment directory and app user
 - Installs systemd service, Nginx vhost, Fail2ban jails
@@ -18,8 +19,8 @@ This directory contains ready-to-use configuration files and scripts for deployi
 **`deploy.sh`** – Automated deployment script
 
 - Pulls code from Git
+- Runs `npm ci` and `npm run build` for Trip Editor Vite assets before `dotnet publish`
 - Builds the application
-- Builds the Trip Editor Vite assets when deploying branches that include the Vue workspace
 - Applies database migrations
 - Deploys to the production directory
 - Handles permissions automatically
@@ -207,8 +208,11 @@ The Vue/Vite Trip Editor workspace is built into local static assets under
 `wwwroot/vite/trip-editor`. Production remains a single ASP.NET Core app; it
 does not run a Node service or SSR process.
 
-For the current server-build deployment model, the build host needs Node.js LTS
-with npm available before `dotnet publish` runs:
+For the current server-build deployment model, `install.sh` installs or verifies
+Node.js/npm on the build host. Node/npm are build-host tooling only; no Node
+runtime service is installed or configured.
+
+During deployment, `deploy.sh` runs the frontend build before `dotnet publish`:
 
 ```bash
 npm ci
@@ -217,8 +221,8 @@ dotnet publish
 ```
 
 If builds later move to CI or another artifact builder, Node/npm are required on
-that build host only. The production server can then receive the already-built
-published output.
+that build host only. The production runtime remains the ASP.NET Core app serving
+local static Vite assets, with no SSR process.
 
 ---
 
