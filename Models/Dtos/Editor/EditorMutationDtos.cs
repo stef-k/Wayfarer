@@ -17,6 +17,25 @@ public sealed record EditorTripMetadataUpdateRequest(
 public sealed record EditorImageUpdateRequest(string? RawUrl);
 
 /// <summary>
+/// Complete-draft request for creating or updating a region from the same-origin editor.
+/// </summary>
+public sealed record EditorRegionSaveRequest(
+    string Name,
+    string? NotesHtml,
+    EditorImageUpdateRequest? CoverImage,
+    EditorCoordinateDto? Center);
+
+/// <summary>
+/// Complete desired order for normal editor regions.
+/// </summary>
+public sealed record EditorRegionOrderRequest(IReadOnlyList<Guid> RegionIds);
+
+/// <summary>
+/// Region order data returned by the region order endpoint.
+/// </summary>
+public sealed record EditorRegionOrderResult(IReadOnlyList<Guid> RegionOrder);
+
+/// <summary>
 /// Standard success envelope returned by editor mutation endpoints.
 /// </summary>
 public sealed record EditorMutationResult<TData>(

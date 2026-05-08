@@ -594,8 +594,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
     builder.Services.AddSingleton<MapSnapshotService>();
+    builder.Services.AddScoped<TripEditorRegionMutationService>();
 
-    // Trip thumbnail services for public trips index
     builder.Services.AddScoped<ITripThumbnailService, TripThumbnailService>();
     builder.Services.AddSingleton<ITripMapThumbnailGenerator, TripMapThumbnailGenerator>();
 

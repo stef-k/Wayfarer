@@ -8,6 +8,7 @@ const props = defineProps<{
   editorEndpoint: string;
   antiforgeryToken: string;
   tripIndexUrl: string;
+  hasRegionDraftChanges: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -75,6 +76,14 @@ const resetDraft = (): void => {
   warnings.value = [];
 };
 
+const saveAndExit = async (): Promise<void> => {
+  if (hasUnsavedNonMetadataEditorChanges() && !window.confirm('Discard unsaved trip editor changes and return to Trips?')) {
+    return;
+  }
+
+  await save(true);
+};
+
 const save = async (exitAfterSave: boolean): Promise<void> => {
   isSaving.value = true;
   savedExitInProgress.value = false;
@@ -108,7 +117,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 };
 
 const backToTrips = (): void => {
-  if (!isDirty.value || window.confirm('Discard unsaved metadata changes and return to Trips?')) {
+  if (!hasUnsavedEditorChanges() || window.confirm('Discard unsaved trip editor changes and return to Trips?')) {
     window.location.assign(props.tripIndexUrl);
   }
 };
@@ -118,12 +127,22 @@ function confirmUnload(event: BeforeUnloadEvent): void {
     return;
   }
 
-  if (!isDirty.value) {
+  if (!hasUnsavedEditorChanges()) {
     return;
   }
 
   event.preventDefault();
   event.returnValue = '';
+}
+
+/// Combines metadata changes with the active region draft dirty state owned by RegionManager.
+function hasUnsavedEditorChanges(): boolean {
+  return isDirty.value || props.hasRegionDraftChanges;
+}
+
+/// Tracks editor-owned drafts that Save & Exit cannot persist through the metadata endpoint.
+function hasUnsavedNonMetadataEditorChanges(): boolean {
+  return props.hasRegionDraftChanges;
 }
 
 function toDraft(metadata: EditorTripMetadata): MetadataDraft {
@@ -222,7 +241,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
 
     <div class="trip-editor-actions">
       <button type="button" class="btn btn-primary btn-sm" :disabled="isSaving" @click="save(false)">Save &amp; Continue</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="save(true)">Save &amp; Exit</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="saveAndExit">Save &amp; Exit</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="resetDraft">Cancel / Reset</button>
       <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">Back to Trips</button>
     </div>

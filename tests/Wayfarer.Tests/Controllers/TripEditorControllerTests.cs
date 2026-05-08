@@ -289,6 +289,7 @@ public sealed class TripEditorControllerTests : TestBase
             new IconColorProvider(environment),
             thumbnailMock?.Object ?? Mock.Of<ITripMapThumbnailGenerator>(),
             warmupMock?.Object ?? Mock.Of<ICacheWarmupScheduler>(),
+            new TripEditorRegionMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
 
         var url = new Mock<IUrlHelper>();

@@ -10,7 +10,6 @@ namespace Wayfarer.Models.Dtos.Editor;
 /// </summary>
 public static class EditorTripStateMapper
 {
-    private const string ShadowRegionName = "Unassigned Places";
     private static readonly GeoJsonWriter GeoJsonWriter = new();
 
     /// <summary>
@@ -35,35 +34,20 @@ public static class EditorTripStateMapper
         {
             TripId = trip.Id,
             Metadata = ToMetadata(trip, publicUrl, progressPublicUrl),
-            RegionsById = regions.ToDictionary(r => r.Id, MapRegion),
+            RegionsById = regions.ToDictionary(r => r.Id, ToRegion),
             RegionOrder = regions.Select(r => r.Id).ToList(),
-            PlacesById = places.ToDictionary(p => p.Place.Id, p => MapPlace(trip.Id, p.Region.Id, p.Place, visitSummaries[p.Place.Id])),
+            PlacesById = places.ToDictionary(p => p.Place.Id, p => ToPlace(trip.Id, p.Region.Id, p.Place, visitSummaries[p.Place.Id])),
             PlaceOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Places.OrderBy(p => p.DisplayOrder).ThenBy(p => p.Name).Select(p => p.Id).ToList()),
-            AreasById = areas.ToDictionary(a => a.Area.Id, a => MapArea(trip.Id, a.Region.Id, a.Area)),
+            AreasById = areas.ToDictionary(a => a.Area.Id, a => ToArea(trip.Id, a.Region.Id, a.Area)),
             AreaOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).Select(a => a.Id).ToList()),
-            SegmentsById = segments.ToDictionary(s => s.Id, s => MapSegment(trip.Id, s)),
+            SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s)),
             SegmentOrder = segments.Select(s => s.Id).ToList(),
             TagsBySlug = trip.Tags.OrderBy(t => t.Name).ToDictionary(t => t.Slug, t => new EditorTagDto(t.Id, t.Name, t.Slug)),
             TagOrder = trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug).ToList(),
-            VisitProgress = BuildVisitProgress(places, visitSummaries, visitsByPlaceId),
+            VisitProgress = ToVisitProgress(places, visitSummaries, visitsByPlaceId),
             Options = options,
             Permissions = new EditorPermissionsDto(true, true, true, true, true, true, true, true, true)
         };
-
-        EditorRegionDto MapRegion(Region region)
-        {
-            var isShadow = IsShadowRegion(region);
-            return new EditorRegionDto(
-                region.Id,
-                region.TripId,
-                region.Name,
-                region.Notes ?? string.Empty,
-                ToImageReference(region.CoverImageUrl),
-                ToCoordinate(region.Center),
-                region.DisplayOrder,
-                isShadow,
-                isShadow ? ShadowCapabilities() : EditableRegionCapabilities());
-        }
     }
 
     /// <summary>
@@ -85,7 +69,59 @@ public static class EditorTripStateMapper
             publicUrl,
             progressPublicUrl);
 
-    private static EditorPlaceDto MapPlace(
+    /// <summary>
+    /// Maps a region into the editor region contract.
+    /// </summary>
+    public static EditorRegionDto ToRegion(Region region)
+    {
+        var isShadow = IsShadowRegion(region);
+        return new EditorRegionDto(
+            region.Id,
+            region.TripId,
+            region.Name,
+            region.Notes ?? string.Empty,
+            ToImageReference(region.CoverImageUrl),
+            ToCoordinate(region.Center),
+            region.DisplayOrder,
+            isShadow,
+            isShadow ? ShadowCapabilities() : EditableRegionCapabilities());
+    }
+
+    /// <summary>
+    /// Maps remaining places and visits into the editor visit progress contract.
+    /// </summary>
+    public static EditorVisitProgressDto ToVisitProgress(
+        IReadOnlyList<(Region Region, Place Place)> places,
+        IReadOnlyDictionary<Guid, EditorPlaceVisitSummaryDto> summaries,
+        IReadOnlyDictionary<Guid, IReadOnlyList<PlaceVisitEvent>> visitsByPlaceId) =>
+        BuildVisitProgress(places, summaries, visitsByPlaceId);
+
+    /// <summary>
+    /// Builds editor visit summaries for the supplied places.
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, EditorPlaceVisitSummaryDto> ToVisitSummaries(
+        IEnumerable<Place> places,
+        IReadOnlyDictionary<Guid, IReadOnlyList<PlaceVisitEvent>> visitsByPlaceId) =>
+        BuildVisitSummaries(places, visitsByPlaceId);
+
+    /// <summary>
+    /// Maps a segment into the editor segment contract.
+    /// </summary>
+    public static EditorSegmentDto ToSegment(Guid tripId, Segment segment) =>
+        new(
+            segment.Id,
+            tripId,
+            segment.FromPlaceId,
+            segment.ToPlaceId,
+            segment.Mode ?? string.Empty,
+            segment.EstimatedDistanceKm,
+            segment.EstimatedDuration?.TotalMinutes,
+            segment.Notes ?? string.Empty,
+            ToGeoJson(segment.RouteGeometry),
+            segment.DisplayOrder,
+            EditableLeafCapabilities());
+
+    private static EditorPlaceDto ToPlace(
         Guid tripId,
         Guid regionId,
         Place place,
@@ -104,7 +140,7 @@ public static class EditorTripStateMapper
             visitSummary,
             EditableLeafCapabilities());
 
-    private static EditorAreaDto MapArea(Guid tripId, Guid regionId, Area area) =>
+    private static EditorAreaDto ToArea(Guid tripId, Guid regionId, Area area) =>
         new(
             area.Id,
             tripId,
@@ -114,20 +150,6 @@ public static class EditorTripStateMapper
             string.IsNullOrWhiteSpace(area.FillHex) ? "#ff6600" : area.FillHex,
             ToAreaPolygonGeoJson(tripId, area),
             area.DisplayOrder ?? 0,
-            EditableLeafCapabilities());
-
-    private static EditorSegmentDto MapSegment(Guid tripId, Segment segment) =>
-        new(
-            segment.Id,
-            tripId,
-            segment.FromPlaceId,
-            segment.ToPlaceId,
-            segment.Mode ?? string.Empty,
-            segment.EstimatedDistanceKm,
-            segment.EstimatedDuration?.TotalMinutes,
-            segment.Notes ?? string.Empty,
-            ToGeoJson(segment.RouteGeometry),
-            segment.DisplayOrder,
             EditableLeafCapabilities());
 
     private static EditorVisitProgressDto BuildVisitProgress(
@@ -220,7 +242,7 @@ public static class EditorTripStateMapper
     }
 
     private static bool IsShadowRegion(Region region) =>
-        region.DisplayOrder == 0 && string.Equals(region.Name, ShadowRegionName, StringComparison.Ordinal);
+        region.DisplayOrder == 0 && string.Equals(region.Name, EditorRegionRequestParser.ShadowRegionName, StringComparison.Ordinal);
 
     private static EditorEntityCapabilitiesDto ShadowCapabilities() =>
         new(false, false, false, false, false, false, true);

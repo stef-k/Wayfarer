@@ -252,6 +252,7 @@ public sealed class TripEditorMetadataValidationControllerTests : TestBase
             new IconColorProvider(environment),
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ICacheWarmupScheduler>(),
+            new TripEditorRegionMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
     }
 

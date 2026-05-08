@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
@@ -25,6 +26,7 @@ public sealed class TripEditorController : ControllerBase
     private readonly IIconColorProvider _iconColorProvider;
     private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
     private readonly ICacheWarmupScheduler _warmupScheduler;
+    private readonly TripEditorRegionMutationService _regionMutations;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -36,6 +38,7 @@ public sealed class TripEditorController : ControllerBase
         IIconColorProvider iconColorProvider,
         ITripMapThumbnailGenerator thumbnailGenerator,
         ICacheWarmupScheduler warmupScheduler,
+        TripEditorRegionMutationService regionMutations,
         ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
@@ -43,6 +46,7 @@ public sealed class TripEditorController : ControllerBase
         _iconColorProvider = iconColorProvider;
         _thumbnailGenerator = thumbnailGenerator;
         _warmupScheduler = warmupScheduler;
+        _regionMutations = regionMutations;
         _logger = logger;
     }
 
@@ -210,6 +214,74 @@ public sealed class TripEditorController : ControllerBase
             warnings));
     }
 
+    /// <summary>
+    /// Creates a normal region for an owned trip.
+    /// </summary>
+    [HttpPost("regions")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreateRegion(Guid tripId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _regionMutations.CreateRegionAsync(tripId, userId!, Request.Body, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Updates a normal region for an owned trip.
+    /// </summary>
+    [HttpPut("regions/{regionId:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateRegion(Guid tripId, Guid regionId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _regionMutations.UpdateRegionAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Deletes a normal region and returns authoritative deleted IDs and affected slices.
+    /// </summary>
+    [HttpDelete("regions/{regionId:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteRegion(Guid tripId, Guid regionId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _regionMutations.DeleteRegionAsync(tripId, regionId, userId!, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Persists the complete desired order for normal regions.
+    /// </summary>
+    [HttpPut("regions/order")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OrderRegions(Guid tripId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _regionMutations.OrderRegionsAsync(tripId, userId!, Request.Body, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
     private EditorOptionsDto BuildOptions()
     {
         var colors = _iconColorProvider.GetAvailableColors();
@@ -229,6 +301,62 @@ public sealed class TripEditorController : ControllerBase
 
     private string? GenerateProgressPublicTripUrl(Guid tripId) =>
         Url.Action("View", "TripViewer", new { area = "Public", id = tripId, progress = 1 }, Request.Scheme);
+
+    private IActionResult? RequireEditorUser(out string? userId)
+    {
+        userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId) || User?.Identity?.IsAuthenticated != true)
+        {
+            return Unauthorized();
+        }
+
+        if (User?.IsInRole("User") != true)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        return null;
+    }
+
+    private async Task<EditorTripStateDto> LoadEditorStateForOwnedTrip(Guid tripId, string userId, CancellationToken cancellationToken)
+    {
+        var trip = await _dbContext.Trips
+            .AsNoTracking()
+            .Include(t => t.Regions).ThenInclude(r => r.Places)
+            .Include(t => t.Regions).ThenInclude(r => r.Areas)
+            .Include(t => t.Segments)
+            .Include(t => t.Tags)
+            .SingleAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+
+        var placeIds = trip.Regions.SelectMany(r => r.Places).Select(p => p.Id).ToArray();
+        var visits = await _dbContext.PlaceVisitEvents
+            .AsNoTracking()
+            .Where(v => v.UserId == userId && v.PlaceId != null && placeIds.Contains(v.PlaceId.Value))
+            .ToListAsync(cancellationToken);
+        var visitsByPlaceId = visits
+            .GroupBy(v => v.PlaceId!.Value)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
+
+        return EditorTripStateMapper.ToEditorState(
+            trip,
+            visitsByPlaceId,
+            BuildOptions(),
+            trip.IsPublic ? GeneratePublicTripUrl(trip.Id) : null,
+            trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(trip.Id) : null);
+    }
+
+    private async Task<JsonElement?> ParseJsonBody(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken);
+            return document.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private static ObjectResult InvalidAreaGeometryProblem(EditorInvalidAreaGeometryException exception)
     {
@@ -274,6 +402,36 @@ public sealed class TripEditorController : ControllerBase
 
     private static string? NormalizeOptionalUrl(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static Point? ToPoint(EditorCoordinateDto? coordinate) =>
+        coordinate == null ? null : new Point(coordinate.Longitude, coordinate.Latitude) { SRID = 4326 };
+
+    private IActionResult ToActionResult<T>(EditorRegionMutationOutcome<T> outcome) =>
+        outcome.Status switch
+        {
+            EditorRegionMutationStatus.Success => Ok(outcome.Result),
+            EditorRegionMutationStatus.NotFound => NotFound(),
+            EditorRegionMutationStatus.Forbidden => ForbiddenProblem(outcome.ForbiddenDetail ?? "The operation is forbidden."),
+            EditorRegionMutationStatus.ValidationFailed => ValidationError(outcome.ValidationErrors ?? new Dictionary<string, string[]>()),
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
+
+    private static IActionResult ForbiddenProblem(string detail)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = StatusCodes.Status403Forbidden,
+            Type = "https://wayfarer/errors/forbidden",
+            Title = "Forbidden.",
+            Detail = detail
+        };
+
+        return new ObjectResult(problem)
+        {
+            StatusCode = StatusCodes.Status403Forbidden,
+            ContentTypes = { "application/problem+json" }
+        };
+    }
 
     private static IActionResult ValidationError(Dictionary<string, string[]> errors)
     {
