@@ -12,7 +12,6 @@ namespace Wayfarer.Areas.User.Controllers;
 /// </summary>
 [Area("User")]
 [Authorize(Roles = "User")]
-[Route("User/Trip")]
 public sealed class TripWorkspaceController : Controller
 {
     private readonly ApplicationDbContext _dbContext;
@@ -28,7 +27,7 @@ public sealed class TripWorkspaceController : Controller
     /// <summary>
     /// Shows the Trip Editor workspace shell for an owned trip.
     /// </summary>
-    [HttpGet("Workspace/{id:guid}")]
+    [HttpGet]
     public async Task<IActionResult> Workspace(Guid id)
     {
         var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);

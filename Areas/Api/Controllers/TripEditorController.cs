@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -12,8 +11,6 @@ namespace Wayfarer.Areas.Api.Controllers;
 /// </summary>
 [Area("Api")]
 [ApiController]
-[Authorize(Roles = "User")]
-[Route("api/trips/{tripId:guid}/editor")]
 public sealed class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
@@ -40,6 +37,11 @@ public sealed class TripEditorController : ControllerBase
             return Unauthorized();
         }
 
+        if (User?.IsInRole("User") != true)
+        {
+            return Forbid();
+        }
+
         var trip = await _dbContext.Trips
             .AsNoTracking()
             .Include(t => t.Regions).ThenInclude(r => r.Places)
@@ -50,7 +52,11 @@ public sealed class TripEditorController : ControllerBase
 
         if (trip == null)
         {
-            return NotFound();
+            var tripExists = await _dbContext.Trips
+                .AsNoTracking()
+                .AnyAsync(t => t.Id == tripId, cancellationToken);
+
+            return tripExists ? Forbid() : NotFound();
         }
 
         var placeIds = trip.Regions

@@ -847,7 +847,16 @@ static async Task ConfigureMiddleware(WebApplication app)
         }
     });
 
-    app.MapControllers();
+    // Explicit #235 routes only; do not enable global attribute routing for the spike.
+    app.MapControllerRoute(
+        "trip-editor-workspace",
+        "User/Trip/Workspace/{id:guid}",
+        new { area = "User", controller = "TripWorkspace", action = "Workspace" });
+
+    app.MapControllerRoute(
+        "trip-editor-api",
+        "api/trips/{tripId:guid}/editor",
+        new { area = "Api", controller = "TripEditor", action = "GetEditorState" });
 
     // Define the default route for controllers
     app.MapControllerRoute(

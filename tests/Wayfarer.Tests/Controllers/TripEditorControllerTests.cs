@@ -28,14 +28,39 @@ public sealed class TripEditorControllerTests : TestBase
     }
 
     [Fact]
-    public async Task GetEditorStateForNonOwnerReturnsNotFound()
+    public async Task GetEditorStateForNonOwnerReturnsForbidden()
     {
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
         var controller = new TripEditorController(db, BuildEnvironment());
-        ConfigureControllerWithUser(controller, "other-user");
+        ConfigureControllerWithUserRole(controller, "other-user");
 
         var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task GetEditorStateWithoutUserRoleReturnsForbidden()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var controller = new TripEditorController(db, BuildEnvironment());
+        ConfigureControllerWithUserRole(controller, "owner-user", "Manager");
+
+        var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task GetEditorStateForMissingOwnedScopeTripReturnsNotFound()
+    {
+        using var db = CreateDbContext();
+        var controller = new TripEditorController(db, BuildEnvironment());
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.GetEditorState(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
@@ -46,7 +71,7 @@ public sealed class TripEditorControllerTests : TestBase
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
         var controller = new TripEditorController(db, BuildEnvironment());
-        ConfigureControllerWithUser(controller, "owner-user");
+        ConfigureControllerWithUserRole(controller, "owner-user");
 
         var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
 
@@ -66,6 +91,14 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.NotNull(state.SegmentsById.Values.Single().Route);
         Assert.NotNull(state.Options);
         Assert.True(state.Permissions.CanEditTrip);
+    }
+
+    private static void ConfigureControllerWithUserRole(ControllerBase controller, string userId, string role = "User")
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = BuildHttpContextWithUser(userId, role)
+        };
     }
 
     private static IWebHostEnvironment BuildEnvironment()
