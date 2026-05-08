@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.IO;
 using System.Linq;
 using Wayfarer.Models;
-using System.Text.RegularExpressions;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -12,13 +12,15 @@ namespace Wayfarer.Areas.Api.Controllers;
 public class IconsController : BaseApiController
 {
     private readonly IWebHostEnvironment _env;
+    private readonly IIconColorProvider _iconColorProvider;
 
     private record IconPreview(string Icon, string Color, string Url);
 
-    public IconsController(ApplicationDbContext dbContext, ILogger<IconsController> logger, IWebHostEnvironment env)
+    public IconsController(ApplicationDbContext dbContext, ILogger<IconsController> logger, IWebHostEnvironment env, IIconColorProvider iconColorProvider)
         : base(dbContext, logger)
     {
         _env = env;
+        _iconColorProvider = iconColorProvider;
     }
 
     /// GET: /api/icons?layout=marker|circle
@@ -48,35 +50,16 @@ public class IconsController : BaseApiController
     [HttpGet("colors")]
     public IActionResult GetAvailableColors()
     {
-        var cssPath = Path.Combine(_env.WebRootPath, "icons", "wayfarer-map-icons", "dist", "wayfarer-map-icons.css");
-
-        if (!System.IO.File.Exists(cssPath))
-            return NotFound("CSS file not found.");
-
         try
         {
-            var cssContent = System.IO.File.ReadAllText(cssPath);
-
-            // Match class selectors like ".bg-blue", ".color-purple", etc.
-            var bgMatches = Regex.Matches(cssContent, @"\.bg-[\w-]+");
-            var colorMatches = Regex.Matches(cssContent, @"\.color-[\w-]+");
-
-            var bgList = bgMatches
-                .Select(m => m.Value.TrimStart('.'))
-                .Distinct()
-                .OrderBy(x => x)
-                .ToList();
-
-            var colorList = colorMatches
-                .Select(m => m.Value.TrimStart('.'))
-                .Distinct()
-                .OrderBy(x => x)
-                .ToList();
+            var colors = _iconColorProvider.GetAvailableColors();
+            if (colors == null)
+                return NotFound("CSS file not found.");
 
             return Ok(new
             {
-                backgrounds = bgList,
-                glyphs = colorList
+                backgrounds = colors.Backgrounds,
+                glyphs = colors.Glyphs
             });
         }
         catch (Exception ex)

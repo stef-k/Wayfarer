@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +18,7 @@ public sealed class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
+    private readonly IIconColorProvider _iconColorProvider;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -27,10 +27,12 @@ public sealed class TripEditorController : ControllerBase
     public TripEditorController(
         ApplicationDbContext dbContext,
         IWebHostEnvironment environment,
+        IIconColorProvider iconColorProvider,
         ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
         _environment = environment;
+        _iconColorProvider = iconColorProvider;
         _logger = logger;
     }
 
@@ -82,14 +84,19 @@ public sealed class TripEditorController : ControllerBase
             .GroupBy(v => v.PlaceId!.Value)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
 
+        var publicUrl = trip.IsPublic ? GeneratePublicTripUrl(trip.Id) : null;
+        var progressPublicUrl = trip.IsPublic && trip.ShareProgressEnabled
+            ? GenerateProgressPublicTripUrl(trip.Id)
+            : null;
+
         try
         {
             return Ok(EditorTripStateMapper.ToEditorState(
                 trip,
                 visitsByPlaceId,
                 BuildOptions(),
-                GeneratePublicTripUrl(trip.Id),
-                GenerateProgressPublicTripUrl(trip.Id)));
+                publicUrl,
+                progressPublicUrl));
         }
         catch (EditorInvalidAreaGeometryException ex)
         {
@@ -98,15 +105,19 @@ public sealed class TripEditorController : ControllerBase
         }
     }
 
-    private EditorOptionsDto BuildOptions() =>
-        new(
+    private EditorOptionsDto BuildOptions()
+    {
+        var colors = _iconColorProvider.GetAvailableColors();
+
+        return new EditorOptionsDto(
             ReadIconNames(),
-            ReadMarkerColorClasses().Backgrounds,
-            ReadMarkerColorClasses().Glyphs,
+            colors?.Backgrounds ?? Array.Empty<string>(),
+            colors?.Glyphs ?? Array.Empty<string>(),
             SegmentTransportModes.Options,
             new EditorAreaDefaultsDto("Area", "#ff6600"),
             new EditorTagOptionsDto(25, 8, "Letters, numbers, spaces, hyphens, and apostrophes."),
             new EditorLimitsDto(6, 1));
+    }
 
     private string? GeneratePublicTripUrl(Guid tripId) =>
         Url.Action("View", "TripViewer", new { area = "Public", id = tripId }, Request.Scheme);
@@ -139,22 +150,4 @@ public sealed class TripEditorController : ControllerBase
             ? Directory.GetFiles(iconDir, "*.svg").Select(Path.GetFileNameWithoutExtension).Where(n => n != null).Cast<string>().OrderBy(n => n).ToList()
             : Array.Empty<string>();
     }
-
-    private (IReadOnlyList<string> Backgrounds, IReadOnlyList<string> Glyphs) ReadMarkerColorClasses()
-    {
-        var cssPath = Path.Combine(_environment.WebRootPath, "icons", "wayfarer-map-icons", "dist", "wayfarer-map-icons.css");
-        if (!System.IO.File.Exists(cssPath))
-        {
-            return (Array.Empty<string>(), Array.Empty<string>());
-        }
-
-        var css = System.IO.File.ReadAllText(cssPath);
-        return (ReadClasses(css, ".bg-"), ReadClasses(css, ".color-"));
-    }
-
-    private static IReadOnlyList<string> ReadClasses(string css, string prefix) =>
-        Regex.Matches(css, $@"\.{Regex.Escape(prefix.TrimStart('.'))}[\w-]+")
-            .Select(match => match.Value.TrimStart('.'))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
 }

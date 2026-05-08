@@ -83,8 +83,8 @@ public sealed class TripEditorControllerTests : TestBase
         var state = Assert.IsType<EditorTripStateDto>(ok.Value);
         Assert.Equal(trip.Id, state.TripId);
         Assert.Equal(trip.Name, state.Metadata.Name);
-        Assert.Equal("https://example.test/Public/Trips/" + trip.Id, state.Metadata.PublicUrl);
-        Assert.Equal("https://example.test/Public/Trips/" + trip.Id + "?progress=1", state.Metadata.ProgressPublicUrl);
+        Assert.Null(state.Metadata.PublicUrl);
+        Assert.Null(state.Metadata.ProgressPublicUrl);
         Assert.Equal(2, state.RegionOrder.Count);
         Assert.Equal(2, state.RegionsById.Count);
         Assert.Single(state.PlacesById);
@@ -104,6 +104,51 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.True(state.Permissions.CanEditTrip);
         Assert.True(state.Permissions.CanToggleShareProgress);
         Assert.All(state.Permissions.GetType().GetProperties(), property => Assert.True((bool)property.GetValue(state.Permissions)!));
+    }
+
+    [Fact]
+    public async Task GetEditorStateForPrivateTripReturnsNullPublicUrls()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user", isPublic: false, shareProgressEnabled: true);
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        var metadata = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value).Metadata;
+        Assert.Null(metadata.PublicUrl);
+        Assert.Null(metadata.ProgressPublicUrl);
+    }
+
+    [Fact]
+    public async Task GetEditorStateForPublicTripWithProgressDisabledReturnsOnlyPublicUrl()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user", isPublic: true, shareProgressEnabled: false);
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        var metadata = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value).Metadata;
+        Assert.Equal("https://example.test/Public/Trips/" + trip.Id, metadata.PublicUrl);
+        Assert.Null(metadata.ProgressPublicUrl);
+    }
+
+    [Fact]
+    public async Task GetEditorStateForPublicTripWithProgressEnabledReturnsBothPublicUrls()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user", isPublic: true, shareProgressEnabled: true);
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        var metadata = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value).Metadata;
+        Assert.Equal("https://example.test/Public/Trips/" + trip.Id, metadata.PublicUrl);
+        Assert.Equal("https://example.test/Public/Trips/" + trip.Id + "?progress=1", metadata.ProgressPublicUrl);
     }
 
     [Fact]
@@ -165,13 +210,34 @@ public sealed class TripEditorControllerTests : TestBase
 
         var options = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value).Options;
         Assert.Equal(new[] { "alpha", "zulu" }, options.IconNames);
-        Assert.Equal(new[] { "bg-red", "bg-blue" }, options.MarkerColorClasses);
-        Assert.Equal(new[] { "color-yellow", "color-white" }, options.GlyphColorClasses);
+        Assert.Equal(new[] { "bg-blue", "bg-red" }, options.MarkerColorClasses);
+        Assert.Equal(new[] { "color-white", "color-yellow" }, options.GlyphColorClasses);
         Assert.Equal(SegmentTransportModes.Options.Select(m => m.Value), options.TransportModes.Select(m => m.Value));
         Assert.Equal(25, options.Tag.MaxTags);
         Assert.Equal(8, options.Tag.SuggestionTake);
         Assert.Equal(6, options.Limits.NominatimSearchLimit);
         Assert.Equal(1, options.Limits.SidebarSearchMinCharacters);
+    }
+
+    [Fact]
+    public async Task GetEditorStateColorOptionsMatchIconColorsApiOrder()
+    {
+        var webRoot = CreateIconWebRoot();
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var editorController = BuildController(db, webRoot);
+        var iconsController = new IconsController(db, Mock.Of<ILogger<IconsController>>(), BuildEnvironment(webRoot), new IconColorProvider(BuildEnvironment(webRoot)));
+        ConfigureControllerWithUserRole(editorController, "owner-user");
+
+        var editorResult = await editorController.GetEditorState(trip.Id, CancellationToken.None);
+        var iconsResult = iconsController.GetAvailableColors();
+
+        var options = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(editorResult).Value).Options;
+        var apiColors = Assert.IsType<OkObjectResult>(iconsResult).Value!;
+        var backgrounds = Assert.IsAssignableFrom<IReadOnlyList<string>>(apiColors.GetType().GetProperty("backgrounds")?.GetValue(apiColors));
+        var glyphs = Assert.IsAssignableFrom<IReadOnlyList<string>>(apiColors.GetType().GetProperty("glyphs")?.GetValue(apiColors));
+        Assert.Equal(backgrounds, options.MarkerColorClasses);
+        Assert.Equal(glyphs, options.GlyphColorClasses);
     }
 
     [Fact]
@@ -212,9 +278,11 @@ public sealed class TripEditorControllerTests : TestBase
 
     private static TripEditorController BuildController(ApplicationDbContext db, string? webRoot = null)
     {
+        var environment = BuildEnvironment(webRoot);
         var controller = new TripEditorController(
             db,
-            BuildEnvironment(webRoot),
+            environment,
+            new IconColorProvider(environment),
             Mock.Of<ILogger<TripEditorController>>());
 
         var url = new Mock<IUrlHelper>();
@@ -247,11 +315,11 @@ public sealed class TripEditorControllerTests : TestBase
         File.WriteAllText(Path.Combine(markerDir, "alpha.svg"), "<svg />");
         File.WriteAllText(
             Path.Combine(root, "icons", "wayfarer-map-icons", "dist", "wayfarer-map-icons.css"),
-            ".bg-red{}\n.bg-blue{}\n.color-yellow{}\n.color-white{}");
+            ".bg-red{}\n.bg-blue{}\n.bg-red{}\n.color-yellow{}\n.color-white{}");
         return root;
     }
 
-    private static Trip SeedTrip(ApplicationDbContext db, string userId)
+    private static Trip SeedTrip(ApplicationDbContext db, string userId, bool isPublic = false, bool shareProgressEnabled = false)
     {
         var factory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
         var trip = new Trip
@@ -260,8 +328,8 @@ public sealed class TripEditorControllerTests : TestBase
             UserId = userId,
             Name = "Test Trip",
             UpdatedAt = DateTime.UtcNow,
-            IsPublic = false,
-            ShareProgressEnabled = false,
+            IsPublic = isPublic,
+            ShareProgressEnabled = shareProgressEnabled,
             Tags = new List<Tag> { new() { Id = Guid.NewGuid(), Name = "Museum", Slug = "museum" } }
         };
         var shadowRegion = new Region
