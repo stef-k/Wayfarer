@@ -68,11 +68,19 @@ export const settleConfirmDialog = (confirmed: boolean): void => {
   }
 
   const resolver = activeResolver;
+  const settledDialogId = activeDialog.value?.id ?? nextDialogId;
   const returnFocusTarget = activeDialog.value?.returnFocusTarget ?? null;
   clearActiveDialog();
 
   resolver(confirmed);
-  window.setTimeout(() => restoreFocus(returnFocusTarget), 0);
+  window.setTimeout(() => {
+    // A chained dialog owns focus; stale restoration would move focus behind it.
+    if (activeDialog.value || nextDialogId !== settledDialogId) {
+      return;
+    }
+
+    restoreFocus(returnFocusTarget);
+  }, 0);
 };
 
 /// Disposes the Trip Editor confirm host and cancels any pending confirmation owned by it.
