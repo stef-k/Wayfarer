@@ -43,7 +43,7 @@ const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
     color: region.isShadow ? '#64748b' : '#2563eb',
     weight: 2,
     fillOpacity: 0.7
-  }).bindTooltip(region.name).addTo(layers);
+  }).bindTooltip(escapeHtml(region.name)).addTo(layers);
 };
 
 const renderPlace = (place: EditorPlace, layers: LayerGroup): void => {
@@ -70,7 +70,7 @@ const renderArea = (area: EditorArea, layers: LayerGroup): void => {
     fillColor: area.fillHex,
     fillOpacity: 0.25,
     weight: 2
-  }).bindTooltip(area.name).addTo(layers);
+  }).bindTooltip(escapeHtml(area.name)).addTo(layers);
 };
 
 const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: LayerGroup): void => {
@@ -84,7 +84,7 @@ const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: L
     color: '#0ea5e9',
     weight: 3,
     opacity: 0.8
-  }).bindTooltip(segmentLabel(segment, state)).addTo(layers);
+  }).bindTooltip(escapeHtml(segmentLabel(segment, state))).addTo(layers);
 };
 
 const fallbackSegmentCoordinates = (segment: EditorSegment, state: EditorTripState): Array<[number, number]> | null => {
