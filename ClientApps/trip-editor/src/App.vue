@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import TripSidebar from './components/TripSidebar.vue';
-import { setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
+import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { createTripEditorMap } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
@@ -38,6 +38,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  disposeConfirmDialogHost();
   setConfirmDialogFocusFallback(null);
   mapAdapter?.dispose();
 });

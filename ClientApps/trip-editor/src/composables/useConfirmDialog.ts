@@ -69,21 +69,75 @@ export const settleConfirmDialog = (confirmed: boolean): void => {
 
   const resolver = activeResolver;
   const returnFocusTarget = activeDialog.value?.returnFocusTarget ?? null;
-  activeSettled = true;
-  activeResolver = null;
-  activeDialog.value = null;
+  clearActiveDialog();
 
   resolver(confirmed);
   window.setTimeout(() => restoreFocus(returnFocusTarget), 0);
 };
 
-function restoreFocus(returnFocusTarget: HTMLElement | null): void {
-  if (returnFocusTarget && document.contains(returnFocusTarget)) {
-    returnFocusTarget.focus();
+/// Disposes the Trip Editor confirm host and cancels any pending confirmation owned by it.
+export const disposeConfirmDialogHost = (): void => {
+  if (!activeResolver || activeSettled) {
+    clearActiveDialog();
     return;
   }
 
-  if (focusFallback.value && document.contains(focusFallback.value)) {
-    focusFallback.value.focus();
+  const resolver = activeResolver;
+  clearActiveDialog();
+  resolver(false);
+};
+
+function clearActiveDialog(): void {
+  activeSettled = true;
+  activeResolver = null;
+  activeDialog.value = null;
+}
+
+function restoreFocus(returnFocusTarget: HTMLElement | null): void {
+  if (returnFocusTarget && tryFocus(returnFocusTarget)) {
+    return;
   }
+
+  if (focusFallback.value) {
+    tryFocus(focusFallback.value);
+  }
+}
+
+function tryFocus(element: HTMLElement): boolean {
+  if (!isFocusable(element)) {
+    return false;
+  }
+
+  try {
+    element.focus();
+  } catch {
+    return false;
+  }
+
+  return document.activeElement === element || element.contains(document.activeElement);
+}
+
+function isFocusable(element: HTMLElement): boolean {
+  if (!document.contains(element) || element.closest('[inert]')) {
+    return false;
+  }
+
+  if ('disabled' in element && element.disabled === true) {
+    return false;
+  }
+
+  if (element.closest('[hidden]')) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(element);
+  if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+    return false;
+  }
+
+  if (element.getClientRects().length === 0) {
+    return false;
+  }
+
+  return element.tabIndex >= -1 || element.isContentEditable;
 }
