@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { EditorValidationError, patchMetadata } from '../api/tripEditorApi';
+import { confirm } from '../composables/useConfirmDialog';
 import type { EditorTripMetadata, EditorTripMetadataUpdateRequest, EditorWarning } from '../types';
 
 const props = defineProps<{
@@ -77,7 +78,7 @@ const resetDraft = (): void => {
 };
 
 const saveAndExit = async (): Promise<void> => {
-  if (hasUnsavedNonMetadataEditorChanges() && !window.confirm('Discard unsaved trip editor changes and return to Trips?')) {
+  if (hasUnsavedNonMetadataEditorChanges() && !(await confirmDiscardTripEditorChanges())) {
     return;
   }
 
@@ -116,8 +117,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
   }
 };
 
-const backToTrips = (): void => {
-  if (!hasUnsavedEditorChanges() || window.confirm('Discard unsaved trip editor changes and return to Trips?')) {
+const backToTrips = async (): Promise<void> => {
+  if (!hasUnsavedEditorChanges() || (await confirmDiscardTripEditorChanges())) {
     window.location.assign(props.tripIndexUrl);
   }
 };
@@ -143,6 +144,17 @@ function hasUnsavedEditorChanges(): boolean {
 /// Tracks editor-owned drafts that Save & Exit cannot persist through the metadata endpoint.
 function hasUnsavedNonMetadataEditorChanges(): boolean {
   return props.hasRegionDraftChanges;
+}
+
+/// Confirms before discarding Trip Editor drafts that are not saved by the current action.
+function confirmDiscardTripEditorChanges(): Promise<boolean> {
+  return confirm({
+    title: 'Discard changes?',
+    message: 'Discard unsaved trip editor changes and return to Trips?',
+    confirmLabel: 'Discard',
+    cancelLabel: 'Stay',
+    variant: 'warning'
+  });
 }
 
 function toDraft(metadata: EditorTripMetadata): MetadataDraft {
