@@ -13,8 +13,8 @@ Overview of Wayfarer's technical architecture, design patterns, and application 
 | Spatial | NetTopologySuite, GiST indexes |
 | Scheduler | Quartz.NET (ADO.NET job store) |
 | Logging | Serilog (console, file, PostgreSQL) |
-| Frontend | Razor views, Leaflet, vanilla JS |
-| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild-based) |
+| Frontend | Razor views, Leaflet, vanilla JS; Vue for the Trip Editor workspace |
+| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild-based) plus Vite for Trip Editor assets |
 | Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
 | PDF Export | Microsoft Playwright |
@@ -206,7 +206,7 @@ Two-tier caching strategy:
 
 ### Bundling
 
-[MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) handles JavaScript and CSS bundling:
+[MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) handles JavaScript and CSS bundling for existing Razor/public/static pages:
 
 - **Convention-based loading** — JS files auto-linked by view path (e.g., `Areas/User/Trips/Index` → `wwwroot/js/Areas/User/Trips/Index.js`)
 - **esbuild-powered** — fast bundling with ES2020 target and sourcemaps
@@ -214,6 +214,11 @@ Two-tier caching strategy:
 - **Development mode** — unbundled modules for debugging
 - **Production mode** — minified bundles in `/dist`
 - **Configuration**: `frontend.config.yaml`
+
+The Trip Editor workspace uses Vue/Vite and builds static assets under
+`wwwroot/vite/trip-editor`. That Vite output is generated during deployment and
+is not committed. Production remains a single ASP.NET Core app serving local
+static assets; there is no Node runtime service and no SSR server.
 
 ### State Management
 

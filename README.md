@@ -134,8 +134,8 @@ The [WayfarerMobile](https://github.com/stef-k/WayfarerMobile) app (built with .
 | Backend | ASP.NET Core 10 MVC, Quartz.NET |
 | Database | PostgreSQL/PostGIS via EF Core & NetTopologySuite |
 | Spatial | GiST indexes, ST_DWithin queries |
-| Frontend | Razor views, Leaflet maps, vanilla JS |
-| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild) |
+| Frontend | Razor views, Leaflet maps, vanilla JS; Vue for the Trip Editor workspace |
+| Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild) plus Vite for Trip Editor assets |
 | Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
 | PDF Export | Microsoft Playwright |

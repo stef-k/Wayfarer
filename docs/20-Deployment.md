@@ -116,7 +116,23 @@ sudo systemctl start nginx
 sudo systemctl enable nginx
 ```
 
-### 5. Install Chromium Runtime Dependencies (PDF export)
+### 5. Install Node.js/npm Build Tooling
+
+Server-build deployments need Node.js/npm on the build host so `deploy.sh` can
+build the Trip Editor Vue/Vite assets before `dotnet publish`. Node/npm are
+build-host tooling only; production does not run a Node service or SSR server.
+
+`deployment/install.sh` installs or verifies Node.js 22.x/npm automatically. For
+manual setup:
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+node --version
+npm --version
+```
+
+### 6. Install Chromium Runtime Dependencies (PDF export)
 
 Wayfarer uses **Microsoft Playwright** to render PDFs. Install system libraries:
 
@@ -195,6 +211,7 @@ The `install.sh` script automatically:
 1. Prompts for the database password during installation
 2. Creates the PostgreSQL user with that password
 3. Configures the systemd service with the connection string
+4. Installs or verifies Node.js 22.x/npm build tooling
 
 For non-interactive installation, set the `DB_PASS` environment variable:
 
@@ -381,6 +398,8 @@ sudo -u postgres pg_dump wayfarer > wayfarer-backup-$(date +%Y%m%d).sql
 # Pull and build
 cd /home/youruser/Wayfarer
 git pull origin main
+npm ci
+npm run build
 dotnet publish -c Release -o ./out
 
 # Deploy

@@ -32,6 +32,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 - Removes systemd unit, Nginx vhost, Fail2ban jails
 - Optionally drops the Wayfarer DB and user (`--purge-db`)
 - Optionally deletes the Certbot certificate
+- Leaves system packages in place, including Node.js/npm build tooling
 
 **Usage:**
 
@@ -205,8 +206,9 @@ REF=v1.3.0 ./deployment/deploy.sh
 ### Frontend Build Requirement
 
 The Vue/Vite Trip Editor workspace is built into local static assets under
-`wwwroot/vite/trip-editor`. Production remains a single ASP.NET Core app; it
-does not run a Node service or SSR process.
+`wwwroot/vite/trip-editor`. These generated files are build output and are not
+committed. Production remains a single ASP.NET Core app; it does not run a Node
+service or SSR process.
 
 For the current server-build deployment model, `install.sh` installs or verifies
 Node.js/npm on the build host. Node/npm are build-host tooling only; no Node
@@ -289,7 +291,7 @@ All files use **placeholders** that must be customized for your deployment:
 
 For complete installation and deployment guide, see:
 
-- **[Deployment Guide](26-Deployment.md)** - Full deployment guide
+- **[Deployment Guide](../docs/20-Deployment.md)** - Full deployment guide
 - **[Quick Start](02-Install-and-Dependencies.md)** - Quick start guide
 
 ---

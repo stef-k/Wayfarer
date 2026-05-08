@@ -10,9 +10,10 @@ Wayfarer is designed for self-hosting by power users, small businesses, and orga
 
 ### Core Dependencies
 
-- **.NET 10 SDK** - Application runtime
+- **.NET 10 SDK** - Application build/runtime
 - **PostgreSQL 13+** with **PostGIS extension** - Database
 - **Nginx** (or similar reverse proxy) - Recommended for production
+- **Node.js 22.x/npm** - Build-host tooling for Trip Editor Vite assets
 
 ### Optional: PDF Export Feature
 
@@ -30,7 +31,7 @@ If you want to export trips as PDF documents, you'll need:
 
 ### Basic Setup Steps
 
-1. **Install dependencies** (.NET 10, PostgreSQL + PostGIS, Nginx)
+1. **Install dependencies** (.NET 10, PostgreSQL + PostGIS, Nginx, Node.js/npm on build hosts)
 2. **Create database and user** with PostGIS enabled
 3. **Clone or download** Wayfarer
 4. **Configure connection string** in `appsettings.json`
@@ -75,6 +76,11 @@ sudo apt update
 # 2) Install packages
 sudo apt install -y dotnet-sdk-10.0 postgresql postgis nginx
 
+# 3) Install Node.js 22.x/npm on hosts that build deployments
+# deployment/install.sh installs or verifies this automatically.
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
 # Install Chrome dependencies (for PDF export)
 sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
     libcups2 libdrm2 libpango-1.0-0 libcairo2
@@ -101,10 +107,11 @@ dotnet run
 
 1. Install .NET 10 SDK from [microsoft.com/dotnet](https://dotnet.microsoft.com/download)
 2. Install PostgreSQL + PostGIS from [postgresql.org (Windows installer)](https://www.postgresql.org/download/windows/) or [enterprisedb.com](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
-3. Clone the repository
-4. Configure `appsettings.Development.json` with your connection string
-5. Run `dotnet restore` then `dotnet run`
-6. Visit `http://localhost:5000`
+3. Install Node.js 22.x/npm for Trip Editor Vite builds
+4. Clone the repository
+5. Configure `appsettings.Development.json` with your connection string
+6. Run `dotnet restore` then `dotnet run`
+7. Visit `http://localhost:5000`
 
 ---
 
