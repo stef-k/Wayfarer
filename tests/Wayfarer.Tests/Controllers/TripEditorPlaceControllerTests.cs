@@ -181,7 +181,7 @@ public sealed class TripEditorPlaceControllerTests : TestBase
             Name = "Mapbox",
             Token = "mapbox-token",
             UserId = "owner-user",
-            User = new ApplicationUser { Id = "owner-user", UserName = "owner@example.test" }
+            User = new ApplicationUser { Id = "owner-user", UserName = "owner@example.test", DisplayName = "Owner" }
         });
         db.SaveChanges();
         var controller = BuildController(db, new ReverseGeocodingService(
