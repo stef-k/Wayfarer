@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
@@ -167,6 +168,35 @@ public sealed class TripEditorPlaceControllerTests : TestBase
         Assert.Equal("Manual address", envelope.Data.Address);
         var warning = Assert.Single(envelope.Warnings);
         Assert.Equal("reverse-geocode-unavailable", warning.Code);
+    }
+
+    [Fact]
+    public async Task ReverseGeocodeExceptionSavesManualAddressAndReturnsWarning()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var region = trip.Regions.Single(r => r.Name == "Athens");
+        db.ApiTokens.Add(new ApiToken
+        {
+            Name = "Mapbox",
+            Token = "mapbox-token",
+            UserId = "owner-user",
+            User = new ApplicationUser { Id = "owner-user", UserName = "owner@example.test" }
+        });
+        db.SaveChanges();
+        var controller = BuildController(db, new ReverseGeocodingService(
+            new HttpClient(new ThrowingReverseGeocodeHandler()),
+            NullLogger<BaseApiController>.Instance));
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("Geo", reverseGeocode: true));
+
+        var envelope = AssertMutation<EditorPlaceDto>(result);
+        Assert.Equal("Manual address", envelope.Data.Address);
+        Assert.Equal("Manual address", db.Places.Single(p => p.Id == envelope.Data.Id).Address);
+        var warning = Assert.Single(envelope.Warnings);
+        Assert.Equal("reverse-geocode-unavailable", warning.Code);
+        Assert.Contains(db.Places, p => p.Id == envelope.Data.Id && p.Name == "Geo");
     }
 
     [Theory]
@@ -372,7 +402,7 @@ public sealed class TripEditorPlaceControllerTests : TestBase
         };
     }
 
-    private static TripEditorController BuildController(ApplicationDbContext db)
+    private static TripEditorController BuildController(ApplicationDbContext db, ReverseGeocodingService? reverseGeocodingService = null)
     {
         var environment = BuildEnvironment();
         var iconColorProvider = new IconColorProvider(environment);
@@ -383,8 +413,17 @@ public sealed class TripEditorPlaceControllerTests : TestBase
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ICacheWarmupScheduler>(),
             new TripEditorRegionMutationService(db),
-            new TripEditorPlaceMutationService(db, environment, iconColorProvider, new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
+            new TripEditorPlaceMutationService(db, environment, iconColorProvider, reverseGeocodingService ?? new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
             Mock.Of<ILogger<TripEditorController>>());
+    }
+
+    private sealed class ThrowingReverseGeocodeHandler : HttpMessageHandler
+    {
+        /// <summary>
+        /// Simulates provider/network failure after the editor has found a Mapbox token.
+        /// </summary>
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("Reverse geocoding provider unavailable.");
     }
 
     private static IWebHostEnvironment BuildEnvironment()

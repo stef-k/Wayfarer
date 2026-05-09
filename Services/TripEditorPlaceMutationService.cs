@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
@@ -15,6 +16,7 @@ public sealed class TripEditorPlaceMutationService
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
     private readonly IIconColorProvider _iconColorProvider;
+    private readonly ILogger<TripEditorPlaceMutationService> _logger;
     private readonly TripEditorPlaceMutationReader _reader;
     private readonly TripEditorPlaceRouteEffects _routeEffects;
     private readonly ReverseGeocodingService _reverseGeocodingService;
@@ -28,7 +30,8 @@ public sealed class TripEditorPlaceMutationService
         IIconColorProvider iconColorProvider,
         ReverseGeocodingService reverseGeocodingService,
         TripEditorPlaceMutationReader? reader = null,
-        TripEditorPlaceRouteEffects? routeEffects = null)
+        TripEditorPlaceRouteEffects? routeEffects = null,
+        ILogger<TripEditorPlaceMutationService>? logger = null)
     {
         _dbContext = dbContext;
         _environment = environment;
@@ -36,6 +39,7 @@ public sealed class TripEditorPlaceMutationService
         _reverseGeocodingService = reverseGeocodingService;
         _reader = reader ?? new TripEditorPlaceMutationReader(dbContext);
         _routeEffects = routeEffects ?? new TripEditorPlaceRouteEffects(dbContext);
+        _logger = logger ?? NullLogger<TripEditorPlaceMutationService>.Instance;
     }
 
     /// <summary>
@@ -347,7 +351,17 @@ public sealed class TripEditorPlaceMutationService
             return (fallback, ReverseGeocodeWarning(placeId));
         }
 
-        var result = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Latitude, location.Longitude, token, "Mapbox");
+        ReverseLocationResults result;
+        try
+        {
+            result = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Latitude, location.Longitude, token, "Mapbox");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Reverse geocoding failed for place {PlaceId}; saving the manual address value.", placeId);
+            return (fallback, ReverseGeocodeWarning(placeId));
+        }
+
         var address = string.IsNullOrWhiteSpace(result.FullAddress) ? result.Address : result.FullAddress;
         return string.IsNullOrWhiteSpace(address)
             ? (fallback, ReverseGeocodeWarning(placeId))

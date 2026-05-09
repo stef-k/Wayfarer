@@ -19,6 +19,11 @@ const emit = defineEmits<{
   reset: [];
   save: [];
 }>();
+
+const markerColorLabel = (color: string): string => {
+  const name = color.replace(/^bg-/, '').replace(/[-_]+/g, ' ');
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} marker color`;
+};
 </script>
 
 <template>
@@ -79,13 +84,22 @@ const emit = defineEmits<{
         </select>
         <small v-for="message in props.fieldErrors('iconName')" :key="message">{{ message }}</small>
       </label>
-      <label class="trip-editor-field">
-        <span>Marker Color</span>
-        <select v-model="props.draft.markerColor">
-          <option v-for="color in props.state.options.markerColorClasses" :key="color" :value="color">{{ color }}</option>
-        </select>
+      <fieldset class="trip-editor-field trip-editor-marker-color-field">
+        <legend>Marker Color</legend>
+        <div class="trip-editor-marker-swatch-group" role="radiogroup" aria-label="Marker Color">
+          <label
+            v-for="color in props.state.options.markerColorClasses"
+            :key="color"
+            class="trip-editor-marker-swatch"
+            :class="{ 'trip-editor-marker-swatch--selected': props.draft.markerColor === color }"
+            :title="markerColorLabel(color)"
+          >
+            <input v-model="props.draft.markerColor" class="trip-editor-marker-swatch__input" type="radio" name="markerColor" :value="color" :aria-label="markerColorLabel(color)" />
+            <span class="trip-editor-marker-swatch__sample" :class="color" aria-hidden="true"></span>
+          </label>
+        </div>
         <small v-for="message in props.fieldErrors('markerColor')" :key="message">{{ message }}</small>
-      </label>
+      </fieldset>
     </div>
 
     <label class="trip-editor-check">
