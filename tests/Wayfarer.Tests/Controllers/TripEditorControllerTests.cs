@@ -9,6 +9,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -290,6 +291,7 @@ public sealed class TripEditorControllerTests : TestBase
             thumbnailMock?.Object ?? Mock.Of<ITripMapThumbnailGenerator>(),
             warmupMock?.Object ?? Mock.Of<ICacheWarmupScheduler>(),
             new TripEditorRegionMutationService(db),
+            new TripEditorPlaceMutationService(db, environment, new IconColorProvider(environment), new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
             Mock.Of<ILogger<TripEditorController>>());
 
         var url = new Mock<IUrlHelper>();

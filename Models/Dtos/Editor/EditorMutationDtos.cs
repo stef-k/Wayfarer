@@ -36,6 +36,46 @@ public sealed record EditorRegionOrderRequest(IReadOnlyList<Guid> RegionIds);
 public sealed record EditorRegionOrderResult(IReadOnlyList<Guid> RegionOrder);
 
 /// <summary>
+/// Complete-draft request for creating a place from the same-origin editor.
+/// </summary>
+public sealed record EditorPlaceCreateRequest(
+    string Name,
+    string? NotesHtml,
+    string? Address,
+    EditorCoordinateDto? Location,
+    string IconName,
+    string MarkerColor,
+    bool ReverseGeocode);
+
+/// <summary>
+/// Complete-draft request for updating or moving a place from the same-origin editor.
+/// </summary>
+public sealed record EditorPlaceUpdateRequest(
+    Guid RegionId,
+    string Name,
+    string? NotesHtml,
+    string? Address,
+    EditorCoordinateDto? Location,
+    string IconName,
+    string MarkerColor,
+    bool ReverseGeocode);
+
+/// <summary>
+/// Complete desired place order for one normal editor region.
+/// </summary>
+public sealed record EditorPlaceOrderRequest(IReadOnlyList<Guid> PlaceIds);
+
+/// <summary>
+/// Place order data returned by the place order endpoint.
+/// </summary>
+public sealed record EditorPlaceOrderResult(Guid RegionId, IReadOnlyList<Guid> PlaceOrder);
+
+/// <summary>
+/// Place delete data returned by the place delete endpoint.
+/// </summary>
+public sealed record EditorPlaceDeleteResult(Guid PlaceId);
+
+/// <summary>
 /// Standard success envelope returned by editor mutation endpoints.
 /// </summary>
 public sealed record EditorMutationResult<TData>(

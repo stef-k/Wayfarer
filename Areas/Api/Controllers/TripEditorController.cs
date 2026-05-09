@@ -27,6 +27,7 @@ public sealed class TripEditorController : ControllerBase
     private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
     private readonly ICacheWarmupScheduler _warmupScheduler;
     private readonly TripEditorRegionMutationService _regionMutations;
+    private readonly TripEditorPlaceMutationService _placeMutations;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -39,6 +40,7 @@ public sealed class TripEditorController : ControllerBase
         ITripMapThumbnailGenerator thumbnailGenerator,
         ICacheWarmupScheduler warmupScheduler,
         TripEditorRegionMutationService regionMutations,
+        TripEditorPlaceMutationService placeMutations,
         ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
@@ -47,6 +49,7 @@ public sealed class TripEditorController : ControllerBase
         _thumbnailGenerator = thumbnailGenerator;
         _warmupScheduler = warmupScheduler;
         _regionMutations = regionMutations;
+        _placeMutations = placeMutations;
         _logger = logger;
     }
 
@@ -279,6 +282,74 @@ public sealed class TripEditorController : ControllerBase
         }
 
         var outcome = await _regionMutations.OrderRegionsAsync(tripId, userId!, Request.Body, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Creates a place in a normal owned region.
+    /// </summary>
+    [HttpPost("regions/{regionId:guid}/places")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CreatePlace(Guid tripId, Guid regionId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _placeMutations.CreatePlaceAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Updates or moves a place inside an owned trip.
+    /// </summary>
+    [HttpPut("places/{placeId:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdatePlace(Guid tripId, Guid placeId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _placeMutations.UpdatePlaceAsync(tripId, placeId, userId!, Request.Body, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Deletes a place and endpoint segments that reference it.
+    /// </summary>
+    [HttpDelete("places/{placeId:guid}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePlace(Guid tripId, Guid placeId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _placeMutations.DeletePlaceAsync(tripId, placeId, userId!, cancellationToken);
+        return ToActionResult(outcome);
+    }
+
+    /// <summary>
+    /// Persists the complete desired place order for one normal owned region.
+    /// </summary>
+    [HttpPut("regions/{regionId:guid}/places/order")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OrderPlaces(Guid tripId, Guid regionId, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var outcome = await _placeMutations.OrderPlacesAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
         return ToActionResult(outcome);
     }
 

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -253,6 +254,7 @@ public sealed class TripEditorMetadataValidationControllerTests : TestBase
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ICacheWarmupScheduler>(),
             new TripEditorRegionMutationService(db),
+            new TripEditorPlaceMutationService(db, environment, new IconColorProvider(environment), new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
             Mock.Of<ILogger<TripEditorController>>());
     }
 

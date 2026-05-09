@@ -121,7 +121,10 @@ public static class EditorTripStateMapper
             segment.DisplayOrder,
             EditableLeafCapabilities());
 
-    private static EditorPlaceDto ToPlace(
+    /// <summary>
+    /// Maps a place into the editor place contract.
+    /// </summary>
+    public static EditorPlaceDto ToPlace(
         Guid tripId,
         Guid regionId,
         Place place,
