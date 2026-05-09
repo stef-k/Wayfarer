@@ -166,4 +166,35 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             throw new HttpRequestException("Reverse geocoding provider unavailable.");
     }
+
+    protected sealed class CallerCanceledReverseGeocodeHandler : HttpMessageHandler
+    {
+        private readonly CancellationTokenSource _requestCancellation;
+
+        /// <summary>
+        /// Initializes a handler that cancels the caller token before surfacing provider cancellation.
+        /// </summary>
+        public CallerCanceledReverseGeocodeHandler(CancellationTokenSource requestCancellation)
+        {
+            _requestCancellation = requestCancellation;
+        }
+
+        /// <summary>
+        /// Simulates cancellation that must propagate instead of becoming a geocoding warning.
+        /// </summary>
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            _requestCancellation.Cancel();
+            throw new TaskCanceledException("Request cancellation reached reverse geocoding.");
+        }
+    }
+
+    protected sealed class ProviderTimeoutReverseGeocodeHandler : HttpMessageHandler
+    {
+        /// <summary>
+        /// Simulates an HTTP timeout while the caller request remains active.
+        /// </summary>
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new TaskCanceledException("Reverse geocoding provider timed out.");
+    }
 }

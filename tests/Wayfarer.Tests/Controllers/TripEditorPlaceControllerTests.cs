@@ -191,4 +191,58 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         Assert.Equal("reverse-geocode-unavailable", warning.Code);
         Assert.Contains(db.Places, p => p.Id == envelope.Data.Id && p.Name == "Geo");
     }
+
+    [Fact]
+    public async Task ReverseGeocodeProviderTimeoutSavesManualAddressAndReturnsWarning()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var region = trip.Regions.Single(r => r.Name == "Athens");
+        db.ApiTokens.Add(new ApiToken
+        {
+            Name = "Mapbox",
+            Token = "mapbox-token",
+            UserId = "owner-user",
+            User = new ApplicationUser { Id = "owner-user", UserName = "owner@example.test", DisplayName = "Owner" }
+        });
+        db.SaveChanges();
+        var controller = BuildController(db, new ReverseGeocodingService(
+            new HttpClient(new ProviderTimeoutReverseGeocodeHandler()),
+            NullLogger<BaseApiController>.Instance));
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("Geo", reverseGeocode: true));
+
+        var envelope = AssertMutation<EditorPlaceDto>(result);
+        Assert.Equal("Manual address", envelope.Data.Address);
+        Assert.Equal("Manual address", db.Places.Single(p => p.Id == envelope.Data.Id).Address);
+        var warning = Assert.Single(envelope.Warnings);
+        Assert.Equal("reverse-geocode-unavailable", warning.Code);
+    }
+
+    [Fact]
+    public async Task ReverseGeocodeRequestCancellationPropagates()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var region = trip.Regions.Single(r => r.Name == "Athens");
+        db.ApiTokens.Add(new ApiToken
+        {
+            Name = "Mapbox",
+            Token = "mapbox-token",
+            UserId = "owner-user",
+            User = new ApplicationUser { Id = "owner-user", UserName = "owner@example.test", DisplayName = "Owner" }
+        });
+        db.SaveChanges();
+        var controller = BuildController(db, new ReverseGeocodingService(
+            new HttpClient(new CallerCanceledReverseGeocodeHandler(cancellation)),
+            NullLogger<BaseApiController>.Instance));
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, cancellation.Token), ValidCreateBody("Geo", reverseGeocode: true)));
+
+        Assert.DoesNotContain(db.Places, p => p.Name == "Geo");
+    }
 }

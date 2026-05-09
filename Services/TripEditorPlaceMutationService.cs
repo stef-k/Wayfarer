@@ -356,7 +356,17 @@ public sealed class TripEditorPlaceMutationService
         {
             result = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Latitude, location.Longitude, token, "Mapbox");
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Reverse geocoding failed for place {PlaceId}; saving the manual address value.", placeId);
+            return (fallback, ReverseGeocodeWarning(placeId));
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Reverse geocoding failed for place {PlaceId}; saving the manual address value.", placeId);
+            return (fallback, ReverseGeocodeWarning(placeId));
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Reverse geocoding failed for place {PlaceId}; saving the manual address value.", placeId);
             return (fallback, ReverseGeocodeWarning(placeId));
