@@ -3,7 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { createPlace, createRegion, deletePlace, deleteRegion, orderPlaces, orderRegions, updatePlace, updateRegion } from '../api/tripEditorApi';
 import { EditorValidationError } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
-import type { EditorArea, EditorMutationResult, EditorPlace, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState } from '../types';
+import PlaceEditorForm from './PlaceEditorForm.vue';
+import type { EditorArea, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState } from '../types';
 
 declare global {
   interface Window {
@@ -33,25 +34,12 @@ type RegionDraft = {
   centerLongitude: string | number;
 };
 
-type PlaceDraft = {
-  id: string | null;
-  regionId: string | null;
-  name: string;
-  notesHtml: string;
-  address: string;
-  latitude: string | number;
-  longitude: string | number;
-  iconName: string;
-  markerColor: string;
-  reverseGeocode: boolean;
-};
-
 const regionFields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
 const placeFields = ['regionId', 'name', 'notesHtml', 'address', 'location.latitude', 'location.longitude', 'iconName', 'markerColor', 'reverseGeocode'];
 const regionList = ref<HTMLElement | null>(null);
 const regionListKey = ref(0);
 const draft = reactive<RegionDraft>(emptyDraft());
-const placeDraft = reactive<PlaceDraft>(emptyPlaceDraft());
+const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
 const isSaving = ref(false);
 const isOrdering = ref(false);
 const saveError = ref<string | null>(null);
@@ -62,11 +50,7 @@ const placeSortables = new Map<string, { destroy: () => void }>();
 let reorderSnapshotIds: string[] | null = null;
 let placeReorderSnapshot: { regionId: string; ids: string[] } | null = null;
 
-const orderedRegions = computed(() =>
-  props.state.regionOrder
-    .map(id => props.state.regionsById[id])
-    .filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]
-);
+const orderedRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]);
 const normalRegionIds = computed(() => orderedRegions.value.filter(region => !region.isShadow).map(region => region.id));
 const activeRegion = computed(() => (draft.id ? props.state.regionsById[draft.id] ?? null : null));
 const activePlace = computed(() => (placeDraft.id ? props.state.placesById[placeDraft.id] ?? null : null));
@@ -94,11 +78,7 @@ const statusText = computed(() => {
 
   return lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved';
 });
-const formSummaryErrors = computed(() =>
-  Object.entries(validationErrors.value)
-    .filter(([key]) => !(isPlaceDraftOpen.value ? placeFields : regionFields).includes(key))
-    .flatMap(([, messages]) => messages)
-);
+const formSummaryErrors = computed(() => Object.entries(validationErrors.value).filter(([key]) => !(isPlaceDraftOpen.value ? placeFields : regionFields).includes(key)).flatMap(([, messages]) => messages));
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
 
 watch(
@@ -448,11 +428,11 @@ function hasRegionChildren(region: EditorRegion): boolean {
   return (props.state.placeOrderByRegionId[region.id]?.length ?? 0) > 0 || (props.state.areaOrderByRegionId[region.id]?.length ?? 0) > 0;
 }
 
-function emptyPlaceDraft(regionId: string | null = null): PlaceDraft {
+function emptyPlaceDraft(regionId: string | null = null): EditorPlaceDraft {
   return { id: null, regionId, name: '', notesHtml: '', address: '', latitude: '', longitude: '', iconName: '', markerColor: '', reverseGeocode: false };
 }
 
-function toPlaceDraft(place: EditorPlace | null, fallbackRegionId: string | null): PlaceDraft {
+function toPlaceDraft(place: EditorPlace | null, fallbackRegionId: string | null): EditorPlaceDraft {
   if (!place) {
     return emptyPlaceDraft(fallbackRegionId);
   }
@@ -504,7 +484,7 @@ function buildRequest(value: RegionDraft): EditorRegionSaveRequest {
   };
 }
 
-function buildPlaceRequest(value: PlaceDraft): EditorPlaceSaveRequest {
+function buildPlaceRequest(value: EditorPlaceDraft): EditorPlaceSaveRequest {
   const latitude = draftText(value.latitude);
   const longitude = draftText(value.longitude);
   const hasLocation = Boolean(latitude || longitude);
@@ -685,86 +665,21 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
       </div>
     </form>
 
-    <form v-if="isPlaceDraftOpen" class="trip-editor-region-form" @submit.prevent="savePlaceDraft">
-      <div class="trip-editor-panel__line">
-        <h3>{{ placeDraft.id ? 'Edit Place' : 'Add Place' }}</h3>
-        <span class="trip-editor-save-state">{{ statusText }}</span>
-      </div>
-
-      <div v-if="formSummaryErrors.length > 0" class="trip-editor-form-error" role="alert">
-        <p v-for="message in formSummaryErrors" :key="message">{{ message }}</p>
-      </div>
-
-      <label class="trip-editor-field">
-        <span>Region</span>
-        <select v-model="placeDraft.regionId">
-          <option v-for="region in normalRegions" :key="region.id" :value="region.id">{{ region.name }}</option>
-        </select>
-        <small v-for="message in fieldErrors('regionId')" :key="message">{{ message }}</small>
-      </label>
-
-      <label class="trip-editor-field">
-        <span>Name</span>
-        <input v-model="placeDraft.name" type="text" autocomplete="off" />
-        <small v-for="message in fieldErrors('name')" :key="message">{{ message }}</small>
-      </label>
-
-      <label class="trip-editor-field">
-        <span>Notes HTML</span>
-        <textarea v-model="placeDraft.notesHtml" rows="6"></textarea>
-        <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-      </label>
-
-      <label class="trip-editor-field">
-        <span>Address</span>
-        <input v-model="placeDraft.address" type="text" autocomplete="off" />
-        <small v-for="message in fieldErrors('address')" :key="message">{{ message }}</small>
-      </label>
-
-      <div class="trip-editor-grid">
-        <label class="trip-editor-field">
-          <span>Latitude</span>
-          <input v-model="placeDraft.latitude" type="number" step="any" />
-          <small v-for="message in fieldErrors('location.latitude')" :key="message">{{ message }}</small>
-        </label>
-        <label class="trip-editor-field">
-          <span>Longitude</span>
-          <input v-model="placeDraft.longitude" type="number" step="any" />
-          <small v-for="message in fieldErrors('location.longitude')" :key="message">{{ message }}</small>
-        </label>
-      </div>
-
-      <div class="trip-editor-grid">
-        <label class="trip-editor-field">
-          <span>Icon</span>
-          <select v-model="placeDraft.iconName">
-            <option v-for="icon in state.options.iconNames" :key="icon" :value="icon">{{ icon }}</option>
-          </select>
-          <small v-for="message in fieldErrors('iconName')" :key="message">{{ message }}</small>
-        </label>
-        <label class="trip-editor-field">
-          <span>Marker Color</span>
-          <select v-model="placeDraft.markerColor">
-            <option v-for="color in state.options.markerColorClasses" :key="color" :value="color">{{ color }}</option>
-          </select>
-          <small v-for="message in fieldErrors('markerColor')" :key="message">{{ message }}</small>
-        </label>
-      </div>
-
-      <label class="trip-editor-check">
-        <input v-model="placeDraft.reverseGeocode" type="checkbox" />
-        <span>Reverse geocode this location on save</span>
-      </label>
-      <small v-for="message in fieldErrors('reverseGeocode')" :key="message">{{ message }}</small>
-
-      <div class="trip-editor-actions">
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="isSaving">Save Place</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !placeDirty" @click="resetPlaceDraft">Reset</button>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="cancelPlaceDraft">Cancel</button>
-        <button v-if="activePlace?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" @click="deleteDraftPlace">
-          Delete
-        </button>
-      </div>
-    </form>
+    <PlaceEditorForm
+      v-if="isPlaceDraftOpen"
+      :active-place="activePlace"
+      :draft="placeDraft"
+      :field-errors="fieldErrors"
+      :form-summary-errors="formSummaryErrors"
+      :is-saving="isSaving"
+      :normal-regions="normalRegions"
+      :place-dirty="placeDirty"
+      :state="state"
+      :status-text="statusText"
+      @cancel="cancelPlaceDraft"
+      @delete="deleteDraftPlace"
+      @reset="resetPlaceDraft"
+      @save="savePlaceDraft"
+    />
   </section>
 </template>
