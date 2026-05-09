@@ -182,6 +182,43 @@ export interface EditorRegionOrderResult {
   regionOrder: Guid[];
 }
 
+export interface EditorPlaceSaveRequest {
+  regionId?: Guid;
+  name: string;
+  notesHtml: string | null;
+  address: string | null;
+  location: EditorCoordinate | null;
+  iconName: string;
+  markerColor: string;
+  reverseGeocode: boolean;
+}
+
+export interface EditorPlaceOrderRequest {
+  placeIds: Guid[];
+}
+
+export interface EditorPlaceOrderResult {
+  regionId: Guid;
+  placeOrder: Guid[];
+}
+
+export interface EditorPlaceDeleteResult {
+  placeId: Guid;
+}
+
+export interface EditorPlaceDraft {
+  id: Guid | null;
+  regionId: Guid | null;
+  name: string;
+  notesHtml: string;
+  address: string;
+  latitude: string | number;
+  longitude: string | number;
+  iconName: string;
+  markerColor: string;
+  reverseGeocode: boolean;
+}
+
 export interface EditorMutationResult<TData> {
   success: true;
   data: TData;

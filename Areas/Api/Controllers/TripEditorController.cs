@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
@@ -19,7 +18,7 @@ namespace Wayfarer.Areas.Api.Controllers;
 [ApiController]
 [Authorize(Roles = "User")]
 [Route("api/trips/{tripId:guid}/editor")]
-public sealed class TripEditorController : ControllerBase
+public sealed partial class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
@@ -27,6 +26,7 @@ public sealed class TripEditorController : ControllerBase
     private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
     private readonly ICacheWarmupScheduler _warmupScheduler;
     private readonly TripEditorRegionMutationService _regionMutations;
+    private readonly TripEditorPlaceMutationService _placeMutations;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -39,6 +39,7 @@ public sealed class TripEditorController : ControllerBase
         ITripMapThumbnailGenerator thumbnailGenerator,
         ICacheWarmupScheduler warmupScheduler,
         TripEditorRegionMutationService regionMutations,
+        TripEditorPlaceMutationService placeMutations,
         ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
@@ -47,6 +48,7 @@ public sealed class TripEditorController : ControllerBase
         _thumbnailGenerator = thumbnailGenerator;
         _warmupScheduler = warmupScheduler;
         _regionMutations = regionMutations;
+        _placeMutations = placeMutations;
         _logger = logger;
     }
 
@@ -318,46 +320,6 @@ public sealed class TripEditorController : ControllerBase
         return null;
     }
 
-    private async Task<EditorTripStateDto> LoadEditorStateForOwnedTrip(Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var trip = await _dbContext.Trips
-            .AsNoTracking()
-            .Include(t => t.Regions).ThenInclude(r => r.Places)
-            .Include(t => t.Regions).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments)
-            .Include(t => t.Tags)
-            .SingleAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-        var placeIds = trip.Regions.SelectMany(r => r.Places).Select(p => p.Id).ToArray();
-        var visits = await _dbContext.PlaceVisitEvents
-            .AsNoTracking()
-            .Where(v => v.UserId == userId && v.PlaceId != null && placeIds.Contains(v.PlaceId.Value))
-            .ToListAsync(cancellationToken);
-        var visitsByPlaceId = visits
-            .GroupBy(v => v.PlaceId!.Value)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
-
-        return EditorTripStateMapper.ToEditorState(
-            trip,
-            visitsByPlaceId,
-            BuildOptions(),
-            trip.IsPublic ? GeneratePublicTripUrl(trip.Id) : null,
-            trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(trip.Id) : null);
-    }
-
-    private async Task<JsonElement?> ParseJsonBody(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var document = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken);
-            return document.RootElement.Clone();
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
     private static ObjectResult InvalidAreaGeometryProblem(EditorInvalidAreaGeometryException exception)
     {
         var problem = new ProblemDetails
@@ -402,9 +364,6 @@ public sealed class TripEditorController : ControllerBase
 
     private static string? NormalizeOptionalUrl(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static Point? ToPoint(EditorCoordinateDto? coordinate) =>
-        coordinate == null ? null : new Point(coordinate.Longitude, coordinate.Latitude) { SRID = 4326 };
 
     private IActionResult ToActionResult<T>(EditorRegionMutationOutcome<T> outcome) =>
         outcome.Status switch

@@ -181,7 +181,12 @@ namespace Wayfarer.Parsers
             _logger = logger;
         }
 
-        public async Task<ReverseLocationResults> GetReverseGeocodingDataAsync(double latitude, double longitude, string apiToken, string provider = "Mapbox")
+        public async Task<ReverseLocationResults> GetReverseGeocodingDataAsync(
+            double latitude,
+            double longitude,
+            string apiToken,
+            string provider = "Mapbox",
+            CancellationToken cancellationToken = default)
         {
             if (!provider.Equals("Mapbox", StringComparison.OrdinalIgnoreCase))
             {
@@ -191,7 +196,7 @@ namespace Wayfarer.Parsers
             }
 
             string url = $"https://api.mapbox.com/search/geocode/v6/reverse?limit=1&language=en&longitude={longitude}&latitude={latitude}&access_token={apiToken}";
-            HttpResponseMessage response = await _httpClient.GetAsync(url);
+            HttpResponseMessage response = await _httpClient.GetAsync(url, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {

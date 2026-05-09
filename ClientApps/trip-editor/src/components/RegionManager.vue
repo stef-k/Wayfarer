@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { createRegion, deleteRegion, orderRegions, updateRegion } from '../api/tripEditorApi';
-import { EditorValidationError } from '../api/tripEditorApi';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { createPlace, createRegion, deletePlace, deleteRegion, orderPlaces, orderRegions, updatePlace, updateRegion } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
-import type { EditorArea, EditorMutationResult, EditorPlace, EditorRegion, EditorRegionSaveRequest, EditorTripState } from '../types';
-
-declare global {
-  interface Window {
-    Sortable?: {
-      create: (element: HTMLElement, options: Record<string, unknown>) => { destroy: () => void };
-    };
-  }
-}
+import PlaceEditorForm from './PlaceEditorForm.vue';
+import RegionEditorForm from './RegionEditorForm.vue';
+import RegionPlaceList from './RegionPlaceList.vue';
+import { buildPlaceRequest, buildRegionRequest, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
+import { useEditorMutationFeedback } from './useEditorMutationFeedback';
+import type { EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState, Guid } from '../types';
 
 const props = defineProps<{
   state: EditorTripState;
@@ -24,68 +20,31 @@ const emit = defineEmits<{
   dirtyStateChanged: [isDirty: boolean];
 }>();
 
-type RegionDraft = {
-  id: string | null;
-  name: string;
-  notesHtml: string;
-  coverImageRawUrl: string;
-  centerLatitude: string | number;
-  centerLongitude: string | number;
-};
-
-const fields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
-const regionList = ref<HTMLElement | null>(null);
+const regionFields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
+const placeFields = ['regionId', 'name', 'notesHtml', 'address', 'location.latitude', 'location.longitude', 'iconName', 'markerColor', 'reverseGeocode'];
 const regionListKey = ref(0);
-const draft = reactive<RegionDraft>(emptyDraft());
+const draft = reactive(emptyRegionDraft());
+const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
 const isSaving = ref(false);
 const isOrdering = ref(false);
-const saveError = ref<string | null>(null);
-const validationErrors = ref<Record<string, string[]>>({});
-const lastSavedAt = ref<string | null>(null);
-let sortable: { destroy: () => void } | null = null;
-let reorderSnapshotIds: string[] | null = null;
 
-const orderedRegions = computed(() =>
-  props.state.regionOrder
-    .map(id => props.state.regionsById[id])
-    .filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]
-);
-const normalRegionIds = computed(() => orderedRegions.value.filter(region => !region.isShadow).map(region => region.id));
+const orderedRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]);
 const activeRegion = computed(() => (draft.id ? props.state.regionsById[draft.id] ?? null : null));
+const activePlace = computed(() => (placeDraft.id ? props.state.placesById[placeDraft.id] ?? null : null));
 const isDraftOpen = computed(() => draft.id !== null || Boolean(draft.name || draft.notesHtml || draft.coverImageRawUrl || draft.centerLatitude || draft.centerLongitude));
-const isDirty = computed(() => JSON.stringify(buildRequest(draft)) !== JSON.stringify(buildRequest(toDraft(activeRegion.value))));
-const statusText = computed(() => {
-  if (isSaving.value) {
-    return 'Saving...';
-  }
-
-  if (isOrdering.value) {
-    return 'Saving order...';
-  }
-
-  if (saveError.value) {
-    return 'Save failed';
-  }
-
-  if (isDirty.value) {
-    return 'Unsaved changes';
-  }
-
-  return lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved';
+const isPlaceDraftOpen = computed(() => placeDraft.regionId !== null || Boolean(placeDraft.name || placeDraft.notesHtml || placeDraft.address || placeDraft.latitude || placeDraft.longitude));
+const regionDirty = computed(() => JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(buildRegionRequest(toRegionDraft(activeRegion.value))));
+const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId))));
+const isDirty = computed(() => regionDirty.value || placeDirty.value);
+const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
+const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, saveWarning, statusText } = useEditorMutationFeedback({
+  isDirty,
+  isOrdering: computed(() => isOrdering.value),
+  isPlaceDraftOpen,
+  isSaving: computed(() => isSaving.value),
+  placeFields,
+  regionFields
 });
-const formSummaryErrors = computed(() =>
-  Object.entries(validationErrors.value)
-    .filter(([key]) => !fields.includes(key))
-    .flatMap(([, messages]) => messages)
-);
-
-watch(
-  () => props.state.regionOrder.join('|'),
-  async () => {
-    await nextTick();
-    attachSortable();
-  }
-);
 
 watch(
   isDirty,
@@ -94,12 +53,10 @@ watch(
 );
 
 onMounted(() => {
-  attachSortable();
   window.addEventListener('beforeunload', confirmUnload);
 });
 
 onUnmounted(() => {
-  sortable?.destroy();
   emit('dirtyStateChanged', false);
   window.removeEventListener('beforeunload', confirmUnload);
 });
@@ -109,7 +66,8 @@ const openCreate = async (): Promise<void> => {
     return;
   }
 
-  Object.assign(draft, emptyDraft());
+  Object.assign(draft, emptyRegionDraft());
+  Object.assign(placeDraft, emptyPlaceDraft());
   draft.name = 'New Region';
   resetFeedback();
 };
@@ -119,12 +77,13 @@ const openEdit = async (region: EditorRegion): Promise<void> => {
     return;
   }
 
-  Object.assign(draft, toDraft(region));
+  Object.assign(placeDraft, emptyPlaceDraft());
+  Object.assign(draft, toRegionDraft(region));
   resetFeedback();
 };
 
 const resetDraft = (): void => {
-  Object.assign(draft, toDraft(activeRegion.value));
+  Object.assign(draft, toRegionDraft(activeRegion.value));
   resetFeedback();
 };
 
@@ -133,7 +92,7 @@ const cancelDraft = async (): Promise<void> => {
     return;
   }
 
-  Object.assign(draft, emptyDraft());
+  Object.assign(draft, emptyRegionDraft());
   resetFeedback();
 };
 
@@ -142,13 +101,13 @@ const saveDraft = async (): Promise<void> => {
   resetFeedback();
 
   try {
-    const request = buildRequest(draft);
+    const request = buildRegionRequest(draft);
     const result = draft.id
       ? await updateRegion(props.editorEndpoint, draft.id, props.antiforgeryToken, request)
       : await createRegion(props.editorEndpoint, props.antiforgeryToken, request);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(draft, toDraft(result.data));
-    lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    Object.assign(draft, toRegionDraft(result.data));
+    markSaved();
   } catch (error) {
     applyError(error, 'Region save failed.');
   } finally {
@@ -161,7 +120,7 @@ const deleteDraftRegion = async (): Promise<void> => {
     return;
   }
 
-  if (!(await confirmDiscard('Discard unsaved region draft changes before deleting?'))) {
+  if (!(await confirmDiscard('Discard unsaved region or place draft changes before deleting?'))) {
     return;
   }
 
@@ -180,8 +139,9 @@ const deleteDraftRegion = async (): Promise<void> => {
   try {
     const result = await deleteRegion(props.editorEndpoint, activeRegion.value.id, props.antiforgeryToken);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(draft, emptyDraft());
-    lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    Object.assign(draft, emptyRegionDraft());
+    Object.assign(placeDraft, emptyPlaceDraft());
+    markSaved();
   } catch (error) {
     applyError(error, 'Region delete failed.');
   } finally {
@@ -189,29 +149,15 @@ const deleteDraftRegion = async (): Promise<void> => {
   }
 };
 
-const onSortStart = (): void => {
-  reorderSnapshotIds = [...normalRegionIds.value];
-};
-
-const onSortEnd = async (): Promise<void> => {
-  if (!regionList.value) {
-    return;
-  }
-
-  const previousIds = reorderSnapshotIds ?? [...normalRegionIds.value];
-  reorderSnapshotIds = null;
-  const ids = Array.from(regionList.value.querySelectorAll<HTMLElement>('[data-region-id][data-reorderable="true"]')).map(element => element.dataset.regionId!);
-  if (ids.join('|') === previousIds.join('|')) {
-    return;
-  }
-
-  if (isDirty.value && !(await confirmDiscard('Discard unsaved region draft changes before reordering?'))) {
+const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
+  if (isDirty.value && !(await confirmDiscard('Discard unsaved draft changes before reordering?'))) {
     await restoreRegionOrder(previousIds);
     return;
   }
 
   if (isDirty.value) {
-    Object.assign(draft, emptyDraft());
+    Object.assign(draft, emptyRegionDraft());
+    Object.assign(placeDraft, emptyPlaceDraft());
   }
 
   isOrdering.value = true;
@@ -219,8 +165,8 @@ const onSortEnd = async (): Promise<void> => {
   try {
     const result = await orderRegions(props.editorEndpoint, props.antiforgeryToken, { regionIds: ids });
     emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(draft, emptyDraft());
-    lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    Object.assign(draft, emptyRegionDraft());
+    markSaved();
   } catch (error) {
     applyError(error, 'Region reorder failed.');
     await restoreRegionOrder(previousIds);
@@ -229,109 +175,144 @@ const onSortEnd = async (): Promise<void> => {
   }
 };
 
-function attachSortable(): void {
-  sortable?.destroy();
-  sortable = null;
-  if (!regionList.value || !window.Sortable) {
-    if (!window.Sortable) {
-      saveError.value = 'Region reorder is unavailable because SortableJS is not loaded.';
-    }
+const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
+  if (region.isShadow || !(await confirmDiscard())) {
     return;
   }
 
-  sortable = window.Sortable.create(regionList.value, {
-    animation: 150,
-    draggable: '.trip-editor-region-card--normal',
-    handle: '.trip-editor-drag-handle',
-    onStart: onSortStart,
-    onEnd: onSortEnd
-  });
+  Object.assign(draft, emptyRegionDraft());
+  Object.assign(placeDraft, emptyPlaceDraft(region.id));
+  placeDraft.name = 'New Place';
+  placeDraft.iconName = props.state.options.iconNames[0] ?? 'marker';
+  placeDraft.markerColor = props.state.options.markerColorClasses[0] ?? 'bg-blue';
+  resetFeedback();
+};
+
+const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
+  if (!place.capabilities.canEdit || !(await confirmDiscard())) {
+    return;
+  }
+
+  Object.assign(draft, emptyRegionDraft());
+  Object.assign(placeDraft, toPlaceDraft(place, place.regionId));
+  resetFeedback();
+};
+
+const resetPlaceDraft = (): void => {
+  Object.assign(placeDraft, toPlaceDraft(activePlace.value, placeDraft.regionId));
+  resetFeedback();
+};
+
+const cancelPlaceDraft = async (): Promise<void> => {
+  if (!(await confirmDiscard('Discard unsaved place changes?'))) {
+    return;
+  }
+
+  Object.assign(placeDraft, emptyPlaceDraft());
+  resetFeedback();
+};
+
+const savePlaceDraft = async (): Promise<void> => {
+  if (!placeDraft.regionId) {
+    return;
+  }
+
+  isSaving.value = true;
+  resetFeedback();
+  try {
+    const request = buildPlaceRequest(placeDraft);
+    const result = placeDraft.id
+      ? await updatePlace(props.editorEndpoint, placeDraft.id, props.antiforgeryToken, request)
+      : await createPlace(props.editorEndpoint, placeDraft.regionId, props.antiforgeryToken, withoutRegionId(request));
+    emit('mutationApplied', result as EditorMutationResult<unknown>);
+    Object.assign(placeDraft, toPlaceDraft(result.data, result.data.regionId));
+    markSaved(result.warnings.map(warning => warning.message));
+  } catch (error) {
+    applyError(error, 'Place save failed.');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const deleteDraftPlace = async (): Promise<void> => {
+  if (!activePlace.value) {
+    return;
+  }
+
+  if (!(await confirmDiscard('Discard unsaved place draft changes before deleting?'))) {
+    return;
+  }
+
+  if (!(await confirm({
+    title: 'Delete place?',
+    message: 'Delete this place and any segments connected to it?',
+    confirmLabel: 'Delete',
+    cancelLabel: 'Keep place',
+    variant: 'danger'
+  }))) {
+    return;
+  }
+
+  isSaving.value = true;
+  resetFeedback();
+  try {
+    const result = await deletePlace(props.editorEndpoint, activePlace.value.id, props.antiforgeryToken);
+    emit('mutationApplied', result as EditorMutationResult<unknown>);
+    Object.assign(placeDraft, emptyPlaceDraft());
+    markSaved();
+  } catch (error) {
+    applyError(error, 'Place delete failed.');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+async function reorderPlaces(regionId: Guid, ids: Guid[], previousIds: Guid[]): Promise<void> {
+  if (isDirty.value && !(await confirmDiscard('Discard unsaved draft changes before reordering places?'))) {
+    await restoreRegionOrder(previousIds);
+    return;
+  }
+
+  if (isDirty.value) {
+    Object.assign(draft, emptyRegionDraft());
+    Object.assign(placeDraft, emptyPlaceDraft());
+  }
+
+  isOrdering.value = true;
+  resetFeedback();
+  try {
+    const result = await orderPlaces(props.editorEndpoint, regionId, props.antiforgeryToken, { placeIds: ids });
+    emit('mutationApplied', result as EditorMutationResult<unknown>);
+    markSaved();
+  } catch (error) {
+    applyError(error, 'Place reorder failed.');
+    await restoreRegionOrder(previousIds);
+  } finally {
+    isOrdering.value = false;
+  }
 }
 
 /// Rebuilds the Sortable-mutated list from persisted Vue state after canceled or failed reorder.
 async function restoreRegionOrder(_previousIds: string[]): Promise<void> {
   regionListKey.value += 1;
-  await nextTick();
-  attachSortable();
-}
-
-function orderedPlaces(regionId: string): EditorPlace[] {
-  return (props.state.placeOrderByRegionId[regionId] ?? []).map(id => props.state.placesById[id]).filter(Boolean) as EditorPlace[];
-}
-
-function orderedAreas(regionId: string): EditorArea[] {
-  return (props.state.areaOrderByRegionId[regionId] ?? []).map(id => props.state.areasById[id]).filter(Boolean) as EditorArea[];
 }
 
 function hasRegionChildren(region: EditorRegion): boolean {
   return (props.state.placeOrderByRegionId[region.id]?.length ?? 0) > 0 || (props.state.areaOrderByRegionId[region.id]?.length ?? 0) > 0;
 }
 
-function emptyDraft(): RegionDraft {
-  return { id: null, name: '', notesHtml: '', coverImageRawUrl: '', centerLatitude: '', centerLongitude: '' };
-}
-
-function toDraft(region: EditorRegion | null): RegionDraft {
-  if (!region) {
-    return emptyDraft();
-  }
-
-  return {
-    id: region.id,
-    name: region.name,
-    notesHtml: region.notesHtml,
-    coverImageRawUrl: region.coverImage?.rawUrl ?? '',
-    centerLatitude: region.center ? String(region.center.latitude) : '',
-    centerLongitude: region.center ? String(region.center.longitude) : ''
-  };
-}
-
-function buildRequest(value: RegionDraft): EditorRegionSaveRequest {
-  const latitude = draftText(value.centerLatitude);
-  const longitude = draftText(value.centerLongitude);
-  const coverImageRawUrl = draftText(value.coverImageRawUrl);
-  const hasPartialCenter = Boolean(latitude || longitude);
-
-  return {
-    name: value.name,
-    notesHtml: value.notesHtml,
-    coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
-    center: hasPartialCenter ? { latitude: latitude ? Number(latitude) : Number.NaN, longitude: longitude ? Number(longitude) : Number.NaN } : null
-  };
-}
-
-/// Normalizes Vue number-input values before validation and API serialization.
-function draftText(value: string | number): string {
-  return String(value ?? '').trim();
-}
-
-function confirmDiscard(message = 'Discard unsaved region changes?'): Promise<boolean> {
+function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> {
   if (!isDirty.value) {
     return Promise.resolve(true);
   }
 
   return confirm({
-    title: 'Discard region changes?',
+    title: 'Discard changes?',
     message,
     confirmLabel: 'Discard',
     cancelLabel: 'Keep editing',
     variant: 'warning'
   });
-}
-
-function resetFeedback(): void {
-  saveError.value = null;
-  validationErrors.value = {};
-}
-
-function applyError(error: unknown, fallback: string): void {
-  if (error instanceof EditorValidationError) {
-    validationErrors.value = error.errors;
-    saveError.value = error.message;
-    return;
-  }
-
-  saveError.value = error instanceof Error ? error.message : fallback;
 }
 
 function confirmUnload(event: BeforeUnloadEvent): void {
@@ -342,8 +323,6 @@ function confirmUnload(event: BeforeUnloadEvent): void {
   event.preventDefault();
   event.returnValue = '';
 }
-
-const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? [];
 </script>
 
 <template>
@@ -354,97 +333,53 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     </div>
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
+    <div v-if="saveWarning" class="trip-editor-form-warning" role="status">{{ saveWarning }}</div>
 
-    <div :key="regionListKey" ref="regionList" class="trip-editor-region-list">
-      <article
-        v-for="region in orderedRegions"
-        :key="region.id"
-        class="trip-editor-region-card"
-        :class="{ 'trip-editor-region-card--normal': !region.isShadow, 'trip-editor-region-card--shadow': region.isShadow }"
-        :data-region-id="region.id"
-        :data-reorderable="!region.isShadow"
-      >
-        <header class="trip-editor-region-card__header">
-          <button
-            v-if="!region.isShadow"
-            type="button"
-            class="trip-editor-icon-button trip-editor-drag-handle"
-            title="Drag to reorder region"
-            aria-label="Drag to reorder region"
-          >
-            <span aria-hidden="true">::</span>
-          </button>
-          <div>
-            <h3>{{ region.name }}</h3>
-            <small v-if="region.isShadow">Shadow region</small>
-          </div>
-          <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="openEdit(region)">Edit</button>
-        </header>
-
-        <ul>
-          <li v-for="place in orderedPlaces(region.id)" :key="place.id">
-            <span>{{ place.name }}</span>
-            <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
-          </li>
-          <li v-for="area in orderedAreas(region.id)" :key="area.id">
-            <span>{{ area.name }}</span>
-            <small>Area</small>
-          </li>
-        </ul>
-      </article>
-    </div>
+    <RegionPlaceList
+      :key="regionListKey"
+      :is-ordering="isOrdering"
+      :is-saving="isSaving"
+      :regions="orderedRegions"
+      :state="state"
+      @add-place="openPlaceCreate"
+      @edit-place="openPlaceEdit"
+      @edit-region="openEdit"
+      @place-reorder="reorderPlaces"
+      @region-reorder="reorderRegions"
+    />
 
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Region</button>
 
-    <form v-if="isDraftOpen" class="trip-editor-region-form" @submit.prevent="saveDraft">
-      <div class="trip-editor-panel__line">
-        <h3>{{ draft.id ? 'Edit Region' : 'Add Region' }}</h3>
-        <span class="trip-editor-save-state">{{ statusText }}</span>
-      </div>
+    <RegionEditorForm
+      v-if="isDraftOpen"
+      :active-region="activeRegion"
+      :draft="draft"
+      :field-errors="fieldErrors"
+      :form-summary-errors="formSummaryErrors"
+      :is-dirty="isDirty"
+      :is-saving="isSaving"
+      :status-text="statusText"
+      @cancel="cancelDraft"
+      @delete="deleteDraftRegion"
+      @reset="resetDraft"
+      @save="saveDraft"
+    />
 
-      <div v-if="formSummaryErrors.length > 0" class="trip-editor-form-error" role="alert">
-        <p v-for="message in formSummaryErrors" :key="message">{{ message }}</p>
-      </div>
-
-      <label class="trip-editor-field">
-        <span>Name</span>
-        <input v-model="draft.name" type="text" autocomplete="off" />
-        <small v-for="message in fieldErrors('name')" :key="message">{{ message }}</small>
-      </label>
-
-      <label class="trip-editor-field">
-        <span>Notes HTML</span>
-        <textarea v-model="draft.notesHtml" rows="6"></textarea>
-        <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-      </label>
-
-      <label class="trip-editor-field">
-        <span>Cover Image URL</span>
-        <input v-model="draft.coverImageRawUrl" type="url" autocomplete="off" />
-        <small v-for="message in fieldErrors('coverImage.rawUrl')" :key="message">{{ message }}</small>
-      </label>
-
-      <div class="trip-editor-grid">
-        <label class="trip-editor-field">
-          <span>Center Latitude</span>
-          <input v-model="draft.centerLatitude" type="number" step="any" />
-          <small v-for="message in fieldErrors('center.latitude')" :key="message">{{ message }}</small>
-        </label>
-        <label class="trip-editor-field">
-          <span>Center Longitude</span>
-          <input v-model="draft.centerLongitude" type="number" step="any" />
-          <small v-for="message in fieldErrors('center.longitude')" :key="message">{{ message }}</small>
-        </label>
-      </div>
-
-      <div class="trip-editor-actions">
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="isSaving">Save Region</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="resetDraft">Reset</button>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="cancelDraft">Cancel</button>
-        <button v-if="activeRegion?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" @click="deleteDraftRegion">
-          Delete
-        </button>
-      </div>
-    </form>
+    <PlaceEditorForm
+      v-if="isPlaceDraftOpen"
+      :active-place="activePlace"
+      :draft="placeDraft"
+      :field-errors="fieldErrors"
+      :form-summary-errors="formSummaryErrors"
+      :is-saving="isSaving"
+      :normal-regions="normalRegions"
+      :place-dirty="placeDirty"
+      :state="state"
+      :status-text="statusText"
+      @cancel="cancelPlaceDraft"
+      @delete="deleteDraftPlace"
+      @reset="resetPlaceDraft"
+      @save="savePlaceDraft"
+    />
   </section>
 </template>
