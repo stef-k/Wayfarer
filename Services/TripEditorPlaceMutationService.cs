@@ -15,6 +15,8 @@ public sealed class TripEditorPlaceMutationService
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
     private readonly IIconColorProvider _iconColorProvider;
+    private readonly TripEditorPlaceMutationReader _reader;
+    private readonly TripEditorPlaceRouteEffects _routeEffects;
     private readonly ReverseGeocodingService _reverseGeocodingService;
 
     /// <summary>
@@ -24,12 +26,16 @@ public sealed class TripEditorPlaceMutationService
         ApplicationDbContext dbContext,
         IWebHostEnvironment environment,
         IIconColorProvider iconColorProvider,
-        ReverseGeocodingService reverseGeocodingService)
+        ReverseGeocodingService reverseGeocodingService,
+        TripEditorPlaceMutationReader? reader = null,
+        TripEditorPlaceRouteEffects? routeEffects = null)
     {
         _dbContext = dbContext;
         _environment = environment;
         _iconColorProvider = iconColorProvider;
         _reverseGeocodingService = reverseGeocodingService;
+        _reader = reader ?? new TripEditorPlaceMutationReader(dbContext);
+        _routeEffects = routeEffects ?? new TripEditorPlaceRouteEffects(dbContext);
     }
 
     /// <summary>
@@ -84,8 +90,8 @@ public sealed class TripEditorPlaceMutationService
         _dbContext.Places.Add(place);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var dto = await LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
-        var affected = await BuildPlaceAffectedAsync(tripId, userId, new[] { dto }, new[] { region.Id }, null, null, true, cancellationToken);
+        var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
+        var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, new[] { region.Id }, null, null, true, cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
             new EditorMutationResult<EditorPlaceDto>(true, dto, affected, EditorDeletedIdsDto.Empty, address.Warnings));
     }
@@ -150,22 +156,22 @@ public sealed class TripEditorPlaceMutationService
             place.DisplayOrder = NextPlaceOrder(targetRegion);
         }
 
-        var affectedSegments = locationChanged ? RewriteEndpointRoutes(trip, place.Id, update.Location) : Array.Empty<Segment>();
+        var affectedSegments = locationChanged ? _routeEffects.RewriteEndpointRoutes(trip, place.Id, update.Location) : Array.Empty<Segment>();
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         if (moved)
         {
-            await NormalizePlaceOrdersAsync(oldRegionId, cancellationToken);
-            await NormalizePlaceOrdersAsync(targetRegion.Id, cancellationToken);
+            await _routeEffects.NormalizePlaceOrdersAsync(oldRegionId, cancellationToken);
+            await _routeEffects.NormalizePlaceOrdersAsync(targetRegion.Id, cancellationToken);
         }
 
-        var dto = await LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
+        var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
         var orderRegions = moved ? new[] { oldRegionId, targetRegion.Id } : Array.Empty<Guid>();
-        var segmentOrder = locationChanged ? await LoadSegmentOrderAsync(tripId, userId, cancellationToken) : null;
+        var segmentOrder = locationChanged ? await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken) : null;
         var segmentDtos = affectedSegments.Count > 0
-            ? await LoadSegmentDtosAsync(affectedSegments.Select(s => s.Id).ToArray(), tripId, cancellationToken)
+            ? await _reader.LoadSegmentDtosAsync(affectedSegments.Select(s => s.Id).ToArray(), tripId, cancellationToken)
             : Array.Empty<EditorSegmentDto>();
-        var affected = await BuildPlaceAffectedAsync(tripId, userId, new[] { dto }, orderRegions, segmentDtos, segmentOrder, locationChanged, cancellationToken);
+        var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, orderRegions, segmentDtos, segmentOrder, locationChanged, cancellationToken);
 
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
             new EditorMutationResult<EditorPlaceDto>(true, dto, affected, EditorDeletedIdsDto.Empty, address.Warnings));
@@ -203,16 +209,16 @@ public sealed class TripEditorPlaceMutationService
         _dbContext.Segments.RemoveRange(trip.Segments.Where(s => deletedSegmentIds.Contains(s.Id)));
         _dbContext.Places.Remove(place);
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await NormalizePlaceOrdersAsync(regionId, cancellationToken);
-        await NormalizeSegmentOrdersAsync(tripId, userId, cancellationToken);
+        await _routeEffects.NormalizePlaceOrdersAsync(regionId, cancellationToken);
+        await _routeEffects.NormalizeSegmentOrdersAsync(tripId, userId, cancellationToken);
 
-        var affected = await BuildPlaceAffectedAsync(
+        var affected = await _reader.BuildAffectedAsync(
             tripId,
             userId,
             Array.Empty<EditorPlaceDto>(),
             new[] { regionId },
             Array.Empty<EditorSegmentDto>(),
-            await LoadSegmentOrderAsync(tripId, userId, cancellationToken),
+            await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken),
             true,
             cancellationToken);
         var deletedIds = new EditorDeletedIdsDto(Array.Empty<Guid>(), new[] { placeId }, Array.Empty<Guid>(), deletedSegmentIds, Array.Empty<string>());
@@ -278,9 +284,9 @@ public sealed class TripEditorPlaceMutationService
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var placeOrder = await LoadPlaceOrderAsync(region.Id, cancellationToken);
-        var placeDtos = await LoadPlaceDtosAsync(orderRequest.PlaceIds, tripId, userId, cancellationToken);
-        var affected = await BuildPlaceAffectedAsync(tripId, userId, placeDtos, new[] { region.Id }, null, null, false, cancellationToken);
+        var placeOrder = await _reader.LoadPlaceOrderAsync(region.Id, cancellationToken);
+        var placeDtos = await _reader.LoadPlaceDtosAsync(orderRequest.PlaceIds, tripId, userId, cancellationToken);
+        var affected = await _reader.BuildAffectedAsync(tripId, userId, placeDtos, new[] { region.Id }, null, null, false, cancellationToken);
         var data = new EditorPlaceOrderResult(region.Id, placeOrder);
 
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Succeeded(
@@ -363,189 +369,6 @@ public sealed class TripEditorPlaceMutationService
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-    private async Task<EditorAffectedSlicesDto> BuildPlaceAffectedAsync(
-        Guid tripId,
-        string userId,
-        IReadOnlyList<EditorPlaceDto> places,
-        IReadOnlyList<Guid> placeOrderRegionIds,
-        IReadOnlyList<EditorSegmentDto>? segments,
-        IReadOnlyList<Guid>? segmentOrder,
-        bool includeVisitProgress,
-        CancellationToken cancellationToken)
-    {
-        var placeOrders = new Dictionary<Guid, IReadOnlyList<Guid>>();
-        foreach (var regionId in placeOrderRegionIds.Distinct())
-        {
-            placeOrders[regionId] = await LoadPlaceOrderAsync(regionId, cancellationToken);
-        }
-
-        return new EditorAffectedSlicesDto(
-            null,
-            Array.Empty<EditorRegionDto>(),
-            null,
-            places,
-            placeOrders,
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            segments ?? Array.Empty<EditorSegmentDto>(),
-            segmentOrder,
-            Array.Empty<EditorTagDto>(),
-            null,
-            includeVisitProgress ? await LoadVisitProgressAsync(tripId, userId, cancellationToken) : null,
-            null);
-    }
-
-    private async Task<EditorPlaceDto> LoadPlaceDtoAsync(Guid placeId, Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var place = await _dbContext.Places
-            .AsNoTracking()
-            .SingleAsync(p => p.Id == placeId && p.UserId == userId, cancellationToken);
-        var visits = await LoadVisitSummariesAsync(new[] { place }, userId, cancellationToken);
-        return EditorTripStateMapper.ToPlace(tripId, place.RegionId, place, visits[place.Id]);
-    }
-
-    private async Task<IReadOnlyList<EditorPlaceDto>> LoadPlaceDtosAsync(IReadOnlyList<Guid> ids, Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var places = await _dbContext.Places
-            .AsNoTracking()
-            .Where(p => ids.Contains(p.Id) && p.UserId == userId)
-            .ToListAsync(cancellationToken);
-        var visits = await LoadVisitSummariesAsync(places, userId, cancellationToken);
-        var byId = places.ToDictionary(p => p.Id);
-        return ids.Select(id => EditorTripStateMapper.ToPlace(tripId, byId[id].RegionId, byId[id], visits[id])).ToList();
-    }
-
-    private async Task<IReadOnlyDictionary<Guid, EditorPlaceVisitSummaryDto>> LoadVisitSummariesAsync(
-        IReadOnlyList<Place> places,
-        string userId,
-        CancellationToken cancellationToken)
-    {
-        var placeIds = places.Select(p => p.Id).ToArray();
-        var visits = await _dbContext.PlaceVisitEvents
-            .AsNoTracking()
-            .Where(v => v.UserId == userId && v.PlaceId != null && placeIds.Contains(v.PlaceId.Value))
-            .ToListAsync(cancellationToken);
-        var visitsByPlaceId = visits.GroupBy(v => v.PlaceId!.Value).ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
-        return EditorTripStateMapper.ToVisitSummaries(places, visitsByPlaceId);
-    }
-
-    private async Task<EditorVisitProgressDto> LoadVisitProgressAsync(Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var regions = await _dbContext.Regions
-            .AsNoTracking()
-            .Include(r => r.Places)
-            .Where(r => r.TripId == tripId && r.UserId == userId)
-            .OrderBy(r => r.DisplayOrder)
-            .ThenBy(r => r.Name)
-            .ToListAsync(cancellationToken);
-        var places = regions.SelectMany(r => r.Places.Select(p => (Region: r, Place: p))).ToList();
-        var summaries = await LoadVisitSummariesAsync(places.Select(p => p.Place).ToList(), userId, cancellationToken);
-        var visitsByPlaceId = await LoadVisitsByPlaceIdAsync(summaries.Keys, userId, cancellationToken);
-        return EditorTripStateMapper.ToVisitProgress(places, summaries, visitsByPlaceId);
-    }
-
-    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PlaceVisitEvent>>> LoadVisitsByPlaceIdAsync(
-        IEnumerable<Guid> placeIds,
-        string userId,
-        CancellationToken cancellationToken)
-    {
-        var ids = placeIds.ToArray();
-        var visits = await _dbContext.PlaceVisitEvents
-            .AsNoTracking()
-            .Where(v => v.UserId == userId && v.PlaceId != null && ids.Contains(v.PlaceId.Value))
-            .ToListAsync(cancellationToken);
-        return visits.GroupBy(v => v.PlaceId!.Value).ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
-    }
-
-    private async Task<IReadOnlyList<EditorSegmentDto>> LoadSegmentDtosAsync(IReadOnlyList<Guid> ids, Guid tripId, CancellationToken cancellationToken)
-    {
-        var segments = await _dbContext.Segments.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
-        var byId = segments.ToDictionary(s => s.Id);
-        return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id])).ToList();
-    }
-
-    private async Task<IReadOnlyList<Guid>> LoadPlaceOrderAsync(Guid regionId, CancellationToken cancellationToken) =>
-        await _dbContext.Places
-            .AsNoTracking()
-            .Where(p => p.RegionId == regionId)
-            .OrderBy(p => p.DisplayOrder)
-            .ThenBy(p => p.Name)
-            .Select(p => p.Id)
-            .ToListAsync(cancellationToken);
-
-    private async Task<IReadOnlyList<Guid>> LoadSegmentOrderAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
-        await _dbContext.Segments
-            .AsNoTracking()
-            .Where(s => s.TripId == tripId && s.UserId == userId)
-            .OrderBy(s => s.DisplayOrder)
-            .ThenBy(s => s.Id)
-            .Select(s => s.Id)
-            .ToListAsync(cancellationToken);
-
-    private static IReadOnlyList<Segment> RewriteEndpointRoutes(Trip trip, Guid placeId, EditorCoordinateDto? location)
-    {
-        var affected = trip.Segments.Where(s => s.FromPlaceId == placeId || s.ToPlaceId == placeId).ToList();
-        foreach (var segment in affected)
-        {
-            if (segment.RouteGeometry == null)
-            {
-                continue;
-            }
-
-            if (location == null || segment.RouteGeometry.NumPoints < 2)
-            {
-                segment.RouteGeometry = null;
-                continue;
-            }
-
-            var coordinates = segment.RouteGeometry.Coordinates.ToArray();
-            var endpoint = new Coordinate(location.Longitude, location.Latitude);
-            if (segment.FromPlaceId == placeId)
-            {
-                coordinates[0] = endpoint;
-            }
-
-            if (segment.ToPlaceId == placeId)
-            {
-                coordinates[^1] = endpoint;
-            }
-
-            segment.RouteGeometry = new LineString(coordinates) { SRID = 4326 };
-        }
-
-        return affected;
-    }
-
-    private async Task NormalizePlaceOrdersAsync(Guid regionId, CancellationToken cancellationToken)
-    {
-        var places = await _dbContext.Places
-            .Where(p => p.RegionId == regionId)
-            .OrderBy(p => p.DisplayOrder)
-            .ThenBy(p => p.Name)
-            .ToListAsync(cancellationToken);
-        for (var i = 0; i < places.Count; i++)
-        {
-            places[i].DisplayOrder = i + 1;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task NormalizeSegmentOrdersAsync(Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var segments = await _dbContext.Segments
-            .Where(s => s.TripId == tripId && s.UserId == userId)
-            .OrderBy(s => s.DisplayOrder)
-            .ThenBy(s => s.Id)
-            .ToListAsync(cancellationToken);
-        for (var i = 0; i < segments.Count; i++)
-        {
-            segments[i].DisplayOrder = i + 1;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-    }
 
     private static async Task<(JsonElement? Value, Dictionary<string, string[]>? ValidationErrors)> ParseJsonBodyAsync(
         Stream requestBody,
