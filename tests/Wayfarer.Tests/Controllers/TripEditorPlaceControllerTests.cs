@@ -3,6 +3,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
 
