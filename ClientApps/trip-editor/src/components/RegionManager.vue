@@ -37,7 +37,7 @@ const regionDirty = computed(() => JSON.stringify(buildRegionRequest(draft)) !==
 const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId))));
 const isDirty = computed(() => regionDirty.value || placeDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
-const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, statusText } = useEditorMutationFeedback({
+const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, saveWarning, statusText } = useEditorMutationFeedback({
   isDirty,
   isOrdering: computed(() => isOrdering.value),
   isPlaceDraftOpen,
@@ -226,10 +226,7 @@ const savePlaceDraft = async (): Promise<void> => {
       : await createPlace(props.editorEndpoint, placeDraft.regionId, props.antiforgeryToken, withoutRegionId(request));
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(placeDraft, toPlaceDraft(result.data, result.data.regionId));
-    if (result.warnings.length > 0) {
-      saveError.value = result.warnings.map(warning => warning.message).join(' ');
-    }
-    markSaved();
+    markSaved(result.warnings.map(warning => warning.message));
   } catch (error) {
     applyError(error, 'Place save failed.');
   } finally {
@@ -336,6 +333,7 @@ function confirmUnload(event: BeforeUnloadEvent): void {
     </div>
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
+    <div v-if="saveWarning" class="trip-editor-form-warning" role="status">{{ saveWarning }}</div>
 
     <RegionPlaceList
       :key="regionListKey"

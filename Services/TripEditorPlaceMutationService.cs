@@ -354,7 +354,7 @@ public sealed class TripEditorPlaceMutationService
         ReverseLocationResults result;
         try
         {
-            result = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Latitude, location.Longitude, token, "Mapbox");
+            result = await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Latitude, location.Longitude, token, "Mapbox", cancellationToken);
         }
         catch (HttpRequestException ex)
         {

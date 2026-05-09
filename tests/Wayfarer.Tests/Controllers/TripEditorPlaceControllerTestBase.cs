@@ -172,6 +172,11 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         private readonly CancellationTokenSource _requestCancellation;
 
         /// <summary>
+        /// Gets whether the outbound handler token observed the editor request cancellation.
+        /// </summary>
+        public bool RequestCancellationReachedOutboundHandler { get; private set; }
+
+        /// <summary>
         /// Initializes a handler that cancels the caller token before surfacing provider cancellation.
         /// </summary>
         public CallerCanceledReverseGeocodeHandler(CancellationTokenSource requestCancellation)
@@ -185,6 +190,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             _requestCancellation.Cancel();
+            RequestCancellationReachedOutboundHandler = cancellationToken.IsCancellationRequested;
             throw new TaskCanceledException("Request cancellation reached reverse geocoding.");
         }
     }

@@ -235,14 +235,16 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
             User = new ApplicationUser { Id = "owner-user", UserName = "owner@example.test", DisplayName = "Owner" }
         });
         db.SaveChanges();
+        var handler = new CallerCanceledReverseGeocodeHandler(cancellation);
         var controller = BuildController(db, new ReverseGeocodingService(
-            new HttpClient(new CallerCanceledReverseGeocodeHandler(cancellation)),
+            new HttpClient(handler),
             NullLogger<BaseApiController>.Instance));
         ConfigureControllerWithUserRole(controller, "owner-user");
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, cancellation.Token), ValidCreateBody("Geo", reverseGeocode: true)));
 
+        Assert.True(handler.RequestCancellationReachedOutboundHandler);
         Assert.DoesNotContain(db.Places, p => p.Name == "Geo");
     }
 }
