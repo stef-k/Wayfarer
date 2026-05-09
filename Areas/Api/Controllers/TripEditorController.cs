@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
@@ -19,7 +18,7 @@ namespace Wayfarer.Areas.Api.Controllers;
 [ApiController]
 [Authorize(Roles = "User")]
 [Route("api/trips/{tripId:guid}/editor")]
-public sealed class TripEditorController : ControllerBase
+public sealed partial class TripEditorController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
@@ -285,74 +284,6 @@ public sealed class TripEditorController : ControllerBase
         return ToActionResult(outcome);
     }
 
-    /// <summary>
-    /// Creates a place in a normal owned region.
-    /// </summary>
-    [HttpPost("regions/{regionId:guid}/places")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreatePlace(Guid tripId, Guid regionId, CancellationToken cancellationToken)
-    {
-        var authFailure = RequireEditorUser(out var userId);
-        if (authFailure != null)
-        {
-            return authFailure;
-        }
-
-        var outcome = await _placeMutations.CreatePlaceAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
-    }
-
-    /// <summary>
-    /// Updates or moves a place inside an owned trip.
-    /// </summary>
-    [HttpPut("places/{placeId:guid}")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> UpdatePlace(Guid tripId, Guid placeId, CancellationToken cancellationToken)
-    {
-        var authFailure = RequireEditorUser(out var userId);
-        if (authFailure != null)
-        {
-            return authFailure;
-        }
-
-        var outcome = await _placeMutations.UpdatePlaceAsync(tripId, placeId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
-    }
-
-    /// <summary>
-    /// Deletes a place and endpoint segments that reference it.
-    /// </summary>
-    [HttpDelete("places/{placeId:guid}")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> DeletePlace(Guid tripId, Guid placeId, CancellationToken cancellationToken)
-    {
-        var authFailure = RequireEditorUser(out var userId);
-        if (authFailure != null)
-        {
-            return authFailure;
-        }
-
-        var outcome = await _placeMutations.DeletePlaceAsync(tripId, placeId, userId!, cancellationToken);
-        return ToActionResult(outcome);
-    }
-
-    /// <summary>
-    /// Persists the complete desired place order for one normal owned region.
-    /// </summary>
-    [HttpPut("regions/{regionId:guid}/places/order")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> OrderPlaces(Guid tripId, Guid regionId, CancellationToken cancellationToken)
-    {
-        var authFailure = RequireEditorUser(out var userId);
-        if (authFailure != null)
-        {
-            return authFailure;
-        }
-
-        var outcome = await _placeMutations.OrderPlacesAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
-    }
-
     private EditorOptionsDto BuildOptions()
     {
         var colors = _iconColorProvider.GetAvailableColors();
@@ -387,46 +318,6 @@ public sealed class TripEditorController : ControllerBase
         }
 
         return null;
-    }
-
-    private async Task<EditorTripStateDto> LoadEditorStateForOwnedTrip(Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var trip = await _dbContext.Trips
-            .AsNoTracking()
-            .Include(t => t.Regions).ThenInclude(r => r.Places)
-            .Include(t => t.Regions).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments)
-            .Include(t => t.Tags)
-            .SingleAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-        var placeIds = trip.Regions.SelectMany(r => r.Places).Select(p => p.Id).ToArray();
-        var visits = await _dbContext.PlaceVisitEvents
-            .AsNoTracking()
-            .Where(v => v.UserId == userId && v.PlaceId != null && placeIds.Contains(v.PlaceId.Value))
-            .ToListAsync(cancellationToken);
-        var visitsByPlaceId = visits
-            .GroupBy(v => v.PlaceId!.Value)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<PlaceVisitEvent>)g.ToList());
-
-        return EditorTripStateMapper.ToEditorState(
-            trip,
-            visitsByPlaceId,
-            BuildOptions(),
-            trip.IsPublic ? GeneratePublicTripUrl(trip.Id) : null,
-            trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(trip.Id) : null);
-    }
-
-    private async Task<JsonElement?> ParseJsonBody(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var document = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken);
-            return document.RootElement.Clone();
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
     }
 
     private static ObjectResult InvalidAreaGeometryProblem(EditorInvalidAreaGeometryException exception)
@@ -473,9 +364,6 @@ public sealed class TripEditorController : ControllerBase
 
     private static string? NormalizeOptionalUrl(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static Point? ToPoint(EditorCoordinateDto? coordinate) =>
-        coordinate == null ? null : new Point(coordinate.Longitude, coordinate.Latitude) { SRID = 4326 };
 
     private IActionResult ToActionResult<T>(EditorRegionMutationOutcome<T> outcome) =>
         outcome.Status switch
