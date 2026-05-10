@@ -1,4 +1,4 @@
-import L, { type LayerGroup, type Map as LeafletMap } from 'leaflet';
+import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
@@ -9,6 +9,7 @@ export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry'
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState) => void;
+  startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
@@ -18,6 +19,7 @@ interface TripEditorMapAdapter {
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): TripEditorMapAdapter => {
   const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
   const layers = L.layerGroup().addTo(map);
+  const coordinatePick = createCoordinatePickLayer(map);
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
@@ -25,11 +27,12 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
   }).addTo(map);
 
   const render = (state: EditorTripState): void => {
+    coordinatePick.clearRegisteredMarkers();
     layers.clearLayers();
 
     Object.values(state.regionsById).forEach(region => renderRegion(region, layers));
     Object.values(state.areasById).forEach(area => renderArea(area, layers));
-    Object.values(state.placesById).forEach(place => renderPlace(place, layers));
+    Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick));
     Object.values(state.segmentsById).forEach(segment => renderSegment(segment, state, layers));
 
     fitMapToState(map, state);
@@ -37,10 +40,124 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
 
   return {
     render,
+    startCoordinatePick: options => coordinatePick.start(options),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
-    dispose: () => map.remove()
+    dispose: () => {
+      coordinatePick.dispose();
+      map.remove();
+    }
+  };
+};
+
+export interface CoordinatePickOptions {
+  initialCoordinate: EditorCoordinate | null;
+  onPicked: (coordinate: EditorCoordinate) => void;
+}
+
+const createCoordinatePickLayer = (map: LeafletMap): {
+  clearRegisteredMarkers: () => void;
+  dispose: () => void;
+  isActive: () => boolean;
+  pick: (coordinate: EditorCoordinate) => void;
+  registerMarker: (marker: L.Marker, coordinate: EditorCoordinate) => void;
+  start: (options: CoordinatePickOptions) => () => void;
+  stop: () => void;
+} => {
+  const layer = L.layerGroup().addTo(map);
+  let clickHandler: ((event: LeafletMouseEvent) => void) | null = null;
+  let onPicked: ((coordinate: EditorCoordinate) => void) | null = null;
+  const markers: Array<{ marker: L.Marker; coordinate: EditorCoordinate }> = [];
+  const markerListeners: Array<() => void> = [];
+
+  const setPreview = (coordinate: EditorCoordinate): void => {
+    layer.clearLayers();
+    L.marker([coordinate.latitude, coordinate.longitude], {
+      interactive: false,
+      keyboard: false,
+      title: 'Selected place location preview'
+    }).addTo(layer);
+  };
+
+  const pick = (coordinate: EditorCoordinate): void => {
+    setPreview(coordinate);
+    onPicked?.(coordinate);
+  };
+
+  const stop = (): void => {
+    if (clickHandler) {
+      map.off('click', clickHandler);
+      clickHandler = null;
+    }
+
+    onPicked = null;
+    detachMarkerListeners();
+    layer.clearLayers();
+  };
+
+  const attachMarkerListener = (marker: L.Marker, coordinate: EditorCoordinate): void => {
+    const handler = (event: LeafletMouseEvent): void => {
+      if (event.originalEvent) {
+        L.DomEvent.stop(event.originalEvent);
+      }
+
+      marker.closePopup();
+      pick(coordinate);
+    };
+    marker.on('click', handler);
+    markerListeners.push(() => marker.off('click', handler));
+  };
+
+  const attachMarkerListeners = (): void => {
+    detachMarkerListeners();
+    markers.forEach(({ marker, coordinate }) => attachMarkerListener(marker, coordinate));
+  };
+
+  const detachMarkerListeners = (): void => {
+    markerListeners.splice(0).forEach(detach => detach());
+  };
+
+  const registerMarker = (marker: L.Marker, coordinate: EditorCoordinate): void => {
+    markers.push({ marker, coordinate });
+    if (clickHandler) {
+      attachMarkerListener(marker, coordinate);
+    }
+  };
+
+  const clearRegisteredMarkers = (): void => {
+    detachMarkerListeners();
+    markers.splice(0);
+  };
+
+  const start = (options: CoordinatePickOptions): (() => void) => {
+    stop();
+    onPicked = options.onPicked;
+    attachMarkerListeners();
+
+    if (options.initialCoordinate) {
+      setPreview(options.initialCoordinate);
+    }
+
+    clickHandler = event => {
+      const coordinate = { latitude: event.latlng.lat, longitude: event.latlng.lng };
+      pick(coordinate);
+    };
+    map.on('click', clickHandler);
+    return stop;
+  };
+
+  return {
+    clearRegisteredMarkers,
+    dispose: () => {
+      stop();
+      clearRegisteredMarkers();
+    },
+    isActive: () => clickHandler !== null,
+    pick,
+    registerMarker,
+    start,
+    stop
   };
 };
 
@@ -57,7 +174,7 @@ const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
   }).bindTooltip(escapeHtml(region.name)).addTo(layers);
 };
 
-const renderPlace = (place: EditorPlace, layers: LayerGroup): void => {
+const renderPlace = (place: EditorPlace, layers: LayerGroup, coordinatePick: ReturnType<typeof createCoordinatePickLayer>): void => {
   if (!place.location) {
     return;
   }
@@ -67,6 +184,7 @@ const renderPlace = (place: EditorPlace, layers: LayerGroup): void => {
   });
   const visitText = place.visitSummary.isVisited ? ` · ${place.visitSummary.visitCount} visit(s)` : '';
   marker.bindPopup(`<strong>${escapeHtml(place.name)}</strong>${visitText}`);
+  coordinatePick.registerMarker(marker, place.location);
   marker.addTo(layers);
 };
 

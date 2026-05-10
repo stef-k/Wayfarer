@@ -8,6 +8,7 @@ import RegionEditorSurface from './RegionEditorSurface.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
 import { buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
 import { buildPlaceRequest, buildRegionRequest, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
+import { beginPlaceCoordinateMapWork, stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { useEditorMutationFeedback } from './useEditorMutationFeedback';
 import type { EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
@@ -20,6 +21,7 @@ const props = defineProps<{
   searchRegions: EditorRegion[];
   searchPlaceIdsByRegionId: Record<Guid, Guid[]>;
   searchAreaIdsByRegionId: Record<Guid, Guid[]>;
+  coordinatePicker: PlaceCoordinatePicker;
 }>();
 
 const emit = defineEmits<{
@@ -40,6 +42,7 @@ const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
 const placeCreateBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
 let unregisterRegionHandler: (() => void) | null = null;
 let unregisterPlaceHandler: (() => void) | null = null;
+const placeCoordinateMapWork = reactive<PlaceCoordinateMapWorkState>({ coordinate: null, stopPick: null });
 
 const orderedRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]);
 const activeRegion = computed(() => (draft.id ? props.state.regionsById[draft.id] ?? null : null));
@@ -128,6 +131,7 @@ onMounted(() => {
 onUnmounted(() => {
   unregisterRegionHandler?.();
   unregisterPlaceHandler?.();
+  stopPlaceCoordinatePick(placeCoordinateMapWork);
   emit('dirtyStateChanged', false);
   window.removeEventListener('beforeunload', confirmUnload);
 });
@@ -334,6 +338,8 @@ const savePlaceDraft = async (): Promise<void> => {
   }
 };
 
+const pickPlaceCoordinate = (): void => beginPlaceCoordinateMapWork(placeDraft, props.editorSurface, props.coordinatePicker, placeCoordinateMapWork);
+
 const deleteDraftPlace = async (): Promise<void> => {
   if (!activePlace.value) {
     return;
@@ -502,11 +508,11 @@ function isPlaceCreateOpen(region: EditorRegion): boolean {
       </template>
 
       <template #place-editor="{ place }">
-        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
 
       <template #add-place-editor="{ region }">
-        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
     </RegionPlaceList>
   </section>

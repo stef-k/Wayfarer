@@ -25,7 +25,8 @@ export interface EditorTargetHandler {
 export interface MapWorkOptions {
   modeName: string;
   instruction: string;
-  statusText?: string;
+  statusText?: string | (() => string);
+  canFinish?: () => boolean;
   isDirty?: () => boolean;
   snapshot: () => unknown;
   rollback: (snapshot: unknown) => void;
@@ -38,7 +39,8 @@ interface ActiveMapWork {
   target: EditorTarget;
   modeName: string;
   instruction: string;
-  statusText: string;
+  statusText: string | (() => string);
+  canFinish: () => boolean;
   isDirty: () => boolean;
   snapshot: unknown;
   rollback: (snapshot: unknown) => void;
@@ -166,6 +168,7 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     modeName: options.modeName,
     instruction: options.instruction,
     statusText: options.statusText ?? 'Map work active',
+    canFinish: options.canFinish ?? (() => true),
     isDirty: options.isDirty ?? (() => true),
     snapshot: options.snapshot(),
     rollback: options.rollback,
