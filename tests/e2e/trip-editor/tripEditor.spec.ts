@@ -11,7 +11,7 @@ test.describe('Trip Editor dev verification', () => {
     await signIn(page);
 
     await expect(page).toHaveURL(pathRegex(workspacePath));
-    await expect(page.getByRole('heading', { name: 'Trip Settings' })).toBeVisible();
+    await expectActiveMetadataSurface(page);
   });
 
   test('workspace loads and Vue app mounts', async ({ page }) => {
@@ -27,7 +27,7 @@ test.describe('Trip Editor dev verification', () => {
       headers: { Accept: 'application/json' }
     });
     expect(response.ok(), `GET ${editorApiPath} returned ${response.status()}`).toBeTruthy();
-    await expect(response).toHaveHeader('content-type', /application\/json/i);
+    expect(response.headers()['content-type']).toMatch(/application\/json/i);
 
     const payload = await response.json();
     expect(String(payload.tripId).toLowerCase()).toBe(config.tripId.toLowerCase());
@@ -39,7 +39,7 @@ test.describe('Trip Editor dev verification', () => {
 
     expect(response?.ok(), `GET ${legacyEditPath} returned ${response?.status() ?? 'no response'}`).toBeTruthy();
     await expect(page).toHaveURL(pathRegex(legacyEditPath));
-    await expect(page.locator('body')).not.toContainText(/not found|unauthorized|forbidden/i);
+    await expect(page.getByText('Trip Settings')).toBeVisible();
   });
 
   test('current editor surface keeps metadata docked and excludes mockup-only place controls', async ({ page }) => {
@@ -47,7 +47,7 @@ test.describe('Trip Editor dev verification', () => {
     await page.goto(absoluteUrl(workspacePath));
     await expectMountedWorkspace(page);
 
-    await expect(page.locator('.trip-editor-sidebar')).toContainText('Trip Settings');
+    await expect(page.locator('.trip-editor-sidebar')).toContainText(/Edit Trip -/i);
     await expect(page.locator('.trip-editor-metadata')).toBeVisible();
     await expectTripLevelTagsOnly(page);
     await expectMockupOnlyPlaceControlsAbsent(page);
@@ -73,8 +73,14 @@ async function expectMountedWorkspace(page: Page): Promise<void> {
   await expect(app).toBeVisible();
   await expect(app.locator('.trip-editor-workspace')).toBeVisible();
   await expect(app).not.toContainText('Trip Editor development server is not available');
-  await expect(page.getByRole('heading', { name: 'Trip Settings' })).toBeVisible();
+  await expectActiveMetadataSurface(page);
   await expect(page.getByLabel('Read-only trip map')).toBeVisible();
+}
+
+// Confirms the #252 shared surface hosts the active trip metadata editor.
+async function expectActiveMetadataSurface(page: Page): Promise<void> {
+  await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
+  await expect(page.locator('.trip-editor-surface--docked')).toContainText(/Edit Trip -/i);
 }
 
 // Confirms tags appear in the Trip-level panel and not inside the place editor form.
