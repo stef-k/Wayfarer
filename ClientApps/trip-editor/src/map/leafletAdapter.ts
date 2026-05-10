@@ -110,7 +110,7 @@ const fitMapToState = (map: LeafletMap, state: EditorTripState): void => {
     return;
   }
 
-  focusSavedTripView(map, state.metadata);
+  focusRenderFallbackView(map, state.metadata);
 };
 
 const fitAllGeometry = (map: LeafletMap, state: EditorTripState): FitAllGeometryResult =>
@@ -123,6 +123,14 @@ const focusSavedTripView = (map: LeafletMap, metadata: EditorTripMetadata): Focu
 
   map.setView([metadata.center.latitude, metadata.center.longitude], metadata.zoom);
   return 'moved';
+};
+
+const focusRenderFallbackView = (map: LeafletMap, metadata: EditorTripMetadata): void => {
+  if (!metadata.center || !isFiniteCoordinate(metadata.center)) {
+    return;
+  }
+
+  map.setView([metadata.center.latitude, metadata.center.longitude], metadata.zoom ?? 8);
 };
 
 const focusActiveEntity = (map: LeafletMap, state: EditorTripState, target: EditorTarget | null): FocusActiveEntityResult => {

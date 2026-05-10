@@ -131,6 +131,7 @@ async function loadWorkspaceWithEditorState<T>(page: Page, mutate: (state: Mutab
   await page.unroute(`**${editorApiPath}`).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   const result = mutate(state);
+  // Route only the editor read model so toolbar coverage can vary geometry without mutating runbook data.
   await page.route(`**${editorApiPath}`, async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
   });
@@ -243,6 +244,7 @@ async function expectPlaceDraftCoordinateValues(page: Page, values: { latitude: 
 async function enterMapWorkFromE2e(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const moduleUrl = '/ClientApps/trip-editor/src/composables/useEditorSurface.ts';
+    // Use the real surface singleton through Vite so map-work assertions do not add fake UI controls.
     const surface = await import(/* @vite-ignore */ moduleUrl) as {
       enterMapWork: (options: {
         modeName: string;
