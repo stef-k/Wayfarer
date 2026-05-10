@@ -16,14 +16,18 @@ body {
   background: var(--trip-editor-bg);
   color: var(--trip-editor-text);
   display: grid;
-  grid-template-columns: minmax(320px, 390px) 1fr;
-  min-height: calc(100vh - 116px);
+  grid-template-columns: minmax(420px, 500px) minmax(0, 1fr);
+  height: calc(100vh - 116px);
+  min-height: 560px;
+  overflow: hidden;
 }
 
 .trip-editor-sidebar {
   background: var(--trip-editor-surface);
   border-right: 1px solid var(--trip-editor-border);
+  min-height: 0;
   overflow: auto;
+  overflow-x: hidden;
   padding: 1rem;
 }
 
@@ -288,10 +292,10 @@ body {
 }
 
 .trip-editor-region-card__header {
-  align-items: center;
+  align-items: start;
   display: grid;
   gap: 0.6rem;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   margin-bottom: 0.5rem;
 }
 
@@ -303,6 +307,14 @@ body {
 
 .trip-editor-region-card__header small {
   color: var(--trip-editor-muted);
+}
+
+.trip-editor-region-card__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
 }
 
 .trip-editor-icon-button {
@@ -347,8 +359,10 @@ body {
 }
 
 .trip-editor-place-row {
+  align-items: center;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.45rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .trip-editor-place-row > span {
@@ -356,9 +370,16 @@ body {
   overflow-wrap: anywhere;
 }
 
+.trip-editor-place-row .trip-editor-surface,
+.trip-editor-place-row .trip-editor-surface-context {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .trip-editor-map-shell {
   display: grid;
   grid-template-rows: auto 1fr;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -383,7 +404,7 @@ body {
 }
 
 .trip-editor-map {
-  min-height: 560px;
+  min-height: 0;
 }
 
 .trip-editor-state--error {
@@ -450,6 +471,10 @@ body {
 @media (max-width: 900px) {
   .trip-editor-workspace {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 45vh) minmax(360px, 1fr);
+    height: auto;
+    min-height: calc(100vh - 96px);
+    overflow: visible;
   }
 
   .trip-editor-sidebar {

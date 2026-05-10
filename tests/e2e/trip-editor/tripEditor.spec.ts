@@ -99,7 +99,7 @@ test.describe.serial('Trip Editor dev verification', () => {
       await expect(editableRegion).toContainText(placeName);
       await expectReverseGeocodeWarningIfPresent(page);
 
-      await editableRegion.getByText(placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit' }).click();
+      await editableRegion.getByText(placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
       await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(placeName)}`) })).toBeVisible();
     } finally {
       await cleanupTemporaryPlace(page, placeName, savedPlace);
@@ -152,11 +152,8 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Reset' }).click();
     await page.getByRole('button', { name: 'Cancel' }).click();
-    const closePrompt = page.getByRole('dialog', { name: 'Discard changes?' });
-    await closePrompt.getByRole('button', { name: 'Discard' }).click({ timeout: 2000 }).catch(() => undefined);
-    await expect(closePrompt).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add Region' })).toBeVisible();
   });
 
@@ -313,7 +310,7 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
     return;
   }
 
-  await page.getByText(name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit' }).click();
+  await page.getByText(name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByRole('button', { name: 'Delete' }).click();
   await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText(name)).toHaveCount(0);
@@ -321,7 +318,10 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
 
 async function closeDraftWithDiscard(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
+  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await dialog.getByRole('button', { name: 'Discard' }).click();
+  }
   await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
 }
 

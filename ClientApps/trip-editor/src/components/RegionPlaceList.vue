@@ -171,17 +171,21 @@ function toggleRegion(regionId: Guid): void {
           <h3>{{ region.name }}</h3>
           <small v-if="region.isShadow">Shadow region</small>
         </div>
-        <button
-          type="button"
-          class="btn btn-outline-light btn-sm"
-          :aria-expanded="!isCollapsed(region.id)"
-          :aria-controls="`trip-editor-region-children-${region.id}`"
-          @click="toggleRegion(region.id)"
-        >
-          {{ isCollapsed(region.id) ? 'Expand' : 'Collapse' }}
-        </button>
-        <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">Edit</button>
+        <div class="trip-editor-region-card__actions">
+          <button
+            type="button"
+            class="btn btn-outline-light btn-sm"
+            :aria-expanded="!isCollapsed(region.id)"
+            :aria-controls="`trip-editor-region-children-${region.id}`"
+            @click="toggleRegion(region.id)"
+          >
+            {{ isCollapsed(region.id) ? 'Expand' : 'Collapse' }}
+          </button>
+          <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">Edit</button>
+        </div>
       </header>
+
+      <slot name="region-editor" :region="region"></slot>
 
       <ul v-show="!isCollapsed(region.id)" :id="`trip-editor-region-children-${region.id}`" :data-place-list-region-id="region.id">
         <li
@@ -203,6 +207,7 @@ function toggleRegion(regionId: Guid): void {
           <span>{{ place.name }}</span>
           <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
           <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editPlace', place)">Edit</button>
+          <slot name="place-editor" :place="place"></slot>
         </li>
         <li v-for="area in orderedAreas(region.id)" :key="area.id">
           <span>{{ area.name }}</span>
@@ -212,6 +217,7 @@ function toggleRegion(regionId: Guid): void {
       <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
         Add Place
       </button>
+      <slot name="add-place-editor" :region="region"></slot>
     </article>
   </div>
 </template>
