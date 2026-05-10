@@ -28,17 +28,18 @@ onMounted(async () => {
   setConfirmDialogFocusFallback(workspaceElement.value);
 
   try {
-    state.value = await loadEditorState(props.config.editorEndpoint);
+    const loadedState = await loadEditorState(props.config.editorEndpoint);
+    state.value = loadedState;
+    isLoading.value = false;
     await nextTick();
     if (!mapElement.value) {
       throw new Error('Trip Editor map element was unavailable after the workspace rendered.');
     }
 
     mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
-    mapAdapter.render(state.value);
+    mapAdapter.render(loadedState);
   } catch (loadError) {
     error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
-  } finally {
     isLoading.value = false;
   }
 });
