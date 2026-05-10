@@ -10,6 +10,7 @@ export interface AreaPolygonWorkOptions {
 
 type DrawnLayerEvent = { layer: L.Layer };
 type LeafletDrawHandler = { disable: () => void; enable: () => void; enabled?: () => boolean };
+type LatLngRing = L.LatLng[];
 
 /// Owns the single temporary Leaflet.Draw polygon used by Trip Editor area map-work.
 export const createAreaPolygonWorkLayer = (map: LeafletMap): {
@@ -25,7 +26,7 @@ export const createAreaPolygonWorkLayer = (map: LeafletMap): {
   let options: AreaPolygonWorkOptions | null = null;
 
   const publish = (): void => {
-    options?.onChanged(polygon ? latLngsToPolygon(flattenPolygonLatLngs(polygon)) : null);
+    options?.onChanged(polygon ? latLngRingsToPolygon(polygonLatLngRings(polygon)) : null);
   };
 
   const stopHandlers = (): void => {
@@ -48,9 +49,9 @@ export const createAreaPolygonWorkLayer = (map: LeafletMap): {
   const start = (workOptions: AreaPolygonWorkOptions): (() => void) => {
     stop();
     options = workOptions;
-    const initialPoints = polygonToLatLngs(workOptions.initialGeometry);
-    if (initialPoints.length >= 3) {
-      polygon = createPolygon(initialPoints, workOptions.fillHex);
+    const initialRings = polygonToLatLngRings(workOptions.initialGeometry);
+    if (initialRings[0]?.length >= 3) {
+      polygon = createPolygon(initialRings, workOptions.fillHex);
       featureGroup.addLayer(polygon);
       startEditMode();
       if (polygon.getBounds().isValid()) {
@@ -115,28 +116,41 @@ const polygonStyle = (fillHex: string): L.PathOptions => ({
   weight: 2
 });
 
-const polygonToLatLngs = (geometry: GeoJsonPolygon | null): L.LatLng[] => {
-  const exterior = geometry?.coordinates?.[0] ?? [];
-  return exterior.slice(0, -1).map(([longitude, latitude]) => L.latLng(latitude, longitude));
-};
+const polygonToLatLngRings = (geometry: GeoJsonPolygon | null): LatLngRing[] =>
+  (geometry?.coordinates ?? [])
+    .map(ring => ring.slice(0, -1).map(([longitude, latitude]) => L.latLng(latitude, longitude)))
+    .filter(ring => ring.length >= 3);
 
-const createPolygon = (points: L.LatLng[], fillHex: string): L.Polygon =>
-  L.polygon(points, polygonStyle(fillHex));
+const createPolygon = (rings: LatLngRing[], fillHex: string): L.Polygon =>
+  L.polygon(rings, polygonStyle(fillHex));
 
-const flattenPolygonLatLngs = (polygon: L.Polygon): L.LatLng[] => {
+const polygonLatLngRings = (polygon: L.Polygon): LatLngRing[] => {
   const latLngs = polygon.getLatLngs();
-  const exterior = latLngs[0] ?? [];
-  return (Array.isArray(exterior[0]) ? exterior[0] : exterior) as L.LatLng[];
+  if (latLngs.length === 0) {
+    return [];
+  }
+
+  if (latLngs[0] instanceof L.LatLng) {
+    return [latLngs as LatLngRing];
+  }
+
+  const rings = latLngs as LatLngRing[] | LatLngRing[][];
+  return Array.isArray(rings[0]?.[0]) ? (rings[0] as LatLngRing[]) : rings as LatLngRing[];
 };
 
-const latLngsToPolygon = (latLngs: L.LatLng[]): GeoJsonPolygon | null => {
-  if (latLngs.length < 3) {
+const latLngRingsToPolygon = (rings: LatLngRing[]): GeoJsonPolygon | null => {
+  if (!rings[0] || rings[0].length < 3) {
     return null;
   }
 
-  const ring = latLngs.map(point => [point.lng, point.lat] as [number, number]);
-  ring.push([latLngs[0].lng, latLngs[0].lat]);
-  return { type: 'Polygon', coordinates: [ring] };
+  const coordinates = rings
+    .filter(ring => ring.length >= 3)
+    .map(ring => {
+      const coordinatesRing = ring.map(point => [point.lng, point.lat] as [number, number]);
+      coordinatesRing.push([ring[0].lng, ring[0].lat]);
+      return coordinatesRing;
+    });
+  return { type: 'Polygon', coordinates };
 };
 
 const drawPolygonHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>

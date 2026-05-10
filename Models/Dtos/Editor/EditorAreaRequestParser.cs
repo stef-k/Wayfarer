@@ -10,7 +10,6 @@ namespace Wayfarer.Models.Dtos.Editor;
 internal static class EditorAreaRequestParser
 {
     private static readonly string[] SaveServerOwnedFields = { "id", "tripId", "displayOrder", "capabilities" };
-    private static readonly string[] GeometryForbiddenFields = { "id", "tripId", "regionId", "displayOrder", "capabilities", "name", "notesHtml", "fillHex" };
     private static readonly Regex FillHexRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
     private static readonly Regex DataImageSourceRegex = new(
         @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
@@ -95,7 +94,7 @@ internal static class EditorAreaRequestParser
             return false;
         }
 
-        RejectFields(request, GeometryForbiddenFields, "The field cannot be supplied for a geometry-only update.", errors);
+        RejectGeometryOnlyFields(request, errors);
         var geometry = ReadRequiredGeometry(request, errors);
         if (errors.Count > 0)
         {
@@ -164,6 +163,17 @@ internal static class EditorAreaRequestParser
             if (request.TryGetProperty(field, out _))
             {
                 errors[field] = new[] { message };
+            }
+        }
+    }
+
+    private static void RejectGeometryOnlyFields(JsonElement request, Dictionary<string, string[]> errors)
+    {
+        foreach (var property in request.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, "geometry", StringComparison.Ordinal))
+            {
+                errors[property.Name] = new[] { "The field cannot be supplied for a geometry-only update." };
             }
         }
     }

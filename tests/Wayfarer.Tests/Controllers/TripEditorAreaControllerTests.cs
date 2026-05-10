@@ -163,6 +163,7 @@ public sealed class TripEditorAreaControllerTests : TestBase
           "name": "Nope",
           "notesHtml": "",
           "fillHex": "#ffffff",
+          "unexpected": true,
           "geometry": {{PolygonJson(0)}}
         }
         """);
@@ -174,7 +175,7 @@ public sealed class TripEditorAreaControllerTests : TestBase
         }
 
         var geometryProblem = AssertValidationProblem(geometry);
-        foreach (var key in new[] { "id", "tripId", "regionId", "displayOrder", "capabilities", "name", "notesHtml", "fillHex" })
+        foreach (var key in new[] { "id", "tripId", "regionId", "displayOrder", "capabilities", "name", "notesHtml", "fillHex", "unexpected" })
         {
             Assert.Contains(key, geometryProblem.Errors.Keys);
         }

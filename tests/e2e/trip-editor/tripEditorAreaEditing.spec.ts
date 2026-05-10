@@ -98,6 +98,35 @@ test.describe.serial('Trip Editor area editing', () => {
     expect(savedRequests[0].geometry.coordinates[0]).toHaveLength(4);
   });
 
+  test('existing polygon map-work preserves interior rings on Done and Save', async ({ page }) => {
+    await signIn(page);
+    const savedRequests: Array<Record<string, any>> = [];
+    const state = await loadWorkspaceWithAreaFixture(page, fixture => {
+      fixture.areasById[areaId].geometry = polygonWithHole();
+    });
+    await page.route(editorApiMatcher, async route => {
+      if (route.request().method() === 'GET') {
+        await route.fallback();
+        return;
+      }
+
+      expect(route.request().method()).toBe('PUT');
+      expect(route.request().url()).toContain(`/areas/${areaId}`);
+      const body = route.request().postDataJSON() as Record<string, any>;
+      savedRequests.push(body);
+      state.areasById[areaId] = { ...state.areasById[areaId], ...body };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(areaMutationResult(state.areasById[areaId], { [state.areasById[areaId].regionId]: [areaId, secondAreaId] })) });
+    });
+
+    await openEditableArea(page);
+    await page.getByRole('button', { name: 'Draw/Edit Area' }).click();
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    await page.getByRole('button', { name: 'Save Area' }).click();
+    await expect.poll(() => savedRequests.length).toBe(1);
+    expect(savedRequests[0].geometry.coordinates).toHaveLength(2);
+    expect(savedRequests[0].geometry.coordinates[1]).toEqual([[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.2]]);
+  });
+
   test('Cancel rolls back only geometry and delete confirms dirty discard before danger', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithAreaFixture(page);
@@ -211,10 +240,11 @@ test.describe.serial('Trip Editor area editing', () => {
   });
 });
 
-async function loadWorkspaceWithAreaFixture(page: Page): Promise<MutableEditorState> {
+async function loadWorkspaceWithAreaFixture(page: Page, configure?: (state: MutableEditorState) => void): Promise<MutableEditorState> {
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareAreaState(state);
+  configure?.(state);
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
   await page.goto(absoluteUrl(workspacePath));
   await expectMountedWorkspace(page);
@@ -386,5 +416,15 @@ function polygon(offset: number): Record<string, any> {
   return {
     type: 'Polygon',
     coordinates: [[[offset, 0], [offset + 1, 0], [offset + 1, 1], [offset, 0]]]
+  };
+}
+
+function polygonWithHole(): Record<string, any> {
+  return {
+    type: 'Polygon',
+    coordinates: [
+      [[0, 0], [1, 0], [1, 1], [0, 0]],
+      [[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.2]]
+    ]
   };
 }
