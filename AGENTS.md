@@ -38,6 +38,15 @@
 - Prefer minimal services/classes/methods/variables; keep scope tight.
 - New and changed source files are subject to the LOC policy check: warn at 400 counted LOC and hard fail above 600 counted LOC. Existing legacy files are grandfathered by `tools/Wayfarer.LocCheck/loc-baseline.json`, but should not grow past baseline.
 - After any implementation edit, run `dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600`; summarize warnings and split files or request an explicit exception for failures.
+- LOC checker interpretation:
+  - 600 counted LOC is a hard cap unless the user explicitly approves an exception.
+  - 400 counted LOC is a review trigger, not an automatic refactor command.
+  - When a changed/new file warns, inspect whether the file is still cohesive and single-responsibility.
+  - Decide whether the extra size is justified by necessary orchestration/simple structure, or whether the file is mixing separable responsibilities.
+  - Consider likely near-term growth from upcoming slices before accepting a warning.
+  - Split only when it improves responsibility boundaries or reduces meaningful complexity.
+  - Do not split purely to satisfy the number if the split adds indirection without design benefit.
+  - Report the decision as either "warning accepted with justification" or "split performed because ...".
 - C#: 4 spaces; PascalCase for types/properties; camelCase for locals/params; file name = primary type.
 - JS: modern style, prefer arrow functions; keep modules area‑scoped when applicable.
 
