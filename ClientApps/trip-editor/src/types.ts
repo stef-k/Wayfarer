@@ -167,6 +167,20 @@ export interface EditorTripMetadataUpdateRequest {
   zoom: number | null;
 }
 
+export interface EditorTripTagsUpdateRequest {
+  tags: string[];
+}
+
+export interface EditorShareProgressUpdateRequest {
+  enabled: boolean;
+}
+
+export interface TagSuggestion {
+  name: string;
+  slug: string;
+  count: number;
+}
+
 export interface EditorRegionSaveRequest {
   name: string;
   notesHtml: string | null;

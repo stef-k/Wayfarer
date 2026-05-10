@@ -25,6 +25,7 @@ public sealed partial class TripEditorController : ControllerBase
     private readonly IIconColorProvider _iconColorProvider;
     private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
     private readonly ICacheWarmupScheduler _warmupScheduler;
+    private readonly ITripTagService _tripTagService;
     private readonly TripEditorRegionMutationService _regionMutations;
     private readonly TripEditorPlaceMutationService _placeMutations;
     private readonly ILogger<TripEditorController> _logger;
@@ -38,6 +39,7 @@ public sealed partial class TripEditorController : ControllerBase
         IIconColorProvider iconColorProvider,
         ITripMapThumbnailGenerator thumbnailGenerator,
         ICacheWarmupScheduler warmupScheduler,
+        ITripTagService tripTagService,
         TripEditorRegionMutationService regionMutations,
         TripEditorPlaceMutationService placeMutations,
         ILogger<TripEditorController> logger)
@@ -47,6 +49,7 @@ public sealed partial class TripEditorController : ControllerBase
         _iconColorProvider = iconColorProvider;
         _thumbnailGenerator = thumbnailGenerator;
         _warmupScheduler = warmupScheduler;
+        _tripTagService = tripTagService;
         _regionMutations = regionMutations;
         _placeMutations = placeMutations;
         _logger = logger;

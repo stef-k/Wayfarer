@@ -12,6 +12,16 @@ public sealed record EditorTripMetadataUpdateRequest(
     int? Zoom);
 
 /// <summary>
+/// Complete-draft request for replacing all trip-level tags from the same-origin editor.
+/// </summary>
+public sealed record EditorTripTagsUpdateRequest(IReadOnlyList<string> Tags);
+
+/// <summary>
+/// Request for toggling trip share-progress from the same-origin editor.
+/// </summary>
+public sealed record EditorShareProgressUpdateRequest(bool Enabled);
+
+/// <summary>
 /// Cover image update payload containing the raw external URL or a clear instruction.
 /// </summary>
 public sealed record EditorImageUpdateRequest(string? RawUrl);

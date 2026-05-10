@@ -267,6 +267,59 @@ body {
   gap: 0.4rem;
 }
 
+.trip-editor-settings-group {
+  border: 1px solid var(--trip-editor-border);
+  border-radius: 6px;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.7rem;
+}
+
+.trip-editor-settings-group h3 {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.trip-editor-settings-group small {
+  color: #fecaca;
+}
+
+.trip-editor-tags--editable span {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.trip-editor-tags--editable button,
+.trip-editor-tag-suggestions button {
+  background: transparent;
+  border: 0;
+  color: var(--trip-editor-accent);
+  font: inherit;
+  padding: 0;
+}
+
+.trip-editor-tag-entry {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.trip-editor-tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.trip-editor-tag-suggestions button {
+  background: var(--trip-editor-surface-muted);
+  border: 1px solid var(--trip-editor-field-border);
+  border-radius: 999px;
+  color: var(--trip-editor-text);
+  padding: 0.25rem 0.55rem;
+}
+
 .trip-editor-sidebar-search {
   display: grid;
   gap: 0.6rem;
