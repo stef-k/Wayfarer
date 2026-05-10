@@ -29,7 +29,7 @@ const emit = defineEmits<{
 
 const searchQuery = ref('');
 const normalizedSearchQuery = computed(() => normalize(searchQuery.value));
-const searchMinimumCharacters = computed(() => props.state.options.limits.sidebarSearchMinCharacters ?? 1);
+const searchMinimumCharacters = computed(() => props.state.options.limits?.sidebarSearchMinCharacters ?? 1);
 const isSearchActive = computed(() => normalizedSearchQuery.value.length >= searchMinimumCharacters.value);
 const orderedSegments = computed(() => props.state.segmentOrder.map(id => props.state.segmentsById[id]).filter(Boolean) as EditorSegment[]);
 const filteredSegments = computed(() => (isSearchActive.value ? orderedSegments.value.filter(segment => matchesSegment(props.state, segment, normalizedSearchQuery.value)) : orderedSegments.value));

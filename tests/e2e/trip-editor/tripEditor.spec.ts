@@ -1,32 +1,22 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
-import { loadTripEditorConfig } from './tripEditorConfig';
-
-const config = loadTripEditorConfig();
-const workspacePath = `/User/Trip/Workspace/${config.tripId}`;
-const legacyEditPath = `/User/Trip/Edit/${config.tripId}`;
-const editorApiPath = `/api/trips/${config.tripId}/editor`;
-const forbiddenSidebarSearchRequest = /nominatim|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
-
-type EditorTripFixture = {
-  regionsById: Record<string, { id: string; name: string; isShadow: boolean }>;
-  regionOrder: string[];
-  placesById: Record<string, { id: string; name: string; address: string; regionId: string }>;
-  placeOrderByRegionId: Record<string, string[]>;
-  areasById: Record<string, { id: string; name: string; regionId: string }>;
-  areaOrderByRegionId: Record<string, string[]>;
-  segmentsById: Record<string, { id: string; mode: string; fromPlaceId: string | null; toPlaceId: string | null }>;
-  segmentOrder: string[];
-  tagOrder: string[];
-  tagsBySlug: Record<string, { name: string }>;
-  options: { transportModes: Array<{ value: string; label: string }> };
-};
-
-type SidebarSearchFixture = {
-  region: { name: string };
-  place: { name: string; regionName: string };
-  area: { name: string; regionName: string } | null;
-  segment: { query: string; label: string } | null;
-};
+import {
+  absoluteUrl,
+  closeDraftWithDiscard,
+  config,
+  editorApiPath,
+  escapeRegex,
+  expectActiveMetadataSurface,
+  expectMountedWorkspace,
+  firstRegionWithChildren,
+  firstVisibleAddPlace,
+  legacyEditPath,
+  pathRegex,
+  regionCard,
+  regionEditButton,
+  signIn,
+  uniqueName,
+  workspacePath
+} from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor dev verification', () => {
   test('login succeeds', async ({ page }) => {
@@ -200,110 +190,6 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(children).toBeVisible();
   });
 
-  test('sidebar search filters regions and places without network search or draft loss', async ({ page }) => {
-    await signIn(page);
-    const state = await loadEditorStateFixture(page);
-    const fixture = sidebarSearchFixture(state);
-    await page.goto(absoluteUrl(workspacePath));
-    await expectMountedWorkspace(page);
-
-    const requests = collectForbiddenSidebarSearchRequests(page);
-    const search = page.getByLabel('Sidebar search');
-    await expect(search).toBeVisible();
-
-    const tagsPanel = page.getByRole('heading', { name: 'Tags' }).locator('xpath=ancestor::section[contains(@class, "trip-editor-panel")]');
-    const tagsText = (await tagsPanel.count()) > 0 && await tagsPanel.isVisible() ? await tagsPanel.innerText() : null;
-
-    await search.fill(fixture.region.name);
-    await expect(regionCard(page, fixture.region.name)).toBeVisible();
-    await expect(tagsPanel).toHaveCount(tagsText ? 1 : 0);
-    if (tagsText) {
-      expect(await tagsPanel.innerText()).toBe(tagsText);
-    }
-
-    const placeRegion = regionCard(page, fixture.place.regionName);
-    await search.fill(fixture.place.name);
-    await expect(placeRegion).toBeVisible();
-    await expect(placeRegion).toContainText(fixture.place.name);
-    await expectNoSearchAddUi(page);
-    expect(requests(), 'Sidebar search should not call Nominatim, geosearch, search-add, or search endpoints.').toEqual([]);
-
-    const children = placeRegion.locator('ul');
-    await search.fill('');
-    await expect(regionCard(page, fixture.region.name)).toBeVisible();
-    await expect(children).toBeVisible();
-
-    await regionEditButton(regionCard(page, fixture.region.name)).click();
-    await expect(page.getByRole('heading', { name: new RegExp(`Edit Region - ${escapeRegex(fixture.region.name)}`) })).toBeVisible();
-    await search.fill(uniqueName('no matching region draft query'));
-    await expect(regionCard(page, fixture.region.name)).toBeVisible();
-    await expect(page.getByRole('heading', { name: new RegExp(`Edit Region - ${escapeRegex(fixture.region.name)}`) })).toBeVisible();
-    await closeDraftWithDiscard(page);
-    await search.fill('');
-
-    await placeRegion.getByText(fixture.place.name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
-    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(fixture.place.name)}`) })).toBeVisible();
-    await search.fill(uniqueName('no matching place draft query'));
-    await expect(placeRegion).toBeVisible();
-    await expect(placeRegion).toContainText(fixture.place.name);
-    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(fixture.place.name)}`) })).toBeVisible();
-    await closeDraftWithDiscard(page);
-  });
-
-  test('sidebar search restores collapsed hierarchy after clear', async ({ page }) => {
-    await signIn(page);
-    const state = await loadEditorStateFixture(page);
-    const fixture = sidebarSearchFixture(state);
-    await page.goto(absoluteUrl(workspacePath));
-    await expectMountedWorkspace(page);
-
-    const card = regionCard(page, fixture.place.regionName);
-    const children = card.locator('ul');
-    const toggle = card.getByRole('button', { name: 'Collapse' });
-    await expect(children).toBeVisible();
-    await toggle.click();
-    await expect(children).toBeHidden();
-
-    await page.getByLabel('Sidebar search').fill(fixture.place.name);
-    await expect(children).toBeVisible();
-    await expect(card.getByRole('button', { name: 'Collapse' })).toBeDisabled();
-    await page.getByLabel('Sidebar search').fill(`${fixture.place.name} unmatched suffix`);
-    await expect(children).toBeHidden();
-    await page.getByLabel('Sidebar search').fill(fixture.place.name);
-    await expect(children).toBeVisible();
-
-    await page.getByLabel('Sidebar search').fill('');
-    await expect(children).toBeHidden();
-    await expect(card.getByRole('button', { name: 'Expand' })).toBeEnabled();
-  });
-
-  test('sidebar search filters areas when the configured trip has area fixture data', async ({ page }) => {
-    await signIn(page);
-    const state = await loadEditorStateFixture(page);
-    const fixture = sidebarSearchFixture(state);
-    test.skip(!fixture.area, 'Configured Trip Editor fixture has no loaded area rows to verify sidebar area search.');
-    await page.goto(absoluteUrl(workspacePath));
-    await expectMountedWorkspace(page);
-
-    await page.getByLabel('Sidebar search').fill(fixture.area!.name);
-    const card = regionCard(page, fixture.area!.regionName);
-    await expect(card).toBeVisible();
-    await expect(card).toContainText(fixture.area!.name);
-  });
-
-  test('sidebar search filters segments when the configured trip has segment fixture data', async ({ page }) => {
-    await signIn(page);
-    const state = await loadEditorStateFixture(page);
-    const fixture = sidebarSearchFixture(state);
-    test.skip(!fixture.segment, 'Configured Trip Editor fixture has no loaded segment rows to verify sidebar segment search.');
-    await page.goto(absoluteUrl(workspacePath));
-    await expectMountedWorkspace(page);
-
-    await page.getByLabel('Sidebar search').fill(fixture.segment!.query);
-    await expect(page.getByRole('heading', { name: 'Segments' })).toBeVisible();
-    await expect(page.locator('.trip-editor-segments')).toContainText(fixture.segment!.label);
-  });
-
   test('responsive narrow workspace remains usable', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await signIn(page);
@@ -332,48 +218,6 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(regionHandles.first()).toBeVisible();
   });
 });
-
-// Signs in through the real Identity page without logging credential values.
-async function signIn(page: Page): Promise<void> {
-  await page.goto(absoluteUrl(`/Identity/Account/Login?ReturnUrl=${encodeURIComponent(workspacePath)}`));
-  await page.getByLabel('Username').fill(config.username);
-  await page.getByLabel('Password').fill(config.password);
-  await Promise.all([
-    page.waitForURL(url => !url.pathname.includes('/Identity/Account/Login')),
-    page.getByRole('button', { name: 'Log in' }).click()
-  ]);
-}
-
-// Waits for the Vue workspace to replace the Razor loading shell.
-async function expectMountedWorkspace(page: Page): Promise<void> {
-  const app = page.locator('#trip-editor-app');
-  await expect(app).toBeVisible();
-  await expect(app.locator('.trip-editor-workspace')).toBeVisible();
-  await expect(app).not.toContainText('Trip Editor development server is not available');
-  await expectActiveMetadataSurface(page);
-  await expectInitializedTripMap(page);
-}
-
-// Confirms the #252 shared surface hosts the active trip metadata editor.
-async function expectActiveMetadataSurface(page: Page): Promise<void> {
-  await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
-  await expect(page.locator('.trip-editor-surface--docked')).toContainText(/Edit Trip -/i);
-}
-
-// Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
-async function expectInitializedTripMap(page: Page): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
-  await expect(map).toBeVisible();
-  await expect(map).toHaveClass(/leaflet-container/);
-  await expect(map.locator('.leaflet-pane')).not.toHaveCount(0);
-  await expect(map.locator('.leaflet-tile-pane')).toHaveCount(1);
-  await expect(map.locator('.leaflet-overlay-pane')).toHaveCount(1);
-
-  const box = await map.boundingBox();
-  expect(box, 'Trip Editor map should have a rendered bounding box.').not.toBeNull();
-  expect(box!.width, 'Trip Editor map should have usable width.').toBeGreaterThan(300);
-  expect(box!.height, 'Trip Editor map should have usable height.').toBeGreaterThan(300);
-}
 
 // Confirms the selected place editor docks as a usable full-width row under the place.
 async function expectUsableDockedPlaceEditor(page: Page): Promise<void> {
@@ -433,61 +277,6 @@ async function expectUnimplementedAreaAndSegmentActionsAbsent(page: Page): Promi
   await expect(page.getByRole('link', { name: /add segment/i })).toHaveCount(0);
 }
 
-async function loadEditorStateFixture(page: Page): Promise<EditorTripFixture> {
-  const response = await page.request.get(absoluteUrl(editorApiPath), {
-    headers: { Accept: 'application/json' }
-  });
-  expect(response.ok(), `GET ${editorApiPath} returned ${response.status()}`).toBeTruthy();
-  return (await response.json()) as EditorTripFixture;
-}
-
-function sidebarSearchFixture(state: EditorTripFixture): SidebarSearchFixture {
-  const place = Object.values(state.placesById)[0];
-  if (!place) {
-    throw new Error('Configured Trip Editor fixture must contain at least one loaded place for sidebar search coverage.');
-  }
-
-  const placeRegion = state.regionsById[place.regionId];
-  if (!placeRegion) {
-    throw new Error(`Configured Trip Editor fixture place ${place.id} references a missing parent region.`);
-  }
-
-  const area = Object.values(state.areasById)[0] ?? null;
-  const areaRegion = area ? state.regionsById[area.regionId] : null;
-  const segment = state.segmentOrder.map(id => state.segmentsById[id]).find(Boolean) ?? null;
-
-  return {
-    region: { name: placeRegion.name },
-    place: { name: place.name, regionName: placeRegion.name },
-    area: area && areaRegion ? { name: area.name, regionName: areaRegion.name } : null,
-    segment: segment ? segmentSearchFixture(state, segment) : null
-  };
-}
-
-function segmentSearchFixture(state: EditorTripFixture, segment: EditorTripFixture['segmentsById'][string]): { query: string; label: string } {
-  const from = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;
-  const to = segment.toPlaceId ? state.placesById[segment.toPlaceId]?.name : null;
-  const label = [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
-  const modeLabel = state.options.transportModes.find(mode => mode.value === segment.mode)?.label;
-  return { query: modeLabel || segment.mode || label, label };
-}
-
-function collectForbiddenSidebarSearchRequests(page: Page): () => string[] {
-  const urls: string[] = [];
-  page.on('request', request => {
-    if (forbiddenSidebarSearchRequest.test(request.url())) {
-      urls.push(request.url());
-    }
-  });
-
-  return () => urls;
-}
-
-async function expectNoSearchAddUi(page: Page): Promise<void> {
-  await expect(page.getByRole('button', { name: /search.?add|add from search/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /search.?add|add from search/i })).toHaveCount(0);
-}
-
 async function openFirstPlaceFormIfAvailable(page: Page): Promise<Locator | null> {
   const form = page.locator('form').filter({ has: page.getByRole('heading', { name: /^(Add|Edit) Place$/ }) });
   if (await form.isVisible()) {
@@ -504,18 +293,6 @@ async function openFirstPlaceFormIfAvailable(page: Page): Promise<Locator | null
   return form;
 }
 
-function firstVisibleAddPlace(page: Page): Locator {
-  return page.getByRole('button', { name: 'Add Place' }).filter({ visible: true }).first();
-}
-
-function firstRegionWithChildren(page: Page): Locator {
-  return page.locator('.trip-editor-region-card').filter({ has: page.locator('ul li') }).first();
-}
-
-function regionCard(page: Page, name: string): Locator {
-  return page.locator('.trip-editor-region-card').filter({ has: page.getByRole('heading', { name }) });
-}
-
 async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: boolean): Promise<void> {
   if (!shouldCleanup || (await page.getByText(name).count()) === 0) {
     return;
@@ -525,30 +302,6 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
   await page.getByRole('button', { name: 'Delete' }).click();
   await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText(name)).toHaveCount(0);
-}
-
-async function closeDraftWithDiscard(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Cancel' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
-  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await dialog.getByRole('button', { name: 'Discard' }).click();
-  }
-  await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
-}
-
-async function cleanupTemporaryRegion(page: Page, name: string, shouldCleanup: boolean): Promise<void> {
-  if (!shouldCleanup || (await regionCard(page, name).count()) === 0) {
-    return;
-  }
-
-  await regionEditButton(regionCard(page, name)).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('dialog', { name: 'Delete region?' }).getByRole('button', { name: 'Delete' }).click();
-  await expect(regionCard(page, name)).toHaveCount(0);
-}
-
-function regionEditButton(card: Locator): Locator {
-  return card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' });
 }
 
 async function expectSaved(page: Page): Promise<void> {
@@ -597,18 +350,3 @@ async function capture(page: Page, testInfo: TestInfo, name: string): Promise<vo
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
-function uniqueName(prefix: string): string {
-  return `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function pathRegex(path: string): RegExp {
-  return new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`, 'i');
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function absoluteUrl(path: string): string {
-  return `${config.baseUrl}${path}`;
-}
