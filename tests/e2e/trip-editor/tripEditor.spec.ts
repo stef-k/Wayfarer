@@ -190,6 +190,80 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(children).toBeVisible();
   });
 
+  test('trip tags are editable in docked settings and update the sidebar', async ({ page }) => {
+    await signIn(page);
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+
+    const tagName = uniqueName('pw-docked-tag');
+    try {
+      await addTagInActiveSettings(page, tagName);
+      await page.getByRole('button', { name: 'Save & Continue' }).click();
+      await expectSaved(page);
+      await expect(sidebarTagsPanel(page)).toContainText(tagName);
+    } finally {
+      await removeTagIfPresent(page, tagName);
+    }
+  });
+
+  test('trip tags are editable in expanded settings', async ({ page }) => {
+    await signIn(page);
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+
+    const tagName = uniqueName('pw-expanded-tag');
+    try {
+      await page.getByRole('button', { name: 'Expand Editor' }).click();
+      const dialog = page.getByRole('dialog', { name: /Edit Trip -/i });
+      await addTagInSurface(dialog, tagName);
+      await dialog.getByRole('button', { name: 'Save & Continue' }).click();
+      await expectSaved(page);
+      await expect(sidebarTagsPanel(page)).toContainText(tagName);
+    } finally {
+      await removeTagIfPresent(page, tagName);
+    }
+  });
+
+  test('share progress toggle is visible and private draft disables it', async ({ page }) => {
+    await signIn(page);
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+
+    const surface = page.locator('.trip-editor-surface--docked');
+    const shareToggle = surface.getByLabel('Show visit progress on public trip');
+    await expect(shareToggle).toBeVisible();
+
+    await surface.getByRole('checkbox', { name: 'Public trip', exact: true }).uncheck();
+
+    await expect(shareToggle).toBeDisabled();
+    await expect(shareToggle).not.toBeChecked();
+    await expect(surface.getByRole('link', { name: 'Open progress URL' })).toHaveCount(0);
+  });
+
+  test('Save & Exit stays on workspace when tag save fails', async ({ page }) => {
+    await signIn(page);
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+    await page.route('**/api/trips/*/editor/tags', async route => {
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({
+          title: 'One or more validation errors occurred.',
+          status: 400,
+          errors: { tags: ['Injected tag save failure.'] }
+        })
+      });
+    });
+
+    await addTagInActiveSettings(page, uniqueName('pw-failed-tag'));
+    await page.getByRole('button', { name: 'Save & Exit' }).click();
+
+    await expect(page).toHaveURL(pathRegex(workspacePath));
+    await expect(page.getByRole('alert')).toContainText('One or more validation errors occurred.');
+    await expect(page.locator('.trip-editor-surface--docked')).toContainText('Injected tag save failure.');
+  });
+
   test('responsive narrow workspace remains usable', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await signIn(page);
@@ -234,10 +308,12 @@ async function expectUsableDockedPlaceEditor(page: Page): Promise<void> {
 
 // Confirms tags appear in the Trip-level panel and not inside the place editor form.
 async function expectTripLevelTagsOnly(page: Page): Promise<void> {
-  const tagsHeading = page.getByRole('heading', { name: 'Tags' });
-  if (await tagsHeading.isVisible()) {
-    await expect(tagsHeading.locator('xpath=ancestor::section[contains(@class, "trip-editor-panel")]')).toBeVisible();
+  const sidebarPanel = sidebarTagsPanel(page);
+  if (await sidebarPanel.isVisible().catch(() => false)) {
+    await expect(sidebarPanel).toBeVisible();
   }
+
+  await expect(page.locator('#trip-editor-metadata-form').getByRole('heading', { name: 'Tags' })).toBeVisible();
 }
 
 // Guards against fields from the design mockups that are not implemented on main.
@@ -322,6 +398,35 @@ async function expectReverseGeocodeWarningIfPresent(page: Page): Promise<void> {
   await expect(warning).toHaveCSS('color', /rgb\(/);
   await expect(page.locator('.trip-editor-form-error')).toHaveCount(0);
   await expect(page.getByText('Save failed')).toHaveCount(0);
+}
+
+function sidebarTagsPanel(page: Page): Locator {
+  return page.locator('.trip-editor-panel').filter({ has: page.locator('h2', { hasText: 'Tags' }) }).first();
+}
+
+async function addTagInActiveSettings(page: Page, tagName: string): Promise<void> {
+  await addTagInSurface(page.locator('.trip-editor-surface--docked'), tagName);
+}
+
+async function addTagInSurface(surface: Locator, tagName: string): Promise<void> {
+  await surface.getByLabel('Add tag').fill(tagName);
+  await surface.getByRole('button', { name: 'Add' }).click();
+  await expect(surface).toContainText(tagName);
+}
+
+async function removeTagIfPresent(page: Page, tagName: string): Promise<void> {
+  await page.unroute('**/api/trips/*/editor/tags').catch(() => undefined);
+  await page.goto(absoluteUrl(workspacePath));
+  await expectMountedWorkspace(page);
+  const remove = page.locator('.trip-editor-surface--docked').getByRole('button', { name: `Remove tag ${tagName}` });
+  if ((await remove.count()) === 0) {
+    return;
+  }
+
+  await remove.click();
+  await page.getByRole('button', { name: 'Save & Continue' }).click();
+  await expectSaved(page);
+  await expect(page.locator('.trip-editor-sidebar')).not.toContainText(tagName);
 }
 
 async function expectNoObviousOverflow(locator: Locator): Promise<void> {

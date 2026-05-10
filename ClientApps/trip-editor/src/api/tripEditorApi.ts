@@ -9,9 +9,13 @@ import type {
   EditorRegionOrderRequest,
   EditorRegionOrderResult,
   EditorRegionSaveRequest,
+  EditorShareProgressUpdateRequest,
+  EditorTag,
+  EditorTripTagsUpdateRequest,
   EditorTripMetadata,
   EditorTripMetadataUpdateRequest,
   EditorTripState,
+  TagSuggestion,
   ValidationProblemDetails
 } from '../types';
 
@@ -63,6 +67,36 @@ export const patchMetadata = async (
   }
 
   return (await response.json()) as EditorMutationResult<EditorTripMetadata>;
+};
+
+/// Replaces the complete trip-level tag set through the same-origin editor API.
+export const putTags = async (
+  endpoint: string,
+  antiforgeryToken: string,
+  request: EditorTripTagsUpdateRequest
+): Promise<EditorMutationResult<EditorTag[]>> => sendMutation(`${endpoint}/tags`, 'PUT', antiforgeryToken, request, 'tag save');
+
+/// Toggles public progress sharing through the same-origin editor API.
+export const patchShareProgress = async (
+  endpoint: string,
+  antiforgeryToken: string,
+  request: EditorShareProgressUpdateRequest
+): Promise<EditorMutationResult<EditorTripMetadata>> =>
+  sendMutation(`${endpoint}/share-progress`, 'PATCH', antiforgeryToken, request, 'share-progress save');
+
+/// Loads existing public tag suggestions without mutating editor state.
+export const suggestTags = async (query: string, take: number): Promise<TagSuggestion[]> => {
+  const url = `/api/tags/suggest?q=${encodeURIComponent(query)}&take=${encodeURIComponent(String(take))}`;
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    credentials: 'same-origin'
+  });
+
+  if (!response.ok) {
+    throw new Error(`Tag suggestions returned ${response.status}`);
+  }
+
+  return (await response.json()) as TagSuggestion[];
 };
 
 /// Creates a region through the same-origin editor API.

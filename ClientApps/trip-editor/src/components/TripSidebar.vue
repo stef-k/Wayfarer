@@ -130,12 +130,16 @@ function normalize(value: string): string {
 
     <MetadataEditor
       :metadata="state.metadata"
+      :tags-by-slug="state.tagsBySlug"
+      :tag-order="state.tagOrder"
+      :tag-options="state.options.tag"
       :editor-surface="editorSurface"
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       :trip-index-url="tripIndexUrl"
       :has-region-draft-changes="hasRegionDraftChanges"
       @saved="metadata => emit('metadataSaved', metadata)"
+      @mutation-applied="result => emit('mutationApplied', result)"
     />
 
     <section v-if="state.visitProgress.totalPlaces > 0" class="trip-editor-panel">

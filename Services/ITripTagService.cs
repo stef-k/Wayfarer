@@ -12,6 +12,8 @@ public interface ITripTagService
 
     Task<IReadOnlyList<TripTagDto>> AttachTagsAsync(Guid tripId, IEnumerable<string> names, string userId, CancellationToken cancellationToken = default);
 
+    Task<TripTagReplacementResult> ReplaceTagsAsync(Guid tripId, IReadOnlyList<string> names, string userId, CancellationToken cancellationToken = default);
+
     Task<bool> DetachTagAsync(Guid tripId, string slug, string userId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TagSuggestionDto>> GetSuggestionsAsync(string? query, int limit = 10, CancellationToken cancellationToken = default);
@@ -22,3 +24,10 @@ public interface ITripTagService
 
     Task RemoveOrphanTagsAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Result of replacing the complete tag set attached to a trip.
+/// </summary>
+public sealed record TripTagReplacementResult(
+    IReadOnlyList<TripTagDto> Tags,
+    IReadOnlyList<string> DeletedSlugs);

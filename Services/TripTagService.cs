@@ -94,6 +94,51 @@ public sealed class TripTagService(ApplicationDbContext dbContext, ILogger<TripT
             .ToList();
     }
 
+    public async Task<TripTagReplacementResult> ReplaceTagsAsync(Guid tripId, IReadOnlyList<string> names, string userId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        var desired = names
+            .Select(name => new { Name = name.Trim().Normalize(NormalizationForm.FormC), Slug = ToSlug(name) })
+            .DistinctBy(tag => tag.Slug)
+            .ToList();
+
+        await using var tx = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var trip = await _dbContext.Trips
+            .Include(t => t.Tags)
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+
+        if (trip == null)
+        {
+            throw new KeyNotFoundException("Trip not found or access denied.");
+        }
+
+        var previousSlugs = trip.Tags.Select(t => t.Slug).ToHashSet(StringComparer.Ordinal);
+        var desiredSlugs = desired.Select(t => t.Slug).ToHashSet(StringComparer.Ordinal);
+        var deletedSlugs = previousSlugs.Except(desiredSlugs, StringComparer.Ordinal).OrderBy(slug => slug).ToList();
+        var nextTags = new List<Tag>();
+
+        foreach (var desiredTag in desired)
+        {
+            ValidateTagName(desiredTag.Name);
+            nextTags.Add(await GetOrCreateTagBySlugAsync(desiredTag.Name, desiredTag.Slug, cancellationToken));
+        }
+
+        trip.Tags.Clear();
+        foreach (var tag in nextTags)
+        {
+            trip.Tags.Add(tag);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await RemoveUnusedTagsAsync(deletedSlugs, cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        var tags = await GetTagsForTripAsync(tripId, userId, cancellationToken);
+        return new TripTagReplacementResult(tags, deletedSlugs);
+    }
+
     public async Task<bool> DetachTagAsync(Guid tripId, string slug, string userId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(slug))
@@ -244,7 +289,14 @@ WHERE NOT EXISTS (
 );", cancellationToken);
     }
 
-    private void ValidateTagName(string name)
+    public static string NormalizeSlug(string name) => ToSlug(name);
+
+    public static bool IsValidTagName(string name) =>
+        !string.IsNullOrWhiteSpace(name)
+        && name.Length <= 64
+        && NameRegex.IsMatch(name);
+
+    private static void ValidateTagName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -289,6 +341,54 @@ WHERE NOT EXISTS (
             _logger.LogWarning(ex, "Race while creating tag {Tag}", normalized);
             return await _dbContext.Tags.FirstAsync(t => t.Name == normalized, cancellationToken);
         }
+    }
+
+    private async Task<Tag> GetOrCreateTagBySlugAsync(string name, string slug, CancellationToken cancellationToken)
+    {
+        var existing = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var tag = new Tag
+        {
+            Name = name,
+            Slug = slug
+        };
+
+        _dbContext.Tags.Add(tag);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return tag;
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Race while creating tag slug {TagSlug}", slug);
+            return await _dbContext.Tags.FirstAsync(t => t.Slug == slug, cancellationToken);
+        }
+    }
+
+    private async Task RemoveUnusedTagsAsync(IReadOnlyList<string> slugs, CancellationToken cancellationToken)
+    {
+        if (slugs.Count == 0)
+        {
+            return;
+        }
+
+        var candidates = await _dbContext.Tags
+            .Include(t => t.Trips)
+            .Where(t => slugs.Contains(t.Slug))
+            .ToListAsync(cancellationToken);
+
+        foreach (var tag in candidates.Where(t => t.Trips.Count == 0))
+        {
+            _dbContext.Tags.Remove(tag);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static TripTagDto MapToDto(Tag tag) => new(tag.Id, tag.Name, tag.Slug);

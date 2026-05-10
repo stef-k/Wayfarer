@@ -100,6 +100,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
             iconColorProvider,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ICacheWarmupScheduler>(),
+            Mock.Of<ITripTagService>(),
             new TripEditorRegionMutationService(db),
             new TripEditorPlaceMutationService(db, environment, iconColorProvider, reverseGeocodingService ?? new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
             Mock.Of<ILogger<TripEditorController>>());
