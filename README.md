@@ -96,6 +96,18 @@ dev server side-by-side:
 npm run dev
 ```
 
+Trip Editor browser verification is dev-only tooling. After the ASP.NET Core app
+and Vite are already running, configure local credentials with `WAYFARER_E2E_*`
+environment variables or ignored `.local/manual-verification.md`, then run:
+
+```bash
+npm run test:e2e:trip-editor
+```
+
+See `docs/22-Testing.md` for the required variables, local file format, and
+browser install command. Do not reset passwords or create users for this harness
+unless that is explicitly approved.
+
 Production and deployment builds still use `npm ci` and `npm run build` to emit
 static Trip Editor assets served by ASP.NET Core.
 
