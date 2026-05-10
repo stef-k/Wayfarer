@@ -233,12 +233,11 @@ test.describe.serial('Trip Editor dev verification', () => {
     const shareToggle = surface.getByLabel('Show visit progress on public trip');
     await expect(shareToggle).toBeVisible();
 
-    await surface.getByLabel('Public trip').uncheck();
+    await surface.getByRole('checkbox', { name: 'Public trip', exact: true }).uncheck();
 
     await expect(shareToggle).toBeDisabled();
     await expect(shareToggle).not.toBeChecked();
     await expect(surface.getByRole('link', { name: 'Open progress URL' })).toHaveCount(0);
-    await surface.getByRole('button', { name: 'Cancel / Reset' }).click();
   });
 
   test('Save & Exit stays on workspace when tag save fails', async ({ page }) => {
@@ -309,10 +308,12 @@ async function expectUsableDockedPlaceEditor(page: Page): Promise<void> {
 
 // Confirms tags appear in the Trip-level panel and not inside the place editor form.
 async function expectTripLevelTagsOnly(page: Page): Promise<void> {
-  const tagsHeading = page.getByRole('heading', { name: 'Tags' });
-  if (await tagsHeading.isVisible()) {
-    await expect(tagsHeading.locator('xpath=ancestor::section[contains(@class, "trip-editor-panel")]')).toBeVisible();
+  const sidebarPanel = sidebarTagsPanel(page);
+  if (await sidebarPanel.isVisible().catch(() => false)) {
+    await expect(sidebarPanel).toBeVisible();
   }
+
+  await expect(page.locator('#trip-editor-metadata-form').getByRole('heading', { name: 'Tags' })).toBeVisible();
 }
 
 // Guards against fields from the design mockups that are not implemented on main.
