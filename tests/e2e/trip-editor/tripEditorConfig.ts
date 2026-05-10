@@ -51,13 +51,29 @@ function readLocalManualVerification(): Partial<Record<ConfigKey, string>> {
   const result: Partial<Record<ConfigKey, string>> = {};
   const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
   for (const line of lines) {
-    const match = line.match(/^\s*(?:\$env:)?(WAYFARER_E2E_[A-Z_]+)\s*=\s*['"`]?([^'"`\r\n]+)['"`]?\s*$/);
-    if (!match || !configKeys.includes(match[1] as ConfigKey)) {
+    const envMatch = line.match(/^\s*(?:\$env:)?(WAYFARER_E2E_[A-Z_]+)\s*=\s*['"`]?([^'"`\r\n]+)['"`]?\s*$/);
+    if (envMatch && configKeys.includes(envMatch[1] as ConfigKey)) {
+      result[envMatch[1] as ConfigKey] = envMatch[2].trim();
       continue;
     }
 
-    result[match[1] as ConfigKey] = match[2].trim();
+    const labelMatch = line.match(/^\s*(Username|Password|Trip ID|ASP\.NET dev server):\s*(.+?)\s*$/i);
+    if (!labelMatch) {
+      continue;
+    }
+
+    const value = labelMatch[2].trim().replace(/`/g, '');
+    if (/^Username$/i.test(labelMatch[1])) {
+      result.WAYFARER_E2E_USERNAME = value;
+    } else if (/^Password$/i.test(labelMatch[1])) {
+      result.WAYFARER_E2E_PASSWORD = value;
+    } else if (/^Trip ID$/i.test(labelMatch[1])) {
+      result.WAYFARER_E2E_TRIP_ID = value;
+    } else if (/^ASP\.NET dev server$/i.test(labelMatch[1])) {
+      result.WAYFARER_E2E_BASE_URL = value.replace(/;.*$/, '').trim();
+    }
   }
 
+  result.WAYFARER_E2E_BASE_URL ||= 'http://localhost:5012';
   return result;
 }

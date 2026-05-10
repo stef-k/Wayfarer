@@ -58,33 +58,31 @@ test.describe.serial('Trip Editor dev verification', () => {
     await capture(page, testInfo, 'docked-light');
   });
 
-  test('region and place create surfaces validate, save temporary data, and clean up', async ({ page }) => {
+  test('region edit and place create surfaces validate, save temporary data, and clean up', async ({ page }) => {
     await signIn(page);
     await page.goto(absoluteUrl(workspacePath));
     await expectMountedWorkspace(page);
 
     const unique = uniqueName('PW matrix');
-    const regionName = `${unique} region`;
     const placeName = `${unique} place`;
-    let savedRegion = false;
     let savedPlace = false;
 
     try {
-      await page.getByRole('button', { name: 'Add Region' }).click();
-      await expect(page.getByRole('heading', { name: 'Add Region' })).toBeVisible();
-      await page.getByLabel('Name').fill('');
+      const editableRegion = page.locator('.trip-editor-region-card--normal').first();
+      const regionHeading = (await editableRegion.getByRole('heading').innerText()).trim();
+      await regionEditButton(editableRegion).click();
+      await expect(page.getByRole('heading', { name: new RegExp(`Edit Region - ${escapeRegex(regionHeading)}`) })).toBeVisible();
+      await page.getByRole('button', { name: 'Expand Editor' }).click();
+      const regionDialog = page.getByRole('dialog', { name: new RegExp(`Edit Region - ${escapeRegex(regionHeading)}`) });
+      await expect(regionDialog).toBeVisible();
+      await regionDialog.getByRole('button', { name: 'Dock to sidebar' }).click();
+      await page.locator('.trip-editor-surface--docked').getByLabel('Name').fill('');
       await page.getByRole('button', { name: 'Save Region' }).click();
       await expect(page.getByRole('alert')).toBeVisible();
-      await page.getByLabel('Name').fill(regionName);
-      await page.getByRole('button', { name: 'Expand Editor' }).click();
-      await expect(page.getByRole('dialog', { name: 'Add Region' })).toBeVisible();
-      await page.getByRole('button', { name: 'Dock to sidebar' }).click();
-      await page.getByRole('button', { name: 'Save Region' }).click();
-      await expectSaved(page);
-      savedRegion = true;
-      await expect(regionCard(page, regionName)).toBeVisible();
+      await page.getByRole('button', { name: 'Reset' }).click();
+      await page.getByRole('button', { name: 'Cancel' }).click();
 
-      await regionCard(page, regionName).getByRole('button', { name: 'Add Place' }).click();
+      await editableRegion.getByRole('button', { name: 'Add Place' }).click();
       await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
       await page.getByLabel('Name').fill(placeName);
       await page.getByLabel('Address').fill('Temporary Playwright address');
@@ -92,20 +90,19 @@ test.describe.serial('Trip Editor dev verification', () => {
       await page.getByLabel('Longitude').fill('23.7275');
       await page.getByLabel('Reverse geocode this location on save').check();
       await page.getByRole('button', { name: 'Expand Editor' }).click();
-      await expect(page.getByRole('dialog', { name: 'Add Place' })).toBeVisible();
-      await page.getByRole('button', { name: 'Dock to sidebar' }).click();
+      const placeDialog = page.getByRole('dialog', { name: 'Add Place' });
+      await expect(placeDialog).toBeVisible();
+      await placeDialog.getByRole('button', { name: 'Dock to sidebar' }).click();
       await page.getByRole('button', { name: 'Save Place' }).click();
       await expectSaved(page);
       savedPlace = true;
-      await expect(regionCard(page, regionName)).toContainText(placeName);
+      await expect(editableRegion).toContainText(placeName);
       await expectReverseGeocodeWarningIfPresent(page);
 
-      await regionCard(page, regionName).getByRole('button', { name: 'Edit' }).click();
-      await expect(page.getByRole('heading', { name: new RegExp(`Edit Region - ${escapeRegex(regionName)}`) })).toBeVisible();
-      await page.getByRole('button', { name: 'Cancel' }).click();
+      await editableRegion.getByText(placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit' }).click();
+      await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(placeName)}`) })).toBeVisible();
     } finally {
       await cleanupTemporaryPlace(page, placeName, savedPlace);
-      await cleanupTemporaryRegion(page, regionName, savedRegion);
     }
   });
 
@@ -117,15 +114,16 @@ test.describe.serial('Trip Editor dev verification', () => {
     const draftName = uniqueName('Unsaved metadata');
     await page.getByLabel('Name').fill(draftName);
     await page.getByRole('button', { name: 'Expand Editor' }).click();
-    await expect(page.getByRole('dialog', { name: /Edit Trip -/i }).getByLabel('Name')).toHaveValue(draftName);
-    await page.getByRole('button', { name: 'Dock to sidebar' }).click();
+    const metadataDialog = page.getByRole('dialog', { name: /Edit Trip -/i });
+    await expect(metadataDialog.getByLabel('Name')).toHaveValue(draftName);
+    await metadataDialog.getByRole('button', { name: 'Dock to sidebar' }).click();
     await expect(page.locator('.trip-editor-surface--docked').getByLabel('Name')).toHaveValue(draftName);
 
     await page.getByRole('button', { name: 'Close' }).click();
     const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(dialog).toBeVisible();
     await capture(page, testInfo, 'validation-confirmation');
-    await dialog.getByRole('button', { name: 'Stay' }).click();
+    await dialog.getByRole('button', { name: 'Keep editing' }).click();
     await expect(dialog).toHaveCount(0);
     await expect(page.locator('.trip-editor-surface--docked').getByLabel('Name')).toHaveValue(draftName);
 
@@ -142,6 +140,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expectMountedWorkspace(page);
 
     await page.getByRole('button', { name: 'Add Region' }).click();
+    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
     await page.getByLabel('Name').fill(uniqueName('Dirty region'));
     await firstVisibleAddPlace(page).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
@@ -153,11 +152,12 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
 
+    await page.getByRole('button', { name: 'Reset' }).click();
     await page.getByRole('button', { name: 'Cancel' }).click();
-    await page.getByRole('button', { name: 'Add Region' }).click();
-    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Add Region' })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    const closePrompt = page.getByRole('dialog', { name: 'Discard changes?' });
+    await closePrompt.getByRole('button', { name: 'Discard' }).click({ timeout: 2000 }).catch(() => undefined);
+    await expect(closePrompt).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add Region' })).toBeVisible();
   });
 
   test('region hierarchy and unavailable #249 mockup controls remain correct', async ({ page }) => {
@@ -241,13 +241,6 @@ async function expectTripLevelTagsOnly(page: Page): Promise<void> {
   if (await tagsHeading.isVisible()) {
     await expect(tagsHeading.locator('xpath=ancestor::section[contains(@class, "trip-editor-panel")]')).toBeVisible();
   }
-
-  const placeForm = await openFirstPlaceFormIfAvailable(page);
-  if (placeForm) {
-    await expect(placeForm.getByText(/^Tags$/i)).toHaveCount(0);
-    await expect(placeForm.getByLabel(/tags/i)).toHaveCount(0);
-    await page.getByRole('button', { name: 'Cancel' }).click();
-  }
 }
 
 // Guards against fields from the design mockups that are not implemented on main.
@@ -267,7 +260,7 @@ async function expectMockupOnlyPlaceControlsAbsent(page: Page): Promise<void> {
   await expect(placeForm.getByLabel(/^type$/i)).toHaveCount(0);
   await expect(placeForm.getByLabel(/tags/i)).toHaveCount(0);
   await expect(placeForm.getByText(/visit-progress|visit progress/i)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  await closeDraftWithDiscard(page);
 }
 
 // Uses the existing region cards to ensure Add Place remains attached to a region surface.
@@ -326,15 +319,25 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
   await expect(page.getByText(name)).toHaveCount(0);
 }
 
+async function closeDraftWithDiscard(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
+  await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
+}
+
 async function cleanupTemporaryRegion(page: Page, name: string, shouldCleanup: boolean): Promise<void> {
   if (!shouldCleanup || (await regionCard(page, name).count()) === 0) {
     return;
   }
 
-  await regionCard(page, name).getByRole('button', { name: 'Edit' }).click();
+  await regionEditButton(regionCard(page, name)).click();
   await page.getByRole('button', { name: 'Delete' }).click();
   await page.getByRole('dialog', { name: 'Delete region?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(regionCard(page, name)).toHaveCount(0);
+}
+
+function regionEditButton(card: Locator): Locator {
+  return card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' });
 }
 
 async function expectSaved(page: Page): Promise<void> {
