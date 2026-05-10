@@ -3,7 +3,7 @@ import { confirm } from './useConfirmDialog';
 import type { Guid } from '../types';
 
 export type EditorSurfaceMode = 'docked' | 'expanded' | 'map-work';
-export type EditorTargetKind = 'metadata' | 'region' | 'place';
+export type EditorTargetKind = 'metadata' | 'region' | 'place' | 'area';
 export type EditorTargetMode = 'edit' | 'add';
 
 export interface EditorTarget {

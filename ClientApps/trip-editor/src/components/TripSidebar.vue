@@ -4,7 +4,7 @@ import type { EditorArea, EditorMutationResult, EditorPlace, EditorRegion, Edito
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import MetadataEditor from './MetadataEditor.vue';
 import RegionManager from './RegionManager.vue';
-import type { CoordinatePickOptions } from '../map/leafletAdapter';
+import type { AreaPolygonWorkOptions, CoordinatePickOptions } from '../map/leafletAdapter';
 
 type SidebarSearchResult = {
   hasMatches: boolean;
@@ -21,6 +21,7 @@ const props = defineProps<{
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
   coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
+  polygonEditor: { startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void };
 }>();
 
 const emit = defineEmits<{
@@ -176,6 +177,7 @@ function normalize(value: string): string {
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       :coordinate-picker="coordinatePicker"
+      :polygon-editor="polygonEditor"
       :search-active="isSearchActive"
       :search-regions="sidebarSearch.regions"
       :search-place-ids-by-region-id="sidebarSearch.placesByRegionId"

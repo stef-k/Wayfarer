@@ -1,8 +1,9 @@
 import type { EditorTarget } from '../composables/useEditorSurface';
-import type { EditorPlace, EditorRegion } from '../types';
+import type { EditorArea, EditorPlace, EditorRegion } from '../types';
 
 export const regionDraftKey = 'region-draft';
 export const placeDraftKey = 'place-draft';
+export const areaDraftKey = 'area-draft';
 
 export function buildRegionCreateTarget(): EditorTarget {
   return {
@@ -49,5 +50,30 @@ export function buildPlaceEditTarget(place: EditorPlace, subtitle?: string): Edi
     subtitle,
     entityId: place.id,
     parentRegionId: place.regionId
+  };
+}
+
+export function buildAreaCreateTarget(region: EditorRegion): EditorTarget {
+  return {
+    key: areaDraftKey,
+    identity: `area:add:${region.id}`,
+    kind: 'area',
+    mode: 'add',
+    title: 'Add Area',
+    subtitle: region.name,
+    parentRegionId: region.id
+  };
+}
+
+export function buildAreaEditTarget(area: EditorArea, subtitle?: string): EditorTarget {
+  return {
+    key: areaDraftKey,
+    identity: `area:edit:${area.id}`,
+    kind: 'area',
+    mode: 'edit',
+    title: `Edit Area - ${area.name}`,
+    subtitle,
+    entityId: area.id,
+    parentRegionId: area.regionId
   };
 }

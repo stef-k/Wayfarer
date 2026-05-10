@@ -6,7 +6,7 @@ import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type CoordinatePickOptions, type FocusActiveEntityResult } from './map/leafletAdapter';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
@@ -22,6 +22,9 @@ const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 const coordinatePicker = {
   startCoordinatePick: (options: CoordinatePickOptions): (() => void) => mapAdapter?.startCoordinatePick(options) ?? (() => undefined)
+};
+const polygonEditor = {
+  startAreaPolygonWork: (options: AreaPolygonWorkOptions): (() => void) => mapAdapter?.startAreaPolygonWork(options) ?? (() => undefined)
 };
 
 const updatedLabel = computed(() =>
@@ -207,6 +210,10 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
       return 'Focused place';
     }
 
+    if (kind === 'area') {
+      return 'Focused area';
+    }
+
     return 'Focused active entity';
   }
 
@@ -243,6 +250,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :trip-index-url="props.config.tripIndexUrl"
         :has-region-draft-changes="hasRegionDraftChanges"
         :coordinate-picker="coordinatePicker"
+        :polygon-editor="polygonEditor"
         @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"

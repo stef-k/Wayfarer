@@ -12,6 +12,7 @@ declare global {
 
 const props = defineProps<{
   activePlaceId: Guid | null;
+  activeAreaId: Guid | null;
   activeRegionId: Guid | null;
   areaIdsByRegionId: Record<Guid, Guid[]>;
   forceExpandedRegionIds: Set<Guid>;
@@ -25,8 +26,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   addPlace: [region: EditorRegion];
+  addArea: [region: EditorRegion];
+  editArea: [area: EditorArea];
   editPlace: [place: EditorPlace];
   editRegion: [region: EditorRegion];
+  areaReorder: [regionId: Guid, ids: Guid[], previousIds: Guid[]];
   placeReorder: [regionId: Guid, ids: Guid[], previousIds: Guid[]];
   regionReorder: [ids: Guid[], previousIds: Guid[]];
 }>();
@@ -35,12 +39,14 @@ const regionList = ref<HTMLElement | null>(null);
 const collapsedRegionIds = ref<Set<Guid>>(new Set());
 const searchCollapsedSnapshot = ref<Set<Guid> | null>(null);
 const placeSortables = new Map<string, { destroy: () => void }>();
+const areaSortables = new Map<string, { destroy: () => void }>();
 let sortable: { destroy: () => void } | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
 let placeReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
+let areaReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 
 watch(
-  () => `${props.searchActive}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
+  () => `${props.searchActive}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
   async () => {
     await nextTick();
     attachSortables();
@@ -67,11 +73,13 @@ onMounted(attachSortables);
 onUnmounted(() => {
   sortable?.destroy();
   destroyPlaceSortables();
+  destroyAreaSortables();
 });
 
 function attachSortables(): void {
   attachRegionSortable();
   attachPlaceSortables();
+  attachAreaSortables();
 }
 
 function attachRegionSortable(): void {
@@ -135,6 +143,38 @@ function destroyPlaceSortables(): void {
   placeSortables.clear();
 }
 
+function attachAreaSortables(): void {
+  destroyAreaSortables();
+  if (props.searchActive || !window.Sortable) {
+    return;
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-area-list-region-id]').forEach(element => {
+    const regionId = element.dataset.areaListRegionId!;
+    areaSortables.set(regionId, window.Sortable!.create(element, {
+      animation: 150,
+      draggable: '.trip-editor-area-row',
+      handle: '.trip-editor-area-drag-handle',
+      onStart: () => {
+        areaReorderSnapshot = { regionId, ids: [...(props.state.areaOrderByRegionId[regionId] ?? [])] };
+      },
+      onEnd: () => {
+        const previousIds = areaReorderSnapshot?.ids ?? [...(props.state.areaOrderByRegionId[regionId] ?? [])];
+        areaReorderSnapshot = null;
+        const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-area-id]')).map(row => row.dataset.areaId!);
+        if (ids.join('|') !== previousIds.join('|')) {
+          emit('areaReorder', regionId, ids, previousIds);
+        }
+      }
+    }));
+  });
+}
+
+function destroyAreaSortables(): void {
+  areaSortables.forEach(instance => instance.destroy());
+  areaSortables.clear();
+}
+
 function normalRegionIds(): Guid[] {
   return props.regions.filter(region => !region.isShadow).map(region => region.id);
 }
@@ -145,6 +185,10 @@ function orderedPlaces(regionId: Guid): EditorPlace[] {
 
 function orderedAreas(regionId: Guid): EditorArea[] {
   return (props.areaIdsByRegionId[regionId] ?? []).map(id => props.state.areasById[id]).filter(Boolean) as EditorArea[];
+}
+
+function canAddArea(region: EditorRegion): boolean {
+  return props.state.permissions.canEditAreas && !region.isShadow && region.capabilities.canAddChildren;
 }
 
 function isCollapsed(regionId: Guid): boolean {
@@ -242,15 +286,44 @@ function toggleRegion(regionId: Guid): void {
             <slot name="place-editor" :place="place"></slot>
           </li>
         </template>
-        <li v-for="area in orderedAreas(region.id)" :key="area.id">
-          <span>{{ area.name }}</span>
-          <small>Area</small>
+        <li v-if="orderedAreas(region.id).length > 0" class="trip-editor-child-section">
+          <span>Areas</span>
+        </li>
+        <li v-show="!isCollapsed(region.id)" :data-area-list-region-id="region.id" class="trip-editor-area-list">
+          <template v-for="area in orderedAreas(region.id)" :key="area.id">
+            <div
+              class="trip-editor-area-row"
+              :class="{ 'trip-editor-area-row--active': props.activeAreaId === area.id }"
+              :data-area-id="area.id"
+            >
+              <button
+                v-if="!region.isShadow"
+                type="button"
+                class="trip-editor-icon-button trip-editor-area-drag-handle"
+                title="Drag to reorder area"
+                aria-label="Drag to reorder area"
+                :disabled="props.searchActive || props.isOrdering"
+              >
+                <span aria-hidden="true">::</span>
+              </button>
+              <span>{{ area.name }}</span>
+              <small>Area</small>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editArea', area)">Edit</button>
+            </div>
+            <div v-if="props.activeAreaId === area.id" class="trip-editor-place-editor-row" aria-live="polite">
+              <slot name="area-editor" :area="area"></slot>
+            </div>
+          </template>
         </li>
       </ul>
       <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
         Add Place
       </button>
+      <button v-if="canAddArea(region)" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addArea', region)">
+        Add Area
+      </button>
       <slot name="add-place-editor" :region="region"></slot>
+      <slot name="add-area-editor" :region="region"></slot>
     </article>
   </div>
 </template>

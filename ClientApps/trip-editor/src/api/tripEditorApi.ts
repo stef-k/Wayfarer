@@ -1,5 +1,10 @@
 import type {
   EditorMutationResult,
+  EditorArea,
+  EditorAreaDeleteResult,
+  EditorAreaOrderRequest,
+  EditorAreaOrderResult,
+  EditorAreaSaveRequest,
   EditorPlace,
   EditorPlaceDeleteResult,
   EditorPlaceOrderRequest,
@@ -159,6 +164,38 @@ export const orderPlaces = async (
   request: EditorPlaceOrderRequest
 ): Promise<EditorMutationResult<EditorPlaceOrderResult>> =>
   sendMutation(`${endpoint}/regions/${regionId}/places/order`, 'PUT', antiforgeryToken, request, 'place order');
+
+/// Creates an area in a normal region through the same-origin editor API.
+export const createArea = async (
+  endpoint: string,
+  regionId: string,
+  antiforgeryToken: string,
+  request: EditorAreaSaveRequest
+): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/regions/${regionId}/areas`, 'POST', antiforgeryToken, request, 'area create');
+
+/// Updates an area through the same-origin editor API.
+export const updateArea = async (
+  endpoint: string,
+  areaId: string,
+  antiforgeryToken: string,
+  request: EditorAreaSaveRequest
+): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/areas/${areaId}`, 'PUT', antiforgeryToken, request, 'area update');
+
+/// Deletes an area through the same-origin editor API.
+export const deleteArea = async (
+  endpoint: string,
+  areaId: string,
+  antiforgeryToken: string
+): Promise<EditorMutationResult<EditorAreaDeleteResult>> => sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, null, 'area delete');
+
+/// Persists the complete area order for one normal region.
+export const orderAreas = async (
+  endpoint: string,
+  regionId: string,
+  antiforgeryToken: string,
+  request: EditorAreaOrderRequest
+): Promise<EditorMutationResult<EditorAreaOrderResult>> =>
+  sendMutation(`${endpoint}/regions/${regionId}/areas/order`, 'PUT', antiforgeryToken, request, 'area order');
 
 const sendMutation = async <TData>(
   url: string,

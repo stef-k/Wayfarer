@@ -1,4 +1,4 @@
-import type { EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest } from '../types';
+import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest } from '../types';
 
 export type RegionDraft = {
   id: string | null;
@@ -84,6 +84,38 @@ export function buildPlaceRequest(value: EditorPlaceDraft): EditorPlaceSaveReque
 export function withoutRegionId(request: EditorPlaceSaveRequest): EditorPlaceSaveRequest {
   const { regionId: _regionId, ...createRequest } = request;
   return createRequest;
+}
+
+export function emptyAreaDraft(regionId: string | null = null, fillHex = '#ff6600'): EditorAreaDraft {
+  return { id: null, regionId, name: '', notesHtml: '', fillHex, geometry: null };
+}
+
+export function toAreaDraft(area: EditorArea | null, fallbackRegionId: string | null, fillHex = '#ff6600'): EditorAreaDraft {
+  if (!area) {
+    return emptyAreaDraft(fallbackRegionId, fillHex);
+  }
+
+  return {
+    id: area.id,
+    regionId: area.regionId,
+    name: area.name,
+    notesHtml: area.notesHtml,
+    fillHex: area.fillHex || fillHex,
+    geometry: cloneGeometry(area.geometry)
+  };
+}
+
+export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest {
+  return {
+    name: value.name,
+    notesHtml: value.notesHtml,
+    fillHex: value.fillHex,
+    geometry: cloneGeometry(value.geometry)
+  };
+}
+
+function cloneGeometry<T>(geometry: T): T {
+  return geometry ? JSON.parse(JSON.stringify(geometry)) as T : geometry;
 }
 
 function coordinateText(coordinate: EditorCoordinate | null, key: keyof EditorCoordinate): string {

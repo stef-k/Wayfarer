@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { createPlace, createRegion, deletePlace, deleteRegion, orderPlaces, orderRegions, updatePlace, updateRegion } from '../api/tripEditorApi';
+import { createArea, createPlace, createRegion, deleteArea, deletePlace, deleteRegion, orderAreas, orderPlaces, orderRegions, updateArea, updatePlace, updateRegion } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import PlaceEditorSurface from './PlaceEditorSurface.vue';
+import AreaEditorSurface from './AreaEditorSurface.vue';
 import RegionEditorSurface from './RegionEditorSurface.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
-import { buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
-import { buildPlaceRequest, buildRegionRequest, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
+import { buildAreaCreateTarget, buildAreaEditTarget, buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, areaDraftKey, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
+import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toAreaDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
+import { beginAreaPolygonMapWork, stopAreaPolygonEdit, type AreaPolygonEditor, type AreaPolygonMapWorkState } from './areaPolygonMapWork';
 import { beginPlaceCoordinateMapWork, stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { useEditorMutationFeedback } from './useEditorMutationFeedback';
-import type { EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
+import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 const props = defineProps<{
   state: EditorTripState;
@@ -22,6 +24,7 @@ const props = defineProps<{
   searchPlaceIdsByRegionId: Record<Guid, Guid[]>;
   searchAreaIdsByRegionId: Record<Guid, Guid[]>;
   coordinatePicker: PlaceCoordinatePicker;
+  polygonEditor: AreaPolygonEditor;
 }>();
 
 const emit = defineEmits<{
@@ -31,27 +34,36 @@ const emit = defineEmits<{
 
 const regionFields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
 const placeFields = ['regionId', 'name', 'notesHtml', 'address', 'location.latitude', 'location.longitude', 'iconName', 'markerColor', 'reverseGeocode'];
+const areaFields = ['name', 'notesHtml', 'fillHex', 'geometry', 'geometry.coordinates'];
 const regionListKey = ref(0);
 const regionFormId = 'trip-editor-region-form';
 const placeFormId = 'trip-editor-place-form';
+const areaFormId = 'trip-editor-area-form';
 const draft = reactive(emptyRegionDraft());
 const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
+const areaDraft = reactive<EditorAreaDraft>(emptyAreaDraft());
 const isSaving = ref(false);
 const isOrdering = ref(false);
 const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
 const placeCreateBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
+const areaCreateBaselineRequest = ref<EditorAreaSaveRequest | null>(null);
 let unregisterRegionHandler: (() => void) | null = null;
 let unregisterPlaceHandler: (() => void) | null = null;
+let unregisterAreaHandler: (() => void) | null = null;
 const placeCoordinateMapWork = reactive<PlaceCoordinateMapWorkState>({ coordinate: null, stopPick: null });
+const areaPolygonMapWork = reactive<AreaPolygonMapWorkState>({ geometry: null, stopEdit: null });
 
 const orderedRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]);
 const activeRegion = computed(() => (draft.id ? props.state.regionsById[draft.id] ?? null : null));
 const activePlace = computed(() => (placeDraft.id ? props.state.placesById[placeDraft.id] ?? null : null));
+const activeArea = computed(() => (areaDraft.id ? props.state.areasById[areaDraft.id] ?? null : null));
 const isDraftOpen = computed(() => draft.id !== null || Boolean(draft.name || draft.notesHtml || draft.coverImageRawUrl || draft.centerLatitude || draft.centerLongitude));
 const isPlaceDraftOpen = computed(() => placeDraft.regionId !== null || Boolean(placeDraft.name || placeDraft.notesHtml || placeDraft.address || placeDraft.latitude || placeDraft.longitude));
+const isAreaDraftOpen = computed(() => areaDraft.regionId !== null || Boolean(areaDraft.name || areaDraft.notesHtml || areaDraft.geometry));
 const regionDirty = computed(() => JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(regionBaselineRequest.value));
 const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(placeBaselineRequest.value));
-const isDirty = computed(() => regionDirty.value || placeDirty.value);
+const areaDirty = computed(() => JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
+const isDirty = computed(() => regionDirty.value || placeDirty.value || areaDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
 const renderedRegions = computed(() => {
   const regions = props.searchActive ? [...props.searchRegions] : [...orderedRegions.value];
@@ -78,10 +90,22 @@ const renderedPlaceIdsByRegionId = computed(() => {
 
   return result;
 });
-const renderedAreaIdsByRegionId = computed(() => (props.searchActive ? props.searchAreaIdsByRegionId : props.state.areaOrderByRegionId));
+const renderedAreaIdsByRegionId = computed(() => {
+  if (!props.searchActive) {
+    return props.state.areaOrderByRegionId;
+  }
+
+  const result = cloneIdRecord(props.searchAreaIdsByRegionId);
+  if (activeArea.value) {
+    pushUnique(result, activeArea.value.regionId, activeArea.value.id);
+  }
+
+  return result;
+});
 const forcedExpandedRegionIds = computed(() => new Set(props.searchActive ? renderedRegions.value.map(region => region.id) : []));
 const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(toRegionDraft(activeRegion.value)) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
 const placeBaselineRequest = computed(() => placeDraft.id ? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
+const areaBaselineRequest = computed(() => areaDraft.id ? buildAreaRequest(toAreaDraft(activeArea.value, areaDraft.regionId, props.state.options.areaDefaults.fillHex)) : areaCreateBaselineRequest.value ?? buildAreaRequest(emptyAreaDraft(areaDraft.regionId, props.state.options.areaDefaults.fillHex)));
 const activeRegionTarget = computed<EditorTarget>(() => ({
   key: regionDraftKey,
   identity: draft.id ? `region:edit:${draft.id}` : 'region:add',
@@ -101,11 +125,23 @@ const activePlaceTarget = computed<EditorTarget>(() => ({
   entityId: placeDraft.id ?? undefined,
   parentRegionId: placeDraft.regionId ?? undefined
 }));
+const activeAreaTarget = computed<EditorTarget>(() => ({
+  key: areaDraftKey,
+  identity: areaDraft.id ? `area:edit:${areaDraft.id}` : `area:add:${areaDraft.regionId ?? 'none'}`,
+  kind: 'area',
+  mode: areaDraft.id ? 'edit' : 'add',
+  title: areaDraft.id ? `Edit Area - ${activeArea.value?.name ?? areaDraft.name}` : 'Add Area',
+  subtitle: areaDraft.regionId ? props.state.regionsById[areaDraft.regionId]?.name : undefined,
+  entityId: areaDraft.id ?? undefined,
+  parentRegionId: areaDraft.regionId ?? undefined
+}));
 const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, saveWarning, statusText } = useEditorMutationFeedback({
   isDirty,
+  isAreaDraftOpen,
   isOrdering: computed(() => isOrdering.value),
   isPlaceDraftOpen,
   isSaving: computed(() => isSaving.value),
+  areaFields,
   placeFields,
   regionFields
 });
@@ -126,12 +162,18 @@ onMounted(() => {
     isDirty: () => placeDirty.value,
     discard: discardPlaceDraft
   });
+  unregisterAreaHandler = props.editorSurface.registerTargetHandler(areaDraftKey, {
+    isDirty: () => areaDirty.value,
+    discard: discardAreaDraft
+  });
 });
 
 onUnmounted(() => {
   unregisterRegionHandler?.();
   unregisterPlaceHandler?.();
+  unregisterAreaHandler?.();
   stopPlaceCoordinatePick(placeCoordinateMapWork);
+  stopAreaPolygonEdit(areaPolygonMapWork);
   emit('dirtyStateChanged', false);
   window.removeEventListener('beforeunload', confirmUnload);
 });
@@ -145,9 +187,11 @@ const openCreate = async (): Promise<void> => {
 
   Object.assign(draft, emptyRegionDraft());
   Object.assign(placeDraft, emptyPlaceDraft());
+  Object.assign(areaDraft, emptyAreaDraft());
   draft.name = 'New Region';
   regionCreateBaselineRequest.value = buildRegionRequest(draft);
   placeCreateBaselineRequest.value = null;
+  areaCreateBaselineRequest.value = null;
   resetFeedback();
 };
 
@@ -159,9 +203,11 @@ const openEdit = async (region: EditorRegion): Promise<void> => {
   }
 
   Object.assign(placeDraft, emptyPlaceDraft());
+  Object.assign(areaDraft, emptyAreaDraft());
   Object.assign(draft, toRegionDraft(region));
   regionCreateBaselineRequest.value = null;
   placeCreateBaselineRequest.value = null;
+  areaCreateBaselineRequest.value = null;
   resetFeedback();
 };
 
@@ -227,8 +273,10 @@ const deleteDraftRegion = async (): Promise<void> => {
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(draft, emptyRegionDraft());
     Object.assign(placeDraft, emptyPlaceDraft());
+    Object.assign(areaDraft, emptyAreaDraft());
     regionCreateBaselineRequest.value = null;
     placeCreateBaselineRequest.value = null;
+    areaCreateBaselineRequest.value = null;
     props.editorSurface.clearActiveTarget(deletedTarget);
     markSaved();
   } catch (error) {
@@ -247,8 +295,10 @@ const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> =
   if (isDirty.value) {
     Object.assign(draft, emptyRegionDraft());
     Object.assign(placeDraft, emptyPlaceDraft());
+    Object.assign(areaDraft, emptyAreaDraft());
     regionCreateBaselineRequest.value = null;
     placeCreateBaselineRequest.value = null;
+    areaCreateBaselineRequest.value = null;
   }
 
   isOrdering.value = true;
@@ -275,11 +325,30 @@ const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
 
   Object.assign(draft, emptyRegionDraft());
   Object.assign(placeDraft, emptyPlaceDraft(region.id));
+  Object.assign(areaDraft, emptyAreaDraft());
   placeDraft.name = 'New Place';
   placeDraft.iconName = props.state.options.iconNames[0] ?? 'marker';
   placeDraft.markerColor = props.state.options.markerColorClasses[0] ?? 'bg-blue';
   regionCreateBaselineRequest.value = null;
   placeCreateBaselineRequest.value = buildPlaceRequest(placeDraft);
+  areaCreateBaselineRequest.value = null;
+  resetFeedback();
+};
+
+const openAreaCreate = async (region: EditorRegion): Promise<void> => {
+  const target = buildAreaCreateTarget(region);
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (region.isShadow || !props.state.permissions.canEditAreas || !region.capabilities.canAddChildren || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
+    return;
+  }
+
+  Object.assign(draft, emptyRegionDraft());
+  Object.assign(placeDraft, emptyPlaceDraft());
+  Object.assign(areaDraft, emptyAreaDraft(region.id, props.state.options.areaDefaults.fillHex));
+  areaDraft.name = props.state.options.areaDefaults.name || 'Area';
+  regionCreateBaselineRequest.value = null;
+  placeCreateBaselineRequest.value = null;
+  areaCreateBaselineRequest.value = buildAreaRequest(areaDraft);
   resetFeedback();
 };
 
@@ -292,8 +361,26 @@ const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
 
   Object.assign(draft, emptyRegionDraft());
   Object.assign(placeDraft, toPlaceDraft(place, place.regionId));
+  Object.assign(areaDraft, emptyAreaDraft());
   regionCreateBaselineRequest.value = null;
   placeCreateBaselineRequest.value = null;
+  areaCreateBaselineRequest.value = null;
+  resetFeedback();
+};
+
+const openAreaEdit = async (area: EditorArea): Promise<void> => {
+  const target = buildAreaEditTarget(area, props.state.regionsById[area.regionId]?.name);
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (!area.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
+    return;
+  }
+
+  Object.assign(draft, emptyRegionDraft());
+  Object.assign(placeDraft, emptyPlaceDraft());
+  Object.assign(areaDraft, toAreaDraft(area, area.regionId, props.state.options.areaDefaults.fillHex));
+  regionCreateBaselineRequest.value = null;
+  placeCreateBaselineRequest.value = null;
+  areaCreateBaselineRequest.value = null;
   resetFeedback();
 };
 
@@ -340,6 +427,8 @@ const savePlaceDraft = async (): Promise<void> => {
 
 const pickPlaceCoordinate = (): void => beginPlaceCoordinateMapWork(placeDraft, props.editorSurface, props.coordinatePicker, placeCoordinateMapWork);
 
+const drawAreaPolygon = (): void => beginAreaPolygonMapWork(areaDraft, props.editorSurface, props.polygonEditor, areaPolygonMapWork);
+
 const deleteDraftPlace = async (): Promise<void> => {
   if (!activePlace.value) {
     return;
@@ -366,7 +455,9 @@ const deleteDraftPlace = async (): Promise<void> => {
     const result = await deletePlace(props.editorEndpoint, activePlace.value.id, props.antiforgeryToken);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(placeDraft, emptyPlaceDraft());
+    Object.assign(areaDraft, emptyAreaDraft());
     placeCreateBaselineRequest.value = null;
+    areaCreateBaselineRequest.value = null;
     props.editorSurface.clearActiveTarget(deletedTarget);
     markSaved();
   } catch (error) {
@@ -385,8 +476,10 @@ async function reorderPlaces(regionId: Guid, ids: Guid[], previousIds: Guid[]): 
   if (isDirty.value) {
     Object.assign(draft, emptyRegionDraft());
     Object.assign(placeDraft, emptyPlaceDraft());
+    Object.assign(areaDraft, emptyAreaDraft());
     regionCreateBaselineRequest.value = null;
     placeCreateBaselineRequest.value = null;
+    areaCreateBaselineRequest.value = null;
   }
 
   isOrdering.value = true;
@@ -397,6 +490,110 @@ async function reorderPlaces(regionId: Guid, ids: Guid[], previousIds: Guid[]): 
     markSaved();
   } catch (error) {
     applyError(error, 'Place reorder failed.');
+    await restoreRegionOrder(previousIds);
+  } finally {
+    isOrdering.value = false;
+  }
+}
+
+const resetAreaDraft = (): void => {
+  if (!areaDraft.id) {
+    const regionId = areaDraft.regionId;
+    Object.assign(areaDraft, emptyAreaDraft(regionId, props.state.options.areaDefaults.fillHex));
+    areaDraft.name = props.state.options.areaDefaults.name || 'Area';
+  } else {
+    Object.assign(areaDraft, toAreaDraft(activeArea.value, areaDraft.regionId, props.state.options.areaDefaults.fillHex));
+  }
+  resetFeedback();
+};
+
+const cancelAreaDraft = async (): Promise<void> => {
+  await props.editorSurface.closeActiveTarget('Discard unsaved area changes?');
+};
+
+const saveAreaDraft = async (): Promise<void> => {
+  if (!areaDraft.regionId) {
+    return;
+  }
+
+  isSaving.value = true;
+  resetFeedback();
+  try {
+    const request = buildAreaRequest(areaDraft);
+    const result = areaDraft.id
+      ? await updateArea(props.editorEndpoint, areaDraft.id, props.antiforgeryToken, request)
+      : await createArea(props.editorEndpoint, areaDraft.regionId, props.antiforgeryToken, request);
+    emit('mutationApplied', result as EditorMutationResult<unknown>);
+    Object.assign(areaDraft, toAreaDraft(result.data, result.data.regionId, props.state.options.areaDefaults.fillHex));
+    areaCreateBaselineRequest.value = null;
+    props.editorSurface.replaceActiveTarget(activeAreaTarget.value);
+    markSaved();
+  } catch (error) {
+    applyError(error, 'Area save failed.');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const deleteDraftArea = async (): Promise<void> => {
+  if (!activeArea.value) {
+    return;
+  }
+
+  if (!(await confirmDiscard('Discard unsaved area draft changes before deleting?'))) {
+    return;
+  }
+
+  if (!(await confirm({
+    title: 'Delete area?',
+    message: 'Delete this area?',
+    confirmLabel: 'Delete',
+    cancelLabel: 'Keep area',
+    variant: 'danger'
+  }))) {
+    return;
+  }
+
+  isSaving.value = true;
+  resetFeedback();
+  try {
+    const deletedTarget = activeAreaTarget.value;
+    const result = await deleteArea(props.editorEndpoint, activeArea.value.id, props.antiforgeryToken);
+    emit('mutationApplied', result as EditorMutationResult<unknown>);
+    Object.assign(areaDraft, emptyAreaDraft());
+    areaCreateBaselineRequest.value = null;
+    props.editorSurface.clearActiveTarget(deletedTarget);
+    markSaved();
+  } catch (error) {
+    applyError(error, 'Area delete failed.');
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+async function reorderAreas(regionId: Guid, ids: Guid[], previousIds: Guid[]): Promise<void> {
+  if (isDirty.value && !(await confirmDiscard('Discard unsaved draft changes before reordering areas?'))) {
+    await restoreRegionOrder(previousIds);
+    return;
+  }
+
+  if (isDirty.value) {
+    Object.assign(draft, emptyRegionDraft());
+    Object.assign(placeDraft, emptyPlaceDraft());
+    Object.assign(areaDraft, emptyAreaDraft());
+    regionCreateBaselineRequest.value = null;
+    placeCreateBaselineRequest.value = null;
+    areaCreateBaselineRequest.value = null;
+  }
+
+  isOrdering.value = true;
+  resetFeedback();
+  try {
+    const result = await orderAreas(props.editorEndpoint, regionId, props.antiforgeryToken, { areaIds: ids });
+    emit('mutationApplied', result as EditorMutationResult<unknown>);
+    markSaved();
+  } catch (error) {
+    applyError(error, 'Area reorder failed.');
     await restoreRegionOrder(previousIds);
   } finally {
     isOrdering.value = false;
@@ -421,6 +618,14 @@ function activeContextRegions(): EditorRegion[] {
   const activePlaceRegionId = activePlace.value?.regionId ?? placeDraft.regionId;
   if (activePlaceRegionId) {
     const region = props.state.regionsById[activePlaceRegionId];
+    if (region) {
+      regions.push(region);
+    }
+  }
+
+  const activeAreaRegionId = activeArea.value?.regionId ?? areaDraft.regionId;
+  if (activeAreaRegionId) {
+    const region = props.state.regionsById[activeAreaRegionId];
     if (region) {
       regions.push(region);
     }
@@ -475,6 +680,12 @@ function discardPlaceDraft(): void {
   resetFeedback();
 }
 
+function discardAreaDraft(): void {
+  Object.assign(areaDraft, emptyAreaDraft());
+  areaCreateBaselineRequest.value = null;
+  resetFeedback();
+}
+
 function isRegionEditOpen(region: EditorRegion): boolean {
   return Boolean(draft.id && activeRegion.value?.id === region.id && props.editorSurface.isTargetActive(activeRegionTarget.value));
 }
@@ -485,6 +696,14 @@ function isPlaceEditOpen(place: EditorPlace): boolean {
 
 function isPlaceCreateOpen(region: EditorRegion): boolean {
   return Boolean(!placeDraft.id && placeDraft.regionId === region.id && props.editorSurface.isTargetActive(activePlaceTarget.value));
+}
+
+function isAreaEditOpen(area: EditorArea): boolean {
+  return Boolean(areaDraft.id && activeArea.value?.id === area.id && props.editorSurface.isTargetActive(activeAreaTarget.value));
+}
+
+function isAreaCreateOpen(region: EditorRegion): boolean {
+  return Boolean(!areaDraft.id && areaDraft.regionId === region.id && props.editorSurface.isTargetActive(activeAreaTarget.value));
 }
 </script>
 
@@ -502,7 +721,7 @@ function isPlaceCreateOpen(region: EditorRegion): boolean {
 
     <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-    <RegionPlaceList :key="regionListKey" :active-place-id="activePlace?.id ?? null" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-place="openPlaceCreate" @edit-place="openPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions">
+    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-id="activePlace?.id ?? null" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="openPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions">
       <template #region-editor="{ region }">
         <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>
@@ -511,8 +730,16 @@ function isPlaceCreateOpen(region: EditorRegion): boolean {
         <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
 
+      <template #area-editor="{ area }">
+        <AreaEditorSurface v-if="isAreaEditOpen(area)" :active-area="activeArea" :controller="editorSurface" :draft="areaDraft" :field-errors="fieldErrors" :form-id="areaFormId" :form-summary-errors="formSummaryErrors" :is-dirty="areaDirty" :is-saving="isSaving" :status-text="statusText" :target="activeAreaTarget" @cancel="cancelAreaDraft" @delete="deleteDraftArea" @draw-area="drawAreaPolygon" @reset="resetAreaDraft" @save="saveAreaDraft" />
+      </template>
+
       <template #add-place-editor="{ region }">
         <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+      </template>
+
+      <template #add-area-editor="{ region }">
+        <AreaEditorSurface v-if="isAreaCreateOpen(region)" :active-area="activeArea" :controller="editorSurface" :draft="areaDraft" :field-errors="fieldErrors" :form-id="areaFormId" :form-summary-errors="formSummaryErrors" :is-dirty="areaDirty" :is-saving="isSaving" :status-text="statusText" :target="activeAreaTarget" @cancel="cancelAreaDraft" @delete="deleteDraftArea" @draw-area="drawAreaPolygon" @reset="resetAreaDraft" @save="saveAreaDraft" />
       </template>
     </RegionPlaceList>
   </section>
