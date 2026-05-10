@@ -93,6 +93,21 @@ public sealed class TripEditorTagsShareProgressControllerTests : TestBase
     }
 
     [Fact]
+    public async Task PutTagsReturnsTagsValidationKeyWhenTagCountExceedsOptionsLimit()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+        var tags = Enumerable.Range(1, 26).Select(index => $"Tag {index}");
+        var body = "{ \"tags\": [ " + string.Join(", ", tags.Select(tag => $"\"{tag}\"")) + " ] }";
+
+        var result = await SendJson(controller, c => c.PutTags(trip.Id, CancellationToken.None), body);
+
+        Assert.Contains("tags", AssertValidationProblem(result).Errors.Keys);
+    }
+
+    [Fact]
     public async Task PutTagsChecksOwnershipBeforeBodyParsing()
     {
         using var db = CreateDbContext();
