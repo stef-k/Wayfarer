@@ -9,7 +9,8 @@ import RegionPlaceList from './RegionPlaceList.vue';
 import { buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
 import { buildPlaceRequest, buildRegionRequest, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
 import { useEditorMutationFeedback } from './useEditorMutationFeedback';
-import type { EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
+import type { CoordinatePickOptions } from '../map/leafletAdapter';
+import type { EditorCoordinate, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 const props = defineProps<{
   state: EditorTripState;
@@ -20,6 +21,7 @@ const props = defineProps<{
   searchRegions: EditorRegion[];
   searchPlaceIdsByRegionId: Record<Guid, Guid[]>;
   searchAreaIdsByRegionId: Record<Guid, Guid[]>;
+  coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
 }>();
 
 const emit = defineEmits<{
@@ -40,6 +42,8 @@ const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
 const placeCreateBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
 let unregisterRegionHandler: (() => void) | null = null;
 let unregisterPlaceHandler: (() => void) | null = null;
+let stopPlaceCoordinatePick: (() => void) | null = null;
+const placeCoordinatePick = ref<EditorCoordinate | null>(null);
 
 const orderedRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && (!region.isShadow || hasRegionChildren(region))) as EditorRegion[]);
 const activeRegion = computed(() => (draft.id ? props.state.regionsById[draft.id] ?? null : null));
@@ -128,6 +132,7 @@ onMounted(() => {
 onUnmounted(() => {
   unregisterRegionHandler?.();
   unregisterPlaceHandler?.();
+  stopActivePlaceCoordinatePick();
   emit('dirtyStateChanged', false);
   window.removeEventListener('beforeunload', confirmUnload);
 });
@@ -334,6 +339,43 @@ const savePlaceDraft = async (): Promise<void> => {
   }
 };
 
+const pickPlaceCoordinate = (): void => {
+  const coordinateSnapshot = snapshotPlaceCoordinate();
+  placeCoordinatePick.value = parsePlaceDraftCoordinate();
+  stopActivePlaceCoordinatePick();
+  stopPlaceCoordinatePick = props.coordinatePicker.startCoordinatePick({
+    initialCoordinate: placeCoordinatePick.value,
+    onPicked: coordinate => {
+      placeCoordinatePick.value = coordinate;
+    }
+  });
+
+  const entered = props.editorSurface.enterMapWork({
+    modeName: 'Pick place location',
+    instruction: 'Click the map to choose this place location.',
+    statusText: placeCoordinatePickStatus,
+    canFinish: () => isValidCoordinate(placeCoordinatePick.value),
+    isDirty: () => !sameCoordinate(placeCoordinatePick.value, coordinateFromSnapshot(coordinateSnapshot)),
+    snapshot: () => coordinateSnapshot,
+    rollback: snapshot => {
+      restorePlaceCoordinate(snapshot as PlaceCoordinateSnapshot);
+    },
+    done: () => {
+      if (isValidCoordinate(placeCoordinatePick.value)) {
+        placeDraft.latitude = placeCoordinatePick.value.latitude;
+        placeDraft.longitude = placeCoordinatePick.value.longitude;
+      }
+      stopActivePlaceCoordinatePick();
+    },
+    cancel: () => {
+      stopActivePlaceCoordinatePick();
+    }
+  });
+  if (!entered) {
+    stopActivePlaceCoordinatePick();
+  }
+};
+
 const deleteDraftPlace = async (): Promise<void> => {
   if (!activePlace.value) {
     return;
@@ -469,6 +511,73 @@ function discardPlaceDraft(): void {
   resetFeedback();
 }
 
+type PlaceCoordinateSnapshot = {
+  latitude: string | number;
+  longitude: string | number;
+};
+
+function snapshotPlaceCoordinate(): PlaceCoordinateSnapshot {
+  return { latitude: placeDraft.latitude, longitude: placeDraft.longitude };
+}
+
+function restorePlaceCoordinate(snapshot: PlaceCoordinateSnapshot): void {
+  placeDraft.latitude = snapshot.latitude;
+  placeDraft.longitude = snapshot.longitude;
+  placeCoordinatePick.value = coordinateFromSnapshot(snapshot);
+}
+
+function parsePlaceDraftCoordinate(): EditorCoordinate | null {
+  return coordinateFromSnapshot(snapshotPlaceCoordinate());
+}
+
+function coordinateFromSnapshot(snapshot: PlaceCoordinateSnapshot): EditorCoordinate | null {
+  const latitudeText = String(snapshot.latitude ?? '').trim();
+  const longitudeText = String(snapshot.longitude ?? '').trim();
+  if (!latitudeText || !longitudeText) {
+    return null;
+  }
+
+  const latitude = Number(latitudeText);
+  const longitude = Number(longitudeText);
+  const coordinate = { latitude, longitude };
+  return isValidCoordinate(coordinate) ? coordinate : null;
+}
+
+function isValidCoordinate(coordinate: EditorCoordinate | null): coordinate is EditorCoordinate {
+  return coordinate !== null &&
+    Number.isFinite(coordinate.latitude) &&
+    Number.isFinite(coordinate.longitude) &&
+    coordinate.latitude >= -90 &&
+    coordinate.latitude <= 90 &&
+    coordinate.longitude >= -180 &&
+    coordinate.longitude <= 180;
+}
+
+function sameCoordinate(current: EditorCoordinate | null, snapshot: EditorCoordinate | null): boolean {
+  if (!current || !snapshot) {
+    return current === snapshot;
+  }
+
+  return current.latitude === snapshot.latitude && current.longitude === snapshot.longitude;
+}
+
+function placeCoordinatePickStatus(): string {
+  if (!isValidCoordinate(placeCoordinatePick.value)) {
+    return 'No coordinate selected';
+  }
+
+  return `Selected ${formatCoordinate(placeCoordinatePick.value.latitude)}, ${formatCoordinate(placeCoordinatePick.value.longitude)}`;
+}
+
+function formatCoordinate(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function stopActivePlaceCoordinatePick(): void {
+  stopPlaceCoordinatePick?.();
+  stopPlaceCoordinatePick = null;
+}
+
 function isRegionEditOpen(region: EditorRegion): boolean {
   return Boolean(draft.id && activeRegion.value?.id === region.id && props.editorSurface.isTargetActive(activeRegionTarget.value));
 }
@@ -502,11 +611,11 @@ function isPlaceCreateOpen(region: EditorRegion): boolean {
       </template>
 
       <template #place-editor="{ place }">
-        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
 
       <template #add-place-editor="{ region }">
-        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
     </RegionPlaceList>
   </section>

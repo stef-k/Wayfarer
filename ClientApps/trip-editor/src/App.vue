@@ -6,7 +6,7 @@ import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type FocusActiveEntityResult } from './map/leafletAdapter';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type CoordinatePickOptions, type FocusActiveEntityResult } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
@@ -20,6 +20,9 @@ const mapElement = ref<HTMLElement | null>(null);
 const navigationStatus = ref<string | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
+const coordinatePicker = {
+  startCoordinatePick: (options: CoordinatePickOptions): (() => void) => mapAdapter?.startCoordinatePick(options) ?? (() => undefined)
+};
 
 const updatedLabel = computed(() =>
   state.value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(state.value.metadata.updatedAt)) : ''
@@ -27,7 +30,8 @@ const updatedLabel = computed(() =>
 const isMapWorkActive = computed(() => editorSurface.isMapWorkActive.value);
 const toolbarContext = computed(() => {
   if (editorSurface.mapWork.value) {
-    return `${editorSurface.mapWork.value.modeName}: ${editorSurface.mapWork.value.statusText}`;
+    const status = editorSurface.mapWork.value.statusText;
+    return `${editorSurface.mapWork.value.modeName}: ${typeof status === 'function' ? status() : status}`;
   }
 
   return editorSurface.activeTarget.value?.title ?? 'Trip map';
@@ -238,6 +242,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
         :has-region-draft-changes="hasRegionDraftChanges"
+        :coordinate-picker="coordinatePicker"
         @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"

@@ -1,4 +1,4 @@
-import L, { type LayerGroup, type Map as LeafletMap } from 'leaflet';
+import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
@@ -9,6 +9,7 @@ export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry'
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState) => void;
+  startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
@@ -18,6 +19,7 @@ interface TripEditorMapAdapter {
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): TripEditorMapAdapter => {
   const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
   const layers = L.layerGroup().addTo(map);
+  const coordinatePick = createCoordinatePickLayer(map);
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
@@ -37,11 +39,60 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
 
   return {
     render,
+    startCoordinatePick: options => coordinatePick.start(options),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
-    dispose: () => map.remove()
+    dispose: () => {
+      coordinatePick.stop();
+      map.remove();
+    }
   };
+};
+
+export interface CoordinatePickOptions {
+  initialCoordinate: EditorCoordinate | null;
+  onPicked: (coordinate: EditorCoordinate) => void;
+}
+
+const createCoordinatePickLayer = (map: LeafletMap): { start: (options: CoordinatePickOptions) => () => void; stop: () => void } => {
+  const layer = L.layerGroup().addTo(map);
+  let clickHandler: ((event: LeafletMouseEvent) => void) | null = null;
+
+  const stop = (): void => {
+    if (clickHandler) {
+      map.off('click', clickHandler);
+      clickHandler = null;
+    }
+
+    layer.clearLayers();
+  };
+
+  const start = (options: CoordinatePickOptions): (() => void) => {
+    stop();
+    const setPreview = (coordinate: EditorCoordinate): void => {
+      layer.clearLayers();
+      L.marker([coordinate.latitude, coordinate.longitude], {
+        interactive: false,
+        keyboard: false,
+        title: 'Selected place location preview'
+      }).addTo(layer);
+    };
+
+    if (options.initialCoordinate) {
+      setPreview(options.initialCoordinate);
+    }
+
+    clickHandler = event => {
+      const coordinate = { latitude: event.latlng.lat, longitude: event.latlng.lng };
+      setPreview(coordinate);
+      options.onPicked(coordinate);
+    };
+    map.on('click', clickHandler);
+    return stop;
+  };
+
+  return { start, stop };
 };
 
 const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {

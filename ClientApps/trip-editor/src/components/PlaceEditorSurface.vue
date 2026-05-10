@@ -22,6 +22,7 @@ defineProps<{
 defineEmits<{
   cancel: [];
   delete: [];
+  pickCoordinate: [];
   reset: [];
   save: [];
 }>();
@@ -47,6 +48,7 @@ defineEmits<{
       <button v-if="activePlace?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">
         Delete
       </button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('pickCoordinate')">Pick on map</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
       <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Place</button>
