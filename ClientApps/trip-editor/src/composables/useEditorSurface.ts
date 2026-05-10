@@ -1,5 +1,6 @@
 import { computed, readonly, ref, type Ref } from 'vue';
 import { confirm } from './useConfirmDialog';
+import type { Guid } from '../types';
 
 export type EditorSurfaceMode = 'docked' | 'expanded' | 'map-work';
 export type EditorTargetKind = 'metadata' | 'region' | 'place';
@@ -12,6 +13,8 @@ export interface EditorTarget {
   mode: EditorTargetMode;
   title: string;
   subtitle?: string;
+  entityId?: Guid;
+  parentRegionId?: Guid;
 }
 
 export interface EditorTargetHandler {
