@@ -3,9 +3,8 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { createPlace, createRegion, deletePlace, deleteRegion, orderPlaces, orderRegions, updatePlace, updateRegion } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
-import EditorSurface from './EditorSurface.vue';
-import PlaceEditorForm from './PlaceEditorForm.vue';
-import RegionEditorForm from './RegionEditorForm.vue';
+import PlaceEditorSurface from './PlaceEditorSurface.vue';
+import RegionEditorSurface from './RegionEditorSurface.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
 import { buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
 import { buildPlaceRequest, buildRegionRequest, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
@@ -433,117 +432,19 @@ function isPlaceCreateOpen(region: EditorRegion): boolean {
 
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Region</button>
 
-    <EditorSurface v-if="isDraftOpen && !draft.id" :controller="editorSurface" :target="activeRegionTarget" :status-text="statusText">
-      <template #body>
-        <RegionEditorForm
-          :active-region="activeRegion"
-          :draft="draft"
-          :field-errors="fieldErrors"
-          :form-id="regionFormId"
-          :form-summary-errors="formSummaryErrors"
-          :is-saving="isSaving"
-          @save="saveDraft"
-        />
-      </template>
+    <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-      <template #footer>
-        <button v-if="activeRegion?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="deleteDraftRegion">
-          Delete
-        </button>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="cancelDraft">Cancel</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !regionDirty" @click="resetDraft">Reset</button>
-        <button type="submit" :form="regionFormId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Region</button>
-      </template>
-    </EditorSurface>
-
-    <RegionPlaceList
-      :key="regionListKey"
-      :active-place-id="activePlace?.id ?? null"
-      :active-region-id="activeRegion?.id ?? null"
-      :is-ordering="isOrdering"
-      :is-saving="isSaving"
-      :regions="orderedRegions"
-      :state="state"
-      @add-place="openPlaceCreate"
-      @edit-place="openPlaceEdit"
-      @edit-region="openEdit"
-      @place-reorder="reorderPlaces"
-      @region-reorder="reorderRegions"
-    >
+    <RegionPlaceList :key="regionListKey" :active-place-id="activePlace?.id ?? null" :active-region-id="activeRegion?.id ?? null" :is-ordering="isOrdering" :is-saving="isSaving" :regions="orderedRegions" :state="state" @add-place="openPlaceCreate" @edit-place="openPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions">
       <template #region-editor="{ region }">
-        <EditorSurface v-if="isRegionEditOpen(region)" :controller="editorSurface" :target="activeRegionTarget" :status-text="statusText">
-          <template #body>
-            <RegionEditorForm
-              :active-region="activeRegion"
-              :draft="draft"
-              :field-errors="fieldErrors"
-              :form-id="regionFormId"
-              :form-summary-errors="formSummaryErrors"
-              :is-saving="isSaving"
-              @save="saveDraft"
-            />
-          </template>
-
-          <template #footer>
-            <button v-if="activeRegion?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="deleteDraftRegion">
-              Delete
-            </button>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="cancelDraft">Cancel</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !regionDirty" @click="resetDraft">Reset</button>
-            <button type="submit" :form="regionFormId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Region</button>
-          </template>
-        </EditorSurface>
+        <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>
 
       <template #place-editor="{ place }">
-        <EditorSurface v-if="isPlaceEditOpen(place)" :controller="editorSurface" :target="activePlaceTarget" :status-text="statusText">
-          <template #body>
-            <PlaceEditorForm
-              :active-place="activePlace"
-              :draft="placeDraft"
-              :field-errors="fieldErrors"
-              :form-id="placeFormId"
-              :form-summary-errors="formSummaryErrors"
-              :is-saving="isSaving"
-              :normal-regions="normalRegions"
-              :state="state"
-              @save="savePlaceDraft"
-            />
-          </template>
-
-          <template #footer>
-            <button v-if="activePlace?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="deleteDraftPlace">
-              Delete
-            </button>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="cancelPlaceDraft">Cancel</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !placeDirty" @click="resetPlaceDraft">Reset</button>
-            <button type="submit" :form="placeFormId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Place</button>
-          </template>
-        </EditorSurface>
+        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
 
       <template #add-place-editor="{ region }">
-        <EditorSurface v-if="isPlaceCreateOpen(region)" :controller="editorSurface" :target="activePlaceTarget" :status-text="statusText">
-          <template #body>
-            <PlaceEditorForm
-              :active-place="activePlace"
-              :draft="placeDraft"
-              :field-errors="fieldErrors"
-              :form-id="placeFormId"
-              :form-summary-errors="formSummaryErrors"
-              :is-saving="isSaving"
-              :normal-regions="normalRegions"
-              :state="state"
-              @save="savePlaceDraft"
-            />
-          </template>
-
-          <template #footer>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="cancelPlaceDraft">Cancel</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !placeDirty" @click="resetPlaceDraft">Reset</button>
-            <button type="submit" :form="placeFormId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Place</button>
-          </template>
-        </EditorSurface>
+        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
     </RegionPlaceList>
   </section>

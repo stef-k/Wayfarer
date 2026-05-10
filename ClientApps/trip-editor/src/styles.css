@@ -281,9 +281,7 @@ body {
   padding: 0.65rem;
 }
 
-.trip-editor-region-card--shadow {
-  border-style: dashed;
-}
+.trip-editor-region-card--shadow { border-style: dashed; }
 
 .trip-editor-region-card--active,
 .trip-editor-place-row--active {
@@ -305,9 +303,7 @@ body {
   margin: 0;
 }
 
-.trip-editor-region-card__header small {
-  color: var(--trip-editor-muted);
-}
+.trip-editor-region-card__header small { color: var(--trip-editor-muted); }
 
 .trip-editor-region-card__actions {
   align-items: center;
@@ -330,17 +326,11 @@ body {
   width: 2rem;
 }
 
-.trip-editor-icon-button:active {
-  cursor: grabbing;
-}
+.trip-editor-icon-button:active { cursor: grabbing; }
 
-.trip-editor-add-button {
-  width: fit-content;
-}
+.trip-editor-add-button { width: fit-content; }
 
-.trip-editor-region-form {
-  margin: 0;
-}
+.trip-editor-region-form { margin: 0; }
 
 .trip-editor-region-card ul,
 .trip-editor-segments {
@@ -403,9 +393,7 @@ body {
   font-size: 0.85rem;
 }
 
-.trip-editor-map {
-  min-height: 0;
-}
+.trip-editor-map { min-height: 0; }
 
 .trip-editor-state--error {
   color: #fecaca;
@@ -419,14 +407,9 @@ body {
   z-index: 1070;
 }
 
-.modal.trip-editor-confirm__modal {
-  display: block;
-  z-index: 1080;
-}
+.modal.trip-editor-confirm__modal { display: block; z-index: 1080; }
 
-.trip-editor-confirm-dialog {
-  max-width: min(420px, calc(100vw - 2rem));
-}
+.trip-editor-confirm-dialog { max-width: min(420px, calc(100vw - 2rem)); }
 
 .trip-editor-confirm-dialog__content {
   background: var(--trip-editor-surface);
@@ -451,9 +434,7 @@ body {
   margin: 0;
 }
 
-.trip-editor-confirm-dialog__footer {
-  gap: 0.5rem;
-}
+.trip-editor-confirm-dialog__footer { gap: 0.5rem; }
 
 .trip-editor-confirm-dialog--warning .trip-editor-confirm-dialog__content {
   border-color: rgba(245, 158, 11, 0.5);
