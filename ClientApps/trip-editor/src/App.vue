@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
+import { useEditorSurface } from './composables/useEditorSurface';
 import { createTripEditorMap } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
@@ -15,6 +17,7 @@ const isLoading = ref(true);
 const hasRegionDraftChanges = ref(false);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
+const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 
 const updatedLabel = computed(() =>
@@ -25,14 +28,18 @@ onMounted(async () => {
   setConfirmDialogFocusFallback(workspaceElement.value);
 
   try {
-    state.value = await loadEditorState(props.config.editorEndpoint);
-    if (mapElement.value) {
-      mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
-      mapAdapter.render(state.value);
+    const loadedState = await loadEditorState(props.config.editorEndpoint);
+    state.value = loadedState;
+    isLoading.value = false;
+    await nextTick();
+    if (!mapElement.value) {
+      throw new Error('Trip Editor map element was unavailable after the workspace rendered.');
     }
+
+    mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
+    mapAdapter.render(loadedState);
   } catch (loadError) {
     error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
-  } finally {
     isLoading.value = false;
   }
 });
@@ -150,6 +157,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     <template v-else-if="state">
       <TripSidebar
         :state="state"
+        :editor-surface="editorSurface"
         :editor-endpoint="props.config.editorEndpoint"
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
@@ -166,6 +174,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
           </div>
           <a class="btn btn-outline-light btn-sm" :href="`/User/Trip/Edit/${state.tripId}`">Legacy editor</a>
         </header>
+        <MapWorkToolbar :controller="editorSurface" />
         <div ref="mapElement" class="trip-editor-map" aria-label="Read-only trip map"></div>
       </main>
     </template>

@@ -11,6 +11,8 @@ declare global {
 }
 
 const props = defineProps<{
+  activePlaceId: Guid | null;
+  activeRegionId: Guid | null;
   isOrdering: boolean;
   isSaving: boolean;
   regions: EditorRegion[];
@@ -26,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const regionList = ref<HTMLElement | null>(null);
+const collapsedRegionIds = ref<Set<Guid>>(new Set());
 const placeSortables = new Map<string, { destroy: () => void }>();
 let sortable: { destroy: () => void } | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
@@ -123,6 +126,21 @@ function orderedPlaces(regionId: Guid): EditorPlace[] {
 function orderedAreas(regionId: Guid): EditorArea[] {
   return (props.state.areaOrderByRegionId[regionId] ?? []).map(id => props.state.areasById[id]).filter(Boolean) as EditorArea[];
 }
+
+function isCollapsed(regionId: Guid): boolean {
+  return collapsedRegionIds.value.has(regionId);
+}
+
+function toggleRegion(regionId: Guid): void {
+  const next = new Set(collapsedRegionIds.value);
+  if (next.has(regionId)) {
+    next.delete(regionId);
+  } else {
+    next.add(regionId);
+  }
+
+  collapsedRegionIds.value = next;
+}
 </script>
 
 <template>
@@ -131,7 +149,11 @@ function orderedAreas(regionId: Guid): EditorArea[] {
       v-for="region in props.regions"
       :key="region.id"
       class="trip-editor-region-card"
-      :class="{ 'trip-editor-region-card--normal': !region.isShadow, 'trip-editor-region-card--shadow': region.isShadow }"
+      :class="{
+        'trip-editor-region-card--active': props.activeRegionId === region.id,
+        'trip-editor-region-card--normal': !region.isShadow,
+        'trip-editor-region-card--shadow': region.isShadow
+      }"
       :data-region-id="region.id"
       :data-reorderable="!region.isShadow"
     >
@@ -149,24 +171,46 @@ function orderedAreas(regionId: Guid): EditorArea[] {
           <h3>{{ region.name }}</h3>
           <small v-if="region.isShadow">Shadow region</small>
         </div>
-        <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">Edit</button>
+        <div class="trip-editor-region-card__actions">
+          <button
+            type="button"
+            class="btn btn-outline-light btn-sm"
+            :aria-expanded="!isCollapsed(region.id)"
+            :aria-controls="`trip-editor-region-children-${region.id}`"
+            @click="toggleRegion(region.id)"
+          >
+            {{ isCollapsed(region.id) ? 'Expand' : 'Collapse' }}
+          </button>
+          <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">Edit</button>
+        </div>
       </header>
 
-      <ul :data-place-list-region-id="region.id">
-        <li v-for="place in orderedPlaces(region.id)" :key="place.id" class="trip-editor-place-row" :data-place-id="place.id">
-          <button
-            v-if="!region.isShadow"
-            type="button"
-            class="trip-editor-icon-button trip-editor-place-drag-handle"
-            title="Drag to reorder place"
-            aria-label="Drag to reorder place"
+      <slot name="region-editor" :region="region"></slot>
+
+      <ul v-show="!isCollapsed(region.id)" :id="`trip-editor-region-children-${region.id}`" :data-place-list-region-id="region.id">
+        <template v-for="place in orderedPlaces(region.id)" :key="place.id">
+          <li
+            class="trip-editor-place-row"
+            :class="{ 'trip-editor-place-row--active': props.activePlaceId === place.id }"
+            :data-place-id="place.id"
           >
-            <span aria-hidden="true">::</span>
-          </button>
-          <span>{{ place.name }}</span>
-          <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
-          <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editPlace', place)">Edit</button>
-        </li>
+            <button
+              v-if="!region.isShadow"
+              type="button"
+              class="trip-editor-icon-button trip-editor-place-drag-handle"
+              title="Drag to reorder place"
+              aria-label="Drag to reorder place"
+            >
+              <span aria-hidden="true">::</span>
+            </button>
+            <span>{{ place.name }}</span>
+            <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
+            <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editPlace', place)">Edit</button>
+          </li>
+          <li v-if="props.activePlaceId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
+            <slot name="place-editor" :place="place"></slot>
+          </li>
+        </template>
         <li v-for="area in orderedAreas(region.id)" :key="area.id">
           <span>{{ area.name }}</span>
           <small>Area</small>
@@ -175,6 +219,7 @@ function orderedAreas(regionId: Guid): EditorArea[] {
       <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
         Add Place
       </button>
+      <slot name="add-place-editor" :region="region"></slot>
     </article>
   </div>
 </template>

@@ -5,18 +5,14 @@ const props = defineProps<{
   activePlace: EditorPlace | null;
   draft: EditorPlaceDraft;
   fieldErrors: (key: string) => string[];
+  formId: string;
   formSummaryErrors: string[];
   isSaving: boolean;
   normalRegions: EditorRegion[];
-  placeDirty: boolean;
   state: EditorTripState;
-  statusText: string;
 }>();
 
 const emit = defineEmits<{
-  cancel: [];
-  delete: [];
-  reset: [];
   save: [];
 }>();
 
@@ -27,12 +23,7 @@ const markerColorLabel = (color: string): string => {
 </script>
 
 <template>
-  <form class="trip-editor-region-form" @submit.prevent="emit('save')">
-    <div class="trip-editor-panel__line">
-      <h3>{{ props.draft.id ? 'Edit Place' : 'Add Place' }}</h3>
-      <span class="trip-editor-save-state">{{ props.statusText }}</span>
-    </div>
-
+  <form :id="props.formId" class="trip-editor-region-form" @submit.prevent="emit('save')">
     <div v-if="props.formSummaryErrors.length > 0" class="trip-editor-form-error" role="alert">
       <p v-for="message in props.formSummaryErrors" :key="message">{{ message }}</p>
     </div>
@@ -107,14 +98,5 @@ const markerColorLabel = (color: string): string => {
       <span>Reverse geocode this location on save</span>
     </label>
     <small v-for="message in props.fieldErrors('reverseGeocode')" :key="message">{{ message }}</small>
-
-    <div class="trip-editor-actions">
-      <button type="submit" class="btn btn-primary btn-sm" :disabled="props.isSaving">Save Place</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="props.isSaving || !props.placeDirty" @click="emit('reset')">Reset</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('cancel')">Cancel</button>
-      <button v-if="props.activePlace?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm" :disabled="props.isSaving" @click="emit('delete')">
-        Delete
-      </button>
-    </div>
   </form>
 </template>

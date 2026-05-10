@@ -1,7 +1,9 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import type { BootstrapConfig } from './types';
+import './theme.css';
 import './styles.css';
+import './surfaces.css';
 
 const mountElement = document.getElementById('trip-editor-app');
 

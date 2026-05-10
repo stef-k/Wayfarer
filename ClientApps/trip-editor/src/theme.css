@@ -1,0 +1,35 @@
+:root {
+  --trip-editor-bg: var(--bs-body-bg, #f8fafc);
+  --trip-editor-surface: var(--bs-tertiary-bg, #ffffff);
+  --trip-editor-surface-muted: var(--bs-secondary-bg, #eef2f7);
+  --trip-editor-border: var(--bs-border-color, rgba(15, 23, 42, 0.14));
+  --trip-editor-card: color-mix(in srgb, var(--bs-body-color, #111827) 4%, transparent);
+  --trip-editor-card-strong: color-mix(in srgb, var(--bs-body-color, #111827) 8%, transparent);
+  --trip-editor-text: var(--bs-body-color, #111827);
+  --trip-editor-muted: var(--bs-secondary-color, #64748b);
+  --trip-editor-field-bg: var(--bs-body-bg, #ffffff);
+  --trip-editor-field-border: var(--bs-border-color, #cbd5e1);
+  --trip-editor-accent: var(--bs-primary, #0d6efd);
+  --trip-editor-danger-bg: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.12));
+  --trip-editor-danger-text: var(--bs-danger-text-emphasis, #842029);
+  --trip-editor-warning-bg: var(--bs-warning-bg-subtle, rgba(255, 193, 7, 0.18));
+  --trip-editor-warning-text: var(--bs-warning-text-emphasis, #664d03);
+}
+
+[data-bs-theme="dark"] {
+  --trip-editor-bg: var(--bs-body-bg, #212529);
+  --trip-editor-surface: var(--bs-tertiary-bg, #2b3035);
+  --trip-editor-surface-muted: var(--bs-secondary-bg, #343a40);
+  --trip-editor-border: var(--bs-border-color, rgba(255, 255, 255, 0.15));
+  --trip-editor-card: color-mix(in srgb, var(--bs-body-color, #dee2e6) 5%, transparent);
+  --trip-editor-card-strong: color-mix(in srgb, var(--bs-body-color, #dee2e6) 8%, transparent);
+  --trip-editor-text: var(--bs-body-color, #dee2e6);
+  --trip-editor-muted: var(--bs-secondary-color, #adb5bd);
+  --trip-editor-field-bg: var(--bs-body-bg, #212529);
+  --trip-editor-field-border: var(--bs-border-color, #495057);
+  --trip-editor-accent: var(--bs-primary, #0d6efd);
+  --trip-editor-danger-bg: var(--bs-danger-bg-subtle, rgba(127, 29, 29, 0.35));
+  --trip-editor-danger-text: var(--bs-danger-text-emphasis, #f1aeb5);
+  --trip-editor-warning-bg: var(--bs-warning-bg-subtle, rgba(113, 63, 18, 0.35));
+  --trip-editor-warning-text: var(--bs-warning-text-emphasis, #ffda6a);
+}
