@@ -58,7 +58,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await capture(page, testInfo, 'docked-light');
   });
 
-  test('region edit and place create surfaces validate, save temporary data, and clean up', async ({ page }) => {
+  test('region edit and place create surfaces validate, save temporary data, and clean up', async ({ page }, testInfo) => {
     await signIn(page);
     await page.goto(absoluteUrl(workspacePath));
     await expectMountedWorkspace(page);
