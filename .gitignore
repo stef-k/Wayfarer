@@ -175,3 +175,11 @@ wwwroot/frontend.manifest.json
 # npm/Vite generated files
 node_modules/
 wwwroot/vite/trip-editor/
+
+# Playwright dev-test artifacts
+playwright-report/
+test-results/
+.local/manual-verification.md
+.local/playwright/
+.local/test-results/
+.local/browser-profiles/
