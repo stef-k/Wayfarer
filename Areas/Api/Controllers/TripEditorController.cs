@@ -28,6 +28,7 @@ public sealed partial class TripEditorController : ControllerBase
     private readonly ITripTagService _tripTagService;
     private readonly TripEditorRegionMutationService _regionMutations;
     private readonly TripEditorPlaceMutationService _placeMutations;
+    private readonly TripEditorAreaMutationService _areaMutations;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -42,6 +43,7 @@ public sealed partial class TripEditorController : ControllerBase
         ITripTagService tripTagService,
         TripEditorRegionMutationService regionMutations,
         TripEditorPlaceMutationService placeMutations,
+        TripEditorAreaMutationService areaMutations,
         ILogger<TripEditorController> logger)
     {
         _dbContext = dbContext;
@@ -52,6 +54,7 @@ public sealed partial class TripEditorController : ControllerBase
         _tripTagService = tripTagService;
         _regionMutations = regionMutations;
         _placeMutations = placeMutations;
+        _areaMutations = areaMutations;
         _logger = logger;
     }
 

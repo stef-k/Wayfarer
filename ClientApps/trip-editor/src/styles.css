@@ -413,16 +413,29 @@ body {
   padding: 0.5rem 0.65rem;
 }
 
-.trip-editor-place-row {
+.trip-editor-place-row,
+.trip-editor-area-row {
   align-items: center;
   display: grid;
   gap: 0.45rem;
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
-.trip-editor-place-row > span {
+.trip-editor-place-row > span,
+.trip-editor-area-row > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.trip-editor-area-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.trip-editor-child-section {
+  color: var(--trip-editor-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
 }
 
 .trip-editor-place-editor-row {

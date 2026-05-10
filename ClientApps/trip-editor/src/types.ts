@@ -220,6 +220,26 @@ export interface EditorPlaceDeleteResult {
   placeId: Guid;
 }
 
+export interface EditorAreaSaveRequest {
+  name: string;
+  notesHtml: string | null;
+  fillHex: string;
+  geometry: GeoJsonPolygon | null;
+}
+
+export interface EditorAreaOrderRequest {
+  areaIds: Guid[];
+}
+
+export interface EditorAreaOrderResult {
+  regionId: Guid;
+  areaOrder: Guid[];
+}
+
+export interface EditorAreaDeleteResult {
+  areaId: Guid;
+}
+
 export interface EditorPlaceDraft {
   id: Guid | null;
   regionId: Guid | null;
@@ -231,6 +251,15 @@ export interface EditorPlaceDraft {
   iconName: string;
   markerColor: string;
   reverseGeocode: boolean;
+}
+
+export interface EditorAreaDraft {
+  id: Guid | null;
+  regionId: Guid | null;
+  name: string;
+  notesHtml: string;
+  fillHex: string;
+  geometry: GeoJsonPolygon | null;
 }
 
 export interface EditorMutationResult<TData> {

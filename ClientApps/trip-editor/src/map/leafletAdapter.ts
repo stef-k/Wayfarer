@@ -2,6 +2,8 @@ import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } fr
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
+import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
+export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 
 export type FitAllGeometryResult = 'moved' | 'no-geometry';
 export type FocusSavedTripViewResult = 'moved' | 'missing-view';
@@ -10,6 +12,7 @@ export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry'
 interface TripEditorMapAdapter {
   render: (state: EditorTripState) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
+  startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
@@ -20,6 +23,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
   const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
   const layers = L.layerGroup().addTo(map);
   const coordinatePick = createCoordinatePickLayer(map);
+  const areaPolygonWork = createAreaPolygonWorkLayer(map);
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
@@ -28,6 +32,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
 
   const render = (state: EditorTripState): void => {
     coordinatePick.clearRegisteredMarkers();
+    areaPolygonWork.stop();
     layers.clearLayers();
 
     Object.values(state.regionsById).forEach(region => renderRegion(region, layers));
@@ -41,11 +46,13 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
   return {
     render,
     startCoordinatePick: options => coordinatePick.start(options),
+    startAreaPolygonWork: options => areaPolygonWork.start(options),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
     dispose: () => {
       coordinatePick.dispose();
+      areaPolygonWork.dispose();
       map.remove();
     }
   };
@@ -285,6 +292,19 @@ const focusActiveEntity = (map: LeafletMap, state: EditorTripState, target: Edit
     return fitBounds(map, coordinateBounds(place.location));
   }
 
+  if (target.kind === 'area') {
+    if (target.mode === 'add') {
+      return target.parentRegionId ? fitBounds(map, regionGeometryBounds(state, target.parentRegionId)) : 'no-geometry';
+    }
+
+    if (!target.entityId) {
+      return 'missing-target';
+    }
+
+    const area = state.areasById[target.entityId];
+    return area ? fitBounds(map, areaBounds(area)) : 'missing-target';
+  }
+
   return 'unsupported-target';
 };
 
@@ -321,6 +341,14 @@ export const canFocusActiveEntity = (state: EditorTripState, target: EditorTarge
     }
 
     return coordinateBounds(state.placesById[target.entityId]?.location ?? null).isValid();
+  }
+
+  if (target.kind === 'area') {
+    if (target.mode === 'add') {
+      return Boolean(target.parentRegionId) && regionGeometryBounds(state, target.parentRegionId!).isValid();
+    }
+
+    return Boolean(target.entityId) && areaBounds(state.areasById[target.entityId!]).isValid();
   }
 
   return false;
@@ -371,6 +399,15 @@ const regionGeometryBounds = (state: EditorTripState, regionId: Guid): L.LatLngB
 const coordinateBounds = (coordinate: EditorCoordinate | null): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   extendCoordinate(bounds, coordinate);
+  return bounds;
+};
+
+const areaBounds = (area: EditorArea | undefined): L.LatLngBounds => {
+  const bounds = L.latLngBounds([]);
+  if (area) {
+    extendArea(bounds, area);
+  }
+
   return bounds;
 };
 

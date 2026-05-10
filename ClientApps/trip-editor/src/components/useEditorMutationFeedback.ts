@@ -3,9 +3,11 @@ import { EditorValidationError } from '../api/tripEditorApi';
 
 type FeedbackOptions = {
   isDirty: ComputedRef<boolean>;
+  isAreaDraftOpen: ComputedRef<boolean>;
   isOrdering: ComputedRef<boolean>;
   isPlaceDraftOpen: ComputedRef<boolean>;
   isSaving: ComputedRef<boolean>;
+  areaFields: string[];
   placeFields: string[];
   regionFields: string[];
 };
@@ -42,7 +44,7 @@ export function useEditorMutationFeedback(options: FeedbackOptions) {
   });
 
   const formSummaryErrors = computed(() => {
-    const fields = options.isPlaceDraftOpen.value ? options.placeFields : options.regionFields;
+    const fields = options.isAreaDraftOpen.value ? options.areaFields : options.isPlaceDraftOpen.value ? options.placeFields : options.regionFields;
     return Object.entries(validationErrors.value).filter(([key]) => !fields.includes(key)).flatMap(([, messages]) => messages);
   });
 
