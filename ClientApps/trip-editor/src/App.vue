@@ -99,7 +99,7 @@ const focusActiveEntity = (): void => {
 
   const target = editorSurface.activeTarget.value;
   const result = mapAdapter.focusActiveEntity(state.value, target);
-  navigationStatus.value = focusStatusText(result, target?.kind ?? null);
+  navigationStatus.value = focusStatusText(result, target);
 };
 
 /// Tracks region draft changes that live inside the sidebar child component.
@@ -184,8 +184,13 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   mapAdapter?.render(next);
 };
 
-function focusStatusText(result: FocusActiveEntityResult, kind: string | null): string {
+function focusStatusText(result: FocusActiveEntityResult, target: { kind: string; mode: string } | null): string {
   if (result === 'moved') {
+    if (target?.kind === 'place' && target.mode === 'add') {
+      return 'Focused parent region';
+    }
+
+    const kind = target?.kind ?? null;
     if (kind === 'metadata') {
       return 'Focused trip map';
     }

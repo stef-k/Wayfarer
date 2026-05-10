@@ -79,6 +79,27 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeDisabled();
   });
 
+  test('metadata focus falls back to Fit All when saved trip view is missing', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithEditorState(page, state => {
+      clearNavigationGeometry(state);
+      state.metadata.center = null;
+      state.metadata.zoom = null;
+      const region = normalRegion(state);
+      test.skip(!region, 'Configured Trip Editor fixture has no normal region for metadata fallback geometry.');
+      addAreaGeometry(state, region!.id, '00000000-0000-0000-0000-000000260101', 'PW metadata fallback area');
+    });
+
+    const toolbar = page.locator('.trip-editor-toolbar');
+    const focus = toolbar.getByRole('button', { name: 'Focus Active Entity' });
+    await expect(toolbar.getByRole('button', { name: 'Recenter Saved Trip View' })).toBeDisabled();
+    await expect(focus).toBeEnabled();
+
+    await focus.click();
+    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Focused trip map');
+    await expectUsableMapView(page);
+  });
+
   test('focuses active region and place targets without inventing coordinates', async ({ page }) => {
     await signIn(page);
     const fixture = await loadWorkspaceWithEditorState(page, state => prepareNavigationFocusState(state));
@@ -99,12 +120,69 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     const before = await placeDraftCoordinateValues(page);
     await expect(focus).toBeEnabled();
     await focus.click();
-    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Focused place');
+    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Focused parent region');
     await expectPlaceDraftCoordinateValues(page, before);
 
     await page.getByRole('button', { name: 'Add Region' }).click();
     await expect(page.getByRole('heading', { name: 'Add Region' })).toBeVisible();
     await expect(focus).toBeDisabled();
+  });
+
+  test('focuses a saved place location from the edit surface', async ({ page }) => {
+    await signIn(page);
+    const fixture = await loadWorkspaceWithEditorState(page, state => preparePlaceLocationFocusState(state));
+    const toolbar = page.locator('.trip-editor-toolbar');
+
+    await toolbar.getByRole('button', { name: 'Recenter Saved Trip View' }).click();
+    const before = await readMapView(page);
+
+    const region = regionCard(page, fixture.regionName);
+    await region.getByText(fixture.placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeEnabled();
+    await toolbar.getByRole('button', { name: 'Focus Active Entity' }).click();
+
+    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Focused place');
+    await expectMapViewChanged(page, before, 'Place focus should move away from the intentionally distinct saved trip view.');
+    await expectUsableMapView(page);
+  });
+
+  test('fits segment route geometry and endpoint fallback geometry', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithEditorState(page, state => prepareSegmentGeometryState(state, true));
+    const toolbar = page.locator('.trip-editor-toolbar');
+
+    await toolbar.getByRole('button', { name: 'Recenter Saved Trip View' }).click();
+    const routeBefore = await readMapView(page);
+    await toolbar.getByRole('button', { name: 'Fit All' }).click();
+    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Fit all geometry');
+    await expectMapViewChanged(page, routeBefore, 'Fit All should include explicit segment route geometry.');
+    await expectRenderedRouteGeometry(page);
+
+    await loadWorkspaceWithEditorState(page, state => prepareSegmentGeometryState(state, false));
+    await toolbar.getByRole('button', { name: 'Recenter Saved Trip View' }).click();
+    const fallbackBefore = await readMapView(page);
+    await toolbar.getByRole('button', { name: 'Fit All' }).click();
+    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Fit all geometry');
+    await expectMapViewChanged(page, fallbackBefore, 'Fit All should include segment endpoint fallback geometry.');
+    await expectRenderedRouteGeometry(page);
+    await expectUsableMapView(page);
+  });
+
+  test('focuses region center when it is the only region geometry', async ({ page }) => {
+    await signIn(page);
+    const fixture = await loadWorkspaceWithEditorState(page, state => prepareRegionCenterOnlyState(state));
+    const toolbar = page.locator('.trip-editor-toolbar');
+
+    await toolbar.getByRole('button', { name: 'Recenter Saved Trip View' }).click();
+    const before = await readMapView(page);
+
+    await regionEditButton(regionCard(page, fixture.regionName)).click();
+    await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeEnabled();
+    await toolbar.getByRole('button', { name: 'Focus Active Entity' }).click();
+
+    await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Focused region');
+    await expectMapViewChanged(page, before, 'Region focus should move to the region center-only geometry.');
+    await expectUsableMapView(page);
   });
 
   test('defers to map-work toolbar', async ({ page }) => {
@@ -133,12 +211,18 @@ async function loadWorkspaceWithEditorState<T>(page: Page, mutate: (state: Mutab
   const result = mutate(state);
   // Route only the editor read model so toolbar coverage can vary geometry without mutating runbook data.
   await page.route(`**${editorApiPath}`, async route => {
+    if (route.request().method() !== 'GET') {
+      throw new Error(`Map navigation fixture route blocked unexpected ${route.request().method()} ${route.request().url()}`);
+    }
+
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
   });
   await page.goto(absoluteUrl(workspacePath));
   await expectMountedWorkspace(page);
   return result;
 }
+
+type MapViewSnapshot = { mapPaneTransform: string; markerTransforms: string[]; pathCount: number; tilePaneTransform: string };
 
 function clearNavigationGeometry(state: MutableEditorState): void {
   Object.values(state.regionsById).forEach((region: any) => {
@@ -159,46 +243,116 @@ function prepareNavigationFocusState(state: MutableEditorState): { placeName: st
   state.metadata.center = null;
   state.metadata.zoom = null;
 
-  const region = Object.values(state.regionsById).find((item: any) => !item.isShadow) as any;
+  const region = normalRegion(state);
   if (!region) {
     throw new Error('Configured Trip Editor fixture must contain a normal region for map navigation coverage.');
   }
 
-  const areaId = '00000000-0000-0000-0000-000000260001';
+  addAreaGeometry(state, region.id, '00000000-0000-0000-0000-000000260001', 'PW navigation area');
+
+  const placeId = ensurePlace(state, region.id, '00000000-0000-0000-0000-000000260002', 'PW navigation place');
+  state.placesById[placeId].location = null;
+  return { placeName: state.placesById[placeId].name, regionName: region.name };
+}
+
+function preparePlaceLocationFocusState(state: MutableEditorState): { placeName: string; regionName: string } {
+  clearNavigationGeometry(state);
+  state.metadata.center = { latitude: -33.8688, longitude: 151.2093 };
+  state.metadata.zoom = 4;
+
+  const region = normalRegion(state);
+  test.skip(!region, 'Configured Trip Editor fixture has no normal region for place focus coverage.');
+
+  const placeId = ensurePlace(state, region!.id, '00000000-0000-0000-0000-000000260201', 'PW located place');
+  state.placesById[placeId].location = { latitude: 48.8566, longitude: 2.3522 };
+  return { placeName: state.placesById[placeId].name, regionName: region!.name };
+}
+
+function prepareSegmentGeometryState(state: MutableEditorState, useRoute: boolean): void {
+  clearNavigationGeometry(state);
+  state.metadata.center = { latitude: -33.8688, longitude: 151.2093 };
+  state.metadata.zoom = 4;
+
+  const region = normalRegion(state);
+  test.skip(!region, 'Configured Trip Editor fixture has no normal region for segment geometry coverage.');
+
+  const fromId = ensurePlace(state, region!.id, '00000000-0000-0000-0000-000000260301', 'PW segment from');
+  const toId = ensurePlace(state, region!.id, '00000000-0000-0000-0000-000000260302', 'PW segment to');
+  state.placesById[fromId].location = { latitude: 40.7128, longitude: -74.006 };
+  state.placesById[toId].location = { latitude: 42.3601, longitude: -71.0589 };
+
+  const segmentId = '00000000-0000-0000-0000-000000260303';
+  state.segmentsById = {
+    [segmentId]: {
+      id: segmentId,
+      tripId: state.tripId,
+      fromPlaceId: fromId,
+      toPlaceId: toId,
+      mode: 'car',
+      estimatedDistanceKm: null,
+      estimatedDurationMinutes: null,
+      notesHtml: '',
+      route: useRoute
+        ? { type: 'LineString', coordinates: [[-74.006, 40.7128], [-73, 41.25], [-71.0589, 42.3601]] }
+        : null,
+      displayOrder: 1,
+      capabilities: editableCapabilities()
+    }
+  };
+  state.segmentOrder = [segmentId];
+}
+
+function prepareRegionCenterOnlyState(state: MutableEditorState): { regionName: string } {
+  clearNavigationGeometry(state);
+  state.metadata.center = { latitude: -33.8688, longitude: 151.2093 };
+  state.metadata.zoom = 4;
+
+  const region = normalRegion(state);
+  test.skip(!region, 'Configured Trip Editor fixture has no normal region for region center coverage.');
+  region!.center = { latitude: 64.1466, longitude: -21.9426 };
+  return { regionName: region!.name };
+}
+
+function normalRegion(state: MutableEditorState): any | null {
+  return Object.values(state.regionsById).find((item: any) => !item.isShadow) ?? null;
+}
+
+function addAreaGeometry(state: MutableEditorState, regionId: string, areaId: string, name: string): void {
   state.areasById[areaId] = {
     id: areaId,
     tripId: state.tripId,
-    regionId: region.id,
-    name: 'PW navigation area',
+    regionId,
+    name,
     notesHtml: '',
     fillHex: '#22c55e',
     geometry: { type: 'Polygon', coordinates: [[[23, 37], [24, 37], [24, 38], [23, 38], [23, 37]]] },
     displayOrder: 1,
     capabilities: editableCapabilities()
   };
-  state.areaOrderByRegionId[region.id] = [areaId];
+  state.areaOrderByRegionId[regionId] = [areaId];
+}
 
-  const placeId = state.placeOrderByRegionId[region.id]?.find((id: string) => state.placesById[id]) ?? '00000000-0000-0000-0000-000000260002';
-  if (!state.placesById[placeId]) {
-    state.placesById[placeId] = {
-      id: placeId,
+function ensurePlace(state: MutableEditorState, regionId: string, placeId: string, name: string): string {
+  const existingId = state.placeOrderByRegionId[regionId]?.find((id: string) => state.placesById[id]) ?? placeId;
+  if (!state.placesById[existingId]) {
+    state.placesById[existingId] = {
+      id: existingId,
       tripId: state.tripId,
-      regionId: region.id,
-      name: 'PW navigation place',
+      regionId,
+      name,
       notesHtml: '',
       address: '',
       location: null,
       iconName: state.options.iconNames[0] ?? 'marker',
       markerColor: state.options.markerColorClasses[0] ?? 'bg-blue',
       displayOrder: 1,
-      visitSummary: { placeId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
+      visitSummary: { placeId: existingId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
       capabilities: editableCapabilities()
     };
-    state.placeOrderByRegionId[region.id] = [...(state.placeOrderByRegionId[region.id] ?? []), placeId];
+    state.placeOrderByRegionId[regionId] = [...(state.placeOrderByRegionId[regionId] ?? []), existingId];
   }
 
-  state.placesById[placeId].location = null;
-  return { placeName: state.placesById[placeId].name, regionName: region.name };
+  return existingId;
 }
 
 function editableCapabilities(): Record<string, boolean> {
@@ -217,14 +371,14 @@ async function metadataMapFieldValues(page: Page): Promise<{ latitude: string; l
   return {
     latitude: await page.getByLabel('Center Latitude').inputValue(),
     longitude: await page.getByLabel('Center Longitude').inputValue(),
-    zoom: await page.getByLabel('Zoom').inputValue()
+    zoom: await page.getByRole('spinbutton', { name: 'Zoom' }).inputValue()
   };
 }
 
 async function expectMetadataMapFieldValues(page: Page, values: { latitude: string; longitude: string; zoom: string }): Promise<void> {
   await expect(page.getByLabel('Center Latitude')).toHaveValue(values.latitude);
   await expect(page.getByLabel('Center Longitude')).toHaveValue(values.longitude);
-  await expect(page.getByLabel('Zoom')).toHaveValue(values.zoom);
+  await expect(page.getByRole('spinbutton', { name: 'Zoom' })).toHaveValue(values.zoom);
 }
 
 async function placeDraftCoordinateValues(page: Page): Promise<{ latitude: string; longitude: string }> {
@@ -241,9 +395,48 @@ async function expectPlaceDraftCoordinateValues(page: Page, values: { latitude: 
   await expect(form.getByLabel('Longitude')).toHaveValue(values.longitude);
 }
 
+async function readMapView(page: Page): Promise<MapViewSnapshot> {
+  await expectUsableMapView(page);
+  return await page.getByLabel('Read-only trip map').evaluate(map => {
+    const readTransform = (selector: string): string => {
+      const element = map.querySelector(selector);
+      return element ? getComputedStyle(element).transform : '';
+    };
+
+    return {
+      mapPaneTransform: readTransform('.leaflet-map-pane'),
+      markerTransforms: Array.from(map.querySelectorAll<HTMLElement>('.leaflet-marker-icon, .leaflet-interactive')).map(element => `${getComputedStyle(element).transform} ${element.getAttribute('d') ?? ''}`),
+      pathCount: map.querySelectorAll('.leaflet-overlay-pane path').length,
+      tilePaneTransform: readTransform('.leaflet-tile-pane')
+    };
+  });
+}
+
+async function expectMapViewChanged(page: Page, before: MapViewSnapshot, message: string): Promise<void> {
+  const after = await readMapView(page);
+  expect(JSON.stringify(after), message).not.toBe(JSON.stringify(before));
+}
+
+async function expectUsableMapView(page: Page): Promise<void> {
+  await expectInitializedTripMap(page);
+  const invalidTokens = await page.getByLabel('Read-only trip map').evaluate(map => {
+    const viewText = [
+      map.getAttribute('class') ?? '',
+      ...Array.from(map.querySelectorAll<HTMLElement>('.leaflet-pane, .leaflet-marker-icon, .leaflet-interactive')).map(element => `${element.getAttribute('style') ?? ''} ${element.getAttribute('d') ?? ''}`)
+    ].join(' ');
+    return /(NaN|Infinity|undefined)/i.test(viewText);
+  });
+  expect(invalidTokens, 'Leaflet map view should not contain invalid coordinate artifacts.').toBeFalsy();
+}
+
+async function expectRenderedRouteGeometry(page: Page): Promise<void> {
+  await expect(page.getByLabel('Read-only trip map').locator('.leaflet-overlay-pane path')).not.toHaveCount(0);
+}
+
 async function enterMapWorkFromE2e(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const moduleUrl = '/ClientApps/trip-editor/src/composables/useEditorSurface.ts';
+    const entryScript = document.querySelector<HTMLScriptElement>('script[src*="/ClientApps/trip-editor/src/main.ts"]');
+    const moduleUrl = new URL('/ClientApps/trip-editor/src/composables/useEditorSurface.ts', entryScript?.src ?? window.location.origin).href;
     // Use the real surface singleton through Vite so map-work assertions do not add fake UI controls.
     const surface = await import(/* @vite-ignore */ moduleUrl) as {
       enterMapWork: (options: {
