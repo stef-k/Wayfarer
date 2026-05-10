@@ -22,7 +22,8 @@ export function buildRegionEditTarget(region: EditorRegion): EditorTarget {
     kind: 'region',
     mode: 'edit',
     title: `Edit Region - ${region.name}`,
-    subtitle: 'Region details'
+    subtitle: 'Region details',
+    entityId: region.id
   };
 }
 
@@ -33,7 +34,8 @@ export function buildPlaceCreateTarget(region: EditorRegion): EditorTarget {
     kind: 'place',
     mode: 'add',
     title: 'Add Place',
-    subtitle: region.name
+    subtitle: region.name,
+    parentRegionId: region.id
   };
 }
 
@@ -44,6 +46,8 @@ export function buildPlaceEditTarget(place: EditorPlace, subtitle?: string): Edi
     kind: 'place',
     mode: 'edit',
     title: `Edit Place - ${place.name}`,
-    subtitle
+    subtitle,
+    entityId: place.id,
+    parentRegionId: place.regionId
   };
 }

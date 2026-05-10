@@ -85,7 +85,8 @@ const activeRegionTarget = computed<EditorTarget>(() => ({
   kind: 'region',
   mode: draft.id ? 'edit' : 'add',
   title: draft.id ? `Edit Region - ${activeRegion.value?.name ?? draft.name}` : 'Add Region',
-  subtitle: draft.id ? 'Region details' : 'New region'
+  subtitle: draft.id ? 'Region details' : 'New region',
+  entityId: draft.id ?? undefined
 }));
 const activePlaceTarget = computed<EditorTarget>(() => ({
   key: placeDraftKey,
@@ -93,7 +94,9 @@ const activePlaceTarget = computed<EditorTarget>(() => ({
   kind: 'place',
   mode: placeDraft.id ? 'edit' : 'add',
   title: placeDraft.id ? `Edit Place - ${activePlace.value?.name ?? placeDraft.name}` : 'Add Place',
-  subtitle: placeDraft.regionId ? props.state.regionsById[placeDraft.regionId]?.name : undefined
+  subtitle: placeDraft.regionId ? props.state.regionsById[placeDraft.regionId]?.name : undefined,
+  entityId: placeDraft.id ?? undefined,
+  parentRegionId: placeDraft.regionId ?? undefined
 }));
 const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, saveWarning, statusText } = useEditorMutationFeedback({
   isDirty,
