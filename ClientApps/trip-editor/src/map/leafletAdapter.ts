@@ -31,7 +31,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
 
     Object.values(state.regionsById).forEach(region => renderRegion(region, layers));
     Object.values(state.areasById).forEach(area => renderArea(area, layers));
-    Object.values(state.placesById).forEach(place => renderPlace(place, layers));
+    Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick));
     Object.values(state.segmentsById).forEach(segment => renderSegment(segment, state, layers));
 
     fitMapToState(map, state);
@@ -55,9 +55,24 @@ export interface CoordinatePickOptions {
   onPicked: (coordinate: EditorCoordinate) => void;
 }
 
-const createCoordinatePickLayer = (map: LeafletMap): { start: (options: CoordinatePickOptions) => () => void; stop: () => void } => {
+const createCoordinatePickLayer = (map: LeafletMap): { isActive: () => boolean; pick: (coordinate: EditorCoordinate) => void; start: (options: CoordinatePickOptions) => () => void; stop: () => void } => {
   const layer = L.layerGroup().addTo(map);
   let clickHandler: ((event: LeafletMouseEvent) => void) | null = null;
+  let onPicked: ((coordinate: EditorCoordinate) => void) | null = null;
+
+  const setPreview = (coordinate: EditorCoordinate): void => {
+    layer.clearLayers();
+    L.marker([coordinate.latitude, coordinate.longitude], {
+      interactive: false,
+      keyboard: false,
+      title: 'Selected place location preview'
+    }).addTo(layer);
+  };
+
+  const pick = (coordinate: EditorCoordinate): void => {
+    setPreview(coordinate);
+    onPicked?.(coordinate);
+  };
 
   const stop = (): void => {
     if (clickHandler) {
@@ -65,19 +80,13 @@ const createCoordinatePickLayer = (map: LeafletMap): { start: (options: Coordina
       clickHandler = null;
     }
 
+    onPicked = null;
     layer.clearLayers();
   };
 
   const start = (options: CoordinatePickOptions): (() => void) => {
     stop();
-    const setPreview = (coordinate: EditorCoordinate): void => {
-      layer.clearLayers();
-      L.marker([coordinate.latitude, coordinate.longitude], {
-        interactive: false,
-        keyboard: false,
-        title: 'Selected place location preview'
-      }).addTo(layer);
-    };
+    onPicked = options.onPicked;
 
     if (options.initialCoordinate) {
       setPreview(options.initialCoordinate);
@@ -85,14 +94,13 @@ const createCoordinatePickLayer = (map: LeafletMap): { start: (options: Coordina
 
     clickHandler = event => {
       const coordinate = { latitude: event.latlng.lat, longitude: event.latlng.lng };
-      setPreview(coordinate);
-      options.onPicked(coordinate);
+      pick(coordinate);
     };
     map.on('click', clickHandler);
     return stop;
   };
 
-  return { start, stop };
+  return { isActive: () => clickHandler !== null, pick, start, stop };
 };
 
 const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
@@ -108,7 +116,7 @@ const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
   }).bindTooltip(escapeHtml(region.name)).addTo(layers);
 };
 
-const renderPlace = (place: EditorPlace, layers: LayerGroup): void => {
+const renderPlace = (place: EditorPlace, layers: LayerGroup, coordinatePick: ReturnType<typeof createCoordinatePickLayer>): void => {
   if (!place.location) {
     return;
   }
@@ -118,6 +126,17 @@ const renderPlace = (place: EditorPlace, layers: LayerGroup): void => {
   });
   const visitText = place.visitSummary.isVisited ? ` · ${place.visitSummary.visitCount} visit(s)` : '';
   marker.bindPopup(`<strong>${escapeHtml(place.name)}</strong>${visitText}`);
+  marker.on('click', event => {
+    if (!coordinatePick.isActive()) {
+      return;
+    }
+
+    if (event.originalEvent) {
+      L.DomEvent.stop(event.originalEvent);
+    }
+    marker.closePopup();
+    coordinatePick.pick({ latitude: place.location!.latitude, longitude: place.location!.longitude });
+  });
   marker.addTo(layers);
 };
 

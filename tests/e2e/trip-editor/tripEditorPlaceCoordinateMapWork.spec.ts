@@ -15,6 +15,7 @@ type Coordinate = { latitude: number; longitude: number };
 const editablePlaceId = '00000000-0000-0000-0000-000000261001';
 const secondPlaceId = '00000000-0000-0000-0000-000000261002';
 const editablePlaceName = 'PW coordinate place';
+const secondPlaceName = 'PW coordinate switch place';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 const forbiddenPickRequest = /nominatim|geocode|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
 
@@ -56,6 +57,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
   test('edit-place docked Cancel restores coordinate fields only', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
+    const forbidden = watchForbiddenPickRequests(page);
 
     await openEditablePlace(page);
     const form = page.locator('#trip-editor-place-form');
@@ -73,6 +75,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expectDraftCoordinates(page, before);
     await expect(form.getByLabel('Name')).toHaveValue('Unsaved coordinate test name');
     await expect(form.getByLabel('Address')).toHaveValue('Unsaved coordinate test address');
+    expect(forbidden(), 'Canceling coordinate pick must not call geocode/search providers.').toEqual([]);
   });
 
   test('edit-place expanded enters map-work and returns to expanded surface', async ({ page }) => {
@@ -92,6 +95,35 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
 
     await mapWork.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByRole('dialog', { name: new RegExp(`Edit Place - ${editablePlaceName}`) })).toBeVisible();
+  });
+
+  test('active map-work consumes persisted place marker clicks without opening popups or switching editors', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    const mutations = watchEditorMutations(page);
+    const forbidden = watchForbiddenPickRequests(page);
+
+    await openEditablePlace(page);
+    const form = page.locator('#trip-editor-place-form');
+    await expectDraftCoordinates(page, { latitude: '10', longitude: '20' });
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    const mapWork = page.getByRole('region', { name: 'Map work' });
+    await expect(mapWork).toContainText('Selected 10, 20');
+
+    await page.getByTitle(secondPlaceName).click();
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${editablePlaceName}`) })).toBeVisible();
+    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${secondPlaceName}`) })).toHaveCount(0);
+    await expectDraftCoordinates(page, { latitude: '10', longitude: '20' });
+    await expect(mapWork).toContainText('Selected 11, 21');
+    expect(mutations(), 'Marker click during pick mode must not call editor mutations.').toEqual([]);
+
+    await mapWork.getByRole('button', { name: 'Done' }).click();
+    await expectDraftCoordinates(page, { latitude: '11', longitude: '21' });
+    expect(mutations(), 'Done after marker pick must still be draft-only.').toEqual([]);
+    expect(forbidden(), 'Marker-based coordinate picking must not call geocode/search providers.').toEqual([]);
+    await expect(form.getByLabel('Name')).toHaveValue(editablePlaceName);
   });
 
   test('dirty map-work switch prompts before the normal dirty draft prompt', async ({ page }) => {
@@ -121,6 +153,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
   test('Save after Done sends the picked coordinate through the existing place endpoint', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
+    const forbidden = watchForbiddenPickRequests(page);
     const savedRequests: Array<Record<string, any>> = [];
     await page.route(editorApiMatcher, async route => {
       const request = route.request();
@@ -153,6 +186,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect.poll(() => savedRequests.length).toBe(1);
     expect(String(savedRequests[0].location.latitude)).toBe(picked.latitude);
     expect(String(savedRequests[0].location.longitude)).toBe(picked.longitude);
+    expect(forbidden(), 'Saving a picked coordinate must not call geocode/search providers.').toEqual([]);
   });
 });
 
@@ -180,7 +214,7 @@ function prepareCoordinateState(state: MutableEditorState): void {
   }
 
   state.placesById[editablePlaceId] = placeFixture(state, region.id, editablePlaceId, editablePlaceName, { latitude: 10, longitude: 20 });
-  state.placesById[secondPlaceId] = placeFixture(state, region.id, secondPlaceId, 'PW coordinate switch place', { latitude: 11, longitude: 21 });
+  state.placesById[secondPlaceId] = placeFixture(state, region.id, secondPlaceId, secondPlaceName, { latitude: 11, longitude: 21 });
   state.placeOrderByRegionId[region.id] = [editablePlaceId, secondPlaceId, ...(state.placeOrderByRegionId[region.id] ?? []).filter((id: string) => id !== editablePlaceId && id !== secondPlaceId)];
 }
 
