@@ -2,10 +2,13 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { EditorValidationError, patchMetadata } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
+import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
+import EditorSurface from './EditorSurface.vue';
 import type { EditorTripMetadata, EditorTripMetadataUpdateRequest, EditorWarning } from '../types';
 
 const props = defineProps<{
   metadata: EditorTripMetadata;
+  editorSurface: EditorSurfaceController;
   editorEndpoint: string;
   antiforgeryToken: string;
   tripIndexUrl: string;
@@ -33,9 +36,18 @@ const saveError = ref<string | null>(null);
 const validationErrors = ref<Record<string, string[]>>({});
 const warnings = ref<EditorWarning[]>([]);
 const savedExitInProgress = ref(false);
+let unregisterSurfaceHandler: (() => void) | null = null;
 
 const persistedDraft = computed(() => toDraft(props.metadata));
 const isDirty = computed(() => JSON.stringify(normalizeDraft(draft)) !== JSON.stringify(normalizeDraft(persistedDraft.value)));
+const target = computed<EditorTarget>(() => ({
+  key: 'metadata',
+  kind: 'metadata',
+  mode: 'edit',
+  title: `Edit Trip - ${props.metadata.name}`,
+  subtitle: props.metadata.isPublic ? 'Public trip' : 'Private trip'
+}));
+const isActive = computed(() => props.editorSurface.isTargetActive(target.value.key));
 
 const statusText = computed(() => {
   if (isSaving.value) {
@@ -64,9 +76,15 @@ watch(
 
 onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
+  unregisterSurfaceHandler = props.editorSurface.registerTargetHandler(target.value.key, {
+    isDirty: () => isDirty.value,
+    discard: resetDraft
+  });
+  void openMetadata();
 });
 
 onUnmounted(() => {
+  unregisterSurfaceHandler?.();
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
@@ -157,6 +175,10 @@ function confirmDiscardTripEditorChanges(): Promise<boolean> {
   });
 }
 
+async function openMetadata(): Promise<void> {
+  await props.editorSurface.activateTarget(target.value);
+}
+
 function toDraft(metadata: EditorTripMetadata): MetadataDraft {
   return {
     name: metadata.name,
@@ -196,66 +218,73 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
 </script>
 
 <template>
-  <section class="trip-editor-panel trip-editor-metadata">
-    <div class="trip-editor-panel__line">
+  <section v-if="!isActive" class="trip-editor-panel trip-editor-editor-summary">
+    <div>
       <h2>Trip Settings</h2>
-      <span class="trip-editor-save-state">{{ statusText }}</span>
+      <p>{{ metadata.isPublic ? 'Public trip' : 'Private trip' }}</p>
     </div>
+    <button type="button" class="btn btn-outline-light btn-sm" @click="openMetadata">Edit Trip</button>
+  </section>
 
-    <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
+  <EditorSurface v-else :controller="editorSurface" :target="target" :status-text="statusText">
+    <template #body>
+      <form id="trip-editor-metadata-form" class="trip-editor-metadata" @submit.prevent="save(false)">
+        <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
 
-    <div v-if="warnings.length > 0" class="trip-editor-form-warning" role="status">
-      <p v-for="warning in warnings" :key="warning.code">{{ warning.message }}</p>
-    </div>
+        <div v-if="warnings.length > 0" class="trip-editor-form-warning" role="status">
+          <p v-for="warning in warnings" :key="warning.code">{{ warning.message }}</p>
+        </div>
 
-    <label class="trip-editor-field">
-      <span>Name</span>
-      <input v-model="draft.name" type="text" autocomplete="off" />
-      <small v-for="message in fieldErrors('name')" :key="message">{{ message }}</small>
-    </label>
+        <label class="trip-editor-field">
+          <span>Name</span>
+          <input v-model="draft.name" type="text" autocomplete="off" />
+          <small v-for="message in fieldErrors('name')" :key="message">{{ message }}</small>
+        </label>
 
-    <label class="trip-editor-toggle">
-      <input v-model="draft.isPublic" type="checkbox" />
-      <span>Public trip</span>
-    </label>
+        <label class="trip-editor-toggle">
+          <input v-model="draft.isPublic" type="checkbox" />
+          <span>Public trip</span>
+        </label>
 
-    <label class="trip-editor-field">
-      <span>Notes HTML</span>
-      <textarea v-model="draft.notesHtml" rows="7"></textarea>
-      <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-    </label>
+        <label class="trip-editor-field">
+          <span>Notes HTML</span>
+          <textarea v-model="draft.notesHtml" rows="7"></textarea>
+          <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
+        </label>
 
-    <label class="trip-editor-field">
-      <span>Cover Image URL</span>
-      <input v-model="draft.coverImageRawUrl" type="url" autocomplete="off" />
-      <small v-for="message in fieldErrors('coverImage.rawUrl')" :key="message">{{ message }}</small>
-    </label>
+        <label class="trip-editor-field">
+          <span>Cover Image URL</span>
+          <input v-model="draft.coverImageRawUrl" type="url" autocomplete="off" />
+          <small v-for="message in fieldErrors('coverImage.rawUrl')" :key="message">{{ message }}</small>
+        </label>
 
-    <div class="trip-editor-grid">
-      <label class="trip-editor-field">
-        <span>Center Latitude</span>
-        <input v-model="draft.centerLatitude" type="number" step="any" />
-        <small v-for="message in fieldErrors('center.latitude')" :key="message">{{ message }}</small>
-      </label>
+        <div class="trip-editor-grid">
+          <label class="trip-editor-field">
+            <span>Center Latitude</span>
+            <input v-model="draft.centerLatitude" type="number" step="any" />
+            <small v-for="message in fieldErrors('center.latitude')" :key="message">{{ message }}</small>
+          </label>
 
-      <label class="trip-editor-field">
-        <span>Center Longitude</span>
-        <input v-model="draft.centerLongitude" type="number" step="any" />
-        <small v-for="message in fieldErrors('center.longitude')" :key="message">{{ message }}</small>
-      </label>
-    </div>
+          <label class="trip-editor-field">
+            <span>Center Longitude</span>
+            <input v-model="draft.centerLongitude" type="number" step="any" />
+            <small v-for="message in fieldErrors('center.longitude')" :key="message">{{ message }}</small>
+          </label>
+        </div>
 
-    <label class="trip-editor-field">
-      <span>Zoom</span>
-      <input v-model="draft.zoom" type="number" min="0" max="19" step="1" />
-      <small v-for="message in fieldErrors('zoom')" :key="message">{{ message }}</small>
-    </label>
+        <label class="trip-editor-field">
+          <span>Zoom</span>
+          <input v-model="draft.zoom" type="number" min="0" max="19" step="1" />
+          <small v-for="message in fieldErrors('zoom')" :key="message">{{ message }}</small>
+        </label>
+      </form>
+    </template>
 
-    <div class="trip-editor-actions">
-      <button type="button" class="btn btn-primary btn-sm" :disabled="isSaving" @click="save(false)">Save &amp; Continue</button>
+    <template #footer>
+      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving">Save &amp; Continue</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="saveAndExit">Save &amp; Exit</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="resetDraft">Cancel / Reset</button>
       <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">Back to Trips</button>
-    </div>
-  </section>
+    </template>
+  </EditorSurface>
 </template>

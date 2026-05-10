@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { EditorMutationResult, EditorSegment, EditorTripState } from '../types';
+import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import MetadataEditor from './MetadataEditor.vue';
 import RegionManager from './RegionManager.vue';
 
 defineProps<{
   state: EditorTripState;
+  editorSurface: EditorSurfaceController;
   editorEndpoint: string;
   antiforgeryToken: string;
   tripIndexUrl: string;
@@ -39,6 +41,7 @@ const segmentLabel = (state: EditorTripState, segment: EditorSegment): string =>
 
     <MetadataEditor
       :metadata="state.metadata"
+      :editor-surface="editorSurface"
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       :trip-index-url="tripIndexUrl"
@@ -66,6 +69,7 @@ const segmentLabel = (state: EditorTripState, segment: EditorSegment): string =>
 
     <RegionManager
       :state="state"
+      :editor-surface="editorSurface"
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       @mutation-applied="result => emit('mutationApplied', result)"

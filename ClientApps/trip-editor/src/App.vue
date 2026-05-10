@@ -2,8 +2,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
+import { useEditorSurface } from './composables/useEditorSurface';
 import { createTripEditorMap } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
 
@@ -15,6 +17,7 @@ const isLoading = ref(true);
 const hasRegionDraftChanges = ref(false);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
+const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 
 const updatedLabel = computed(() =>
@@ -150,6 +153,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     <template v-else-if="state">
       <TripSidebar
         :state="state"
+        :editor-surface="editorSurface"
         :editor-endpoint="props.config.editorEndpoint"
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
@@ -166,6 +170,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
           </div>
           <a class="btn btn-outline-light btn-sm" :href="`/User/Trip/Edit/${state.tripId}`">Legacy editor</a>
         </header>
+        <MapWorkToolbar :controller="editorSurface" />
         <div ref="mapElement" class="trip-editor-map" aria-label="Read-only trip map"></div>
       </main>
     </template>

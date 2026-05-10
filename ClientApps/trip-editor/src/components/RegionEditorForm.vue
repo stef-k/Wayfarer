@@ -6,27 +6,18 @@ const props = defineProps<{
   activeRegion: EditorRegion | null;
   draft: RegionDraft;
   fieldErrors: (key: string) => string[];
+  formId: string;
   formSummaryErrors: string[];
-  isDirty: boolean;
   isSaving: boolean;
-  statusText: string;
 }>();
 
 const emit = defineEmits<{
-  cancel: [];
-  delete: [];
-  reset: [];
   save: [];
 }>();
 </script>
 
 <template>
-  <form class="trip-editor-region-form" @submit.prevent="emit('save')">
-    <div class="trip-editor-panel__line">
-      <h3>{{ props.draft.id ? 'Edit Region' : 'Add Region' }}</h3>
-      <span class="trip-editor-save-state">{{ props.statusText }}</span>
-    </div>
-
+  <form :id="props.formId" class="trip-editor-region-form" @submit.prevent="emit('save')">
     <div v-if="props.formSummaryErrors.length > 0" class="trip-editor-form-error" role="alert">
       <p v-for="message in props.formSummaryErrors" :key="message">{{ message }}</p>
     </div>
@@ -60,15 +51,6 @@ const emit = defineEmits<{
         <input v-model="props.draft.centerLongitude" type="number" step="any" />
         <small v-for="message in props.fieldErrors('center.longitude')" :key="message">{{ message }}</small>
       </label>
-    </div>
-
-    <div class="trip-editor-actions">
-      <button type="submit" class="btn btn-primary btn-sm" :disabled="props.isSaving">Save Region</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="props.isSaving || !props.isDirty" @click="emit('reset')">Reset</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('cancel')">Cancel</button>
-      <button v-if="props.activeRegion?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm" :disabled="props.isSaving" @click="emit('delete')">
-        Delete
-      </button>
     </div>
   </form>
 </template>
