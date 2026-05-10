@@ -1,10 +1,22 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
-import { loadTripEditorConfig } from './tripEditorConfig';
-
-const config = loadTripEditorConfig();
-const workspacePath = `/User/Trip/Workspace/${config.tripId}`;
-const legacyEditPath = `/User/Trip/Edit/${config.tripId}`;
-const editorApiPath = `/api/trips/${config.tripId}/editor`;
+import {
+  absoluteUrl,
+  closeDraftWithDiscard,
+  config,
+  editorApiPath,
+  escapeRegex,
+  expectActiveMetadataSurface,
+  expectMountedWorkspace,
+  firstRegionWithChildren,
+  firstVisibleAddPlace,
+  legacyEditPath,
+  pathRegex,
+  regionCard,
+  regionEditButton,
+  signIn,
+  uniqueName,
+  workspacePath
+} from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor dev verification', () => {
   test('login succeeds', async ({ page }) => {
@@ -207,48 +219,6 @@ test.describe.serial('Trip Editor dev verification', () => {
   });
 });
 
-// Signs in through the real Identity page without logging credential values.
-async function signIn(page: Page): Promise<void> {
-  await page.goto(absoluteUrl(`/Identity/Account/Login?ReturnUrl=${encodeURIComponent(workspacePath)}`));
-  await page.getByLabel('Username').fill(config.username);
-  await page.getByLabel('Password').fill(config.password);
-  await Promise.all([
-    page.waitForURL(url => !url.pathname.includes('/Identity/Account/Login')),
-    page.getByRole('button', { name: 'Log in' }).click()
-  ]);
-}
-
-// Waits for the Vue workspace to replace the Razor loading shell.
-async function expectMountedWorkspace(page: Page): Promise<void> {
-  const app = page.locator('#trip-editor-app');
-  await expect(app).toBeVisible();
-  await expect(app.locator('.trip-editor-workspace')).toBeVisible();
-  await expect(app).not.toContainText('Trip Editor development server is not available');
-  await expectActiveMetadataSurface(page);
-  await expectInitializedTripMap(page);
-}
-
-// Confirms the #252 shared surface hosts the active trip metadata editor.
-async function expectActiveMetadataSurface(page: Page): Promise<void> {
-  await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
-  await expect(page.locator('.trip-editor-surface--docked')).toContainText(/Edit Trip -/i);
-}
-
-// Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
-async function expectInitializedTripMap(page: Page): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
-  await expect(map).toBeVisible();
-  await expect(map).toHaveClass(/leaflet-container/);
-  await expect(map.locator('.leaflet-pane')).not.toHaveCount(0);
-  await expect(map.locator('.leaflet-tile-pane')).toHaveCount(1);
-  await expect(map.locator('.leaflet-overlay-pane')).toHaveCount(1);
-
-  const box = await map.boundingBox();
-  expect(box, 'Trip Editor map should have a rendered bounding box.').not.toBeNull();
-  expect(box!.width, 'Trip Editor map should have usable width.').toBeGreaterThan(300);
-  expect(box!.height, 'Trip Editor map should have usable height.').toBeGreaterThan(300);
-}
-
 // Confirms the selected place editor docks as a usable full-width row under the place.
 async function expectUsableDockedPlaceEditor(page: Page): Promise<void> {
   const sidebar = page.locator('.trip-editor-sidebar');
@@ -323,18 +293,6 @@ async function openFirstPlaceFormIfAvailable(page: Page): Promise<Locator | null
   return form;
 }
 
-function firstVisibleAddPlace(page: Page): Locator {
-  return page.getByRole('button', { name: 'Add Place' }).filter({ visible: true }).first();
-}
-
-function firstRegionWithChildren(page: Page): Locator {
-  return page.locator('.trip-editor-region-card').filter({ has: page.locator('ul li') }).first();
-}
-
-function regionCard(page: Page, name: string): Locator {
-  return page.locator('.trip-editor-region-card').filter({ has: page.getByRole('heading', { name }) });
-}
-
 async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: boolean): Promise<void> {
   if (!shouldCleanup || (await page.getByText(name).count()) === 0) {
     return;
@@ -344,30 +302,6 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
   await page.getByRole('button', { name: 'Delete' }).click();
   await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText(name)).toHaveCount(0);
-}
-
-async function closeDraftWithDiscard(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Cancel' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
-  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await dialog.getByRole('button', { name: 'Discard' }).click();
-  }
-  await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
-}
-
-async function cleanupTemporaryRegion(page: Page, name: string, shouldCleanup: boolean): Promise<void> {
-  if (!shouldCleanup || (await regionCard(page, name).count()) === 0) {
-    return;
-  }
-
-  await regionEditButton(regionCard(page, name)).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await page.getByRole('dialog', { name: 'Delete region?' }).getByRole('button', { name: 'Delete' }).click();
-  await expect(regionCard(page, name)).toHaveCount(0);
-}
-
-function regionEditButton(card: Locator): Locator {
-  return card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' });
 }
 
 async function expectSaved(page: Page): Promise<void> {
@@ -414,20 +348,4 @@ async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
 
 async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
-}
-
-function uniqueName(prefix: string): string {
-  return `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function pathRegex(path: string): RegExp {
-  return new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`, 'i');
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function absoluteUrl(path: string): string {
-  return `${config.baseUrl}${path}`;
 }
