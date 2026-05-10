@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
@@ -29,10 +29,13 @@ onMounted(async () => {
 
   try {
     state.value = await loadEditorState(props.config.editorEndpoint);
-    if (mapElement.value) {
-      mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
-      mapAdapter.render(state.value);
+    await nextTick();
+    if (!mapElement.value) {
+      throw new Error('Trip Editor map element was unavailable after the workspace rendered.');
     }
+
+    mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
+    mapAdapter.render(state.value);
   } catch (loadError) {
     error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
   } finally {

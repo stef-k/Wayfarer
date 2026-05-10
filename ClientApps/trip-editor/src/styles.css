@@ -360,9 +360,14 @@ body {
   overflow-wrap: anywhere;
 }
 
-.trip-editor-place-row .trip-editor-surface,
-.trip-editor-place-row .trip-editor-surface-context {
-  grid-column: 1 / -1;
+.trip-editor-place-editor-row {
+  display: block;
+  padding: 0.5rem 0.65rem;
+}
+
+.trip-editor-place-editor-row .trip-editor-surface,
+.trip-editor-place-editor-row .trip-editor-surface-context {
+  margin-top: 0;
   width: 100%;
 }
 

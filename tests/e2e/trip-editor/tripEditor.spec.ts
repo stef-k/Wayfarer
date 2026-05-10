@@ -101,6 +101,8 @@ test.describe.serial('Trip Editor dev verification', () => {
 
       await editableRegion.getByText(placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
       await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(placeName)}`) })).toBeVisible();
+      await expectUsableDockedPlaceEditor(page);
+      await capture(page, testInfo, 'place-docked-layout');
     } finally {
       await cleanupTemporaryPlace(page, placeName, savedPlace);
     }
@@ -223,13 +225,41 @@ async function expectMountedWorkspace(page: Page): Promise<void> {
   await expect(app.locator('.trip-editor-workspace')).toBeVisible();
   await expect(app).not.toContainText('Trip Editor development server is not available');
   await expectActiveMetadataSurface(page);
-  await expect(page.getByLabel('Read-only trip map')).toBeVisible();
+  await expectInitializedTripMap(page);
 }
 
 // Confirms the #252 shared surface hosts the active trip metadata editor.
 async function expectActiveMetadataSurface(page: Page): Promise<void> {
   await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
   await expect(page.locator('.trip-editor-surface--docked')).toContainText(/Edit Trip -/i);
+}
+
+// Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
+async function expectInitializedTripMap(page: Page): Promise<void> {
+  const map = page.getByLabel('Read-only trip map');
+  await expect(map).toBeVisible();
+  await expect(map).toHaveClass(/leaflet-container/);
+  await expect(map.locator('.leaflet-pane')).not.toHaveCount(0);
+  await expect(map.locator('.leaflet-tile-pane')).toHaveCount(1);
+  await expect(map.locator('.leaflet-overlay-pane')).toHaveCount(1);
+
+  const box = await map.boundingBox();
+  expect(box, 'Trip Editor map should have a rendered bounding box.').not.toBeNull();
+  expect(box!.width, 'Trip Editor map should have usable width.').toBeGreaterThan(300);
+  expect(box!.height, 'Trip Editor map should have usable height.').toBeGreaterThan(300);
+}
+
+// Confirms the selected place editor docks as a usable full-width row under the place.
+async function expectUsableDockedPlaceEditor(page: Page): Promise<void> {
+  const sidebar = page.locator('.trip-editor-sidebar');
+  const dockedEditor = page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked');
+  await expect(dockedEditor).toBeVisible();
+  await expect(page.locator('#trip-editor-place-form')).toHaveCount(1);
+
+  const [sidebarBox, editorBox] = await Promise.all([sidebar.boundingBox(), dockedEditor.boundingBox()]);
+  expect(sidebarBox, 'Trip Editor sidebar should have a rendered bounding box.').not.toBeNull();
+  expect(editorBox, 'Place editor should have a rendered bounding box.').not.toBeNull();
+  expect(editorBox!.width, 'Docked place editor should use most of the sidebar width.').toBeGreaterThan(sidebarBox!.width * 0.75);
 }
 
 // Confirms tags appear in the Trip-level panel and not inside the place editor form.

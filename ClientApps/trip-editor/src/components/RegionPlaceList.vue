@@ -188,27 +188,29 @@ function toggleRegion(regionId: Guid): void {
       <slot name="region-editor" :region="region"></slot>
 
       <ul v-show="!isCollapsed(region.id)" :id="`trip-editor-region-children-${region.id}`" :data-place-list-region-id="region.id">
-        <li
-          v-for="place in orderedPlaces(region.id)"
-          :key="place.id"
-          class="trip-editor-place-row"
-          :class="{ 'trip-editor-place-row--active': props.activePlaceId === place.id }"
-          :data-place-id="place.id"
-        >
-          <button
-            v-if="!region.isShadow"
-            type="button"
-            class="trip-editor-icon-button trip-editor-place-drag-handle"
-            title="Drag to reorder place"
-            aria-label="Drag to reorder place"
+        <template v-for="place in orderedPlaces(region.id)" :key="place.id">
+          <li
+            class="trip-editor-place-row"
+            :class="{ 'trip-editor-place-row--active': props.activePlaceId === place.id }"
+            :data-place-id="place.id"
           >
-            <span aria-hidden="true">::</span>
-          </button>
-          <span>{{ place.name }}</span>
-          <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
-          <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editPlace', place)">Edit</button>
-          <slot name="place-editor" :place="place"></slot>
-        </li>
+            <button
+              v-if="!region.isShadow"
+              type="button"
+              class="trip-editor-icon-button trip-editor-place-drag-handle"
+              title="Drag to reorder place"
+              aria-label="Drag to reorder place"
+            >
+              <span aria-hidden="true">::</span>
+            </button>
+            <span>{{ place.name }}</span>
+            <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
+            <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editPlace', place)">Edit</button>
+          </li>
+          <li v-if="props.activePlaceId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
+            <slot name="place-editor" :place="place"></slot>
+          </li>
+        </template>
         <li v-for="area in orderedAreas(region.id)" :key="area.id">
           <span>{{ area.name }}</span>
           <small>Area</small>
