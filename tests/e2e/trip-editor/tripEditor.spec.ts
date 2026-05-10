@@ -11,7 +11,6 @@ import {
   firstVisibleAddPlace,
   legacyEditPath,
   pathRegex,
-  regionCard,
   regionEditButton,
   signIn,
   uniqueName,
