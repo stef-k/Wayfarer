@@ -42,12 +42,13 @@ const persistedDraft = computed(() => toDraft(props.metadata));
 const isDirty = computed(() => JSON.stringify(normalizeDraft(draft)) !== JSON.stringify(normalizeDraft(persistedDraft.value)));
 const target = computed<EditorTarget>(() => ({
   key: 'metadata',
+  identity: 'metadata',
   kind: 'metadata',
   mode: 'edit',
   title: `Edit Trip - ${props.metadata.name}`,
   subtitle: props.metadata.isPublic ? 'Public trip' : 'Private trip'
 }));
-const isActive = computed(() => props.editorSurface.isTargetActive(target.value.key));
+const isActive = computed(() => props.editorSurface.isTargetActive(target.value));
 
 const statusText = computed(() => {
   if (isSaving.value) {

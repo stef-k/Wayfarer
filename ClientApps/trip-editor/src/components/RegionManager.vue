@@ -28,6 +28,8 @@ const placeFields = ['regionId', 'name', 'notesHtml', 'address', 'location.latit
 const regionListKey = ref(0);
 const regionFormId = 'trip-editor-region-form';
 const placeFormId = 'trip-editor-place-form';
+const regionDraftKey = 'region-draft';
+const placeDraftKey = 'place-draft';
 const draft = reactive(emptyRegionDraft());
 const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
 const isSaving = ref(false);
@@ -45,14 +47,16 @@ const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) 
 const isDirty = computed(() => regionDirty.value || placeDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
 const activeRegionTarget = computed<EditorTarget>(() => ({
-  key: 'region-draft',
+  key: regionDraftKey,
+  identity: draft.id ? `region:edit:${draft.id}` : 'region:add',
   kind: 'region',
   mode: draft.id ? 'edit' : 'add',
   title: draft.id ? `Edit Region - ${activeRegion.value?.name ?? draft.name}` : 'Add Region',
   subtitle: draft.id ? 'Region details' : 'New region'
 }));
 const activePlaceTarget = computed<EditorTarget>(() => ({
-  key: 'place-draft',
+  key: placeDraftKey,
+  identity: placeDraft.id ? `place:edit:${placeDraft.id}` : `place:add:${placeDraft.regionId ?? 'none'}`,
   kind: 'place',
   mode: placeDraft.id ? 'edit' : 'add',
   title: placeDraft.id ? `Edit Place - ${activePlace.value?.name ?? placeDraft.name}` : 'Add Place',
@@ -75,11 +79,11 @@ watch(
 
 onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
-  unregisterRegionHandler = props.editorSurface.registerTargetHandler('region-draft', {
+  unregisterRegionHandler = props.editorSurface.registerTargetHandler(regionDraftKey, {
     isDirty: () => regionDirty.value,
     discard: discardRegionDraft
   });
-  unregisterPlaceHandler = props.editorSurface.registerTargetHandler('place-draft', {
+  unregisterPlaceHandler = props.editorSurface.registerTargetHandler(placeDraftKey, {
     isDirty: () => placeDirty.value,
     discard: discardPlaceDraft
   });
@@ -93,7 +97,9 @@ onUnmounted(() => {
 });
 
 const openCreate = async (): Promise<void> => {
-  if (!(await props.editorSurface.activateTarget({ key: 'region-draft', kind: 'region', mode: 'add', title: 'Add Region', subtitle: 'New region' }))) {
+  const target = buildRegionCreateTarget();
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (!(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
     return;
   }
 
@@ -104,7 +110,9 @@ const openCreate = async (): Promise<void> => {
 };
 
 const openEdit = async (region: EditorRegion): Promise<void> => {
-  if (!region.capabilities.canEdit || !(await props.editorSurface.activateTarget({ key: 'region-draft', kind: 'region', mode: 'edit', title: `Edit Region - ${region.name}`, subtitle: 'Region details' }))) {
+  const target = buildRegionEditTarget(region);
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (!region.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
     return;
   }
 
@@ -133,7 +141,7 @@ const saveDraft = async (): Promise<void> => {
       : await createRegion(props.editorEndpoint, props.antiforgeryToken, request);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(draft, toRegionDraft(result.data));
-    await props.editorSurface.activateTarget(activeRegionTarget.value);
+    props.editorSurface.replaceActiveTarget(activeRegionTarget.value);
     markSaved();
   } catch (error) {
     applyError(error, 'Region save failed.');
@@ -164,10 +172,12 @@ const deleteDraftRegion = async (): Promise<void> => {
   isSaving.value = true;
   resetFeedback();
   try {
+    const deletedTarget = activeRegionTarget.value;
     const result = await deleteRegion(props.editorEndpoint, activeRegion.value.id, props.antiforgeryToken);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(draft, emptyRegionDraft());
     Object.assign(placeDraft, emptyPlaceDraft());
+    props.editorSurface.clearActiveTarget(deletedTarget);
     markSaved();
   } catch (error) {
     applyError(error, 'Region delete failed.');
@@ -203,7 +213,9 @@ const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> =
 };
 
 const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
-  if (region.isShadow || !(await props.editorSurface.activateTarget({ key: 'place-draft', kind: 'place', mode: 'add', title: 'Add Place', subtitle: region.name }))) {
+  const target = buildPlaceCreateTarget(region);
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (region.isShadow || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
     return;
   }
 
@@ -216,7 +228,9 @@ const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
 };
 
 const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
-  if (!place.capabilities.canEdit || !(await props.editorSurface.activateTarget({ key: 'place-draft', kind: 'place', mode: 'edit', title: `Edit Place - ${place.name}`, subtitle: props.state.regionsById[place.regionId]?.name }))) {
+  const target = buildPlaceEditTarget(place);
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (!place.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
     return;
   }
 
@@ -248,7 +262,7 @@ const savePlaceDraft = async (): Promise<void> => {
       : await createPlace(props.editorEndpoint, placeDraft.regionId, props.antiforgeryToken, withoutRegionId(request));
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(placeDraft, toPlaceDraft(result.data, result.data.regionId));
-    await props.editorSurface.activateTarget(activePlaceTarget.value);
+    props.editorSurface.replaceActiveTarget(activePlaceTarget.value);
     markSaved(result.warnings.map(warning => warning.message));
   } catch (error) {
     applyError(error, 'Place save failed.');
@@ -279,9 +293,11 @@ const deleteDraftPlace = async (): Promise<void> => {
   isSaving.value = true;
   resetFeedback();
   try {
+    const deletedTarget = activePlaceTarget.value;
     const result = await deletePlace(props.editorEndpoint, activePlace.value.id, props.antiforgeryToken);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(placeDraft, emptyPlaceDraft());
+    props.editorSurface.clearActiveTarget(deletedTarget);
     markSaved();
   } catch (error) {
     applyError(error, 'Place delete failed.');
@@ -345,6 +361,50 @@ function confirmUnload(event: BeforeUnloadEvent): void {
 
   event.preventDefault();
   event.returnValue = '';
+}
+
+function buildRegionCreateTarget(): EditorTarget {
+  return {
+    key: regionDraftKey,
+    identity: 'region:add',
+    kind: 'region',
+    mode: 'add',
+    title: 'Add Region',
+    subtitle: 'New region'
+  };
+}
+
+function buildRegionEditTarget(region: EditorRegion): EditorTarget {
+  return {
+    key: regionDraftKey,
+    identity: `region:edit:${region.id}`,
+    kind: 'region',
+    mode: 'edit',
+    title: `Edit Region - ${region.name}`,
+    subtitle: 'Region details'
+  };
+}
+
+function buildPlaceCreateTarget(region: EditorRegion): EditorTarget {
+  return {
+    key: placeDraftKey,
+    identity: `place:add:${region.id}`,
+    kind: 'place',
+    mode: 'add',
+    title: 'Add Place',
+    subtitle: region.name
+  };
+}
+
+function buildPlaceEditTarget(place: EditorPlace): EditorTarget {
+  return {
+    key: placeDraftKey,
+    identity: `place:edit:${place.id}`,
+    kind: 'place',
+    mode: 'edit',
+    title: `Edit Place - ${place.name}`,
+    subtitle: props.state.regionsById[place.regionId]?.name
+  };
 }
 
 function discardRegionDraft(): void {

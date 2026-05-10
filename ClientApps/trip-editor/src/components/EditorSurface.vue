@@ -9,8 +9,8 @@ const props = defineProps<{
 }>();
 
 const closeButton = ref<HTMLButtonElement | null>(null);
-const titleId = computed(() => `trip-editor-surface-title-${props.target.key.replace(/[^a-z0-9_-]/gi, '-')}`);
-const isActive = computed(() => props.controller.activeTarget.value?.key === props.target.key);
+const titleId = computed(() => `trip-editor-surface-title-${props.target.identity.replace(/[^a-z0-9_-]/gi, '-')}`);
+const isActive = computed(() => props.controller.isTargetActive(props.target));
 const isDocked = computed(() => isActive.value && props.controller.surfaceMode.value === 'docked');
 const isExpanded = computed(() => isActive.value && props.controller.surfaceMode.value === 'expanded');
 
@@ -34,7 +34,7 @@ watch(isExpanded, async expanded => {
       </div>
       <div class="trip-editor-surface__controls">
         <span class="trip-editor-save-state">{{ statusText }}</span>
-        <button type="button" class="btn btn-outline-light btn-sm" @click="controller.expand(target.key)">Expand Editor</button>
+        <button type="button" class="btn btn-outline-light btn-sm" @click="controller.expand(target)">Expand Editor</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
       </div>
     </header>
@@ -55,7 +55,7 @@ watch(isExpanded, async expanded => {
       v-if="controller.surfaceMode.value === 'expanded'"
       type="button"
       class="btn btn-outline-light btn-sm"
-      @click="controller.dock(target.key)"
+      @click="controller.dock(target)"
     >
       Dock to sidebar
     </button>
@@ -73,7 +73,7 @@ watch(isExpanded, async expanded => {
           </div>
           <div class="trip-editor-surface__controls">
             <span class="trip-editor-save-state">{{ statusText }}</span>
-            <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target.key)">Dock to sidebar</button>
+            <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">Dock to sidebar</button>
             <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
           </div>
         </header>

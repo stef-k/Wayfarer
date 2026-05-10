@@ -7,6 +7,7 @@ export type EditorTargetMode = 'edit' | 'add';
 
 export interface EditorTarget {
   key: string;
+  identity: string;
   kind: EditorTargetKind;
   mode: EditorTargetMode;
   title: string;
@@ -22,6 +23,7 @@ export interface MapWorkOptions {
   modeName: string;
   instruction: string;
   statusText?: string;
+  isDirty?: () => boolean;
   snapshot: () => unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -34,6 +36,7 @@ interface ActiveMapWork {
   modeName: string;
   instruction: string;
   statusText: string;
+  isDirty: () => boolean;
   snapshot: unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -56,12 +59,14 @@ export function useEditorSurface() {
     surfaceMode: readonly(surfaceMode),
     activateTarget,
     cancelMapWork,
+    clearActiveTarget,
     closeActiveTarget,
     dock,
     expand,
     enterMapWork,
     finishMapWork,
     isTargetActive,
+    replaceActiveTarget,
     registerTargetHandler
   };
 }
@@ -78,10 +83,15 @@ export function registerTargetHandler(targetKey: string, handler: EditorTargetHa
 }
 
 export async function activateTarget(target: EditorTarget): Promise<boolean> {
-  if (activeTarget.value?.key === target.key) {
+  if (isSameConcreteTarget(activeTarget.value, target)) {
     activeTarget.value = target;
+    if (mapWork.value) {
+      mapWork.value = { ...mapWork.value, target };
+    }
     return true;
   }
+
+  await cancelActiveMapWork();
 
   if (!(await discardActiveTarget('Discard unsaved changes before switching editors?'))) {
     return false;
@@ -89,35 +99,53 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
 
   activeTarget.value = target;
   surfaceMode.value = 'docked';
-  mapWork.value = null;
   return true;
 }
 
 export async function closeActiveTarget(message = 'Discard unsaved changes and close this editor?'): Promise<boolean> {
+  await cancelActiveMapWork();
+
   if (!(await discardActiveTarget(message))) {
     return false;
   }
 
   activeTarget.value = null;
   surfaceMode.value = 'docked';
-  mapWork.value = null;
   return true;
 }
 
-export function expand(targetKey: string): void {
-  if (activeTarget.value?.key === targetKey && surfaceMode.value !== 'map-work') {
+export function clearActiveTarget(target?: EditorTarget): void {
+  if (target && !isSameConcreteTarget(activeTarget.value, target)) {
+    return;
+  }
+
+  activeTarget.value = null;
+  surfaceMode.value = 'docked';
+  mapWork.value = null;
+}
+
+/// Re-labels the open editor after a successful save changes an add draft into an edit draft.
+export function replaceActiveTarget(target: EditorTarget): void {
+  activeTarget.value = target;
+  if (mapWork.value) {
+    mapWork.value = { ...mapWork.value, target };
+  }
+}
+
+export function expand(target: EditorTarget): void {
+  if (isSameConcreteTarget(activeTarget.value, target) && surfaceMode.value !== 'map-work') {
     surfaceMode.value = 'expanded';
   }
 }
 
-export function dock(targetKey?: string): void {
-  if (!targetKey || activeTarget.value?.key === targetKey) {
+export function dock(target?: EditorTarget): void {
+  if (!target || isSameConcreteTarget(activeTarget.value, target)) {
     surfaceMode.value = 'docked';
   }
 }
 
-export function isTargetActive(targetKey: string): boolean {
-  return activeTarget.value?.key === targetKey;
+export function isTargetActive(target: EditorTarget): boolean {
+  return isSameConcreteTarget(activeTarget.value, target);
 }
 
 export function enterMapWork(options: MapWorkOptions): boolean {
@@ -131,6 +159,7 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     modeName: options.modeName,
     instruction: options.instruction,
     statusText: options.statusText ?? 'Map work active',
+    isDirty: options.isDirty ?? (() => true),
     snapshot: options.snapshot(),
     rollback: options.rollback,
     done: options.done,
@@ -153,16 +182,108 @@ export async function finishMapWork(): Promise<void> {
 }
 
 export async function cancelMapWork(): Promise<void> {
+  await cancelActiveMapWork();
+}
+
+/// Runs map-work callbacks against isolated surface state without rendering editor controls.
+export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Promise<{
+  activeTargetPreserved: boolean;
+  cancelCalled: boolean;
+  doneCalled: boolean;
+  instruction: string | null;
+  modeName: string | null;
+  previousSurface: EditorSurfaceMode | null;
+  rollbackValue: unknown;
+  returnedToPreviousSurface: boolean;
+  statusText: string | null;
+}> {
+  const target: EditorTarget = {
+    key: 'metadata',
+    identity: 'metadata',
+    kind: 'metadata',
+    mode: 'edit',
+    title: 'Map work verification'
+  };
+  const savedActiveTarget = activeTarget.value;
+  const savedMapWork = mapWork.value;
+  const savedSurfaceMode = surfaceMode.value;
+  let cancelCalled = false;
+  let doneCalled = false;
+  let rollbackValue: unknown = null;
+
+  activeTarget.value = target;
+  surfaceMode.value = 'expanded';
+  enterMapWork({
+    modeName: 'Verify map work',
+    instruction: 'Exercise the shared map-work lifecycle.',
+    isDirty: () => options?.dirty ?? true,
+    snapshot: () => 'map-work-snapshot',
+    rollback: snapshot => {
+      rollbackValue = snapshot;
+    },
+    done: () => {
+      doneCalled = true;
+    },
+    cancel: () => {
+      cancelCalled = true;
+    }
+  });
+
+  const work = mapWork.value;
+  const activeTargetPreserved = isSameConcreteTarget(activeTarget.value, target) && isSameConcreteTarget(work?.target ?? null, target);
+  await finishMapWork();
+  enterMapWork({
+    modeName: 'Verify map work',
+    instruction: 'Exercise map-work cancel and rollback.',
+    isDirty: () => options?.dirty ?? true,
+    snapshot: () => 'map-work-snapshot',
+    rollback: snapshot => {
+      rollbackValue = snapshot;
+    },
+    done: () => {
+      doneCalled = true;
+    },
+    cancel: () => {
+      cancelCalled = true;
+    }
+  });
+  await cancelMapWork();
+
+  const returnedToPreviousSurface = surfaceMode.value === 'expanded';
+  activeTarget.value = savedActiveTarget;
+  mapWork.value = savedMapWork;
+  surfaceMode.value = savedSurfaceMode;
+
+  return {
+    activeTargetPreserved,
+    cancelCalled,
+    doneCalled,
+    instruction: work?.instruction ?? null,
+    modeName: work?.modeName ?? null,
+    previousSurface: work?.previousSurface ?? null,
+    rollbackValue,
+    returnedToPreviousSurface,
+    statusText: work?.statusText ?? null
+  };
+}
+
+async function cancelActiveMapWork(): Promise<void> {
   if (!mapWork.value) {
     return;
   }
 
   const work = mapWork.value;
-  work.rollback(work.snapshot);
+  if (work.isDirty()) {
+    work.rollback(work.snapshot);
+  }
   await work.cancel?.();
   surfaceMode.value = work.previousSurface;
   activeTarget.value = work.target;
   mapWork.value = null;
+}
+
+function isSameConcreteTarget(current: EditorTarget | null, next: EditorTarget | null): boolean {
+  return current !== null && next !== null && current.identity === next.identity;
 }
 
 async function discardActiveTarget(message: string): Promise<boolean> {
