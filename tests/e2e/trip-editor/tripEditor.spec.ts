@@ -349,4 +349,3 @@ async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
 async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
-
