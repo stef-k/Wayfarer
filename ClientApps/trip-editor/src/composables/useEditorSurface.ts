@@ -91,7 +91,9 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
     return true;
   }
 
-  await cancelActiveMapWork();
+  if (!(await cancelActiveMapWork())) {
+    return false;
+  }
 
   if (!(await discardActiveTarget('Discard unsaved changes before switching editors?'))) {
     return false;
@@ -103,7 +105,9 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
 }
 
 export async function closeActiveTarget(message = 'Discard unsaved changes and close this editor?'): Promise<boolean> {
-  await cancelActiveMapWork();
+  if (!(await cancelActiveMapWork())) {
+    return false;
+  }
 
   if (!(await discardActiveTarget(message))) {
     return false;
@@ -181,14 +185,17 @@ export async function finishMapWork(): Promise<void> {
   mapWork.value = null;
 }
 
-export async function cancelMapWork(): Promise<void> {
-  await cancelActiveMapWork();
+export async function cancelMapWork(): Promise<boolean> {
+  return await cancelActiveMapWork();
 }
 
 /// Runs map-work callbacks against isolated surface state without rendering editor controls.
 export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Promise<{
   activeTargetPreserved: boolean;
   cancelCalled: boolean;
+  cancelRejected: boolean;
+  dirtyCancelPrompted: boolean;
+  mapWorkPreservedAfterRejectedCancel: boolean;
   doneCalled: boolean;
   instruction: string | null;
   modeName: string | null;
@@ -208,7 +215,10 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
   const savedMapWork = mapWork.value;
   const savedSurfaceMode = surfaceMode.value;
   let cancelCalled = false;
+  let cancelRejected = false;
+  let dirtyCancelPrompted = false;
   let doneCalled = false;
+  let mapWorkPreservedAfterRejectedCancel = false;
   let rollbackValue: unknown = null;
 
   activeTarget.value = target;
@@ -247,7 +257,19 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
       cancelCalled = true;
     }
   });
-  await cancelMapWork();
+  cancelRejected = !(await cancelActiveMapWork({
+    confirmDirty: async () => {
+      dirtyCancelPrompted = true;
+      return false;
+    }
+  }));
+  mapWorkPreservedAfterRejectedCancel = mapWork.value !== null && surfaceMode.value === 'map-work';
+  await cancelActiveMapWork({
+    confirmDirty: async () => {
+      dirtyCancelPrompted = true;
+      return true;
+    }
+  });
 
   const returnedToPreviousSurface = surfaceMode.value === 'expanded';
   activeTarget.value = savedActiveTarget;
@@ -257,6 +279,9 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
   return {
     activeTargetPreserved,
     cancelCalled,
+    cancelRejected,
+    dirtyCancelPrompted,
+    mapWorkPreservedAfterRejectedCancel,
     doneCalled,
     instruction: work?.instruction ?? null,
     modeName: work?.modeName ?? null,
@@ -267,19 +292,31 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
   };
 }
 
-async function cancelActiveMapWork(): Promise<void> {
+async function cancelActiveMapWork(options?: { confirmDirty?: () => Promise<boolean> }): Promise<boolean> {
   if (!mapWork.value) {
-    return;
+    return true;
   }
 
   const work = mapWork.value;
   if (work.isDirty()) {
+    const confirmed = await (options?.confirmDirty?.() ?? confirm({
+      title: 'Discard map editing changes?',
+      message: 'Your temporary map edits will be discarded.',
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+      variant: 'warning'
+    }));
+    if (!confirmed) {
+      return false;
+    }
+
     work.rollback(work.snapshot);
   }
   await work.cancel?.();
   surfaceMode.value = work.previousSurface;
   activeTarget.value = work.target;
   mapWork.value = null;
+  return true;
 }
 
 function isSameConcreteTarget(current: EditorTarget | null, next: EditorTarget | null): boolean {
