@@ -155,6 +155,11 @@ public sealed class TripEditorAreaControllerTests : TestBase
         """);
         var geometry = await SendJson(controller, c => c.UpdateAreaGeometry(trip.Id, area.Id, CancellationToken.None), $$"""
         {
+          "id": "00000000-0000-0000-0000-000000000011",
+          "tripId": "00000000-0000-0000-0000-000000000012",
+          "regionId": "00000000-0000-0000-0000-000000000013",
+          "displayOrder": 77,
+          "capabilities": {},
           "name": "Nope",
           "notesHtml": "",
           "fillHex": "#ffffff",
@@ -169,7 +174,7 @@ public sealed class TripEditorAreaControllerTests : TestBase
         }
 
         var geometryProblem = AssertValidationProblem(geometry);
-        foreach (var key in new[] { "name", "notesHtml", "fillHex" })
+        foreach (var key in new[] { "id", "tripId", "regionId", "displayOrder", "capabilities", "name", "notesHtml", "fillHex" })
         {
             Assert.Contains(key, geometryProblem.Errors.Keys);
         }
@@ -195,20 +200,33 @@ public sealed class TripEditorAreaControllerTests : TestBase
         Assert.Contains(AssertValidationProblem(result).Errors.Keys, key => key.StartsWith("geometry", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData("""{ "areaIds": [] }""")]
-    [InlineData("""{ "areaIds": [ "00000000-0000-0000-0000-000000000001" ] }""")]
-    public async Task OrderAreasRejectsMissingDuplicateUnknownAndCrossRegionIds(string body)
+    [Fact]
+    public async Task OrderAreasRejectsMissingDuplicateUnknownCrossRegionAndCrossTripIds()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
         var region = trip.Regions.Single(r => r.Name == "Athens");
+        var currentArea = region.Areas.Single();
+        var crossRegionArea = trip.Regions.Single(r => r.Name == "Other").Areas.Single();
+        var otherTrip = SeedTripGraph(db, "other-user");
+        var crossTripArea = otherTrip.Regions.Single(r => r.Name == "Athens").Areas.Single();
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.OrderAreas(trip.Id, region.Id, CancellationToken.None), body);
+        var bodies = new[]
+        {
+            """{ "areaIds": [] }""",
+            $$"""{ "areaIds": [ "{{currentArea.Id}}", "{{currentArea.Id}}" ] }""",
+            """{ "areaIds": [ "00000000-0000-0000-0000-000000000001" ] }""",
+            $$"""{ "areaIds": [ "{{crossRegionArea.Id}}" ] }""",
+            $$"""{ "areaIds": [ "{{crossTripArea.Id}}" ] }"""
+        };
 
-        Assert.Contains("areaIds", AssertValidationProblem(result).Errors.Keys);
+        foreach (var body in bodies)
+        {
+            var result = await SendJson(controller, c => c.OrderAreas(trip.Id, region.Id, CancellationToken.None), body);
+            Assert.Contains("areaIds", AssertValidationProblem(result).Errors.Keys);
+        }
     }
 
     private static Trip SeedTripGraph(ApplicationDbContext db, string userId)

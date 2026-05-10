@@ -1,7 +1,9 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
-import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, GeoJsonPolygon, Guid } from '../types';
+import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
+import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
+export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 
 export type FitAllGeometryResult = 'moved' | 'no-geometry';
 export type FocusSavedTripViewResult = 'moved' | 'missing-view';
@@ -59,12 +61,6 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
 export interface CoordinatePickOptions {
   initialCoordinate: EditorCoordinate | null;
   onPicked: (coordinate: EditorCoordinate) => void;
-}
-
-export interface AreaPolygonWorkOptions {
-  initialGeometry: GeoJsonPolygon | null;
-  fillHex: string;
-  onChanged: (geometry: GeoJsonPolygon | null) => void;
 }
 
 const createCoordinatePickLayer = (map: LeafletMap): {
@@ -167,83 +163,6 @@ const createCoordinatePickLayer = (map: LeafletMap): {
     isActive: () => clickHandler !== null,
     pick,
     registerMarker,
-    start,
-    stop
-  };
-};
-
-const createAreaPolygonWorkLayer = (map: LeafletMap): {
-  dispose: () => void;
-  start: (options: AreaPolygonWorkOptions) => () => void;
-  stop: () => void;
-} => {
-  const layer = L.layerGroup().addTo(map);
-  let clickHandler: ((event: LeafletMouseEvent) => void) | null = null;
-  let polygon: L.Polygon | null = null;
-  let points: L.LatLng[] = [];
-  let options: AreaPolygonWorkOptions | null = null;
-
-  const redraw = (): void => {
-    layer.clearLayers();
-    polygon = null;
-    if (points.length === 0) {
-      options?.onChanged(null);
-      return;
-    }
-
-    polygon = L.polygon(points, {
-      color: options?.fillHex ?? '#ff6600',
-      fillColor: options?.fillHex ?? '#ff6600',
-      fillOpacity: 0.25,
-      weight: 2
-    }).addTo(layer);
-    points.forEach(point => {
-      L.circleMarker(point, {
-        radius: 4,
-        color: '#111827',
-        fillColor: '#ffffff',
-        fillOpacity: 1,
-        interactive: false
-      }).addTo(layer);
-    });
-    options?.onChanged(points.length >= 3 ? latLngsToPolygon(points) : null);
-  };
-
-  const stop = (): void => {
-    if (clickHandler) {
-      map.off('click', clickHandler);
-      clickHandler = null;
-    }
-
-    layer.clearLayers();
-    polygon = null;
-    points = [];
-    options = null;
-  };
-
-  const start = (workOptions: AreaPolygonWorkOptions): (() => void) => {
-    stop();
-    options = workOptions;
-    points = polygonToLatLngs(workOptions.initialGeometry);
-    redraw();
-    if (polygon?.getBounds().isValid()) {
-      map.fitBounds(polygon.getBounds(), { padding: [32, 32], maxZoom: 14 });
-    }
-
-    clickHandler = event => {
-      if (event.originalEvent) {
-        L.DomEvent.stop(event.originalEvent);
-      }
-
-      points.push(event.latlng);
-      redraw();
-    };
-    map.on('click', clickHandler);
-    return stop;
-  };
-
-  return {
-    dispose: stop,
     start,
     stop
   };
@@ -529,17 +448,6 @@ const escapeHtml = (value: string): string =>
     '"': '&quot;',
     "'": '&#39;'
   })[character] ?? character);
-
-const polygonToLatLngs = (geometry: GeoJsonPolygon | null): L.LatLng[] => {
-  const exterior = geometry?.coordinates?.[0] ?? [];
-  return exterior.slice(0, -1).map(([longitude, latitude]) => L.latLng(latitude, longitude));
-};
-
-const latLngsToPolygon = (latLngs: L.LatLng[]): GeoJsonPolygon => {
-  const ring = latLngs.map(point => [point.lng, point.lat] as [number, number]);
-  ring.push([latLngs[0].lng, latLngs[0].lat]);
-  return { type: 'Polygon', coordinates: [ring] };
-};
 
 declare global {
   interface Window {

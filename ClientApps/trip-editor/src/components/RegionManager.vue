@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { createPlace, createRegion, deletePlace, deleteRegion, orderPlaces, orderRegions, updatePlace, updateRegion } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import PlaceEditorSurface from './PlaceEditorSurface.vue';
 import AreaEditorSurface from './AreaEditorSurface.vue';
 import RegionEditorSurface from './RegionEditorSurface.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
-import { buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, areaDraftKey, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
-import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toAreaDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
+import { areaDraftKey, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
+import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toAreaDraft, toPlaceDraft, toRegionDraft } from './regionPlaceDrafts';
 import { stopAreaPolygonEdit, type AreaPolygonEditor, type AreaPolygonMapWorkState } from './areaPolygonMapWork';
 import { useAreaEditorActions } from './areaEditorActions';
-import { beginPlaceCoordinateMapWork, stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
+import { usePlaceEditorActions } from './placeEditorActions';
+import { useRegionEditorActions } from './regionEditorActions';
+import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { useEditorMutationFeedback } from './useEditorMutationFeedback';
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
@@ -146,6 +147,49 @@ const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, sa
   placeFields,
   regionFields
 });
+const { cancelDraft, deleteDraftRegion, openCreate, openEdit, reorderRegions, resetDraft, saveDraft } = useRegionEditorActions({
+  activeRegion,
+  activeRegionTarget,
+  applyError,
+  areaCreateBaselineRequest,
+  areaDraft,
+  clearAllDraftsAndBaselines,
+  confirmDiscard,
+  draft,
+  emit,
+  isDirty,
+  isOrdering,
+  isSaving,
+  markSaved,
+  placeCreateBaselineRequest,
+  placeDraft,
+  props,
+  regionCreateBaselineRequest,
+  resetFeedback,
+  restoreRegionOrder
+});
+const { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceEdit, pickPlaceCoordinate, reorderPlaces, resetPlaceDraft, savePlaceDraft } = usePlaceEditorActions({
+  activePlace,
+  activePlaceTarget,
+  applyError,
+  areaCreateBaselineRequest,
+  areaDraft,
+  clearAllDraftsAndBaselines,
+  confirmDiscard,
+  draft,
+  emit,
+  isDirty,
+  isOrdering,
+  isSaving,
+  markSaved,
+  placeCoordinateMapWork,
+  placeCreateBaselineRequest,
+  placeDraft,
+  props,
+  regionCreateBaselineRequest,
+  resetFeedback,
+  restoreRegionOrder
+});
 const { cancelAreaDraft, deleteDraftArea, drawAreaPolygon, openAreaCreate, openAreaEdit, reorderAreas, resetAreaDraft, saveAreaDraft } = useAreaEditorActions({
   activeArea,
   activeAreaTarget,
@@ -198,289 +242,6 @@ onUnmounted(() => {
   emit('dirtyStateChanged', false);
   window.removeEventListener('beforeunload', confirmUnload);
 });
-
-const openCreate = async (): Promise<void> => {
-  const target = buildRegionCreateTarget();
-  const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (!(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-    return;
-  }
-
-  Object.assign(draft, emptyRegionDraft());
-  Object.assign(placeDraft, emptyPlaceDraft());
-  Object.assign(areaDraft, emptyAreaDraft());
-  draft.name = 'New Region';
-  regionCreateBaselineRequest.value = buildRegionRequest(draft);
-  placeCreateBaselineRequest.value = null;
-  areaCreateBaselineRequest.value = null;
-  resetFeedback();
-};
-
-const openEdit = async (region: EditorRegion): Promise<void> => {
-  const target = buildRegionEditTarget(region);
-  const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (!region.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-    return;
-  }
-
-  Object.assign(placeDraft, emptyPlaceDraft());
-  Object.assign(areaDraft, emptyAreaDraft());
-  Object.assign(draft, toRegionDraft(region));
-  regionCreateBaselineRequest.value = null;
-  placeCreateBaselineRequest.value = null;
-  areaCreateBaselineRequest.value = null;
-  resetFeedback();
-};
-
-const resetDraft = (): void => {
-  if (!draft.id) {
-    Object.assign(draft, emptyRegionDraft());
-    draft.name = 'New Region';
-  } else {
-    Object.assign(draft, toRegionDraft(activeRegion.value));
-  }
-  resetFeedback();
-};
-
-const cancelDraft = async (): Promise<void> => {
-  await props.editorSurface.closeActiveTarget('Discard unsaved region changes?');
-};
-
-const saveDraft = async (): Promise<void> => {
-  isSaving.value = true;
-  resetFeedback();
-
-  try {
-    const request = buildRegionRequest(draft);
-    const result = draft.id
-      ? await updateRegion(props.editorEndpoint, draft.id, props.antiforgeryToken, request)
-      : await createRegion(props.editorEndpoint, props.antiforgeryToken, request);
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(draft, toRegionDraft(result.data));
-    regionCreateBaselineRequest.value = null;
-    props.editorSurface.replaceActiveTarget(activeRegionTarget.value);
-    markSaved();
-  } catch (error) {
-    applyError(error, 'Region save failed.');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const deleteDraftRegion = async (): Promise<void> => {
-  if (!activeRegion.value || !activeRegion.value.capabilities.canDelete) {
-    return;
-  }
-
-  if (!(await confirmDiscard('Discard unsaved region or place draft changes before deleting?'))) {
-    return;
-  }
-
-  if (!(await confirm({
-    title: 'Delete region?',
-    message: 'Delete this region, its child places and areas, and any segments connected to deleted places?',
-    confirmLabel: 'Delete',
-    cancelLabel: 'Keep region',
-    variant: 'danger'
-  }))) {
-    return;
-  }
-
-  isSaving.value = true;
-  resetFeedback();
-  try {
-    const deletedTarget = activeRegionTarget.value;
-    const result = await deleteRegion(props.editorEndpoint, activeRegion.value.id, props.antiforgeryToken);
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(draft, emptyRegionDraft());
-    Object.assign(placeDraft, emptyPlaceDraft());
-    Object.assign(areaDraft, emptyAreaDraft());
-    regionCreateBaselineRequest.value = null;
-    placeCreateBaselineRequest.value = null;
-    areaCreateBaselineRequest.value = null;
-    props.editorSurface.clearActiveTarget(deletedTarget);
-    markSaved();
-  } catch (error) {
-    applyError(error, 'Region delete failed.');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
-  if (isDirty.value && !(await confirmDiscard('Discard unsaved draft changes before reordering?'))) {
-    await restoreRegionOrder(previousIds);
-    return;
-  }
-
-  if (isDirty.value) {
-    Object.assign(draft, emptyRegionDraft());
-    Object.assign(placeDraft, emptyPlaceDraft());
-    Object.assign(areaDraft, emptyAreaDraft());
-    regionCreateBaselineRequest.value = null;
-    placeCreateBaselineRequest.value = null;
-    areaCreateBaselineRequest.value = null;
-  }
-
-  isOrdering.value = true;
-  resetFeedback();
-  try {
-    const result = await orderRegions(props.editorEndpoint, props.antiforgeryToken, { regionIds: ids });
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(draft, emptyRegionDraft());
-    markSaved();
-  } catch (error) {
-    applyError(error, 'Region reorder failed.');
-    await restoreRegionOrder(previousIds);
-  } finally {
-    isOrdering.value = false;
-  }
-};
-
-const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
-  const target = buildPlaceCreateTarget(region);
-  const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (region.isShadow || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-    return;
-  }
-
-  Object.assign(draft, emptyRegionDraft());
-  Object.assign(placeDraft, emptyPlaceDraft(region.id));
-  Object.assign(areaDraft, emptyAreaDraft());
-  placeDraft.name = 'New Place';
-  placeDraft.iconName = props.state.options.iconNames[0] ?? 'marker';
-  placeDraft.markerColor = props.state.options.markerColorClasses[0] ?? 'bg-blue';
-  regionCreateBaselineRequest.value = null;
-  placeCreateBaselineRequest.value = buildPlaceRequest(placeDraft);
-  areaCreateBaselineRequest.value = null;
-  resetFeedback();
-};
-
-const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
-  const target = buildPlaceEditTarget(place, props.state.regionsById[place.regionId]?.name);
-  const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (!place.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-    return;
-  }
-
-  Object.assign(draft, emptyRegionDraft());
-  Object.assign(placeDraft, toPlaceDraft(place, place.regionId));
-  Object.assign(areaDraft, emptyAreaDraft());
-  regionCreateBaselineRequest.value = null;
-  placeCreateBaselineRequest.value = null;
-  areaCreateBaselineRequest.value = null;
-  resetFeedback();
-};
-
-const resetPlaceDraft = (): void => {
-  if (!placeDraft.id) {
-    const regionId = placeDraft.regionId;
-    Object.assign(placeDraft, emptyPlaceDraft(regionId));
-    placeDraft.name = 'New Place';
-    placeDraft.iconName = props.state.options.iconNames[0] ?? 'marker';
-    placeDraft.markerColor = props.state.options.markerColorClasses[0] ?? 'bg-blue';
-  } else {
-    Object.assign(placeDraft, toPlaceDraft(activePlace.value, placeDraft.regionId));
-  }
-  resetFeedback();
-};
-
-const cancelPlaceDraft = async (): Promise<void> => {
-  await props.editorSurface.closeActiveTarget('Discard unsaved place changes?');
-};
-
-const savePlaceDraft = async (): Promise<void> => {
-  if (!placeDraft.regionId) {
-    return;
-  }
-
-  isSaving.value = true;
-  resetFeedback();
-  try {
-    const request = buildPlaceRequest(placeDraft);
-    const result = placeDraft.id
-      ? await updatePlace(props.editorEndpoint, placeDraft.id, props.antiforgeryToken, request)
-      : await createPlace(props.editorEndpoint, placeDraft.regionId, props.antiforgeryToken, withoutRegionId(request));
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(placeDraft, toPlaceDraft(result.data, result.data.regionId));
-    placeCreateBaselineRequest.value = null;
-    props.editorSurface.replaceActiveTarget(activePlaceTarget.value);
-    markSaved(result.warnings.map(warning => warning.message));
-  } catch (error) {
-    applyError(error, 'Place save failed.');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-const pickPlaceCoordinate = (): void => beginPlaceCoordinateMapWork(placeDraft, props.editorSurface, props.coordinatePicker, placeCoordinateMapWork);
-
-const deleteDraftPlace = async (): Promise<void> => {
-  if (!activePlace.value) {
-    return;
-  }
-
-  if (!(await confirmDiscard('Discard unsaved place draft changes before deleting?'))) {
-    return;
-  }
-
-  if (!(await confirm({
-    title: 'Delete place?',
-    message: 'Delete this place and any segments connected to it?',
-    confirmLabel: 'Delete',
-    cancelLabel: 'Keep place',
-    variant: 'danger'
-  }))) {
-    return;
-  }
-
-  isSaving.value = true;
-  resetFeedback();
-  try {
-    const deletedTarget = activePlaceTarget.value;
-    const result = await deletePlace(props.editorEndpoint, activePlace.value.id, props.antiforgeryToken);
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    Object.assign(placeDraft, emptyPlaceDraft());
-    Object.assign(areaDraft, emptyAreaDraft());
-    placeCreateBaselineRequest.value = null;
-    areaCreateBaselineRequest.value = null;
-    props.editorSurface.clearActiveTarget(deletedTarget);
-    markSaved();
-  } catch (error) {
-    applyError(error, 'Place delete failed.');
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-async function reorderPlaces(regionId: Guid, ids: Guid[], previousIds: Guid[]): Promise<void> {
-  if (isDirty.value && !(await confirmDiscard('Discard unsaved draft changes before reordering places?'))) {
-    await restoreRegionOrder(previousIds);
-    return;
-  }
-
-  if (isDirty.value) {
-    Object.assign(draft, emptyRegionDraft());
-    Object.assign(placeDraft, emptyPlaceDraft());
-    Object.assign(areaDraft, emptyAreaDraft());
-    regionCreateBaselineRequest.value = null;
-    placeCreateBaselineRequest.value = null;
-    areaCreateBaselineRequest.value = null;
-  }
-
-  isOrdering.value = true;
-  resetFeedback();
-  try {
-    const result = await orderPlaces(props.editorEndpoint, regionId, props.antiforgeryToken, { placeIds: ids });
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    markSaved();
-  } catch (error) {
-    applyError(error, 'Place reorder failed.');
-    await restoreRegionOrder(previousIds);
-  } finally {
-    isOrdering.value = false;
-  }
-}
 
 /// Rebuilds the Sortable-mutated list from persisted Vue state after canceled or failed reorder.
 async function restoreRegionOrder(_previousIds: string[]): Promise<void> {
