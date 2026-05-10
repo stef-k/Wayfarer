@@ -103,6 +103,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
             Mock.Of<ITripTagService>(),
             new TripEditorRegionMutationService(db),
             new TripEditorPlaceMutationService(db, environment, iconColorProvider, reverseGeocodingService ?? new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
+            new TripEditorAreaMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
     }
 

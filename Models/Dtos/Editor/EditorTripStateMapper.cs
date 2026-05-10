@@ -143,7 +143,10 @@ public static class EditorTripStateMapper
             visitSummary,
             EditableLeafCapabilities());
 
-    private static EditorAreaDto ToArea(Guid tripId, Guid regionId, Area area) =>
+    /// <summary>
+    /// Maps an area into the editor area contract.
+    /// </summary>
+    public static EditorAreaDto ToArea(Guid tripId, Guid regionId, Area area) =>
         new(
             area.Id,
             tripId,

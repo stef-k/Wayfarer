@@ -86,6 +86,31 @@ public sealed record EditorPlaceOrderResult(Guid RegionId, IReadOnlyList<Guid> P
 public sealed record EditorPlaceDeleteResult(Guid PlaceId);
 
 /// <summary>
+/// Complete-draft request for creating or updating an area from the same-origin editor.
+/// </summary>
+public sealed record EditorAreaSaveRequest(string Name, string? NotesHtml, string FillHex, NetTopologySuite.Geometries.Polygon Geometry);
+
+/// <summary>
+/// Geometry-only request for replacing an area polygon.
+/// </summary>
+public sealed record EditorAreaGeometryUpdateRequest(NetTopologySuite.Geometries.Polygon Geometry);
+
+/// <summary>
+/// Complete desired area order for one normal editor region.
+/// </summary>
+public sealed record EditorAreaOrderRequest(IReadOnlyList<Guid> AreaIds);
+
+/// <summary>
+/// Area order data returned by the area order endpoint.
+/// </summary>
+public sealed record EditorAreaOrderResult(Guid RegionId, IReadOnlyList<Guid> AreaOrder);
+
+/// <summary>
+/// Area delete data returned by the area delete endpoint.
+/// </summary>
+public sealed record EditorAreaDeleteResult(Guid AreaId);
+
+/// <summary>
 /// Standard success envelope returned by editor mutation endpoints.
 /// </summary>
 public sealed record EditorMutationResult<TData>(
