@@ -13,9 +13,13 @@ declare global {
 const props = defineProps<{
   activePlaceId: Guid | null;
   activeRegionId: Guid | null;
+  areaIdsByRegionId: Record<Guid, Guid[]>;
+  forceExpandedRegionIds: Set<Guid>;
   isOrdering: boolean;
   isSaving: boolean;
+  placeIdsByRegionId: Record<Guid, Guid[]>;
   regions: EditorRegion[];
+  searchActive: boolean;
   state: EditorTripState;
 }>();
 
@@ -29,16 +33,32 @@ const emit = defineEmits<{
 
 const regionList = ref<HTMLElement | null>(null);
 const collapsedRegionIds = ref<Set<Guid>>(new Set());
+const searchCollapsedSnapshot = ref<Set<Guid> | null>(null);
 const placeSortables = new Map<string, { destroy: () => void }>();
 let sortable: { destroy: () => void } | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
 let placeReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 
 watch(
-  () => `${props.regions.map(region => region.id).join('|')}|${Object.entries(props.state.placeOrderByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
+  () => `${props.searchActive}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
   async () => {
     await nextTick();
     attachSortables();
+  }
+);
+
+watch(
+  () => props.searchActive,
+  value => {
+    if (value) {
+      searchCollapsedSnapshot.value = new Set(collapsedRegionIds.value);
+      return;
+    }
+
+    if (searchCollapsedSnapshot.value) {
+      collapsedRegionIds.value = new Set(searchCollapsedSnapshot.value);
+      searchCollapsedSnapshot.value = null;
+    }
   }
 );
 
@@ -57,7 +77,7 @@ function attachSortables(): void {
 function attachRegionSortable(): void {
   sortable?.destroy();
   sortable = null;
-  if (!regionList.value || !window.Sortable) {
+  if (props.searchActive || !regionList.value || !window.Sortable) {
     return;
   }
 
@@ -85,7 +105,7 @@ function attachRegionSortable(): void {
 
 function attachPlaceSortables(): void {
   destroyPlaceSortables();
-  if (!window.Sortable) {
+  if (props.searchActive || !window.Sortable) {
     return;
   }
 
@@ -120,18 +140,26 @@ function normalRegionIds(): Guid[] {
 }
 
 function orderedPlaces(regionId: Guid): EditorPlace[] {
-  return (props.state.placeOrderByRegionId[regionId] ?? []).map(id => props.state.placesById[id]).filter(Boolean) as EditorPlace[];
+  return (props.placeIdsByRegionId[regionId] ?? []).map(id => props.state.placesById[id]).filter(Boolean) as EditorPlace[];
 }
 
 function orderedAreas(regionId: Guid): EditorArea[] {
-  return (props.state.areaOrderByRegionId[regionId] ?? []).map(id => props.state.areasById[id]).filter(Boolean) as EditorArea[];
+  return (props.areaIdsByRegionId[regionId] ?? []).map(id => props.state.areasById[id]).filter(Boolean) as EditorArea[];
 }
 
 function isCollapsed(regionId: Guid): boolean {
+  if (props.forceExpandedRegionIds.has(regionId)) {
+    return false;
+  }
+
   return collapsedRegionIds.value.has(regionId);
 }
 
 function toggleRegion(regionId: Guid): void {
+  if (props.searchActive) {
+    return;
+  }
+
   const next = new Set(collapsedRegionIds.value);
   if (next.has(regionId)) {
     next.delete(regionId);
@@ -164,6 +192,7 @@ function toggleRegion(regionId: Guid): void {
           class="trip-editor-icon-button trip-editor-drag-handle"
           title="Drag to reorder region"
           aria-label="Drag to reorder region"
+          :disabled="props.searchActive"
         >
           <span aria-hidden="true">::</span>
         </button>
@@ -177,6 +206,7 @@ function toggleRegion(regionId: Guid): void {
             class="btn btn-outline-light btn-sm"
             :aria-expanded="!isCollapsed(region.id)"
             :aria-controls="`trip-editor-region-children-${region.id}`"
+            :disabled="props.searchActive"
             @click="toggleRegion(region.id)"
           >
             {{ isCollapsed(region.id) ? 'Expand' : 'Collapse' }}
@@ -200,6 +230,7 @@ function toggleRegion(regionId: Guid): void {
               class="trip-editor-icon-button trip-editor-place-drag-handle"
               title="Drag to reorder place"
               aria-label="Drag to reorder place"
+              :disabled="props.searchActive"
             >
               <span aria-hidden="true">::</span>
             </button>

@@ -267,6 +267,18 @@ body {
   gap: 0.4rem;
 }
 
+.trip-editor-sidebar-search {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.trip-editor-empty-state {
+  background: var(--trip-editor-surface-muted);
+  border: 1px solid var(--trip-editor-border);
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
+}
+
 .trip-editor-region-list,
 .trip-editor-region-form {
   display: grid;

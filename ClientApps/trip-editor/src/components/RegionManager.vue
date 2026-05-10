@@ -16,6 +16,10 @@ const props = defineProps<{
   editorSurface: EditorSurfaceController;
   editorEndpoint: string;
   antiforgeryToken: string;
+  searchActive: boolean;
+  searchRegions: EditorRegion[];
+  searchPlaceIdsByRegionId: Record<Guid, Guid[]>;
+  searchAreaIdsByRegionId: Record<Guid, Guid[]>;
 }>();
 
 const emit = defineEmits<{
@@ -46,6 +50,33 @@ const regionDirty = computed(() => JSON.stringify(buildRegionRequest(draft)) !==
 const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(placeBaselineRequest.value));
 const isDirty = computed(() => regionDirty.value || placeDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
+const renderedRegions = computed(() => {
+  const regions = props.searchActive ? [...props.searchRegions] : [...orderedRegions.value];
+  const included = new Set(regions.map(region => region.id));
+
+  for (const region of activeContextRegions()) {
+    if (!included.has(region.id)) {
+      regions.push(region);
+      included.add(region.id);
+    }
+  }
+
+  return regions;
+});
+const renderedPlaceIdsByRegionId = computed(() => {
+  if (!props.searchActive) {
+    return props.state.placeOrderByRegionId;
+  }
+
+  const result = cloneIdRecord(props.searchPlaceIdsByRegionId);
+  if (activePlace.value) {
+    pushUnique(result, activePlace.value.regionId, activePlace.value.id);
+  }
+
+  return result;
+});
+const renderedAreaIdsByRegionId = computed(() => (props.searchActive ? props.searchAreaIdsByRegionId : props.state.areaOrderByRegionId));
+const forcedExpandedRegionIds = computed(() => new Set(props.searchActive ? renderedRegions.value.map(region => region.id) : []));
 const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(toRegionDraft(activeRegion.value)) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
 const placeBaselineRequest = computed(() => placeDraft.id ? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
 const activeRegionTarget = computed<EditorTarget>(() => ({
@@ -372,6 +403,34 @@ function hasRegionChildren(region: EditorRegion): boolean {
   return (props.state.placeOrderByRegionId[region.id]?.length ?? 0) > 0 || (props.state.areaOrderByRegionId[region.id]?.length ?? 0) > 0;
 }
 
+function activeContextRegions(): EditorRegion[] {
+  const regions: EditorRegion[] = [];
+  if (activeRegion.value) {
+    regions.push(activeRegion.value);
+  }
+
+  const activePlaceRegionId = activePlace.value?.regionId ?? placeDraft.regionId;
+  if (activePlaceRegionId) {
+    const region = props.state.regionsById[activePlaceRegionId];
+    if (region) {
+      regions.push(region);
+    }
+  }
+
+  return regions;
+}
+
+function cloneIdRecord(record: Record<Guid, Guid[]>): Record<Guid, Guid[]> {
+  return Object.fromEntries(Object.entries(record).map(([regionId, ids]) => [regionId, [...ids]]));
+}
+
+function pushUnique(record: Record<Guid, Guid[]>, regionId: Guid, id: Guid): void {
+  record[regionId] = record[regionId] ?? [];
+  if (!record[regionId].includes(id)) {
+    record[regionId].push(id);
+  }
+}
+
 function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> {
   if (!isDirty.value) {
     return Promise.resolve(true);
@@ -434,7 +493,7 @@ function isPlaceCreateOpen(region: EditorRegion): boolean {
 
     <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-    <RegionPlaceList :key="regionListKey" :active-place-id="activePlace?.id ?? null" :active-region-id="activeRegion?.id ?? null" :is-ordering="isOrdering" :is-saving="isSaving" :regions="orderedRegions" :state="state" @add-place="openPlaceCreate" @edit-place="openPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions">
+    <RegionPlaceList :key="regionListKey" :active-place-id="activePlace?.id ?? null" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-place="openPlaceCreate" @edit-place="openPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions">
       <template #region-editor="{ region }">
         <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>
