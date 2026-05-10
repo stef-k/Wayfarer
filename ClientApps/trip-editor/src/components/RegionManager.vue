@@ -7,6 +7,7 @@ import EditorSurface from './EditorSurface.vue';
 import PlaceEditorForm from './PlaceEditorForm.vue';
 import RegionEditorForm from './RegionEditorForm.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
+import { buildPlaceCreateTarget, buildPlaceEditTarget, buildRegionCreateTarget, buildRegionEditTarget, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
 import { buildPlaceRequest, buildRegionRequest, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, toRegionDraft, withoutRegionId } from './regionPlaceDrafts';
 import { useEditorMutationFeedback } from './useEditorMutationFeedback';
 import type { EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState, Guid } from '../types';
@@ -28,8 +29,6 @@ const placeFields = ['regionId', 'name', 'notesHtml', 'address', 'location.latit
 const regionListKey = ref(0);
 const regionFormId = 'trip-editor-region-form';
 const placeFormId = 'trip-editor-place-form';
-const regionDraftKey = 'region-draft';
-const placeDraftKey = 'place-draft';
 const draft = reactive(emptyRegionDraft());
 const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
 const isSaving = ref(false);
@@ -228,7 +227,7 @@ const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
 };
 
 const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
-  const target = buildPlaceEditTarget(place);
+  const target = buildPlaceEditTarget(place, props.state.regionsById[place.regionId]?.name);
   const isAlreadyActive = props.editorSurface.isTargetActive(target);
   if (!place.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
     return;
@@ -361,50 +360,6 @@ function confirmUnload(event: BeforeUnloadEvent): void {
 
   event.preventDefault();
   event.returnValue = '';
-}
-
-function buildRegionCreateTarget(): EditorTarget {
-  return {
-    key: regionDraftKey,
-    identity: 'region:add',
-    kind: 'region',
-    mode: 'add',
-    title: 'Add Region',
-    subtitle: 'New region'
-  };
-}
-
-function buildRegionEditTarget(region: EditorRegion): EditorTarget {
-  return {
-    key: regionDraftKey,
-    identity: `region:edit:${region.id}`,
-    kind: 'region',
-    mode: 'edit',
-    title: `Edit Region - ${region.name}`,
-    subtitle: 'Region details'
-  };
-}
-
-function buildPlaceCreateTarget(region: EditorRegion): EditorTarget {
-  return {
-    key: placeDraftKey,
-    identity: `place:add:${region.id}`,
-    kind: 'place',
-    mode: 'add',
-    title: 'Add Place',
-    subtitle: region.name
-  };
-}
-
-function buildPlaceEditTarget(place: EditorPlace): EditorTarget {
-  return {
-    key: placeDraftKey,
-    identity: `place:edit:${place.id}`,
-    kind: 'place',
-    mode: 'edit',
-    title: `Edit Place - ${place.name}`,
-    subtitle: props.state.regionsById[place.regionId]?.name
-  };
 }
 
 function discardRegionDraft(): void {
