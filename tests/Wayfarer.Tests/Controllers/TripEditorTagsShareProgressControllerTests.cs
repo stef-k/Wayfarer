@@ -73,6 +73,26 @@ public sealed class TripEditorTagsShareProgressControllerTests : TestBase
         Assert.Equal(new[] { "cafe", "trail" }, envelope.Affected.TagOrder);
     }
 
+    [Fact]
+    public async Task PutTagsPreservesExistingUnicodeTagByDisplayName()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var unicodeSlug = TripTagService.NormalizeSlug("Αθήνα");
+        AddTag(db, trip, "Αθήνα", unicodeSlug);
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await SendJson(controller, c => c.PutTags(trip.Id, CancellationToken.None), """{ "tags": [ "Αθήνα" ] }""");
+
+        var envelope = AssertMutation<IReadOnlyList<EditorTagDto>>(result);
+        Assert.Equal(new[] { "Αθήνα" }, envelope.Data.Select(t => t.Name));
+        Assert.Equal(new[] { "Αθήνα" }, envelope.Affected.Tags.Select(t => t.Name));
+        Assert.Equal(new[] { unicodeSlug }, envelope.Affected.TagOrder);
+        Assert.Empty(envelope.DeletedIds.Tags);
+        Assert.Equal(new[] { unicodeSlug }, db.Trips.Single(t => t.Id == trip.Id).Tags.Select(t => t.Slug));
+    }
+
     [Theory]
     [InlineData("""{ "tags": [ "" ] }""", "tags[0]")]
     [InlineData("""{ "tags": [ 3 ] }""", "tags[0]")]

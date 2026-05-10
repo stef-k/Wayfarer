@@ -264,8 +264,8 @@ async function loadTagSuggestions(): Promise<void> {
   try {
     const items = await suggestTags(query, props.tagOptions.suggestionTake);
     if (requestId === suggestionRequestId) {
-      const existing = new Set(normalizeTagNames(draft.tags).map(normalizeTagSlug));
-      tagSuggestions.value = items.filter(item => !existing.has(item.slug));
+      const existingNames = new Set(normalizeTagNames(draft.tags).map(normalizeTagNameKey));
+      tagSuggestions.value = items.filter(item => !existingNames.has(normalizeTagNameKey(item.name)));
     }
   } catch {
     if (requestId === suggestionRequestId) {
@@ -281,8 +281,8 @@ function addTag(value: string): void {
     return;
   }
 
-  const existing = new Set(normalizeTagNames(draft.tags).map(normalizeTagSlug));
-  if (!existing.has(normalizeTagSlug(name))) {
+  const existing = new Set(normalizeTagNames(draft.tags).map(normalizeTagNameKey));
+  if (!existing.has(normalizeTagNameKey(name))) {
     draft.tags.push(name);
   }
 
@@ -346,23 +346,17 @@ function normalizeTagNames(values: string[]): string[] {
   const tags: string[] = [];
   values.forEach(value => {
     const tag = value.trim();
-    const slug = normalizeTagSlug(tag);
-    if (tag && slug && !seen.has(slug)) {
-      seen.add(slug);
+    const key = normalizeTagNameKey(tag);
+    if (tag && !seen.has(key)) {
+      seen.add(key);
       tags.push(tag);
     }
   });
   return tags;
 }
 
-function normalizeTagSlug(value: string): string {
-  return value
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLocaleLowerCase();
+function normalizeTagNameKey(value: string): string {
+  return value.trim().toLocaleLowerCase();
 }
 
 const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? [];
@@ -411,7 +405,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
         <section class="trip-editor-settings-group" aria-labelledby="trip-editor-tags-heading">
           <h3 id="trip-editor-tags-heading">Tags</h3>
           <div class="trip-editor-tags trip-editor-tags--editable">
-            <span v-for="(tag, index) in draft.tags" :key="`${normalizeTagSlug(tag)}-${index}`">
+            <span v-for="(tag, index) in draft.tags" :key="`${normalizeTagNameKey(tag)}-${index}`">
               {{ tag }}
               <button type="button" :aria-label="`Remove tag ${tag}`" @click="removeTag(index)">Remove</button>
             </span>
