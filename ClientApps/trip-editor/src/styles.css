@@ -450,8 +450,8 @@ body {
 }
 
 .trip-editor-map-shell {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   min-width: 0;
 }
@@ -496,7 +496,11 @@ body {
   justify-content: flex-end;
 }
 
-.trip-editor-map { min-height: 0; }
+.trip-editor-map {
+  /* Keep Leaflet in the remaining map shell space when optional map-work controls mount. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
 
 .trip-editor-state--error {
   color: #fecaca;

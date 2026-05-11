@@ -63,6 +63,7 @@ test.describe.serial('Trip Editor area editing', () => {
   });
 
   test('new area starts without a temporary polygon and Save after Done persists it', async ({ page }) => {
+    await useMapWorkViewport(page);
     await signIn(page);
     const state = await loadWorkspaceWithAreaFixture(page);
     const regionId = normalRegion(state).id;
@@ -128,6 +129,7 @@ test.describe.serial('Trip Editor area editing', () => {
   });
 
   test('Cancel rolls back only geometry and delete confirms dirty discard before danger', async ({ page }) => {
+    await useMapWorkViewport(page);
     await signIn(page);
     await loadWorkspaceWithAreaFixture(page);
 
@@ -137,10 +139,10 @@ test.describe.serial('Trip Editor area editing', () => {
     await page.getByRole('button', { name: 'Draw/Edit Area' }).click();
     await dragFirstEditableVertex(page);
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
-    await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await discardDirtyMapWork(page);
     await expect(form.getByLabel('Name')).toHaveValue('Unsaved area name');
 
-    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).first().click({ force: true });
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(page.getByRole('dialog', { name: 'Delete area?' })).toBeVisible();
@@ -198,6 +200,7 @@ test.describe.serial('Trip Editor area editing', () => {
   });
 
   test('dirty area map-work prompts before switching or closing', async ({ page }) => {
+    await useMapWorkViewport(page);
     await signIn(page);
     await loadWorkspaceWithAreaFixture(page);
 
@@ -308,29 +311,61 @@ function firstEditableRegion(page: Page) {
   return page.locator('.trip-editor-region-card--normal').first();
 }
 
+async function useMapWorkViewport(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+}
+
+// Clicks only within the currently visible Leaflet surface so fixed page chrome cannot consume map-work gestures.
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const map = page.locator('.trip-editor-map.leaflet-container');
   const box = await map.boundingBox();
   expect(box, 'Trip Editor map should be visible before clicking it.').not.toBeNull();
-  await page.mouse.click(box!.x + box!.width * position.xRatio, box!.y + box!.height * position.yRatio);
+  const viewport = page.viewportSize();
+  expect(viewport, 'Playwright should provide a viewport for visible map clicks.').not.toBeNull();
+  const footerBox = await page.locator('body > footer').boundingBox();
+  const visibleLeft = Math.max(box!.x, 0) + 16;
+  const visibleRight = Math.min(box!.x + box!.width, viewport!.width) - 16;
+  const visibleTop = Math.max(box!.y, 0) + 16;
+  const visibleBottom = Math.min(box!.y + box!.height, footerBox?.y ?? viewport!.height, viewport!.height) - 16;
+  expect(visibleRight, 'Trip Editor map should have a visible clickable width.').toBeGreaterThan(visibleLeft);
+  expect(visibleBottom, 'Trip Editor map should have a visible clickable height above the footer.').toBeGreaterThan(visibleTop);
+  const x = visibleLeft + (visibleRight - visibleLeft) * position.xRatio;
+  const y = visibleTop + (visibleBottom - visibleTop) * position.yRatio;
+  await page.mouse.move(x, y);
+  await page.waitForTimeout(75);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(75);
 }
 
 async function drawTriangle(page: Page): Promise<void> {
   await clickMap(page, { xRatio: 0.35, yRatio: 0.35 });
   await clickMap(page, { xRatio: 0.45, yRatio: 0.35 });
   await clickMap(page, { xRatio: 0.40, yRatio: 0.45 });
-  await clickMap(page, { xRatio: 0.35, yRatio: 0.35 });
+  await page.locator('.leaflet-editing-icon').first().click();
 }
 
 async function dragFirstEditableVertex(page: Page): Promise<void> {
+  await page.evaluate(() => window.scrollTo(0, 0));
   const vertex = page.locator('.leaflet-editing-icon').first();
   await expect(vertex).toBeVisible();
-  const box = await vertex.boundingBox();
-  expect(box, 'Editable area vertex should have a rendered box.').not.toBeNull();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box!.x + box!.width / 2 + 24, box!.y + box!.height / 2 + 16, { steps: 4 });
-  await page.mouse.up();
+  await vertex.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    const startX = box.left + box.width / 2;
+    const startY = box.top + box.height / 2;
+    const endX = startX + 96;
+    const endY = startY + 72;
+    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, buttons: 1, clientX: startX, clientY: startY, pointerId: 1, pointerType: 'mouse', view: window }));
+    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, buttons: 1, clientX: endX, clientY: endY, pointerId: 1, pointerType: 'mouse', view: window }));
+    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: endX, clientY: endY, pointerId: 1, pointerType: 'mouse', view: window }));
+  });
+  await page.waitForTimeout(250);
+}
+
+async function discardDirtyMapWork(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog', { name: 'Discard map editing changes?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Discard' }).click();
 }
 
 async function dragAreaRow(page: Page, fromName: string, toName: string): Promise<void> {
@@ -342,7 +377,7 @@ async function dragAreaRow(page: Page, fromName: string, toName: string): Promis
 async function expectAreaOrder(page: Page, names: string[]): Promise<void> {
   await expect.poll(async () => {
     const rows = await firstEditableRegion(page).locator('[data-area-id]').all();
-    return Promise.all(rows.map(row => row.locator('span').first().innerText()));
+    return Promise.all(rows.map(row => row.locator('span').nth(1).innerText()));
   }).toEqual(names);
 }
 

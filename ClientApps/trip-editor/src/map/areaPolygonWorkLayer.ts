@@ -37,6 +37,8 @@ export const createAreaPolygonWorkLayer = (map: LeafletMap): {
     map.off(drawCreatedEvent(), onDrawCreated);
     map.off(drawEditedEvent(), publish);
     map.off(drawEditVertexEvent(), publish);
+    map.off(drawEditMoveEvent(), publish);
+    polygon?.off('edit drag dragend move', publish);
   };
 
   const stop = (): void => {
@@ -84,6 +86,8 @@ export const createAreaPolygonWorkLayer = (map: LeafletMap): {
     }) as LeafletDrawHandler;
     map.on(drawEditedEvent(), publish);
     map.on(drawEditVertexEvent(), publish);
+    map.on(drawEditMoveEvent(), publish);
+    polygon?.on('edit drag dragend move', publish);
     editHandler.enable();
   };
 
@@ -159,9 +163,10 @@ const drawPolygonHandler = (): new (map: LeafletMap, options: Record<string, unk
 const editToolbarHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>
   (L as unknown as { EditToolbar: { Edit: new (map: LeafletMap, options: Record<string, unknown>) => unknown } }).EditToolbar.Edit;
 
-const drawEvent = (name: 'CREATED' | 'EDITED' | 'EDITVERTEX'): string =>
+const drawEvent = (name: 'CREATED' | 'EDITED' | 'EDITMOVE' | 'EDITVERTEX'): string =>
   (L as unknown as { Draw: { Event: Record<string, string> } }).Draw.Event[name];
 
 const drawCreatedEvent = (): string => drawEvent('CREATED');
 const drawEditedEvent = (): string => drawEvent('EDITED');
+const drawEditMoveEvent = (): string => drawEvent('EDITMOVE');
 const drawEditVertexEvent = (): string => drawEvent('EDITVERTEX');
