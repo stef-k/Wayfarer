@@ -36,6 +36,17 @@
 - Document all code you touch or add (XML docs C#, comments Razor/JS).
 - Never create files unless absolutely necessary; prefer editing existing ones.
 - Prefer minimal services/classes/methods/variables; keep scope tight.
+- C#: 4 spaces; PascalCase for types/properties; camelCase for locals/params; file name = primary type.
+- JS: modern style, prefer arrow functions; keep modules area‑scoped when applicable.
+
+## Testing Guidelines
+
+- No test project committed yet. Prefer xUnit in `tests/Wayfarer.Tests` with `*Tests.cs` naming.
+- Focused unit tests for Services/Parsers; integration tests for critical flows.
+- Run tests with `dotnet test` (once tests exist). Aim high coverage for changed code.
+
+## Validation & PR Readiness
+
 - New and changed source files are subject to the LOC policy check: warn at 400 counted LOC and hard fail above 600 counted LOC. Existing legacy files are grandfathered by `tools/Wayfarer.LocCheck/loc-baseline.json`, but should not grow past baseline.
 - After any implementation edit, run `dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600`; summarize warnings and split files or request an explicit exception for failures.
 - LOC checker interpretation:
@@ -47,14 +58,11 @@
   - Split only when it improves responsibility boundaries or reduces meaningful complexity.
   - Do not split purely to satisfy the number if the split adds indirection without design benefit.
   - Report the decision as either "warning accepted with justification" or "split performed because ...".
-- C#: 4 spaces; PascalCase for types/properties; camelCase for locals/params; file name = primary type.
-- JS: modern style, prefer arrow functions; keep modules area‑scoped when applicable.
-
-## Testing Guidelines
-
-- No test project committed yet. Prefer xUnit in `tests/Wayfarer.Tests` with `*Tests.cs` naming.
-- Focused unit tests for Services/Parsers; integration tests for critical flows.
-- Run tests with `dotnet test` (once tests exist). Aim high coverage for changed code.
+- When validation fails, classify each failure as either a current-branch regression or an out-of-scope pre-existing/cross-slice failure.
+- Fix current-branch regressions before declaring a branch PR-ready.
+- For out-of-scope failures, open or link a follow-up issue before merge, then mention that issue in PR, review, and merge notes.
+- Do not claim the full suite is green until the follow-up is fixed and the full suite has been rerun successfully.
+- A focused slice may proceed with tracked validation debt only when that debt is explicitly accepted.
 
 ## Commit & Pull Request Guidelines
 
