@@ -292,7 +292,7 @@ function segmentLabel(segment: EditorSegment): string {
 }
 
 function modeText(segment: EditorSegment): string {
-  return props.state.options.transportModes.find(mode => mode.value === segment.mode)?.label ?? segment.mode || 'mode unset';
+  return props.state.options.transportModes.find(mode => mode.value === segment.mode)?.label ?? (segment.mode || 'mode unset');
 }
 </script>
 
