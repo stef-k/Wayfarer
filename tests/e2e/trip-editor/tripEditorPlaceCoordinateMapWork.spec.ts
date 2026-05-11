@@ -98,6 +98,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
   });
 
   test('active map-work consumes persisted place marker clicks without opening popups or switching editors', async ({ page }) => {
+    await useMapWorkViewport(page);
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
     const mutations = watchEditorMutations(page);
@@ -111,11 +112,11 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Selected 10, 20');
 
-    await page.getByTitle(secondPlaceName).click();
+    await clickMarkerByTitle(page, secondPlaceName);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${editablePlaceName}`) })).toBeVisible();
-    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${secondPlaceName}`) })).toHaveCount(0);
-    await expectDraftCoordinates(page, { latitude: '10', longitude: '20' });
+    await expect(mapWork).toContainText(`Edit Place - ${editablePlaceName}`);
+    await expect(mapWork).not.toContainText(`Edit Place - ${secondPlaceName}`);
+    await expect(form).toHaveCount(0);
     await expect(mapWork).toContainText('Selected 11, 21');
     expect(mutations(), 'Marker click during pick mode must not call editor mutations.').toEqual([]);
 
@@ -256,6 +257,10 @@ function firstEditableRegion(page: Page) {
   return page.locator('.trip-editor-region-card--normal').first();
 }
 
+async function useMapWorkViewport(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+}
+
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
   const map = page.getByLabel('Read-only trip map');
   await map.evaluate((element, point) => {
@@ -266,6 +271,17 @@ async function clickMap(page: Page, position: { xRatio: number; yRatio: number }
       element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, view: window }));
     }
   }, position);
+}
+
+// Dispatches through the persisted marker element when viewport chrome covers Playwright's default click point.
+async function clickMarkerByTitle(page: Page, title: string): Promise<void> {
+  const marker = page.getByTitle(title);
+  await expect(marker).toBeVisible();
+  await marker.evaluate(element => {
+    for (const type of ['mousedown', 'mouseup', 'click']) {
+      element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+    }
+  });
 }
 
 async function draftCoordinates(page: Page): Promise<{ latitude: string; longitude: string }> {

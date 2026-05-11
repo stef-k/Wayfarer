@@ -63,6 +63,7 @@ test.describe.serial('Trip Editor area editing', () => {
   });
 
   test('new area starts without a temporary polygon and Save after Done persists it', async ({ page }) => {
+    await useMapWorkViewport(page);
     await signIn(page);
     const state = await loadWorkspaceWithAreaFixture(page);
     const regionId = normalRegion(state).id;
@@ -308,18 +309,38 @@ function firstEditableRegion(page: Page) {
   return page.locator('.trip-editor-region-card--normal').first();
 }
 
+async function useMapWorkViewport(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+}
+
+// Clicks only within the currently visible Leaflet surface so fixed page chrome cannot consume map-work gestures.
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const map = page.locator('.trip-editor-map.leaflet-container');
   const box = await map.boundingBox();
   expect(box, 'Trip Editor map should be visible before clicking it.').not.toBeNull();
-  await page.mouse.click(box!.x + box!.width * position.xRatio, box!.y + box!.height * position.yRatio);
+  const viewport = page.viewportSize();
+  expect(viewport, 'Playwright should provide a viewport for visible map clicks.').not.toBeNull();
+  const footerBox = await page.locator('body > footer').boundingBox();
+  const visibleLeft = Math.max(box!.x, 0) + 16;
+  const visibleRight = Math.min(box!.x + box!.width, viewport!.width) - 16;
+  const visibleTop = Math.max(box!.y, 0) + 16;
+  const visibleBottom = Math.min(box!.y + box!.height, footerBox?.y ?? viewport!.height, viewport!.height) - 16;
+  expect(visibleRight, 'Trip Editor map should have a visible clickable width.').toBeGreaterThan(visibleLeft);
+  expect(visibleBottom, 'Trip Editor map should have a visible clickable height above the footer.').toBeGreaterThan(visibleTop);
+  const x = visibleLeft + (visibleRight - visibleLeft) * position.xRatio;
+  const y = visibleTop + (visibleBottom - visibleTop) * position.yRatio;
+  await page.mouse.move(x, y);
+  await page.waitForTimeout(75);
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(75);
 }
 
 async function drawTriangle(page: Page): Promise<void> {
   await clickMap(page, { xRatio: 0.35, yRatio: 0.35 });
   await clickMap(page, { xRatio: 0.45, yRatio: 0.35 });
   await clickMap(page, { xRatio: 0.40, yRatio: 0.45 });
-  await clickMap(page, { xRatio: 0.35, yRatio: 0.35 });
+  await page.locator('.leaflet-editing-icon').first().click();
 }
 
 async function dragFirstEditableVertex(page: Page): Promise<void> {
