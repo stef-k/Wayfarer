@@ -292,7 +292,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
               </button>
               <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">Focus Active Entity</button>
             </template>
-            <a class="btn btn-outline-light btn-sm" :href="`/User/Trip/Edit/${state.tripId}`">Legacy editor</a>
+            <a v-if="!isMapWorkActive" class="btn btn-outline-light btn-sm" :href="`/User/Trip/Edit/${state.tripId}`">Legacy editor</a>
           </div>
         </header>
         <MapWorkToolbar :controller="editorSurface" />

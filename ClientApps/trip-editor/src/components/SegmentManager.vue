@@ -89,16 +89,25 @@ async function openCreate(): Promise<void> {
   resetFeedback();
 }
 
-async function openEdit(segment: EditorSegment): Promise<void> {
+async function openEdit(segment: EditorSegment): Promise<boolean> {
   const target = buildSegmentEditTarget(segment, segmentLabel(segment));
   const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (!segment.capabilities.canEdit || !(await props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-    return;
+  if (!segment.capabilities.canEdit) {
+    return false;
+  }
+
+  if (isAlreadyActive) {
+    return true;
+  }
+
+  if (!(await props.editorSurface.activateTarget(target))) {
+    return false;
   }
 
   Object.assign(draft, toSegmentDraft(segment));
   createBaselineRequest.value = null;
   resetFeedback();
+  return true;
 }
 
 function resetDraft(): void {
@@ -131,7 +140,41 @@ async function saveDraft(): Promise<void> {
 }
 
 async function deleteDraft(): Promise<void> {
-  if (!activeSegment.value || !(await confirmDiscard('Discard unsaved segment draft changes before deleting?'))) {
+  const segment = activeSegment.value;
+  if (!segment) {
+    return;
+  }
+
+  await deleteSegmentWithConfirmation(segment, activeSegmentTarget.value);
+}
+
+async function deleteSegmentFromRow(segment: EditorSegment): Promise<void> {
+  if (!segment.capabilities.canDelete) {
+    return;
+  }
+
+  const target = buildSegmentEditTarget(segment, segmentLabel(segment));
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  if (!isAlreadyActive) {
+    const activated = await props.editorSurface.activateTarget(target);
+    if (!activated) {
+      return;
+    }
+
+    Object.assign(draft, toSegmentDraft(segment));
+    createBaselineRequest.value = null;
+    resetFeedback();
+  }
+
+  if (!props.editorSurface.isTargetActive(target) || draft.id !== segment.id) {
+    return;
+  }
+
+  await deleteSegmentWithConfirmation(segment, target);
+}
+
+async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarget: EditorTarget): Promise<void> {
+  if (!(await confirmDiscard('Discard unsaved segment draft changes before deleting?'))) {
     return;
   }
 
@@ -148,11 +191,10 @@ async function deleteDraft(): Promise<void> {
   isSaving.value = true;
   resetFeedback();
   try {
-    const deletedTarget = activeSegmentTarget.value;
-    const result = await deleteSegment(props.editorEndpoint, activeSegment.value.id, props.antiforgeryToken);
+    const result = await deleteSegment(props.editorEndpoint, segment.id, props.antiforgeryToken);
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     const hidden = new Set(props.hiddenSegmentIds);
-    hidden.delete(activeSegment.value.id);
+    hidden.delete(segment.id);
     emit('hiddenSegmentIdsChanged', hidden);
     Object.assign(draft, emptySegmentDraft());
     createBaselineRequest.value = null;
@@ -315,7 +357,7 @@ function modeText(segment: EditorSegment): string {
           <span>{{ segmentLabel(segment) }}</span>
           <small>{{ modeText(segment) }}</small>
         </button>
-        <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="openEdit(segment).then(deleteDraft)">×</button>
+        <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
 
         <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
       </li>

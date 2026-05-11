@@ -53,15 +53,18 @@ test.describe.serial('Trip Editor segment editing', () => {
     });
 
     await openEditableSegment(page);
+    await expect(page.getByRole('link', { name: 'Legacy editor' })).toBeVisible();
     await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Draw segment route');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     await expect(page.locator('.trip-editor-toolbar').getByRole('button', { name: 'Fit All' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Legacy editor' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /pick on map|draw\/edit area|geocode|search.?add|marker drag/i })).toHaveCount(0);
     await expectNoSearchAddUi(page);
 
     await mapWork.getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('link', { name: 'Legacy editor' })).toBeVisible();
     expect(savedRequests, 'Done must not call the segment save endpoint.').toEqual([]);
     await expect(page.locator('#trip-editor-segment-form')).toContainText('2 custom route points');
 
@@ -96,6 +99,25 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(page.getByRole('dialog', { name: 'Delete segment?' })).toBeVisible();
+  });
+
+  test('row delete canceled dirty switch keeps the active segment and skips destructive delete', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page);
+
+    await openEditableSegment(page);
+    const form = page.locator('#trip-editor-segment-form');
+    await form.getByLabel('Estimated distance km').fill('99');
+
+    await segmentRow(page, secondSegmentId).getByRole('button', { name: 'Delete segment' }).click();
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toBeVisible();
+    await discardDialog.getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect(page.getByRole('dialog', { name: 'Delete segment?' })).toHaveCount(0);
+    await expect(segmentRow(page, secondSegmentId)).toBeVisible();
+    await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(segmentRow(page, segmentId).locator('#trip-editor-segment-form')).toHaveCount(1);
   });
 
   test('client-session visibility hides map route without changing API or reload defaults', async ({ page }) => {
