@@ -91,6 +91,82 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(mapSearch).toContainText('Map search provider is unavailable.');
   });
 
+  test('clearing a pending map search aborts without surfacing stale errors', async ({ page }) => {
+    await signIn(page);
+    const pageErrors = collectPageErrors(page);
+    let releaseOldRequest: ((status: number) => void) | null = null;
+    let resolveOldRequest: () => void = () => undefined;
+    const oldRequest = new Promise<void>(resolve => {
+      resolveOldRequest = resolve;
+    });
+    await routeGeocode(page, async route => {
+      resolveOldRequest();
+      const status = await new Promise<number>(release => {
+        releaseOldRequest = release;
+      });
+      await route.fulfill({ status, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+    const mapSearch = page.getByRole('region', { name: 'Map search' });
+
+    await runSearch(page, 'aborted clear search');
+    await oldRequest;
+    await expect(mapSearch).toContainText('Searching map...');
+
+    await page.getByRole('searchbox', { name: 'Map search' }).fill('');
+    releaseOldRequest?.(503);
+    await page.waitForTimeout(100);
+
+    await expect(mapSearch).not.toContainText('Map search provider is unavailable.');
+    await expect(mapSearch).not.toContainText('Map search failed.');
+    await expect(mapSearch.getByText('Stale Clear Result')).toHaveCount(0);
+    expect(pageErrors()).toEqual([]);
+  });
+
+  test('newer map search aborts an older pending request without rendering stale results', async ({ page }) => {
+    await signIn(page);
+    const pageErrors = collectPageErrors(page);
+    let requestCount = 0;
+    let releaseOldRequest: (() => void) | null = null;
+    let resolveOldRequest: () => void = () => undefined;
+    const oldRequest = new Promise<void>(resolve => {
+      resolveOldRequest = resolve;
+    });
+    await routeGeocode(page, async route => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        resolveOldRequest();
+        await new Promise<void>(release => {
+          releaseOldRequest = release;
+        });
+        await fulfillGeocode(route, [result('Stale Older Result')], 'older pending search');
+        return;
+      }
+
+      await fulfillGeocode(route, [result('Current Newer Result')], 'newer replacement search');
+    });
+
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+    const mapSearch = page.getByRole('region', { name: 'Map search' });
+
+    await runSearch(page, 'older pending search');
+    await oldRequest;
+    await expect(mapSearch).toContainText('Searching map...');
+
+    await page.getByRole('searchbox', { name: 'Map search' }).fill('newer replacement search');
+    await page.getByRole('searchbox', { name: 'Map search' }).press('Enter');
+    await expect(mapSearch.getByRole('button', { name: 'Current Newer Result' })).toBeVisible();
+
+    releaseOldRequest?.();
+    await page.waitForTimeout(100);
+    await expect(mapSearch.getByText('Stale Older Result')).toHaveCount(0);
+    await expect(mapSearch).not.toContainText('Map search failed.');
+    expect(pageErrors()).toEqual([]);
+  });
+
   test('map search accepts normalized response query echoes without dropping current results', async ({ page }) => {
     await signIn(page);
     await routeGeocode(page, async route => {
@@ -252,6 +328,14 @@ function collectExternalProviderCalls(page: Page): () => string[] {
     }
   });
   return () => urls;
+}
+
+function collectPageErrors(page: Page): () => string[] {
+  const errors: string[] = [];
+  page.on('pageerror', error => {
+    errors.push(error.message);
+  });
+  return () => errors;
 }
 
 async function loadEditorState(page: Page): Promise<any> {

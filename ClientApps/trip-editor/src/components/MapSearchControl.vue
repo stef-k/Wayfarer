@@ -33,7 +33,7 @@ let addSequence = 0;
 const trimmedQuery = computed(() => query.value.trim());
 const minChars = 3;
 const limit = computed(() => props.state.options.limits.nominatimSearchLimit);
-const canSearch = computed(() => trimmedQuery.value.length >= minChars && status.value !== 'loading');
+const canSearch = computed(() => trimmedQuery.value.length >= minChars);
 const eligibleRegions = computed(() => props.state.regionOrder
   .map(id => props.state.regionsById[id])
   .filter((region): region is EditorRegion => Boolean(region) && !region.isShadow && props.state.permissions.canEditPlaces && region.capabilities.canAddChildren));
@@ -97,7 +97,8 @@ const submitSearch = async (): Promise<void> => {
   }
 
   controller?.abort();
-  controller = new AbortController();
+  const searchController = new AbortController();
+  controller = searchController;
   const sequence = ++requestSequence;
   submittedQuery.value = submitted;
   status.value = 'loading';
@@ -106,8 +107,8 @@ const submitSearch = async (): Promise<void> => {
   emit('clearPreview');
 
   try {
-    const response = await searchGeocode(props.editorEndpoint, submitted, limit.value, controller.signal);
-    if (sequence !== requestSequence) {
+    const response = await searchGeocode(props.editorEndpoint, submitted, limit.value, searchController.signal);
+    if (searchController.signal.aborted || sequence !== requestSequence) {
       return;
     }
 
@@ -121,7 +122,7 @@ const submitSearch = async (): Promise<void> => {
     attribution.value = response.attribution;
     status.value = results.value.length === 0 ? 'no-results' : 'success';
   } catch (error) {
-    if (controller.signal.aborted || sequence !== requestSequence) {
+    if (searchController.signal.aborted || sequence !== requestSequence) {
       return;
     }
 
@@ -134,6 +135,10 @@ const submitSearch = async (): Promise<void> => {
       status.value = 'provider-unavailable';
     } else {
       status.value = 'error';
+    }
+  } finally {
+    if (sequence === requestSequence && controller === searchController) {
+      controller = null;
     }
   }
 };
@@ -158,6 +163,7 @@ const addAsPlace = (): void => {
 const clearResults = (): void => {
   controller?.abort();
   controller = null;
+  requestSequence += 1;
   status.value = 'idle';
   errorText.value = null;
   attribution.value = null;
