@@ -9,7 +9,7 @@ public sealed class TripEditorGeocodeOptions
     public string NominatimSearchEndpoint { get; set; } = "https://nominatim.openstreetmap.org/search";
 
     /// <summary>Application-identifying User-Agent sent to Nominatim.</summary>
-    public string NominatimUserAgent { get; set; } = "Wayfarer/1.0 (contact: noreply@wayfarer.app)";
+    public string NominatimUserAgent { get; set; } = "Wayfarer/1.0";
 
     /// <summary>Optional referer header sent to Nominatim when configured.</summary>
     public string? Referer { get; set; }

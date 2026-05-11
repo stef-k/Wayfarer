@@ -83,7 +83,7 @@ public sealed class TripEditorGeocodeSearchServiceTests
         var options = Options.Create(new TripEditorGeocodeOptions
         {
             NominatimSearchEndpoint = "https://nominatim.openstreetmap.org/search",
-            NominatimUserAgent = "WayfarerTests/1.0 (contact: tests@example.test)",
+            NominatimUserAgent = "WayfarerTests/1.0",
             Referer = "https://wayfarer.example.test"
         });
         var provider = new NominatimTripEditorGeocodeProvider(new HttpClient(handler), options);
@@ -101,13 +101,13 @@ public sealed class TripEditorGeocodeSearchServiceTests
         var provider = BuildRegisteredNominatimProvider(handler, new Dictionary<string, string?>
         {
             ["TripEditorGeocode:NominatimSearchEndpoint"] = "https://nominatim.openstreetmap.org/search",
-            ["TripEditorGeocode:NominatimUserAgent"] = "WayfarerConfigured/1.0 (contact: configured@example.test)",
+            ["TripEditorGeocode:NominatimUserAgent"] = "WayfarerConfigured/1.0",
             ["Application:ContactEmail"] = "ignored@example.test"
         });
 
         await provider.SearchAsync("athens", 6, CancellationToken.None);
 
-        Assert.Equal("WayfarerConfigured/1.0 (contact: configured@example.test)", handler.LastRequest!.Headers.UserAgent.ToString());
+        Assert.Equal("WayfarerConfigured/1.0", handler.LastRequest!.Headers.UserAgent.ToString());
         Assert.DoesNotContain("ignored@example.test", handler.LastRequest.Headers.UserAgent.ToString());
     }
 
@@ -129,7 +129,21 @@ public sealed class TripEditorGeocodeSearchServiceTests
 
         Assert.Equal("Wayfarer/1.0", handler.LastRequest!.Headers.UserAgent.ToString());
         Assert.DoesNotContain("ignored@example.test", handler.LastRequest.Headers.UserAgent.ToString());
-        Assert.DoesNotContain("noreply@wayfarer.app", handler.LastRequest.Headers.UserAgent.ToString());
+    }
+
+    [Fact]
+    public async Task RegisteredNominatimProviderUsesPlainUserAgentWhenGeocodeOptionsAreUnbound()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.OK, "[]");
+        var provider = BuildRegisteredNominatimProvider(handler, new Dictionary<string, string?>
+        {
+            ["Application:ContactEmail"] = "ignored@example.test"
+        });
+
+        await provider.SearchAsync("athens", 6, CancellationToken.None);
+
+        Assert.Equal("Wayfarer/1.0", handler.LastRequest!.Headers.UserAgent.ToString());
+        Assert.DoesNotContain("ignored@example.test", handler.LastRequest.Headers.UserAgent.ToString());
     }
 
     [Fact]

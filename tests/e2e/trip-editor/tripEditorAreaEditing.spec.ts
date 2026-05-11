@@ -349,16 +349,14 @@ async function dragFirstEditableVertex(page: Page): Promise<void> {
   await page.evaluate(() => window.scrollTo(0, 0));
   const vertex = page.locator('.leaflet-editing-icon').first();
   await expect(vertex).toBeVisible();
-  await vertex.evaluate(element => {
-    const box = element.getBoundingClientRect();
-    const startX = box.left + box.width / 2;
-    const startY = box.top + box.height / 2;
-    const endX = startX + 96;
-    const endY = startY + 72;
-    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, buttons: 1, clientX: startX, clientY: startY, pointerId: 1, pointerType: 'mouse', view: window }));
-    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, buttons: 1, clientX: endX, clientY: endY, pointerId: 1, pointerType: 'mouse', view: window }));
-    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: endX, clientY: endY, pointerId: 1, pointerType: 'mouse', view: window }));
-  });
+  const box = await vertex.boundingBox();
+  expect(box, 'Editable area vertex should have a browser-visible box before dragging.').not.toBeNull();
+  const startX = box!.x + box!.width / 2;
+  const startY = box!.y + box!.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 96, startY + 72, { steps: 8 });
+  await page.mouse.up();
   await page.waitForTimeout(250);
 }
 
