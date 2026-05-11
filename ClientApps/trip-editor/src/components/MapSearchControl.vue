@@ -33,7 +33,8 @@ let addSequence = 0;
 const trimmedQuery = computed(() => query.value.trim());
 const minChars = 3;
 const limit = computed(() => props.state.options.limits.nominatimSearchLimit);
-const canSearch = computed(() => trimmedQuery.value.length >= minChars);
+const isSearching = computed(() => status.value === 'loading');
+const canSearch = computed(() => trimmedQuery.value.length >= minChars && !isSearching.value);
 const eligibleRegions = computed(() => props.state.regionOrder
   .map(id => props.state.regionsById[id])
   .filter((region): region is EditorRegion => Boolean(region) && !region.isShadow && props.state.permissions.canEditPlaces && region.capabilities.canAddChildren));
@@ -92,7 +93,7 @@ watch(eligibleRegions, regions => {
 
 const submitSearch = async (): Promise<void> => {
   const submitted = trimmedQuery.value;
-  if (submitted.length < minChars) {
+  if (!canSearch.value) {
     return;
   }
 

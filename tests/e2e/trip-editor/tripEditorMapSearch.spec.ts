@@ -72,6 +72,7 @@ test.describe('Trip Editor map geocode search', () => {
     await page.getByRole('searchbox', { name: 'Map search' }).fill('first query');
     await mapSearch.getByRole('button', { name: 'Search' }).click();
     await expect(mapSearch).toContainText('Searching map...');
+    await expect(mapSearch.getByRole('button', { name: 'Search' })).toBeDisabled();
     mode = 'empty';
     await page.getByRole('searchbox', { name: 'Map search' }).fill('second query');
     await expect(mapSearch.getByText('Stale Result')).toHaveCount(0);
@@ -89,6 +90,53 @@ test.describe('Trip Editor map geocode search', () => {
     await page.getByRole('searchbox', { name: 'Map search' }).fill('provider unavailable');
     await page.getByRole('searchbox', { name: 'Map search' }).press('Enter');
     await expect(mapSearch).toContainText('Map search provider is unavailable.');
+  });
+
+  test('in-flight map search blocks duplicate Search and Enter submits until completion', async ({ page }) => {
+    await signIn(page);
+    let proxyCalls = 0;
+    let releaseFirstRequest: (() => void) | null = null;
+    let resolveFirstRequest: () => void = () => undefined;
+    const firstRequest = new Promise<void>(resolve => {
+      resolveFirstRequest = resolve;
+    });
+    await routeGeocode(page, async route => {
+      proxyCalls += 1;
+      const query = new URL(route.request().url()).searchParams.get('q') ?? '';
+      if (proxyCalls === 1) {
+        resolveFirstRequest();
+        await new Promise<void>(release => {
+          releaseFirstRequest = release;
+        });
+      }
+
+      await fulfillGeocode(route, [result(`Result for ${query}`)], query);
+    });
+
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+    const mapSearch = page.getByRole('region', { name: 'Map search' });
+    const searchInput = page.getByRole('searchbox', { name: 'Map search' });
+    const searchButton = mapSearch.getByRole('button', { name: 'Search' });
+
+    await searchInput.fill('first pending query');
+    await searchButton.click();
+    await firstRequest;
+    await expect(searchButton).toBeDisabled();
+
+    await searchInput.press('Enter');
+    await searchButton.click({ force: true });
+    await page.waitForTimeout(100);
+    expect(proxyCalls, 'In-flight Search and Enter submits must not issue another proxy request.').toBe(1);
+
+    releaseFirstRequest?.();
+    await expect(mapSearch.getByRole('button', { name: 'Result for first pending query' })).toBeVisible();
+    await expect(searchButton).toBeEnabled();
+
+    await searchInput.fill('second completed query');
+    await searchInput.press('Enter');
+    await expect(mapSearch.getByRole('button', { name: 'Result for second completed query' })).toBeVisible();
+    expect(proxyCalls).toBe(2);
   });
 
   test('clearing a pending map search aborts without surfacing stale errors', async ({ page }) => {
@@ -125,7 +173,7 @@ test.describe('Trip Editor map geocode search', () => {
     expect(pageErrors()).toEqual([]);
   });
 
-  test('newer map search aborts an older pending request without rendering stale results', async ({ page }) => {
+  test('query changes during a pending map search ignore stale older results before the next search', async ({ page }) => {
     await signIn(page);
     const pageErrors = collectPageErrors(page);
     let requestCount = 0;
@@ -155,15 +203,21 @@ test.describe('Trip Editor map geocode search', () => {
     await runSearch(page, 'older pending search');
     await oldRequest;
     await expect(mapSearch).toContainText('Searching map...');
+    await expect(mapSearch.getByRole('button', { name: 'Search' })).toBeDisabled();
 
     await page.getByRole('searchbox', { name: 'Map search' }).fill('newer replacement search');
     await page.getByRole('searchbox', { name: 'Map search' }).press('Enter');
-    await expect(mapSearch.getByRole('button', { name: 'Current Newer Result' })).toBeVisible();
+    expect(requestCount, 'Enter must not start a replacement request while the first search is pending.').toBe(1);
 
     releaseOldRequest?.();
+    await expect(mapSearch.getByRole('button', { name: 'Search' })).toBeEnabled();
     await page.waitForTimeout(100);
     await expect(mapSearch.getByText('Stale Older Result')).toHaveCount(0);
     await expect(mapSearch).not.toContainText('Map search failed.');
+
+    await page.getByRole('searchbox', { name: 'Map search' }).press('Enter');
+    await expect(mapSearch.getByRole('button', { name: 'Current Newer Result' })).toBeVisible();
+    expect(requestCount).toBe(2);
     expect(pageErrors()).toEqual([]);
   });
 
