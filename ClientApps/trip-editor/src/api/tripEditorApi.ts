@@ -1,5 +1,6 @@
 import type {
   EditorMutationResult,
+  EditorGeocodeSearchResponse,
   EditorArea,
   EditorAreaDeleteResult,
   EditorAreaOrderRequest,
@@ -50,6 +51,39 @@ export const loadEditorState = async (endpoint: string): Promise<EditorTripState
   }
 
   return (await response.json()) as EditorTripState;
+};
+
+/// Searches geocode results through the same-origin Trip Editor proxy only.
+export const searchGeocode = async (
+  endpoint: string,
+  query: string,
+  limit: number,
+  signal?: AbortSignal
+): Promise<EditorGeocodeSearchResponse> => {
+  const url = `${endpoint}/geocode/search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`;
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    credentials: 'same-origin',
+    signal
+  });
+
+  if (response.status === 400) {
+    throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
+  }
+
+  if (response.status === 429) {
+    throw new Error('geocode-rate-limited');
+  }
+
+  if (response.status === 503) {
+    throw new Error('geocode-provider-unavailable');
+  }
+
+  if (!response.ok) {
+    throw new Error(`Trip Editor geocode search returned ${response.status}`);
+  }
+
+  return (await response.json()) as EditorGeocodeSearchResponse;
 };
 
 export const patchMetadata = async (

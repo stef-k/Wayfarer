@@ -126,6 +126,24 @@ export interface EditorOptions {
   limits: { nominatimSearchLimit: number; sidebarSearchMinCharacters: number };
 }
 
+export interface EditorGeocodeSearchResponse {
+  query: string;
+  attribution: string;
+  results: EditorGeocodeSearchResult[];
+}
+
+export interface EditorGeocodeSearchResult {
+  id: string;
+  provider: string;
+  name: string;
+  displayName: string;
+  address: string;
+  category: string | null;
+  type: string | null;
+  latitude: number;
+  longitude: number;
+}
+
 export interface EditorPermissions {
   canEditTrip: boolean;
   canEditMetadata: boolean;

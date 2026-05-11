@@ -195,7 +195,7 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.False(shadow.Capabilities.CanDelete);
         Assert.False(shadow.Capabilities.CanReorder);
         Assert.False(shadow.Capabilities.CanAddChildren);
-        Assert.True(shadow.Capabilities.CanTargetForSearchAdd);
+        Assert.False(shadow.Capabilities.CanTargetForSearchAdd);
     }
 
     [Fact]

@@ -1,5 +1,5 @@
 import { createPlace, deletePlace, orderPlaces, updatePlace } from '../api/tripEditorApi';
-import type { EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
+import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildPlaceCreateTarget, buildPlaceEditTarget } from './regionPlaceEditorTargets';
 import { buildPlaceRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, withoutRegionId } from './regionPlaceDrafts';
@@ -8,22 +8,39 @@ import { beginPlaceCoordinateMapWork } from './placeCoordinateMapWork';
 /// Coordinates place-specific editor actions while RegionManager owns shared draft state.
 export function usePlaceEditorActions(context: any) {
   const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
+    await openPlaceCreateDraft(region, null);
+  };
+
+  const openPlaceCreateFromSearch = async (region: EditorRegion, result: EditorGeocodeSearchResult): Promise<boolean> => {
+    return await openPlaceCreateDraft(region, result);
+  };
+
+  const openPlaceCreateDraft = async (region: EditorRegion, result: EditorGeocodeSearchResult | null): Promise<boolean> => {
     const target = buildPlaceCreateTarget(region);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
-    if (region.isShadow || !(await context.props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-      return;
+    if (region.isShadow || !(await context.props.editorSurface.activateTarget(target)) || (isAlreadyActive && !result)) {
+      return false;
+    }
+
+    if (isAlreadyActive && result && context.isDirty.value && !(await context.confirmDiscard('Discard unsaved place changes before adding this search result?'))) {
+      return false;
     }
 
     Object.assign(context.draft, emptyRegionDraft());
     Object.assign(context.placeDraft, emptyPlaceDraft(region.id));
     Object.assign(context.areaDraft, emptyAreaDraft());
-    context.placeDraft.name = 'New Place';
+    context.placeDraft.name = result ? searchResultName(result) : 'New Place';
+    context.placeDraft.address = result?.address || result?.displayName || '';
+    context.placeDraft.latitude = result?.latitude ?? '';
+    context.placeDraft.longitude = result?.longitude ?? '';
     context.placeDraft.iconName = context.props.state.options.iconNames[0] ?? 'marker';
     context.placeDraft.markerColor = context.props.state.options.markerColorClasses[0] ?? 'bg-blue';
+    context.placeDraft.reverseGeocode = false;
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
+    return true;
   };
 
   const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
@@ -151,5 +168,9 @@ export function usePlaceEditorActions(context: any) {
     }
   };
 
-  return { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceEdit, pickPlaceCoordinate, reorderPlaces, resetPlaceDraft, savePlaceDraft };
+  return { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceCreateFromSearch, openPlaceEdit, pickPlaceCoordinate, reorderPlaces, resetPlaceDraft, savePlaceDraft };
+}
+
+function searchResultName(result: EditorGeocodeSearchResult): string {
+  return result.name || result.displayName.split(',').map(part => part.trim()).find(Boolean) || 'New Place';
 }

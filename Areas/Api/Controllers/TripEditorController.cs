@@ -30,6 +30,7 @@ public sealed partial class TripEditorController : ControllerBase
     private readonly TripEditorPlaceMutationService _placeMutations;
     private readonly TripEditorAreaMutationService _areaMutations;
     private readonly TripEditorSegmentMutationService _segmentMutations;
+    private readonly ITripEditorGeocodeSearchService? _geocodeSearch;
     private readonly ILogger<TripEditorController> _logger;
 
     /// <summary>
@@ -46,7 +47,8 @@ public sealed partial class TripEditorController : ControllerBase
         TripEditorPlaceMutationService placeMutations,
         TripEditorAreaMutationService areaMutations,
         TripEditorSegmentMutationService segmentMutations,
-        ILogger<TripEditorController> logger)
+        ILogger<TripEditorController> logger,
+        ITripEditorGeocodeSearchService? geocodeSearch = null)
     {
         _dbContext = dbContext;
         _environment = environment;
@@ -58,6 +60,7 @@ public sealed partial class TripEditorController : ControllerBase
         _placeMutations = placeMutations;
         _areaMutations = areaMutations;
         _segmentMutations = segmentMutations;
+        _geocodeSearch = geocodeSearch;
         _logger = logger;
     }
 
@@ -293,6 +296,58 @@ public sealed partial class TripEditorController : ControllerBase
         return ToActionResult(outcome);
     }
 
+    /// <summary>
+    /// Searches public geocoding through the authenticated Trip Editor backend proxy.
+    /// </summary>
+    [HttpGet("geocode/search")]
+    public async Task<IActionResult> SearchGeocode(Guid tripId, [FromQuery(Name = "q")] string? query, [FromQuery] int? limit, CancellationToken cancellationToken)
+    {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null)
+        {
+            return authFailure;
+        }
+
+        var trip = await _dbContext.Trips
+            .AsNoTracking()
+            .Where(t => t.Id == tripId)
+            .Select(t => new { t.UserId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (trip == null)
+        {
+            return NotFound();
+        }
+
+        if (!string.Equals(trip.UserId, userId, StringComparison.Ordinal))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var normalizedQuery = query?.Trim() ?? string.Empty;
+        var validationErrors = ValidateGeocodeSearch(normalizedQuery, limit, BuildOptions().Limits.NominatimSearchLimit, out var clampedLimit);
+        if (validationErrors.Count > 0)
+        {
+            return ValidationError(validationErrors);
+        }
+
+        if (_geocodeSearch == null)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var outcome = await _geocodeSearch.SearchAsync(normalizedQuery, clampedLimit, cancellationToken);
+        return outcome.Status switch
+        {
+            TripEditorGeocodeSearchStatus.Success => Ok(outcome.Response),
+            TripEditorGeocodeSearchStatus.LocalRateLimited => StatusCode(StatusCodes.Status429TooManyRequests),
+            TripEditorGeocodeSearchStatus.ProviderRateLimited => StatusCode(StatusCodes.Status429TooManyRequests),
+            TripEditorGeocodeSearchStatus.ProviderMalformed => StatusCode(StatusCodes.Status502BadGateway),
+            TripEditorGeocodeSearchStatus.ProviderUnavailable => StatusCode(StatusCodes.Status503ServiceUnavailable),
+            TripEditorGeocodeSearchStatus.ProviderTimeout => StatusCode(StatusCodes.Status504GatewayTimeout),
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable)
+        };
+    }
+
     private EditorOptionsDto BuildOptions()
     {
         var colors = _iconColorProvider.GetAvailableColors();
@@ -413,6 +468,27 @@ public sealed partial class TripEditorController : ControllerBase
         {
             ContentTypes = { "application/problem+json" }
         };
+    }
+
+    private static Dictionary<string, string[]> ValidateGeocodeSearch(string query, int? limit, int maxLimit, out int clampedLimit)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            errors["q"] = new[] { "Search query is required." };
+        }
+        else if (query.Length < 3)
+        {
+            errors["q"] = new[] { "Search query must be at least 3 characters." };
+        }
+
+        if (limit.HasValue && limit.Value < 1)
+        {
+            errors["limit"] = new[] { "Limit must be at least 1." };
+        }
+
+        clampedLimit = Math.Clamp(limit ?? maxLimit, 1, maxLimit);
+        return errors;
     }
 
 }

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import MapSearchControl from './components/MapSearchControl.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type SegmentRouteWorkOptions } from './map/leafletAdapter';
-import type { BootstrapConfig, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState } from './types';
+import type { BootstrapConfig, EditorGeocodeSearchResult, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
@@ -19,6 +20,7 @@ const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
+const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 const coordinatePicker = {
@@ -47,6 +49,12 @@ const toolbarContext = computed(() => {
 const canFitAllGeometry = computed(() => Boolean(state.value && hasAnyGeometry(state.value)));
 const canRecenterSavedView = computed(() => Boolean(state.value && hasSavedTripView(state.value.metadata)));
 const canFocusTarget = computed(() => Boolean(state.value && canFocusActiveEntity(state.value, editorSurface.activeTarget.value)));
+const activeEditorTarget = computed(() => editorSurface.activeTarget.value);
+
+watch(
+  () => editorSurface.activeTarget.value?.identity,
+  () => mapAdapter?.clearSearchPreview()
+);
 
 onMounted(async () => {
   setConfirmDialogFocusFallback(workspaceElement.value);
@@ -112,6 +120,29 @@ const focusActiveEntity = (): void => {
   const target = editorSurface.activeTarget.value;
   const result = mapAdapter.focusActiveEntity(state.value, target);
   navigationStatus.value = focusStatusText(result, target);
+};
+
+/// Shows a temporary provider-result marker without entering coordinate-pick map-work.
+const previewSearchResult = (result: EditorGeocodeSearchResult): void => {
+  mapAdapter?.showSearchPreview({ latitude: result.latitude, longitude: result.longitude }, result.name);
+};
+
+/// Clears the temporary map-search preview marker.
+const clearSearchPreview = (): void => {
+  mapAdapter?.clearSearchPreview();
+};
+
+/// Requests that the sidebar open the existing Add Place draft for a provider result.
+const requestSearchAddPlace = (request: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number }): void => {
+  pendingSearchAdd.value = request;
+};
+
+/// Clears the preview marker only after the existing Add Place draft actually opens.
+const handleSearchAddOpened = (requestId: number): void => {
+  if (pendingSearchAdd.value?.requestId === requestId) {
+    clearSearchPreview();
+    pendingSearchAdd.value = null;
+  }
 };
 
 /// Tracks region draft changes that live inside the sidebar child component.
@@ -268,6 +299,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :trip-index-url="props.config.tripIndexUrl"
         :has-region-draft-changes="hasRegionDraftChanges"
         :hidden-segment-ids="hiddenSegmentIds"
+        :pending-search-add="pendingSearchAdd"
         :coordinate-picker="coordinatePicker"
         :polygon-editor="polygonEditor"
         :route-editor="routeEditor"
@@ -275,6 +307,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
+        @search-add-opened="handleSearchAddOpened"
       />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">
@@ -296,6 +329,15 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           </div>
         </header>
         <MapWorkToolbar :controller="editorSurface" />
+        <MapSearchControl
+          v-if="!isMapWorkActive"
+          :active-target="activeEditorTarget"
+          :editor-endpoint="props.config.editorEndpoint"
+          :state="state"
+          @add-place="requestSearchAddPlace"
+          @clear-preview="clearSearchPreview"
+          @preview="previewSearchResult"
+        />
         <div ref="mapElement" class="trip-editor-map" aria-label="Read-only trip map"></div>
       </main>
     </template>
