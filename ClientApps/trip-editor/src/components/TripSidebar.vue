@@ -4,7 +4,8 @@ import type { EditorArea, EditorMutationResult, EditorPlace, EditorRegion, Edito
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import MetadataEditor from './MetadataEditor.vue';
 import RegionManager from './RegionManager.vue';
-import type { AreaPolygonWorkOptions, CoordinatePickOptions } from '../map/leafletAdapter';
+import SegmentManager from './SegmentManager.vue';
+import type { AreaPolygonWorkOptions, CoordinatePickOptions, SegmentRouteWorkOptions } from '../map/leafletAdapter';
 
 type SidebarSearchResult = {
   hasMatches: boolean;
@@ -20,17 +21,24 @@ const props = defineProps<{
   antiforgeryToken: string;
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
+  hiddenSegmentIds: ReadonlySet<Guid>;
   coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
   polygonEditor: { startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void };
+  routeEditor: {
+    setSegmentRouteWorkRoute: (route: EditorSegment['route']) => void;
+    startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
+  };
 }>();
 
 const emit = defineEmits<{
   metadataSaved: [metadata: EditorTripState['metadata']];
   mutationApplied: [result: EditorMutationResult<unknown>];
   regionDraftDirtyChanged: [isDirty: boolean];
+  hiddenSegmentIdsChanged: [ids: Set<Guid>];
 }>();
 
 const searchQuery = ref('');
+const segmentDraftDirty = ref(false);
 const normalizedSearchQuery = computed(() => normalize(searchQuery.value));
 const searchMinimumCharacters = computed(() => props.state.options.limits?.sidebarSearchMinCharacters ?? 1);
 const isSearchActive = computed(() => normalizedSearchQuery.value.length >= searchMinimumCharacters.value);
@@ -73,6 +81,7 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
   return result;
 });
 const hasSidebarSearchMatches = computed(() => sidebarSearch.value.hasMatches || filteredSegments.value.length > 0);
+const hasAnyDraftChanges = computed(() => props.hasRegionDraftChanges || segmentDraftDirty.value);
 
 const segmentLabel = (state: EditorTripState, segment: EditorSegment): string => {
   const from = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;
@@ -140,7 +149,7 @@ function normalize(value: string): string {
       :editor-endpoint="editorEndpoint"
       :antiforgery-token="antiforgeryToken"
       :trip-index-url="tripIndexUrl"
-      :has-region-draft-changes="hasRegionDraftChanges"
+      :has-region-draft-changes="hasAnyDraftChanges"
       @saved="metadata => emit('metadataSaved', metadata)"
       @mutation-applied="result => emit('mutationApplied', result)"
     />
@@ -186,14 +195,18 @@ function normalize(value: string): string {
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
     />
 
-    <section v-if="state.segmentOrder.length > 0 && (!isSearchActive || filteredSegments.length > 0)" class="trip-editor-panel">
-      <h2>Segments</h2>
-      <ul class="trip-editor-segments">
-        <li v-for="segment in filteredSegments" :key="segment.id">
-          <span>{{ segmentLabel(state, segment) }}</span>
-          <small>{{ segmentModeText(state, segment) }}</small>
-        </li>
-      </ul>
-    </section>
+    <SegmentManager
+      :state="state"
+      :editor-surface="editorSurface"
+      :editor-endpoint="editorEndpoint"
+      :antiforgery-token="antiforgeryToken"
+      :hidden-segment-ids="hiddenSegmentIds"
+      :route-editor="routeEditor"
+      :search-active="isSearchActive"
+      :segments="filteredSegments"
+      @dirty-state-changed="isDirty => { segmentDraftDirty = isDirty; emit('regionDraftDirtyChanged', hasAnyDraftChanges); }"
+      @hidden-segment-ids-changed="ids => emit('hiddenSegmentIdsChanged', ids)"
+      @mutation-applied="result => emit('mutationApplied', result)"
+    />
   </aside>
 </template>

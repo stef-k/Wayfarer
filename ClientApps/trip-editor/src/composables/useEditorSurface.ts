@@ -3,7 +3,7 @@ import { confirm } from './useConfirmDialog';
 import type { Guid } from '../types';
 
 export type EditorSurfaceMode = 'docked' | 'expanded' | 'map-work';
-export type EditorTargetKind = 'metadata' | 'region' | 'place' | 'area';
+export type EditorTargetKind = 'metadata' | 'region' | 'place' | 'area' | 'segment';
 export type EditorTargetMode = 'edit' | 'add';
 
 export interface EditorTarget {
@@ -28,6 +28,7 @@ export interface MapWorkOptions {
   statusText?: string | (() => string);
   canFinish?: () => boolean;
   isDirty?: () => boolean;
+  clear?: () => void | Promise<void>;
   snapshot: () => unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -42,6 +43,7 @@ interface ActiveMapWork {
   statusText: string | (() => string);
   canFinish: () => boolean;
   isDirty: () => boolean;
+  clear?: () => void | Promise<void>;
   snapshot: unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -170,6 +172,7 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     statusText: options.statusText ?? 'Map work active',
     canFinish: options.canFinish ?? (() => true),
     isDirty: options.isDirty ?? (() => true),
+    clear: options.clear,
     snapshot: options.snapshot(),
     rollback: options.rollback,
     done: options.done,

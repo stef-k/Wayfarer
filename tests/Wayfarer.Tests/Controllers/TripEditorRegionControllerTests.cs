@@ -327,6 +327,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
             new TripEditorRegionMutationService(db),
             new TripEditorPlaceMutationService(db, environment, new IconColorProvider(environment), new ReverseGeocodingService(new HttpClient(), Mock.Of<ILogger<BaseApiController>>())),
             new TripEditorAreaMutationService(db),
+            new TripEditorSegmentMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
     }
 

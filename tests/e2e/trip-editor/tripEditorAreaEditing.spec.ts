@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import {
   absoluteUrl,
+  closeDraftWithDiscard,
   editorApiPath,
   expectMountedWorkspace,
   expectNoSearchAddUi,
@@ -31,8 +32,7 @@ test.describe.serial('Trip Editor area editing', () => {
     await expect(page.locator('#trip-editor-area-form')).toContainText('No polygon drawn');
     await expect(page.getByRole('button', { name: 'Save Geometry' })).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Cancel' }).click();
-    await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await closeDraftWithDiscard(page);
     await openEditableArea(page);
     await expect(page.locator('#trip-editor-area-form').getByLabel('Name')).toHaveValue(areaName);
     await page.getByRole('button', { name: 'Expand Editor' }).click();

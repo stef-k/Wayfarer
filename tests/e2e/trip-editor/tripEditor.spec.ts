@@ -178,7 +178,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expectTripLevelTagsOnly(page);
     await expectMockupOnlyPlaceControlsAbsent(page);
     await expectAddPlaceButtonsAreRegionScoped(page);
-    await expectUnimplementedAreaAndSegmentActionsAbsent(page);
+  await expectMockupOnlySegmentControlsAbsent(page);
 
     const card = firstRegionWithChildren(page);
     const children = card.locator('ul');
@@ -344,12 +344,10 @@ async function expectAddPlaceButtonsAreRegionScoped(page: Page): Promise<void> {
   }
 }
 
-// Keeps future Add Area/Add Segment work from appearing as inert controls in this tooling baseline.
-async function expectUnimplementedAreaAndSegmentActionsAbsent(page: Page): Promise<void> {
-  await expect(page.getByRole('button', { name: /add area/i })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /add segment/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /add area/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /add segment/i })).toHaveCount(0);
+// Guards against segment controls that are explicitly outside the current slice.
+async function expectMockupOnlySegmentControlsAbsent(page: Page): Promise<void> {
+  await expect(page.getByRole('button', { name: /geocode|search.?add|marker drag/i })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /geocode|search.?add|marker drag/i })).toHaveCount(0);
 }
 
 async function openFirstPlaceFormIfAvailable(page: Page): Promise<Locator | null> {
@@ -374,7 +372,7 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
   }
 
   await page.getByText(name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText(name)).toHaveCount(0);
 }

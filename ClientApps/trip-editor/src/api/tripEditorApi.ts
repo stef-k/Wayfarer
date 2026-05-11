@@ -14,6 +14,11 @@ import type {
   EditorRegionOrderRequest,
   EditorRegionOrderResult,
   EditorRegionSaveRequest,
+  EditorSegment,
+  EditorSegmentDeleteResult,
+  EditorSegmentOrderRequest,
+  EditorSegmentOrderResult,
+  EditorSegmentSaveRequest,
   EditorShareProgressUpdateRequest,
   EditorTag,
   EditorTripTagsUpdateRequest,
@@ -196,6 +201,35 @@ export const orderAreas = async (
   request: EditorAreaOrderRequest
 ): Promise<EditorMutationResult<EditorAreaOrderResult>> =>
   sendMutation(`${endpoint}/regions/${regionId}/areas/order`, 'PUT', antiforgeryToken, request, 'area order');
+
+/// Creates a trip-level segment through the same-origin editor API.
+export const createSegment = async (
+  endpoint: string,
+  antiforgeryToken: string,
+  request: EditorSegmentSaveRequest
+): Promise<EditorMutationResult<EditorSegment>> => sendMutation(`${endpoint}/segments`, 'POST', antiforgeryToken, request, 'segment create');
+
+/// Updates a segment through the same-origin editor API.
+export const updateSegment = async (
+  endpoint: string,
+  segmentId: string,
+  antiforgeryToken: string,
+  request: EditorSegmentSaveRequest
+): Promise<EditorMutationResult<EditorSegment>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'PUT', antiforgeryToken, request, 'segment update');
+
+/// Deletes a segment through the same-origin editor API.
+export const deleteSegment = async (
+  endpoint: string,
+  segmentId: string,
+  antiforgeryToken: string
+): Promise<EditorMutationResult<EditorSegmentDeleteResult>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'DELETE', antiforgeryToken, null, 'segment delete');
+
+/// Persists the complete trip-level segment order.
+export const orderSegments = async (
+  endpoint: string,
+  antiforgeryToken: string,
+  request: EditorSegmentOrderRequest
+): Promise<EditorMutationResult<EditorSegmentOrderResult>> => sendMutation(`${endpoint}/segments/order`, 'PUT', antiforgeryToken, request, 'segment order');
 
 const sendMutation = async <TData>(
   url: string,

@@ -13,6 +13,7 @@ const statusText = computed(() => {
   return typeof status === 'function' ? status() : status;
 });
 const canFinish = computed(() => mapWork.value?.canFinish() ?? false);
+const canClear = computed(() => Boolean(mapWork.value?.clear));
 
 const onKeydown = async (event: KeyboardEvent): Promise<void> => {
   if (event.key !== 'Escape') {
@@ -46,6 +47,7 @@ watch(
     </div>
     <div class="trip-editor-map-work-toolbar__actions">
       <button ref="doneButton" type="button" class="btn btn-primary btn-sm" :disabled="!canFinish" @click="controller.finishMapWork()">Done</button>
+      <button v-if="canClear" type="button" class="btn btn-outline-light btn-sm" @click="mapWork?.clear?.()">Clear Route</button>
       <button type="button" class="btn btn-outline-light btn-sm" @click="controller.cancelMapWork()">Cancel</button>
     </div>
   </div>
