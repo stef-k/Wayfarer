@@ -1,4 +1,4 @@
-import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest } from '../types';
+import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest } from '../types';
 
 export type RegionDraft = {
   id: string | null;
@@ -114,6 +114,39 @@ export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest 
   };
 }
 
+export function emptySegmentDraft(): EditorSegmentDraft {
+  return { id: null, fromPlaceId: null, toPlaceId: null, mode: '', estimatedDistanceKm: '', estimatedDurationMinutes: '', notesHtml: '', route: null };
+}
+
+export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraft {
+  if (!segment) {
+    return emptySegmentDraft();
+  }
+
+  return {
+    id: segment.id,
+    fromPlaceId: segment.fromPlaceId,
+    toPlaceId: segment.toPlaceId,
+    mode: segment.mode,
+    estimatedDistanceKm: segment.estimatedDistanceKm ?? '',
+    estimatedDurationMinutes: segment.estimatedDurationMinutes ?? '',
+    notesHtml: segment.notesHtml,
+    route: cloneGeometry(segment.route)
+  };
+}
+
+export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSaveRequest {
+  return {
+    fromPlaceId: value.fromPlaceId || null,
+    toPlaceId: value.toPlaceId || null,
+    mode: value.mode || null,
+    estimatedDistanceKm: nullableNumber(value.estimatedDistanceKm),
+    estimatedDurationMinutes: nullableNumber(value.estimatedDurationMinutes),
+    notesHtml: value.notesHtml,
+    route: cloneGeometry(value.route)
+  };
+}
+
 function cloneGeometry<T>(geometry: T): T {
   return geometry ? JSON.parse(JSON.stringify(geometry)) as T : geometry;
 }
@@ -125,4 +158,9 @@ function coordinateText(coordinate: EditorCoordinate | null, key: keyof EditorCo
 /// Normalizes Vue number-input values before validation and API serialization.
 function draftText(value: string | number): string {
   return String(value ?? '').trim();
+}
+
+function nullableNumber(value: string | number): number | null {
+  const text = draftText(value);
+  return text ? Number(text) : null;
 }

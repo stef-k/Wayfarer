@@ -1,9 +1,10 @@
 import type { EditorTarget } from '../composables/useEditorSurface';
-import type { EditorArea, EditorPlace, EditorRegion } from '../types';
+import type { EditorArea, EditorPlace, EditorRegion, EditorSegment } from '../types';
 
 export const regionDraftKey = 'region-draft';
 export const placeDraftKey = 'place-draft';
 export const areaDraftKey = 'area-draft';
+export const segmentDraftKey = 'segment-draft';
 
 export function buildRegionCreateTarget(): EditorTarget {
   return {
@@ -75,5 +76,28 @@ export function buildAreaEditTarget(area: EditorArea, subtitle?: string): Editor
     subtitle,
     entityId: area.id,
     parentRegionId: area.regionId
+  };
+}
+
+export function buildSegmentCreateTarget(): EditorTarget {
+  return {
+    key: segmentDraftKey,
+    identity: 'segment:add',
+    kind: 'segment',
+    mode: 'add',
+    title: 'Add Segment',
+    subtitle: 'New segment'
+  };
+}
+
+export function buildSegmentEditTarget(segment: EditorSegment, title: string): EditorTarget {
+  return {
+    key: segmentDraftKey,
+    identity: `segment:edit:${segment.id}`,
+    kind: 'segment',
+    mode: 'edit',
+    title: `Edit Segment - ${title}`,
+    subtitle: 'Trip segment',
+    entityId: segment.id
   };
 }

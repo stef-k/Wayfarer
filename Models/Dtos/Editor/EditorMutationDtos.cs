@@ -111,6 +111,33 @@ public sealed record EditorAreaOrderResult(Guid RegionId, IReadOnlyList<Guid> Ar
 public sealed record EditorAreaDeleteResult(Guid AreaId);
 
 /// <summary>
+/// Complete-draft request for creating or updating a segment from the same-origin editor.
+/// </summary>
+public sealed record EditorSegmentSaveRequest(
+    Guid? FromPlaceId,
+    Guid? ToPlaceId,
+    string Mode,
+    double? EstimatedDistanceKm,
+    double? EstimatedDurationMinutes,
+    string? NotesHtml,
+    NetTopologySuite.Geometries.LineString? Route);
+
+/// <summary>
+/// Complete desired trip-level segment order.
+/// </summary>
+public sealed record EditorSegmentOrderRequest(IReadOnlyList<Guid> SegmentIds);
+
+/// <summary>
+/// Segment order data returned by the segment order endpoint.
+/// </summary>
+public sealed record EditorSegmentOrderResult(IReadOnlyList<Guid> SegmentOrder);
+
+/// <summary>
+/// Segment delete data returned by the segment delete endpoint.
+/// </summary>
+public sealed record EditorSegmentDeleteResult(Guid SegmentId);
+
+/// <summary>
 /// Standard success envelope returned by editor mutation endpoints.
 /// </summary>
 public sealed record EditorMutationResult<TData>(

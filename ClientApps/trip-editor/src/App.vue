@@ -6,8 +6,8 @@ import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult } from './map/leafletAdapter';
-import type { BootstrapConfig, EditorMutationResult, EditorTripMetadata, EditorTripState } from './types';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type SegmentRouteWorkOptions } from './map/leafletAdapter';
+import type { BootstrapConfig, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
@@ -18,6 +18,7 @@ const hasRegionDraftChanges = ref(false);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
 const navigationStatus = ref<string | null>(null);
+const hiddenSegmentIds = ref<Set<string>>(new Set());
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 const coordinatePicker = {
@@ -25,6 +26,10 @@ const coordinatePicker = {
 };
 const polygonEditor = {
   startAreaPolygonWork: (options: AreaPolygonWorkOptions): (() => void) => mapAdapter?.startAreaPolygonWork(options) ?? (() => undefined)
+};
+const routeEditor = {
+  setSegmentRouteWorkRoute: (route: EditorSegment['route']): void => mapAdapter?.setSegmentRouteWorkRoute(route),
+  startSegmentRouteWork: (options: SegmentRouteWorkOptions): (() => void) => mapAdapter?.startSegmentRouteWork(options) ?? (() => undefined)
 };
 
 const updatedLabel = computed(() =>
@@ -56,7 +61,7 @@ onMounted(async () => {
     }
 
     mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
-    mapAdapter.render(loadedState);
+    mapAdapter.render(loadedState, hiddenSegmentIds.value);
   } catch (loadError) {
     error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
     isLoading.value = false;
@@ -75,7 +80,7 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
   }
 
   state.value = { ...state.value, metadata };
-  mapAdapter?.render(state.value);
+  mapAdapter?.render(state.value, hiddenSegmentIds.value);
 };
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
@@ -150,6 +155,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   });
   result.deletedIds.segments.forEach(id => {
     delete next.segmentsById[id];
+    hiddenSegmentIds.value.delete(id);
   });
   result.deletedIds.tags.forEach(slug => {
     delete next.tagsBySlug[slug];
@@ -188,7 +194,15 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   });
 
   state.value = next;
-  mapAdapter?.render(next);
+  mapAdapter?.render(next, hiddenSegmentIds.value);
+};
+
+/// Updates client-session-only segment visibility without touching the API contract.
+const updateHiddenSegmentIds = (ids: Set<string>): void => {
+  hiddenSegmentIds.value = ids;
+  if (state.value) {
+    mapAdapter?.render(state.value, hiddenSegmentIds.value);
+  }
 };
 
 function focusStatusText(result: FocusActiveEntityResult, target: { kind: string; mode: string } | null): string {
@@ -212,6 +226,10 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
 
     if (kind === 'area') {
       return 'Focused area';
+    }
+
+    if (kind === 'segment') {
+      return 'Focused segment';
     }
 
     return 'Focused active entity';
@@ -249,11 +267,14 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
         :has-region-draft-changes="hasRegionDraftChanges"
+        :hidden-segment-ids="hiddenSegmentIds"
         :coordinate-picker="coordinatePicker"
         :polygon-editor="polygonEditor"
+        :route-editor="routeEditor"
         @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"
+        @hidden-segment-ids-changed="updateHiddenSegmentIds"
       />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">

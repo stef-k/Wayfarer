@@ -3,16 +3,20 @@ import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
+import { createSegmentRouteWorkLayer } from './segmentRouteWorkLayer';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
+export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 
 export type FitAllGeometryResult = 'moved' | 'no-geometry';
 export type FocusSavedTripViewResult = 'moved' | 'missing-view';
 export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry' | 'unsupported-target';
 
 interface TripEditorMapAdapter {
-  render: (state: EditorTripState) => void;
+  render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
+  startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
+  setSegmentRouteWorkRoute: (route: EditorSegment['route']) => void;
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
@@ -24,21 +28,27 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
   const layers = L.layerGroup().addTo(map);
   const coordinatePick = createCoordinatePickLayer(map);
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
+  const segmentRouteWork = createSegmentRouteWorkLayer(map);
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
     maxZoom: 19
   }).addTo(map);
 
-  const render = (state: EditorTripState): void => {
+  const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set()): void => {
     coordinatePick.clearRegisteredMarkers();
     areaPolygonWork.stop();
+    segmentRouteWork.stop();
     layers.clearLayers();
 
     Object.values(state.regionsById).forEach(region => renderRegion(region, layers));
     Object.values(state.areasById).forEach(area => renderArea(area, layers));
     Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick));
-    Object.values(state.segmentsById).forEach(segment => renderSegment(segment, state, layers));
+    Object.values(state.segmentsById).forEach(segment => {
+      if (!hiddenSegmentIds.has(segment.id)) {
+        renderSegment(segment, state, layers);
+      }
+    });
 
     fitMapToState(map, state);
   };
@@ -47,12 +57,15 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
     render,
     startCoordinatePick: options => coordinatePick.start(options),
     startAreaPolygonWork: options => areaPolygonWork.start(options),
+    startSegmentRouteWork: options => segmentRouteWork.start(options),
+    setSegmentRouteWorkRoute: route => segmentRouteWork.setRoute(route),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
     dispose: () => {
       coordinatePick.dispose();
       areaPolygonWork.dispose();
+      segmentRouteWork.dispose();
       map.remove();
     }
   };
@@ -305,6 +318,15 @@ const focusActiveEntity = (map: LeafletMap, state: EditorTripState, target: Edit
     return area ? fitBounds(map, areaBounds(area)) : 'missing-target';
   }
 
+  if (target.kind === 'segment') {
+    if (target.mode !== 'edit' || !target.entityId) {
+      return allGeometryBounds(state).isValid() ? fitAllGeometry(map, state) : 'no-geometry';
+    }
+
+    const segment = state.segmentsById[target.entityId];
+    return segment ? fitBounds(map, segmentBounds(segment, state)) : 'missing-target';
+  }
+
   return 'unsupported-target';
 };
 
@@ -349,6 +371,14 @@ export const canFocusActiveEntity = (state: EditorTripState, target: EditorTarge
     }
 
     return Boolean(target.entityId) && areaBounds(state.areasById[target.entityId!]).isValid();
+  }
+
+  if (target.kind === 'segment') {
+    if (target.mode === 'add') {
+      return hasAnyGeometry(state);
+    }
+
+    return Boolean(target.entityId) && segmentBounds(state.segmentsById[target.entityId!], state).isValid();
   }
 
   return false;
@@ -406,6 +436,15 @@ const areaBounds = (area: EditorArea | undefined): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   if (area) {
     extendArea(bounds, area);
+  }
+
+  return bounds;
+};
+
+const segmentBounds = (segment: EditorSegment | undefined, state: EditorTripState): L.LatLngBounds => {
+  const bounds = L.latLngBounds([]);
+  if (segment) {
+    extendSegment(bounds, segment, state);
   }
 
   return bounds;

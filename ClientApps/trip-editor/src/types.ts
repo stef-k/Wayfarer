@@ -240,6 +240,28 @@ export interface EditorAreaDeleteResult {
   areaId: Guid;
 }
 
+export interface EditorSegmentSaveRequest {
+  fromPlaceId: Guid | null;
+  toPlaceId: Guid | null;
+  mode: string | null;
+  estimatedDistanceKm: number | null;
+  estimatedDurationMinutes: number | null;
+  notesHtml: string | null;
+  route: GeoJsonLineString | null;
+}
+
+export interface EditorSegmentOrderRequest {
+  segmentIds: Guid[];
+}
+
+export interface EditorSegmentOrderResult {
+  segmentOrder: Guid[];
+}
+
+export interface EditorSegmentDeleteResult {
+  segmentId: Guid;
+}
+
 export interface EditorPlaceDraft {
   id: Guid | null;
   regionId: Guid | null;
@@ -260,6 +282,17 @@ export interface EditorAreaDraft {
   notesHtml: string;
   fillHex: string;
   geometry: GeoJsonPolygon | null;
+}
+
+export interface EditorSegmentDraft {
+  id: Guid | null;
+  fromPlaceId: Guid | null;
+  toPlaceId: Guid | null;
+  mode: string;
+  estimatedDistanceKm: string | number;
+  estimatedDurationMinutes: string | number;
+  notesHtml: string;
+  route: GeoJsonLineString | null;
 }
 
 export interface EditorMutationResult<TData> {
