@@ -372,7 +372,7 @@ async function cleanupTemporaryPlace(page: Page, name: string, shouldCleanup: bo
   }
 
   await page.getByText(name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText(name)).toHaveCount(0);
 }

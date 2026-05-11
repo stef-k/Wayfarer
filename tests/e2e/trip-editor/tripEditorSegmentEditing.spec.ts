@@ -92,7 +92,7 @@ test.describe.serial('Trip Editor segment editing', () => {
     await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
 
-    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(page.getByRole('dialog', { name: 'Delete segment?' })).toBeVisible();
@@ -127,12 +127,12 @@ test.describe.serial('Trip Editor segment editing', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(segmentOrderMutationResult(state)) });
     });
 
-    await expectSegmentOrder(page, ['PW first segment', 'PW second segment']);
-    await segmentRow(page, 'PW first segment').getByRole('button', { name: 'Drag to reorder segment' }).dragTo(segmentRow(page, 'PW second segment'));
-    await expectSegmentOrder(page, ['PW second segment', 'PW first segment']);
+    await expectSegmentOrder(page, [segmentId, secondSegmentId]);
+    await segmentRow(page, segmentId).getByRole('button', { name: 'Drag to reorder segment' }).dragTo(segmentRow(page, secondSegmentId));
+    await expectSegmentOrder(page, [secondSegmentId, segmentId]);
     await page.reload();
     await expectMountedWorkspace(page);
-    await expectSegmentOrder(page, ['PW second segment', 'PW first segment']);
+    await expectSegmentOrder(page, [secondSegmentId, segmentId]);
   });
 });
 
@@ -183,19 +183,18 @@ function segmentFixture(state: MutableEditorState, id: string, fromPlaceId: stri
 }
 
 async function openEditableSegment(page: Page): Promise<void> {
-  await segmentRow(page, 'PW first segment').click();
+  await segmentRow(page, segmentId).locator('.trip-editor-list-button').click();
   await expect(page.getByRole('heading', { name: /Edit Segment -/ })).toBeVisible();
 }
 
-function segmentRow(page: Page, notesText: string) {
-  return page.locator('[data-segment-id]').filter({ hasText: notesText });
+function segmentRow(page: Page, id: string) {
+  return page.locator(`[data-segment-id="${id}"]`);
 }
 
 async function expectSegmentOrder(page: Page, expected: string[]): Promise<void> {
   await expect.poll(async () => {
-    const rows = await page.locator('[data-segment-id]').all();
-    return Promise.all(rows.map(row => row.innerText()));
-  }).toEqual(expected.map(text => expect.stringContaining(text)));
+    return await page.locator('[data-segment-id]').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.segmentId));
+  }).toEqual(expected);
 }
 
 function segmentMutationResult(segment: Record<string, any>, order: string[] | null): Record<string, any> {
