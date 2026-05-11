@@ -469,11 +469,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Register memory cache for application services
     builder.Services.AddMemoryCache();
-    builder.Services.AddSingleton<TileMetadataHotCache>();
-    builder.Services.Configure<TripEditorGeocodeOptions>(builder.Configuration.GetSection("TripEditorGeocode"));
-    builder.Services.AddSingleton<ITripEditorGeocodeClock, SystemTripEditorGeocodeClock>();
-    builder.Services.AddSingleton<TripEditorGeocodeRateLimiter>();
-    builder.Services.AddScoped<ITripEditorGeocodeSearchService, TripEditorGeocodeSearchService>();
+    builder.Services.AddSingleton<TileMetadataHotCache>(); builder.Services.AddTripEditorGeocodeSearch(builder.Configuration);
 
     // Register application services with DI container
     builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();
@@ -540,27 +536,6 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Reverse geocoding Mapbox service
     builder.Services.AddHttpClient<ReverseGeocodingService>();
-    builder.Services.AddHttpClient<ITripEditorGeocodeProvider, NominatimTripEditorGeocodeProvider>()
-        .ConfigureHttpClient((sp, client) =>
-        {
-            var options = sp.GetRequiredService<IOptions<TripEditorGeocodeOptions>>().Value;
-            var config = sp.GetRequiredService<IConfiguration>();
-            var contactEmail = config.GetSection("Application:ContactEmail").Value ?? "noreply@wayfarer.app";
-            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
-            var userAgent = string.IsNullOrWhiteSpace(options.NominatimUserAgent)
-                ? $"Wayfarer/1.0 (contact: {contactEmail})"
-                : options.NominatimUserAgent;
-            if (!client.DefaultRequestHeaders.UserAgent.TryParseAdd(userAgent))
-            {
-                client.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
-            }
-
-            if (!string.IsNullOrWhiteSpace(options.Referer)
-                && Uri.TryCreate(options.Referer, UriKind.Absolute, out var referer))
-            {
-                client.DefaultRequestHeaders.Referrer = referer;
-            }
-        });
 
     // Tile Cache service — typed HttpClient with OSM-compliant headers.
     // Manual redirects are handled in TileCacheService.SendTileRequestAsync.

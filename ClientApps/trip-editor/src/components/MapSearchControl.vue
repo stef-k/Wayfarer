@@ -92,7 +92,7 @@ watch(eligibleRegions, regions => {
 
 const submitSearch = async (): Promise<void> => {
   const submitted = trimmedQuery.value;
-  if (submitted.length < minChars || status.value === 'loading') {
+  if (submitted.length < minChars) {
     return;
   }
 
@@ -107,7 +107,12 @@ const submitSearch = async (): Promise<void> => {
 
   try {
     const response = await searchGeocode(props.editorEndpoint, submitted, limit.value, controller.signal);
-    if (sequence !== requestSequence || response.query !== submittedQuery.value) {
+    if (sequence !== requestSequence) {
+      return;
+    }
+
+    if (response.query !== submittedQuery.value || response.query !== trimmedQuery.value) {
+      status.value = 'idle';
       return;
     }
 
