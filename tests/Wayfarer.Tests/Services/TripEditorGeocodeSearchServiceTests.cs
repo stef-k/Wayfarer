@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Models.Options;
@@ -93,6 +95,44 @@ public sealed class TripEditorGeocodeSearchServiceTests
     }
 
     [Fact]
+    public async Task RegisteredNominatimProviderSendsConfiguredUserAgent()
+    {
+        var handler = new CapturingHandler(HttpStatusCode.OK, "[]");
+        var provider = BuildRegisteredNominatimProvider(handler, new Dictionary<string, string?>
+        {
+            ["TripEditorGeocode:NominatimSearchEndpoint"] = "https://nominatim.openstreetmap.org/search",
+            ["TripEditorGeocode:NominatimUserAgent"] = "WayfarerConfigured/1.0 (contact: configured@example.test)",
+            ["Application:ContactEmail"] = "ignored@example.test"
+        });
+
+        await provider.SearchAsync("athens", 6, CancellationToken.None);
+
+        Assert.Equal("WayfarerConfigured/1.0 (contact: configured@example.test)", handler.LastRequest!.Headers.UserAgent.ToString());
+        Assert.DoesNotContain("ignored@example.test", handler.LastRequest.Headers.UserAgent.ToString());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task RegisteredNominatimProviderUsesPlainUserAgentWhenConfiguredUserAgentMissingOrBlank(string? configuredUserAgent)
+    {
+        var handler = new CapturingHandler(HttpStatusCode.OK, "[]");
+        var provider = BuildRegisteredNominatimProvider(handler, new Dictionary<string, string?>
+        {
+            ["TripEditorGeocode:NominatimSearchEndpoint"] = "https://nominatim.openstreetmap.org/search",
+            ["TripEditorGeocode:NominatimUserAgent"] = configuredUserAgent,
+            ["Application:ContactEmail"] = "ignored@example.test"
+        });
+
+        await provider.SearchAsync("athens", 6, CancellationToken.None);
+
+        Assert.Equal("Wayfarer/1.0", handler.LastRequest!.Headers.UserAgent.ToString());
+        Assert.DoesNotContain("ignored@example.test", handler.LastRequest.Headers.UserAgent.ToString());
+        Assert.DoesNotContain("noreply@wayfarer.app", handler.LastRequest.Headers.UserAgent.ToString());
+    }
+
+    [Fact]
     public async Task NominatimProviderMapsNoResultsToSuccess()
     {
         var provider = BuildNominatimProvider("[]");
@@ -161,6 +201,21 @@ public sealed class TripEditorGeocodeSearchServiceTests
         new(
             new HttpClient(new CapturingHandler(HttpStatusCode.OK, response)),
             Options.Create(new TripEditorGeocodeOptions { NominatimSearchEndpoint = "https://nominatim.openstreetmap.org/search" }));
+
+    private static ITripEditorGeocodeProvider BuildRegisteredNominatimProvider(
+        CapturingHandler handler,
+        Dictionary<string, string?> values)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+        var services = new ServiceCollection();
+        services.AddMemoryCache();
+        services.AddTripEditorGeocodeSearch(configuration);
+        services.AddHttpClient<ITripEditorGeocodeProvider, NominatimTripEditorGeocodeProvider>()
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+        return services.BuildServiceProvider().GetRequiredService<ITripEditorGeocodeProvider>();
+    }
 
     private sealed class FakeProvider : ITripEditorGeocodeProvider
     {

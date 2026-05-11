@@ -111,7 +111,8 @@ const submitSearch = async (): Promise<void> => {
       return;
     }
 
-    if (response.query !== submittedQuery.value || response.query !== trimmedQuery.value) {
+    const responseQuery = normalizeQuery(response.query);
+    if (responseQuery !== normalizeQuery(submittedQuery.value) || responseQuery !== normalizeQuery(trimmedQuery.value)) {
       status.value = 'idle';
       return;
     }
@@ -170,6 +171,9 @@ const resultMeta = (result: EditorGeocodeSearchResult): string =>
   [result.type, result.category].filter(Boolean).join(' / ');
 
 const roundedCoordinate = (value: number): string => value.toFixed(5);
+
+const normalizeQuery = (value: string): string =>
+  value.trim().split(/\s+/u).filter(Boolean).join(' ').toLowerCase();
 
 onUnmounted(() => {
   clearResults();

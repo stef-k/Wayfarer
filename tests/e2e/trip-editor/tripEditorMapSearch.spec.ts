@@ -91,6 +91,25 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(mapSearch).toContainText('Map search provider is unavailable.');
   });
 
+  test('map search accepts normalized response query echoes without dropping current results', async ({ page }) => {
+    await signIn(page);
+    await routeGeocode(page, async route => {
+      const query = new URL(route.request().url()).searchParams.get('q') ?? '';
+      const normalized = query.trim().split(/\s+/u).join(' ').toLowerCase();
+      await fulfillGeocode(route, [result(`Result for ${normalized}`)], normalized);
+    });
+
+    await page.goto(absoluteUrl(workspacePath));
+    await expectMountedWorkspace(page);
+    const mapSearch = page.getByRole('region', { name: 'Map search' });
+
+    await runSearch(page, 'Athens');
+    await expect(mapSearch.getByRole('button', { name: 'Result for athens' })).toBeVisible();
+
+    await runSearch(page, 'athens   acropolis');
+    await expect(mapSearch.getByRole('button', { name: 'Result for athens acropolis' })).toBeVisible();
+  });
+
   test('result preview marker appears, clears, and search-add opens the existing Add Place draft without saving', async ({ page }) => {
     await signIn(page);
     let saveCalls = 0;

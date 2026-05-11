@@ -143,6 +143,7 @@ public sealed class TripEditorGeocodeSearchService : ITripEditorGeocodeSearchSer
 /// </summary>
 public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvider
 {
+    private const string DefaultUserAgent = "Wayfarer/1.0";
     private const string ProviderName = "nominatim";
     private const string Attribution = "Data © OpenStreetMap contributors, ODbL 1.0.";
     private readonly HttpClient _httpClient;
@@ -155,7 +156,13 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
         _options = options.Value;
         if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(_options.NominatimUserAgent);
+            var userAgent = string.IsNullOrWhiteSpace(_options.NominatimUserAgent)
+                ? DefaultUserAgent
+                : _options.NominatimUserAgent;
+            if (!_httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(userAgent))
+            {
+                _httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(DefaultUserAgent);
+            }
         }
 
         if (_httpClient.DefaultRequestHeaders.Referrer == null

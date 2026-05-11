@@ -8,6 +8,8 @@ namespace Wayfarer.Services;
 /// </summary>
 public static class TripEditorGeocodeServiceCollectionExtensions
 {
+    private const string DefaultNominatimUserAgent = "Wayfarer/1.0";
+
     /// <summary>Adds the cache, rate limiter, provider, and search service for Trip Editor geocode search.</summary>
     public static IServiceCollection AddTripEditorGeocodeSearch(this IServiceCollection services, IConfiguration configuration)
     {
@@ -19,14 +21,13 @@ public static class TripEditorGeocodeServiceCollectionExtensions
             .ConfigureHttpClient((sp, client) =>
             {
                 var options = sp.GetRequiredService<IOptions<TripEditorGeocodeOptions>>().Value;
-                var contactEmail = sp.GetRequiredService<IConfiguration>().GetSection("Application:ContactEmail").Value ?? "noreply@wayfarer.app";
                 client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
                 var userAgent = string.IsNullOrWhiteSpace(options.NominatimUserAgent)
-                    ? $"Wayfarer/1.0 (contact: {contactEmail})"
+                    ? DefaultNominatimUserAgent
                     : options.NominatimUserAgent;
                 if (!client.DefaultRequestHeaders.UserAgent.TryParseAdd(userAgent))
                 {
-                    client.DefaultRequestHeaders.UserAgent.TryParseAdd("Wayfarer/1.0");
+                    client.DefaultRequestHeaders.UserAgent.TryParseAdd(DefaultNominatimUserAgent);
                 }
 
                 if (!string.IsNullOrWhiteSpace(options.Referer) && Uri.TryCreate(options.Referer, UriKind.Absolute, out var referer))
