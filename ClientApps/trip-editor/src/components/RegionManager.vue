@@ -14,7 +14,7 @@ import { usePlaceEditorActions } from './placeEditorActions';
 import { useRegionEditorActions } from './regionEditorActions';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { useEditorMutationFeedback } from './useEditorMutationFeedback';
-import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
+import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 const props = defineProps<{
   state: EditorTripState;
@@ -25,6 +25,7 @@ const props = defineProps<{
   searchRegions: EditorRegion[];
   searchPlaceIdsByRegionId: Record<Guid, Guid[]>;
   searchAreaIdsByRegionId: Record<Guid, Guid[]>;
+  pendingSearchAdd: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null;
   coordinatePicker: PlaceCoordinatePicker;
   polygonEditor: AreaPolygonEditor;
 }>();
@@ -32,6 +33,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   dirtyStateChanged: [isDirty: boolean];
+  searchAddOpened: [requestId: number];
 }>();
 
 const regionFields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
@@ -168,7 +170,7 @@ const { cancelDraft, deleteDraftRegion, openCreate, openEdit, reorderRegions, re
   resetFeedback,
   restoreRegionOrder
 });
-const { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceEdit, pickPlaceCoordinate, reorderPlaces, resetPlaceDraft, savePlaceDraft } = usePlaceEditorActions({
+const { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceCreateFromSearch, openPlaceEdit, pickPlaceCoordinate, reorderPlaces, resetPlaceDraft, savePlaceDraft } = usePlaceEditorActions({
   activePlace,
   activePlaceTarget,
   applyError,
@@ -215,6 +217,24 @@ watch(
   isDirty,
   value => emit('dirtyStateChanged', value),
   { immediate: true }
+);
+
+watch(
+  () => props.pendingSearchAdd?.requestId,
+  async requestId => {
+    if (!requestId || !props.pendingSearchAdd) {
+      return;
+    }
+
+    const region = props.state.regionsById[props.pendingSearchAdd.regionId];
+    if (!region || region.isShadow || !props.state.permissions.canEditPlaces || !region.capabilities.canAddChildren) {
+      return;
+    }
+
+    if (await openPlaceCreateFromSearch(region, props.pendingSearchAdd.result)) {
+      emit('searchAddOpened', requestId);
+    }
+  }
 );
 
 onMounted(() => {

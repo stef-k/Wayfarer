@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { EditorArea, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
+import type { EditorArea, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import MetadataEditor from './MetadataEditor.vue';
 import RegionManager from './RegionManager.vue';
@@ -22,6 +22,7 @@ const props = defineProps<{
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
   hiddenSegmentIds: ReadonlySet<Guid>;
+  pendingSearchAdd: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null;
   coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
   polygonEditor: { startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void };
   routeEditor: {
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
+  searchAddOpened: [requestId: number];
 }>();
 
 const searchQuery = ref('');
@@ -187,12 +189,14 @@ function normalize(value: string): string {
       :antiforgery-token="antiforgeryToken"
       :coordinate-picker="coordinatePicker"
       :polygon-editor="polygonEditor"
+      :pending-search-add="pendingSearchAdd"
       :search-active="isSearchActive"
       :search-regions="sidebarSearch.regions"
       :search-place-ids-by-region-id="sidebarSearch.placesByRegionId"
       :search-area-ids-by-region-id="sidebarSearch.areasByRegionId"
       @mutation-applied="result => emit('mutationApplied', result)"
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
+      @search-add-opened="requestId => emit('searchAddOpened', requestId)"
     />
 
     <SegmentManager

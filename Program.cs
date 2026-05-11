@@ -469,7 +469,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Register memory cache for application services
     builder.Services.AddMemoryCache();
-    builder.Services.AddSingleton<TileMetadataHotCache>();
+    builder.Services.AddSingleton<TileMetadataHotCache>(); builder.Services.AddTripEditorGeocodeSearch(builder.Configuration);
 
     // Register application services with DI container
     builder.Services.AddScoped<IApplicationSettingsService, ApplicationSettingsService>();

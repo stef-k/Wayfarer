@@ -13,6 +13,7 @@ export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry'
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>) => void;
+  clearSearchPreview: () => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
@@ -20,12 +21,14 @@ interface TripEditorMapAdapter {
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
+  showSearchPreview: (coordinate: EditorCoordinate, label: string) => void;
   dispose: () => void;
 }
 
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): TripEditorMapAdapter => {
   const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
   const layers = L.layerGroup().addTo(map);
+  const searchPreview = createSearchPreviewLayer(map);
   const coordinatePick = createCoordinatePickLayer(map);
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
@@ -36,6 +39,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
   }).addTo(map);
 
   const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set()): void => {
+    searchPreview.clear();
     coordinatePick.clearRegisteredMarkers();
     areaPolygonWork.stop();
     segmentRouteWork.stop();
@@ -55,19 +59,60 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
 
   return {
     render,
-    startCoordinatePick: options => coordinatePick.start(options),
-    startAreaPolygonWork: options => areaPolygonWork.start(options),
-    startSegmentRouteWork: options => segmentRouteWork.start(options),
+    clearSearchPreview: searchPreview.clear,
+    startCoordinatePick: options => {
+      searchPreview.clear();
+      return coordinatePick.start(options);
+    },
+    startAreaPolygonWork: options => {
+      searchPreview.clear();
+      return areaPolygonWork.start(options);
+    },
+    startSegmentRouteWork: options => {
+      searchPreview.clear();
+      return segmentRouteWork.start(options);
+    },
     setSegmentRouteWorkRoute: route => segmentRouteWork.setRoute(route),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
+    showSearchPreview: searchPreview.show,
     dispose: () => {
+      searchPreview.dispose();
       coordinatePick.dispose();
       areaPolygonWork.dispose();
       segmentRouteWork.dispose();
       map.remove();
     }
+  };
+};
+
+const createSearchPreviewLayer = (map: LeafletMap): {
+  clear: () => void;
+  dispose: () => void;
+  show: (coordinate: EditorCoordinate, label: string) => void;
+} => {
+  const layer = L.layerGroup().addTo(map);
+
+  const clear = (): void => {
+    layer.clearLayers();
+  };
+
+  const show = (coordinate: EditorCoordinate, label: string): void => {
+    clear();
+    L.marker([coordinate.latitude, coordinate.longitude], {
+      interactive: false,
+      keyboard: false,
+      title: `Search result preview: ${label}`,
+      alt: `Search result preview: ${label}`
+    }).addTo(layer);
+    map.setView([coordinate.latitude, coordinate.longitude], Math.max(map.getZoom(), 13));
+  };
+
+  return {
+    clear,
+    dispose: clear,
+    show
   };
 };
 

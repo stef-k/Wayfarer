@@ -502,6 +502,82 @@ body {
   min-height: 0;
 }
 
+.trip-editor-map-search {
+  background: var(--trip-editor-surface);
+  border-bottom: 1px solid var(--trip-editor-border);
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem 1rem;
+  position: relative;
+  z-index: 2;
+}
+
+.trip-editor-map-search__form,
+.trip-editor-map-search__add-panel {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(14rem, 28rem) auto;
+  justify-content: start;
+}
+
+.trip-editor-map-search__label,
+.trip-editor-map-search__add-panel span {
+  color: var(--trip-editor-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.trip-editor-map-search input,
+.trip-editor-map-search select {
+  background: var(--trip-editor-field-bg);
+  border: 1px solid var(--trip-editor-field-border);
+  border-radius: 6px;
+  color: var(--trip-editor-text);
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  width: 100%;
+}
+
+.trip-editor-map-search__status,
+.trip-editor-map-search__helper,
+.trip-editor-map-search__attribution {
+  color: var(--trip-editor-muted);
+  margin: 0;
+}
+
+.trip-editor-map-search__results {
+  display: grid;
+  gap: 0.35rem;
+  max-width: min(760px, 100%);
+}
+
+.trip-editor-map-search__result {
+  background: var(--trip-editor-card);
+  border: 1px solid var(--trip-editor-border);
+  border-radius: 6px;
+  color: var(--trip-editor-text);
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+}
+
+.trip-editor-map-search__result span,
+.trip-editor-map-search__result small {
+  color: var(--trip-editor-muted);
+}
+
+.trip-editor-map-search__result--selected {
+  border-color: var(--trip-editor-accent);
+  box-shadow: 0 0 0 0.12rem color-mix(in srgb, var(--trip-editor-accent) 26%, transparent);
+}
+
+.trip-editor-map-search__add-panel label {
+  display: grid;
+  gap: 0.2rem;
+}
+
 .trip-editor-state--error {
   color: #fecaca;
   flex-direction: column;
@@ -580,6 +656,12 @@ body {
 
   .trip-editor-toolbar__actions {
     justify-content: flex-start;
+  }
+
+  .trip-editor-map-search__form,
+  .trip-editor-map-search__add-panel {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 
 }

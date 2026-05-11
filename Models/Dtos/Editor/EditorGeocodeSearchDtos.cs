@@ -1,0 +1,23 @@
+namespace Wayfarer.Models.Dtos.Editor;
+
+/// <summary>
+/// Search response returned by the Trip Editor geocode proxy.
+/// </summary>
+public sealed record EditorGeocodeSearchResponseDto(
+    string Query,
+    string Attribution,
+    IReadOnlyList<EditorGeocodeSearchResultDto> Results);
+
+/// <summary>
+/// Single geocode result normalized for Trip Editor search-add.
+/// </summary>
+public sealed record EditorGeocodeSearchResultDto(
+    string Id,
+    string Provider,
+    string Name,
+    string DisplayName,
+    string Address,
+    string? Category,
+    string? Type,
+    double Latitude,
+    double Longitude);
