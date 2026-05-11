@@ -139,7 +139,7 @@ test.describe.serial('Trip Editor area editing', () => {
     await page.getByRole('button', { name: 'Draw/Edit Area' }).click();
     await dragFirstEditableVertex(page);
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
-    await discardMapWorkIfPrompted(page);
+    await discardDirtyMapWork(page);
     await expect(form.getByLabel('Name')).toHaveValue('Unsaved area name');
 
     await page.getByRole('button', { name: 'Delete', exact: true }).first().click({ force: true });
@@ -209,18 +209,14 @@ test.describe.serial('Trip Editor area editing', () => {
     await dragFirstEditableVertex(page);
     await page.getByRole('button', { name: 'Add Region' }).click();
     const mapDialog = page.getByRole('dialog', { name: 'Discard map editing changes?' });
-    if (await mapDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await mapDialog.getByRole('button', { name: 'Keep editing' }).click();
-      await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
+    await expect(mapDialog).toBeVisible();
+    await mapDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
 
-      await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
-      await expect(mapDialog).toBeVisible();
-      await mapDialog.getByRole('button', { name: 'Discard' }).click();
-      await expect(page.locator('#trip-editor-area-form')).toBeVisible();
-    } else {
-      await expect(page.getByRole('heading', { name: 'Add Region' })).toBeVisible();
-      await closeDraftWithDiscard(page);
-    }
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+    await expect(mapDialog).toBeVisible();
+    await mapDialog.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.locator('#trip-editor-area-form')).toBeVisible();
   });
 
   test('legacy trip edit page still loads', async ({ page }) => {
@@ -366,11 +362,10 @@ async function dragFirstEditableVertex(page: Page): Promise<void> {
   await page.waitForTimeout(250);
 }
 
-async function discardMapWorkIfPrompted(page: Page): Promise<void> {
+async function discardDirtyMapWork(page: Page): Promise<void> {
   const dialog = page.getByRole('dialog', { name: 'Discard map editing changes?' });
-  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await dialog.getByRole('button', { name: 'Discard' }).click();
-  }
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Discard' }).click();
 }
 
 async function dragAreaRow(page: Page, fromName: string, toName: string): Promise<void> {
