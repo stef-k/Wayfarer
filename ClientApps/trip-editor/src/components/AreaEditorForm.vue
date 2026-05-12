@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { EditorAreaDraft } from '../types';
+import RichNotesEditor from './RichNotesEditor.vue';
 
 const props = defineProps<{
   draft: EditorAreaDraft;
@@ -32,11 +33,7 @@ const geometryStatus = computed(() => {
       <small v-for="message in props.fieldErrors('name')" :key="message">{{ message }}</small>
     </label>
 
-    <label class="trip-editor-field">
-      <span>Notes HTML</span>
-      <textarea v-model="props.draft.notesHtml" rows="6"></textarea>
-      <small v-for="message in props.fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-    </label>
+    <RichNotesEditor :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
 
     <div class="trip-editor-grid">
       <label class="trip-editor-field">

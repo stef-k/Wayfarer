@@ -4,6 +4,7 @@ import { EditorValidationError, patchMetadata, patchShareProgress, putTags, sugg
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import EditorSurface from './EditorSurface.vue';
+import RichNotesEditor from './RichNotesEditor.vue';
 import type {
   EditorMutationResult,
   EditorOptions,
@@ -435,11 +436,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
           </template>
         </section>
 
-        <label class="trip-editor-field">
-          <span>Notes HTML</span>
-          <textarea v-model="draft.notesHtml" rows="7"></textarea>
-          <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-        </label>
+        <RichNotesEditor editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
 
         <label class="trip-editor-field">
           <span>Cover Image URL</span>

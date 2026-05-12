@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { EditorRegion, EditorSegmentDraft, EditorTripState, Guid } from '../types';
+import RichNotesEditor from './RichNotesEditor.vue';
 import { fallbackRoute } from './segmentRouteMapWork';
 
 const props = defineProps<{
@@ -80,11 +81,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       </label>
     </div>
 
-    <label class="trip-editor-field">
-      <span>Notes HTML</span>
-      <textarea v-model="draft.notesHtml" rows="4"></textarea>
-      <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-    </label>
+    <RichNotesEditor :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
 
     <div class="trip-editor-field">
       <span>Route</span>
