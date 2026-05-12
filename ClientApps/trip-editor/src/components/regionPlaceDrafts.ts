@@ -1,4 +1,5 @@
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest } from '../types';
+import { normalizeNotesHtml } from '../notes/notesHtml';
 
 export type RegionDraft = {
   id: string | null;
@@ -21,7 +22,7 @@ export function toRegionDraft(region: EditorRegion | null): RegionDraft {
   return {
     id: region.id,
     name: region.name,
-    notesHtml: region.notesHtml,
+    notesHtml: normalizeNotesHtml(region.notesHtml),
     coverImageRawUrl: region.coverImage?.rawUrl ?? '',
     centerLatitude: coordinateText(region.center, 'latitude'),
     centerLongitude: coordinateText(region.center, 'longitude')
@@ -36,7 +37,7 @@ export function buildRegionRequest(value: RegionDraft): EditorRegionSaveRequest 
 
   return {
     name: value.name,
-    notesHtml: value.notesHtml,
+    notesHtml: normalizeNotesHtml(value.notesHtml),
     coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
     center: hasPartialCenter ? { latitude: latitude ? Number(latitude) : Number.NaN, longitude: longitude ? Number(longitude) : Number.NaN } : null
   };
@@ -55,7 +56,7 @@ export function toPlaceDraft(place: EditorPlace | null, fallbackRegionId: string
     id: place.id,
     regionId: place.regionId,
     name: place.name,
-    notesHtml: place.notesHtml,
+    notesHtml: normalizeNotesHtml(place.notesHtml),
     address: place.address,
     latitude: coordinateText(place.location, 'latitude'),
     longitude: coordinateText(place.location, 'longitude'),
@@ -72,7 +73,7 @@ export function buildPlaceRequest(value: EditorPlaceDraft): EditorPlaceSaveReque
   return {
     regionId: value.regionId ?? undefined,
     name: value.name,
-    notesHtml: value.notesHtml,
+    notesHtml: normalizeNotesHtml(value.notesHtml),
     address: value.address || null,
     location: hasLocation ? { latitude: latitude ? Number(latitude) : Number.NaN, longitude: longitude ? Number(longitude) : Number.NaN } : null,
     iconName: value.iconName,
@@ -99,7 +100,7 @@ export function toAreaDraft(area: EditorArea | null, fallbackRegionId: string | 
     id: area.id,
     regionId: area.regionId,
     name: area.name,
-    notesHtml: area.notesHtml,
+    notesHtml: normalizeNotesHtml(area.notesHtml),
     fillHex: area.fillHex || fillHex,
     geometry: cloneGeometry(area.geometry)
   };
@@ -108,7 +109,7 @@ export function toAreaDraft(area: EditorArea | null, fallbackRegionId: string | 
 export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest {
   return {
     name: value.name,
-    notesHtml: value.notesHtml,
+    notesHtml: normalizeNotesHtml(value.notesHtml),
     fillHex: value.fillHex,
     geometry: cloneGeometry(value.geometry)
   };
@@ -130,7 +131,7 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
     mode: segment.mode,
     estimatedDistanceKm: segment.estimatedDistanceKm ?? '',
     estimatedDurationMinutes: segment.estimatedDurationMinutes ?? '',
-    notesHtml: segment.notesHtml,
+    notesHtml: normalizeNotesHtml(segment.notesHtml),
     route: cloneGeometry(segment.route)
   };
 }
@@ -142,7 +143,7 @@ export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSav
     mode: value.mode || null,
     estimatedDistanceKm: nullableNumber(value.estimatedDistanceKm),
     estimatedDurationMinutes: nullableNumber(value.estimatedDurationMinutes),
-    notesHtml: value.notesHtml,
+    notesHtml: normalizeNotesHtml(value.notesHtml),
     route: cloneGeometry(value.route)
   };
 }

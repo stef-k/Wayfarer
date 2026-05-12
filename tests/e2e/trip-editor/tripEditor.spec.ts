@@ -320,7 +320,8 @@ async function expectMockupOnlyPlaceControlsAbsent(page: Page): Promise<void> {
   await expect(page.getByRole('tab', { name: /visit progress/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /visit progress/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /photos?/i })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /links?|official site/i })).toHaveCount(0);
+  await expect(page.locator('button:not(.ql-link)').filter({ hasText: /^links?$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /official site/i })).toHaveCount(0);
 
   const placeForm = await openFirstPlaceFormIfAvailable(page);
   if (!placeForm) {

@@ -3,7 +3,9 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
+import { normalizeNotesHtml } from '../notes/notesHtml';
 import EditorSurface from './EditorSurface.vue';
+import RichNotesEditor from './RichNotesEditor.vue';
 import type {
   EditorMutationResult,
   EditorOptions,
@@ -306,7 +308,7 @@ function toMetadataDraft(metadata: EditorTripMetadata): Omit<MetadataDraft, 'tag
     name: metadata.name,
     isPublic: metadata.isPublic,
     shareProgressEnabled: metadata.isPublic && metadata.shareProgressEnabled,
-    notesHtml: metadata.notesHtml,
+    notesHtml: normalizeNotesHtml(metadata.notesHtml),
     coverImageRawUrl: metadata.coverImage?.rawUrl ?? '',
     centerLatitude: metadata.center ? String(metadata.center.latitude) : '',
     centerLongitude: metadata.center ? String(metadata.center.longitude) : '',
@@ -331,7 +333,7 @@ function buildMetadataRequest(value: MetadataDraft): EditorTripMetadataUpdateReq
 
   return {
     name: value.name,
-    notesHtml: value.notesHtml,
+    notesHtml: normalizeNotesHtml(value.notesHtml),
     isPublic: value.isPublic,
     coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
     center: hasPartialCenter
@@ -435,11 +437,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
           </template>
         </section>
 
-        <label class="trip-editor-field">
-          <span>Notes HTML</span>
-          <textarea v-model="draft.notesHtml" rows="7"></textarea>
-          <small v-for="message in fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-        </label>
+        <RichNotesEditor editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
 
         <label class="trip-editor-field">
           <span>Cover Image URL</span>

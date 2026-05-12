@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { EditorRegion } from '../types';
+import RichNotesEditor from './RichNotesEditor.vue';
 import type { RegionDraft } from './regionPlaceDrafts';
 
 const props = defineProps<{
@@ -28,11 +29,7 @@ const emit = defineEmits<{
       <small v-for="message in props.fieldErrors('name')" :key="message">{{ message }}</small>
     </label>
 
-    <label class="trip-editor-field">
-      <span>Notes HTML</span>
-      <textarea v-model="props.draft.notesHtml" rows="6"></textarea>
-      <small v-for="message in props.fieldErrors('notesHtml')" :key="message">{{ message }}</small>
-    </label>
+    <RichNotesEditor :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
 
     <label class="trip-editor-field">
       <span>Cover Image URL</span>

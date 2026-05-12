@@ -1,0 +1,92 @@
+.trip-editor-rich-notes .ql-toolbar,
+.trip-editor-rich-notes__editor {
+  background: var(--trip-editor-field-bg);
+  border: 1px solid var(--trip-editor-field-border);
+  color: var(--trip-editor-text);
+}
+
+.trip-editor-rich-notes .ql-toolbar {
+  background: var(--trip-editor-surface-muted);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+.trip-editor-rich-notes__editor {
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+.trip-editor-rich-notes__editor.ql-container {
+  color: var(--trip-editor-text);
+  font: inherit;
+  min-height: 9rem;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor {
+  min-height: 9rem;
+}
+
+.trip-editor-rich-notes .ql-picker,
+.trip-editor-rich-notes .ql-stroke {
+  color: var(--trip-editor-text);
+  stroke: currentColor;
+}
+
+.trip-editor-rich-notes .ql-fill {
+  fill: var(--trip-editor-text);
+}
+
+.trip-editor-rich-notes .ql-picker-options {
+  background: var(--trip-editor-surface);
+  border-color: var(--trip-editor-field-border);
+}
+
+.trip-editor-rich-notes__feedback {
+  background: var(--trip-editor-warning-bg);
+  border-radius: 6px;
+  color: var(--trip-editor-warning-text);
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+}
+
+.trip-editor-rich-notes-dialog {
+  inset: 0;
+  position: fixed;
+  z-index: 1090;
+}
+
+.trip-editor-rich-notes-dialog__backdrop {
+  background: #020617;
+  inset: 0;
+  opacity: 0.72;
+  position: fixed;
+}
+
+.trip-editor-rich-notes-dialog__panel {
+  background: var(--trip-editor-surface);
+  border: 1px solid var(--trip-editor-border);
+  border-radius: 8px;
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.45);
+  color: var(--trip-editor-text);
+  display: grid;
+  gap: 0.8rem;
+  left: 50%;
+  max-width: min(420px, calc(100vw - 2rem));
+  padding: 1rem;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+}
+
+.trip-editor-rich-notes-dialog__panel h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.trip-editor-rich-notes-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
