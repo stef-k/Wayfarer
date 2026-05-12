@@ -106,6 +106,28 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expect(notesHtml).not.toContain('not a url');
   });
 
+  test('bullet and ordered lists keep Quill list metadata through reload and save normalization', async ({ page }) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = persistedQuillListNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    const editor = richEditor(page.locator('#trip-editor-metadata-form')).locator('.ql-editor');
+    await expect(editor.locator('li[data-list="bullet"]')).toContainText('Bullet note');
+    await expect(editor.locator('li[data-list="ordered"]')).toContainText('Ordered note');
+
+    await page.locator('#trip-editor-metadata-form').getByLabel('Name').fill('PW rich notes list trip');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Bullet note', 'Ordered note', 'data-list="bullet"', 'data-list="ordered"']);
+    expect(notesHtml).not.toContain('data-extra');
+    expect(notesHtml).not.toContain('data-original');
+  });
+
   test('image dialog inserts URL embeds and data images are blocked with visible feedback', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithRichNotesFixture(page);
@@ -239,6 +261,16 @@ function unsafePersistedMetadataNotes(): string {
     '<p><img src="vbscript:msgbox(1)"></p>',
     '<p><img src="java&#x0A;script:alert(1)"></p>',
     '<p><img src="not a url"></p>'
+  ].join('');
+}
+
+function persistedQuillListNotes(): string {
+  return [
+    '<ol data-extra="drop-list-container">',
+    '<li data-list="bullet" data-extra="drop-list-item"><span class="ql-ui" contenteditable="false"></span>Bullet note</li>',
+    '<li data-list="ordered" data-original="drop-list-item"><span class="ql-ui" contenteditable="false"></span>Ordered note</li>',
+    '</ol>',
+    '<p data-extra="drop-paragraph">After list</p>'
   ].join('');
 }
 

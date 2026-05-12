@@ -1,5 +1,6 @@
 const forbiddenElements = 'script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, option';
 const allowedQuillFontClasses = new Set(['ql-font-serif', 'ql-font-monospace']);
+const allowedQuillListKinds = new Set(['bullet', 'ordered']);
 
 /// Normalizes Trip Editor notes to the canonical user HTML stored by save payloads.
 export function normalizeNotesHtml(value: string): string {
@@ -90,7 +91,14 @@ function isAllowedClass(element: Element, className: string): boolean {
 
 function isAllowedElementAttribute(element: Element, name: string): boolean {
   const tagName = element.tagName.toLowerCase();
-  return (tagName === 'a' && name === 'href') || (tagName === 'img' && name === 'src');
+  // Quill 2 stores the user-selected list kind on list items.
+  return (tagName === 'a' && name === 'href')
+    || (tagName === 'img' && name === 'src')
+    || (tagName === 'li' && name === 'data-list' && isAllowedQuillListKind(element));
+}
+
+function isAllowedQuillListKind(element: Element): boolean {
+  return allowedQuillListKinds.has(element.getAttribute('data-list') ?? '');
 }
 
 function isAllowedImageSource(value: string): boolean {
