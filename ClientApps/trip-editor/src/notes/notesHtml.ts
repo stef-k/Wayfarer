@@ -67,14 +67,7 @@ function normalizeElementAttributes(element: Element): void {
       return;
     }
 
-    if (
-      name === 'style' ||
-      name.startsWith('data-') ||
-      name === 'contenteditable' ||
-      name === 'srcdoc' ||
-      name.startsWith('on') ||
-      isUnsafeAttributeUrl(element, name, attribute.value)
-    ) {
+    if (!isAllowedElementAttribute(element, name) || isUnsafeAttributeUrl(element, name, attribute.value)) {
       element.removeAttribute(attribute.name);
     }
   });
@@ -93,6 +86,11 @@ function normalizeClassAttribute(element: Element): void {
 function isAllowedClass(element: Element, className: string): boolean {
   // Quill's font dropdown stores user-visible font choices as span classes.
   return element.tagName.toLowerCase() === 'span' && allowedQuillFontClasses.has(className);
+}
+
+function isAllowedElementAttribute(element: Element, name: string): boolean {
+  const tagName = element.tagName.toLowerCase();
+  return (tagName === 'a' && name === 'href') || (tagName === 'img' && name === 'src');
 }
 
 function isAllowedImageSource(value: string): boolean {

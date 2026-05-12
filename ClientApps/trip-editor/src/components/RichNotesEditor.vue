@@ -262,7 +262,7 @@ function showFeedback(message: string): void {
     <Teleport to="body">
       <div v-if="isImageDialogOpen" class="trip-editor-rich-notes-dialog" role="dialog" aria-modal="true" aria-labelledby="trip-editor-rich-notes-image-title">
         <div class="trip-editor-rich-notes-dialog__backdrop" aria-hidden="true"></div>
-        <form class="trip-editor-rich-notes-dialog__panel" @submit.prevent="insertImageUrl">
+        <form class="trip-editor-rich-notes-dialog__panel" novalidate @submit.prevent="insertImageUrl">
           <h2 id="trip-editor-rich-notes-image-title">Insert image URL</h2>
           <label class="trip-editor-field">
             <span>Image URL</span>

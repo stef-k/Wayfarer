@@ -71,20 +71,9 @@ test.describe.serial('Trip Editor rich notes parity', () => {
 
   test('metadata save sanitizes unedited persisted notes when another field changes', async ({ page }) => {
     await signIn(page);
-    const state = await loadWorkspaceWithRichNotesFixture(page);
-    state.metadata.notesHtml = [
-      '<h2 class="trip-img-modal" style="color:red">Unsafe persisted heading</h2>',
-      '<p class="editor-only" style="font-size:30px"><strong>Bold</strong> <em>Italic</em> <u>Underline</u></p>',
-      '<p><a class="unsafe-link" style="color:red" onclick="alert(1)" href="https://example.test/page">Safe link</a></p>',
-      '<p><span class="ql-font-serif trip-img-modal" style="font-family:serif" data-original="ignored">Font note</span></p>',
-      '<p><img class="trip-img-modal" style="width:400px" data-original="ignored" loading="lazy" src="/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fproxied.jpg"></p>',
-      '<p><img src="   https://cdn.example.test/direct.jpg   "></p>',
-      '<p><img src="data:text/html,ignored"></p>',
-      '<p><img src="file:///C:/temp/ignored.png"></p>',
-      '<p><img src="vbscript:msgbox(1)"></p>',
-      '<p><img src="java&#x0A;script:alert(1)"></p>',
-      '<p><img src="not a url"></p>'
-    ].join('');
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = unsafePersistedMetadataNotes();
+    });
     const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
     await routeEditorMutations(page, state, requests);
 
@@ -226,14 +215,31 @@ test.describe.serial('Trip Editor rich notes parity', () => {
   });
 });
 
-async function loadWorkspaceWithRichNotesFixture(page: Page): Promise<MutableEditorState> {
+async function loadWorkspaceWithRichNotesFixture(page: Page, configureState?: (state: MutableEditorState) => void): Promise<MutableEditorState> {
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareRichNotesState(state);
+  configureState?.(state);
   await page.route(editorApiMatcher, async route => routeEditorState(route, state, []));
   await page.goto(absoluteUrl(workspacePath));
   await expectMountedWorkspace(page);
   return state;
+}
+
+function unsafePersistedMetadataNotes(): string {
+  return [
+    '<h2 class="trip-img-modal" style="color:red">Unsafe persisted heading</h2>',
+    '<p class="editor-only" style="font-size:30px"><strong>Bold</strong> <em>Italic</em> <u>Underline</u></p>',
+    '<p><a class="unsafe-link" style="color:red" onclick="alert(1)" href="https://example.test/page">Safe link</a></p>',
+    '<p><span class="ql-font-serif trip-img-modal" style="font-family:serif" data-original="ignored">Font note</span></p>',
+    '<p><img class="trip-img-modal" style="width:400px" data-original="ignored" loading="lazy" src="/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fproxied.jpg"></p>',
+    '<p><img src="   https://cdn.example.test/direct.jpg   "></p>',
+    '<p><img src="data:text/html,ignored"></p>',
+    '<p><img src="file:///C:/temp/ignored.png"></p>',
+    '<p><img src="vbscript:msgbox(1)"></p>',
+    '<p><img src="java&#x0A;script:alert(1)"></p>',
+    '<p><img src="not a url"></p>'
+  ].join('');
 }
 
 async function routeEditorMutations(page: Page, state: MutableEditorState, requests: Array<{ method: string; url: string; body: Record<string, any> }>): Promise<void> {
