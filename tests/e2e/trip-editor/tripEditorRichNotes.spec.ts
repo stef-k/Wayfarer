@@ -83,6 +83,48 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(richEditor(form).locator('.ql-editor img[src^="data:image"]')).toHaveCount(0);
   });
 
+  test('data image blocking handles mixed case and whitespace-padded variants before draft storage', async ({ page }) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page);
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    const form = page.locator('#trip-editor-metadata-form');
+    const editor = richEditor(form).locator('.ql-editor');
+
+    await pasteDataImage(editor, '<p><img src=" DATA:IMAGE/png;base64,iVBORw0KGgo="></p>');
+    await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
+    await expect(editor.locator('img')).toHaveCount(0);
+
+    await dropDataImage(editor, '<p><img src="\r\ndata : image/png;base64,iVBORw0KGgo="></p>');
+    await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
+    await expect(editor.locator('img')).toHaveCount(0);
+
+    await rejectImageDialogUrl(form, '\tDaTa : ImAgE/png;base64,iVBORw0KGgo=');
+
+    await editor.evaluate(element => {
+      const image = document.createElement('img');
+      image.setAttribute('src', '\nDATA:\tIMAGE/png;base64,from-export');
+      element.append(image);
+      element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
+    });
+    await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
+    await expect(editor.locator('img')).toHaveCount(0);
+
+    await editor.click();
+    await editor.evaluate(element => {
+      element.insertAdjacentHTML('beforeend', '<script>alert("x")</script><a href="javascript:alert(1)" onclick="alert(2)">Unsafe link</a><img src="javascript:alert(3)" onerror="alert(4)">');
+    });
+    await page.keyboard.type('Normalized rich note');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+    await expect.poll(() => requests.length).toBe(1);
+    expectCanonicalNotes(requests[0].body.notesHtml, ['Normalized rich note']);
+    expect(requests[0].body.notesHtml).not.toContain('<script');
+    expect(requests[0].body.notesHtml).not.toContain('javascript:');
+    expect(requests[0].body.notesHtml).not.toContain('onclick');
+    expect(requests[0].body.notesHtml).not.toContain('onerror');
+  });
+
   test('docked and expanded modes keep one active notes draft and shared discard/reset flows', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithRichNotesFixture(page);
@@ -300,13 +342,33 @@ async function insertImageUrl(form: Locator, url: string): Promise<void> {
   await expect(dialog).toHaveCount(0);
 }
 
-async function pasteDataImage(editor: Locator): Promise<void> {
-  await editor.evaluate(element => {
+async function pasteDataImage(editor: Locator, html = '<p><img src="data:image/png;base64,iVBORw0KGgo="></p>'): Promise<void> {
+  await editor.evaluate((element, value) => {
     const data = new DataTransfer();
-    data.setData('text/html', '<p><img src="data:image/png;base64,iVBORw0KGgo="></p>');
+    data.setData('text/html', value);
     const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data });
     element.dispatchEvent(event);
-  });
+  }, html);
+}
+
+async function dropDataImage(editor: Locator, html: string): Promise<void> {
+  await editor.evaluate((element, value) => {
+    const data = new DataTransfer();
+    data.setData('text/html', value);
+    const event = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data });
+    element.dispatchEvent(event);
+  }, html);
+}
+
+async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
+  await richEditor(form).locator('.ql-image').click();
+  const dialog = form.page().getByRole('dialog', { name: 'Insert image URL' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Image URL').fill(url);
+  await dialog.getByRole('button', { name: 'Insert Image' }).click();
+  await expect(dialog.getByText('Embedded data images are not allowed')).toBeVisible();
+  await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
 }
 
 async function openRegion(page: Page): Promise<void> {

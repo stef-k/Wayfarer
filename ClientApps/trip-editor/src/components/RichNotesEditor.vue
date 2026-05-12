@@ -59,6 +59,7 @@ onMounted(() => {
   quill.on('text-change', handleTextChange);
   quill.root.addEventListener('paste', handlePaste);
   quill.root.addEventListener('drop', handleDrop);
+  quill.root.addEventListener('input', handleInput);
 });
 
 onUnmounted(() => {
@@ -72,6 +73,7 @@ onUnmounted(() => {
 
   quill.root.removeEventListener('paste', handlePaste);
   quill.root.removeEventListener('drop', handleDrop);
+  quill.root.removeEventListener('input', handleInput);
   quill.off('selection-change', handleSelectionChange);
   quill.off('text-change', handleTextChange);
   quill = null;
@@ -96,7 +98,7 @@ function loadHtml(value: string): void {
   isLoadingExternalValue = true;
   quill.setContents([], 'silent');
   quill.clipboard.dangerouslyPasteHTML(normalizeHtml(value), 'silent');
-  removeDataImages();
+  removeUnsafeEditorImages();
   isLoadingExternalValue = false;
 }
 
@@ -111,7 +113,7 @@ function handleTextChange(): void {
     return;
   }
 
-  if (removeDataImages()) {
+  if (removeUnsafeEditorImages()) {
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
 
@@ -138,12 +140,19 @@ function handleDrop(event: DragEvent): void {
   showFeedback('Embedded data images are not allowed. Use an external image URL.');
 }
 
+function handleInput(): void {
+  if (removeUnsafeEditorImages()) {
+    emit('update:modelValue', currentHtml());
+    showFeedback('Embedded data images are not allowed. Use an external image URL.');
+  }
+}
+
 function containsDataImage(data: DataTransfer): boolean {
   if (Array.from(data.files).some(file => file.type.startsWith('image/'))) {
     return true;
   }
 
-  return ['text/html', 'text/plain'].some(type => (data.getData(type) ?? '').includes('data:image'));
+  return ['text/html', 'text/plain'].some(type => containsDataImageReference(data.getData(type) ?? ''));
 }
 
 function openImageDialog(): void {
@@ -170,6 +179,12 @@ function insertImageUrl(): void {
   }
 
   const url = imageUrl.value.trim();
+  if (isDataImageSource(url)) {
+    imageUrlError.value = 'Embedded data images are not allowed. Use an external image URL.';
+    showFeedback('Embedded data images are not allowed. Use an external image URL.');
+    return;
+  }
+
   if (!isExternalImageUrl(url)) {
     imageUrlError.value = 'Enter an http or https image URL.';
     return;
@@ -200,15 +215,15 @@ function currentHtml(): string {
   return normalizeHtml(quill.root.innerHTML);
 }
 
-function removeDataImages(): boolean {
+function removeUnsafeEditorImages(): boolean {
   if (!quill) {
     return false;
   }
 
   let removed = false;
   quill.root.querySelectorAll<HTMLImageElement>('img').forEach(image => {
-    const source = image.getAttribute('src') ?? '';
-    if (source.startsWith('data:image')) {
+    const source = canonicalImageSource(image.getAttribute('src') ?? '');
+    if (isUnsafeImageSource(source)) {
       image.remove();
       removed = true;
     }
@@ -219,9 +234,20 @@ function removeDataImages(): boolean {
 function normalizeHtml(value: string): string {
   const template = document.createElement('template');
   template.innerHTML = value.trim();
+
+  // Keep draft storage independent from Quill's raw HTML export quirks.
+  template.content.querySelectorAll('script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, option').forEach(element => {
+    element.remove();
+  });
   template.content.querySelectorAll('*').forEach(element => {
     Array.from(element.attributes).forEach(attribute => {
-      if (attribute.name.startsWith('data-') || attribute.name === 'contenteditable') {
+      if (
+        attribute.name.startsWith('data-') ||
+        attribute.name === 'contenteditable' ||
+        attribute.name === 'srcdoc' ||
+        attribute.name.startsWith('on') ||
+        isUnsafeAttributeUrl(element, attribute.name, attribute.value)
+      ) {
         element.removeAttribute(attribute.name);
       }
     });
@@ -229,7 +255,7 @@ function normalizeHtml(value: string): string {
   template.content.querySelectorAll<HTMLImageElement>('img').forEach(image => {
     const source = image.getAttribute('src') ?? '';
     const originalSource = canonicalImageSource(source);
-    if (originalSource.startsWith('data:image')) {
+    if (isUnsafeImageSource(originalSource)) {
       image.remove();
       return;
     }
@@ -246,16 +272,56 @@ function normalizeHtml(value: string): string {
 }
 
 function canonicalImageSource(value: string): string {
-  if (!value.startsWith('/Public/ProxyImage')) {
-    return value;
+  const trimmedValue = stripUrlBoundaryControls(value);
+  if (!trimmedValue.startsWith('/Public/ProxyImage')) {
+    return trimmedValue;
   }
 
   try {
-    const url = new URL(value, window.location.origin);
-    return url.searchParams.get('url') ?? value;
+    const url = new URL(trimmedValue, window.location.origin);
+    return stripUrlBoundaryControls(url.searchParams.get('url') ?? trimmedValue);
   } catch {
-    return value;
+    return trimmedValue;
   }
+}
+
+function containsDataImageReference(value: string): boolean {
+  return compactUrlText(value).includes('data:image');
+}
+
+function isDataImageSource(value: string): boolean {
+  return compactUrlScheme(value).startsWith('data:image');
+}
+
+function isUnsafeImageSource(value: string): boolean {
+  const normalizedValue = compactUrlScheme(value);
+  return normalizedValue.startsWith('javascript:') || normalizedValue.startsWith('data:image');
+}
+
+function compactUrlScheme(value: string): string {
+  return compactUrlText(stripUrlBoundaryControls(value).slice(0, 64));
+}
+
+function compactUrlText(value: string): string {
+  return value.replace(/[\u0000-\u0020\u007f-\u009f]+/g, '').toLowerCase();
+}
+
+function stripUrlBoundaryControls(value: string): string {
+  return value.replace(/^[\u0000-\u0020\u007f-\u009f]+|[\u0000-\u0020\u007f-\u009f]+$/g, '');
+}
+
+function isUnsafeAttributeUrl(element: Element, name: string, value: string): boolean {
+  const normalizedName = name.toLowerCase();
+  if (normalizedName !== 'href' && normalizedName !== 'src' && normalizedName !== 'xlink:href') {
+    return false;
+  }
+
+  if (element instanceof HTMLImageElement && normalizedName === 'src') {
+    return false;
+  }
+
+  const normalizedValue = compactUrlScheme(value);
+  return normalizedValue.startsWith('javascript:') || normalizedValue.startsWith('data:');
 }
 
 function showFeedback(message: string): void {
