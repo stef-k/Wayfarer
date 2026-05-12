@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Quill, { type Range } from 'quill';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { canonicalImageSource, containsDataImageReference, isDataImageSource, isUnsafeImageSource, normalizeNotesHtml } from '../notes/notesHtml';
 
 const props = defineProps<{
   editorId: string;
@@ -82,7 +83,7 @@ onUnmounted(() => {
 watch(
   () => props.modelValue,
   value => {
-    if (!quill || normalizeHtml(value) === currentHtml()) {
+    if (!quill || normalizeNotesHtml(value) === currentHtml()) {
       return;
     }
 
@@ -97,7 +98,7 @@ function loadHtml(value: string): void {
 
   isLoadingExternalValue = true;
   quill.setContents([], 'silent');
-  quill.clipboard.dangerouslyPasteHTML(normalizeHtml(value), 'silent');
+  quill.clipboard.dangerouslyPasteHTML(normalizeNotesHtml(value), 'silent');
   removeUnsafeEditorImages();
   isLoadingExternalValue = false;
 }
@@ -209,10 +210,10 @@ function isExternalImageUrl(value: string): boolean {
 
 function currentHtml(): string {
   if (!quill) {
-    return normalizeHtml(props.modelValue);
+    return normalizeNotesHtml(props.modelValue);
   }
 
-  return normalizeHtml(quill.root.innerHTML);
+  return normalizeNotesHtml(quill.root.innerHTML);
 }
 
 function removeUnsafeEditorImages(): boolean {
@@ -229,99 +230,6 @@ function removeUnsafeEditorImages(): boolean {
     }
   });
   return removed;
-}
-
-function normalizeHtml(value: string): string {
-  const template = document.createElement('template');
-  template.innerHTML = value.trim();
-
-  // Keep draft storage independent from Quill's raw HTML export quirks.
-  template.content.querySelectorAll('script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, option').forEach(element => {
-    element.remove();
-  });
-  template.content.querySelectorAll('*').forEach(element => {
-    Array.from(element.attributes).forEach(attribute => {
-      if (
-        attribute.name.startsWith('data-') ||
-        attribute.name === 'contenteditable' ||
-        attribute.name === 'srcdoc' ||
-        attribute.name.startsWith('on') ||
-        isUnsafeAttributeUrl(element, attribute.name, attribute.value)
-      ) {
-        element.removeAttribute(attribute.name);
-      }
-    });
-  });
-  template.content.querySelectorAll<HTMLImageElement>('img').forEach(image => {
-    const source = image.getAttribute('src') ?? '';
-    const originalSource = canonicalImageSource(source);
-    if (isUnsafeImageSource(originalSource)) {
-      image.remove();
-      return;
-    }
-
-    image.setAttribute('src', originalSource);
-    image.removeAttribute('class');
-    image.removeAttribute('style');
-    image.removeAttribute('loading');
-    image.removeAttribute('decoding');
-  });
-
-  const html = template.innerHTML.trim();
-  return html === '<p><br></p>' ? '' : html;
-}
-
-function canonicalImageSource(value: string): string {
-  const trimmedValue = stripUrlBoundaryControls(value);
-  if (!trimmedValue.startsWith('/Public/ProxyImage')) {
-    return trimmedValue;
-  }
-
-  try {
-    const url = new URL(trimmedValue, window.location.origin);
-    return stripUrlBoundaryControls(url.searchParams.get('url') ?? trimmedValue);
-  } catch {
-    return trimmedValue;
-  }
-}
-
-function containsDataImageReference(value: string): boolean {
-  return compactUrlText(value).includes('data:image');
-}
-
-function isDataImageSource(value: string): boolean {
-  return compactUrlScheme(value).startsWith('data:image');
-}
-
-function isUnsafeImageSource(value: string): boolean {
-  const normalizedValue = compactUrlScheme(value);
-  return normalizedValue.startsWith('javascript:') || normalizedValue.startsWith('data:image');
-}
-
-function compactUrlScheme(value: string): string {
-  return compactUrlText(stripUrlBoundaryControls(value).slice(0, 64));
-}
-
-function compactUrlText(value: string): string {
-  return value.replace(/[\u0000-\u0020\u007f-\u009f]+/g, '').toLowerCase();
-}
-
-function stripUrlBoundaryControls(value: string): string {
-  return value.replace(/^[\u0000-\u0020\u007f-\u009f]+|[\u0000-\u0020\u007f-\u009f]+$/g, '');
-}
-
-function isUnsafeAttributeUrl(element: Element, name: string, value: string): boolean {
-  const normalizedName = name.toLowerCase();
-  if (normalizedName !== 'href' && normalizedName !== 'src' && normalizedName !== 'xlink:href') {
-    return false;
-  }
-
-  if (element instanceof HTMLImageElement && normalizedName === 'src') {
-    return false;
-  }
-
-  const normalizedValue = compactUrlScheme(value);
-  return normalizedValue.startsWith('javascript:') || normalizedValue.startsWith('data:');
 }
 
 function showFeedback(message: string): void {

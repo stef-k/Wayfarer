@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
+import { normalizeNotesHtml } from '../notes/notesHtml';
 import EditorSurface from './EditorSurface.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
 import type {
@@ -307,7 +308,7 @@ function toMetadataDraft(metadata: EditorTripMetadata): Omit<MetadataDraft, 'tag
     name: metadata.name,
     isPublic: metadata.isPublic,
     shareProgressEnabled: metadata.isPublic && metadata.shareProgressEnabled,
-    notesHtml: metadata.notesHtml,
+    notesHtml: normalizeNotesHtml(metadata.notesHtml),
     coverImageRawUrl: metadata.coverImage?.rawUrl ?? '',
     centerLatitude: metadata.center ? String(metadata.center.latitude) : '',
     centerLongitude: metadata.center ? String(metadata.center.longitude) : '',
@@ -332,7 +333,7 @@ function buildMetadataRequest(value: MetadataDraft): EditorTripMetadataUpdateReq
 
   return {
     name: value.name,
-    notesHtml: value.notesHtml,
+    notesHtml: normalizeNotesHtml(value.notesHtml),
     isPublic: value.isPublic,
     coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
     center: hasPartialCenter

@@ -69,6 +69,54 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expectCanonicalNotes(requests[1].body.notesHtml, ['Region rich note']);
   });
 
+  test('metadata save sanitizes unedited persisted notes when another field changes', async ({ page }) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page);
+    state.metadata.notesHtml = [
+      '<h2 class="trip-img-modal" style="color:red">Unsafe persisted heading</h2>',
+      '<p class="editor-only" style="font-size:30px"><strong>Bold</strong> <em>Italic</em> <u>Underline</u></p>',
+      '<p><a class="unsafe-link" style="color:red" onclick="alert(1)" href="https://example.test/page">Safe link</a></p>',
+      '<p><span class="ql-font-serif trip-img-modal" style="font-family:serif" data-original="ignored">Font note</span></p>',
+      '<p><img class="trip-img-modal" style="width:400px" data-original="ignored" loading="lazy" src="/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fproxied.jpg"></p>',
+      '<p><img src="   https://cdn.example.test/direct.jpg   "></p>',
+      '<p><img src="data:text/html,ignored"></p>',
+      '<p><img src="file:///C:/temp/ignored.png"></p>',
+      '<p><img src="vbscript:msgbox(1)"></p>',
+      '<p><img src="java&#x0A;script:alert(1)"></p>',
+      '<p><img src="not a url"></p>'
+    ].join('');
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    await page.locator('#trip-editor-metadata-form').getByLabel('Name').fill('PW rich notes renamed trip');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, [
+      'Unsafe persisted heading',
+      '<strong>Bold</strong>',
+      '<em>Italic</em>',
+      '<u>Underline</u>',
+      'href="https://example.test/page"',
+      '<span class="ql-font-serif">Font note</span>',
+      'https://cdn.example.test/proxied.jpg',
+      'https://cdn.example.test/direct.jpg'
+    ]);
+    expect(notesHtml).not.toContain('style=');
+    expect(notesHtml).not.toContain('trip-img-modal');
+    expect(notesHtml).not.toContain('editor-only');
+    expect(notesHtml).not.toContain('unsafe-link');
+    expect(notesHtml).not.toContain('onclick');
+    expect(notesHtml).not.toContain('data-original');
+    expect(notesHtml).not.toContain('loading=');
+    expect(notesHtml).not.toContain('data:text');
+    expect(notesHtml).not.toContain('file:');
+    expect(notesHtml).not.toContain('vbscript:');
+    expect(notesHtml).not.toContain('javascript:');
+    expect(notesHtml).not.toContain('not a url');
+  });
+
   test('image dialog inserts URL embeds and data images are blocked with visible feedback', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithRichNotesFixture(page);
