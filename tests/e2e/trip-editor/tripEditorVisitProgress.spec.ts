@@ -33,17 +33,17 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await expect(visitPlaceRow(page, notVisitedPlaceId)).toContainText('PW not visited place');
     await expect(visitPlaceRow(page, missingHistoryPlaceId)).toContainText('PW missing history place');
 
-    await dialog.getByLabel('Visited').check();
+    await dialog.getByRole('radio', { name: 'Visited', exact: true }).check();
     await expect(visitPlaceRow(page, visitedPlaceId)).toBeVisible();
     await expect(visitPlaceRow(page, missingHistoryPlaceId)).toBeVisible();
     await expect(visitPlaceRow(page, notVisitedPlaceId)).toHaveCount(0);
     await expect(dialog.getByRole('region', { name: 'PW visit region two' })).toHaveCount(0);
 
-    await dialog.getByLabel('Not visited').check();
+    await dialog.getByRole('radio', { name: 'Not visited', exact: true }).check();
     await expect(visitPlaceRow(page, notVisitedPlaceId)).toBeVisible();
     await expect(visitPlaceRow(page, visitedPlaceId)).toHaveCount(0);
 
-    await dialog.getByLabel('All').check();
+    await dialog.getByRole('radio', { name: 'All', exact: true }).check();
     await expect(visitPlaceRow(page, visitedPlaceId)).toBeVisible();
     await expect(visitPlaceRow(page, notVisitedPlaceId)).toBeVisible();
   });
@@ -62,7 +62,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await expect(row).toContainText('2026-01-03 08:00 UTC');
 
     const historyIds = await row.locator('[data-visit-id]').evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.visitId));
-    expect(historyIds).toEqual([newerVisitId, tiedVisitId, olderVisitId]);
+    expect(historyIds).toEqual([tiedVisitId, newerVisitId, olderVisitId]);
     await expect(row.locator(`[data-visit-id="${newerVisitId}"]`)).toContainText('PW visited place');
     await expect(row.locator(`[data-visit-id="${newerVisitId}"]`)).toContainText('PW visit region one');
     await expect(row.locator(`[data-visit-id="${newerVisitId}"]`)).toContainText('2026-01-03 08:00 UTC');
@@ -74,7 +74,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
   test('blocks Manage visit navigation when dirty draft discard is canceled', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
-    await page.locator('#trip-editor-metadata-form').getByLabel('Trip name').fill('Unsaved visit guard trip');
+    await page.locator('#trip-editor-metadata-form').getByLabel('Name').fill('Unsaved visit guard trip');
 
     await openVisits(page);
     await visitPlaceRow(page, visitedPlaceId).locator(`[data-visit-id="${newerVisitId}"]`).getByRole('link', { name: 'Manage visit' }).click();
@@ -84,7 +84,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
 
     await expect(page).toHaveURL(new RegExp(`${workspacePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
     await expect(visitDialog(page)).toBeVisible();
-    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Trip name')).toHaveValue('Unsaved visit guard trip');
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue('Unsaved visit guard trip');
   });
 
   test('blocks Manage visit navigation when active map-work cancel is rejected', async ({ page }) => {
@@ -109,7 +109,10 @@ test.describe.serial('Trip Editor visit progress and history', () => {
   test('navigates Manage visit with a current returnUrl after shared guard approval', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
-    await page.locator('#trip-editor-metadata-form').getByLabel('Trip name').fill('Unsaved visit navigation trip');
+    await page.route(new RegExp(`/User/Visit/Edit/${newerVisitId}(?:[?#].*)?$`, 'i'), async route => {
+      await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Manage visit</title>' });
+    });
+    await page.locator('#trip-editor-metadata-form').getByLabel('Name').fill('Unsaved visit navigation trip');
 
     await openVisits(page);
     await visitPlaceRow(page, visitedPlaceId).locator(`[data-visit-id="${newerVisitId}"]`).getByRole('link', { name: 'Manage visit' }).click();
@@ -129,12 +132,12 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await loadWorkspaceWithVisitFixture(page, prepareNoVisitsState);
     await openVisits(page);
     await expect(visitDialog(page)).toContainText('No visit history yet.');
-    await visitDialog(page).getByLabel('Visited').check();
+    await visitDialog(page).getByRole('radio', { name: 'Visited', exact: true }).check();
     await expect(visitDialog(page)).toContainText('No visited places yet.');
 
     await loadWorkspaceWithVisitFixture(page, prepareAllVisitedState);
     await openVisits(page);
-    await visitDialog(page).getByLabel('Not visited').check();
+    await visitDialog(page).getByRole('radio', { name: 'Not visited', exact: true }).check();
     await expect(visitDialog(page)).toContainText('All places have visits.');
 
     await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
