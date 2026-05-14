@@ -20,6 +20,7 @@ body {
   height: calc(100vh - 116px);
   min-height: 560px;
   overflow: hidden;
+  width: 100%;
 }
 
 .trip-editor-sidebar {
@@ -37,12 +38,14 @@ body {
   gap: 1rem;
   justify-content: space-between;
   margin-bottom: 1rem;
+  min-width: 0;
 }
 
 .trip-editor-sidebar__header h1 {
   font-size: 1.35rem;
   line-height: 1.2;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .trip-editor-sidebar__eyebrow,
@@ -60,7 +63,8 @@ body {
   color: var(--trip-editor-text);
   font-size: 0.8rem;
   padding: 0.25rem 0.55rem;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .trip-editor-panel {
@@ -109,8 +113,9 @@ body {
 
 .trip-editor-save-state {
   color: var(--trip-editor-accent);
+  flex: 0 1 auto;
   font-size: 0.8rem;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .trip-editor-field {
@@ -265,6 +270,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  min-width: 0;
 }
 
 .trip-editor-settings-group {
@@ -304,6 +310,7 @@ body {
   display: grid;
   gap: 0.5rem;
   grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
 }
 
 .trip-editor-tag-suggestions {
@@ -461,8 +468,10 @@ body {
   background: var(--trip-editor-bg);
   border-bottom: 1px solid var(--trip-editor-border);
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
+  min-width: 0;
   padding: 0.75rem 1rem;
 }
 
@@ -519,6 +528,7 @@ body {
   gap: 0.5rem;
   grid-template-columns: auto minmax(14rem, 28rem) auto;
   justify-content: start;
+  min-width: 0;
 }
 
 .trip-editor-map-search__label,
@@ -576,6 +586,7 @@ body {
 .trip-editor-map-search__add-panel label {
   display: grid;
   gap: 0.2rem;
+  min-width: 0;
 }
 
 .trip-editor-state--error {
@@ -664,4 +675,36 @@ body {
     grid-template-columns: 1fr;
   }
 
+}
+
+@media (max-width: 520px) {
+  .trip-editor-workspace {
+    grid-template-rows: minmax(240px, 48vh) minmax(360px, 1fr);
+  }
+
+  .trip-editor-sidebar {
+    padding: 0.75rem;
+  }
+
+  .trip-editor-sidebar__header,
+  .trip-editor-panel__line,
+  .trip-editor-visit-progress-entry {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .trip-editor-grid,
+  .trip-editor-tag-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-editor-tag-entry .btn {
+    justify-self: start;
+  }
+
+  .trip-editor-map-search,
+  .trip-editor-toolbar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
 }

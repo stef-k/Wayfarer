@@ -2,8 +2,10 @@
 .trip-editor-surface-context {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .trip-editor-surface,
@@ -24,8 +26,21 @@
 .trip-editor-surface__header {
   align-items: flex-start;
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
+  min-width: 0;
+}
+
+.trip-editor-surface__header > div:first-child,
+.trip-editor-surface-context > div:first-child {
+  min-width: 0;
+}
+
+.trip-editor-surface__header h2,
+.trip-editor-surface-context strong,
+.trip-editor-map-work-toolbar strong {
+  overflow-wrap: anywhere;
 }
 
 .trip-editor-surface__header h2,
@@ -60,10 +75,18 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .trip-editor-surface__body {
   min-width: 0;
+}
+
+.trip-editor-workspace .btn,
+.trip-editor-expanded .btn,
+.trip-editor-map-work-toolbar .btn {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .trip-editor-surface__footer {
@@ -120,8 +143,10 @@
   background: var(--trip-editor-surface);
   border-bottom: 1px solid var(--trip-editor-border);
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
+  min-width: 0;
   padding: 0.75rem 1rem;
   position: relative;
   z-index: 2;
@@ -130,6 +155,7 @@
 .trip-editor-map-work-toolbar > div:first-child {
   display: grid;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -148,5 +174,29 @@
     top: auto;
     transform: none;
     width: calc(100vw - 1.5rem);
+  }
+
+  .trip-editor-surface__controls,
+  .trip-editor-surface__footer,
+  .trip-editor-map-work-toolbar__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .trip-editor-expanded__dialog {
+    bottom: 0.5rem;
+    left: 0.5rem;
+    max-height: calc(100vh - 1rem);
+    max-width: calc(100vw - 1rem);
+    width: calc(100vw - 1rem);
+  }
+
+  .trip-editor-expanded__header,
+  .trip-editor-expanded__body,
+  .trip-editor-expanded__footer,
+  .trip-editor-map-work-toolbar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }
