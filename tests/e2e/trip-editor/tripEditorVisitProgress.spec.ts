@@ -123,23 +123,32 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     });
   });
 
-  test('renders required empty states', async ({ page }) => {
+  test('renders the no places empty state', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareNoPlacesState);
     await openVisits(page);
     await expect(visitDialog(page)).toContainText('No places in this trip yet.');
+  });
 
+  test('renders no history and no visited places empty states', async ({ page }) => {
+    await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareNoVisitsState);
     await openVisits(page);
     await expect(visitDialog(page)).toContainText('No visit history yet.');
     await visitDialog(page).getByRole('radio', { name: 'Visited', exact: true }).check();
     await expect(visitDialog(page)).toContainText('No visited places yet.');
+  });
 
+  test('renders the all places visited empty state', async ({ page }) => {
+    await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareAllVisitedState);
     await openVisits(page);
     await visitDialog(page).getByRole('radio', { name: 'Not visited', exact: true }).check();
     await expect(visitDialog(page)).toContainText('All places have visits.');
+  });
 
+  test('renders the missing per-place history rows empty state', async ({ page }) => {
+    await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
     await openVisits(page);
     await expect(visitPlaceRow(page, missingHistoryPlaceId)).toContainText('No visit history rows available for this place.');
