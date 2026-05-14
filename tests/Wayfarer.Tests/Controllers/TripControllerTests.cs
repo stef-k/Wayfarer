@@ -559,7 +559,6 @@ public class TripControllerTests : TestBase
         var result = await controller.Edit(trip.Id, model, submitAction: null!);
 
         Assert.IsType<BadRequestObjectResult>(result);
-        Assert.IsNotType<ViewResult>(result);
         Assert.Equal("Original", db.Trips.Find(trip.Id)!.Name);
     }
 
@@ -584,7 +583,6 @@ public class TripControllerTests : TestBase
 
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(500, status.StatusCode);
-        Assert.IsNotType<ViewResult>(result);
     }
 
     private TripController BuildController(ApplicationDbContext db)
