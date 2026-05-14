@@ -543,7 +543,7 @@ public class TripControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Edit_Post_ReturnsView_WhenModelInvalid()
+    public async Task Edit_Post_ReturnsBadRequest_WhenModelInvalid()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "owner");
@@ -558,9 +558,33 @@ public class TripControllerTests : TestBase
 
         var result = await controller.Edit(trip.Id, model, submitAction: null!);
 
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.Same(model, view.Model);
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.IsNotType<ViewResult>(result);
         Assert.Equal("Original", db.Trips.Find(trip.Id)!.Name);
+    }
+
+    [Fact]
+    public async Task Edit_Post_ReturnsServerError_WhenLegacyUpdateThrows()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Original");
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var thumbnailMock = new Mock<ITripMapThumbnailGenerator>();
+        thumbnailMock
+            .Setup(t => t.InvalidateThumbnails(trip.Id, It.IsAny<DateTime>()))
+            .Throws(new InvalidOperationException("Legacy POST failure."));
+        var controller = BuildControllerWithUser(db, user.Id, thumbnailMock);
+        var model = new Trip { Id = trip.Id, Name = "Updated" };
+
+        var result = await controller.Edit(trip.Id, model, submitAction: null!);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(500, status.StatusCode);
+        Assert.IsNotType<ViewResult>(result);
     }
 
     private TripController BuildController(ApplicationDbContext db)

@@ -241,7 +241,9 @@ namespace Wayfarer.Areas.User.Controllers
             ModelState.Remove(nameof(model.User));
 
             if (!ValidateModelState())
-                return View(model);
+            {
+                return BadRequest(ModelState);
+            }
 
             try
             {
@@ -293,7 +295,7 @@ namespace Wayfarer.Areas.User.Controllers
             catch (Exception ex)
             {
                 HandleError(ex);
-                return View(model);
+                return StatusCode(500);
             }
         }
 

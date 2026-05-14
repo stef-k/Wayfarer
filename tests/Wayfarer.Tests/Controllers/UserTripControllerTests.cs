@@ -180,7 +180,7 @@ public class UserTripControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Edit_Post_ReturnsView_WhenModelInvalid()
+    public async Task Edit_Post_ReturnsBadRequest_WhenModelInvalid()
     {
         var db = CreateDbContext();
         var userId = "u1";
@@ -197,7 +197,8 @@ public class UserTripControllerTests : TestBase
             Name = ""
         }, null);
 
-        var view = Assert.IsType<ViewResult>(result);
+        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.IsNotType<ViewResult>(result);
         Assert.False(controller.ModelState.IsValid);
     }
 
