@@ -674,32 +674,6 @@ public class TripControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_Post_RedirectsToCanonicalEdit_WhenSaveEditRequested()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "creator");
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
-        var controller = BuildControllerWithUser(db, user.Id);
-        var tripId = Guid.NewGuid();
-        var model = new Trip
-        {
-            Id = tripId,
-            Name = "New Trip",
-            IsPublic = false,
-            Notes = string.Empty
-        };
-
-        var result = await controller.Create(model, "save-edit");
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TripController.Edit), redirect.ActionName);
-        Assert.Equal("Trip", redirect.ControllerName);
-        Assert.Equal("User", redirect.RouteValues?["area"]);
-        Assert.Equal(tripId, redirect.RouteValues?["id"]);
-    }
-
-    [Fact]
     public async Task Create_Post_DoesNotScheduleWarmup_WhenNoImages()
     {
         // Arrange

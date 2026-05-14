@@ -243,7 +243,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(surface.getByRole('link', { name: 'Open progress URL' })).toHaveCount(0);
   });
 
-  test('Save & Exit stays on workspace when tag save fails', async ({ page }) => {
+  test('Save & Exit stays on the editor when tag save fails', async ({ page }) => {
     await signIn(page);
     await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
@@ -267,7 +267,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(page.locator('.trip-editor-surface--docked')).toContainText('Injected tag save failure.');
   });
 
-  test('responsive narrow workspace remains usable', async ({ page }, testInfo) => {
+  test('responsive narrow editor remains usable', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await signIn(page);
     await page.goto(absoluteUrl(editorPath));

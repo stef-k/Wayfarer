@@ -16,7 +16,7 @@ public sealed class TripWorkspaceController : Controller
     private readonly ApplicationDbContext _dbContext;
 
     /// <summary>
-    /// Initializes a new workspace shell controller.
+    /// Initializes a new workspace redirect controller.
     /// </summary>
     public TripWorkspaceController(ApplicationDbContext dbContext)
     {
