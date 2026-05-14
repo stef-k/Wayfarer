@@ -1,0 +1,142 @@
+.trip-editor-visit-progress-entry {
+  align-items: flex-start;
+  margin-top: 0.65rem;
+}
+
+.trip-editor-visit-progress__body {
+  display: grid;
+  gap: 1rem;
+}
+
+.trip-editor-visit-progress__summary,
+.trip-editor-visit-progress__filters,
+.trip-editor-visit-region,
+.trip-editor-visit-place-row,
+.trip-editor-visit-history-row {
+  border: 1px solid var(--trip-editor-border);
+  border-radius: 6px;
+}
+
+.trip-editor-visit-progress__summary,
+.trip-editor-visit-progress__filters,
+.trip-editor-visit-region {
+  background: var(--trip-editor-card);
+  padding: 0.75rem;
+}
+
+.trip-editor-visit-progress__summary p {
+  color: var(--trip-editor-muted);
+  margin: 0.35rem 0 0;
+}
+
+.trip-editor-visit-progress__filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.trip-editor-visit-progress__filters legend {
+  color: var(--trip-editor-muted);
+  float: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+  width: auto;
+}
+
+.trip-editor-visit-progress__filters label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.trip-editor-visit-region-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.trip-editor-visit-region {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.trip-editor-visit-region h3,
+.trip-editor-visit-place-row h4 {
+  margin: 0;
+}
+
+.trip-editor-visit-region h3 {
+  font-size: 1rem;
+}
+
+.trip-editor-visit-place-row {
+  background: var(--trip-editor-card-strong);
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+}
+
+.trip-editor-visit-place-row header,
+.trip-editor-visit-history-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.trip-editor-visit-place-row header small,
+.trip-editor-visit-history-row span {
+  color: var(--trip-editor-muted);
+}
+
+.trip-editor-visit-place-row__summary,
+.trip-editor-visit-history-row dl {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.trip-editor-visit-place-row__summary div,
+.trip-editor-visit-history-row dl div {
+  min-width: 0;
+}
+
+.trip-editor-visit-place-row dt,
+.trip-editor-visit-history-row dt {
+  color: var(--trip-editor-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.trip-editor-visit-place-row dd,
+.trip-editor-visit-history-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.trip-editor-visit-history {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.trip-editor-visit-history-row {
+  background: var(--trip-editor-surface);
+  padding: 0.6rem;
+}
+
+.trip-editor-visit-history-row > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.trip-editor-visit-history-row dl {
+  flex: 1 1 auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}

@@ -5,6 +5,7 @@ import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import MetadataEditor from './MetadataEditor.vue';
 import RegionManager from './RegionManager.vue';
 import SegmentManager from './SegmentManager.vue';
+import VisitProgressSurface from './VisitProgressSurface.vue';
 import type { AreaPolygonWorkOptions, CoordinatePickOptions, SegmentRouteWorkOptions } from '../map/leafletAdapter';
 
 type SidebarSearchResult = {
@@ -41,6 +42,7 @@ const emit = defineEmits<{
 
 const searchQuery = ref('');
 const segmentDraftDirty = ref(false);
+const isVisitProgressOpen = ref(false);
 const normalizedSearchQuery = computed(() => normalize(searchQuery.value));
 const searchMinimumCharacters = computed(() => props.state.options.limits?.sidebarSearchMinCharacters ?? 1);
 const isSearchActive = computed(() => normalizedSearchQuery.value.length >= searchMinimumCharacters.value);
@@ -156,7 +158,7 @@ function normalize(value: string): string {
       @mutation-applied="result => emit('mutationApplied', result)"
     />
 
-    <section v-if="state.visitProgress.totalPlaces > 0" class="trip-editor-panel">
+    <section v-if="state.permissions.canReadVisitProgress" class="trip-editor-panel">
       <div class="trip-editor-panel__line">
         <span>Visit progress</span>
         <strong>{{ state.visitProgress.percentVisited }}%</strong>
@@ -164,8 +166,19 @@ function normalize(value: string): string {
       <div class="trip-editor-progress" aria-hidden="true">
         <span :style="{ width: `${state.visitProgress.percentVisited}%` }"></span>
       </div>
-      <p>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited</p>
+      <div class="trip-editor-panel__line trip-editor-visit-progress-entry">
+        <p>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited</p>
+        <button type="button" class="btn btn-outline-light btn-sm" @click="isVisitProgressOpen = true">Visits</button>
+      </div>
     </section>
+
+    <VisitProgressSurface
+      v-if="state.permissions.canReadVisitProgress"
+      :is-open="isVisitProgressOpen"
+      :state="state"
+      :editor-surface="editorSurface"
+      @close="isVisitProgressOpen = false"
+    />
 
     <section v-if="state.tagOrder.length > 0" class="trip-editor-panel">
       <h2>Tags</h2>
