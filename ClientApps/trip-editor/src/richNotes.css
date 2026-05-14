@@ -9,6 +9,7 @@
   background: var(--trip-editor-surface-muted);
   border-bottom: 0;
   border-radius: 6px 6px 0 0;
+  white-space: normal;
 }
 
 .trip-editor-rich-notes__editor {
@@ -39,6 +40,15 @@
 .trip-editor-rich-notes .ql-picker-options {
   background: var(--trip-editor-surface);
   border-color: var(--trip-editor-field-border);
+}
+
+.trip-editor-rich-notes .ql-formats {
+  margin-bottom: 0.25rem;
+}
+
+.trip-editor-rich-notes .ql-tooltip {
+  max-width: calc(100vw - 2rem);
+  white-space: normal;
 }
 
 .trip-editor-rich-notes__feedback {
@@ -77,6 +87,10 @@
   top: 50%;
   transform: translate(-50%, -50%);
   width: 100%;
+}
+
+.trip-editor-rich-notes-dialog__panel input {
+  min-width: 0;
 }
 
 .trip-editor-rich-notes-dialog__panel h2 {
