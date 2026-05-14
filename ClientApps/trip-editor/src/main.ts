@@ -6,6 +6,7 @@ import './theme.css';
 import './styles.css';
 import './surfaces.css';
 import './richNotes.css';
+import './visitProgress.css';
 
 const mountElement = document.getElementById('trip-editor-app');
 
