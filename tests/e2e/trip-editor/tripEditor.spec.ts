@@ -7,12 +7,14 @@ import {
   escapeRegex,
   expectActiveMetadataSurface,
   expectMountedWorkspace,
+  expectNoLegacyEditorAction,
   firstRegionWithChildren,
   firstVisibleAddPlace,
   editorPath,
   pathRegex,
   regionEditButton,
   signIn,
+  signInAs,
   uniqueName,
   workspaceRedirectPath
 } from './tripEditorTestUtils';
@@ -25,7 +27,12 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expectActiveMetadataSurface(page);
   });
 
-  test('canonical editor, editor API, and temporary workspace redirect load', async ({ page }) => {
+  test('canonical editor, editor API, and temporary workspace auth matrix load', async ({ page }) => {
+    const unauthenticatedWorkspaceResponse = await page.request.get(absoluteUrl(workspaceRedirectPath), { maxRedirects: 0 });
+    expect(unauthenticatedWorkspaceResponse.status(), `GET ${workspaceRedirectPath} should challenge anonymous users.`).toBe(302);
+    expect(unauthenticatedWorkspaceResponse.headers().location).toContain('/Identity/Account/Login');
+    expect(unauthenticatedWorkspaceResponse.headers().location).toContain(encodeURIComponent(workspaceRedirectPath));
+
     await signIn(page);
 
     const apiResponse = await page.request.get(absoluteUrl(editorApiPath), {
@@ -46,6 +53,16 @@ test.describe.serial('Trip Editor dev verification', () => {
     expect(editResponse?.ok(), `GET ${editorPath} returned ${editResponse?.status() ?? 'no response'}`).toBeTruthy();
     await expect(page).toHaveURL(pathRegex(editorPath));
     await expectMountedWorkspace(page);
+    await expectNoLegacyEditorAction(page);
+  });
+
+  test('temporary workspace denies authenticated accounts without User role', async ({ page }) => {
+    await signInAs(page, 'admin', 'Admin1!', workspaceRedirectPath);
+
+    const workspaceResponse = await page.request.get(absoluteUrl(workspaceRedirectPath), { maxRedirects: 0 });
+    expect(workspaceResponse.status(), `GET ${workspaceRedirectPath} should deny authenticated non-User roles.`).toBe(302);
+    expect(workspaceResponse.headers().location).toContain('/Identity/Account/AccessDenied');
+    expect(workspaceResponse.headers().location).toContain(encodeURIComponent(workspaceRedirectPath));
   });
 
   test('metadata surfaces work in docked and expanded dark/light states', async ({ page }, testInfo) => {

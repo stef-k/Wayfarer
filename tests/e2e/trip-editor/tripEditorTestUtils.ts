@@ -57,9 +57,14 @@ export function uniqueName(prefix: string): string {
 
 // Signs in through the real Identity page without logging credential values.
 export async function signIn(page: Page): Promise<void> {
-  await page.goto(absoluteUrl(`/Identity/Account/Login?ReturnUrl=${encodeURIComponent(editorPath)}`));
-  await page.getByLabel('Username').fill(config.username);
-  await page.getByLabel('Password').fill(config.password);
+  await signInAs(page, config.username, config.password, editorPath);
+}
+
+// Signs in with explicit credentials for route/auth smoke coverage.
+export async function signInAs(page: Page, username: string, password: string, returnPath: string): Promise<void> {
+  await page.goto(absoluteUrl(`/Identity/Account/Login?ReturnUrl=${encodeURIComponent(returnPath)}`));
+  await page.getByLabel('Username').fill(username);
+  await page.getByLabel('Password').fill(password);
   await Promise.all([
     page.waitForURL(url => !url.pathname.includes('/Identity/Account/Login')),
     page.getByRole('button', { name: 'Log in' }).click()
@@ -196,6 +201,13 @@ export async function closeDraftWithDiscard(page: Page): Promise<void> {
 export async function expectNoSearchAddUi(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: /search.?add|add from search/i })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /search.?add|add from search/i })).toHaveCount(0);
+}
+
+// Confirms the old editor escape hatch is not exposed after final cutover.
+export async function expectNoLegacyEditorAction(page: Page): Promise<void> {
+  await expect(page.getByText('Legacy editor', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^Legacy editor$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Legacy editor$/i })).toHaveCount(0);
 }
 
 function segmentSearchFixture(state: EditorTripFixture, segment: EditorTripFixture['segmentsById'][string]): { query: string; label: string } {
