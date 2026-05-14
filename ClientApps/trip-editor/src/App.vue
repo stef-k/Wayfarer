@@ -282,7 +282,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
   <div ref="workspaceElement" class="trip-editor-workspace" tabindex="-1">
     <div v-if="isLoading" class="trip-editor-state trip-editor-state--loading">
       <div class="spinner-border" role="status" aria-label="Loading"></div>
-      <span>Loading trip editor workspace...</span>
+      <span>Loading trip editor...</span>
     </div>
 
     <div v-else-if="error" class="trip-editor-state trip-editor-state--error">
@@ -325,7 +325,6 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
               </button>
               <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">Focus Active Entity</button>
             </template>
-            <a v-if="!isMapWorkActive" class="btn btn-outline-light btn-sm" :href="`/User/Trip/Edit/${state.tripId}`">Legacy editor</a>
           </div>
         </header>
         <MapWorkToolbar :controller="editorSurface" />

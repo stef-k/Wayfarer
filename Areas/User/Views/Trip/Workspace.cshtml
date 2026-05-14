@@ -4,7 +4,7 @@
 
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
-    ViewData["Title"] = "Trip Editor Workspace";
+    ViewData["Title"] = "Trip Editor";
     var manifestPath = System.IO.Path.Combine(Environment.WebRootPath, "vite", "trip-editor", ".vite", "manifest.json");
     var entryScript = "/ClientApps/trip-editor/src/main.ts";
 }
@@ -60,7 +60,7 @@
      data-tiles-url="@Model.TilesUrl">
     <div class="trip-editor-shell-loading">
         <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-        Loading trip editor workspace...
+        Loading trip editor...
     </div>
 </div>
 

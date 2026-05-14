@@ -6,7 +6,7 @@ import {
   expectNoSearchAddUi,
   loadEditorStateFixture,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
@@ -53,18 +53,18 @@ test.describe.serial('Trip Editor segment editing', () => {
     });
 
     await openEditableSegment(page);
-    await expect(page.getByRole('link', { name: 'Legacy editor' })).toBeVisible();
+    await expect(page.locator('.trip-editor-toolbar a[href^="/User/Trip/Edit/"]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Draw segment route');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     await expect(page.locator('.trip-editor-toolbar').getByRole('button', { name: 'Fit All' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Legacy editor' })).toHaveCount(0);
+    await expect(page.locator('.trip-editor-toolbar a[href^="/User/Trip/Edit/"]')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /pick on map|draw\/edit area|geocode|search.?add|marker drag/i })).toHaveCount(0);
     await expectNoSearchAddUi(page);
 
     await mapWork.getByRole('button', { name: 'Done' }).click();
-    await expect(page.getByRole('link', { name: 'Legacy editor' })).toBeVisible();
+    await expect(page.locator('.trip-editor-toolbar a[href^="/User/Trip/Edit/"]')).toHaveCount(0);
     expect(savedRequests, 'Done must not call the segment save endpoint.').toEqual([]);
     await expect(page.locator('#trip-editor-segment-form')).toContainText('2 custom route points');
 
@@ -163,7 +163,7 @@ async function loadWorkspaceWithSegmentFixture(page: Page): Promise<MutableEdito
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareSegmentState(state);
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
   return state;
 }

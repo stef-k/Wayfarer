@@ -5,10 +5,9 @@ import {
   editorApiPath,
   expectMountedWorkspace,
   expectNoSearchAddUi,
-  legacyEditPath,
   loadEditorStateFixture,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
@@ -221,7 +220,7 @@ test.describe.serial('Trip Editor area editing', () => {
 
   test('legacy trip edit page still loads', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(legacyEditPath));
+    await page.goto(absoluteUrl(editorPath));
     await expect(page).toHaveURL(new RegExp(`/User/Trip/Edit/${configTripIdPattern()}$`, 'i'));
     await expect(page.locator('body')).not.toContainText('Trip Editor development server is not available');
   });
@@ -249,7 +248,7 @@ async function loadWorkspaceWithAreaFixture(page: Page, configure?: (state: Muta
   prepareAreaState(state);
   configure?.(state);
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
   return state;
 }

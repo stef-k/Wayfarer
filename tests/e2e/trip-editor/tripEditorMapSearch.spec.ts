@@ -6,7 +6,7 @@ import {
   editorApiPath,
   expectMountedWorkspace,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 const geocodePath = /\/api\/trips\/[^/]+\/editor\/geocode\/search/i;
@@ -22,7 +22,7 @@ test.describe('Trip Editor map geocode search', () => {
       await fulfillGeocode(route, [result('Mock Acropolis')]);
     });
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await page.getByLabel('Sidebar search').fill('ath');
@@ -65,7 +65,7 @@ test.describe('Trip Editor map geocode search', () => {
       await route.fulfill({ status: mode === 'rate' ? 429 : 503, contentType: 'application/json', body: '{}' });
     });
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     const mapSearch = page.getByRole('region', { name: 'Map search' });
 
@@ -113,7 +113,7 @@ test.describe('Trip Editor map geocode search', () => {
       await fulfillGeocode(route, [result(`Result for ${query}`)], query);
     });
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     const mapSearch = page.getByRole('region', { name: 'Map search' });
     const searchInput = page.getByRole('searchbox', { name: 'Map search' });
@@ -155,7 +155,7 @@ test.describe('Trip Editor map geocode search', () => {
       await route.fulfill({ status, contentType: 'application/json', body: '{}' });
     });
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     const mapSearch = page.getByRole('region', { name: 'Map search' });
 
@@ -196,7 +196,7 @@ test.describe('Trip Editor map geocode search', () => {
       await fulfillGeocode(route, [result('Current Newer Result')], 'newer replacement search');
     });
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     const mapSearch = page.getByRole('region', { name: 'Map search' });
 
@@ -229,7 +229,7 @@ test.describe('Trip Editor map geocode search', () => {
       await fulfillGeocode(route, [result(`Result for ${normalized}`)], normalized);
     });
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     const mapSearch = page.getByRole('region', { name: 'Map search' });
 
@@ -249,7 +249,7 @@ test.describe('Trip Editor map geocode search', () => {
     });
     await routeGeocode(page, async route => fulfillGeocode(route, [result('Preview Place')]));
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     await runSearch(page, 'preview place');
     await page.getByRole('button', { name: 'Preview Place' }).click();
@@ -278,7 +278,7 @@ test.describe('Trip Editor map geocode search', () => {
     await routeEditorState(page, withOneEligibleRegion(baseState));
     await routeGeocode(page, async route => fulfillGeocode(route, [result('Eligible Place')]));
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     await runSearch(page, 'eligible place');
     await page.getByRole('button', { name: 'Eligible Place' }).click();
@@ -307,7 +307,7 @@ test.describe('Trip Editor map geocode search', () => {
   test('dirty active draft prompts before search-add opens Add Place', async ({ page }) => {
     await signIn(page);
     await routeGeocode(page, async route => fulfillGeocode(route, [result('Prompt Place')]));
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await page.getByRole('button', { name: 'Add Region' }).click();

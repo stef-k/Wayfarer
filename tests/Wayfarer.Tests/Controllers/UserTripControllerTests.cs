@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -63,12 +64,14 @@ public class UserTripControllerTests : TestBase
         var result = await controller.Edit(trip.Id);
 
         var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<Trip>(view.Model);
-        Assert.Equal(trip.Id, model.Id);
+        Assert.Equal("~/Areas/User/Views/Trip/Workspace.cshtml", view.ViewName);
+        var model = Assert.IsType<TripEditorWorkspaceViewModel>(view.Model);
+        Assert.Equal(trip.Id, model.TripId);
+        Assert.Equal($"/api/trips/{trip.Id}/editor", model.EditorEndpointUrl);
     }
 
     [Fact]
-    public async Task Edit_Get_RedirectsToIndex_WhenNotOwned()
+    public async Task Edit_Get_ReturnsNotFound_WhenNotOwned()
     {
         var db = CreateDbContext();
         db.Users.AddRange(
@@ -81,8 +84,7 @@ public class UserTripControllerTests : TestBase
 
         var result = await controller.Edit(trip.Id);
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]

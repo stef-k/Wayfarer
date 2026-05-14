@@ -10,6 +10,7 @@ using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -393,7 +394,7 @@ public class TripControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Edit_Get_RedirectsWithAlert_WhenTripMissing()
+    public async Task Edit_Get_ReturnsNotFound_WhenTripMissing()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "user-1");
@@ -404,35 +405,16 @@ public class TripControllerTests : TestBase
 
         var result = await controller.Edit(Guid.NewGuid());
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
-        Assert.Equal("Trip not found.", controller.TempData["AlertMessage"]);
+        Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public async Task Edit_Get_ReturnsView_WithLoadedCollections()
+    public async Task Edit_Get_ReturnsCanonicalVueShell_WhenTripOwned()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "owner");
         db.Users.Add(user);
         var trip = TestDataFixtures.CreateTrip(user, "Owned Trip");
-        var region = new Region
-        {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            UserId = user.Id,
-            Name = "Region",
-            Places = new List<Place> { new() { Id = Guid.NewGuid(), UserId = user.Id, RegionId = Guid.NewGuid(), Name = "Place" } }
-        };
-        var segment = new Segment
-        {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            UserId = user.Id,
-            Mode = "walk"
-        };
-        trip.Regions = new List<Region> { region };
-        trip.Segments = new List<Segment> { segment };
         db.Trips.Add(trip);
         await db.SaveChangesAsync();
 
@@ -441,13 +423,12 @@ public class TripControllerTests : TestBase
         var result = await controller.Edit(trip.Id);
 
         var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsType<Trip>(view.Model);
-        Assert.NotNull(model.Regions);
-        Assert.Single(model.Regions);
-        Assert.NotNull(model.Regions.First().Places);
-        Assert.Single(model.Regions.First().Places);
-        Assert.NotNull(model.Segments);
-        Assert.Single(model.Segments);
+        Assert.Equal("~/Areas/User/Views/Trip/Workspace.cshtml", view.ViewName);
+        var model = Assert.IsType<TripEditorWorkspaceViewModel>(view.Model);
+        Assert.Equal(trip.Id, model.TripId);
+        Assert.Equal("Owned Trip", model.TripName);
+        Assert.Equal($"/api/trips/{trip.Id}/editor", model.EditorEndpointUrl);
+        Assert.Equal("/User/Trip/Index", model.TripIndexUrl);
     }
 
     [Fact]
@@ -690,6 +671,31 @@ public class TripControllerTests : TestBase
 
         // Assert: non-immediate (debounced) warmup scheduled
         warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, false), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_Post_RedirectsToCanonicalEdit_WhenSaveEditRequested()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "creator");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildControllerWithUser(db, user.Id);
+        var tripId = Guid.NewGuid();
+        var model = new Trip
+        {
+            Id = tripId,
+            Name = "New Trip",
+            IsPublic = false
+        };
+
+        var result = await controller.Create(model, "save-edit");
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(nameof(TripController.Edit), redirect.ActionName);
+        Assert.Equal("Trip", redirect.ControllerName);
+        Assert.Equal("User", redirect.RouteValues?["area"]);
+        Assert.Equal(tripId, redirect.RouteValues?["id"]);
     }
 
     [Fact]

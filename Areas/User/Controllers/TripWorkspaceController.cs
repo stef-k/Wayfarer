@@ -3,12 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
-using Wayfarer.Models.ViewModels;
 
 namespace Wayfarer.Areas.User.Controllers;
 
 /// <summary>
-/// MVC shell controller for the Vue/Vite Trip Editor workspace spike.
+/// Temporary redirect controller for the former Trip Editor workspace URL.
 /// </summary>
 [Area("User")]
 [Authorize(Roles = "User")]
@@ -25,7 +24,7 @@ public sealed class TripWorkspaceController : Controller
     }
 
     /// <summary>
-    /// Shows the Trip Editor workspace shell for an owned trip.
+    /// Redirects owned-trip workspace requests to the canonical Trip Editor route.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Workspace(Guid id)
@@ -47,18 +46,6 @@ public sealed class TripWorkspaceController : Controller
             return NotFound();
         }
 
-        ViewData["Title"] = "Trip Editor Workspace";
-        ViewData["BodyClass"] = "container-fluid";
-        ViewData["LoadLeaflet"] = false;
-        ViewData["LoadQuill"] = false;
-
-        return View("~/Areas/User/Views/Trip/Workspace.cshtml", new TripEditorWorkspaceViewModel
-        {
-            TripId = trip.Id,
-            TripName = trip.Name,
-            EditorEndpointUrl = $"/api/trips/{trip.Id}/editor",
-            TripIndexUrl = Url.Action("Index", "Trip", new { area = "User" }) ?? "/User/Trip/Index",
-            TilesUrl = "/Public/tiles/{z}/{x}/{y}.png"
-        });
+        return RedirectToAction("Edit", "Trip", new { area = "User", id = trip.Id });
     }
 }

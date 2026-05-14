@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 using Wayfarer.Util;
 
@@ -181,59 +182,38 @@ namespace Wayfarer.Areas.User.Controllers
             return View(model);
         }
 
-        // GET: /User/Trip/Edit/{id}
+        /// <summary>
+        /// Shows the canonical Vue Trip Editor shell for an owned trip.
+        /// </summary>
         public async Task<IActionResult> Edit(Guid id)
         {
             SetPageTitle("Edit Trip");
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // 1) Eager-load Regions → Places, Areas and Segments
-            var trip = await _dbContext.Trips.Where(t => t.Id == id)
-                .Include(t => t.Regions)
-                .ThenInclude(r => r.Places)
-                .Include(t => t.Regions!).ThenInclude(a => a.Areas)
-                .Include(t => t.Segments)
-                .Include(t => t.Tags)
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            var trip = await _dbContext.Trips
+                .AsNoTracking()
+                .Where(t => t.Id == id && t.UserId == userId)
+                .Select(t => new { t.Id, t.Name })
+                .FirstOrDefaultAsync();
 
             if (trip == null)
             {
-                SetAlert("Trip not found.", "warning");
-                return RedirectToAction(nameof(Index));
+                return NotFound();
             }
 
+            ViewData["Title"] = "Trip Editor";
+            ViewData["BodyClass"] = "container-fluid";
+            ViewData["LoadLeaflet"] = false;
+            ViewData["LoadQuill"] = false;
 
-            // 2) Materialize to concrete Lists
-            trip.Regions = trip.Regions?.ToList() ?? new List<Region>();
-            foreach (var region in trip.Regions)
+            return View("~/Areas/User/Views/Trip/Workspace.cshtml", new TripEditorWorkspaceViewModel
             {
-                region.Places = region.Places?.ToList() ?? new List<Place>();
-            }
-
-            trip.Segments = trip.Segments?.ToList() ?? new List<Segment>();
-
-            // 3) Calculate visit progress for this trip
-            var allPlaceIds = trip.Regions
-                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
-                .Select(p => p.Id)
-                .ToList();
-
-            // Get visit events per place (a place can be visited multiple times)
-            var visitEvents = await _dbContext.PlaceVisitEvents
-                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
-                .OrderByDescending(v => v.ArrivedAtUtc)
-                .ToListAsync();
-
-            var placeVisitCounts = visitEvents
-                .GroupBy(v => v.PlaceId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
-
-            ViewBag.TotalPlaces = allPlaceIds.Count;
-            ViewBag.VisitedPlaces = placeVisitCounts.Count;
-            ViewBag.PlaceVisitCounts = placeVisitCounts;
-            ViewBag.VisitEvents = visitEvents; // Pass flat list, group in view
-
-            return View(trip);
+                TripId = trip.Id,
+                TripName = trip.Name,
+                EditorEndpointUrl = $"/api/trips/{trip.Id}/editor",
+                TripIndexUrl = Url?.Action(nameof(Index), "Trip", new { area = "User" }) ?? "/User/Trip/Index",
+                TilesUrl = "/Public/tiles/{z}/{x}/{y}.png"
+            });
         }
 
         // POST: /User/Trip/Edit/{id}
