@@ -2,8 +2,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadTripEditorConfig } from './tripEditorConfig';
 
 export const config = loadTripEditorConfig();
-export const workspacePath = `/User/Trip/Workspace/${config.tripId}`;
-export const legacyEditPath = `/User/Trip/Edit/${config.tripId}`;
+export const editorPath = `/User/Trip/Edit/${config.tripId}`;
+export const workspaceRedirectPath = `/User/Trip/Workspace/${config.tripId}`;
 export const editorApiPath = `/api/trips/${config.tripId}/editor`;
 
 const forbiddenSidebarSearchRequest = /nominatim|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
@@ -57,16 +57,29 @@ export function uniqueName(prefix: string): string {
 
 // Signs in through the real Identity page without logging credential values.
 export async function signIn(page: Page): Promise<void> {
-  await page.goto(absoluteUrl(`/Identity/Account/Login?ReturnUrl=${encodeURIComponent(workspacePath)}`));
-  await page.getByLabel('Username').fill(config.username);
-  await page.getByLabel('Password').fill(config.password);
+  await signInAs(page, config.username, config.password, editorPath);
+}
+
+// Signs in with explicit credentials for route/auth smoke coverage.
+export async function signInAs(page: Page, username: string, password: string, returnPath: string): Promise<void> {
+  await page.goto(absoluteUrl(`/Identity/Account/Login?ReturnUrl=${encodeURIComponent(returnPath)}`));
+  await page.getByLabel('Username').fill(username);
+  await page.getByLabel('Password').fill(password);
   await Promise.all([
     page.waitForURL(url => !url.pathname.includes('/Identity/Account/Login')),
     page.getByRole('button', { name: 'Log in' }).click()
   ]);
 }
 
-// Waits for the Vue workspace to replace the Razor loading shell.
+// Exercises authentication middleware redirects without following them.
+export async function expectAuthRedirect(page: Page, path: string, expectedPath: string, message: string): Promise<void> {
+  const response = await page.request.get(absoluteUrl(path), { maxRedirects: 0 });
+  expect(response.status(), message).toBe(302);
+  expect(response.headers().location).toContain(expectedPath);
+  expect(response.headers().location).toContain(encodeURIComponent(path));
+}
+
+// Waits for the Vue editor to replace the Razor loading shell.
 export async function expectMountedWorkspace(page: Page): Promise<void> {
   const app = page.locator('#trip-editor-app');
   await expect(app).toBeVisible();
@@ -196,6 +209,13 @@ export async function closeDraftWithDiscard(page: Page): Promise<void> {
 export async function expectNoSearchAddUi(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: /search.?add|add from search/i })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /search.?add|add from search/i })).toHaveCount(0);
+}
+
+// Confirms the old editor escape hatch is not exposed after final cutover.
+export async function expectNoLegacyEditorAction(page: Page): Promise<void> {
+  await expect(page.getByText('Legacy editor', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^Legacy editor$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Legacy editor$/i })).toHaveCount(0);
 }
 
 function segmentSearchFixture(state: EditorTripFixture, segment: EditorTripFixture['segmentsById'][string]): { query: string; label: string } {

@@ -6,26 +6,31 @@ import {
   editorApiPath,
   escapeRegex,
   expectActiveMetadataSurface,
+  expectAuthRedirect,
   expectMountedWorkspace,
+  expectNoLegacyEditorAction,
   firstRegionWithChildren,
   firstVisibleAddPlace,
-  legacyEditPath,
+  editorPath,
   pathRegex,
   regionEditButton,
   signIn,
+  signInAs,
   uniqueName,
-  workspacePath
+  workspaceRedirectPath
 } from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor dev verification', () => {
   test('login succeeds', async ({ page }) => {
     await signIn(page);
 
-    await expect(page).toHaveURL(pathRegex(workspacePath));
+    await expect(page).toHaveURL(pathRegex(editorPath));
     await expectActiveMetadataSurface(page);
   });
 
-  test('workspace, editor API, and legacy editor load', async ({ page }) => {
+  test('canonical editor, editor API, and temporary workspace auth matrix load', async ({ page }) => {
+    await expectAuthRedirect(page, workspaceRedirectPath, '/Identity/Account/Login', `GET ${workspaceRedirectPath} should challenge anonymous users.`);
+
     await signIn(page);
 
     const apiResponse = await page.request.get(absoluteUrl(editorApiPath), {
@@ -35,18 +40,28 @@ test.describe.serial('Trip Editor dev verification', () => {
     expect(apiResponse.headers()['content-type']).toMatch(/application\/json/i);
     expect(String((await apiResponse.json()).tripId).toLowerCase()).toBe(config.tripId.toLowerCase());
 
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
-    const legacyResponse = await page.goto(absoluteUrl(legacyEditPath));
-    expect(legacyResponse?.ok(), `GET ${legacyEditPath} returned ${legacyResponse?.status() ?? 'no response'}`).toBeTruthy();
-    await expect(page).toHaveURL(pathRegex(legacyEditPath));
-    await expect(page.getByText('Trip Settings')).toBeVisible();
+    const workspaceResponse = await page.request.get(absoluteUrl(workspaceRedirectPath), { maxRedirects: 0 });
+    expect(workspaceResponse.status(), `GET ${workspaceRedirectPath} should return a temporary redirect.`).toBe(302);
+    expect(workspaceResponse.headers().location).toBe(editorPath);
+
+    const editResponse = await page.goto(absoluteUrl(editorPath));
+    expect(editResponse?.ok(), `GET ${editorPath} returned ${editResponse?.status() ?? 'no response'}`).toBeTruthy();
+    await expect(page).toHaveURL(pathRegex(editorPath));
+    await expectMountedWorkspace(page);
+    await expectNoLegacyEditorAction(page);
+  });
+
+  test('temporary workspace denies authenticated accounts without User role', async ({ page }) => {
+    await signInAs(page, 'admin', 'Admin1!', workspaceRedirectPath);
+    await expectAuthRedirect(page, workspaceRedirectPath, '/Identity/Account/AccessDenied', `GET ${workspaceRedirectPath} should deny authenticated non-User roles.`);
   });
 
   test('metadata surfaces work in docked and expanded dark/light states', async ({ page }, testInfo) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await setTheme(page, 'dark');
@@ -71,7 +86,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('region edit and place create surfaces validate, save temporary data, and clean up', async ({ page }, testInfo) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const unique = uniqueName('PW matrix');
@@ -121,7 +136,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('draft values survive dock-expanded-dock and dirty close prompts use the shared dialog', async ({ page }, testInfo) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const draftName = uniqueName('Unsaved metadata');
@@ -149,7 +164,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('dirty target switch prompts and clean target switch does not', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await page.getByRole('button', { name: 'Add Region' }).click();
@@ -172,7 +187,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('region hierarchy and unavailable #249 mockup controls remain correct', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await expectTripLevelTagsOnly(page);
@@ -191,7 +206,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('trip tags are editable in docked settings and update the sidebar', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const tagName = uniqueName('pw-docked-tag');
@@ -207,7 +222,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('trip tags are editable in expanded settings', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const tagName = uniqueName('pw-expanded-tag');
@@ -225,7 +240,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('share progress toggle is visible and private draft disables it', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const surface = page.locator('.trip-editor-surface--docked');
@@ -239,9 +254,9 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(surface.getByRole('link', { name: 'Open progress URL' })).toHaveCount(0);
   });
 
-  test('Save & Exit stays on workspace when tag save fails', async ({ page }) => {
+  test('Save & Exit stays on the editor when tag save fails', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
     await page.route('**/api/trips/*/editor/tags', async route => {
       await route.fulfill({
@@ -258,15 +273,15 @@ test.describe.serial('Trip Editor dev verification', () => {
     await addTagInActiveSettings(page, uniqueName('pw-failed-tag'));
     await page.getByRole('button', { name: 'Save & Exit' }).click();
 
-    await expect(page).toHaveURL(pathRegex(workspacePath));
+    await expect(page).toHaveURL(pathRegex(editorPath));
     await expect(page.getByRole('alert')).toContainText('One or more validation errors occurred.');
     await expect(page.locator('.trip-editor-surface--docked')).toContainText('Injected tag save failure.');
   });
 
-  test('responsive narrow workspace remains usable', async ({ page }, testInfo) => {
+  test('responsive narrow editor remains usable', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await expect(page.locator('.trip-editor-sidebar')).toBeVisible();
@@ -279,7 +294,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('safe reorder coverage is documented unless suitable rows exist', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const regionHandles = page.getByRole('button', { name: 'Drag to reorder region' });
@@ -414,7 +429,7 @@ async function addTagInSurface(surface: Locator, tagName: string): Promise<void>
 
 async function removeTagIfPresent(page: Page, tagName: string): Promise<void> {
   await page.unroute('**/api/trips/*/editor/tags').catch(() => undefined);
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
   const remove = page.locator('.trip-editor-surface--docked').getByRole('button', { name: `Remove tag ${tagName}` });
   if ((await remove.count()) === 0) {

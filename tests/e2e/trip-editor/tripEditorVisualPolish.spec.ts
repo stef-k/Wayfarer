@@ -5,7 +5,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
@@ -132,7 +132,7 @@ async function loadWorkspaceWithVisualFixture(page: Page): Promise<void> {
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareVisualState(state);
   await page.route(editorApiMatcher, async route => routeReadOnlyEditor(route, state));
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
 }
 

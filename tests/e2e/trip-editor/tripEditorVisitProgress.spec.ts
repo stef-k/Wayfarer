@@ -5,7 +5,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
@@ -82,7 +82,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await expect(discard).toBeVisible();
     await discard.getByRole('button', { name: 'Keep editing' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`${workspacePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
+    await expect(page).toHaveURL(new RegExp(`${editorPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
     await expect(visitDialog(page)).toBeVisible();
     await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue('Unsaved visit guard trip');
   });
@@ -102,7 +102,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await expect(mapDiscard).toBeVisible();
     await mapDiscard.getByRole('button', { name: 'Keep editing' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`${workspacePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
+    await expect(page).toHaveURL(new RegExp(`${editorPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
     await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
   });
 
@@ -119,7 +119,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
 
     await expect(page).toHaveURL(url => {
-      return url.pathname === `/User/Visit/Edit/${newerVisitId}` && url.searchParams.get('returnUrl') === workspacePath;
+      return url.pathname === `/User/Visit/Edit/${newerVisitId}` && url.searchParams.get('returnUrl') === editorPath;
     });
   });
 
@@ -161,7 +161,7 @@ async function loadWorkspaceWithVisitFixture(page: Page, prepare: (state: Mutabl
   prepareBaseState(state);
   prepare(state);
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
   return state;
 }

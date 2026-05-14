@@ -13,7 +13,7 @@ import {
   sidebarSearchFixture,
   signIn,
   uniqueName,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor sidebar search verification', () => {
@@ -21,7 +21,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await signIn(page);
     const state = await loadEditorStateFixture(page);
     const fixture = sidebarSearchFixture(state);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const requests = collectForbiddenSidebarSearchRequests(page);
@@ -71,7 +71,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await signIn(page);
     const state = await loadEditorStateFixture(page);
     const fixture = sidebarSearchFixture(state);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const card = regionCard(page, fixture.place.regionName);
@@ -99,7 +99,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     const state = await loadEditorStateFixture(page);
     const fixture = sidebarSearchFixture(state);
     test.skip(!fixture.area, 'Configured Trip Editor fixture has no loaded area rows to verify sidebar area search.');
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await page.getByLabel('Sidebar search').fill(fixture.area!.name);
@@ -113,7 +113,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     const state = await loadEditorStateFixture(page);
     const fixture = sidebarSearchFixture(state);
     test.skip(!fixture.segment, 'Configured Trip Editor fixture has no loaded segment rows to verify sidebar segment search.');
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await page.getByLabel('Sidebar search').fill(fixture.segment!.query);
@@ -126,7 +126,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     const state = await loadEditorStateFixture(page);
     const fixture = shadowChildFixture(state);
     test.skip(!fixture, 'Configured Trip Editor fixture has no loaded shadow-region child row to verify shadow search behavior.');
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await page.getByLabel('Sidebar search').fill(fixture!.childName);

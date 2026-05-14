@@ -5,7 +5,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
@@ -243,7 +243,7 @@ async function loadWorkspaceWithRichNotesFixture(page: Page, configureState?: (s
   prepareRichNotesState(state);
   configureState?.(state);
   await page.route(editorApiMatcher, async route => routeEditorState(route, state, []));
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
   return state;
 }

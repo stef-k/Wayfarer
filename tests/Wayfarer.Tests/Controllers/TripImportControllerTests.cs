@@ -30,17 +30,19 @@ public class TripImportControllerTests : TestBase
         Assert.Equal("File missing", bad.Value);
     }
 
-    [Fact]
-    public async Task Import_RedirectsToTripEdit_OnSuccess()
+    [Theory]
+    [InlineData(TripImportMode.Auto)]
+    [InlineData(TripImportMode.CreateNew)]
+    public async Task Import_RedirectsToCanonicalTripEdit_OnSuccess(TripImportMode mode)
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", mode))
             .ReturnsAsync(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
         var file = CreateFormFile("content");
 
-        var result = await controller.Import(file);
+        var result = await controller.Import(file, mode);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Edit", redirect.ActionName);

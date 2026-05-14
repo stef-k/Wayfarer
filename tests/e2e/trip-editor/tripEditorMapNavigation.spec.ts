@@ -9,7 +9,7 @@ import {
   regionCard,
   regionEditButton,
   signIn,
-  workspacePath
+  editorPath
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
@@ -17,7 +17,7 @@ type MutableEditorState = Record<string, any>;
 test.describe.serial('Trip Editor map navigation toolbar', () => {
   test('renders real commands without mutating metadata drafts', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     const toolbar = page.locator('.trip-editor-toolbar');
@@ -187,7 +187,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
 
   test('defers to map-work toolbar', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(workspacePath));
+    await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
     await enterMapWorkFromE2e(page);
@@ -217,7 +217,7 @@ async function loadWorkspaceWithEditorState<T>(page: Page, mutate: (state: Mutab
 
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
   });
-  await page.goto(absoluteUrl(workspacePath));
+  await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
   return result;
 }
