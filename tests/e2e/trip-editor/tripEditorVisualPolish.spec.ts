@@ -249,8 +249,32 @@ async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
 }
 
 async function expectNoPageOverflow(page: Page): Promise<void> {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow, 'Trip Editor should not introduce horizontal page overflow.').toBeLessThanOrEqual(2);
+  const overflow = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const documentOverflow = document.documentElement.scrollWidth - viewportWidth;
+    const bodyOverflow = document.body ? document.body.scrollWidth - viewportWidth : 0;
+    const stableContainerSelectors = ['#trip-editor-app', '.trip-editor-shell', '.trip-editor-workspace'];
+    const containerOverflow = stableContainerSelectors
+      .map(selector => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) {
+          return { selector, overflow: 0 };
+        }
+
+        const bounds = element.getBoundingClientRect();
+        return {
+          selector,
+          overflow: Math.max(0, bounds.right - viewportWidth)
+        };
+      })
+      .filter(result => result.overflow > 2);
+
+    return { documentOverflow, bodyOverflow, containerOverflow };
+  });
+
+  expect(overflow.documentOverflow, 'Trip Editor should not introduce horizontal document overflow.').toBeLessThanOrEqual(2);
+  expect(overflow.bodyOverflow, 'Trip Editor should not introduce horizontal body overflow.').toBeLessThanOrEqual(2);
+  expect(overflow.containerOverflow, 'Stable Trip Editor containers should fit within the viewport.').toEqual([]);
 }
 
 async function expectDialogFitsViewport(page: Page): Promise<void> {
@@ -265,6 +289,7 @@ async function expectDialogFitsViewport(page: Page): Promise<void> {
 }
 
 async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await expectNoPageOverflow(page);
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
