@@ -162,7 +162,7 @@ namespace Wayfarer.Areas.User.Controllers
                         // Redirect to Edit for further configuration
                         return RedirectToAction(
                             actionName: nameof(Edit),
-                            controllerName: ControllerContext.ActionDescriptor.ControllerName,
+                            controllerName: "Trip",
                             routeValues: new { area = "User", id = model.Id }
                         );
                     }

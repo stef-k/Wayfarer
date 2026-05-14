@@ -686,7 +686,8 @@ public class TripControllerTests : TestBase
         {
             Id = tripId,
             Name = "New Trip",
-            IsPublic = false
+            IsPublic = false,
+            Notes = string.Empty
         };
 
         var result = await controller.Create(model, "save-edit");
