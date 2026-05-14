@@ -6,6 +6,7 @@ import {
   editorApiPath,
   escapeRegex,
   expectActiveMetadataSurface,
+  expectAuthRedirect,
   expectMountedWorkspace,
   expectNoLegacyEditorAction,
   firstRegionWithChildren,
@@ -28,10 +29,7 @@ test.describe.serial('Trip Editor dev verification', () => {
   });
 
   test('canonical editor, editor API, and temporary workspace auth matrix load', async ({ page }) => {
-    const unauthenticatedWorkspaceResponse = await page.request.get(absoluteUrl(workspaceRedirectPath), { maxRedirects: 0 });
-    expect(unauthenticatedWorkspaceResponse.status(), `GET ${workspaceRedirectPath} should challenge anonymous users.`).toBe(302);
-    expect(unauthenticatedWorkspaceResponse.headers().location).toContain('/Identity/Account/Login');
-    expect(unauthenticatedWorkspaceResponse.headers().location).toContain(encodeURIComponent(workspaceRedirectPath));
+    await expectAuthRedirect(page, workspaceRedirectPath, '/Identity/Account/Login', `GET ${workspaceRedirectPath} should challenge anonymous users.`);
 
     await signIn(page);
 
@@ -58,11 +56,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
   test('temporary workspace denies authenticated accounts without User role', async ({ page }) => {
     await signInAs(page, 'admin', 'Admin1!', workspaceRedirectPath);
-
-    const workspaceResponse = await page.request.get(absoluteUrl(workspaceRedirectPath), { maxRedirects: 0 });
-    expect(workspaceResponse.status(), `GET ${workspaceRedirectPath} should deny authenticated non-User roles.`).toBe(302);
-    expect(workspaceResponse.headers().location).toContain('/Identity/Account/AccessDenied');
-    expect(workspaceResponse.headers().location).toContain(encodeURIComponent(workspaceRedirectPath));
+    await expectAuthRedirect(page, workspaceRedirectPath, '/Identity/Account/AccessDenied', `GET ${workspaceRedirectPath} should deny authenticated non-User roles.`);
   });
 
   test('metadata surfaces work in docked and expanded dark/light states', async ({ page }, testInfo) => {

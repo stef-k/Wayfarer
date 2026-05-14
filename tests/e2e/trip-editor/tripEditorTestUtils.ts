@@ -71,6 +71,14 @@ export async function signInAs(page: Page, username: string, password: string, r
   ]);
 }
 
+// Exercises authentication middleware redirects without following them.
+export async function expectAuthRedirect(page: Page, path: string, expectedPath: string, message: string): Promise<void> {
+  const response = await page.request.get(absoluteUrl(path), { maxRedirects: 0 });
+  expect(response.status(), message).toBe(302);
+  expect(response.headers().location).toContain(expectedPath);
+  expect(response.headers().location).toContain(encodeURIComponent(path));
+}
+
 // Waits for the Vue editor to replace the Razor loading shell.
 export async function expectMountedWorkspace(page: Page): Promise<void> {
   const app = page.locator('#trip-editor-app');
