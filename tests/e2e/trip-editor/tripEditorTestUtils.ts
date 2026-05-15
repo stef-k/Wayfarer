@@ -3,7 +3,7 @@ import { loadTripEditorConfig } from './tripEditorConfig';
 
 export const config = loadTripEditorConfig();
 export const editorPath = `/User/Trip/Edit/${config.tripId}`;
-export const workspaceRedirectPath = `/User/Trip/Workspace/${config.tripId}`;
+export const removedWorkspacePath = `/User/Trip/Workspace/${config.tripId}`;
 export const editorApiPath = `/api/trips/${config.tripId}/editor`;
 
 const forbiddenSidebarSearchRequest = /nominatim|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
@@ -69,14 +69,6 @@ export async function signInAs(page: Page, username: string, password: string, r
     page.waitForURL(url => !url.pathname.includes('/Identity/Account/Login')),
     page.getByRole('button', { name: 'Log in' }).click()
   ]);
-}
-
-// Exercises authentication middleware redirects without following them.
-export async function expectAuthRedirect(page: Page, path: string, expectedPath: string, message: string): Promise<void> {
-  const response = await page.request.get(absoluteUrl(path), { maxRedirects: 0 });
-  expect(response.status(), message).toBe(302);
-  expect(response.headers().location).toContain(expectedPath);
-  expect(response.headers().location).toContain(encodeURIComponent(path));
 }
 
 // Waits for the Vue editor to replace the Razor loading shell.

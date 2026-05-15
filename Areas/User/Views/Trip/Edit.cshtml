@@ -1,640 +1,94 @@
-@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
-@using System.Linq
+@model Wayfarer.Models.ViewModels.TripEditorWorkspaceViewModel
+@inject IWebHostEnvironment Environment
 @using System.Text.Json
-@using Wayfarer.Models
-@model Wayfarer.Models.Trip
 
 @{
-  ViewData["LoadLeaflet"] = true;
-  ViewData["LoadQuill"] = true;
-  Layout = "~/Views/Shared/_Layout.cshtml";
-  var regions = Model.Regions ?? new List<Region>();
-  ViewData["BodyClass"] = "container-fluid";
-  var visibleRegions = regions
-    .Where(r => r.Name != "Unassigned Places" || (r.Places != null && r.Places.Any()))
-    .ToList();
-
-  var shadowRegion = regions.FirstOrDefault(r => r.Name == "Unassigned Places");
-  var tagSeed = (Model.Tags ?? Enumerable.Empty<Tag>())
-      .OrderBy(t => t.Name)
-      .Select(t => new { t.Id, t.Name, t.Slug })
-      .ToList();
-  var tagJson = JsonSerializer.Serialize(tagSeed, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-
-  // Visit progress
-  var totalPlaces = (int)(ViewBag.TotalPlaces ?? 0);
-  var visitedPlaces = (int)(ViewBag.VisitedPlaces ?? 0);
-  var progressPercent = totalPlaces > 0 ? (int)Math.Round((double)visitedPlaces / totalPlaces * 100) : 0;
-
-  // Get visit events and group by place
-  var rawVisitEvents = ViewBag.VisitEvents;
-  var visitEventsList = rawVisitEvents != null ? (List<PlaceVisitEvent>)rawVisitEvents : new List<PlaceVisitEvent>();
-  var visitsByPlace = visitEventsList
-      .Where(v => v.PlaceId.HasValue)
-      .GroupBy(v => v.PlaceId!.Value)
-      .ToDictionary(g => g.Key, g => g.ToList());
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Trip Editor";
+    var manifestPath = System.IO.Path.Combine(Environment.WebRootPath, "vite", "trip-editor", ".vite", "manifest.json");
+    var entryScript = "/ClientApps/trip-editor/src/main.ts";
 }
 
-<div class="row">
-  <div class="col-3">
+@functions {
+    /// <summary>
+    /// Reads the Trip Editor Vite manifest and emits local built asset tags for this shell only.
+    /// </summary>
+    private static (string? Script, IReadOnlyList<string> Css) ReadTripEditorManifest(string manifestPath, string entryScript)
+    {
+        if (!System.IO.File.Exists(manifestPath))
+        {
+            return (null, Array.Empty<string>());
+        }
 
-    <div id="sidebar" class="show collapse-horizontal d-flex flex-column">
-      <!-- Trip Progress Header -->
-      @if (totalPlaces > 0)
-      {
-        <div id="tripProgressHeader" class="p-3 border-bottom bg-body-tertiary">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold text-truncate" style="max-width: 60%;" title="@Model.Name">@Model.Name</span>
-            <div class="d-flex align-items-center gap-2">
-              <button type="button" class="btn btn-outline-secondary py-0 px-1" style="font-size: 0.7rem;" data-bs-toggle="modal" data-bs-target="#visitHistoryModal" title="View detailed visit history">
-                <i class="bi bi-clock-history me-1"></i>Visits
-              </button>
-              <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary")">@progressPercent%</span>
-            </div>
-          </div>
-          <div class="progress" style="height: 8px;" role="progressbar"
-               aria-valuenow="@visitedPlaces" aria-valuemin="0" aria-valuemax="@totalPlaces"
-               title="@visitedPlaces of @totalPlaces places visited">
-            <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")"
-                 style="width: @progressPercent%;"></div>
-          </div>
-          <div class="small text-muted mt-1">
-            <i class="bi bi-check2-circle"></i> @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "Place" : "Places") visited
-          </div>
-        </div>
-      }
+        using var document = JsonDocument.Parse(System.IO.File.ReadAllText(manifestPath));
+        if (!document.RootElement.TryGetProperty(entryScript, out var entry))
+        {
+            return (null, Array.Empty<string>());
+        }
 
-      <!-- Sidebar Header -->
-      <div id="sidebarHeader" class="p-3 border-bottom d-flex align-items-center justify-content-between">
-        <h5 class="mb-0">Trip Settings</h5>
+        var script = entry.TryGetProperty("file", out var file) ? $"/vite/trip-editor/{file.GetString()}" : null;
+        var css = entry.TryGetProperty("css", out var cssItems)
+            ? cssItems.EnumerateArray()
+                .Select(item => $"/vite/trip-editor/{item.GetString()}")
+                .ToArray()
+            : Array.Empty<string>();
 
-        <div class="d-flex align-items-center gap-2">
-          <button type="button"
-                  id="btn-trip-recenter"
-                  class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1"
-                  title="Recenter map to saved trip view">
-            <i class="bi bi-geo-alt-fill"></i>
-            <span class="d-none d-md-inline">Map</span>
-          </button>
+        return (script, css);
+    }
+}
 
-          <button class="btn btn-link p-0" type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#tripSettingsCollapse"
-                  aria-expanded="true"
-                  aria-controls="tripSettingsCollapse">
-            <i class="bi bi-chevron-down"></i>
-          </button>
-        </div>
-      </div>
+@{
+    var manifest = ReadTripEditorManifest(manifestPath, entryScript);
+}
 
-      <!-- Sticky: Last updated + Search -->
-      <div id="sidebarTop" class="p-2 border-bottom position-sticky top-0 bg-body" style="z-index: 2;">
-        <div class="small text-muted">Last updated at @Model.UpdatedAt.ToLongDateString()</div>
-        <input id="sidebar-search" type="search" class="form-control form-control-sm mt-2"
-               placeholder="Search regions, places, areas, segments" autocomplete="off" />
-      </div>
+@section Styles {
+    @foreach (var href in manifest.Css)
+    {
+        <link rel="stylesheet" href="@href" />
+    }
+}
 
+<form id="trip-editor-antiforgery" class="d-none">
+    @Html.AntiForgeryToken()
+</form>
 
-      <!-- Sidebar Content -->
-      <div id="sidebarContent" class="flex-grow-1 overflow-y-auto p-3">
-        <div class="collapse show" id="tripSettingsCollapse">
-          <form id="trip-form" class="row g-3 mb-4">
-            @Html.AntiForgeryToken()
-            <input type="hidden" asp-for="Id"/>
-            <input type="hidden" asp-for="Id" id="trip-id"/>
-            <input type="hidden" asp-for="CenterLat" data-default="@Model.CenterLat?.ToString("F6")"/>
-            <input type="hidden" asp-for="CenterLon" data-default="@Model.CenterLon?.ToString("F6")"/>
-            <input type="hidden" asp-for="Zoom" data-default="@Model.Zoom"/>
-            <input type="hidden" id="shadow-region-id" value="@(shadowRegion?.Id)" />
-            
-            <div class="col-md-12">
-              <label asp-for="Name" class="form-label"></label>
-              <input asp-for="Name" class="form-control"/>
-              <div class="invalid-feedback" asp-validation-for="Name"></div>
-            </div>
-            <div class="col-md-12">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="isPublicSwitch" asp-for="IsPublic">
-                <label class="form-check-label" for="isPublicSwitch">Make Trip Public</label>
-                <div class="invalid-feedback" asp-validation-for="IsPublic"></div>
-              </div>
-              <!-- Share Progress option - only visible when trip is public, auto-saves -->
-              <div id="shareProgressContainer" class="mt-2 @(Model.IsPublic ? "" : "d-none")">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                  <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" role="switch"
-                           id="shareProgressSwitch" data-trip-id="@Model.Id"
-                           @Html.Raw(Model.ShareProgressEnabled ? "checked=\"checked\"" : "")>
-                    <label class="form-check-label" for="shareProgressSwitch">
-                      <i class="bi bi-broadcast me-1"></i>Share Visit Progress
-                    </label>
-                  </div>
-                  <span id="shareProgressStatus" class="badge @(Model.ShareProgressEnabled ? "bg-success" : "bg-secondary")">
-                    @(Model.ShareProgressEnabled ? "Visible to public" : "Private")
-                  </span>
-                </div>
-                <small class="text-muted">Allow public viewers to see your visit progress (auto-saves)</small>
-              </div>
-            </div>
-            <div class="col-md-12">
-              <label for="notes">Notes</label>
-              <div id="notes" data-notes-content="@Model.Notes"></div>
-              <input type="hidden" asp-for="Notes" id="Notes"/>
-              <small class="text-muted">
-                You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
-              </small>
-              <div class="invalid-feedback" asp-validation-for="Notes"></div>
-            </div>
-            <div class="col-md-12">
-              <label for="CoverImageUrl" class="form-label">Cover Image URL</label>
-              <input type="url"
-                     class="form-control form-control-sm"
-                     name="CoverImageUrl"
-                     id="CoverImageUrl"
-                     title="Paste a URL of an image/photo for this Trip"
-                     value="@Model.CoverImageUrl"
-                     placeholder="https://...">
-
-              @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
-              {
-                <div class="mt-2 text-center">
-                  <a href="@Model.CoverImageUrl" target="_blank" rel="noopener noreferrer"
-                     title="Open full image in new tab">
-                    <img src="@Model.CoverImageUrl"
-                         class="img-fluid rounded shadow-sm"
-                         alt="Trip Cover Preview"
-                         title="Trip Cover Preview click to open image in new tab"
-                         style="max-height: 150px;"/>
-                  </a>
-                </div>
-              }
-            </div>
-
-            <div class="col-md-12">
-              <label class="form-label">Tags</label>
-              <div class="border rounded p-3 bg-body-secondary-subtle"
-                   data-trip-tags
-                   data-trip-id="@Model.Id"
-                   data-tags='@Html.Raw(tagJson)'
-                   data-limit="25"
-                   data-suggest-url="/Public/Tags/Suggest">
-                <div class="d-flex flex-wrap gap-2 mb-2" data-tag-list>
-                  @if (Model.Tags?.Any() == true)
-                  {
-                    foreach (var tag in Model.Tags.OrderBy(t => t.Name))
-                    {
-                      <span class="badge text-bg-primary-subtle text-primary d-inline-flex align-items-center gap-1"
-                            data-tag-chip
-                            data-tag-slug="@tag.Slug">
-                        <span>@tag.Name</span>
-                        <button type="button" class="btn-close" style="width: 0.5em; height: 0.5em;" aria-label="Remove tag"></button>
-                      </span>
-                    }
-                  }
-                  else
-                  {
-                    <span class="text-muted small">No tags yet.</span>
-                  }
-                </div>
-
-                <div class="input-group input-group-sm">
-                  <input type="text"
-                         class="form-control"
-                         placeholder="Add a tag..."
-                         maxlength="64"
-                         data-tag-input />
-                  <button type="button" class="btn btn-outline-secondary" data-tag-add>
-                    <i class="bi bi-plus-circle"></i>
-                    Add
-                  </button>
-                </div>
-                <div class="list-group mt-2 d-none" data-tag-suggestions></div>
-                <div class="text-muted small mt-2">
-                  Up to 25 tags. Letters, numbers, spaces, hyphen, apostrophes only.
-                </div>
-                <div class="text-danger small mt-2 d-none" data-tag-feedback></div>
-              </div>
-            </div>
-
-            <div class="col-md-12 d-flex gap-2">
-              <input type="hidden" name="submitAction" id="submitAction" value="save"/>
-
-              <button id="btn-save-trip" type="button" class="btn btn-sm btn-primary">
-                <i class="bi bi-save"></i> Save & Exit
-              </button>
-
-              <button id="btn-save-edit-trip" type="button" class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-pencil-square"></i> Save & Continue
-              </button>
-
-              <a asp-area="User"
-                 asp-controller="Trip"
-                 asp-action="Index"
-                 class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-arrow-left-circle"></i> Back to Trips
-              </a>
-            </div>
-
-
-          </form>
-        </div>
-
-        <hr/>
-
-        <!-- Region Area -->
-
-        <h6>Regions &amp; Places</h6>
-        <button id="btn-add-region" class="btn btn-sm btn-success mb-2">
-          <i class="bi bi-plus-lg"></i> Add Region
-        </button>
-
-        <div id="regions-accordion" class="accordion mb-4">
-          @if (!visibleRegions.Any())
-          {
-            <div class="alert alert-info" role="alert">
-              No regions created yet.
-            </div>
-          }
-          else
-          {
-            @foreach (var region in regions
-                        .Where(r => r.Name != "Unassigned Places" || (r.Places != null && r.Places.Any()))
-                        .OrderBy(r => r.DisplayOrder))
-            {
-              @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_RegionItemPartial.cshtml", region)
-            }
-          }
-        </div>
-
-        <hr/>
-
-        <!-- Segments Area -->
-        <button id="btn-add-segment" class="btn btn-sm btn-success mb-2">
-          <i class="bi bi-plus-lg"></i> Add Segment
-        </button>
-
-        <div id="segments-list" class="accordion mb-4">
-          <div class="accordion-item" id="segments-container">
-            <h2 class="accordion-header" id="heading-segments">
-              <div class="d-flex justify-content-between align-items-center w-100">
-                <button class="accordion-button collapsed flex-grow-1 text-start"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#collapse-segments"
-                        aria-expanded="false"
-                        aria-controls="collapse-segments">
-                  <strong>Segments</strong>
-                </button>
-                <!-- Segment Master Visibility Toggle -->
-                <div class="d-flex align-items-center gap-2">
-                  <div class="form-check mb-0 mx-2">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           id="toggle-all-segments"
-                           title="Show/Hide all segments on map"
-                           checked
-                           aria-label="Toggle all segments visibility"/>
-                  </div>
-                </div>
-              </div>
-            </h2>
-
-            <div id="collapse-segments" class="accordion-collapse collapse show" aria-labelledby="heading-segments"
-                 data-bs-parent="#segments-list">
-
-              <ul id="segments-inner-list" class="list-group list-group-flush small mb-0 ps-0">
-
-                @if (Model.Segments == null || !Model.Segments.Any())
-                {
-                  <li class="alert alert-info p-2 small mb-2">
-                    <i class="bi bi-info-circle me-1"></i> No travel segments added yet.
-                  </li>
-                }
-                else
-                {
-                  @foreach (var segment in Model.Segments.OrderBy(s => s.DisplayOrder))
-                  {
-                    @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_SegmentItemPartial.cshtml", segment)
-                  }
-                }
-
-              </ul>
-            </div>
-
-          </div>
-        </div>
-
-      </div>
+<div id="trip-editor-app"
+     data-trip-id="@Model.TripId"
+     data-trip-name="@Model.TripName"
+     data-editor-endpoint="@Model.EditorEndpointUrl"
+     data-trip-index-url="@Model.TripIndexUrl"
+     data-tiles-url="@Model.TilesUrl">
+    <div class="trip-editor-shell-loading">
+        <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+        Loading trip editor...
     </div>
-
-  </div>
-
-  <div class="col-9">
-    <!-- 🔍 Search + 🧭 Coordinates -->
-    <div class="row g-2 align-items-end mb-2">
-
-      <!-- 🔍 Search -->
-      <div class="col-lg-6 col-md-12">
-        <label for="place-search" class="form-label visually-hidden">Search</label>
-        <div class="position-relative">
-          <div class="input-group flex-grow-1 bg-body shadow rounded p-2 trip-searchbar">
-            <input id="place-search" type="text" class="form-control" placeholder="Search for places…"
-                   title="Search any location. Click a result to preview it on the map."/>
-            <button id="btn-clear-search" class="btn btn-sm btn-outline-secondary" type="button"
-                    title="Clear search" style="display: none;">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
-          <ul id="place-search-results" class="list-group zindex-tooltip">
-          </ul>
-        </div>
-      </div>
-
-      <!-- 🧭 Latitude -->
-      <div class="col-sm-3 col-6">
-        <label for="contextLat" class="form-label visually-hidden">Lat</label>
-        <div class="input-group bg-body shadow rounded p-2">
-          <input type="number"
-                 step="0.0000000000001"
-                 class="form-control"
-                 id="contextLat"
-                 title="Insert latitude manually"
-                 placeholder="Latitude"
-                 autocomplete="off"/>
-        </div>
-      </div>
-
-      <!-- 🧭 Longitude -->
-      <div class="col-sm-3 col-6">
-        <label for="contextLon" class="form-label visually-hidden">Lon</label>
-        <div class="input-group bg-body shadow rounded p-2">
-          <input type="number"
-                 step="0.0000000000001"
-                 class="form-control"
-                 id="contextLon"
-                 title="Insert longitude manually"
-                 placeholder="Longitude"
-                 autocomplete="off"/>
-        </div>
-      </div>
-    </div>
-
-    <!-- 📌 Context Banner -->
-    <div class="row">
-      <div class="col-12">
-        <div id="mapping-context-banner"
-             class="alert alert-primary px-3 py-2 small rounded shadow-sm mb-2 d-flex justify-content-between align-items-center"
-             role="alert">
-          <i class="bi bi-pencil me-1"></i>
-          <span id="mapping-context-text">Selected: —</span>
-          <span id="context-coords" class="ms-2 text-muted d-none">
-            <code class="user-select-all"></code>
-          </span>
-          <button id="btn-clear-context"
-                  type="button"
-                  class="btn-close btn-close-primary btn-sm ms-auto"
-                  aria-label="Clear mapping context"
-                  title="Clear selection"></button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 🗺️ Map -->
-    <div class="row">
-      <div class="col-12">
-        <div id="mapContainer" style="height: calc(100vh - 235px); width: 100%;"></div>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Modal for image URL input -->
-  <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="imageModalLabel">Insert Image URL</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <label for="imageUrl" class="form-label">Image URL</label>
-          <input type="text" id="imageUrl" class="form-control" placeholder="Enter the image URL here">
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="button" id="insertImageBtn" class="btn btn-primary">Insert Image</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Add-place modal (no markup clash with existing ones) -->
-<div class="modal fade" id="addPlaceModal" tabindex="-1" aria-labelledby="addPlaceModalLabel" aria-hidden="true">
-  <div class="modal-dialog mt-5" style="max-width:420px;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="addPlaceModalLabel">Add place to trip</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-
-      <div class="modal-body d-flex flex-column gap-3">
-        <select id="add-place-region-select" class="form-select"></select>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" id="btn-confirm-add-place" class="btn btn-success">
-          <i class="bi bi-plus-circle me-1"></i>Add
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Visit History Modal -->
-<div class="modal fade" id="visitHistoryModal" tabindex="-1" aria-labelledby="visitHistoryModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title text-wrap" id="visitHistoryModalLabel">
-          <i class="bi bi-clock-history me-2"></i>@Model.Name <span class="text-muted fw-normal">- Visit History</span>
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <!-- Progress Summary -->
-        <div class="mb-4 p-3 bg-body-secondary rounded">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">Your Overall Trip Progress</span>
-            <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") fs-6">@progressPercent%</span>
-          </div>
-          <div class="progress" style="height: 12px;">
-            <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")" style="width: @progressPercent%;"></div>
-          </div>
-          <div class="text-muted mt-2">
-            <i class="bi bi-check2-circle"></i> @visitedPlaces of @totalPlaces @(totalPlaces == 1 ? "place" : "places") visited
-          </div>
-        </div>
-
-        <!-- Filter Buttons -->
-        <div class="mb-3 btn-group" role="group" aria-label="Filter places">
-          <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all">
-            <i class="bi bi-list-ul me-1"></i>Show All
-          </button>
-          <button type="button" class="btn btn-outline-success btn-sm" data-filter="visited">
-            <i class="bi bi-check-circle-fill me-1"></i>Visited
-          </button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="not-visited">
-            <i class="bi bi-circle me-1"></i>Not Visited
-          </button>
-        </div>
-
-        <!-- Region-by-Region Breakdown -->
-        <div id="visitHistoryRegions">
-          @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Region>())
-          {
-              var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Place>();
-              var regionVisitedCount = regionPlaces.Count(p => visitsByPlace.ContainsKey(p.Id));
-              var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
-
-              <div class="mb-3 visit-region-block">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="fw-semibold">@region.Name</span>
-                  <span class="text-muted small">@regionVisitedCount / @regionPlaces.Count</span>
-                </div>
-                <div class="progress mb-2" style="height: 6px;">
-                  <div class="progress-bar @(regionPercent == 100 ? "bg-success" : "bg-info")" style="width: @regionPercent%;"></div>
-                </div>
-                <ul class="list-group list-group-flush">
-                  @foreach (var place in regionPlaces)
-                  {
-                      var placeVisits = visitsByPlace.TryGetValue(place.Id, out var visits) ? visits : new List<PlaceVisitEvent>();
-                      var isVisited = placeVisits.Count > 0;
-                      <li class="list-group-item py-2 visit-place-item @(isVisited ? "" : "text-muted")" data-visited="@isVisited.ToString().ToLower()">
-                        <div class="d-flex align-items-start">
-                          @if (isVisited)
-                          {
-                              <i class="bi bi-check-circle-fill text-success me-2"></i>
-                          }
-                          else
-                          {
-                              <i class="bi bi-circle text-muted me-2"></i>
-                          }
-                          <div class="flex-grow-1">
-                            <div class="fw-medium">@place.Name</div>
-                            @if (isVisited)
-                            {
-                                <div class="small text-muted" style="max-height: 80px; overflow-y: auto;">
-                                  @foreach (var visit in placeVisits.OrderByDescending(v => v.ArrivedAtUtc))
-                                  {
-                                      var duration = visit.EndedAtUtc.HasValue
-                                          ? (visit.EndedAtUtc.Value - visit.ArrivedAtUtc)
-                                          : (TimeSpan?)null;
-                                      var durationStr = duration.HasValue
-                                          ? (duration.Value.TotalHours >= 1
-                                              ? $"{(int)duration.Value.TotalHours}h {duration.Value.Minutes}min"
-                                              : $"{(int)duration.Value.TotalMinutes}min")
-                                          : "ongoing";
-                                      <div>
-                                        <i class="bi bi-calendar3 me-1"></i>@visit.ArrivedAtUtc.ToString("MMM d, yyyy")
-                                        <span class="ms-2"><i class="bi bi-stopwatch me-1"></i>@durationStr</span>
-                                      </div>
-                                  }
-                                </div>
-                            }
-                          </div>
-                          @if (isVisited)
-                          {
-                              <span class="badge bg-success">@placeVisits.Count</span>
-                          }
-                        </div>
-                      </li>
-                  }
-                </ul>
-              </div>
-          }
-        </div>
-      </div>
-      <div class="modal-footer justify-content-between">
-        <div class="d-flex align-items-center gap-3 flex-wrap">
-          @if (Model.IsPublic)
-          {
-              <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" role="switch" id="modalShareProgressSwitch"
-                       @Html.Raw(Model.ShareProgressEnabled ? "checked=\"checked\"" : "")>
-                <label class="form-check-label" for="modalShareProgressSwitch">
-                  <i class="bi bi-broadcast me-1"></i>Share Progress
-                </label>
-              </div>
-              <span id="modalShareStatus" class="badge @(Model.ShareProgressEnabled ? "bg-success" : "bg-secondary") small">
-                @(Model.ShareProgressEnabled ? "Visible to public" : "Private")
-              </span>
-              <button type="button" id="btnCopyProgressLink"
-                      class="btn btn-outline-success btn-sm @(Model.ShareProgressEnabled ? "" : "d-none")"
-                      data-public-url="/Public/Trips/@Model.Id"
-                      title="Copy shareable link to clipboard">
-                  <i class="bi bi-link-45deg me-1"></i>Copy Link
-              </button>
-          }
-          else
-          {
-              <small class="text-muted"><i class="bi bi-lock me-1"></i>Make trip public to share progress</small>
-          }
-        </div>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 @section Scripts {
-  <script>
-    // whenever any Bootstrap modal is shown...
-    document.addEventListener('shown.bs.modal', e => {
-      // only care about your place-notes modals
-      if (!e.target.id.startsWith('placeNotesModal-')) return;
-
-      // find all images inside the modal body
-      e.target.querySelectorAll('.modal-body img').forEach(img => {
-        const orig = img.getAttribute('src');
-        // skip proxying data-uris or images already proxied
-        if (!orig || orig.startsWith('data:') || img.dataset.proxied) return;
-
-        img.dataset.proxied  = 'true';
-        img.dataset.original = orig;
-        img.src              = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
-      });
-    });
-
-    // Visit History Modal filter buttons
-    document.querySelectorAll('#visitHistoryModal [data-filter]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        // Update active state
-        document.querySelectorAll('#visitHistoryModal [data-filter]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        const filter = btn.dataset.filter;
-        const items = document.querySelectorAll('#visitHistoryModal .visit-place-item');
-
-        items.forEach(item => {
-          const isVisited = item.dataset.visited === 'true';
-          if (filter === 'all') {
-            item.style.display = '';
-          } else if (filter === 'visited') {
-            item.style.display = isVisited ? '' : 'none';
-          } else if (filter === 'not-visited') {
-            item.style.display = isVisited ? 'none' : '';
-          }
-        });
-
-        // Hide empty region blocks when filtering
-        document.querySelectorAll('#visitHistoryModal .visit-region-block').forEach(block => {
-          const visibleItems = block.querySelectorAll('.visit-place-item:not([style*="display: none"])');
-          block.style.display = visibleItems.length > 0 ? '' : 'none';
-        });
-      });
-    });
-  </script>
-  @Html.FrontendViewScripts()
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/@@vite/client"></script>
+        <script type="module" src="http://localhost:5173/ClientApps/trip-editor/src/main.ts"></script>
+        <script>
+            // Development-only hint when the Vite server on port 5173 is not running.
+            setTimeout(() => {
+                const app = document.getElementById('trip-editor-app');
+                if (app?.querySelector('.trip-editor-shell-loading')) {
+                    app.innerHTML =
+                        '<div class="alert alert-danger m-3">Trip Editor development server is not available. Run npm run dev.</div>';
+                }
+            }, 4000);
+        </script>
+    }
+    else if (!string.IsNullOrWhiteSpace(manifest.Script))
+    {
+        <script type="module" src="@manifest.Script"></script>
+    }
+    else
+    {
+        <script>
+            document.getElementById('trip-editor-app').innerHTML =
+                '<div class="alert alert-danger m-3">Trip Editor assets are missing. Run npm ci and npm run build.</div>';
+        </script>
+    }
 }

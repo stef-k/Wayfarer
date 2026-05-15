@@ -848,8 +848,6 @@ static async Task ConfigureMiddleware(WebApplication app)
         }
     });
 
-    app.MapControllerRoute("trip-editor-workspace", "User/Trip/Workspace/{id:guid}", new { area = "User", controller = "TripWorkspace", action = "Workspace" });
-
     app.MapControllerRoute(
             "default",
             "{controller=Home}/{action=Index}/{id?}")

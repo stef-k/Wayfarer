@@ -206,7 +206,7 @@ namespace Wayfarer.Areas.User.Controllers
             ViewData["LoadLeaflet"] = false;
             ViewData["LoadQuill"] = false;
 
-            return View("~/Areas/User/Views/Trip/Workspace.cshtml", new TripEditorWorkspaceViewModel
+            return View("~/Areas/User/Views/Trip/Edit.cshtml", new TripEditorWorkspaceViewModel
             {
                 TripId = trip.Id,
                 TripName = trip.Name,
@@ -215,90 +215,6 @@ namespace Wayfarer.Areas.User.Controllers
                 TilesUrl = "/Public/tiles/{z}/{x}/{y}.png"
             });
         }
-
-        // POST: /User/Trip/Edit/{id}
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(
-            Guid id,
-            Trip model,
-            [FromForm] string? submitAction
-        )
-        {
-            SetPageTitle("Edit Trip");
-
-            // Check ID mismatch
-            if (id != model.Id)
-            {
-                SetAlert("ID mismatch.", "danger");
-                return RedirectToAction(nameof(Index));
-            }
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            // Remove client-posted values that should not be trusted
-            ModelState.Remove(nameof(model.UserId));
-            ModelState.Remove(nameof(model.User));
-
-            if (!ValidateModelState())
-            {
-                return BadRequest(ModelState);
-            }
-
-            try
-            {
-                // Load actual Trip from DB to ensure ownership and prevent overwrite
-                var trip = await _dbContext.Trips.FindAsync(id);
-
-                if (trip == null || trip.UserId != userId)
-                {
-                    SetAlert("Unauthorized or trip not found.", "danger");
-                    return RedirectToAction(nameof(Index));
-                }
-
-                // Capture prior image state to detect first-time image introductions
-                bool hadImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
-                    || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
-
-                // Update editable fields only
-                trip.Name = model.Name;
-                trip.IsPublic = model.IsPublic;
-                // Reset ShareProgressEnabled when making trip private
-                trip.ShareProgressEnabled = model.IsPublic && model.ShareProgressEnabled;
-                trip.Notes = model.Notes;
-                trip.CenterLat = model.CenterLat;
-                trip.CenterLon = model.CenterLon;
-                trip.Zoom = model.Zoom;
-                trip.CoverImageUrl = model.CoverImageUrl;
-                var updatedAt = DateTime.UtcNow;
-                trip.UpdatedAt = updatedAt;
-
-                await _dbContext.SaveChangesAsync();
-
-                // Invalidate old thumbnails (will regenerate on next request)
-                _thumbnailGenerator.InvalidateThumbnails(id, updatedAt);
-
-                // Schedule background cache warm-up for external images.
-                // Use immediate mode when images are newly introduced (0 -> some)
-                // for near-instant caching; otherwise use standard debounce.
-                bool hasImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
-                    || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
-                bool imagesNewlyIntroduced = !hadImages && hasImages;
-                await _warmupScheduler.ScheduleWarmupAsync(id, immediate: imagesNewlyIntroduced);
-
-                SetAlert("Trip updated successfully!");
-
-                return submitAction == "save-edit"
-                    ? RedirectToAction(nameof(Edit), new { id })
-                    : RedirectToAction(nameof(Index));
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-                return StatusCode(500);
-            }
-        }
-
 
         [HttpPost]
         [ValidateAntiForgeryToken]

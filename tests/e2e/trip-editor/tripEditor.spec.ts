@@ -6,7 +6,6 @@ import {
   editorApiPath,
   escapeRegex,
   expectActiveMetadataSurface,
-  expectAuthRedirect,
   expectMountedWorkspace,
   expectNoLegacyEditorAction,
   firstRegionWithChildren,
@@ -17,7 +16,7 @@ import {
   signIn,
   signInAs,
   uniqueName,
-  workspaceRedirectPath
+  removedWorkspacePath
 } from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor dev verification', () => {
@@ -28,9 +27,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expectActiveMetadataSurface(page);
   });
 
-  test('canonical editor, editor API, and temporary workspace auth matrix load', async ({ page }) => {
-    await expectAuthRedirect(page, workspaceRedirectPath, '/Identity/Account/Login', `GET ${workspaceRedirectPath} should challenge anonymous users.`);
-
+  test('canonical editor, editor API, and removed workspace route behavior load', async ({ page }) => {
     await signIn(page);
 
     const apiResponse = await page.request.get(absoluteUrl(editorApiPath), {
@@ -43,9 +40,8 @@ test.describe.serial('Trip Editor dev verification', () => {
     await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
-    const workspaceResponse = await page.request.get(absoluteUrl(workspaceRedirectPath), { maxRedirects: 0 });
-    expect(workspaceResponse.status(), `GET ${workspaceRedirectPath} should return a temporary redirect.`).toBe(302);
-    expect(workspaceResponse.headers().location).toBe(editorPath);
+    const workspaceResponse = await page.request.get(absoluteUrl(removedWorkspacePath), { maxRedirects: 0 });
+    expect(workspaceResponse.status(), `GET ${removedWorkspacePath} should not remain a supported editor route.`).toBe(404);
 
     const editResponse = await page.goto(absoluteUrl(editorPath));
     expect(editResponse?.ok(), `GET ${editorPath} returned ${editResponse?.status() ?? 'no response'}`).toBeTruthy();
@@ -54,9 +50,10 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expectNoLegacyEditorAction(page);
   });
 
-  test('temporary workspace denies authenticated accounts without User role', async ({ page }) => {
-    await signInAs(page, 'admin', 'Admin1!', workspaceRedirectPath);
-    await expectAuthRedirect(page, workspaceRedirectPath, '/Identity/Account/AccessDenied', `GET ${workspaceRedirectPath} should deny authenticated non-User roles.`);
+  test('removed workspace route does not expose role-specific editor behavior', async ({ page }) => {
+    await signInAs(page, 'admin', 'Admin1!', removedWorkspacePath);
+    const workspaceResponse = await page.request.get(absoluteUrl(removedWorkspacePath), { maxRedirects: 0 });
+    expect(workspaceResponse.status(), `GET ${removedWorkspacePath} should not remain a supported editor route.`).toBe(404);
   });
 
   test('metadata surfaces work in docked and expanded dark/light states', async ({ page }, testInfo) => {

@@ -423,166 +423,12 @@ public class TripControllerTests : TestBase
         var result = await controller.Edit(trip.Id);
 
         var view = Assert.IsType<ViewResult>(result);
-        Assert.Equal("~/Areas/User/Views/Trip/Workspace.cshtml", view.ViewName);
+        Assert.Equal("~/Areas/User/Views/Trip/Edit.cshtml", view.ViewName);
         var model = Assert.IsType<TripEditorWorkspaceViewModel>(view.Model);
         Assert.Equal(trip.Id, model.TripId);
         Assert.Equal("Owned Trip", model.TripName);
         Assert.Equal($"/api/trips/{trip.Id}/editor", model.EditorEndpointUrl);
         Assert.Equal("/User/Trip/Index", model.TripIndexUrl);
-    }
-
-    [Fact]
-    public async Task Edit_Post_Redirects_WhenIdMismatch()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "Trip");
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var controller = BuildControllerWithUser(db, user.Id);
-        var model = new Trip { Id = Guid.NewGuid(), Name = "Changed" };
-
-        var result = await controller.Edit(trip.Id, model, submitAction: null!);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
-        Assert.Equal("ID mismatch.", controller.TempData["AlertMessage"]);
-        Assert.Equal("Trip", db.Trips.Find(trip.Id)!.Name);
-    }
-
-    [Fact]
-    public async Task Edit_Post_Redirects_WhenUnauthorized()
-    {
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "owner");
-        var other = TestDataFixtures.CreateUser(id: "other");
-        db.Users.AddRange(owner, other);
-        var trip = TestDataFixtures.CreateTrip(owner, "Secret Trip");
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var controller = BuildControllerWithUser(db, other.Id);
-        var model = new Trip { Id = trip.Id, Name = "Attempted change" };
-
-        var result = await controller.Edit(trip.Id, model, submitAction: null!);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
-        Assert.Equal("Unauthorized or trip not found.", controller.TempData["AlertMessage"]);
-        Assert.Equal("Secret Trip", db.Trips.Find(trip.Id)!.Name);
-    }
-
-    [Fact]
-    public async Task Edit_Post_UpdatesTrip_AndRedirectsToIndex()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "Original");
-        trip.IsPublic = false;
-        trip.Notes = "Old notes";
-        trip.CenterLat = 1;
-        trip.CenterLon = 2;
-        trip.Zoom = 3;
-        trip.CoverImageUrl = "http://old";
-        trip.UpdatedAt = new DateTime(2024, 1, 1);
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var thumbnailMock = new Mock<ITripMapThumbnailGenerator>();
-        var controller = BuildControllerWithUser(db, user.Id, thumbnailMock);
-        var model = new Trip
-        {
-            Id = trip.Id,
-            Name = "Updated",
-            IsPublic = true,
-            Notes = "New notes",
-            CenterLat = 5,
-            CenterLon = 6,
-            Zoom = 7,
-            CoverImageUrl = "http://new"
-        };
-
-        var result = await controller.Edit(trip.Id, model, submitAction: null!);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TripController.Index), redirect.ActionName);
-
-        var updated = db.Trips.Find(trip.Id)!;
-        Assert.Equal("Updated", updated.Name);
-        Assert.True(updated.IsPublic);
-        Assert.Equal("New notes", updated.Notes);
-        Assert.Equal(5, updated.CenterLat);
-        Assert.Equal(6, updated.CenterLon);
-        Assert.Equal(7, updated.Zoom);
-        Assert.Equal("http://new", updated.CoverImageUrl);
-        Assert.NotEqual(new DateTime(2024, 1, 1), updated.UpdatedAt);
-        thumbnailMock.Verify(t => t.InvalidateThumbnails(trip.Id, It.IsAny<DateTime>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task Edit_Post_RedirectsToEdit_WhenSaveEditRequested()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "Original");
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var controller = BuildControllerWithUser(db, user.Id);
-        var model = new Trip { Id = trip.Id, Name = "Updated" };
-
-        var result = await controller.Edit(trip.Id, model, submitAction: "save-edit");
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TripController.Edit), redirect.ActionName);
-        Assert.Equal(trip.Id, redirect.RouteValues!["id"]);
-    }
-
-    [Fact]
-    public async Task Edit_Post_ReturnsBadRequest_WhenModelInvalid()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "Original");
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var controller = BuildControllerWithUser(db, user.Id);
-        controller.ModelState.AddModelError("Name", "Required");
-        var model = new Trip { Id = trip.Id, Name = string.Empty };
-
-        var result = await controller.Edit(trip.Id, model, submitAction: null!);
-
-        Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("Original", db.Trips.Find(trip.Id)!.Name);
-    }
-
-    [Fact]
-    public async Task Edit_Post_ReturnsServerError_WhenLegacyUpdateThrows()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "Original");
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var thumbnailMock = new Mock<ITripMapThumbnailGenerator>();
-        thumbnailMock
-            .Setup(t => t.InvalidateThumbnails(trip.Id, It.IsAny<DateTime>()))
-            .Throws(new InvalidOperationException("Legacy POST failure."));
-        var controller = BuildControllerWithUser(db, user.Id, thumbnailMock);
-        var model = new Trip { Id = trip.Id, Name = "Updated" };
-
-        var result = await controller.Edit(trip.Id, model, submitAction: null!);
-
-        var status = Assert.IsType<StatusCodeResult>(result);
-        Assert.Equal(500, status.StatusCode);
     }
 
     private TripController BuildController(ApplicationDbContext db)
@@ -601,13 +447,13 @@ public class TripControllerTests : TestBase
         return controller;
     }
 
-    private TripController BuildControllerWithUser(ApplicationDbContext db, string userId, Mock<ITripMapThumbnailGenerator>? thumbnailMock = null)
+    private TripController BuildControllerWithUser(ApplicationDbContext db, string userId)
     {
         var httpContext = BuildHttpContextWithUser(userId);
         var controller = new TripController(
             NullLogger<TripController>.Instance,
             db,
-            thumbnailMock?.Object ?? Mock.Of<ITripMapThumbnailGenerator>(),
+            Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
             Mock.Of<ICacheWarmupScheduler>());
 
@@ -633,66 +479,6 @@ public class TripControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
-    }
-
-    [Fact]
-    public async Task Edit_Post_SchedulesImmediateWarmup_WhenImagesNewlyIntroduced()
-    {
-        // Arrange: trip with no images
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "No Images");
-        trip.CoverImageUrl = null;
-        trip.Notes = "Plain text, no images";
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var warmupMock = new Mock<ICacheWarmupScheduler>();
-        var controller = BuildControllerWithWarmupMock(db, user.Id, warmupMock);
-
-        // Act: add a cover image (0 → some transition)
-        var model = new Trip
-        {
-            Id = trip.Id,
-            Name = trip.Name,
-            CoverImageUrl = "https://example.com/cover.jpg",
-            Notes = trip.Notes
-        };
-        await controller.Edit(trip.Id, model, submitAction: null!);
-
-        // Assert: immediate warmup scheduled
-        warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, true), Times.Once);
-    }
-
-    [Fact]
-    public async Task Edit_Post_SchedulesNonImmediateWarmup_WhenImagesAlreadyExisted()
-    {
-        // Arrange: trip that already has a cover image
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(user);
-        var trip = TestDataFixtures.CreateTrip(user, "Has Images");
-        trip.CoverImageUrl = "https://example.com/old-cover.jpg";
-        trip.Notes = "Some notes";
-        db.Trips.Add(trip);
-        await db.SaveChangesAsync();
-
-        var warmupMock = new Mock<ICacheWarmupScheduler>();
-        var controller = BuildControllerWithWarmupMock(db, user.Id, warmupMock);
-
-        // Act: change cover image (images existed before and after)
-        var model = new Trip
-        {
-            Id = trip.Id,
-            Name = trip.Name,
-            CoverImageUrl = "https://example.com/new-cover.jpg",
-            Notes = trip.Notes
-        };
-        await controller.Edit(trip.Id, model, submitAction: null!);
-
-        // Assert: non-immediate (debounced) warmup scheduled
-        warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, false), Times.Once);
     }
 
     [Fact]
