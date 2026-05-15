@@ -150,9 +150,9 @@ echo "  npm:  $(npm --version)"
 npm ci
 npm run build
 
-if [ ! -f "$APP_DIR/wwwroot/vite/trip-editor/.vite/manifest.json" ]; then
+if [ ! -f "$APP_DIR/wwwroot/vite/trip-editor/manifest.json" ]; then
   echo "✖ Error: Trip Editor Vite manifest was not generated." >&2
-  echo "  Expected: $APP_DIR/wwwroot/vite/trip-editor/.vite/manifest.json" >&2
+  echo "  Expected: $APP_DIR/wwwroot/vite/trip-editor/manifest.json" >&2
   exit 1
 fi
 

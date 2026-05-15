@@ -29,6 +29,7 @@ Frontend Development
   - Production prerequisite: run `dotnet frontend build` to generate minified bundles in `/dist`.
 - **Trip Editor**: Vue/Vite builds static assets under `wwwroot/vite/trip-editor`.
   - Production prerequisite: run `npm ci` and `npm run build` before publishing when building on the server.
+  - Production output must include `wwwroot/vite/trip-editor/manifest.json` and the CSS/JS files referenced by that manifest.
   - Generated Vite output is not committed. Production still runs as one ASP.NET Core app with no Node runtime service or SSR server.
 - **State Management**: Trip editing state is owned by the Vue Trip Editor under `ClientApps/trip-editor/src`.
   - Key files: `ClientApps/trip-editor/src/App.vue`, `ClientApps/trip-editor/src/api/tripEditorApi.ts`
@@ -47,6 +48,7 @@ ASPNETCORE_ENVIRONMENT=Production dotnet Wayfarer.dll --urls=http://localhost:50
 ```
 
 - Do not use source-tree `ASPNETCORE_ENVIRONMENT=Production dotnet run` as a bundle acceptance path. Razor scoped CSS such as `Wayfarer.styles.css` is produced as a static web asset outside `wwwroot` during local builds, and published output is the supported production-like asset layout.
+- Confirm the published output contains `wwwroot/vite/trip-editor/manifest.json` plus the referenced Trip Editor CSS/JS files before treating the bundle acceptance as complete.
 
 Mobile App (Separate Repo)
 - Location: `WayfarerMobile`.

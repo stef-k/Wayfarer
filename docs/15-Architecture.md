@@ -217,8 +217,11 @@ Two-tier caching strategy:
 
 The Trip Editor uses Vue/Vite and builds static assets under
 `wwwroot/vite/trip-editor`. That Vite output is generated during deployment and
-is not committed. Production remains a single ASP.NET Core app serving local
-static assets; there is no Node runtime service and no SSR server.
+is not committed. The production Razor shell reads
+`wwwroot/vite/trip-editor/manifest.json` and serves the CSS/JS assets referenced
+by that manifest from the same local folder. Production remains a single
+ASP.NET Core app serving local static assets; there is no Node runtime service
+and no SSR server.
 
 ### State Management
 
