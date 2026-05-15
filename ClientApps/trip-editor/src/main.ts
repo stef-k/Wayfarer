@@ -3,6 +3,7 @@ import App from './App.vue';
 import type { BootstrapConfig } from './types';
 import 'quill/dist/quill.snow.css';
 import './theme.css';
+import './map.css';
 import './styles.css';
 import './surfaces.css';
 import './richNotes.css';

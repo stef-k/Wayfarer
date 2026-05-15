@@ -1,6 +1,7 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
+import { placeMarkerIconUrl, placeMarkerLabel, placeNotesPreviewHtml } from '../displayHelpers';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
 import { createSegmentRouteWorkLayer } from './segmentRouteWorkLayer';
@@ -12,8 +13,9 @@ export type FocusSavedTripViewResult = 'moved' | 'missing-view';
 export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry' | 'unsupported-target';
 
 interface TripEditorMapAdapter {
-  render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>) => void;
+  render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>, selectedPlaceId?: Guid | null) => void;
   clearSearchPreview: () => void;
+  selectPlace: (state: EditorTripState, placeId: Guid | null, options?: SelectPlaceOptions) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
@@ -25,29 +27,48 @@ interface TripEditorMapAdapter {
   dispose: () => void;
 }
 
-export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): TripEditorMapAdapter => {
+export interface TripEditorMapOptions {
+  onPlaceSelected?: (placeId: Guid) => boolean | Promise<boolean>;
+}
+
+export interface SelectPlaceOptions {
+  focus?: boolean;
+  openPopup?: boolean;
+}
+
+export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, options: TripEditorMapOptions = {}): TripEditorMapAdapter => {
   const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
   const layers = L.layerGroup().addTo(map);
   const searchPreview = createSearchPreviewLayer(map);
   const coordinatePick = createCoordinatePickLayer(map);
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
+  const placeMarkers = new Map<Guid, L.Marker>();
+  let selectedPlaceId: Guid | null = null;
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
     maxZoom: 19
   }).addTo(map);
 
-  const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set()): void => {
+  const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set(), nextSelectedPlaceId: Guid | null = selectedPlaceId): void => {
     searchPreview.clear();
     coordinatePick.clearRegisteredMarkers();
     areaPolygonWork.stop();
     segmentRouteWork.stop();
     layers.clearLayers();
+    placeMarkers.clear();
+    selectedPlaceId = nextSelectedPlaceId && state.placesById[nextSelectedPlaceId] ? nextSelectedPlaceId : null;
 
     Object.values(state.regionsById).forEach(region => renderRegion(region, layers));
     Object.values(state.areasById).forEach(area => renderArea(area, layers));
-    Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick));
+    Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick, placeMarkers, () => {
+      if (coordinatePick.isActive()) {
+        return false;
+      }
+
+      return options.onPlaceSelected?.(place.id) ?? true;
+    }));
     Object.values(state.segmentsById).forEach(segment => {
       if (!hiddenSegmentIds.has(segment.id)) {
         renderSegment(segment, state, layers);
@@ -55,11 +76,19 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string): Tri
     });
 
     fitMapToState(map, state);
+    applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
   };
 
   return {
     render,
     clearSearchPreview: searchPreview.clear,
+    selectPlace: (state, placeId, selectOptions = {}) => {
+      selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;
+      applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
+      if (selectedPlaceId) {
+        focusSelectedPlace(map, state, placeMarkers, selectedPlaceId, selectOptions);
+      }
+    },
     startCoordinatePick: options => {
       searchPreview.clear();
       return coordinatePick.start(options);
@@ -239,19 +268,89 @@ const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
   }).bindTooltip(escapeHtml(region.name)).addTo(layers);
 };
 
-const renderPlace = (place: EditorPlace, layers: LayerGroup, coordinatePick: ReturnType<typeof createCoordinatePickLayer>): void => {
+const renderPlace = (
+  place: EditorPlace,
+  layers: LayerGroup,
+  coordinatePick: ReturnType<typeof createCoordinatePickLayer>,
+  placeMarkers: Map<Guid, L.Marker>,
+  onSelected: () => boolean | Promise<boolean>
+): void => {
   if (!place.location) {
     return;
   }
 
   const marker = L.marker([place.location.latitude, place.location.longitude], {
-    title: place.name
+    icon: placeMarkerIcon(place),
+    title: placeMarkerLabel(place),
+    alt: placeMarkerLabel(place)
   });
-  const visitText = place.visitSummary.isVisited ? ` · ${place.visitSummary.visitCount} visit(s)` : '';
-  marker.bindPopup(`<strong>${escapeHtml(place.name)}</strong>${visitText}`);
+  marker.on('click', async event => {
+    if (event.originalEvent) {
+      L.DomEvent.stop(event.originalEvent);
+    }
+
+    marker.closePopup();
+    if (await onSelected()) {
+      marker.openPopup();
+    }
+  });
+  marker.bindPopup(placePopupHtml(place), { className: 'trip-editor-place-popup' });
+  // Leaflet auto-opens bound popups on marker click; selection must finish first so dirty-discard cancel keeps the old popup/halo.
+  const popupMarker = marker as L.Marker & { _openPopup?: (event: LeafletMouseEvent) => void };
+  if (popupMarker._openPopup) {
+    marker.off('click', popupMarker._openPopup, marker);
+  }
   coordinatePick.registerMarker(marker, place.location);
   marker.addTo(layers);
+  placeMarkers.set(place.id, marker);
 };
+
+/// Uses the static Wayfarer marker PNGs instead of Leaflet defaults so Vite cannot break image paths.
+const placeMarkerIcon = (place: EditorPlace): L.DivIcon => {
+  const visitBadge = place.visitSummary.isVisited
+    ? `<span class="trip-editor-map-marker__badge" title="${escapeHtml(place.visitSummary.visitCount === 1 ? 'Visited' : `Visited ${place.visitSummary.visitCount} times`)}">${escapeHtml(place.visitSummary.visitCount === 1 ? '✓' : String(place.visitSummary.visitCount))}</span>`
+    : '';
+
+  return L.divIcon({
+    className: 'trip-editor-map-marker',
+    html: `<span class="trip-editor-map-marker__halo" aria-hidden="true"></span><img class="trip-editor-map-marker__image" src="${placeMarkerIconUrl(place.iconName, place.markerColor)}" width="28" height="45" alt="${escapeHtml(placeMarkerLabel(place))}" data-place-marker-icon="${escapeHtml(place.id)}">${visitBadge}`,
+    iconSize: [36, 50],
+    iconAnchor: [18, 50],
+    popupAnchor: [0, -45]
+  });
+};
+
+const placePopupHtml = (place: EditorPlace): string => {
+  const visitText = place.visitSummary.isVisited ? ` · ${place.visitSummary.visitCount} visit(s)` : '';
+  const notesHtml = placeNotesPreviewHtml(place.notesHtml);
+  return [
+    '<div class="trip-editor-place-popup__content">',
+    `<strong>${escapeHtml(place.name)}</strong>${escapeHtml(visitText)}`,
+    notesHtml ? `<div class="trip-editor-place-popup__notes">${notesHtml}</div>` : '',
+    '</div>'
+  ].join('');
+};
+
+function applySelectedPlaceMarker(placeMarkers: Map<Guid, L.Marker>, selectedPlaceId: Guid | null): void {
+  placeMarkers.forEach((marker, placeId) => {
+    marker.getElement()?.classList.toggle('trip-editor-map-marker--selected', selectedPlaceId === placeId);
+  });
+}
+
+function focusSelectedPlace(map: LeafletMap, state: EditorTripState, placeMarkers: Map<Guid, L.Marker>, placeId: Guid, options: SelectPlaceOptions): void {
+  const place = state.placesById[placeId];
+  if (!place?.location) {
+    return;
+  }
+
+  if (options.focus) {
+    map.setView([place.location.latitude, place.location.longitude], Math.max(map.getZoom(), 13));
+  }
+
+  if (options.openPopup) {
+    placeMarkers.get(placeId)?.openPopup();
+  }
+}
 
 const renderArea = (area: EditorArea, layers: LayerGroup): void => {
   if (!area.geometry) {

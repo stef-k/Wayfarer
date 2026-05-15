@@ -33,12 +33,12 @@ export function normalizeNotesHtml(value: string): string {
 /// Restores proxied display URLs to the original external image URL saved in notes.
 export function canonicalImageSource(value: string): string {
   const trimmedValue = stripUrlBoundaryControls(value);
-  if (!trimmedValue.startsWith('/Public/ProxyImage')) {
-    return trimmedValue;
-  }
-
   try {
     const url = new URL(trimmedValue, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname !== '/Public/ProxyImage') {
+      return trimmedValue;
+    }
+
     return stripUrlBoundaryControls(url.searchParams.get('url') ?? trimmedValue);
   } catch {
     return trimmedValue;

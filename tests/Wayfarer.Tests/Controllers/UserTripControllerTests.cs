@@ -64,8 +64,8 @@ public class UserTripControllerTests : TestBase
         var result = await controller.Edit(trip.Id);
 
         var view = Assert.IsType<ViewResult>(result);
-        Assert.Equal("~/Areas/User/Views/Trip/Workspace.cshtml", view.ViewName);
-        var model = Assert.IsType<TripEditorWorkspaceViewModel>(view.Model);
+        Assert.Equal("~/Areas/User/Views/Trip/Edit.cshtml", view.ViewName);
+        var model = Assert.IsType<TripEditorShellViewModel>(view.Model);
         Assert.Equal(trip.Id, model.TripId);
         Assert.Equal($"/api/trips/{trip.Id}/editor", model.EditorEndpointUrl);
     }
@@ -85,121 +85,6 @@ public class UserTripControllerTests : TestBase
         var result = await controller.Edit(trip.Id);
 
         Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task Edit_Post_UpdatesTrip_WhenValid()
-    {
-        var db = CreateDbContext();
-        var userId = "u1";
-        db.Users.Add(TestDataFixtures.CreateUser(id: userId, username: "alice"));
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Old Name", IsPublic = false };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, userId);
-
-        var result = await controller.Edit(trip.Id, new Trip
-        {
-            Id = trip.Id,
-            Name = "Updated Name",
-            IsPublic = true,
-            Notes = "New notes",
-            CoverImageUrl = "https://example.com/cover.jpg"
-        }, null);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-        var updated = await db.Trips.FindAsync(trip.Id);
-        Assert.Equal("Updated Name", updated!.Name);
-        Assert.True(updated.IsPublic);
-        Assert.Equal("New notes", updated.Notes);
-    }
-
-    [Fact]
-    public async Task Edit_Post_RedirectsToEdit_WhenSaveEdit()
-    {
-        var db = CreateDbContext();
-        var userId = "u1";
-        db.Users.Add(TestDataFixtures.CreateUser(id: userId, username: "alice"));
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, userId);
-
-        var result = await controller.Edit(trip.Id, new Trip
-        {
-            Id = trip.Id,
-            Name = "Updated"
-        }, "save-edit");
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Edit", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task Edit_Post_RedirectsToIndex_WhenIdMismatch()
-    {
-        var db = CreateDbContext();
-        var userId = "u1";
-        db.Users.Add(TestDataFixtures.CreateUser(id: userId, username: "alice"));
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, userId);
-
-        var result = await controller.Edit(trip.Id, new Trip
-        {
-            Id = Guid.NewGuid(), // different ID
-            Name = "Updated"
-        }, null);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task Edit_Post_RedirectsToIndex_WhenNotOwned()
-    {
-        var db = CreateDbContext();
-        db.Users.AddRange(
-            TestDataFixtures.CreateUser(id: "owner"),
-            TestDataFixtures.CreateUser(id: "other"));
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, "other");
-
-        var result = await controller.Edit(trip.Id, new Trip
-        {
-            Id = trip.Id,
-            Name = "Updated"
-        }, null);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-    }
-
-    [Fact]
-    public async Task Edit_Post_ReturnsBadRequest_WhenModelInvalid()
-    {
-        var db = CreateDbContext();
-        var userId = "u1";
-        db.Users.Add(TestDataFixtures.CreateUser(id: userId, username: "alice"));
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, userId);
-        controller.ModelState.AddModelError("Name", "Required");
-
-        var result = await controller.Edit(trip.Id, new Trip
-        {
-            Id = trip.Id,
-            Name = ""
-        }, null);
-
-        Assert.IsType<BadRequestObjectResult>(result);
-        Assert.IsNotType<ViewResult>(result);
-        Assert.False(controller.ModelState.IsValid);
     }
 
     private TripController BuildController(ApplicationDbContext db, string userId)

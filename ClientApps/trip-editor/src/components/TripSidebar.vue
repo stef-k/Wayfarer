@@ -23,6 +23,7 @@ const props = defineProps<{
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
   hiddenSegmentIds: ReadonlySet<Guid>;
+  selectedPlaceId: Guid | null;
   pendingSearchAdd: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null;
   coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
   polygonEditor: { startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void };
@@ -30,6 +31,7 @@ const props = defineProps<{
     setSegmentRouteWorkRoute: (route: EditorSegment['route']) => void;
     startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
   };
+  selectPlace: (placeId: Guid) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -138,7 +140,7 @@ function normalize(value: string): string {
   <aside class="trip-editor-sidebar">
     <header class="trip-editor-sidebar__header">
       <div>
-        <p class="trip-editor-sidebar__eyebrow">Read-only workspace spike</p>
+        <p class="trip-editor-sidebar__eyebrow">Trip Editor</p>
         <h1>{{ state.metadata.name }}</h1>
       </div>
       <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? 'Public' : 'Private' }}</span>
@@ -203,10 +205,12 @@ function normalize(value: string): string {
       :coordinate-picker="coordinatePicker"
       :polygon-editor="polygonEditor"
       :pending-search-add="pendingSearchAdd"
+      :selected-place-id="selectedPlaceId"
       :search-active="isSearchActive"
       :search-regions="sidebarSearch.regions"
       :search-place-ids-by-region-id="sidebarSearch.placesByRegionId"
       :search-area-ids-by-region-id="sidebarSearch.areasByRegionId"
+      :select-place="selectPlace"
       @mutation-applied="result => emit('mutationApplied', result)"
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
       @search-add-opened="requestId => emit('searchAddOpened', requestId)"
