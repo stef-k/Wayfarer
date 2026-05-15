@@ -5,7 +5,7 @@
 
 import { createTileLayer } from '../../../retryTileLayer.js';
 
-// Wayfarer marker icon dimensions (matches Trip mapManager)
+// Wayfarer marker icon dimensions used by the shared map icon assets.
 const WF_WIDTH = 28;
 const WF_HEIGHT = 45;
 const WF_ANCHOR = [WF_WIDTH / 2, WF_HEIGHT];

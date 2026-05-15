@@ -13,7 +13,7 @@ Overview of Wayfarer's technical architecture, design patterns, and application 
 | Spatial | NetTopologySuite, GiST indexes |
 | Scheduler | Quartz.NET (ADO.NET job store) |
 | Logging | Serilog (console, file, PostgreSQL) |
-| Frontend | Razor views, Leaflet, vanilla JS; Vue for the Trip Editor workspace |
+| Frontend | Razor views, Leaflet, vanilla JS; Vue for the Trip Editor |
 | Bundling | [MvcFrontendKit](https://github.com/nickofc/MvcFrontendKit) (esbuild-based) plus Vite for Trip Editor assets |
 | Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
@@ -215,19 +215,18 @@ Two-tier caching strategy:
 - **Production mode** — minified bundles in `/dist`
 - **Configuration**: `frontend.config.yaml`
 
-The Trip Editor workspace uses Vue/Vite and builds static assets under
+The Trip Editor uses Vue/Vite and builds static assets under
 `wwwroot/vite/trip-editor`. That Vite output is generated during deployment and
 is not committed. Production remains a single ASP.NET Core app serving local
 static assets; there is no Node runtime service and no SSR server.
 
 ### State Management
 
-Trip editing uses a reactive store pattern inspired by [simple-reactive-store](https://github.com/stef-k/simple-reactive-store):
+Trip editing state is owned by the Vue Trip Editor:
 
-- **Immutable snapshots** via `getState()`
-- **Fine-grained subscriptions** via `subscribe()` / `subscribeOnce()`
-- **Single-pass dispatch** — mutate state → broadcast action
-- **Key files**: `wwwroot/js/Areas/User/Trip/store.js`, `storeInstance.js`
+- **API boundary** via `ClientApps/trip-editor/src/api/tripEditorApi.ts`
+- **Top-level composition** via `ClientApps/trip-editor/src/App.vue`
+- **Shared editor surfaces** under `ClientApps/trip-editor/src/components`
 
 ### Map Icons
 

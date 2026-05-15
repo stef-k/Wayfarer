@@ -424,7 +424,7 @@ public class TripControllerTests : TestBase
 
         var view = Assert.IsType<ViewResult>(result);
         Assert.Equal("~/Areas/User/Views/Trip/Edit.cshtml", view.ViewName);
-        var model = Assert.IsType<TripEditorWorkspaceViewModel>(view.Model);
+        var model = Assert.IsType<TripEditorShellViewModel>(view.Model);
         Assert.Equal(trip.Id, model.TripId);
         Assert.Equal("Owned Trip", model.TripName);
         Assert.Equal($"/api/trips/{trip.Id}/editor", model.EditorEndpointUrl);

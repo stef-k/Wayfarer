@@ -138,7 +138,7 @@ function normalize(value: string): string {
   <aside class="trip-editor-sidebar">
     <header class="trip-editor-sidebar__header">
       <div>
-        <p class="trip-editor-sidebar__eyebrow">Read-only workspace spike</p>
+        <p class="trip-editor-sidebar__eyebrow">Trip Editor</p>
         <h1>{{ state.metadata.name }}</h1>
       </div>
       <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? 'Public' : 'Private' }}</span>

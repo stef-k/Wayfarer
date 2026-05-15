@@ -1,9 +1,9 @@
 namespace Wayfarer.Models.ViewModels;
 
 /// <summary>
-/// Bootstrap values emitted by the MVC shell for the Vue Trip Editor workspace.
+/// Bootstrap values emitted by the MVC shell for the Vue Trip Editor.
 /// </summary>
-public sealed record TripEditorWorkspaceViewModel
+public sealed record TripEditorShellViewModel
 {
     /// <summary>Identifier of the trip to load through the editor API.</summary>
     public Guid TripId { get; init; }

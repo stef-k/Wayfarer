@@ -206,7 +206,7 @@ namespace Wayfarer.Areas.User.Controllers
             ViewData["LoadLeaflet"] = false;
             ViewData["LoadQuill"] = false;
 
-            return View("~/Areas/User/Views/Trip/Edit.cshtml", new TripEditorWorkspaceViewModel
+            return View("~/Areas/User/Views/Trip/Edit.cshtml", new TripEditorShellViewModel
             {
                 TripId = trip.Id,
                 TripName = trip.Name,

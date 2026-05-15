@@ -286,7 +286,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
     </div>
 
     <div v-else-if="error" class="trip-editor-state trip-editor-state--error">
-      <strong>Workspace unavailable</strong>
+      <strong>Trip Editor unavailable</strong>
       <span>{{ error }}</span>
     </div>
 
