@@ -1,3 +1,4 @@
+import { nextTick } from 'vue';
 import { createPlace, deletePlace, orderPlaces, updatePlace } from '../api/tripEditorApi';
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
@@ -38,6 +39,7 @@ export function usePlaceEditorActions(context: any) {
     context.placeDraft.reverseGeocode = false;
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = buildPlaceRequest(context.placeDraft);
+    context.placeEditBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
     return true;
@@ -55,7 +57,14 @@ export function usePlaceEditorActions(context: any) {
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = null;
+    context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     context.areaCreateBaselineRequest.value = null;
+    // Quill can normalize legacy persisted notes after render; keep that hydration out of dirty-state prompts.
+    void nextTick(() => {
+      if (context.placeDraft.id === place.id && context.props.editorSurface.isTargetActive(target)) {
+        context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
+      }
+    });
     context.resetFeedback();
     return true;
   };
@@ -69,6 +78,7 @@ export function usePlaceEditorActions(context: any) {
       context.placeDraft.markerColor = context.props.state.options.markerColorClasses[0] ?? 'bg-blue';
     } else {
       Object.assign(context.placeDraft, toPlaceDraft(context.activePlace.value, context.placeDraft.regionId));
+      context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     }
     context.resetFeedback();
   };
@@ -92,6 +102,7 @@ export function usePlaceEditorActions(context: any) {
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       Object.assign(context.placeDraft, toPlaceDraft(result.data, result.data.regionId));
       context.placeCreateBaselineRequest.value = null;
+      context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
       context.markSaved(result.warnings.map((warning: { message: string }) => warning.message));
     } catch (error) {
@@ -135,6 +146,7 @@ export function usePlaceEditorActions(context: any) {
       Object.assign(context.placeDraft, emptyPlaceDraft());
       Object.assign(context.areaDraft, emptyAreaDraft());
       context.placeCreateBaselineRequest.value = null;
+      context.placeEditBaselineRequest.value = null;
       context.areaCreateBaselineRequest.value = null;
       context.props.editorSurface.clearActiveTarget(deletedTarget);
       context.markSaved();

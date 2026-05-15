@@ -135,7 +135,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     const form = page.locator('#trip-editor-metadata-form');
     await insertImageUrl(form, 'https://images.example.test/rich-note.png');
     const image = richEditor(form).locator('.ql-editor img');
-    await expect(image).toHaveAttribute('src', /https:\/\/images\.example\.test\/rich-note\.png$/);
+    await expect(image).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Frich-note\.png$/);
 
     await pasteDataImage(richEditor(form).locator('.ql-editor'));
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');

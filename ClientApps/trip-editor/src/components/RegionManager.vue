@@ -52,6 +52,7 @@ const isSaving = ref(false);
 const isOrdering = ref(false);
 const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
 const placeCreateBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
+const placeEditBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
 const areaCreateBaselineRequest = ref<EditorAreaSaveRequest | null>(null);
 let unregisterRegionHandler: (() => void) | null = null;
 let unregisterPlaceHandler: (() => void) | null = null;
@@ -116,7 +117,7 @@ const renderedAreaIdsByRegionId = computed(() => {
 });
 const forcedExpandedRegionIds = computed(() => new Set(props.searchActive ? renderedRegions.value.map(region => region.id) : []));
 const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(toRegionDraft(activeRegion.value)) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
-const placeBaselineRequest = computed(() => placeDraft.id ? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
+const placeBaselineRequest = computed(() => placeDraft.id ? placeEditBaselineRequest.value ?? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
 const areaBaselineRequest = computed(() => areaDraft.id ? buildAreaRequest(toAreaDraft(activeArea.value, areaDraft.regionId, props.state.options.areaDefaults.fillHex)) : areaCreateBaselineRequest.value ?? buildAreaRequest(emptyAreaDraft(areaDraft.regionId, props.state.options.areaDefaults.fillHex)));
 const activeRegionTarget = computed<EditorTarget>(() => ({
   key: regionDraftKey,
@@ -194,6 +195,7 @@ const { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceCreateFrom
   markSaved,
   placeCoordinateMapWork,
   placeCreateBaselineRequest,
+  placeEditBaselineRequest,
   placeDraft,
   props,
   regionCreateBaselineRequest,
@@ -320,6 +322,7 @@ function clearRegionPlaceDrafts(): void {
 function clearRegionPlaceBaselines(): void {
   regionCreateBaselineRequest.value = null;
   placeCreateBaselineRequest.value = null;
+  placeEditBaselineRequest.value = null;
 }
 
 function clearAllDraftsAndBaselines(): void {
@@ -372,6 +375,7 @@ function discardRegionDraft(): void {
 function discardPlaceDraft(): void {
   Object.assign(placeDraft, emptyPlaceDraft());
   placeCreateBaselineRequest.value = null;
+  placeEditBaselineRequest.value = null;
   resetFeedback();
 }
 

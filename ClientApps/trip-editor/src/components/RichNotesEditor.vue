@@ -143,6 +143,10 @@ function handleDrop(event: DragEvent): void {
 }
 
 function handleInput(): void {
+  if (isLoadingExternalValue) {
+    return;
+  }
+
   if (normalizeEditorImagesForDisplay()) {
     emit('update:modelValue', currentHtml());
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
