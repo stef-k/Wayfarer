@@ -1,0 +1,190 @@
+.trip-editor-map-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.trip-editor-toolbar {
+  align-items: center;
+  background: var(--trip-editor-bg);
+  border-bottom: 1px solid var(--trip-editor-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+}
+
+.trip-editor-toolbar__context {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.trip-editor-toolbar span,
+.trip-editor-toolbar small {
+  color: var(--trip-editor-muted);
+  font-size: 0.85rem;
+}
+
+.trip-editor-toolbar__context strong,
+.trip-editor-toolbar__context small {
+  overflow-wrap: anywhere;
+}
+
+.trip-editor-toolbar__status {
+  color: var(--trip-editor-text);
+}
+
+.trip-editor-toolbar__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.trip-editor-map {
+  /* Keep Leaflet in the remaining map shell space when optional map-work controls mount. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.trip-editor-map-marker {
+  background: transparent;
+  border: 0;
+}
+
+.trip-editor-map-marker__halo {
+  border: 3px solid #0d6efd;
+  border-radius: 999px;
+  box-shadow: 0 0 0.75rem rgba(13, 110, 253, 0.8);
+  display: none;
+  height: 3rem;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -62%);
+  width: 3rem;
+}
+
+.trip-editor-map-marker__image {
+  display: block;
+  height: 45px;
+  position: relative;
+  width: 28px;
+  z-index: 1;
+}
+
+.trip-editor-map-marker--selected .trip-editor-map-marker__halo {
+  display: block;
+}
+
+.trip-editor-map-marker__badge {
+  right: -0.45rem;
+  top: -0.25rem;
+  z-index: 2;
+}
+
+.trip-editor-place-popup__content {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 18rem;
+}
+
+.trip-editor-place-popup__notes {
+  border-top: 1px solid var(--trip-editor-border);
+  max-height: 7rem;
+  overflow: hidden;
+  padding-top: 0.35rem;
+}
+
+.trip-editor-place-popup__notes img {
+  display: block;
+  height: auto;
+  margin-top: 0.25rem;
+  max-height: 4rem;
+  max-width: 100%;
+}
+
+.trip-editor-map-search {
+  background: var(--trip-editor-surface);
+  border-bottom: 1px solid var(--trip-editor-border);
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.65rem 1rem;
+  position: relative;
+  z-index: 2;
+}
+
+.trip-editor-map-search__form,
+.trip-editor-map-search__add-panel {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(14rem, 28rem) auto;
+  justify-content: start;
+  min-width: 0;
+}
+
+.trip-editor-map-search__label,
+.trip-editor-map-search__add-panel span {
+  color: var(--trip-editor-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.trip-editor-map-search input,
+.trip-editor-map-search select {
+  background: var(--trip-editor-field-bg);
+  border: 1px solid var(--trip-editor-field-border);
+  border-radius: 6px;
+  color: var(--trip-editor-text);
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  width: 100%;
+}
+
+.trip-editor-map-search__status,
+.trip-editor-map-search__helper,
+.trip-editor-map-search__attribution {
+  color: var(--trip-editor-muted);
+  margin: 0;
+}
+
+.trip-editor-map-search__results {
+  display: grid;
+  gap: 0.35rem;
+  max-width: min(760px, 100%);
+}
+
+.trip-editor-map-search__result {
+  background: var(--trip-editor-card);
+  border: 1px solid var(--trip-editor-border);
+  border-radius: 6px;
+  color: var(--trip-editor-text);
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+}
+
+.trip-editor-map-search__result span,
+.trip-editor-map-search__result small {
+  color: var(--trip-editor-muted);
+}
+
+.trip-editor-map-search__result--selected {
+  border-color: var(--trip-editor-accent);
+  box-shadow: 0 0 0 0.12rem color-mix(in srgb, var(--trip-editor-accent) 26%, transparent);
+}
+
+.trip-editor-map-search__add-panel label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}

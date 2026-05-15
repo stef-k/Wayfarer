@@ -4,6 +4,7 @@ import type { BootstrapConfig } from './types';
 import 'quill/dist/quill.snow.css';
 import './theme.css';
 import './styles.css';
+import './map.css';
 import './surfaces.css';
 import './richNotes.css';
 import './visitProgress.css';
