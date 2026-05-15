@@ -288,6 +288,9 @@ Run production-like bundle acceptance from the published output. Do not use
 source-tree `ASPNETCORE_ENVIRONMENT=Production dotnet run` for this check:
 local scoped CSS such as `Wayfarer.styles.css` is a static web asset generated
 outside `wwwroot`, while publish produces the supported production asset layout.
+The Trip Editor published output must include
+`wwwroot/vite/trip-editor/manifest.json` plus the CSS/JS files referenced by
+that manifest.
 
 **What happens on first run:**
 - Database tables created automatically

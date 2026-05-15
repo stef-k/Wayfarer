@@ -113,6 +113,9 @@ Production-like bundle acceptance should build frontend prerequisites with
 Run the published output rather than source-tree
 `ASPNETCORE_ENVIRONMENT=Production dotnet run`; published output is the supported
 layout for scoped CSS, MvcFrontendKit bundles, and Trip Editor Vite assets.
+The Trip Editor publish output must include
+`wwwroot/vite/trip-editor/manifest.json` and the CSS/JS files referenced by that
+manifest.
 
 1. Sign in with the seeded `admin` / `Admin1!` account and change the password.
 

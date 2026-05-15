@@ -206,9 +206,11 @@ REF=v1.3.0 ./deployment/deploy.sh
 ### Frontend Build Requirement
 
 The Vue/Vite Trip Editor workspace is built into local static assets under
-`wwwroot/vite/trip-editor`. These generated files are build output and are not
-committed. Production remains a single ASP.NET Core app; it does not run a Node
-service or SSR process.
+`wwwroot/vite/trip-editor`. The production shell reads
+`wwwroot/vite/trip-editor/manifest.json` and then loads the CSS/JS assets listed
+by that manifest from the same folder. These generated files are build output
+and are not committed. Production remains a single ASP.NET Core app; it does not
+run a Node service or SSR process.
 
 For the current server-build deployment model, `install.sh` installs or verifies
 Node.js/npm on the build host. Node/npm are build-host tooling only; no Node
@@ -228,6 +230,9 @@ publishing so MvcFrontendKit bundles are freshly generated, then run the
 published output. Source-tree `ASPNETCORE_ENVIRONMENT=Production dotnet run` is
 not the supported bundle acceptance path because local scoped CSS static web
 assets are generated outside `wwwroot`.
+The published output must include
+`wwwroot/vite/trip-editor/manifest.json` plus the CSS/JS files referenced by
+that manifest.
 
 If builds later move to CI or another artifact builder, Node/npm are required on
 that build host only. The production runtime remains the ASP.NET Core app serving
