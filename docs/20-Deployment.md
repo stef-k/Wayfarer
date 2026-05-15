@@ -271,14 +271,23 @@ sudo find /var/www/wayfarer -type f -exec chmod 644 {} \;
 sudo -u wayfarer bash
 cd /var/www/wayfarer
 
-# Restore and build
+# Restore and build frontend prerequisites
 dotnet restore
-dotnet build -c Release
+dotnet frontend build
+npm ci
+npm run build
 
-# Test run
+# Publish and run the production-like output
+dotnet publish Wayfarer.csproj -c Release -o ./out
+cd ./out
 export ASPNETCORE_ENVIRONMENT=Production
-dotnet run --urls=http://localhost:5000
+dotnet Wayfarer.dll --urls=http://localhost:5000
 ```
+
+Run production-like bundle acceptance from the published output. Do not use
+source-tree `ASPNETCORE_ENVIRONMENT=Production dotnet run` for this check:
+local scoped CSS such as `Wayfarer.styles.css` is a static web asset generated
+outside `wwwroot`, while publish produces the supported production asset layout.
 
 **What happens on first run:**
 - Database tables created automatically
@@ -398,6 +407,7 @@ sudo -u postgres pg_dump wayfarer > wayfarer-backup-$(date +%Y%m%d).sql
 # Pull and build
 cd /home/youruser/Wayfarer
 git pull origin main
+dotnet frontend build
 npm ci
 npm run build
 dotnet publish -c Release -o ./out

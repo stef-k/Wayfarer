@@ -214,13 +214,20 @@ For the current server-build deployment model, `install.sh` installs or verifies
 Node.js/npm on the build host. Node/npm are build-host tooling only; no Node
 runtime service is installed or configured.
 
-During deployment, `deploy.sh` runs the frontend build before `dotnet publish`:
+During deployment, `deploy.sh` runs the Trip Editor frontend build before
+`dotnet publish`:
 
 ```bash
 npm ci
 npm run build
 dotnet publish
 ```
+
+For production-like local acceptance, also run `dotnet frontend build` before
+publishing so MvcFrontendKit bundles are freshly generated, then run the
+published output. Source-tree `ASPNETCORE_ENVIRONMENT=Production dotnet run` is
+not the supported bundle acceptance path because local scoped CSS static web
+assets are generated outside `wwwroot`.
 
 If builds later move to CI or another artifact builder, Node/npm are required on
 that build host only. The production runtime remains the ASP.NET Core app serving
