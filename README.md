@@ -108,8 +108,11 @@ See `docs/22-Testing.md` for the required variables, local file format, and
 browser install command. Do not reset passwords or create users for this harness
 unless that is explicitly approved.
 
-Production and deployment builds still use `npm ci` and `npm run build` to emit
-static Trip Editor assets served by ASP.NET Core.
+Production-like bundle acceptance should build frontend prerequisites with
+`dotnet frontend build`, `npm ci`, and `npm run build` before `dotnet publish`.
+Run the published output rather than source-tree
+`ASPNETCORE_ENVIRONMENT=Production dotnet run`; published output is the supported
+layout for scoped CSS, MvcFrontendKit bundles, and Trip Editor Vite assets.
 
 1. Sign in with the seeded `admin` / `Admin1!` account and change the password.
 
