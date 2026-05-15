@@ -28,7 +28,7 @@ interface TripEditorMapAdapter {
 }
 
 export interface TripEditorMapOptions {
-  onPlaceSelected?: (placeId: Guid) => void;
+  onPlaceSelected?: (placeId: Guid) => boolean | Promise<boolean>;
 }
 
 export interface SelectPlaceOptions {
@@ -64,12 +64,10 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     Object.values(state.areasById).forEach(area => renderArea(area, layers));
     Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick, placeMarkers, () => {
       if (coordinatePick.isActive()) {
-        return;
+        return false;
       }
 
-      selectedPlaceId = place.id;
-      applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
-      options.onPlaceSelected?.(place.id);
+      return options.onPlaceSelected?.(place.id) ?? true;
     }));
     Object.values(state.segmentsById).forEach(segment => {
       if (!hiddenSegmentIds.has(segment.id)) {
@@ -275,7 +273,7 @@ const renderPlace = (
   layers: LayerGroup,
   coordinatePick: ReturnType<typeof createCoordinatePickLayer>,
   placeMarkers: Map<Guid, L.Marker>,
-  onSelected: () => void
+  onSelected: () => boolean | Promise<boolean>
 ): void => {
   if (!place.location) {
     return;
@@ -286,8 +284,22 @@ const renderPlace = (
     title: placeMarkerLabel(place),
     alt: placeMarkerLabel(place)
   });
+  marker.on('click', async event => {
+    if (event.originalEvent) {
+      L.DomEvent.stop(event.originalEvent);
+    }
+
+    marker.closePopup();
+    if (await onSelected()) {
+      marker.openPopup();
+    }
+  });
   marker.bindPopup(placePopupHtml(place), { className: 'trip-editor-place-popup' });
-  marker.on('click', () => onSelected());
+  // Leaflet auto-opens bound popups on marker click; selection must finish first so dirty-discard cancel keeps the old popup/halo.
+  const popupMarker = marker as L.Marker & { _openPopup?: (event: LeafletMouseEvent) => void };
+  if (popupMarker._openPopup) {
+    marker.off('click', popupMarker._openPopup, marker);
+  }
   coordinatePick.registerMarker(marker, place.location);
   marker.addTo(layers);
   placeMarkers.set(place.id, marker);

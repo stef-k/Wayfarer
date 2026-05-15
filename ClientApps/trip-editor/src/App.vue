@@ -58,7 +58,7 @@ watch(
     mapAdapter?.clearSearchPreview();
     const target = editorSurface.activeTarget.value;
     if (target?.kind === 'place' && target.mode === 'edit' && target.entityId && state.value?.placesById[target.entityId]) {
-      selectPlace(target.entityId, { focusMap: true });
+      void selectPlace(target.entityId, { focusMap: true });
     }
   }
 );
@@ -100,22 +100,37 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
   mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
 };
 
-/// Updates UI-only place selection shared by the sidebar and map marker halo.
-const selectPlace = (placeId: Guid, options: { focusMap?: boolean; openPopup?: boolean } = {}): void => {
+/// Updates UI-only place selection shared by the sidebar and map marker halo after guarded editor cleanup.
+const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPopup?: boolean } = {}): Promise<boolean> => {
   if (!state.value) {
     selectedPlaceId.value = null;
-    return;
+    return false;
   }
 
   if (!state.value.placesById[placeId]) {
     selectedPlaceId.value = null;
     mapAdapter?.selectPlace(state.value, null);
-    return;
+    return false;
+  }
+
+  if (!(await closeActivePlaceEditBeforeSelection(placeId))) {
+    return false;
   }
 
   selectedPlaceId.value = placeId;
   mapAdapter?.selectPlace(state.value, placeId, { focus: options.focusMap, openPopup: options.openPopup });
+  return true;
 };
+
+/// Runs the shared dirty-discard flow before selection hides a different active place editor.
+async function closeActivePlaceEditBeforeSelection(placeId: Guid): Promise<boolean> {
+  const target = editorSurface.activeTarget.value;
+  if (target?.kind !== 'place' || target.mode !== 'edit' || target.entityId === placeId) {
+    return true;
+  }
+
+  return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
+}
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
 const fitAllGeometry = (): void => {
@@ -338,7 +353,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
-        @place-selected="placeId => selectPlace(placeId, { focusMap: true })"
+        :select-place="placeId => selectPlace(placeId, { focusMap: true })"
         @search-add-opened="handleSearchAddOpened"
       />
       <main class="trip-editor-map-shell">

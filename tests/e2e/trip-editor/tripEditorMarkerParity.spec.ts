@@ -56,6 +56,47 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectSelectedPlace(page, firstPlaceId);
   });
 
+  test('guards marker and sidebar place selection while a place editor is dirty', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(expectPlaceEditor(page, firstPlaceName)).toBeVisible();
+    await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Unsaved dirty marker guard address');
+    await expectSelectedPlace(page, firstPlaceId);
+
+    await markerImage(page, secondPlaceId).click();
+    const markerDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(markerDiscard).toBeVisible();
+    await markerDiscard.getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect(expectPlaceEditor(page, firstPlaceName)).toBeVisible();
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Address')).toHaveValue('Unsaved dirty marker guard address');
+    await expectSelectedPlace(page, firstPlaceId);
+    await expectNotSelected(page, secondPlaceId);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+
+    await sidebarRow(page, secondPlaceId).click();
+    const sidebarDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(sidebarDiscard).toBeVisible();
+    await sidebarDiscard.getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect(expectPlaceEditor(page, firstPlaceName)).toBeVisible();
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Address')).toHaveValue('Unsaved dirty marker guard address');
+    await expectSelectedPlace(page, firstPlaceId);
+    await expectNotSelected(page, secondPlaceId);
+
+    await markerImage(page, secondPlaceId).click();
+    const confirmDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(confirmDiscard).toBeVisible();
+    await confirmDiscard.getByRole('button', { name: 'Discard' }).click();
+
+    await expect(expectPlaceEditor(page, firstPlaceName)).toHaveCount(0);
+    await expectSelectedPlace(page, secondPlaceId);
+    await expectNotSelected(page, firstPlaceId);
+    await expect(page.locator('.leaflet-popup')).toContainText(secondPlaceName);
+  });
+
   test('shows icon choices and keeps long place names from overlapping actions', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await signIn(page);
@@ -200,6 +241,10 @@ function sidebarRow(page: Page, placeId: string): Locator {
 
 function markerImage(page: Page, placeId: string): Locator {
   return page.locator(`[data-place-marker-icon="${placeId}"]`);
+}
+
+function expectPlaceEditor(page: Page, placeName: string): Locator {
+  return page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(placeName)}`) });
 }
 
 function mapMarkerImages(page: Page): Locator {

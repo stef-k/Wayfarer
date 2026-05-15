@@ -31,6 +31,7 @@ const props = defineProps<{
     setSegmentRouteWorkRoute: (route: EditorSegment['route']) => void;
     startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
   };
+  selectPlace: (placeId: Guid) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +39,6 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
-  placeSelected: [placeId: Guid];
   searchAddOpened: [requestId: number];
 }>();
 
@@ -210,9 +210,9 @@ function normalize(value: string): string {
       :search-regions="sidebarSearch.regions"
       :search-place-ids-by-region-id="sidebarSearch.placesByRegionId"
       :search-area-ids-by-region-id="sidebarSearch.areasByRegionId"
+      :select-place="selectPlace"
       @mutation-applied="result => emit('mutationApplied', result)"
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
-      @place-selected="placeId => emit('placeSelected', placeId)"
       @search-add-opened="requestId => emit('searchAddOpened', requestId)"
     />
 

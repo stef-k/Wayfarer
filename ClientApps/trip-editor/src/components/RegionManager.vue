@@ -29,12 +29,12 @@ const props = defineProps<{
   pendingSearchAdd: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null;
   coordinatePicker: PlaceCoordinatePicker;
   polygonEditor: AreaPolygonEditor;
+  selectPlace: (placeId: Guid) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   dirtyStateChanged: [isDirty: boolean];
-  placeSelected: [placeId: Guid];
   searchAddOpened: [requestId: number];
 }>();
 
@@ -406,14 +406,14 @@ function isAreaCreateOpen(region: EditorRegion): boolean {
 }
 
 /// Selects a place from the sidebar without opening an editor or touching persisted state.
-function selectPlace(place: EditorPlace): void {
-  emit('placeSelected', place.id);
+async function selectPlace(place: EditorPlace): Promise<void> {
+  await props.selectPlace(place.id);
 }
 
 /// Opens place editing only after the shared dirty-target guard approves the switch.
 async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
   if (await openPlaceEdit(place)) {
-    emit('placeSelected', place.id);
+    await props.selectPlace(place.id);
   }
 }
 </script>
