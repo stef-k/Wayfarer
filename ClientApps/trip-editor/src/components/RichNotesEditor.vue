@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Quill, { type Range } from 'quill';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { displayImageSource } from '../displayHelpers';
 import { canonicalImageSource, containsDataImageReference, isDataImageSource, isUnsafeImageSource, normalizeNotesHtml } from '../notes/notesHtml';
 
 const props = defineProps<{
@@ -99,7 +100,7 @@ function loadHtml(value: string): void {
   isLoadingExternalValue = true;
   quill.setContents([], 'silent');
   quill.clipboard.dangerouslyPasteHTML(normalizeNotesHtml(value), 'silent');
-  removeUnsafeEditorImages();
+  normalizeEditorImagesForDisplay();
   isLoadingExternalValue = false;
 }
 
@@ -114,7 +115,7 @@ function handleTextChange(): void {
     return;
   }
 
-  if (removeUnsafeEditorImages()) {
+  if (normalizeEditorImagesForDisplay()) {
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
 
@@ -142,7 +143,7 @@ function handleDrop(event: DragEvent): void {
 }
 
 function handleInput(): void {
-  if (removeUnsafeEditorImages()) {
+  if (normalizeEditorImagesForDisplay()) {
     emit('update:modelValue', currentHtml());
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
@@ -195,6 +196,7 @@ function insertImageUrl(): void {
   quill.setSelection(index, savedRange?.length ?? 0, 'silent');
   quill.insertEmbed(index, 'image', url, 'user');
   quill.setSelection(index + 1, 0, 'silent');
+  normalizeEditorImagesForDisplay();
   emit('update:modelValue', currentHtml());
   closeImageDialog();
 }
@@ -216,7 +218,8 @@ function currentHtml(): string {
   return normalizeNotesHtml(quill.root.innerHTML);
 }
 
-function removeUnsafeEditorImages(): boolean {
+/// Keeps editor display images proxied while preserving canonical external URLs in emitted HTML.
+function normalizeEditorImagesForDisplay(): boolean {
   if (!quill) {
     return false;
   }
@@ -227,7 +230,10 @@ function removeUnsafeEditorImages(): boolean {
     if (isUnsafeImageSource(source)) {
       image.remove();
       removed = true;
+      return;
     }
+
+    image.setAttribute('src', displayImageSource(source));
   });
   return removed;
 }

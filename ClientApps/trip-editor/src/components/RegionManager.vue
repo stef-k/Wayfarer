@@ -22,6 +22,7 @@ const props = defineProps<{
   editorEndpoint: string;
   antiforgeryToken: string;
   searchActive: boolean;
+  selectedPlaceId: Guid | null;
   searchRegions: EditorRegion[];
   searchPlaceIdsByRegionId: Record<Guid, Guid[]>;
   searchAreaIdsByRegionId: Record<Guid, Guid[]>;
@@ -33,6 +34,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   dirtyStateChanged: [isDirty: boolean];
+  placeSelected: [placeId: Guid];
   searchAddOpened: [requestId: number];
 }>();
 
@@ -90,6 +92,12 @@ const renderedPlaceIdsByRegionId = computed(() => {
   const result = cloneIdRecord(props.searchPlaceIdsByRegionId);
   if (activePlace.value) {
     pushUnique(result, activePlace.value.regionId, activePlace.value.id);
+  }
+  if (props.selectedPlaceId) {
+    const selectedPlace = props.state.placesById[props.selectedPlaceId];
+    if (selectedPlace) {
+      pushUnique(result, selectedPlace.regionId, selectedPlace.id);
+    }
   }
 
   return result;
@@ -293,6 +301,13 @@ function activeContextRegions(): EditorRegion[] {
       regions.push(region);
     }
   }
+  if (props.selectedPlaceId) {
+    const selectedPlaceRegionId = props.state.placesById[props.selectedPlaceId]?.regionId;
+    const region = selectedPlaceRegionId ? props.state.regionsById[selectedPlaceRegionId] : null;
+    if (region) {
+      regions.push(region);
+    }
+  }
 
   return regions;
 }
@@ -385,6 +400,18 @@ function isAreaEditOpen(area: EditorArea): boolean {
 function isAreaCreateOpen(region: EditorRegion): boolean {
   return Boolean(!areaDraft.id && areaDraft.regionId === region.id && props.editorSurface.isTargetActive(activeAreaTarget.value));
 }
+
+/// Selects a place from the sidebar without opening an editor or touching persisted state.
+function selectPlace(place: EditorPlace): void {
+  emit('placeSelected', place.id);
+}
+
+/// Opens place editing only after the shared dirty-target guard approves the switch.
+async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
+  if (await openPlaceEdit(place)) {
+    emit('placeSelected', place.id);
+  }
+}
 </script>
 
 <template>
@@ -401,7 +428,7 @@ function isAreaCreateOpen(region: EditorRegion): boolean {
 
     <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-id="activePlace?.id ?? null" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="openPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions">
+    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
       <template #region-editor="{ region }">
         <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>

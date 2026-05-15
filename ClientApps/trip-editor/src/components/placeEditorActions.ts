@@ -43,11 +43,11 @@ export function usePlaceEditorActions(context: any) {
     return true;
   };
 
-  const openPlaceEdit = async (place: EditorPlace): Promise<void> => {
+  const openPlaceEdit = async (place: EditorPlace): Promise<boolean> => {
     const target = buildPlaceEditTarget(place, context.props.state.regionsById[place.regionId]?.name);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
     if (!place.capabilities.canEdit || !(await context.props.editorSurface.activateTarget(target)) || isAlreadyActive) {
-      return;
+      return false;
     }
 
     Object.assign(context.draft, emptyRegionDraft());
@@ -57,6 +57,7 @@ export function usePlaceEditorActions(context: any) {
     context.placeCreateBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
+    return true;
   };
 
   const resetPlaceDraft = (): void => {

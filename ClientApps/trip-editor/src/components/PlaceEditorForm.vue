@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { placeMarkerIconUrl } from '../displayHelpers';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
 
@@ -21,6 +22,8 @@ const markerColorLabel = (color: string): string => {
   const name = color.replace(/^bg-/, '').replace(/[-_]+/g, ' ');
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} marker color`;
 };
+
+const iconLabel = (icon: string): string => `${icon.replace(/[-_]+/g, ' ')} place icon`;
 </script>
 
 <template>
@@ -65,13 +68,23 @@ const markerColorLabel = (color: string): string => {
     </div>
 
     <div class="trip-editor-grid">
-      <label class="trip-editor-field">
-        <span>Icon</span>
-        <select v-model="props.draft.iconName">
-          <option v-for="icon in props.state.options.iconNames" :key="icon" :value="icon">{{ icon }}</option>
-        </select>
+      <fieldset class="trip-editor-field trip-editor-place-icon-field">
+        <legend>Icon</legend>
+        <div class="trip-editor-place-icon-grid" role="radiogroup" aria-label="Icon">
+          <label
+            v-for="icon in props.state.options.iconNames"
+            :key="icon"
+            class="trip-editor-place-icon-choice"
+            :class="{ 'trip-editor-place-icon-choice--selected': props.draft.iconName === icon }"
+            :title="iconLabel(icon)"
+          >
+            <input v-model="props.draft.iconName" class="trip-editor-place-icon-choice__input" type="radio" name="iconName" :value="icon" :aria-label="iconLabel(icon)" />
+            <img :src="placeMarkerIconUrl(icon, props.draft.markerColor || 'bg-blue')" width="24" height="39" alt="" data-place-icon-choice />
+            <span>{{ icon }}</span>
+          </label>
+        </div>
         <small v-for="message in props.fieldErrors('iconName')" :key="message">{{ message }}</small>
-      </label>
+      </fieldset>
       <fieldset class="trip-editor-field trip-editor-marker-color-field">
         <legend>Marker Color</legend>
         <div class="trip-editor-marker-swatch-group" role="radiogroup" aria-label="Marker Color">

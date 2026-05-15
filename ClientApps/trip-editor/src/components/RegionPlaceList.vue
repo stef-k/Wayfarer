@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { placeMarkerIconUrl, placeMarkerLabel } from '../displayHelpers';
 import type { EditorArea, EditorPlace, EditorRegion, EditorTripState, Guid } from '../types';
 
 declare global {
@@ -30,6 +31,7 @@ const emit = defineEmits<{
   editArea: [area: EditorArea];
   editPlace: [place: EditorPlace];
   editRegion: [region: EditorRegion];
+  selectPlace: [place: EditorPlace];
   areaReorder: [regionId: Guid, ids: Guid[], previousIds: Guid[]];
   placeReorder: [regionId: Guid, ids: Guid[], previousIds: Guid[]];
   regionReorder: [ids: Guid[], previousIds: Guid[]];
@@ -65,6 +67,20 @@ watch(
       collapsedRegionIds.value = new Set(searchCollapsedSnapshot.value);
       searchCollapsedSnapshot.value = null;
     }
+  }
+);
+
+watch(
+  () => props.activePlaceId,
+  async placeId => {
+    if (!placeId) {
+      return;
+    }
+
+    await nextTick();
+    regionList.value
+      ?.querySelector<HTMLElement>(`[data-place-id="${placeId}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
   }
 );
 
@@ -267,6 +283,9 @@ function toggleRegion(regionId: Guid): void {
             class="trip-editor-place-row"
             :class="{ 'trip-editor-place-row--active': props.activePlaceId === place.id }"
             :data-place-id="place.id"
+            tabindex="0"
+            @click="emit('selectPlace', place)"
+            @keydown.enter.prevent="emit('selectPlace', place)"
           >
             <button
               v-if="!region.isShadow"
@@ -278,9 +297,15 @@ function toggleRegion(regionId: Guid): void {
             >
               <span aria-hidden="true">::</span>
             </button>
-            <span>{{ place.name }}</span>
-            <small v-if="place.visitSummary.isVisited">{{ place.visitSummary.visitCount }} visit(s)</small>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editPlace', place)">Edit</button>
+            <span class="trip-editor-place-row__icon" aria-hidden="true">
+              <img :src="placeMarkerIconUrl(place.iconName, place.markerColor)" width="24" height="39" alt="" data-sidebar-place-icon />
+              <span v-if="place.visitSummary.isVisited" class="trip-editor-place-row__visit-badge">{{ place.visitSummary.visitCount === 1 ? '✓' : place.visitSummary.visitCount }}</span>
+            </span>
+            <span class="trip-editor-place-row__content">
+              <span class="trip-editor-place-row__name">{{ place.name }}</span>
+              <small v-if="place.visitSummary.isVisited">{{ placeMarkerLabel(place) }}</small>
+            </span>
+            <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">Edit</button>
           </li>
           <li v-if="props.activePlaceId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
             <slot name="place-editor" :place="place"></slot>

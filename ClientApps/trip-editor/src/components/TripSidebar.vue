@@ -23,6 +23,7 @@ const props = defineProps<{
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
   hiddenSegmentIds: ReadonlySet<Guid>;
+  selectedPlaceId: Guid | null;
   pendingSearchAdd: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null;
   coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
   polygonEditor: { startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void };
@@ -37,6 +38,7 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
+  placeSelected: [placeId: Guid];
   searchAddOpened: [requestId: number];
 }>();
 
@@ -203,12 +205,14 @@ function normalize(value: string): string {
       :coordinate-picker="coordinatePicker"
       :polygon-editor="polygonEditor"
       :pending-search-add="pendingSearchAdd"
+      :selected-place-id="selectedPlaceId"
       :search-active="isSearchActive"
       :search-regions="sidebarSearch.regions"
       :search-place-ids-by-region-id="sidebarSearch.placesByRegionId"
       :search-area-ids-by-region-id="sidebarSearch.areasByRegionId"
       @mutation-applied="result => emit('mutationApplied', result)"
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
+      @place-selected="placeId => emit('placeSelected', placeId)"
       @search-add-opened="requestId => emit('searchAddOpened', requestId)"
     />
 

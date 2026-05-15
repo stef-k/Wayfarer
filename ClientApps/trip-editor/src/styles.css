@@ -182,6 +182,55 @@ body {
   padding: 0;
 }
 
+.trip-editor-place-icon-field {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.trip-editor-place-icon-grid {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  max-height: 14rem;
+  min-width: 0;
+  overflow: auto;
+}
+
+.trip-editor-place-icon-choice {
+  align-items: center;
+  background: var(--trip-editor-field-bg);
+  border: 1px solid var(--trip-editor-field-border);
+  border-radius: 6px;
+  cursor: pointer;
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+  margin: 0;
+  min-width: 0;
+  padding: 0.4rem;
+}
+
+.trip-editor-place-icon-choice--selected {
+  border-color: #bfdbfe;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.35);
+}
+
+.trip-editor-place-icon-choice__input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.trip-editor-place-icon-choice span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .trip-editor-marker-swatch-group {
   display: flex;
   flex-wrap: wrap;
@@ -428,10 +477,65 @@ body {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.trip-editor-place-row {
+  cursor: pointer;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.trip-editor-place-row:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 .trip-editor-place-row > span,
 .trip-editor-area-row > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.trip-editor-place-row__icon {
+  align-items: end;
+  display: inline-flex;
+  height: 2.55rem;
+  justify-content: center;
+  position: relative;
+  width: 1.75rem;
+}
+
+.trip-editor-place-row__visit-badge,
+.trip-editor-map-marker__badge {
+  align-items: center;
+  background: #198754;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.63rem;
+  font-weight: 700;
+  height: 1rem;
+  justify-content: center;
+  min-width: 1rem;
+  padding: 0 0.15rem;
+  position: absolute;
+  right: -0.35rem;
+  top: -0.1rem;
+}
+
+.trip-editor-place-row__content {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.trip-editor-place-row__name {
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trip-editor-place-row .btn {
+  justify-self: end;
+  min-width: max-content;
 }
 
 .trip-editor-area-list {
@@ -509,6 +613,64 @@ body {
   /* Keep Leaflet in the remaining map shell space when optional map-work controls mount. */
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.trip-editor-map-marker {
+  background: transparent;
+  border: 0;
+}
+
+.trip-editor-map-marker__halo {
+  border: 3px solid #0d6efd;
+  border-radius: 999px;
+  box-shadow: 0 0 0.75rem rgba(13, 110, 253, 0.8);
+  display: none;
+  height: 3rem;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -62%);
+  width: 3rem;
+}
+
+.trip-editor-map-marker__image {
+  display: block;
+  height: 45px;
+  position: relative;
+  width: 28px;
+  z-index: 1;
+}
+
+.trip-editor-map-marker--selected .trip-editor-map-marker__halo {
+  display: block;
+}
+
+.trip-editor-map-marker__badge {
+  right: -0.45rem;
+  top: -0.25rem;
+  z-index: 2;
+}
+
+.trip-editor-place-popup__content {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 18rem;
+}
+
+.trip-editor-place-popup__notes {
+  border-top: 1px solid var(--trip-editor-border);
+  max-height: 7rem;
+  overflow: hidden;
+  padding-top: 0.35rem;
+}
+
+.trip-editor-place-popup__notes img {
+  display: block;
+  height: auto;
+  margin-top: 0.25rem;
+  max-height: 4rem;
+  max-width: 100%;
 }
 
 .trip-editor-map-search {

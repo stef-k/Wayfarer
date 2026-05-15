@@ -20,6 +20,7 @@ const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
+const selectedPlaceId = ref<Guid | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
@@ -53,7 +54,13 @@ const activeEditorTarget = computed(() => editorSurface.activeTarget.value);
 
 watch(
   () => editorSurface.activeTarget.value?.identity,
-  () => mapAdapter?.clearSearchPreview()
+  () => {
+    mapAdapter?.clearSearchPreview();
+    const target = editorSurface.activeTarget.value;
+    if (target?.kind === 'place' && target.mode === 'edit' && target.entityId && state.value?.placesById[target.entityId]) {
+      selectPlace(target.entityId, { focusMap: true });
+    }
+  }
 );
 
 onMounted(async () => {
@@ -68,8 +75,10 @@ onMounted(async () => {
       throw new Error('Trip Editor map element was unavailable after the workspace rendered.');
     }
 
-    mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl);
-    mapAdapter.render(loadedState, hiddenSegmentIds.value);
+    mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl, {
+      onPlaceSelected: placeId => selectPlace(placeId, { focusMap: false, openPopup: true })
+    });
+    mapAdapter.render(loadedState, hiddenSegmentIds.value, selectedPlaceId.value);
   } catch (loadError) {
     error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
     isLoading.value = false;
@@ -88,7 +97,24 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
   }
 
   state.value = { ...state.value, metadata };
-  mapAdapter?.render(state.value, hiddenSegmentIds.value);
+  mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
+};
+
+/// Updates UI-only place selection shared by the sidebar and map marker halo.
+const selectPlace = (placeId: Guid, options: { focusMap?: boolean; openPopup?: boolean } = {}): void => {
+  if (!state.value) {
+    selectedPlaceId.value = null;
+    return;
+  }
+
+  if (!state.value.placesById[placeId]) {
+    selectedPlaceId.value = null;
+    mapAdapter?.selectPlace(state.value, null);
+    return;
+  }
+
+  selectedPlaceId.value = placeId;
+  mapAdapter?.selectPlace(state.value, placeId, { focus: options.focusMap, openPopup: options.openPopup });
 };
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
@@ -224,15 +250,19 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     next.areaOrderByRegionId[regionId] = next.areaOrderByRegionId[regionId].filter(id => next.areasById[id]);
   });
 
+  if (selectedPlaceId.value && !next.placesById[selectedPlaceId.value]) {
+    selectedPlaceId.value = null;
+  }
+
   state.value = next;
-  mapAdapter?.render(next, hiddenSegmentIds.value);
+  mapAdapter?.render(next, hiddenSegmentIds.value, selectedPlaceId.value);
 };
 
 /// Updates client-session-only segment visibility without touching the API contract.
 const updateHiddenSegmentIds = (ids: Set<string>): void => {
   hiddenSegmentIds.value = ids;
   if (state.value) {
-    mapAdapter?.render(state.value, hiddenSegmentIds.value);
+    mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
   }
 };
 
@@ -299,6 +329,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :trip-index-url="props.config.tripIndexUrl"
         :has-region-draft-changes="hasRegionDraftChanges"
         :hidden-segment-ids="hiddenSegmentIds"
+        :selected-place-id="selectedPlaceId"
         :pending-search-add="pendingSearchAdd"
         :coordinate-picker="coordinatePicker"
         :polygon-editor="polygonEditor"
@@ -307,6 +338,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
+        @place-selected="placeId => selectPlace(placeId, { focusMap: true })"
         @search-add-opened="handleSearchAddOpened"
       />
       <main class="trip-editor-map-shell">
