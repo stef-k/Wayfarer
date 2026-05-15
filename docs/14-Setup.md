@@ -26,7 +26,7 @@ Frontend Development
   - Configuration: `frontend.config.yaml`
   - Convention: JS files in `wwwroot/js/Areas/{Area}/{Controller}/{Action}.js` auto-link to matching views.
   - Development: runs unbundled for debugging.
-  - Production: run `dotnet mvcfrontendkit build` to generate minified bundles in `/dist`.
+  - Production: run `dotnet frontend build` to generate minified bundles in `/dist`.
 - **Trip Editor**: Vue/Vite builds static assets under `wwwroot/vite/trip-editor`.
   - Run `npm ci` and `npm run build` before publishing when building on the server.
   - Generated Vite output is not committed. Production still runs as one ASP.NET Core app with no Node runtime service or SSR server.
