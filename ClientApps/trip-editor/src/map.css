@@ -210,7 +210,11 @@
 .trip-editor-map-search__results {
   display: grid;
   gap: 0.35rem;
+  max-height: min(18rem, 42vh);
   max-width: min(760px, 100%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.2rem;
 }
 
 .trip-editor-map-search__result {

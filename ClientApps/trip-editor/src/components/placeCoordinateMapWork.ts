@@ -1,8 +1,9 @@
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import type { CoordinatePickOptions } from '../map/leafletAdapter';
-import type { EditorCoordinate, EditorPlaceDraft } from '../types';
+import type { EditorCoordinate, EditorPlaceDraft, Guid } from '../types';
 
 export type PlaceCoordinatePicker = {
+  applyPlaceDraftCoordinate?: (placeId: Guid, coordinate: EditorCoordinate) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
 };
 
@@ -47,6 +48,9 @@ export function beginPlaceCoordinateMapWork(
       if (isValidCoordinate(state.coordinate)) {
         draft.latitude = state.coordinate.latitude;
         draft.longitude = state.coordinate.longitude;
+        if (draft.id) {
+          coordinatePicker.applyPlaceDraftCoordinate?.(draft.id, state.coordinate);
+        }
       }
       stopPlaceCoordinatePick(state);
     },

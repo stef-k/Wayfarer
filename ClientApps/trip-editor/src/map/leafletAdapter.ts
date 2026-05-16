@@ -16,6 +16,7 @@ export type InitialMapViewSource = 'url' | 'saved' | 'fit-bounds' | 'fallback';
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>, selectedPlaceId?: Guid | null) => void;
+  applyPlaceDraftCoordinate: (placeId: Guid, coordinate: EditorCoordinate) => void;
   clearSearchPreview: () => void;
   selectPlace: (state: EditorTripState, placeId: Guid | null, options?: SelectPlaceOptions) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
@@ -99,6 +100,16 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
 
   return {
     render,
+    applyPlaceDraftCoordinate: (placeId, coordinate) => {
+      const marker = placeMarkers.get(placeId);
+      if (!marker) {
+        return;
+      }
+
+      marker.setLatLng([coordinate.latitude, coordinate.longitude]);
+      applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
+      updateMapViewDataset();
+    },
     clearSearchPreview: searchPreview.clear,
     selectPlace: (state, placeId, selectOptions = {}) => {
       selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;

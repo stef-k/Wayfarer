@@ -82,6 +82,34 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     expect(forbidden(), 'Canceling coordinate pick must not call geocode/search providers.').toEqual([]);
   });
 
+  test('edit-place Done applies the draft coordinate and moves the selected marker', async ({ page }) => {
+    await useMapWorkViewport(page);
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    const mutations = watchEditorMutations(page);
+
+    await openEditablePlace(page);
+    await expectDraftCoordinates(page, { latitude: '10', longitude: '20' });
+    const originalAnchor = await markerAnchor(page.getByTitle(editablePlaceName));
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.58, yRatio: 0.44 });
+    const previewAnchor = await markerAnchor(page.getByTitle('Selected place location preview'));
+
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    const form = page.locator('#trip-editor-place-form');
+    await expect(form.getByLabel('Latitude')).not.toHaveValue('10');
+    await expect(form.getByLabel('Longitude')).not.toHaveValue('20');
+    await expect(page.getByTitle('Selected place location preview')).toHaveCount(0);
+    await expect(page.locator(`.trip-editor-map-marker--selected[title="${editablePlaceName}"]`)).toBeVisible();
+
+    const selectedAnchor = await markerAnchor(page.getByTitle(editablePlaceName));
+    expect(Math.hypot(selectedAnchor.x - originalAnchor.x, selectedAnchor.y - originalAnchor.y), 'Selected marker should move away from the saved coordinate.').toBeGreaterThan(20);
+    expect(Math.abs(selectedAnchor.x - previewAnchor.x), 'Selected marker should move to the picked preview x-position.').toBeLessThanOrEqual(3);
+    expect(Math.abs(selectedAnchor.y - previewAnchor.y), 'Selected marker should move to the picked preview y-position.').toBeLessThanOrEqual(16);
+    expect(mutations(), 'Done must move only the client draft marker and must not persist.').toEqual([]);
+  });
+
   test('edit-place expanded enters map-work and returns to expanded surface', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
@@ -300,6 +328,12 @@ async function expectDraftCoordinates(page: Page, values: { latitude: string; lo
   const form = page.locator('#trip-editor-place-form');
   await expect(form.getByLabel('Latitude')).toHaveValue(values.latitude);
   await expect(form.getByLabel('Longitude')).toHaveValue(values.longitude);
+}
+
+async function markerAnchor(locator: Locator): Promise<{ x: number; y: number }> {
+  const box = await locator.boundingBox();
+  expect(box, 'Expected marker element to have a rendered box.').not.toBeNull();
+  return { x: box!.x + box!.width / 2, y: box!.y + box!.height };
 }
 
 async function expectLoadedImages(images: Locator): Promise<void> {

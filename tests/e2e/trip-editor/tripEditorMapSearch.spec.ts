@@ -240,6 +240,36 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(mapSearch.getByRole('button', { name: 'Result for athens acropolis' })).toBeVisible();
   });
 
+  test('map search contains long result lists without expanding the app page', async ({ page }, testInfo) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signIn(page);
+    const state = await loadEditorState(page);
+    state.options.limits.nominatimSearchLimit = 36;
+    await routeEditorState(page, state);
+    await routeGeocode(page, async route => fulfillGeocode(route, manyResults(36), 'contained results'));
+
+    await page.goto(absoluteUrl(editorPath));
+    await expectMountedWorkspace(page);
+    const beforeSearchHeight = await pageHeight(page);
+    await runSearch(page, 'contained results');
+
+    const resultsPanel = page.locator('.trip-editor-map-search__results');
+    await expect(resultsPanel).toBeVisible();
+    await expect(resultsPanel.getByRole('button')).toHaveCount(36);
+    await expectContainedResultsPanel(resultsPanel);
+    expect(await pageHeight(page), 'Desktop search results must not expand the overall page height.').toBeLessThanOrEqual(beforeSearchHeight + 4);
+    await captureEvidence(page, testInfo, 'map-search-contained-results-dark-desktop');
+
+    await page.setViewportSize({ width: 520, height: 760 });
+    await page.reload();
+    await expectMountedWorkspace(page);
+    const beforeNarrowSearchHeight = await pageHeight(page);
+    await runSearch(page, 'contained results');
+    await expectContainedResultsPanel(resultsPanel);
+    expect(await pageHeight(page), 'Narrow search results should stay bounded by the internal results panel.').toBeLessThanOrEqual(beforeNarrowSearchHeight + 340);
+  });
+
   test('result preview marker appears, clears, and search-add opens the existing Add Place draft without saving', async ({ page }, testInfo) => {
     await signIn(page);
     let saveCalls = 0;
@@ -358,6 +388,27 @@ async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Pr
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
+async function expectContainedResultsPanel(resultsPanel: Locator): Promise<void> {
+  const metrics = await resultsPanel.evaluate(element => {
+    const styles = getComputedStyle(element);
+    return {
+      clientHeight: element.clientHeight,
+      maxHeight: styles.maxHeight,
+      overflowY: styles.overflowY,
+      scrollHeight: element.scrollHeight
+    };
+  });
+
+  expect(metrics.maxHeight, 'Search results should have a CSS max-height.').not.toBe('none');
+  expect(['auto', 'scroll']).toContain(metrics.overflowY);
+  expect(metrics.clientHeight, 'Search results panel should stay under the bounded max-height.').toBeLessThanOrEqual(parseFloat(metrics.maxHeight) + 2);
+  expect(metrics.scrollHeight, 'Long search results should scroll inside the panel.').toBeGreaterThan(metrics.clientHeight + 20);
+}
+
+async function pageHeight(page: Page): Promise<number> {
+  return await page.evaluate(() => document.scrollingElement?.scrollHeight ?? document.documentElement.scrollHeight);
+}
+
 async function routeGeocode(page: Page, handler: (route: Route) => Promise<void>): Promise<void> {
   await page.route(geocodePath, handler);
 }
@@ -387,6 +438,15 @@ function result(name: string): unknown {
     latitude: 37.9715,
     longitude: 23.7257
   };
+}
+
+function manyResults(count: number): unknown[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...result(`Contained Result ${String(index + 1).padStart(2, '0')}`),
+    id: `nominatim:contained-${index + 1}`,
+    latitude: 37.9 + index * 0.001,
+    longitude: 23.7 + index * 0.001
+  }));
 }
 
 function collectExternalProviderCalls(page: Page): () => string[] {
