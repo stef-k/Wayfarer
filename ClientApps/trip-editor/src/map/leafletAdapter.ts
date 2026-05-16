@@ -11,6 +11,7 @@ export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 export type FitAllGeometryResult = 'moved' | 'no-geometry';
 export type FocusSavedTripViewResult = 'moved' | 'missing-view';
 export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry' | 'unsupported-target';
+export type InitialMapViewSource = 'url' | 'saved' | 'fit-bounds' | 'fallback';
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>, selectedPlaceId?: Guid | null) => void;
@@ -44,7 +45,16 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
   const placeMarkers = new Map<Guid, L.Marker>();
+  const updateMapViewDataset = (): void => {
+    const center = map.getCenter();
+    element.dataset.tripEditorMapLat = center.lat.toFixed(6);
+    element.dataset.tripEditorMapLng = center.lng.toFixed(6);
+    element.dataset.tripEditorMapZoom = String(map.getZoom());
+  };
   let selectedPlaceId: Guid | null = null;
+  let initialViewApplied = false;
+
+  map.on('moveend zoomend', updateMapViewDataset);
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
@@ -75,7 +85,11 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       }
     });
 
-    fitMapToState(map, state);
+    if (!initialViewApplied) {
+      initialViewApplied = true;
+      applyInitialMapView(map, state);
+    }
+    updateMapViewDataset();
     applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
   };
 
@@ -85,6 +99,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     selectPlace: (state, placeId, selectOptions = {}) => {
       selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;
       applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
+      if (!selectOptions.openPopup) {
+        map.closePopup();
+      }
       if (selectedPlaceId) {
         focusSelectedPlace(map, state, placeMarkers, selectedPlaceId, selectOptions);
       }
@@ -111,6 +128,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       coordinatePick.dispose();
       areaPolygonWork.dispose();
       segmentRouteWork.dispose();
+      map.off('moveend zoomend', updateMapViewDataset);
       map.remove();
     }
   };
@@ -313,7 +331,7 @@ const placeMarkerIcon = (place: EditorPlace): L.DivIcon => {
 
   return L.divIcon({
     className: 'trip-editor-map-marker',
-    html: `<span class="trip-editor-map-marker__halo" aria-hidden="true"></span><img class="trip-editor-map-marker__image" src="${placeMarkerIconUrl(place.iconName, place.markerColor)}" width="28" height="45" alt="${escapeHtml(placeMarkerLabel(place))}" data-place-marker-icon="${escapeHtml(place.id)}">${visitBadge}`,
+    html: `<span class="trip-editor-map-marker__halo" aria-hidden="true"></span><img class="trip-editor-map-marker__image" src="${placeMarkerIconUrl(place.iconName, place.markerColor)}" width="28" height="45" alt="${escapeHtml(placeMarkerLabel(place))}" style="--trip-editor-selected-marker-color: ${markerSelectionColor(place.markerColor)}" data-place-marker-icon="${escapeHtml(place.id)}">${visitBadge}`,
     iconSize: [36, 50],
     iconAnchor: [18, 50],
     popupAnchor: [0, -45]
@@ -386,13 +404,22 @@ const fallbackSegmentCoordinates = (segment: EditorSegment, state: EditorTripSta
   return from && to ? [[from.longitude, from.latitude], [to.longitude, to.latitude]] : null;
 };
 
-// Preserves the existing render-time auto-fit while toolbar commands remain explicit navigation calls.
-const fitMapToState = (map: LeafletMap, state: EditorTripState): void => {
-  if (fitBounds(map, allGeometryBounds(state)) === 'moved') {
-    return;
+const applyInitialMapView = (map: LeafletMap, state: EditorTripState): InitialMapViewSource => {
+  const urlView = readUrlMapView(window.location.search);
+  if (urlView) {
+    map.setView([urlView.center.latitude, urlView.center.longitude], urlView.zoom);
+    return 'url';
   }
 
-  focusRenderFallbackView(map, state.metadata);
+  if (focusSavedTripView(map, state.metadata) === 'moved') {
+    return 'saved';
+  }
+
+  if (fitAllGeometry(map, state) === 'moved') {
+    return 'fit-bounds';
+  }
+
+  return 'fallback';
 };
 
 const fitAllGeometry = (map: LeafletMap, state: EditorTripState): FitAllGeometryResult =>
@@ -405,14 +432,6 @@ const focusSavedTripView = (map: LeafletMap, metadata: EditorTripMetadata): Focu
 
   map.setView([metadata.center.latitude, metadata.center.longitude], metadata.zoom);
   return 'moved';
-};
-
-const focusRenderFallbackView = (map: LeafletMap, metadata: EditorTripMetadata): void => {
-  if (!metadata.center || !isFiniteCoordinate(metadata.center)) {
-    return;
-  }
-
-  map.setView([metadata.center.latitude, metadata.center.longitude], metadata.zoom ?? 8);
 };
 
 const focusActiveEntity = (map: LeafletMap, state: EditorTripState, target: EditorTarget | null): FocusActiveEntityResult => {
@@ -616,6 +635,39 @@ const extendLongitudeLatitude = (bounds: L.LatLngBounds, [longitude, latitude]: 
 
 const isFiniteCoordinate = (coordinate: EditorCoordinate): boolean =>
   Number.isFinite(coordinate.latitude) && Number.isFinite(coordinate.longitude);
+
+const readUrlMapView = (search: string): { center: EditorCoordinate; zoom: number } | null => {
+  const parameters = new URLSearchParams(search);
+  const latitudeValue = parameters.get('lat');
+  const longitudeValue = parameters.get('lng');
+  const zoomValue = parameters.get('zoom');
+  if (latitudeValue === null || longitudeValue === null || zoomValue === null) {
+    return null;
+  }
+
+  const latitude = Number(latitudeValue);
+  const longitude = Number(longitudeValue);
+  const zoom = Number(zoomValue);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(zoom) || zoom < 0 || zoom > 19) {
+    return null;
+  }
+
+  const center = { latitude, longitude };
+  return isFiniteCoordinate(center) ? { center, zoom } : null;
+};
+
+const markerSelectionColor = (markerColor: string | null | undefined): string => ({
+  'bg-blue': '#0d6efd',
+  'bg-cyan': '#0dcaf0',
+  'bg-green': '#198754',
+  'bg-indigo': '#6610f2',
+  'bg-orange': '#fd7e14',
+  'bg-pink': '#d63384',
+  'bg-purple': '#6f42c1',
+  'bg-red': '#dc3545',
+  'bg-teal': '#20c997',
+  'bg-yellow': '#ffc107'
+})[markerColor ?? ''] ?? '#0d6efd';
 
 const segmentLabel = (segment: EditorSegment, state: EditorTripState): string => {
   const fromName = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;

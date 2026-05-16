@@ -13,6 +13,7 @@ declare global {
 
 const props = defineProps<{
   activePlaceId: Guid | null;
+  activePlaceEditorId: Guid | null;
   activeAreaId: Guid | null;
   activeRegionId: Guid | null;
   areaIdsByRegionId: Record<Guid, Guid[]>;
@@ -307,14 +308,14 @@ function toggleRegion(regionId: Guid): void {
             </span>
             <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">Edit</button>
           </li>
-          <li v-if="props.activePlaceId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
+          <li v-if="props.activePlaceEditorId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
             <slot name="place-editor" :place="place"></slot>
           </li>
         </template>
         <li v-if="orderedAreas(region.id).length > 0" class="trip-editor-child-section">
           <span>Areas</span>
         </li>
-        <li v-show="!isCollapsed(region.id)" :data-area-list-region-id="region.id" class="trip-editor-area-list">
+        <li v-if="orderedAreas(region.id).length > 0" v-show="!isCollapsed(region.id)" :data-area-list-region-id="region.id" class="trip-editor-area-list">
           <template v-for="area in orderedAreas(region.id)" :key="area.id">
             <div
               class="trip-editor-area-row"
@@ -341,12 +342,14 @@ function toggleRegion(regionId: Guid): void {
           </template>
         </li>
       </ul>
-      <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
-        Add Place
-      </button>
-      <button v-if="canAddArea(region)" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addArea', region)">
-        Add Area
-      </button>
+      <div v-if="!region.isShadow || canAddArea(region)" class="trip-editor-region-card__add-actions">
+        <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
+          Add Place
+        </button>
+        <button v-if="canAddArea(region)" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addArea', region)">
+          Add Area
+        </button>
+      </div>
       <slot name="add-place-editor" :region="region"></slot>
       <slot name="add-area-editor" :region="region"></slot>
     </article>

@@ -84,6 +84,11 @@ export function usePlaceEditorActions(context: any) {
   };
 
   const cancelPlaceDraft = async (): Promise<void> => {
+    if (context.placeDraft.id && context.props.selectedPlaceId === context.placeDraft.id) {
+      await context.props.clearSelectedPlace();
+      return;
+    }
+
     await context.props.editorSurface.closeActiveTarget('Discard unsaved place changes?');
   };
 

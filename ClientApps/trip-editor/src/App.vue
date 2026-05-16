@@ -39,13 +39,49 @@ const updatedLabel = computed(() =>
   state.value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(state.value.metadata.updatedAt)) : ''
 );
 const isMapWorkActive = computed(() => editorSurface.isMapWorkActive.value);
-const toolbarContext = computed(() => {
+const selectedPlace = computed(() => selectedPlaceId.value && state.value ? state.value.placesById[selectedPlaceId.value] ?? null : null);
+const selectedPlaceRegionName = computed(() => selectedPlace.value && state.value ? state.value.regionsById[selectedPlace.value.regionId]?.name ?? null : null);
+const toolbarEyebrow = computed(() => {
   if (editorSurface.mapWork.value) {
-    const status = editorSurface.mapWork.value.statusText;
-    return `${editorSurface.mapWork.value.modeName}: ${typeof status === 'function' ? status() : status}`;
+    return 'Map work';
   }
 
-  return editorSurface.activeTarget.value?.title ?? 'Trip map';
+  if (selectedPlace.value) {
+    return 'Selected place';
+  }
+
+  if (editorSurface.activeTarget.value) {
+    return `${editorSurface.activeTarget.value.mode === 'add' ? 'New' : 'Editing'} ${editorSurface.activeTarget.value.kind}`;
+  }
+
+  return 'Map status';
+});
+const toolbarTitle = computed(() => {
+  if (editorSurface.mapWork.value) {
+    return editorSurface.mapWork.value.modeName;
+  }
+
+  return selectedPlace.value?.name ?? editorSurface.activeTarget.value?.title ?? 'Trip map';
+});
+const toolbarDetail = computed(() => {
+  if (editorSurface.mapWork.value) {
+    const status = editorSurface.mapWork.value.statusText;
+    return typeof status === 'function' ? status() : status;
+  }
+
+  if (navigationStatus.value) {
+    return navigationStatus.value;
+  }
+
+  if (selectedPlace.value) {
+    return selectedPlaceRegionName.value ? `In ${selectedPlaceRegionName.value}` : 'Selected on the map and sidebar';
+  }
+
+  if (editorSurface.activeTarget.value?.subtitle) {
+    return editorSurface.activeTarget.value.subtitle;
+  }
+
+  return `Updated ${updatedLabel.value}`;
 });
 const canFitAllGeometry = computed(() => Boolean(state.value && hasAnyGeometry(state.value)));
 const canRecenterSavedView = computed(() => Boolean(state.value && hasSavedTripView(state.value.metadata)));
@@ -100,7 +136,7 @@ const applyMetadata = (metadata: EditorTripMetadata): void => {
   mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
 };
 
-/// Updates UI-only place selection shared by the sidebar and map marker halo after guarded editor cleanup.
+/// Updates UI-only place selection shared by the sidebar, toolbar, and map marker halo after guarded editor cleanup.
 const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPopup?: boolean } = {}): Promise<boolean> => {
   if (!state.value) {
     selectedPlaceId.value = null;
@@ -113,24 +149,66 @@ const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPop
     return false;
   }
 
-  if (!(await closeActivePlaceEditBeforeSelection(placeId))) {
+  if (selectedPlaceId.value === placeId) {
+    const target = editorSurface.activeTarget.value;
+    if (target?.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
+      return true;
+    }
+
+    return await clearSelectedPlace();
+  }
+
+  if (!(await closeActiveEditorBeforeSelection(placeId))) {
     return false;
   }
 
   selectedPlaceId.value = placeId;
   mapAdapter?.selectPlace(state.value, placeId, { focus: options.focusMap, openPopup: options.openPopup });
+  navigationStatus.value = `Selected place: ${state.value.placesById[placeId].name}`;
   return true;
 };
 
-/// Runs the shared dirty-discard flow before selection hides a different active place editor.
-async function closeActivePlaceEditBeforeSelection(placeId: Guid): Promise<boolean> {
+/// Runs the shared dirty-discard flow before selection hides a different active editor.
+async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean> {
   const target = editorSurface.activeTarget.value;
-  if (target?.kind !== 'place' || target.mode !== 'edit' || target.entityId === placeId) {
+  if (!target) {
     return true;
+  }
+
+  if (target.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
+    return true;
+  }
+
+  if (target.kind !== 'place') {
+    return true;
+  }
+
+  if (target.mode === 'add') {
+    return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
   }
 
   return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
 }
+
+/// Clears selected-place context, closing the selected place editor first when that editor owns the selection.
+const clearSelectedPlace = async (): Promise<boolean> => {
+  if (!state.value || !selectedPlaceId.value) {
+    return true;
+  }
+
+  const placeId = selectedPlaceId.value;
+  const target = editorSurface.activeTarget.value;
+  if (target?.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
+    if (!(await editorSurface.closeActiveTarget('Discard unsaved place changes?'))) {
+      return false;
+    }
+  }
+
+  selectedPlaceId.value = null;
+  navigationStatus.value = null;
+  mapAdapter?.selectPlace(state.value, null);
+  return true;
+};
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
 const fitAllGeometry = (): void => {
@@ -267,6 +345,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
 
   if (selectedPlaceId.value && !next.placesById[selectedPlaceId.value]) {
     selectedPlaceId.value = null;
+    navigationStatus.value = null;
   }
 
   state.value = next;
@@ -354,15 +433,15 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @region-draft-dirty-changed="setRegionDraftChanges"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
         :select-place="placeId => selectPlace(placeId, { focusMap: true })"
+        :clear-selected-place="clearSelectedPlace"
         @search-add-opened="handleSearchAddOpened"
       />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">
           <div class="trip-editor-toolbar__context">
-            <span>{{ state.metadata.isPublic ? 'Public trip' : 'Private trip' }}</span>
-            <strong>Updated {{ updatedLabel }}</strong>
-            <small>{{ toolbarContext }}</small>
-            <small v-if="navigationStatus" class="trip-editor-toolbar__status" role="status">{{ navigationStatus }}</small>
+            <span>{{ toolbarEyebrow }}</span>
+            <strong>{{ toolbarTitle }}</strong>
+            <small class="trip-editor-toolbar__status" role="status">{{ toolbarDetail }}</small>
           </div>
           <div class="trip-editor-toolbar__actions">
             <template v-if="!isMapWorkActive">
@@ -371,6 +450,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
                 Recenter Saved Trip View
               </button>
               <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">Focus Active Entity</button>
+              <button v-if="selectedPlace" type="button" class="btn btn-outline-light btn-sm" @click="clearSelectedPlace">Clear Selection</button>
             </template>
           </div>
         </header>

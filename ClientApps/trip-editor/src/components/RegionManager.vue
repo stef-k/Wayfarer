@@ -30,6 +30,7 @@ const props = defineProps<{
   coordinatePicker: PlaceCoordinatePicker;
   polygonEditor: AreaPolygonEditor;
   selectPlace: (placeId: Guid) => Promise<boolean>;
+  clearSelectedPlace: () => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -64,6 +65,7 @@ const orderedRegions = computed(() => props.state.regionOrder.map(id => props.st
 const activeRegion = computed(() => (draft.id ? props.state.regionsById[draft.id] ?? null : null));
 const activePlace = computed(() => (placeDraft.id ? props.state.placesById[placeDraft.id] ?? null : null));
 const activeArea = computed(() => (areaDraft.id ? props.state.areasById[areaDraft.id] ?? null : null));
+const activePlaceEditorId = computed(() => (activePlace.value && isPlaceEditOpen(activePlace.value) ? activePlace.value.id : null));
 const isDraftOpen = computed(() => draft.id !== null || Boolean(draft.name || draft.notesHtml || draft.coverImageRawUrl || draft.centerLatitude || draft.centerLongitude));
 const isPlaceDraftOpen = computed(() => placeDraft.regionId !== null || Boolean(placeDraft.name || placeDraft.notesHtml || placeDraft.address || placeDraft.latitude || placeDraft.longitude));
 const isAreaDraftOpen = computed(() => areaDraft.regionId !== null || Boolean(areaDraft.name || areaDraft.notesHtml || areaDraft.geometry));
@@ -115,7 +117,10 @@ const renderedAreaIdsByRegionId = computed(() => {
 
   return result;
 });
-const forcedExpandedRegionIds = computed(() => new Set(props.searchActive ? renderedRegions.value.map(region => region.id) : []));
+const forcedExpandedRegionIds = computed(() => {
+  const ids = props.searchActive ? renderedRegions.value.map(region => region.id) : activeContextRegions().map(region => region.id);
+  return new Set(ids);
+});
 const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(toRegionDraft(activeRegion.value)) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
 const placeBaselineRequest = computed(() => placeDraft.id ? placeEditBaselineRequest.value ?? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
 const areaBaselineRequest = computed(() => areaDraft.id ? buildAreaRequest(toAreaDraft(activeArea.value, areaDraft.regionId, props.state.options.areaDefaults.fillHex)) : areaCreateBaselineRequest.value ?? buildAreaRequest(emptyAreaDraft(areaDraft.regionId, props.state.options.areaDefaults.fillHex)));
@@ -432,7 +437,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
 
     <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
+    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-editor-id="activePlaceEditorId" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
       <template #region-editor="{ region }">
         <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>

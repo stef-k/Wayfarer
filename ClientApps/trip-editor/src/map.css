@@ -21,6 +21,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  flex: 1 1 16rem;
   min-width: 0;
 }
 
@@ -41,6 +42,7 @@
 
 .trip-editor-toolbar__actions {
   align-items: center;
+  flex: 0 1 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -59,17 +61,7 @@
 }
 
 .trip-editor-map-marker__halo {
-  border: 3px solid #0d6efd;
-  border-radius: 999px;
-  box-shadow: 0 0 0.75rem rgba(13, 110, 253, 0.8);
   display: none;
-  height: 3rem;
-  left: 50%;
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -62%);
-  width: 3rem;
 }
 
 .trip-editor-map-marker__image {
@@ -81,7 +73,14 @@
 }
 
 .trip-editor-map-marker--selected .trip-editor-map-marker__halo {
-  display: block;
+  display: none;
+}
+
+.trip-editor-map-marker--selected .trip-editor-map-marker__image {
+  filter:
+    drop-shadow(0 0 3px var(--trip-editor-selected-marker-color, #0d6efd))
+    drop-shadow(0 0 5px var(--trip-editor-selected-marker-color, #0d6efd));
+  transform: translateY(-2px);
 }
 
 .trip-editor-map-marker__badge {
