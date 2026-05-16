@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -20,7 +20,7 @@ const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]
 const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64');
 
 test.describe.serial('Trip Editor marker and notes parity', () => {
-  test('keeps map markers, sidebar rows, popups, and selection synchronized both directions', async ({ page }) => {
+  test('keeps map markers, sidebar rows, popups, and selection synchronized both directions', async ({ page }, testInfo) => {
     await signIn(page);
     await loadWorkspaceWithMarkerFixture(page);
 
@@ -35,6 +35,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
     await expect(page.locator('.leaflet-popup')).toContainText(firstPlaceName);
     await expect(page.locator('.leaflet-popup')).toContainText('Marker popup rich note');
+    await captureEvidence(page, testInfo, 'map-click-selects-sidebar-status');
 
     await sidebarRow(page, secondPlaceId).click();
     await expectSelectedPlace(page, secondPlaceId);
@@ -42,6 +43,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('.trip-editor-toolbar')).toContainText(secondPlaceName);
     await expect(page.locator('.trip-editor-toolbar__status')).toContainText(`Selected place: ${secondPlaceName}`);
     await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
+    await captureEvidence(page, testInfo, 'sidebar-click-selects-map-status');
 
     await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(firstPlaceName)}`) })).toBeVisible();
@@ -63,7 +65,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectSelectedPlace(page, firstPlaceId);
   });
 
-  test('guards marker and sidebar place selection while a place editor is dirty', async ({ page }) => {
+  test('guards marker and sidebar place selection while a place editor is dirty', async ({ page }, testInfo) => {
     await signIn(page);
     await loadWorkspaceWithMarkerFixture(page);
 
@@ -83,6 +85,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectNotSelected(page, secondPlaceId);
     await expect(page.locator('.trip-editor-toolbar')).toContainText(firstPlaceName);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await captureEvidence(page, testInfo, 'dirty-marker-selection-cancel-keeps-editor');
 
     await sidebarRow(page, secondPlaceId).click();
     const sidebarDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
@@ -284,6 +287,10 @@ async function clickMarker(page: Page, placeId: string): Promise<void> {
   await markerImage(page, placeId).evaluate(element => {
     element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
   });
+}
+
+async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 async function expectPlaceRowDoesNotOverlapEdit(page: Page, placeId: string): Promise<void> {

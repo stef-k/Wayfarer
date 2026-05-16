@@ -170,8 +170,12 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
     return true;
   }
 
-  if (target.kind !== 'place' || target.mode !== 'edit') {
-    return await editorSurface.closeActiveTarget('Discard unsaved editor changes before selecting a place?');
+  if (target.kind !== 'place') {
+    return true;
+  }
+
+  if (target.mode === 'add') {
+    return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
   }
 
   return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');

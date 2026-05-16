@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -79,7 +79,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeDisabled();
   });
 
-  test('initial map load uses URL view before saved view and fit-bounds fallback', async ({ page }) => {
+  test('initial map load uses URL view before saved view and fit-bounds fallback', async ({ page }, testInfo) => {
     await signIn(page);
     await loadWorkspaceWithEditorState(page, state => {
       preparePlaceLocationFocusState(state);
@@ -94,6 +94,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
       state.metadata.zoom = 9;
     });
     await expectMapViewNear(page, { latitude: 37.9838, longitude: 23.7275, zoom: 9 });
+    await captureEvidence(page, testInfo, 'saved-view-load');
 
     await loadWorkspaceWithEditorState(page, state => {
       clearNavigationGeometry(state);
@@ -104,6 +105,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
       addAreaGeometry(state, region!.id, '00000000-0000-0000-0000-000000260104', 'PW initial fit fallback area');
     });
     await expectMapCenterInRange(page, { minLatitude: 36.8, maxLatitude: 38.2, minLongitude: 22.8, maxLongitude: 24.2 });
+    await captureEvidence(page, testInfo, 'fit-bounds-fallback-load');
   });
 
   test('metadata focus falls back to Fit All when saved trip view is missing', async ({ page }) => {
@@ -462,6 +464,10 @@ async function expectMapCenterInRange(page: Page, expected: { minLatitude: numbe
   expect(view.latitude).toBeLessThanOrEqual(expected.maxLatitude);
   expect(view.longitude).toBeGreaterThanOrEqual(expected.minLongitude);
   expect(view.longitude).toBeLessThanOrEqual(expected.maxLongitude);
+}
+
+async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 async function expectMapViewChanged(page: Page, before: MapViewSnapshot, message: string): Promise<void> {
