@@ -13,6 +13,7 @@ declare global {
 
 const props = defineProps<{
   activePlaceId: Guid | null;
+  activePlaceEditorId: Guid | null;
   activeAreaId: Guid | null;
   activeRegionId: Guid | null;
   areaIdsByRegionId: Record<Guid, Guid[]>;
@@ -307,7 +308,7 @@ function toggleRegion(regionId: Guid): void {
             </span>
             <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">Edit</button>
           </li>
-          <li v-if="props.activePlaceId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
+          <li v-if="props.activePlaceEditorId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
             <slot name="place-editor" :place="place"></slot>
           </li>
         </template>
