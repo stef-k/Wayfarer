@@ -439,7 +439,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin-top: 0.4rem;
+  margin-top: 0.55rem;
 }
 
 .trip-editor-icon-button {
@@ -487,12 +487,16 @@ body {
 
 .trip-editor-place-row {
   cursor: pointer;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  display: flex;
 }
 
 .trip-editor-place-row:focus-visible {
   outline: 2px solid #93c5fd;
   outline-offset: 2px;
+}
+
+.trip-editor-place-row .trip-editor-place-drag-handle {
+  flex: 0 0 2rem;
 }
 
 .trip-editor-place-row > span,
@@ -504,8 +508,10 @@ body {
 .trip-editor-place-row__icon {
   align-items: end;
   display: inline-flex;
+  flex: 0 0 1.75rem;
   height: 2.55rem;
   justify-content: flex-start;
+  min-width: 1.75rem;
   position: relative;
   width: 1.75rem;
 }
@@ -531,6 +537,7 @@ body {
 
 .trip-editor-place-row__content {
   display: grid;
+  flex: 1 1 auto;
   gap: 0.1rem;
   min-width: 0;
 }

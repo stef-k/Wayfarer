@@ -406,23 +406,31 @@ async function expectRegionAddActionsAttached(page: Page): Promise<void> {
 }
 
 async function expectPlaceIconColumnAligned(page: Page): Promise<void> {
-  const firstIcon = sidebarRow(page, firstPlaceId).locator('.trip-editor-place-row__icon');
-  const secondIcon = sidebarRow(page, secondPlaceId).locator('.trip-editor-place-row__icon');
+  const firstRow = sidebarRow(page, firstPlaceId);
+  const secondRow = sidebarRow(page, secondPlaceId);
+  const firstIcon = firstRow.locator('.trip-editor-place-row__icon');
+  const secondIcon = secondRow.locator('.trip-editor-place-row__icon');
   const firstImage = firstIcon.locator('img[data-sidebar-place-icon]');
   const secondImage = secondIcon.locator('img[data-sidebar-place-icon]');
-  const [firstIconBox, secondIconBox, firstImageBox, secondImageBox] = await Promise.all([
+  const [firstRowBox, secondRowBox, firstIconBox, secondIconBox, firstImageBox, secondImageBox] = await Promise.all([
+    firstRow.boundingBox(),
+    secondRow.boundingBox(),
     firstIcon.boundingBox(),
     secondIcon.boundingBox(),
     firstImage.boundingBox(),
     secondImage.boundingBox()
   ]);
+  expect(firstRowBox, 'First place row should have a rendered bounding box.').not.toBeNull();
+  expect(secondRowBox, 'Second place row should have a rendered bounding box.').not.toBeNull();
   expect(firstIconBox, 'First place icon column should have a rendered bounding box.').not.toBeNull();
   expect(secondIconBox, 'Second place icon column should have a rendered bounding box.').not.toBeNull();
   expect(firstImageBox, 'First place icon should have a rendered bounding box.').not.toBeNull();
   expect(secondImageBox, 'Second place icon should have a rendered bounding box.').not.toBeNull();
 
   const tolerance = 2;
-  expect(Math.abs(firstIconBox!.x - secondIconBox!.x), 'Place icon columns should align consistently across rows.').toBeLessThanOrEqual(tolerance);
+  const firstColumnOffset = firstIconBox!.x - firstRowBox!.x;
+  const secondColumnOffset = secondIconBox!.x - secondRowBox!.x;
+  expect(Math.abs(firstColumnOffset - secondColumnOffset), 'Place icon columns should align consistently within their rows.').toBeLessThanOrEqual(tolerance);
   expect(Math.abs(firstImageBox!.x - firstIconBox!.x), 'First place icon should be left-aligned inside its icon column.').toBeLessThanOrEqual(tolerance);
   expect(Math.abs(secondImageBox!.x - secondIconBox!.x), 'Second place icon should be left-aligned inside its icon column.').toBeLessThanOrEqual(tolerance);
 }
