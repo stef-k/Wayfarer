@@ -1,9 +1,10 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
-import { placeMarkerIconUrl, placeMarkerLabel, placeNotesPreviewHtml } from '../displayHelpers';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
+import { placeMarkerIcon, previewMarkerIcon, regionMarkerIcon } from './markerRendering';
+import { placePopupHtml } from './placePopupRendering';
 import { createSegmentRouteWorkLayer } from './segmentRouteWorkLayer';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
@@ -15,6 +16,7 @@ export type InitialMapViewSource = 'url' | 'saved' | 'fit-bounds' | 'fallback';
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>, selectedPlaceId?: Guid | null) => void;
+  applyPlaceDraftCoordinate: (placeId: Guid, coordinate: EditorCoordinate) => void;
   clearSearchPreview: () => void;
   selectPlace: (state: EditorTripState, placeId: Guid | null, options?: SelectPlaceOptions) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
@@ -57,9 +59,12 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   map.on('moveend zoomend', updateMapViewDataset);
 
   L.tileLayer(tilesUrl, {
-    attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
+    attribution: providerAttribution(window.wayfarerTileConfig?.attribution),
     maxZoom: 19
   }).addTo(map);
+  map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
+  map.attributionControl.getContainer()?.setAttribute('aria-label', 'Map attribution');
+  map.attributionControl.getContainer()?.setAttribute('title', 'Map attribution');
 
   const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set(), nextSelectedPlaceId: Guid | null = selectedPlaceId): void => {
     searchPreview.clear();
@@ -72,7 +77,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
 
     Object.values(state.regionsById).forEach(region => renderRegion(region, layers));
     Object.values(state.areasById).forEach(area => renderArea(area, layers));
-    Object.values(state.placesById).forEach(place => renderPlace(place, layers, coordinatePick, placeMarkers, () => {
+    Object.values(state.placesById).forEach(place => renderPlace(place, state, layers, coordinatePick, placeMarkers, () => {
       if (coordinatePick.isActive()) {
         return false;
       }
@@ -95,6 +100,16 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
 
   return {
     render,
+    applyPlaceDraftCoordinate: (placeId, coordinate) => {
+      const marker = placeMarkers.get(placeId);
+      if (!marker) {
+        return;
+      }
+
+      marker.setLatLng([coordinate.latitude, coordinate.longitude]);
+      applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
+      updateMapViewDataset();
+    },
     clearSearchPreview: searchPreview.clear,
     selectPlace: (state, placeId, selectOptions = {}) => {
       selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;
@@ -148,6 +163,7 @@ const createSearchPreviewLayer = (map: LeafletMap): {
   const show = (coordinate: EditorCoordinate, label: string): void => {
     clear();
     L.marker([coordinate.latitude, coordinate.longitude], {
+      icon: previewMarkerIcon('search', `Search result preview: ${label}`),
       interactive: false,
       keyboard: false,
       title: `Search result preview: ${label}`,
@@ -186,9 +202,11 @@ const createCoordinatePickLayer = (map: LeafletMap): {
   const setPreview = (coordinate: EditorCoordinate): void => {
     layer.clearLayers();
     L.marker([coordinate.latitude, coordinate.longitude], {
+      icon: previewMarkerIcon('coordinate', 'Selected place location preview'),
       interactive: false,
       keyboard: false,
-      title: 'Selected place location preview'
+      title: 'Selected place location preview',
+      alt: 'Selected place location preview'
     }).addTo(layer);
   };
 
@@ -278,16 +296,18 @@ const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
     return;
   }
 
-  L.circleMarker([region.center.latitude, region.center.longitude], {
-    radius: region.isShadow ? 5 : 7,
-    color: region.isShadow ? '#64748b' : '#2563eb',
-    weight: 2,
-    fillOpacity: 0.7
+  L.marker([region.center.latitude, region.center.longitude], {
+    icon: regionMarkerIcon(region),
+    interactive: !region.isShadow,
+    keyboard: !region.isShadow,
+    title: `${region.name} region center`,
+    alt: `${region.name} region center`
   }).bindTooltip(escapeHtml(region.name)).addTo(layers);
 };
 
 const renderPlace = (
   place: EditorPlace,
+  state: EditorTripState,
   layers: LayerGroup,
   coordinatePick: ReturnType<typeof createCoordinatePickLayer>,
   placeMarkers: Map<Guid, L.Marker>,
@@ -299,8 +319,8 @@ const renderPlace = (
 
   const marker = L.marker([place.location.latitude, place.location.longitude], {
     icon: placeMarkerIcon(place),
-    title: placeMarkerLabel(place),
-    alt: placeMarkerLabel(place)
+    title: place.name,
+    alt: place.name
   });
   marker.on('click', async event => {
     if (event.originalEvent) {
@@ -312,7 +332,7 @@ const renderPlace = (
       marker.openPopup();
     }
   });
-  marker.bindPopup(placePopupHtml(place), { className: 'trip-editor-place-popup' });
+  marker.bindPopup(placePopupHtml(place, state.regionsById[place.regionId]?.name), { className: 'trip-editor-place-popup' });
   // Leaflet auto-opens bound popups on marker click; selection must finish first so dirty-discard cancel keeps the old popup/halo.
   const popupMarker = marker as L.Marker & { _openPopup?: (event: LeafletMouseEvent) => void };
   if (popupMarker._openPopup) {
@@ -321,32 +341,6 @@ const renderPlace = (
   coordinatePick.registerMarker(marker, place.location);
   marker.addTo(layers);
   placeMarkers.set(place.id, marker);
-};
-
-/// Uses the static Wayfarer marker PNGs instead of Leaflet defaults so Vite cannot break image paths.
-const placeMarkerIcon = (place: EditorPlace): L.DivIcon => {
-  const visitBadge = place.visitSummary.isVisited
-    ? `<span class="trip-editor-map-marker__badge" title="${escapeHtml(place.visitSummary.visitCount === 1 ? 'Visited' : `Visited ${place.visitSummary.visitCount} times`)}">${escapeHtml(place.visitSummary.visitCount === 1 ? '✓' : String(place.visitSummary.visitCount))}</span>`
-    : '';
-
-  return L.divIcon({
-    className: 'trip-editor-map-marker',
-    html: `<span class="trip-editor-map-marker__halo" aria-hidden="true"></span><img class="trip-editor-map-marker__image" src="${placeMarkerIconUrl(place.iconName, place.markerColor)}" width="28" height="45" alt="${escapeHtml(placeMarkerLabel(place))}" style="--trip-editor-selected-marker-color: ${markerSelectionColor(place.markerColor)}" data-place-marker-icon="${escapeHtml(place.id)}">${visitBadge}`,
-    iconSize: [36, 50],
-    iconAnchor: [18, 50],
-    popupAnchor: [0, -45]
-  });
-};
-
-const placePopupHtml = (place: EditorPlace): string => {
-  const visitText = place.visitSummary.isVisited ? ` · ${place.visitSummary.visitCount} visit(s)` : '';
-  const notesHtml = placeNotesPreviewHtml(place.notesHtml);
-  return [
-    '<div class="trip-editor-place-popup__content">',
-    `<strong>${escapeHtml(place.name)}</strong>${escapeHtml(visitText)}`,
-    notesHtml ? `<div class="trip-editor-place-popup__notes">${notesHtml}</div>` : '',
-    '</div>'
-  ].join('');
 };
 
 function applySelectedPlaceMarker(placeMarkers: Map<Guid, L.Marker>, selectedPlaceId: Guid | null): void {
@@ -656,18 +650,23 @@ const readUrlMapView = (search: string): { center: EditorCoordinate; zoom: numbe
   return isFiniteCoordinate(center) ? { center, zoom } : null;
 };
 
-const markerSelectionColor = (markerColor: string | null | undefined): string => ({
-  'bg-blue': '#0d6efd',
-  'bg-cyan': '#0dcaf0',
-  'bg-green': '#198754',
-  'bg-indigo': '#6610f2',
-  'bg-orange': '#fd7e14',
-  'bg-pink': '#d63384',
-  'bg-purple': '#6f42c1',
-  'bg-red': '#dc3545',
-  'bg-teal': '#20c997',
-  'bg-yellow': '#ffc107'
-})[markerColor ?? ''] ?? '#0d6efd';
+/// Preserves configured provider attribution while ensuring OpenStreetMap remains linked.
+const providerAttribution = (configuredAttribution: string | null | undefined): string => {
+  const attribution = configuredAttribution?.trim() || '&copy; OpenStreetMap contributors';
+  if (/openstreetmap\.org/i.test(attribution)) {
+    return attribution;
+  }
+
+  if (/OpenStreetMap contributors/i.test(attribution)) {
+    return attribution.replace(/OpenStreetMap contributors/gi, '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors');
+  }
+
+  if (/OpenStreetMap/i.test(attribution)) {
+    return attribution.replace(/OpenStreetMap/gi, '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>');
+  }
+
+  return `${attribution} | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors`;
+};
 
 const segmentLabel = (segment: EditorSegment, state: EditorTripState): string => {
   const fromName = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;

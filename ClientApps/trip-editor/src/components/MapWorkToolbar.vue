@@ -32,7 +32,7 @@ watch(
     }
 
     await nextTick();
-    doneButton.value?.focus();
+    doneButton.value?.focus({ preventScroll: true });
   }
 );
 </script>

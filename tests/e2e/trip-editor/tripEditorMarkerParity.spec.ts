@@ -9,12 +9,19 @@ import {
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
+type TripEditorContainmentMetrics = {
+  bodyHeight: number; documentHeight: number; footerTop: number | null; mapHeight: number;
+  sidebarClientHeight: number; sidebarScrollHeight: number; stableOverflow: Array<{ selector: string; overflow: number }>;
+  surfaceBodyOverflowY: string; viewportHeight: number; workspaceHeight: number;
+};
 
 const regionId = '00000000-0000-0000-0000-000000283101';
 const firstPlaceId = '00000000-0000-0000-0000-000000283201';
 const secondPlaceId = '00000000-0000-0000-0000-000000283202';
+const fallbackPlaceId = '00000000-0000-0000-0000-000000283203';
 const firstPlaceName = 'PW marker parity place with a deliberately long sidebar name that must wrap without covering the Edit action';
 const secondPlaceName = 'PW marker parity second place';
+const fallbackPlaceName = 'PW marker parity fallback marker place';
 const externalImageUrl = 'https://images.example.test/pw-rich-note.png';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64');
@@ -26,6 +33,11 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
 
     await expectLoadedImages(mapMarkerImages(page));
     await expectLoadedImages(page.locator('[data-sidebar-place-icon]'));
+    await expectLoadedImages(regionMarkerImages(page));
+    await expect(regionMarkerImages(page).first()).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-red\/map\.png$/);
+    await expect(markerImage(page, fallbackPlaceId)).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
+    await expect(sidebarRow(page, fallbackPlaceId).locator('[data-sidebar-place-icon]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
+    await captureEvidence(page, testInfo, 'region-marker-app-asset');
 
     await clickMarker(page, firstPlaceId);
     await expectSelectedPlace(page, firstPlaceId);
@@ -37,8 +49,19 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectRegionAddActionsAttached(page);
     await expectPlaceIconColumnAligned(page);
     await expect(page.locator('.leaflet-popup')).toContainText(firstPlaceName);
+    await expect(page.locator('.leaflet-popup')).toContainText('PW marker parity region');
+    await expect(page.locator('.leaflet-popup')).toContainText('Lat: 37.98380');
+    await expect(page.locator('.leaflet-popup')).toContainText('Lon: 23.72750');
+    await expect(page.locator('.leaflet-popup')).toContainText('Address: Athens, Greece');
+    await expect(page.locator('.leaflet-popup')).toContainText('Visits: 2 visits');
     await expect(page.locator('.leaflet-popup')).toContainText('Marker popup rich note');
+    await expectPopupSupportsScrolling(page);
+    await expectAttribution(page);
     await captureEvidence(page, testInfo, 'map-click-selects-sidebar-status');
+    await setTheme(page, 'dark');
+    await expectAttribution(page);
+    await captureEvidence(page, testInfo, 'dark-selected-marker-popup-attribution');
+    await setTheme(page, 'light');
 
     await sidebarRow(page, secondPlaceId).click();
     await expectSelectedPlace(page, secondPlaceId);
@@ -70,7 +93,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
 
     await page.locator('#trip-editor-place-form').getByLabel('Name').fill(`${firstPlaceName} saved`);
     await page.getByRole('button', { name: 'Save Place' }).click();
-    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Saved/i }).first()).toBeVisible();
+    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
     await expectSelectedPlace(page, firstPlaceId);
 
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -215,6 +238,58 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     expect(requests[0].notesHtml).toContain(externalImageUrl);
     expect(requests[0].notesHtml).not.toContain('/Public/ProxyImage');
   });
+
+  test('shows deterministic place save success and error feedback', async ({ page }) => {
+    const requests: Record<string, any>[] = [];
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page, requests);
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Successful save feedback address');
+    await page.getByRole('button', { name: 'Save Place' }).click();
+    await expect.poll(() => requests.length).toBe(1);
+    const successFeedback = page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first();
+    await expect(successFeedback).toBeVisible();
+    await expect(successFeedback).toHaveClass(/text-bg-success.*trip-editor-save-state--success/);
+    await expect(successFeedback).not.toHaveClass(/text-bg-info/);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+
+    await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Failed save feedback address');
+    await failNextPlaceSave(page, 'Injected place save failure.');
+    await page.getByRole('button', { name: 'Save Place' }).click();
+    const errorFeedback = page.getByRole('alert');
+    await expect(errorFeedback).toContainText('Injected place save failure.');
+    await expect(errorFeedback).toHaveClass(/trip-editor-form-error/);
+    const failedState = page.locator('.trip-editor-save-state').filter({ hasText: 'Save failed' }).first();
+    await expect(failedState).toBeVisible();
+    await expect(failedState).toHaveClass(/text-bg-danger.*trip-editor-save-state--danger/);
+  });
+
+  test('keeps docked place editing contained without expanding the page', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+    const before = await tripEditorContainmentMetrics(page);
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(firstPlaceName)}`) })).toBeVisible();
+    await expectNonEmptyPlaceEditorRow(page);
+    await expectTripEditorContainment(page, before);
+  });
+
+  test('keeps popup and attribution usable at a narrow viewport', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+
+    await clickMarker(page, firstPlaceId);
+    await expectSelectedPlace(page, firstPlaceId);
+    await expect(page.locator('.leaflet-popup')).toContainText('PW marker parity region');
+    await expectPopupSupportsScrolling(page);
+    await expectAttribution(page);
+    await expectNoPageOverflow(page);
+    await captureEvidence(page, testInfo, 'narrow-popup-attribution-smoke');
+  });
 });
 
 async function loadWorkspaceWithMarkerFixture(page: Page, requests: Record<string, any>[] = []): Promise<MutableEditorState> {
@@ -260,7 +335,7 @@ function prepareMarkerState(state: MutableEditorState): void {
       name: 'PW marker parity region',
       notesHtml: '',
       coverImage: null,
-      center: null,
+      center: { latitude: 37.95, longitude: 23.7 },
       displayOrder: 1,
       isShadow: false,
       capabilities: editableCapabilities()
@@ -269,9 +344,10 @@ function prepareMarkerState(state: MutableEditorState): void {
   state.regionOrder = [regionId];
   state.placesById = {
     [firstPlaceId]: placeFixture(state, firstPlaceId, firstPlaceName, 'camera', 'bg-blue', { latitude: 37.9838, longitude: 23.7275 }, true),
-    [secondPlaceId]: placeFixture(state, secondPlaceId, secondPlaceName, 'star', 'bg-red', { latitude: 38.2, longitude: 24.05 }, false)
+    [secondPlaceId]: placeFixture(state, secondPlaceId, secondPlaceName, 'star', 'bg-red', { latitude: 38.2, longitude: 24.05 }, false),
+    [fallbackPlaceId]: { ...placeFixture(state, fallbackPlaceId, fallbackPlaceName, '', '', { latitude: 38.1, longitude: 23.85 }, false), iconName: '', markerColor: '' }
   };
-  state.placeOrderByRegionId = { [regionId]: [firstPlaceId, secondPlaceId] };
+  state.placeOrderByRegionId = { [regionId]: [firstPlaceId, secondPlaceId, fallbackPlaceId] };
   state.areasById = {};
   state.areaOrderByRegionId = { [regionId]: [] };
   state.segmentsById = {};
@@ -284,8 +360,8 @@ function placeFixture(state: MutableEditorState, id: string, name: string, iconN
     tripId: state.tripId,
     regionId,
     name,
-    notesHtml: `<p>Marker popup rich note for ${name}</p><p><img src="${externalImageUrl}"></p>`,
-    address: 'Athens, Greece',
+    notesHtml: `<p>Marker popup rich note for ${name}. ${'Long popup note content. '.repeat(14)}</p><p><img src="${externalImageUrl}"></p>`,
+    address: id === firstPlaceId ? `Athens, Greece. ${'Long address content for popup body scrolling. '.repeat(12)}` : 'Athens, Greece',
     location,
     iconName: state.options.iconNames.includes(iconName) ? iconName : state.options.iconNames[0] ?? 'marker',
     markerColor: state.options.markerColorClasses.includes(markerColor) ? markerColor : state.options.markerColorClasses[0] ?? 'bg-blue',
@@ -344,6 +420,26 @@ function mapMarkerImages(page: Page): Locator {
   return page.locator('[data-place-marker-icon]');
 }
 
+async function failNextPlaceSave(page: Page, message: string): Promise<void> {
+  await page.route(editorApiMatcher, async route => {
+    const request = route.request();
+    if (request.method() === 'PUT' && request.url().includes(`/places/${firstPlaceId}`)) {
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ title: message, status: 400, errors: {} })
+      });
+      return;
+    }
+
+    await route.fallback();
+  }, { times: 1 });
+}
+
+function regionMarkerImages(page: Page): Locator {
+  return page.locator('[data-region-marker-icon]');
+}
+
 async function expectSelectedPlace(page: Page, placeId: string): Promise<void> {
   await expect(sidebarRow(page, placeId)).toHaveClass(/trip-editor-place-row--active/);
   await expect(markerImage(page, placeId).locator('xpath=ancestor::*[contains(@class, "trip-editor-map-marker")]')).toHaveClass(/trip-editor-map-marker--selected/);
@@ -370,6 +466,134 @@ async function expectLoadedImages(images: Locator): Promise<void> {
   }
 }
 
+async function expectPopupSupportsScrolling(page: Page): Promise<void> {
+  const popupWrapper = page.locator('.trip-editor-place-popup__content');
+  const popupContent = page.locator('.trip-editor-place-popup__body');
+  const popupHeader = page.locator('.trip-editor-place-popup__header');
+  const popupFooter = page.locator('.trip-editor-place-popup__footer');
+  await expect(popupWrapper).toBeVisible();
+  await expect(popupContent).toBeVisible();
+  await expect(popupHeader).toBeVisible();
+  await expect(popupFooter).toBeVisible();
+  await expect.poll(async () => popupContent.evaluate(element => {
+    const styles = window.getComputedStyle(element);
+    return styles.overflowY === 'auto' && styles.maxHeight !== 'none' && element.scrollHeight > element.clientHeight;
+  })).toBe(true);
+  await popupWrapper.evaluate(element => {
+    element.scrollTop = 0;
+  });
+  await popupContent.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect.poll(async () => popupWrapper.evaluate(element => element.scrollTop)).toBe(0);
+  await expect.poll(async () => popupContent.evaluate(element => element.scrollTop > 0)).toBe(true);
+  await expect(popupHeader).toBeVisible();
+  await expect(popupFooter).toBeVisible();
+}
+
+async function expectAttribution(page: Page): Promise<void> {
+  const attribution = page.locator('.leaflet-control-attribution');
+  await expect(attribution).toHaveAttribute('aria-label', 'Map attribution');
+  await expect(attribution).toHaveAttribute('title', 'Map attribution');
+  await expect(attribution).toContainText('Wayfarer');
+  await expect(attribution).toContainText('Stef K');
+  await expect(attribution).toContainText('Leaflet');
+  await expect(attribution).toContainText('OpenStreetMap');
+  await expect(attribution.getByRole('link', { name: 'Wayfarer' })).toHaveAttribute('title', 'Powered by Wayfarer, made by Stef');
+  await expect(attribution.getByRole('link', { name: 'Stef K' })).toHaveAttribute('title', 'Check my blog');
+  await expect(attribution.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible();
+  await expect.poll(async () => {
+    const colors = await attribution.evaluate(element => {
+      const styles = window.getComputedStyle(element);
+      const link = element.querySelector('a');
+      const linkStyles = link ? window.getComputedStyle(link) : null;
+      return { background: styles.backgroundColor, foreground: styles.color, link: linkStyles?.color ?? '' };
+    });
+    return readableColor(colors.foreground, colors.background) && readableColor(colors.link, colors.background);
+  }).toBe(true);
+}
+
+async function expectNoPageOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    return Math.max(
+      document.documentElement.scrollWidth - viewportWidth,
+      document.body ? document.body.scrollWidth - viewportWidth : 0
+    );
+  });
+  expect(overflow, 'Popup and attribution should not create horizontal page overflow.').toBeLessThanOrEqual(1);
+}
+
+async function tripEditorContainmentMetrics(page: Page): Promise<TripEditorContainmentMetrics> {
+  return await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    const workspace = document.querySelector<HTMLElement>('.trip-editor-workspace');
+    const map = document.querySelector<HTMLElement>('.trip-editor-map');
+    const surfaceBody = document.querySelector<HTMLElement>('.trip-editor-place-editor-row .trip-editor-surface__body');
+    const footer = document.querySelector<HTMLElement>('body footer, .footer');
+    const stableOverflow = ['#trip-editor-app', '.trip-editor-shell', '.trip-editor-workspace']
+      .map(selector => ({ selector, overflow: Math.max(0, (document.querySelector<HTMLElement>(selector)?.getBoundingClientRect().right ?? 0) - viewportWidth) }))
+      .filter(result => result.overflow > 2);
+
+    return {
+      bodyHeight: document.body?.scrollHeight ?? 0,
+      documentHeight: document.documentElement.scrollHeight,
+      footerTop: footer ? footer.getBoundingClientRect().top : null,
+      mapHeight: map?.getBoundingClientRect().height ?? 0,
+      sidebarClientHeight: sidebar?.clientHeight ?? 0,
+      sidebarScrollHeight: sidebar?.scrollHeight ?? 0,
+      stableOverflow,
+      surfaceBodyOverflowY: surfaceBody ? window.getComputedStyle(surfaceBody).overflowY : '',
+      viewportHeight: window.innerHeight,
+      workspaceHeight: workspace?.getBoundingClientRect().height ?? 0
+    };
+  });
+}
+
+async function expectTripEditorContainment(page: Page, before: TripEditorContainmentMetrics): Promise<void> {
+  const after = await tripEditorContainmentMetrics(page);
+  expect(after.stableOverflow, 'Stable Trip Editor containers should fit within the viewport.').toEqual([]);
+  expect(after.documentHeight - before.documentHeight, 'Opening place edit should not expand document height by many viewports.').toBeLessThanOrEqual(80);
+  expect(after.bodyHeight - before.bodyHeight, 'Opening place edit should not expand body height by many viewports.').toBeLessThanOrEqual(80);
+  expect(after.workspaceHeight, 'Trip Editor workspace should stay bounded by the viewport.').toBeLessThanOrEqual(after.viewportHeight + 1);
+  expect(after.mapHeight, 'Trip Editor map should remain usable after opening place edit.').toBeGreaterThan(300);
+  expect(after.sidebarScrollHeight, 'Place editor overflow should stay inside the sidebar/editor containers.').toBeGreaterThan(after.sidebarClientHeight);
+  expect(after.surfaceBodyOverflowY, 'Docked place editor body should scroll internally.').toBe('auto');
+  if (before.footerTop !== null && after.footerTop !== null) {
+    expect(after.footerTop - before.footerTop, 'Opening place edit should not push the footer down.').toBeLessThanOrEqual(80);
+  }
+}
+
+function readableColor(foreground: string, background: string): boolean {
+  const foregroundRgb = parseRgb(foreground);
+  const backgroundRgb = parseRgb(background);
+  if (!foregroundRgb || !backgroundRgb) {
+    return false;
+  }
+
+  const contrast = (relativeLuminance(foregroundRgb) + 0.05) / (relativeLuminance(backgroundRgb) + 0.05);
+  return Math.max(contrast, 1 / contrast) >= 2;
+}
+
+function parseRgb(value: string): [number, number, number] | null {
+  const rgbMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    return [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];
+  }
+
+  const srgbMatch = value.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+  return srgbMatch ? [Number(srgbMatch[1]) * 255, Number(srgbMatch[2]) * 255, Number(srgbMatch[3]) * 255] : null;
+}
+
+function relativeLuminance([red, green, blue]: [number, number, number]): number {
+  const [r, g, b] = [red, green, blue].map(channel => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 async function clickMarker(page: Page, placeId: string): Promise<void> {
   await expect(markerImage(page, placeId)).toBeVisible();
   await markerImage(page, placeId).evaluate(element => {
@@ -379,6 +603,10 @@ async function clickMarker(page: Page, placeId: string): Promise<void> {
 
 async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
+}
+
+async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
+  await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
 }
 
 async function expectPlaceRowDoesNotOverlapEdit(page: Page, placeId: string): Promise<void> {
@@ -392,7 +620,7 @@ async function expectPlaceRowDoesNotOverlapEdit(page: Page, placeId: string): Pr
 }
 
 async function expectRegionAddActionsAttached(page: Page): Promise<void> {
-  const lastChildRow = sidebarRow(page, secondPlaceId);
+  const lastChildRow = sidebarRow(page, fallbackPlaceId);
   const addPlaceButton = regionCard(page).getByRole('button', { name: 'Add Place' });
   await expect(lastChildRow).toBeVisible();
   await expect(addPlaceButton).toBeVisible();

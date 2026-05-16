@@ -2,10 +2,12 @@ import { canonicalImageSource, normalizeNotesHtml } from './notes/notesHtml';
 import type { EditorPlace } from './types';
 
 const iconBasePath = '/icons/wayfarer-map-icons/dist/png/marker';
+const defaultMarkerColor = 'bg-blue';
+const defaultMarkerIcon = 'marker';
 
 /// Builds the static PNG marker path used by the legacy editor and public trip views.
 export function placeMarkerIconUrl(iconName: string | null | undefined, markerColor: string | null | undefined): string {
-  return `${iconBasePath}/${safePathSegment(markerColor || 'bg-blue')}/${safePathSegment(iconName || 'marker')}.png`;
+  return `${iconBasePath}/${safePathSegment(markerColor, defaultMarkerColor)}/${safePathSegment(iconName, defaultMarkerIcon)}.png`;
 }
 
 /// Converts canonical external notes image URLs to the display-only proxy endpoint.
@@ -74,6 +76,6 @@ function isExternalHttpUrl(value: string): boolean {
   }
 }
 
-function safePathSegment(value: string): string {
-  return encodeURIComponent(value.trim() || 'marker');
+function safePathSegment(value: string | null | undefined, fallback: string): string {
+  return encodeURIComponent(value?.trim() || fallback);
 }

@@ -8,7 +8,7 @@ import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type SegmentRouteWorkOptions } from './map/leafletAdapter';
-import type { BootstrapConfig, EditorGeocodeSearchResult, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from './types';
+import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
@@ -25,6 +25,7 @@ const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 const coordinatePicker = {
+  applyPlaceDraftCoordinate: (placeId: Guid, coordinate: EditorCoordinate): void => mapAdapter?.applyPlaceDraftCoordinate(placeId, coordinate),
   startCoordinatePick: (options: CoordinatePickOptions): (() => void) => mapAdapter?.startCoordinatePick(options) ?? (() => undefined)
 };
 const polygonEditor = {

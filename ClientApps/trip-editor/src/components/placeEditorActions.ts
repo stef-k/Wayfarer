@@ -109,7 +109,7 @@ export function usePlaceEditorActions(context: any) {
       context.placeCreateBaselineRequest.value = null;
       context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
-      context.markSaved(result.warnings.map((warning: { message: string }) => warning.message));
+      context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
     } catch (error) {
       context.applyError(error, 'Place save failed.');
     } finally {

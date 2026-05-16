@@ -8,6 +8,7 @@ import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } fro
 import { buildSegmentRequest, emptySegmentDraft, toSegmentDraft } from './regionPlaceDrafts';
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkState } from './segmentRouteMapWork';
+import { mutationFeedbackClass } from './useEditorMutationFeedback';
 
 declare global {
   interface Window {
@@ -342,7 +343,7 @@ function modeText(segment: EditorSegment): string {
   <section class="trip-editor-panel">
     <div class="trip-editor-panel__line">
       <h2>Segments</h2>
-      <span class="trip-editor-save-state">{{ statusText }}</span>
+      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
     </div>
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>

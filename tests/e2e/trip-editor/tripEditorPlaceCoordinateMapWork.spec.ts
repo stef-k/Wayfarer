@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -20,7 +20,7 @@ const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]
 const forbiddenPickRequest = /nominatim|geocode|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
 
 test.describe.serial('Trip Editor place coordinate map-work', () => {
-  test('add-place picks a temporary coordinate and Done updates only the draft', async ({ page }) => {
+  test('add-place picks a temporary coordinate and Done updates only the draft', async ({ page }, testInfo) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
     const mutations = watchEditorMutations(page);
@@ -33,6 +33,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(form.getByLabel('Latitude')).toHaveValue('');
     await expect(form.getByLabel('Longitude')).toHaveValue('');
 
+    await expectPickOnMapHelp(page);
     await page.getByRole('button', { name: 'Pick on map' }).click();
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Pick place location');
@@ -43,6 +44,9 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await clickMap(page, { xRatio: 0.38, yRatio: 0.46 });
     await expect(mapWork).toContainText('Selected');
     await expect(page.getByTitle('Selected place location preview')).toHaveCount(1);
+    await expectLoadedImages(page.locator('[data-coordinate-preview-marker]'));
+    await expect(page.locator('[data-coordinate-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
+    await captureEvidence(page, testInfo, 'pick-on-map-preview-marker');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     expect(mutations(), 'Done has not been clicked and no mutation should have run.').toEqual([]);
 
@@ -76,6 +80,64 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(form.getByLabel('Name')).toHaveValue('Unsaved coordinate test name');
     await expect(form.getByLabel('Address')).toHaveValue('Unsaved coordinate test address');
     expect(forbidden(), 'Canceling coordinate pick must not call geocode/search providers.').toEqual([]);
+  });
+
+  test('Pick on map keeps the docked place editor stable in the sidebar', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+
+    await openEditablePlace(page);
+    await page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').evaluate(element => {
+      element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    });
+    const before = await sidebarEditorState(page);
+    expect(before.contextVisible, 'The active place editor should start visible before map-work.').toBe(true);
+    await expect(formNameField(page)).toHaveValue(editablePlaceName);
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Latitude')).toHaveValue('10');
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expect(page.getByRole('region', { name: 'Map work' })).toContainText('Pick place location');
+    const after = await sidebarEditorState(page);
+
+    expect(Math.abs(after.scrollTop - before.scrollTop), 'Starting coordinate map-work should not move the sidebar enough to hide the active editor.').toBeLessThanOrEqual(96);
+    expect(after.contextVisible, 'The active place editor context should remain visible while map-work is active.').toBe(true);
+    expect(after.contextTop, 'The active place editor context should stay inside the sidebar viewport.').toBeGreaterThanOrEqual(after.sidebarTop - 1);
+    expect(after.contextBottom, 'The active place editor context should stay inside the sidebar viewport.').toBeLessThanOrEqual(after.sidebarBottom + 1);
+    await expect(page.locator('#trip-editor-place-form')).toBeVisible();
+    await expect(formNameField(page)).toBeVisible();
+    await expect(formNameField(page)).toHaveValue(editablePlaceName);
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Latitude')).toBeVisible();
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Latitude')).toHaveValue('10');
+    await expect(page.getByRole('button', { name: 'Save Place' })).toBeDisabled();
+  });
+
+  test('edit-place Done applies the draft coordinate and moves the selected marker', async ({ page }) => {
+    await useMapWorkViewport(page);
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    const mutations = watchEditorMutations(page);
+
+    await openEditablePlace(page);
+    await expectDraftCoordinates(page, { latitude: '10', longitude: '20' });
+    const originalAnchor = await markerAnchor(page.getByTitle(editablePlaceName));
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.58, yRatio: 0.44 });
+    const previewAnchor = await markerAnchor(page.getByTitle('Selected place location preview'));
+
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    const form = page.locator('#trip-editor-place-form');
+    await expect(form.getByLabel('Latitude')).not.toHaveValue('10');
+    await expect(form.getByLabel('Longitude')).not.toHaveValue('20');
+    await expect(page.getByTitle('Selected place location preview')).toHaveCount(0);
+    await expect(page.locator(`.trip-editor-map-marker--selected[title="${editablePlaceName}"]`)).toBeVisible();
+
+    const selectedAnchor = await markerAnchor(page.getByTitle(editablePlaceName));
+    expect(Math.hypot(selectedAnchor.x - originalAnchor.x, selectedAnchor.y - originalAnchor.y), 'Selected marker should move away from the saved coordinate.').toBeGreaterThan(20);
+    expect(Math.abs(selectedAnchor.x - previewAnchor.x), 'Selected marker should move to the picked preview x-position.').toBeLessThanOrEqual(3);
+    expect(Math.abs(selectedAnchor.y - previewAnchor.y), 'Selected marker should move to the picked preview y-position.').toBeLessThanOrEqual(16);
+    expect(mutations(), 'Done must move only the client draft marker and must not persist.').toEqual([]);
   });
 
   test('edit-place expanded enters map-work and returns to expanded surface', async ({ page }) => {
@@ -116,7 +178,8 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
     await expect(mapWork).toContainText(`Edit Place - ${editablePlaceName}`);
     await expect(mapWork).not.toContainText(`Edit Place - ${secondPlaceName}`);
-    await expect(form).toHaveCount(0);
+    await expect(form).toBeVisible();
+    await expect(form.getByLabel('Name')).toHaveValue(editablePlaceName);
     await expect(mapWork).toContainText('Selected 11, 21');
     expect(mutations(), 'Marker click during pick mode must not call editor mutations.').toEqual([]);
 
@@ -253,6 +316,10 @@ async function openEditablePlace(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${editablePlaceName}`) })).toBeVisible();
 }
 
+function formNameField(page: Page): Locator {
+  return page.locator('#trip-editor-place-form').getByLabel('Name');
+}
+
 function firstEditableRegion(page: Page) {
   return page.locator('.trip-editor-region-card--normal').first();
 }
@@ -296,6 +363,56 @@ async function expectDraftCoordinates(page: Page, values: { latitude: string; lo
   const form = page.locator('#trip-editor-place-form');
   await expect(form.getByLabel('Latitude')).toHaveValue(values.latitude);
   await expect(form.getByLabel('Longitude')).toHaveValue(values.longitude);
+}
+
+async function markerAnchor(locator: Locator): Promise<{ x: number; y: number }> {
+  const box = await locator.boundingBox();
+  expect(box, 'Expected marker element to have a rendered box.').not.toBeNull();
+  return { x: box!.x + box!.width / 2, y: box!.y + box!.height };
+}
+
+async function expectLoadedImages(images: Locator): Promise<void> {
+  const count = await images.count();
+  expect(count, 'Expected at least one image to validate.').toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
+  }
+}
+
+async function expectPickOnMapHelp(page: Page): Promise<void> {
+  const pickButton = page.getByRole('button', { name: 'Pick on map' });
+  await expect(pickButton).toHaveAttribute('title', "Pick this place's latitude and longitude on the map");
+  const describedBy = await pickButton.getAttribute('aria-describedby');
+  expect(describedBy, 'Pick on map should expose an accessible help description.').toBeTruthy();
+  await expect(page.locator(`#${describedBy}`)).toContainText("Use the map to choose this place's latitude and longitude.");
+}
+
+async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
+}
+
+async function sidebarEditorState(page: Page): Promise<{
+  contextBottom: number;
+  contextTop: number;
+  contextVisible: boolean;
+  scrollTop: number;
+  sidebarBottom: number;
+  sidebarTop: number;
+}> {
+  return await page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    const context = document.querySelector<HTMLElement>('.trip-editor-place-editor-row .trip-editor-surface-context, .trip-editor-place-editor-row .trip-editor-surface--docked');
+    const sidebarBox = sidebar?.getBoundingClientRect();
+    const contextBox = context?.getBoundingClientRect();
+    return {
+      contextBottom: contextBox?.bottom ?? 0,
+      contextTop: contextBox?.top ?? 0,
+      contextVisible: Boolean(contextBox && sidebarBox && contextBox.bottom > sidebarBox.top && contextBox.top < sidebarBox.bottom),
+      scrollTop: sidebar?.scrollTop ?? 0,
+      sidebarBottom: sidebarBox?.bottom ?? 0,
+      sidebarTop: sidebarBox?.top ?? 0
+    };
+  });
 }
 
 function watchEditorMutations(page: Page): () => string[] {
