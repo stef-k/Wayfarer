@@ -315,7 +315,7 @@ function toggleRegion(regionId: Guid): void {
         <li v-if="orderedAreas(region.id).length > 0" class="trip-editor-child-section">
           <span>Areas</span>
         </li>
-        <li v-show="!isCollapsed(region.id)" :data-area-list-region-id="region.id" class="trip-editor-area-list">
+        <li v-if="orderedAreas(region.id).length > 0" v-show="!isCollapsed(region.id)" :data-area-list-region-id="region.id" class="trip-editor-area-list">
           <template v-for="area in orderedAreas(region.id)" :key="area.id">
             <div
               class="trip-editor-area-row"
