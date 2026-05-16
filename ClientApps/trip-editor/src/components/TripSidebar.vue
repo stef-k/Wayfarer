@@ -32,6 +32,7 @@ const props = defineProps<{
     startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
   };
   selectPlace: (placeId: Guid) => Promise<boolean>;
+  clearSelectedPlace: () => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -211,6 +212,7 @@ function normalize(value: string): string {
       :search-place-ids-by-region-id="sidebarSearch.placesByRegionId"
       :search-area-ids-by-region-id="sidebarSearch.areasByRegionId"
       :select-place="selectPlace"
+      :clear-selected-place="clearSelectedPlace"
       @mutation-applied="result => emit('mutationApplied', result)"
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
       @search-add-opened="requestId => emit('searchAddOpened', requestId)"

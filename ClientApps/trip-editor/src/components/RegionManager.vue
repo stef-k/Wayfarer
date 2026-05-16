@@ -30,6 +30,7 @@ const props = defineProps<{
   coordinatePicker: PlaceCoordinatePicker;
   polygonEditor: AreaPolygonEditor;
   selectPlace: (placeId: Guid) => Promise<boolean>;
+  clearSelectedPlace: () => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{

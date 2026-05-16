@@ -149,6 +149,15 @@ const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPop
     return false;
   }
 
+  if (selectedPlaceId.value === placeId) {
+    const target = editorSurface.activeTarget.value;
+    if (target?.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
+      return true;
+    }
+
+    return await clearSelectedPlace();
+  }
+
   if (!(await closeActiveEditorBeforeSelection(placeId))) {
     return false;
   }
@@ -180,6 +189,26 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
 
   return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
 }
+
+/// Clears selected-place context, closing the selected place editor first when that editor owns the selection.
+const clearSelectedPlace = async (): Promise<boolean> => {
+  if (!state.value || !selectedPlaceId.value) {
+    return true;
+  }
+
+  const placeId = selectedPlaceId.value;
+  const target = editorSurface.activeTarget.value;
+  if (target?.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
+    if (!(await editorSurface.closeActiveTarget('Discard unsaved place changes?'))) {
+      return false;
+    }
+  }
+
+  selectedPlaceId.value = null;
+  navigationStatus.value = null;
+  mapAdapter?.selectPlace(state.value, null);
+  return true;
+};
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
 const fitAllGeometry = (): void => {
@@ -404,6 +433,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @region-draft-dirty-changed="setRegionDraftChanges"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
         :select-place="placeId => selectPlace(placeId, { focusMap: true })"
+        :clear-selected-place="clearSelectedPlace"
         @search-add-opened="handleSearchAddOpened"
       />
       <main class="trip-editor-map-shell">
@@ -420,6 +450,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
                 Recenter Saved Trip View
               </button>
               <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">Focus Active Entity</button>
+              <button v-if="selectedPlace" type="button" class="btn btn-outline-light btn-sm" @click="clearSelectedPlace">Clear Selection</button>
             </template>
           </div>
         </header>

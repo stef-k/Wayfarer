@@ -43,7 +43,13 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('.trip-editor-toolbar')).toContainText(secondPlaceName);
     await expect(page.locator('.trip-editor-toolbar__status')).toContainText(`Selected place: ${secondPlaceName}`);
     await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
     await captureEvidence(page, testInfo, 'sidebar-click-selects-map-status');
+
+    await sidebarRow(page, secondPlaceId).click();
+    await expectNoSelectedPlace(page);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await captureEvidence(page, testInfo, 'selected-place-row-click-clears-selection');
 
     await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(firstPlaceName)}`) })).toBeVisible();
@@ -62,7 +68,10 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectSelectedPlace(page, firstPlaceId);
 
     await page.getByRole('button', { name: 'Cancel' }).click();
-    await expectSelectedPlace(page, firstPlaceId);
+    await expectNoSelectedPlace(page);
+    await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await captureEvidence(page, testInfo, 'clean-edit-cancel-clears-selection');
   });
 
   test('guards marker and sidebar place selection while a place editor is dirty', async ({ page }, testInfo) => {
@@ -106,6 +115,65 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectSelectedPlace(page, secondPlaceId);
     await expectNotSelected(page, firstPlaceId);
     await expect(page.locator('.leaflet-popup')).toContainText(secondPlaceName);
+    await captureEvidence(page, testInfo, 'dirty-marker-selection-discard-selects-target');
+  });
+
+  test('clear selection follows the selected place editor dirty contract', async ({ page }, testInfo) => {
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+
+    await clickMarker(page, firstPlaceId);
+    await expectSelectedPlace(page, firstPlaceId);
+    await expect(page.locator('.leaflet-popup')).toContainText(firstPlaceName);
+
+    await page.getByRole('button', { name: 'Clear Selection' }).click();
+    await expectNoSelectedPlace(page);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Clear Selection' })).toHaveCount(0);
+    await captureEvidence(page, testInfo, 'selected-place-clear-action-clears-surfaces');
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(expectPlaceEditor(page, firstPlaceName)).toBeVisible();
+    await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Unsaved dirty clear selection address');
+
+    await page.getByRole('button', { name: 'Clear Selection' }).click();
+    const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(keepDialog).toBeVisible();
+    await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect(expectPlaceEditor(page, firstPlaceName)).toBeVisible();
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Address')).toHaveValue('Unsaved dirty clear selection address');
+    await expectSelectedPlace(page, firstPlaceId);
+    await captureEvidence(page, testInfo, 'dirty-clear-selection-keep-editing');
+
+    await page.getByRole('button', { name: 'Clear Selection' }).click();
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toBeVisible();
+    await discardDialog.getByRole('button', { name: 'Discard' }).click();
+
+    await expect(expectPlaceEditor(page, firstPlaceName)).toHaveCount(0);
+    await expectNoSelectedPlace(page);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await captureEvidence(page, testInfo, 'dirty-clear-selection-discard');
+  });
+
+  test('docked return from expanded place editor preserves the selected owning row', async ({ page }, testInfo) => {
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await expectSelectedPlace(page, firstPlaceId);
+    await page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').getByRole('button', { name: 'Expand Editor' }).click();
+
+    const expanded = page.getByRole('dialog', { name: new RegExp(`Edit Place - ${escapeRegex(firstPlaceName)}`) });
+    await expect(expanded).toBeVisible();
+    await captureEvidence(page, testInfo, 'expanded-selected-place-editor');
+
+    await expanded.getByRole('button', { name: 'Dock to sidebar' }).click();
+    await expect(page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked')).toBeVisible();
+    await expect(sidebarRow(page, firstPlaceId)).toBeInViewport();
+    await expectSelectedPlace(page, firstPlaceId);
+    await captureEvidence(page, testInfo, 'expanded-docked-selected-place-preserved');
   });
 
   test('shows icon choices and keeps long place names from overlapping actions', async ({ page }) => {
@@ -272,6 +340,14 @@ async function expectSelectedPlace(page: Page, placeId: string): Promise<void> {
 async function expectNotSelected(page: Page, placeId: string): Promise<void> {
   await expect(sidebarRow(page, placeId)).not.toHaveClass(/trip-editor-place-row--active/);
   await expect(markerImage(page, placeId).locator('xpath=ancestor::*[contains(@class, "trip-editor-map-marker")]')).not.toHaveClass(/trip-editor-map-marker--selected/);
+}
+
+async function expectNoSelectedPlace(page: Page): Promise<void> {
+  await expect(sidebarRow(page, firstPlaceId)).not.toHaveClass(/trip-editor-place-row--active/);
+  await expect(sidebarRow(page, secondPlaceId)).not.toHaveClass(/trip-editor-place-row--active/);
+  await expect(markerImage(page, firstPlaceId).locator('xpath=ancestor::*[contains(@class, "trip-editor-map-marker")]')).not.toHaveClass(/trip-editor-map-marker--selected/);
+  await expect(markerImage(page, secondPlaceId).locator('xpath=ancestor::*[contains(@class, "trip-editor-map-marker")]')).not.toHaveClass(/trip-editor-map-marker--selected/);
+  await expect(page.locator('.trip-editor-toolbar')).not.toContainText('Selected place');
 }
 
 async function expectLoadedImages(images: Locator): Promise<void> {

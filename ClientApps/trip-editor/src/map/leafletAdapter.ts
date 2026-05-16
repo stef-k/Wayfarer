@@ -99,6 +99,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     selectPlace: (state, placeId, selectOptions = {}) => {
       selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;
       applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
+      if (!selectOptions.openPopup) {
+        map.closePopup();
+      }
       if (selectedPlaceId) {
         focusSelectedPlace(map, state, placeMarkers, selectedPlaceId, selectOptions);
       }

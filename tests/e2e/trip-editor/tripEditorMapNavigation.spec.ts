@@ -85,8 +85,8 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
       preparePlaceLocationFocusState(state);
       state.metadata.center = { latitude: -33.8688, longitude: 151.2093 };
       state.metadata.zoom = 4;
-    }, `${editorPath}?lat=12.3456&lng=45.6789&zoom=7`);
-    await expectMapViewNear(page, { latitude: 12.3456, longitude: 45.6789, zoom: 7 });
+    }, `${editorPath}?lat=12.3456&lng=45.6789&zoom=2`);
+    await expectMapViewNear(page, { latitude: 12.3456, longitude: 45.6789, zoom: 2 });
 
     await loadWorkspaceWithEditorState(page, state => {
       preparePlaceLocationFocusState(state);
