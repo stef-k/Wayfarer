@@ -13,7 +13,7 @@ import { useAreaEditorActions } from './areaEditorActions';
 import { usePlaceEditorActions } from './placeEditorActions';
 import { useRegionEditorActions } from './regionEditorActions';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
-import { useEditorMutationFeedback } from './useEditorMutationFeedback';
+import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 const props = defineProps<{
@@ -427,7 +427,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
   <section class="trip-editor-panel trip-editor-regions">
     <div class="trip-editor-panel__line">
       <h2>Regions &amp; Places</h2>
-      <span class="trip-editor-save-state">{{ statusText }}</span>
+      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
     </div>
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>

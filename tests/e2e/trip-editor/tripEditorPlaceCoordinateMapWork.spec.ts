@@ -93,6 +93,8 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     });
     const before = await sidebarEditorState(page);
     expect(before.contextVisible, 'The active place editor should start visible before map-work.').toBe(true);
+    await expect(formNameField(page)).toHaveValue(editablePlaceName);
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Latitude')).toHaveValue('10');
 
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expect(page.getByRole('region', { name: 'Map work' })).toContainText('Pick place location');
@@ -102,6 +104,12 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     expect(after.contextVisible, 'The active place editor context should remain visible while map-work is active.').toBe(true);
     expect(after.contextTop, 'The active place editor context should stay inside the sidebar viewport.').toBeGreaterThanOrEqual(after.sidebarTop - 1);
     expect(after.contextBottom, 'The active place editor context should stay inside the sidebar viewport.').toBeLessThanOrEqual(after.sidebarBottom + 1);
+    await expect(page.locator('#trip-editor-place-form')).toBeVisible();
+    await expect(formNameField(page)).toBeVisible();
+    await expect(formNameField(page)).toHaveValue(editablePlaceName);
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Latitude')).toBeVisible();
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Latitude')).toHaveValue('10');
+    await expect(page.getByRole('button', { name: 'Save Place' })).toBeDisabled();
   });
 
   test('edit-place Done applies the draft coordinate and moves the selected marker', async ({ page }) => {
@@ -170,7 +178,8 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
     await expect(mapWork).toContainText(`Edit Place - ${editablePlaceName}`);
     await expect(mapWork).not.toContainText(`Edit Place - ${secondPlaceName}`);
-    await expect(form).toHaveCount(0);
+    await expect(form).toBeVisible();
+    await expect(form.getByLabel('Name')).toHaveValue(editablePlaceName);
     await expect(mapWork).toContainText('Selected 11, 21');
     expect(mutations(), 'Marker click during pick mode must not call editor mutations.').toEqual([]);
 
@@ -305,6 +314,10 @@ function editableCapabilities(): Record<string, boolean> {
 async function openEditablePlace(page: Page): Promise<void> {
   await firstEditableRegion(page).getByText(editablePlaceName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${editablePlaceName}`) })).toBeVisible();
+}
+
+function formNameField(page: Page): Locator {
+  return page.locator('#trip-editor-place-form').getByLabel('Name');
 }
 
 function firstEditableRegion(page: Page) {

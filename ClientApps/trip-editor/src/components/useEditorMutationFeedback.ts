@@ -12,6 +12,23 @@ type FeedbackOptions = {
   regionFields: string[];
 };
 
+/// Maps mutation status text onto existing Bootstrap/app feedback color semantics.
+export function mutationFeedbackClass(statusText: string): string {
+  if (/save failed/i.test(statusText)) {
+    return 'text-bg-danger trip-editor-save-state--danger';
+  }
+
+  if (/warning/i.test(statusText)) {
+    return 'text-bg-warning trip-editor-save-state--warning';
+  }
+
+  if (/^place saved\b/i.test(statusText) || /^saved\s+\S+/i.test(statusText)) {
+    return 'text-bg-success trip-editor-save-state--success';
+  }
+
+  return '';
+}
+
 /// Tracks mutation feedback shared by region and place editor forms.
 export function useEditorMutationFeedback(options: FeedbackOptions) {
   const saveError = ref<string | null>(null);

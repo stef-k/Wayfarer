@@ -112,13 +112,6 @@ body {
   margin: 0;
 }
 
-.trip-editor-save-state {
-  color: var(--trip-editor-accent);
-  flex: 0 1 auto;
-  font-size: 0.8rem;
-  overflow-wrap: anywhere;
-}
-
 .trip-editor-field {
   display: grid;
   gap: 0.35rem;

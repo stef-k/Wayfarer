@@ -248,14 +248,21 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Successful save feedback address');
     await page.getByRole('button', { name: 'Save Place' }).click();
     await expect.poll(() => requests.length).toBe(1);
-    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
+    const successFeedback = page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first();
+    await expect(successFeedback).toBeVisible();
+    await expect(successFeedback).toHaveClass(/text-bg-success.*trip-editor-save-state--success/);
+    await expect(successFeedback).not.toHaveClass(/text-bg-info/);
     await expect(page.getByRole('alert')).toHaveCount(0);
 
     await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Failed save feedback address');
     await failNextPlaceSave(page, 'Injected place save failure.');
     await page.getByRole('button', { name: 'Save Place' }).click();
-    await expect(page.getByRole('alert')).toContainText('Injected place save failure.');
-    await expect(page.locator('.trip-editor-save-state').filter({ hasText: 'Save failed' }).first()).toBeVisible();
+    const errorFeedback = page.getByRole('alert');
+    await expect(errorFeedback).toContainText('Injected place save failure.');
+    await expect(errorFeedback).toHaveClass(/trip-editor-form-error/);
+    const failedState = page.locator('.trip-editor-save-state').filter({ hasText: 'Save failed' }).first();
+    await expect(failedState).toBeVisible();
+    await expect(failedState).toHaveClass(/text-bg-danger.*trip-editor-save-state--danger/);
   });
 
   test('keeps docked place editing contained without expanding the page', async ({ page }) => {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
+import { mutationFeedbackClass } from './useEditorMutationFeedback';
 
 const props = defineProps<{
   controller: EditorSurfaceController;
@@ -11,9 +12,13 @@ const props = defineProps<{
 const closeButton = ref<HTMLButtonElement | null>(null);
 const titleId = computed(() => `trip-editor-surface-title-${props.target.identity.replace(/[^a-z0-9_-]/gi, '-')}`);
 const isActive = computed(() => props.controller.isTargetActive(props.target));
-const isDocked = computed(() => isActive.value && props.controller.surfaceMode.value === 'docked');
+const isDockedMapWork = computed(() => isActive.value &&
+  props.target.kind === 'place' &&
+  props.controller.surfaceMode.value === 'map-work' &&
+  props.controller.mapWork.value?.previousSurface === 'docked' &&
+  props.controller.mapWork.value.modeName === 'Pick place location');
+const isDocked = computed(() => isActive.value && (props.controller.surfaceMode.value === 'docked' || isDockedMapWork.value));
 const isExpanded = computed(() => isActive.value && props.controller.surfaceMode.value === 'expanded');
-
 watch(isExpanded, async expanded => {
   if (!expanded) {
     return;
@@ -25,7 +30,7 @@ watch(isExpanded, async expanded => {
 </script>
 
 <template>
-  <section v-if="isDocked" class="trip-editor-surface trip-editor-surface--docked" :aria-labelledby="titleId">
+  <section v-if="isDocked" class="trip-editor-surface trip-editor-surface--docked" :class="{ 'trip-editor-surface--map-work': isDockedMapWork }" :aria-labelledby="titleId">
     <header class="trip-editor-surface__header">
       <div>
         <p class="trip-editor-surface__eyebrow">{{ target.mode === 'add' ? 'New' : 'Editing' }} {{ target.kind }}</p>
@@ -33,9 +38,9 @@ watch(isExpanded, async expanded => {
         <small v-if="target.subtitle">{{ target.subtitle }}</small>
       </div>
       <div class="trip-editor-surface__controls">
-        <span class="trip-editor-save-state">{{ statusText }}</span>
-        <button type="button" class="btn btn-outline-light btn-sm" @click="controller.expand(target)">Expand Editor</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
+        <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isDockedMapWork" @click="controller.expand(target)">Expand Editor</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isDockedMapWork" @click="controller.closeActiveTarget()">Close</button>
       </div>
     </header>
     <div class="trip-editor-surface__body">
@@ -72,7 +77,7 @@ watch(isExpanded, async expanded => {
             <small v-if="target.subtitle">{{ target.subtitle }}</small>
           </div>
           <div class="trip-editor-surface__controls">
-            <span class="trip-editor-save-state">{{ statusText }}</span>
+            <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
             <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">Dock to sidebar</button>
             <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
           </div>
