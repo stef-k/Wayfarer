@@ -79,6 +79,33 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeDisabled();
   });
 
+  test('initial map load uses URL view before saved view and fit-bounds fallback', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithEditorState(page, state => {
+      preparePlaceLocationFocusState(state);
+      state.metadata.center = { latitude: -33.8688, longitude: 151.2093 };
+      state.metadata.zoom = 4;
+    }, `${editorPath}?lat=12.3456&lng=45.6789&zoom=7`);
+    await expectMapViewNear(page, { latitude: 12.3456, longitude: 45.6789, zoom: 7 });
+
+    await loadWorkspaceWithEditorState(page, state => {
+      preparePlaceLocationFocusState(state);
+      state.metadata.center = { latitude: 37.9838, longitude: 23.7275 };
+      state.metadata.zoom = 9;
+    });
+    await expectMapViewNear(page, { latitude: 37.9838, longitude: 23.7275, zoom: 9 });
+
+    await loadWorkspaceWithEditorState(page, state => {
+      clearNavigationGeometry(state);
+      state.metadata.center = null;
+      state.metadata.zoom = null;
+      const region = normalRegion(state);
+      test.skip(!region, 'Configured Trip Editor fixture has no normal region for fit-bounds fallback coverage.');
+      addAreaGeometry(state, region!.id, '00000000-0000-0000-0000-000000260104', 'PW initial fit fallback area');
+    });
+    await expectMapCenterInRange(page, { minLatitude: 36.8, maxLatitude: 38.2, minLongitude: 22.8, maxLongitude: 24.2 });
+  });
+
   test('metadata focus falls back to Fit All when saved trip view is missing', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithEditorState(page, state => {
@@ -205,7 +232,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
   });
 });
 
-async function loadWorkspaceWithEditorState<T>(page: Page, mutate: (state: MutableEditorState) => T): Promise<T> {
+async function loadWorkspaceWithEditorState<T>(page: Page, mutate: (state: MutableEditorState) => T, path = editorPath): Promise<T> {
   await page.unroute(`**${editorApiPath}`).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   const result = mutate(state);
@@ -217,7 +244,7 @@ async function loadWorkspaceWithEditorState<T>(page: Page, mutate: (state: Mutab
 
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
   });
-  await page.goto(absoluteUrl(editorPath));
+  await page.goto(absoluteUrl(path));
   await expectMountedWorkspace(page);
   return result;
 }
@@ -410,6 +437,31 @@ async function readMapView(page: Page): Promise<MapViewSnapshot> {
       tilePaneTransform: readTransform('.leaflet-tile-pane')
     };
   });
+}
+
+async function readMapViewCoordinates(page: Page): Promise<{ latitude: number; longitude: number; zoom: number }> {
+  await expectUsableMapView(page);
+  return await page.getByLabel('Read-only trip map').evaluate(map => ({
+    latitude: Number((map as HTMLElement).dataset.tripEditorMapLat),
+    longitude: Number((map as HTMLElement).dataset.tripEditorMapLng),
+    zoom: Number((map as HTMLElement).dataset.tripEditorMapZoom)
+  }));
+}
+
+async function expectMapViewNear(page: Page, expected: { latitude: number; longitude: number; zoom: number }): Promise<void> {
+  await expect.poll(async () => readMapViewCoordinates(page)).toEqual({
+    latitude: expect.closeTo(expected.latitude, 0.0001),
+    longitude: expect.closeTo(expected.longitude, 0.0001),
+    zoom: expected.zoom
+  });
+}
+
+async function expectMapCenterInRange(page: Page, expected: { minLatitude: number; maxLatitude: number; minLongitude: number; maxLongitude: number }): Promise<void> {
+  const view = await readMapViewCoordinates(page);
+  expect(view.latitude).toBeGreaterThanOrEqual(expected.minLatitude);
+  expect(view.latitude).toBeLessThanOrEqual(expected.maxLatitude);
+  expect(view.longitude).toBeGreaterThanOrEqual(expected.minLongitude);
+  expect(view.longitude).toBeLessThanOrEqual(expected.maxLongitude);
 }
 
 async function expectMapViewChanged(page: Page, before: MapViewSnapshot, message: string): Promise<void> {

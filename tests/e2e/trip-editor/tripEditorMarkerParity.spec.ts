@@ -27,20 +27,27 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectLoadedImages(mapMarkerImages(page));
     await expectLoadedImages(page.locator('[data-sidebar-place-icon]'));
 
-    await markerImage(page, firstPlaceId).click();
+    await clickMarker(page, firstPlaceId);
     await expectSelectedPlace(page, firstPlaceId);
     await expect(sidebarRow(page, firstPlaceId)).toBeInViewport();
+    await expect(page.locator('.trip-editor-toolbar')).toContainText(firstPlaceName);
+    await expect(page.locator('.trip-editor-toolbar__status')).toContainText(`Selected place: ${firstPlaceName}`);
+    await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
     await expect(page.locator('.leaflet-popup')).toContainText(firstPlaceName);
     await expect(page.locator('.leaflet-popup')).toContainText('Marker popup rich note');
 
     await sidebarRow(page, secondPlaceId).click();
     await expectSelectedPlace(page, secondPlaceId);
     await expectNotSelected(page, firstPlaceId);
+    await expect(page.locator('.trip-editor-toolbar')).toContainText(secondPlaceName);
+    await expect(page.locator('.trip-editor-toolbar__status')).toContainText(`Selected place: ${secondPlaceName}`);
+    await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
 
     await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(firstPlaceName)}`) })).toBeVisible();
     await expectSelectedPlace(page, firstPlaceId);
     await expectNotSelected(page, secondPlaceId);
+    await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(1);
 
     await page.getByLabel('Sidebar search').fill('second place');
     await expectSelectedPlace(page, firstPlaceId);
@@ -65,7 +72,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Unsaved dirty marker guard address');
     await expectSelectedPlace(page, firstPlaceId);
 
-    await markerImage(page, secondPlaceId).click();
+    await clickMarker(page, secondPlaceId);
     const markerDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(markerDiscard).toBeVisible();
     await markerDiscard.getByRole('button', { name: 'Keep editing' }).click();
@@ -74,6 +81,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('#trip-editor-place-form').getByLabel('Address')).toHaveValue('Unsaved dirty marker guard address');
     await expectSelectedPlace(page, firstPlaceId);
     await expectNotSelected(page, secondPlaceId);
+    await expect(page.locator('.trip-editor-toolbar')).toContainText(firstPlaceName);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
 
     await sidebarRow(page, secondPlaceId).click();
@@ -86,7 +94,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectSelectedPlace(page, firstPlaceId);
     await expectNotSelected(page, secondPlaceId);
 
-    await markerImage(page, secondPlaceId).click();
+    await clickMarker(page, secondPlaceId);
     const confirmDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(confirmDiscard).toBeVisible();
     await confirmDiscard.getByRole('button', { name: 'Discard' }).click();
@@ -164,6 +172,8 @@ async function routeEditorState(route: Route, state: MutableEditorState, request
 function prepareMarkerState(state: MutableEditorState): void {
   state.permissions.canEditRegions = true;
   state.permissions.canEditPlaces = true;
+  state.metadata.center = null;
+  state.metadata.zoom = null;
   state.regionsById = {
     [regionId]: {
       id: regionId,
@@ -180,7 +190,7 @@ function prepareMarkerState(state: MutableEditorState): void {
   state.regionOrder = [regionId];
   state.placesById = {
     [firstPlaceId]: placeFixture(state, firstPlaceId, firstPlaceName, 'camera', 'bg-blue', { latitude: 37.9838, longitude: 23.7275 }, true),
-    [secondPlaceId]: placeFixture(state, secondPlaceId, secondPlaceName, 'star', 'bg-red', { latitude: 37.99, longitude: 23.74 }, false)
+    [secondPlaceId]: placeFixture(state, secondPlaceId, secondPlaceName, 'star', 'bg-red', { latitude: 38.2, longitude: 24.05 }, false)
   };
   state.placeOrderByRegionId = { [regionId]: [firstPlaceId, secondPlaceId] };
   state.areasById = {};
@@ -267,6 +277,13 @@ async function expectLoadedImages(images: Locator): Promise<void> {
   for (let index = 0; index < count; index += 1) {
     await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
   }
+}
+
+async function clickMarker(page: Page, placeId: string): Promise<void> {
+  await expect(markerImage(page, placeId)).toBeVisible();
+  await markerImage(page, placeId).evaluate(element => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  });
 }
 
 async function expectPlaceRowDoesNotOverlapEdit(page: Page, placeId: string): Promise<void> {

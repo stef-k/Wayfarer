@@ -45,8 +45,16 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
   const placeMarkers = new Map<Guid, L.Marker>();
+  const updateMapViewDataset = (): void => {
+    const center = map.getCenter();
+    element.dataset.tripEditorMapLat = center.lat.toFixed(6);
+    element.dataset.tripEditorMapLng = center.lng.toFixed(6);
+    element.dataset.tripEditorMapZoom = String(map.getZoom());
+  };
   let selectedPlaceId: Guid | null = null;
   let initialViewApplied = false;
+
+  map.on('moveend zoomend', updateMapViewDataset);
 
   L.tileLayer(tilesUrl, {
     attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
@@ -81,6 +89,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       initialViewApplied = true;
       applyInitialMapView(map, state);
     }
+    updateMapViewDataset();
     applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
   };
 
@@ -116,6 +125,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       coordinatePick.dispose();
       areaPolygonWork.dispose();
       segmentRouteWork.dispose();
+      map.off('moveend zoomend', updateMapViewDataset);
       map.remove();
     }
   };
@@ -625,9 +635,16 @@ const isFiniteCoordinate = (coordinate: EditorCoordinate): boolean =>
 
 const readUrlMapView = (search: string): { center: EditorCoordinate; zoom: number } | null => {
   const parameters = new URLSearchParams(search);
-  const latitude = Number(parameters.get('lat'));
-  const longitude = Number(parameters.get('lng'));
-  const zoom = Number(parameters.get('zoom'));
+  const latitudeValue = parameters.get('lat');
+  const longitudeValue = parameters.get('lng');
+  const zoomValue = parameters.get('zoom');
+  if (latitudeValue === null || longitudeValue === null || zoomValue === null) {
+    return null;
+  }
+
+  const latitude = Number(latitudeValue);
+  const longitude = Number(longitudeValue);
+  const zoom = Number(zoomValue);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(zoom) || zoom < 0 || zoom > 19) {
     return null;
   }
