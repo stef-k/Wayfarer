@@ -61,7 +61,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     attribution: providerAttribution(window.wayfarerTileConfig?.attribution),
     maxZoom: 19
   }).addTo(map);
-  map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Stef K" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
+  map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
+  map.attributionControl.getContainer()?.setAttribute('aria-label', 'Map attribution');
+  map.attributionControl.getContainer()?.setAttribute('title', 'Map attribution');
 
   const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set(), nextSelectedPlaceId: Guid | null = selectedPlaceId): void => {
     searchPreview.clear();
@@ -192,7 +194,8 @@ const createCoordinatePickLayer = (map: LeafletMap): {
       icon: previewMarkerIcon('coordinate', 'Selected place location preview'),
       interactive: false,
       keyboard: false,
-      title: 'Selected place location preview'
+      title: 'Selected place location preview',
+      alt: 'Selected place location preview'
     }).addTo(layer);
   };
 

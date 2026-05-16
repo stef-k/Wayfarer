@@ -255,7 +255,7 @@ test.describe('Trip Editor map geocode search', () => {
     await page.getByRole('button', { name: 'Preview Place' }).click();
     await expect(page.locator('img[alt="Search result preview: Preview Place"]')).toBeVisible();
     await expectLoadedImages(page.locator('[data-search-preview-marker]'));
-    await expect(page.locator('[data-search-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-black\/map\.png$/);
+    await expect(page.locator('[data-search-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
     await captureEvidence(page, testInfo, 'map-search-preview-marker');
 
     await page.getByRole('searchbox', { name: 'Map search' }).fill('');

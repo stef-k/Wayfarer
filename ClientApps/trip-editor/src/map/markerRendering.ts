@@ -41,12 +41,10 @@ export function regionMarkerIcon(region: EditorRegion): L.DivIcon {
 
 /// Builds temporary preview markers for coordinate picking and map search.
 export function previewMarkerIcon(kind: 'coordinate' | 'search', label: string): L.DivIcon {
-  const markerColor = kind === 'search' ? 'bg-black' : 'bg-blue';
-  const markerName = kind === 'search' ? 'map' : 'marker';
   return appMarkerIcon({
     className: `trip-editor-map-marker trip-editor-map-marker--preview trip-editor-map-marker--preview-${kind}`,
     imageClassName: 'trip-editor-map-marker__image',
-    src: placeMarkerIconUrl(markerName, markerColor),
+    src: placeMarkerIconUrl('marker', 'bg-blue'),
     alt: label,
     dataAttribute: `data-${kind}-preview-marker="true"`,
     iconSize: [markerWidth, markerHeight],

@@ -48,7 +48,17 @@ defineEmits<{
       <button v-if="activePlace?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">
         Delete
       </button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('pickCoordinate')">Pick on map</button>
+      <button
+        type="button"
+        class="btn btn-outline-light btn-sm"
+        :disabled="isSaving"
+        title="Pick this place's latitude and longitude on the map"
+        :aria-describedby="`${formId}-pick-help`"
+        @click="$emit('pickCoordinate')"
+      >
+        Pick on map
+        <span :id="`${formId}-pick-help`" class="visually-hidden">Use the map to choose this place's latitude and longitude.</span>
+      </button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
       <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Place</button>

@@ -13,8 +13,10 @@ type MutableEditorState = Record<string, any>;
 const regionId = '00000000-0000-0000-0000-000000283101';
 const firstPlaceId = '00000000-0000-0000-0000-000000283201';
 const secondPlaceId = '00000000-0000-0000-0000-000000283202';
+const fallbackPlaceId = '00000000-0000-0000-0000-000000283203';
 const firstPlaceName = 'PW marker parity place with a deliberately long sidebar name that must wrap without covering the Edit action';
 const secondPlaceName = 'PW marker parity second place';
+const fallbackPlaceName = 'PW marker parity fallback marker place';
 const externalImageUrl = 'https://images.example.test/pw-rich-note.png';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64');
@@ -28,6 +30,8 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectLoadedImages(page.locator('[data-sidebar-place-icon]'));
     await expectLoadedImages(regionMarkerImages(page));
     await expect(regionMarkerImages(page).first()).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-red\/map\.png$/);
+    await expect(markerImage(page, fallbackPlaceId)).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
+    await expect(sidebarRow(page, fallbackPlaceId).locator('[data-sidebar-place-icon]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
     await captureEvidence(page, testInfo, 'region-marker-app-asset');
 
     await clickMarker(page, firstPlaceId);
@@ -297,9 +301,10 @@ function prepareMarkerState(state: MutableEditorState): void {
   state.regionOrder = [regionId];
   state.placesById = {
     [firstPlaceId]: placeFixture(state, firstPlaceId, firstPlaceName, 'camera', 'bg-blue', { latitude: 37.9838, longitude: 23.7275 }, true),
-    [secondPlaceId]: placeFixture(state, secondPlaceId, secondPlaceName, 'star', 'bg-red', { latitude: 38.2, longitude: 24.05 }, false)
+    [secondPlaceId]: placeFixture(state, secondPlaceId, secondPlaceName, 'star', 'bg-red', { latitude: 38.2, longitude: 24.05 }, false),
+    [fallbackPlaceId]: { ...placeFixture(state, fallbackPlaceId, fallbackPlaceName, '', '', { latitude: 38.1, longitude: 23.85 }, false), iconName: '', markerColor: '' }
   };
-  state.placeOrderByRegionId = { [regionId]: [firstPlaceId, secondPlaceId] };
+  state.placeOrderByRegionId = { [regionId]: [firstPlaceId, secondPlaceId, fallbackPlaceId] };
   state.areasById = {};
   state.areaOrderByRegionId = { [regionId]: [] };
   state.segmentsById = {};
@@ -312,8 +317,8 @@ function placeFixture(state: MutableEditorState, id: string, name: string, iconN
     tripId: state.tripId,
     regionId,
     name,
-    notesHtml: `<p>Marker popup rich note for ${name}</p><p><img src="${externalImageUrl}"></p>`,
-    address: 'Athens, Greece',
+    notesHtml: `<p>Marker popup rich note for ${name}. ${'Long popup note content. '.repeat(14)}</p><p><img src="${externalImageUrl}"></p>`,
+    address: id === firstPlaceId ? `Athens, Greece. ${'Long address content for popup body scrolling. '.repeat(12)}` : 'Athens, Greece',
     location,
     iconName: state.options.iconNames.includes(iconName) ? iconName : state.options.iconNames[0] ?? 'marker',
     markerColor: state.options.markerColorClasses.includes(markerColor) ? markerColor : state.options.markerColorClasses[0] ?? 'bg-blue',
@@ -403,25 +408,50 @@ async function expectLoadedImages(images: Locator): Promise<void> {
 }
 
 async function expectPopupSupportsScrolling(page: Page): Promise<void> {
-  const popupContent = page.locator('.trip-editor-place-popup__content');
+  const popupWrapper = page.locator('.trip-editor-place-popup__content');
+  const popupContent = page.locator('.trip-editor-place-popup__body');
+  const popupHeader = page.locator('.trip-editor-place-popup__header');
+  const popupFooter = page.locator('.trip-editor-place-popup__footer');
+  await expect(popupWrapper).toBeVisible();
   await expect(popupContent).toBeVisible();
+  await expect(popupHeader).toBeVisible();
+  await expect(popupFooter).toBeVisible();
   await expect.poll(async () => popupContent.evaluate(element => {
     const styles = window.getComputedStyle(element);
-    return styles.overflowY === 'auto' && styles.maxHeight !== 'none';
+    return styles.overflowY === 'auto' && styles.maxHeight !== 'none' && element.scrollHeight > element.clientHeight;
   })).toBe(true);
+  await popupWrapper.evaluate(element => {
+    element.scrollTop = 0;
+  });
+  await popupContent.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect.poll(async () => popupWrapper.evaluate(element => element.scrollTop)).toBe(0);
+  await expect.poll(async () => popupContent.evaluate(element => element.scrollTop > 0)).toBe(true);
+  await expect(popupHeader).toBeVisible();
+  await expect(popupFooter).toBeVisible();
 }
 
 async function expectAttribution(page: Page): Promise<void> {
   const attribution = page.locator('.leaflet-control-attribution');
+  await expect(attribution).toHaveAttribute('aria-label', 'Map attribution');
+  await expect(attribution).toHaveAttribute('title', 'Map attribution');
   await expect(attribution).toContainText('Wayfarer');
   await expect(attribution).toContainText('Stef K');
   await expect(attribution).toContainText('Leaflet');
   await expect(attribution).toContainText('OpenStreetMap');
+  await expect(attribution.getByRole('link', { name: 'Wayfarer' })).toHaveAttribute('title', 'Powered by Wayfarer, made by Stef');
+  await expect(attribution.getByRole('link', { name: 'Stef K' })).toHaveAttribute('title', 'Check my blog');
   await expect(attribution.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible();
-  await expect.poll(async () => attribution.evaluate(element => {
-    const styles = window.getComputedStyle(element);
-    return styles.color !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
-  })).toBe(true);
+  await expect.poll(async () => {
+    const colors = await attribution.evaluate(element => {
+      const styles = window.getComputedStyle(element);
+      const link = element.querySelector('a');
+      const linkStyles = link ? window.getComputedStyle(link) : null;
+      return { background: styles.backgroundColor, foreground: styles.color, link: linkStyles?.color ?? '' };
+    });
+    return readableColor(colors.foreground, colors.background) && readableColor(colors.link, colors.background);
+  }).toBe(true);
 }
 
 async function expectNoPageOverflow(page: Page): Promise<void> {
@@ -433,6 +463,35 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
     );
   });
   expect(overflow, 'Popup and attribution should not create horizontal page overflow.').toBeLessThanOrEqual(1);
+}
+
+function readableColor(foreground: string, background: string): boolean {
+  const foregroundRgb = parseRgb(foreground);
+  const backgroundRgb = parseRgb(background);
+  if (!foregroundRgb || !backgroundRgb) {
+    return false;
+  }
+
+  const contrast = (relativeLuminance(foregroundRgb) + 0.05) / (relativeLuminance(backgroundRgb) + 0.05);
+  return Math.max(contrast, 1 / contrast) >= 2;
+}
+
+function parseRgb(value: string): [number, number, number] | null {
+  const rgbMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch) {
+    return [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];
+  }
+
+  const srgbMatch = value.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+  return srgbMatch ? [Number(srgbMatch[1]) * 255, Number(srgbMatch[2]) * 255, Number(srgbMatch[3]) * 255] : null;
+}
+
+function relativeLuminance([red, green, blue]: [number, number, number]): number {
+  const [r, g, b] = [red, green, blue].map(channel => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 async function clickMarker(page: Page, placeId: string): Promise<void> {
@@ -461,7 +520,7 @@ async function expectPlaceRowDoesNotOverlapEdit(page: Page, placeId: string): Pr
 }
 
 async function expectRegionAddActionsAttached(page: Page): Promise<void> {
-  const lastChildRow = sidebarRow(page, secondPlaceId);
+  const lastChildRow = sidebarRow(page, fallbackPlaceId);
   const addPlaceButton = regionCard(page).getByRole('button', { name: 'Add Place' });
   await expect(lastChildRow).toBeVisible();
   await expect(addPlaceButton).toBeVisible();

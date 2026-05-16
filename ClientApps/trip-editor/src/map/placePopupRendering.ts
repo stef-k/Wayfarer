@@ -10,10 +10,12 @@ export function placePopupHtml(place: EditorPlace, regionName: string | null | u
     `<strong>${escapeHtml(place.name || 'Unnamed Place')}</strong>`,
     regionName ? `<span>${escapeHtml(regionName)}</span>` : '',
     '</div>',
+    '<div class="trip-editor-place-popup__body">',
     place.location ? `<div class="trip-editor-place-popup__meta"><span>Lat:</span> ${formatCoordinate(place.location.latitude)} <span>Lon:</span> ${formatCoordinate(place.location.longitude)}</div>` : '',
     place.address ? `<div class="trip-editor-place-popup__meta"><span>Address:</span> ${escapeHtml(place.address)}</div>` : '',
     visitSummaryHtml(place),
     notesHtml ? `<div class="trip-editor-place-popup__notes"><span>Notes:</span><div>${notesHtml}</div></div>` : '',
+    '</div>',
     '<div class="trip-editor-place-popup__footer">Click marker to select this place</div>',
     '</div>'
   ].join('');

@@ -99,8 +99,7 @@
   max-height: min(22rem, 52vh);
   max-width: min(24rem, 72vw);
   min-width: min(18rem, 68vw);
-  overflow-y: auto;
-  padding-right: 0.15rem;
+  overflow: hidden;
 }
 
 .trip-editor-place-popup__header {
@@ -113,6 +112,14 @@
 .trip-editor-place-popup__footer {
   color: var(--trip-editor-muted);
   font-size: 0.82rem;
+}
+
+.trip-editor-place-popup__body {
+  display: grid;
+  gap: 0.45rem;
+  max-height: min(14rem, 34vh);
+  overflow-y: auto;
+  padding-right: 0.15rem;
 }
 
 .trip-editor-place-popup__meta span,
@@ -145,14 +152,14 @@
   background: color-mix(in srgb, var(--trip-editor-surface) 92%, transparent);
   border: 1px solid var(--trip-editor-border);
   border-radius: 6px 0 0 0;
-  color: var(--trip-editor-muted);
+  color: color-mix(in srgb, var(--trip-editor-text) 78%, transparent);
   line-height: 1.35;
   max-width: min(32rem, calc(100vw - 2rem));
   white-space: normal;
 }
 
 .trip-editor-map .leaflet-control-attribution a {
-  color: var(--trip-editor-accent);
+  color: color-mix(in srgb, var(--trip-editor-accent) 72%, var(--trip-editor-text));
 }
 
 .trip-editor-map-search {

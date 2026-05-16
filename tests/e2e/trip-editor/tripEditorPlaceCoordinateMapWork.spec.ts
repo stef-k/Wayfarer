@@ -33,6 +33,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(form.getByLabel('Latitude')).toHaveValue('');
     await expect(form.getByLabel('Longitude')).toHaveValue('');
 
+    await expectPickOnMapHelp(page);
     await page.getByRole('button', { name: 'Pick on map' }).click();
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Pick place location');
@@ -44,6 +45,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(mapWork).toContainText('Selected');
     await expect(page.getByTitle('Selected place location preview')).toHaveCount(1);
     await expectLoadedImages(page.locator('[data-coordinate-preview-marker]'));
+    await expect(page.locator('[data-coordinate-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
     await captureEvidence(page, testInfo, 'pick-on-map-preview-marker');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     expect(mutations(), 'Done has not been clicked and no mutation should have run.').toEqual([]);
@@ -306,6 +308,14 @@ async function expectLoadedImages(images: Locator): Promise<void> {
   for (let index = 0; index < count; index += 1) {
     await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
   }
+}
+
+async function expectPickOnMapHelp(page: Page): Promise<void> {
+  const pickButton = page.getByRole('button', { name: 'Pick on map' });
+  await expect(pickButton).toHaveAttribute('title', "Pick this place's latitude and longitude on the map");
+  const describedBy = await pickButton.getAttribute('aria-describedby');
+  expect(describedBy, 'Pick on map should expose an accessible help description.').toBeTruthy();
+  await expect(page.locator(`#${describedBy}`)).toContainText("Use the map to choose this place's latitude and longitude.");
 }
 
 async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
