@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -43,6 +43,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await clickMap(page, { xRatio: 0.38, yRatio: 0.46 });
     await expect(mapWork).toContainText('Selected');
     await expect(page.getByTitle('Selected place location preview')).toHaveCount(1);
+    await expectLoadedImages(page.locator('[data-coordinate-preview-marker]'));
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     expect(mutations(), 'Done has not been clicked and no mutation should have run.').toEqual([]);
 
@@ -296,6 +297,14 @@ async function expectDraftCoordinates(page: Page, values: { latitude: string; lo
   const form = page.locator('#trip-editor-place-form');
   await expect(form.getByLabel('Latitude')).toHaveValue(values.latitude);
   await expect(form.getByLabel('Longitude')).toHaveValue(values.longitude);
+}
+
+async function expectLoadedImages(images: Locator): Promise<void> {
+  const count = await images.count();
+  expect(count, 'Expected at least one image to validate.').toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
+  }
 }
 
 function watchEditorMutations(page: Page): () => string[] {

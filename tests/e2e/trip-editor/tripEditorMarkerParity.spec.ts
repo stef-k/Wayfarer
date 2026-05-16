@@ -26,6 +26,9 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
 
     await expectLoadedImages(mapMarkerImages(page));
     await expectLoadedImages(page.locator('[data-sidebar-place-icon]'));
+    await expectLoadedImages(regionMarkerImages(page));
+    await expect(regionMarkerImages(page).first()).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-red\/map\.png$/);
+    await captureEvidence(page, testInfo, 'region-marker-app-asset');
 
     await clickMarker(page, firstPlaceId);
     await expectSelectedPlace(page, firstPlaceId);
@@ -37,8 +40,19 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectRegionAddActionsAttached(page);
     await expectPlaceIconColumnAligned(page);
     await expect(page.locator('.leaflet-popup')).toContainText(firstPlaceName);
+    await expect(page.locator('.leaflet-popup')).toContainText('PW marker parity region');
+    await expect(page.locator('.leaflet-popup')).toContainText('Lat: 37.98380');
+    await expect(page.locator('.leaflet-popup')).toContainText('Lon: 23.72750');
+    await expect(page.locator('.leaflet-popup')).toContainText('Address: Athens, Greece');
+    await expect(page.locator('.leaflet-popup')).toContainText('Visits: 2 visits');
     await expect(page.locator('.leaflet-popup')).toContainText('Marker popup rich note');
+    await expectPopupSupportsScrolling(page);
+    await expectAttribution(page);
     await captureEvidence(page, testInfo, 'map-click-selects-sidebar-status');
+    await setTheme(page, 'dark');
+    await expectAttribution(page);
+    await captureEvidence(page, testInfo, 'dark-selected-marker-popup-attribution');
+    await setTheme(page, 'light');
 
     await sidebarRow(page, secondPlaceId).click();
     await expectSelectedPlace(page, secondPlaceId);
@@ -260,7 +274,7 @@ function prepareMarkerState(state: MutableEditorState): void {
       name: 'PW marker parity region',
       notesHtml: '',
       coverImage: null,
-      center: null,
+      center: { latitude: 37.95, longitude: 23.7 },
       displayOrder: 1,
       isShadow: false,
       capabilities: editableCapabilities()
@@ -344,6 +358,10 @@ function mapMarkerImages(page: Page): Locator {
   return page.locator('[data-place-marker-icon]');
 }
 
+function regionMarkerImages(page: Page): Locator {
+  return page.locator('[data-region-marker-icon]');
+}
+
 async function expectSelectedPlace(page: Page, placeId: string): Promise<void> {
   await expect(sidebarRow(page, placeId)).toHaveClass(/trip-editor-place-row--active/);
   await expect(markerImage(page, placeId).locator('xpath=ancestor::*[contains(@class, "trip-editor-map-marker")]')).toHaveClass(/trip-editor-map-marker--selected/);
@@ -370,6 +388,28 @@ async function expectLoadedImages(images: Locator): Promise<void> {
   }
 }
 
+async function expectPopupSupportsScrolling(page: Page): Promise<void> {
+  const popupContent = page.locator('.trip-editor-place-popup__content');
+  await expect(popupContent).toBeVisible();
+  await expect.poll(async () => popupContent.evaluate(element => {
+    const styles = window.getComputedStyle(element);
+    return styles.overflowY === 'auto' && styles.maxHeight !== 'none';
+  })).toBe(true);
+}
+
+async function expectAttribution(page: Page): Promise<void> {
+  const attribution = page.locator('.leaflet-control-attribution');
+  await expect(attribution).toContainText('Wayfarer');
+  await expect(attribution).toContainText('Stef K');
+  await expect(attribution).toContainText('Leaflet');
+  await expect(attribution).toContainText('OpenStreetMap');
+  await expect(attribution.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible();
+  await expect.poll(async () => attribution.evaluate(element => {
+    const styles = window.getComputedStyle(element);
+    return styles.color !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
+  })).toBe(true);
+}
+
 async function clickMarker(page: Page, placeId: string): Promise<void> {
   await expect(markerImage(page, placeId)).toBeVisible();
   await markerImage(page, placeId).evaluate(element => {
@@ -379,6 +419,10 @@ async function clickMarker(page: Page, placeId: string): Promise<void> {
 
 async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
+}
+
+async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
+  await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
 }
 
 async function expectPlaceRowDoesNotOverlapEdit(page: Page, placeId: string): Promise<void> {

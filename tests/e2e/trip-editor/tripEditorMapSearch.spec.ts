@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   absoluteUrl,
   closeDraftWithDiscard,
@@ -254,6 +254,8 @@ test.describe('Trip Editor map geocode search', () => {
     await runSearch(page, 'preview place');
     await page.getByRole('button', { name: 'Preview Place' }).click();
     await expect(page.locator('img[alt="Search result preview: Preview Place"]')).toBeVisible();
+    await expectLoadedImages(page.locator('[data-search-preview-marker]'));
+    await expect(page.locator('[data-search-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-black\/map\.png$/);
 
     await page.getByRole('searchbox', { name: 'Map search' }).fill('');
     await expect(page.locator('img[alt="Search result preview: Preview Place"]')).toHaveCount(0);
@@ -341,6 +343,14 @@ async function addSelectedResult(page: Page): Promise<void> {
   }
 
   await page.getByRole('button', { name: 'Add as place' }).click();
+}
+
+async function expectLoadedImages(images: Locator): Promise<void> {
+  const count = await images.count();
+  expect(count, 'Expected at least one image to validate.').toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
+  }
 }
 
 async function routeGeocode(page: Page, handler: (route: Route) => Promise<void>): Promise<void> {
