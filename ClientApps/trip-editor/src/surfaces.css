@@ -82,6 +82,25 @@
   min-width: 0;
 }
 
+.trip-editor-place-editor-row .trip-editor-surface--docked {
+  contain: layout paint;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(42rem, calc(100vh - 10rem));
+  overflow: hidden;
+}
+
+.trip-editor-place-editor-row .trip-editor-surface__body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.trip-editor-place-editor-row .trip-editor-surface-context--map-work {
+  align-content: start;
+  height: min(42rem, calc(100vh - 10rem));
+  overflow: hidden;
+}
+
 .trip-editor-workspace .btn,
 .trip-editor-expanded .btn,
 .trip-editor-map-work-toolbar .btn {

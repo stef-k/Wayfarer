@@ -26,6 +26,7 @@ body {
 .trip-editor-sidebar {
   background: var(--trip-editor-surface);
   border-right: 1px solid var(--trip-editor-border);
+  contain: layout paint;
   min-height: 0;
   overflow: auto;
   overflow-x: hidden;

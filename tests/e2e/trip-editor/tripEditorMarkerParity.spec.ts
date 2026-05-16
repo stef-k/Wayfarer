@@ -9,6 +9,11 @@ import {
 } from './tripEditorTestUtils';
 
 type MutableEditorState = Record<string, any>;
+type TripEditorContainmentMetrics = {
+  bodyHeight: number; documentHeight: number; footerTop: number | null; mapHeight: number;
+  sidebarClientHeight: number; sidebarScrollHeight: number; stableOverflow: Array<{ selector: string; overflow: number }>;
+  surfaceBodyOverflowY: string; viewportHeight: number; workspaceHeight: number;
+};
 
 const regionId = '00000000-0000-0000-0000-000000283101';
 const firstPlaceId = '00000000-0000-0000-0000-000000283201';
@@ -88,7 +93,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
 
     await page.locator('#trip-editor-place-form').getByLabel('Name').fill(`${firstPlaceName} saved`);
     await page.getByRole('button', { name: 'Save Place' }).click();
-    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Saved/i }).first()).toBeVisible();
+    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
     await expectSelectedPlace(page, firstPlaceId);
 
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -234,6 +239,37 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     expect(requests[0].notesHtml).not.toContain('/Public/ProxyImage');
   });
 
+  test('shows deterministic place save success and error feedback', async ({ page }) => {
+    const requests: Record<string, any>[] = [];
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page, requests);
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Successful save feedback address');
+    await page.getByRole('button', { name: 'Save Place' }).click();
+    await expect.poll(() => requests.length).toBe(1);
+    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+
+    await page.locator('#trip-editor-place-form').getByLabel('Address').fill('Failed save feedback address');
+    await failNextPlaceSave(page, 'Injected place save failure.');
+    await page.getByRole('button', { name: 'Save Place' }).click();
+    await expect(page.getByRole('alert')).toContainText('Injected place save failure.');
+    await expect(page.locator('.trip-editor-save-state').filter({ hasText: 'Save failed' }).first()).toBeVisible();
+  });
+
+  test('keeps docked place editing contained without expanding the page', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+    const before = await tripEditorContainmentMetrics(page);
+
+    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(firstPlaceName)}`) })).toBeVisible();
+    await expectNonEmptyPlaceEditorRow(page);
+    await expectTripEditorContainment(page, before);
+  });
+
   test('keeps popup and attribution usable at a narrow viewport', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await signIn(page);
@@ -377,6 +413,22 @@ function mapMarkerImages(page: Page): Locator {
   return page.locator('[data-place-marker-icon]');
 }
 
+async function failNextPlaceSave(page: Page, message: string): Promise<void> {
+  await page.route(editorApiMatcher, async route => {
+    const request = route.request();
+    if (request.method() === 'PUT' && request.url().includes(`/places/${firstPlaceId}`)) {
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ title: message, status: 400, errors: {} })
+      });
+      return;
+    }
+
+    await route.fallback();
+  }, { times: 1 });
+}
+
 function regionMarkerImages(page: Page): Locator {
   return page.locator('[data-region-marker-icon]');
 }
@@ -463,6 +515,47 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
     );
   });
   expect(overflow, 'Popup and attribution should not create horizontal page overflow.').toBeLessThanOrEqual(1);
+}
+
+async function tripEditorContainmentMetrics(page: Page): Promise<TripEditorContainmentMetrics> {
+  return await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    const workspace = document.querySelector<HTMLElement>('.trip-editor-workspace');
+    const map = document.querySelector<HTMLElement>('.trip-editor-map');
+    const surfaceBody = document.querySelector<HTMLElement>('.trip-editor-place-editor-row .trip-editor-surface__body');
+    const footer = document.querySelector<HTMLElement>('body footer, .footer');
+    const stableOverflow = ['#trip-editor-app', '.trip-editor-shell', '.trip-editor-workspace']
+      .map(selector => ({ selector, overflow: Math.max(0, (document.querySelector<HTMLElement>(selector)?.getBoundingClientRect().right ?? 0) - viewportWidth) }))
+      .filter(result => result.overflow > 2);
+
+    return {
+      bodyHeight: document.body?.scrollHeight ?? 0,
+      documentHeight: document.documentElement.scrollHeight,
+      footerTop: footer ? footer.getBoundingClientRect().top : null,
+      mapHeight: map?.getBoundingClientRect().height ?? 0,
+      sidebarClientHeight: sidebar?.clientHeight ?? 0,
+      sidebarScrollHeight: sidebar?.scrollHeight ?? 0,
+      stableOverflow,
+      surfaceBodyOverflowY: surfaceBody ? window.getComputedStyle(surfaceBody).overflowY : '',
+      viewportHeight: window.innerHeight,
+      workspaceHeight: workspace?.getBoundingClientRect().height ?? 0
+    };
+  });
+}
+
+async function expectTripEditorContainment(page: Page, before: TripEditorContainmentMetrics): Promise<void> {
+  const after = await tripEditorContainmentMetrics(page);
+  expect(after.stableOverflow, 'Stable Trip Editor containers should fit within the viewport.').toEqual([]);
+  expect(after.documentHeight - before.documentHeight, 'Opening place edit should not expand document height by many viewports.').toBeLessThanOrEqual(80);
+  expect(after.bodyHeight - before.bodyHeight, 'Opening place edit should not expand body height by many viewports.').toBeLessThanOrEqual(80);
+  expect(after.workspaceHeight, 'Trip Editor workspace should stay bounded by the viewport.').toBeLessThanOrEqual(after.viewportHeight + 1);
+  expect(after.mapHeight, 'Trip Editor map should remain usable after opening place edit.').toBeGreaterThan(300);
+  expect(after.sidebarScrollHeight, 'Place editor overflow should stay inside the sidebar/editor containers.').toBeGreaterThan(after.sidebarClientHeight);
+  expect(after.surfaceBodyOverflowY, 'Docked place editor body should scroll internally.').toBe('auto');
+  if (before.footerTop !== null && after.footerTop !== null) {
+    expect(after.footerTop - before.footerTop, 'Opening place edit should not push the footer down.').toBeLessThanOrEqual(80);
+  }
 }
 
 function readableColor(foreground: string, background: string): boolean {

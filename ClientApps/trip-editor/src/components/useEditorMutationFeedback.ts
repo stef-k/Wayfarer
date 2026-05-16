@@ -18,6 +18,7 @@ export function useEditorMutationFeedback(options: FeedbackOptions) {
   const saveWarning = ref<string | null>(null);
   const validationErrors = ref<Record<string, string[]>>({});
   const lastSavedAt = ref<string | null>(null);
+  const lastSavedLabel = ref('Saved');
 
   const statusText = computed(() => {
     if (options.isSaving.value) {
@@ -33,14 +34,14 @@ export function useEditorMutationFeedback(options: FeedbackOptions) {
     }
 
     if (saveWarning.value) {
-      return lastSavedAt.value ? `Saved ${lastSavedAt.value} with warning` : 'Saved with warning';
+      return lastSavedAt.value ? `${lastSavedLabel.value} ${lastSavedAt.value} with warning` : `${lastSavedLabel.value} with warning`;
     }
 
     if (options.isDirty.value) {
       return 'Unsaved changes';
     }
 
-    return lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved';
+    return lastSavedAt.value ? `${lastSavedLabel.value} ${lastSavedAt.value}` : lastSavedLabel.value;
   });
 
   const formSummaryErrors = computed(() => {
@@ -64,8 +65,9 @@ export function useEditorMutationFeedback(options: FeedbackOptions) {
     return validationErrors.value[key] ?? [];
   }
 
-  function markSaved(warningMessages: string[] = []): void {
+  function markSaved(warningMessages: string[] = [], savedLabel = 'Saved'): void {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    lastSavedLabel.value = savedLabel;
     saveError.value = null;
     saveWarning.value = warningMessages.length > 0 ? warningMessages.join(' ') : null;
   }

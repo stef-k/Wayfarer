@@ -82,6 +82,28 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     expect(forbidden(), 'Canceling coordinate pick must not call geocode/search providers.').toEqual([]);
   });
 
+  test('Pick on map keeps the docked place editor stable in the sidebar', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+
+    await openEditablePlace(page);
+    await page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').evaluate(element => {
+      element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    });
+    const before = await sidebarEditorState(page);
+    expect(before.contextVisible, 'The active place editor should start visible before map-work.').toBe(true);
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expect(page.getByRole('region', { name: 'Map work' })).toContainText('Pick place location');
+    const after = await sidebarEditorState(page);
+
+    expect(Math.abs(after.scrollTop - before.scrollTop), 'Starting coordinate map-work should not move the sidebar enough to hide the active editor.').toBeLessThanOrEqual(96);
+    expect(after.contextVisible, 'The active place editor context should remain visible while map-work is active.').toBe(true);
+    expect(after.contextTop, 'The active place editor context should stay inside the sidebar viewport.').toBeGreaterThanOrEqual(after.sidebarTop - 1);
+    expect(after.contextBottom, 'The active place editor context should stay inside the sidebar viewport.').toBeLessThanOrEqual(after.sidebarBottom + 1);
+  });
+
   test('edit-place Done applies the draft coordinate and moves the selected marker', async ({ page }) => {
     await useMapWorkViewport(page);
     await signIn(page);
@@ -354,6 +376,30 @@ async function expectPickOnMapHelp(page: Page): Promise<void> {
 
 async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
+}
+
+async function sidebarEditorState(page: Page): Promise<{
+  contextBottom: number;
+  contextTop: number;
+  contextVisible: boolean;
+  scrollTop: number;
+  sidebarBottom: number;
+  sidebarTop: number;
+}> {
+  return await page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    const context = document.querySelector<HTMLElement>('.trip-editor-place-editor-row .trip-editor-surface-context, .trip-editor-place-editor-row .trip-editor-surface--docked');
+    const sidebarBox = sidebar?.getBoundingClientRect();
+    const contextBox = context?.getBoundingClientRect();
+    return {
+      contextBottom: contextBox?.bottom ?? 0,
+      contextTop: contextBox?.top ?? 0,
+      contextVisible: Boolean(contextBox && sidebarBox && contextBox.bottom > sidebarBox.top && contextBox.top < sidebarBox.bottom),
+      scrollTop: sidebar?.scrollTop ?? 0,
+      sidebarBottom: sidebarBox?.bottom ?? 0,
+      sidebarTop: sidebarBox?.top ?? 0
+    };
+  });
 }
 
 function watchEditorMutations(page: Page): () => string[] {
