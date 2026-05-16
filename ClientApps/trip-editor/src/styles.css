@@ -435,6 +435,13 @@ body {
   justify-content: flex-end;
 }
 
+.trip-editor-region-card__add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
 .trip-editor-icon-button {
   align-items: center;
   background: var(--trip-editor-field-bg);
@@ -498,7 +505,7 @@ body {
   align-items: end;
   display: inline-flex;
   height: 2.55rem;
-  justify-content: center;
+  justify-content: flex-start;
   position: relative;
   width: 1.75rem;
 }

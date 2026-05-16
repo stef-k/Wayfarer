@@ -35,6 +35,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
     await expect(regionCard(page).locator('.trip-editor-area-list')).toHaveCount(0);
     await expectRegionAddActionsAttached(page);
+    await expectPlaceIconColumnAligned(page);
     await expect(page.locator('.leaflet-popup')).toContainText(firstPlaceName);
     await expect(page.locator('.leaflet-popup')).toContainText('Marker popup rich note');
     await captureEvidence(page, testInfo, 'map-click-selects-sidebar-status');
@@ -46,6 +47,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('.trip-editor-toolbar__status')).toContainText(`Selected place: ${secondPlaceName}`);
     await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
     await expectRegionAddActionsAttached(page);
+    await expectPlaceIconColumnAligned(page);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
     await captureEvidence(page, testInfo, 'sidebar-click-selects-map-status');
 
@@ -398,7 +400,31 @@ async function expectRegionAddActionsAttached(page: Page): Promise<void> {
   const [rowBox, addBox] = await Promise.all([lastChildRow.boundingBox(), addPlaceButton.boundingBox()]);
   expect(rowBox, 'Last visible child row should have a rendered bounding box.').not.toBeNull();
   expect(addBox, 'Add Place button should have a rendered bounding box.').not.toBeNull();
-  expect(addBox!.y - (rowBox!.y + rowBox!.height), 'Add actions should stay visually attached to region children without a blank panel gap.').toBeLessThanOrEqual(28);
+  const addActionGap = addBox!.y - (rowBox!.y + rowBox!.height);
+  expect(addActionGap, 'Add actions should have compact breathing room above the buttons.').toBeGreaterThanOrEqual(4);
+  expect(addActionGap, 'Add actions should stay visually attached to region children without a blank panel gap.').toBeLessThanOrEqual(28);
+}
+
+async function expectPlaceIconColumnAligned(page: Page): Promise<void> {
+  const firstIcon = sidebarRow(page, firstPlaceId).locator('.trip-editor-place-row__icon');
+  const secondIcon = sidebarRow(page, secondPlaceId).locator('.trip-editor-place-row__icon');
+  const firstImage = firstIcon.locator('img[data-sidebar-place-icon]');
+  const secondImage = secondIcon.locator('img[data-sidebar-place-icon]');
+  const [firstIconBox, secondIconBox, firstImageBox, secondImageBox] = await Promise.all([
+    firstIcon.boundingBox(),
+    secondIcon.boundingBox(),
+    firstImage.boundingBox(),
+    secondImage.boundingBox()
+  ]);
+  expect(firstIconBox, 'First place icon column should have a rendered bounding box.').not.toBeNull();
+  expect(secondIconBox, 'Second place icon column should have a rendered bounding box.').not.toBeNull();
+  expect(firstImageBox, 'First place icon should have a rendered bounding box.').not.toBeNull();
+  expect(secondImageBox, 'Second place icon should have a rendered bounding box.').not.toBeNull();
+
+  const tolerance = 2;
+  expect(Math.abs(firstIconBox!.x - secondIconBox!.x), 'Place icon columns should align consistently across rows.').toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(firstImageBox!.x - firstIconBox!.x), 'First place icon should be left-aligned inside its icon column.').toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(secondImageBox!.x - secondIconBox!.x), 'Second place icon should be left-aligned inside its icon column.').toBeLessThanOrEqual(tolerance);
 }
 
 async function expectNonEmptyPlaceEditorRow(page: Page): Promise<void> {

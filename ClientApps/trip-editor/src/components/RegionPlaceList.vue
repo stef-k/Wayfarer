@@ -342,12 +342,14 @@ function toggleRegion(regionId: Guid): void {
           </template>
         </li>
       </ul>
-      <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
-        Add Place
-      </button>
-      <button v-if="canAddArea(region)" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addArea', region)">
-        Add Area
-      </button>
+      <div v-if="!region.isShadow || canAddArea(region)" class="trip-editor-region-card__add-actions">
+        <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
+          Add Place
+        </button>
+        <button v-if="canAddArea(region)" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addArea', region)">
+          Add Area
+        </button>
+      </div>
       <slot name="add-place-editor" :region="region"></slot>
       <slot name="add-area-editor" :region="region"></slot>
     </article>
