@@ -58,7 +58,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   map.on('moveend zoomend', updateMapViewDataset);
 
   L.tileLayer(tilesUrl, {
-    attribution: window.wayfarerTileConfig?.attribution ?? '&copy; OpenStreetMap contributors',
+    attribution: providerAttribution(window.wayfarerTileConfig?.attribution),
     maxZoom: 19
   }).addTo(map);
   map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Stef K" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
@@ -634,6 +634,24 @@ const readUrlMapView = (search: string): { center: EditorCoordinate; zoom: numbe
 
   const center = { latitude, longitude };
   return isFiniteCoordinate(center) ? { center, zoom } : null;
+};
+
+/// Preserves configured provider attribution while ensuring OpenStreetMap remains linked.
+const providerAttribution = (configuredAttribution: string | null | undefined): string => {
+  const attribution = configuredAttribution?.trim() || '&copy; OpenStreetMap contributors';
+  if (/openstreetmap\.org/i.test(attribution)) {
+    return attribution;
+  }
+
+  if (/OpenStreetMap contributors/i.test(attribution)) {
+    return attribution.replace(/OpenStreetMap contributors/gi, '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors');
+  }
+
+  if (/OpenStreetMap/i.test(attribution)) {
+    return attribution.replace(/OpenStreetMap/gi, '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>');
+  }
+
+  return `${attribution} | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors`;
 };
 
 const segmentLabel = (segment: EditorSegment, state: EditorTripState): string => {

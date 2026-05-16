@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -20,7 +20,7 @@ const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]
 const forbiddenPickRequest = /nominatim|geocode|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
 
 test.describe.serial('Trip Editor place coordinate map-work', () => {
-  test('add-place picks a temporary coordinate and Done updates only the draft', async ({ page }) => {
+  test('add-place picks a temporary coordinate and Done updates only the draft', async ({ page }, testInfo) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
     const mutations = watchEditorMutations(page);
@@ -44,6 +44,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(mapWork).toContainText('Selected');
     await expect(page.getByTitle('Selected place location preview')).toHaveCount(1);
     await expectLoadedImages(page.locator('[data-coordinate-preview-marker]'));
+    await captureEvidence(page, testInfo, 'pick-on-map-preview-marker');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     expect(mutations(), 'Done has not been clicked and no mutation should have run.').toEqual([]);
 
@@ -305,6 +306,10 @@ async function expectLoadedImages(images: Locator): Promise<void> {
   for (let index = 0; index < count; index += 1) {
     await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
   }
+}
+
+async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 function watchEditorMutations(page: Page): () => string[] {

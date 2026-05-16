@@ -229,6 +229,20 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     expect(requests[0].notesHtml).toContain(externalImageUrl);
     expect(requests[0].notesHtml).not.toContain('/Public/ProxyImage');
   });
+
+  test('keeps popup and attribution usable at a narrow viewport', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await signIn(page);
+    await loadWorkspaceWithMarkerFixture(page);
+
+    await clickMarker(page, firstPlaceId);
+    await expectSelectedPlace(page, firstPlaceId);
+    await expect(page.locator('.leaflet-popup')).toContainText('PW marker parity region');
+    await expectPopupSupportsScrolling(page);
+    await expectAttribution(page);
+    await expectNoPageOverflow(page);
+    await captureEvidence(page, testInfo, 'narrow-popup-attribution-smoke');
+  });
 });
 
 async function loadWorkspaceWithMarkerFixture(page: Page, requests: Record<string, any>[] = []): Promise<MutableEditorState> {
@@ -408,6 +422,17 @@ async function expectAttribution(page: Page): Promise<void> {
     const styles = window.getComputedStyle(element);
     return styles.color !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'rgba(0, 0, 0, 0)';
   })).toBe(true);
+}
+
+async function expectNoPageOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    return Math.max(
+      document.documentElement.scrollWidth - viewportWidth,
+      document.body ? document.body.scrollWidth - viewportWidth : 0
+    );
+  });
+  expect(overflow, 'Popup and attribution should not create horizontal page overflow.').toBeLessThanOrEqual(1);
 }
 
 async function clickMarker(page: Page, placeId: string): Promise<void> {

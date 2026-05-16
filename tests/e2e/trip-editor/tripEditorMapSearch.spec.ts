@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   closeDraftWithDiscard,
@@ -240,7 +240,7 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(mapSearch.getByRole('button', { name: 'Result for athens acropolis' })).toBeVisible();
   });
 
-  test('result preview marker appears, clears, and search-add opens the existing Add Place draft without saving', async ({ page }) => {
+  test('result preview marker appears, clears, and search-add opens the existing Add Place draft without saving', async ({ page }, testInfo) => {
     await signIn(page);
     let saveCalls = 0;
     await page.route('**/api/trips/*/editor/regions/*/places', async route => {
@@ -256,6 +256,7 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(page.locator('img[alt="Search result preview: Preview Place"]')).toBeVisible();
     await expectLoadedImages(page.locator('[data-search-preview-marker]'));
     await expect(page.locator('[data-search-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-black\/map\.png$/);
+    await captureEvidence(page, testInfo, 'map-search-preview-marker');
 
     await page.getByRole('searchbox', { name: 'Map search' }).fill('');
     await expect(page.locator('img[alt="Search result preview: Preview Place"]')).toHaveCount(0);
@@ -351,6 +352,10 @@ async function expectLoadedImages(images: Locator): Promise<void> {
   for (let index = 0; index < count; index += 1) {
     await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
   }
+}
+
+async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 async function routeGeocode(page: Page, handler: (route: Route) => Promise<void>): Promise<void> {
