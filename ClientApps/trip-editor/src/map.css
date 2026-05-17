@@ -209,13 +209,18 @@
   filter: invert(1);
 }
 
-.trip-editor-map-measure-help {
+.trip-editor-map-measure-help,
+.trip-editor-map-copy-feedback {
   background: var(--trip-editor-surface);
   border: 1px solid var(--trip-editor-border);
   border-radius: 6px;
   color: var(--trip-editor-text);
   font-size: 0.78rem;
   padding: 0.35rem 0.5rem;
+}
+
+.trip-editor-map-copy-feedback {
+  box-shadow: 0 0.35rem 0.75rem rgba(15, 23, 42, 0.16);
 }
 
 .trip-editor-map-distance-label span {

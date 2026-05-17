@@ -15,6 +15,8 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
     const copyButton = mapUtilityButton(container, 'Copy map link', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/link-45deg.svg');
     let measureTool: ReturnType<typeof createDistanceMeasureTool> | null = null;
     let copyTimer: number | null = null;
+    let copyFeedbackControl: L.Control | null = null;
+    let copyFeedbackTimer: number | null = null;
 
     const updateZoomText = (): void => {
       zoomText.textContent = `Zoom: ${map.getZoom()}`;
@@ -58,6 +60,7 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
         copyButton.classList.add('trip-editor-map-utilities__button--copied');
         copyButton.setAttribute('aria-label', 'Map link copied');
         copyButton.setAttribute('title', 'Map link copied');
+        showCopyFeedback();
         if (copyTimer !== null) {
           window.clearTimeout(copyTimer);
         }
@@ -70,6 +73,33 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
       });
     });
 
+    const clearCopyFeedback = (): void => {
+      if (copyFeedbackTimer !== null) {
+        window.clearTimeout(copyFeedbackTimer);
+        copyFeedbackTimer = null;
+      }
+      copyFeedbackControl?.remove();
+      copyFeedbackControl = null;
+    };
+
+    const showCopyFeedback = (): void => {
+      if (copyFeedbackTimer !== null) {
+        window.clearTimeout(copyFeedbackTimer);
+        copyFeedbackTimer = null;
+      }
+      if (!copyFeedbackControl) {
+        copyFeedbackControl = new L.Control({ position: 'bottomleft' });
+        copyFeedbackControl.onAdd = () => {
+          const div = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-copy-feedback');
+          div.setAttribute('role', 'status');
+          div.textContent = 'Map link copied to clipboard';
+          return div;
+        };
+        copyFeedbackControl.addTo(map);
+      }
+      copyFeedbackTimer = window.setTimeout(clearCopyFeedback, 1800);
+    };
+
     control.onRemove = () => {
       map.off('zoomend', updateZoomText);
       stopMeasure();
@@ -77,6 +107,7 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
       if (copyTimer !== null) {
         window.clearTimeout(copyTimer);
       }
+      clearCopyFeedback();
     };
 
     return container;

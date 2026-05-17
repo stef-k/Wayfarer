@@ -55,6 +55,9 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
     const metadataPanel = page.locator('#trip-editor-metadata-form');
     await expect(searchPanel).toBeVisible();
     await expect(searchPanel).toHaveCSS('position', 'sticky');
+    await expect(searchPanel).toHaveCSS('opacity', '1');
+    await expect(searchPanel).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(searchPanel).not.toHaveCSS('box-shadow', 'none');
     expect((await searchPanel.boundingBox())!.y).toBeLessThan((await metadataPanel.boundingBox())!.y);
 
     await page.getByLabel('Sidebar search').fill('not-a-real-trip-editor-match');
@@ -83,6 +86,17 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
     await expect(page.locator('.trip-editor-map-distance-label')).toContainText(/km/);
 
     await utilityButton(page, 'Copy map link').click();
+    const copyFeedback = page.locator('.trip-editor-map-copy-feedback');
+    await expect(copyFeedback).toHaveText('Map link copied to clipboard');
+    await expect(copyFeedback).toHaveCount(1);
+    await page.waitForTimeout(900);
+    await utilityButton(page, 'Map link copied').click();
+    await expect(copyFeedback).toHaveCount(1);
+    await expect(copyFeedback).toBeVisible();
+    await page.waitForTimeout(900);
+    await expect(copyFeedback).toBeVisible();
+    await expect(copyFeedback).toHaveCount(0, { timeout: 1500 });
+
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboardText).toContain(editorPath);
     expect(clipboardText).toMatch(/[?&]lat=/);

@@ -292,13 +292,16 @@ body {
 
 .trip-editor-sidebar-search {
   background: var(--trip-editor-surface);
+  border-bottom: 1px solid var(--trip-editor-border);
+  box-shadow: 0 0.35rem 0.75rem rgba(15, 23, 42, 0.08);
   display: grid;
   gap: 0.6rem;
   margin: 0 -1rem;
+  opacity: 1;
   padding: 0.75rem 1rem;
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 8;
 }
 
 .trip-editor-empty-state {
