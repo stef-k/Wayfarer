@@ -28,13 +28,7 @@
 }
 
 .trip-editor-rich-notes__editor.ql-container .ql-editor > p:last-child:has(> br:only-child) {
-  min-height: 2.75rem;
-}
-
-.trip-editor-rich-notes__editor.ql-container .ql-editor::after {
-  content: "";
-  display: block;
-  height: 3rem;
+  min-height: 5rem;
 }
 
 .trip-editor-rich-notes .ql-picker,

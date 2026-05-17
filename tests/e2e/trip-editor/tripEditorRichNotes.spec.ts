@@ -142,7 +142,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(richEditor(form).locator('.ql-editor img[src^="data:image"]')).toHaveCount(0);
   });
 
-  test('docked notes let users continue after a terminal image without persisting helper markup', async ({ page }, testInfo) => {
+  test('docked notes let users type into the trailing blank line after a terminal image', async ({ page }, testInfo) => {
     await signIn(page);
     await routeRichNoteImages(page);
     const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
@@ -154,8 +154,8 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     const form = page.locator('#trip-editor-metadata-form');
     const editor = richEditor(form).locator('.ql-editor');
     await expect(editor.locator('img')).toBeVisible();
-    await expectContinuationSpace(editor);
-    await clickContinuationSpaceWithoutScrollJump(editor);
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
     await page.keyboard.type('Continuation after image');
     await captureRichNotesEvidence(page, testInfo, 'docked-terminal-image-continuation');
     await page.getByRole('button', { name: 'Save & Continue' }).click();
@@ -168,7 +168,31 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expect(notesHtml).not.toContain('contenteditable');
   });
 
-  test('expanded notes let users press Enter and continue after terminal content with clean save HTML', async ({ page }, testInfo) => {
+  test('docked notes strip the empty artificial trailing blank line on save', async ({ page }) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    const form = page.locator('#trip-editor-metadata-form');
+    const editor = richEditor(form).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
+    await form.getByLabel('Name').fill('PW rich notes blank continuation docked');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg']);
+    expect(notesHtml).not.toContain('<p><br></p>');
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+  });
+
+  test('expanded notes let users type into the trailing blank line after terminal content', async ({ page }, testInfo) => {
     await signIn(page);
     await routeRichNoteImages(page);
     const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
@@ -181,8 +205,8 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     const dialog = page.getByRole('dialog', { name: /Edit Trip -/ });
     const editor = richEditor(dialog.locator('#trip-editor-metadata-form')).locator('.ql-editor');
     await expect(editor.locator('img')).toBeVisible();
-    await expectContinuationSpace(editor);
-    await clickContinuationSpaceWithoutScrollJump(editor);
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
     await page.keyboard.type('Expanded continuation');
     await captureRichNotesEvidence(page, testInfo, 'expanded-terminal-content-continuation');
     await dialog.getByRole('button', { name: 'Dock to sidebar' }).click();
@@ -194,6 +218,32 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
     expect(notesHtml).not.toContain('editor-only');
     expect(notesHtml).not.toContain('<p><br></p><p><br></p>');
+  });
+
+  test('expanded notes strip the empty artificial trailing blank line on save', async ({ page }) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    await page.getByRole('button', { name: 'Expand Editor' }).click();
+    const dialog = page.getByRole('dialog', { name: /Edit Trip -/ });
+    const editor = richEditor(dialog.locator('#trip-editor-metadata-form')).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
+    await dialog.getByRole('button', { name: 'Dock to sidebar' }).click();
+    await page.locator('#trip-editor-metadata-form').getByLabel('Name').fill('PW rich notes blank continuation expanded');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg']);
+    expect(notesHtml).not.toContain('<p><br></p>');
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
   });
 
   test('data image blocking handles mixed case and whitespace-padded variants before draft storage', async ({ page }) => {
@@ -525,38 +575,44 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 }
 
-async function clickContinuationSpaceWithoutScrollJump(editor: Locator): Promise<void> {
+async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {
   const clickPoint = await editor.evaluate(element => {
     element.scrollIntoView({ block: 'center', inline: 'nearest' });
     element.scrollTop = element.scrollHeight;
-    const editorBounds = element.getBoundingClientRect();
-    const blocks = Array.from(element.children).filter(child => child.textContent?.trim() || child.querySelector('img, video, iframe'));
-    const lastBlock = blocks.at(-1);
-    const lastBlockBottom = lastBlock instanceof HTMLElement ? lastBlock.getBoundingClientRect().bottom : editorBounds.top;
-    return {
-      x: editorBounds.left + editorBounds.width / 2,
-      y: Math.min(lastBlockBottom + 16, editorBounds.bottom - 12)
-    };
-  });
-  const beforeClickScrollTop = await editor.evaluate(element => element.scrollTop);
-  await editor.page().mouse.click(clickPoint.x, clickPoint.y);
-  await expect.poll(() => editor.evaluate(element => document.activeElement === element)).toBe(true);
-  const afterClickScrollTop = await editor.evaluate(element => element.scrollTop);
-  expect(afterClickScrollTop, 'Continuation click should not jump the rich notes editor upward.').toBeGreaterThanOrEqual(beforeClickScrollTop - 4);
-}
-
-async function expectContinuationSpace(editor: Locator): Promise<void> {
-  const gap = await editor.evaluate(element => {
-    element.scrollTop = element.scrollHeight;
-    const blocks = Array.from(element.children).filter(child => child.textContent?.trim() || child.querySelector('img, video, iframe'));
-    const lastBlock = blocks.at(-1);
-    if (!(lastBlock instanceof HTMLElement)) {
-      return 0;
+    const trailingLine = element.lastElementChild;
+    if (!(trailingLine instanceof HTMLElement)) {
+      throw new Error('Rich notes editor has no trailing line.');
     }
 
-    return element.scrollHeight - (lastBlock.offsetTop + lastBlock.offsetHeight);
+    const lineBounds = trailingLine.getBoundingClientRect();
+    return {
+      x: lineBounds.left + lineBounds.width / 2,
+      y: lineBounds.top + Math.min(18, lineBounds.height / 2)
+    };
   });
-  expect(gap, 'Rich notes editor should expose visible continuation space below terminal content.').toBeGreaterThanOrEqual(40);
+  await editor.page().mouse.click(clickPoint.x, clickPoint.y);
+  await expect.poll(() => editor.evaluate(element => {
+    const selection = window.getSelection();
+    const anchorNode = selection?.anchorNode;
+    return document.activeElement === element || Boolean(anchorNode && element.contains(anchorNode));
+  })).toBe(true);
+}
+
+async function expectEditableTrailingBlankLine(editor: Locator): Promise<void> {
+  const trailingLine = await editor.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+    const line = element.lastElementChild;
+    if (!(line instanceof HTMLElement)) {
+      return { isBlank: false, height: 0 };
+    }
+
+    return {
+      isBlank: !line.textContent?.trim() && !line.querySelector('img, video, iframe'),
+      height: line.getBoundingClientRect().height
+    };
+  });
+  expect(trailingLine.isBlank, 'Rich notes editor should expose a real trailing blank line.').toBe(true);
+  expect(trailingLine.height, 'Rich notes trailing blank line should be a visible click target.').toBeGreaterThanOrEqual(32);
 }
 
 async function captureRichNotesEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {

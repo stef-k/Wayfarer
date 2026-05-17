@@ -25,6 +25,7 @@ export function normalizeNotesHtml(value: string): string {
 
     image.setAttribute('src', source);
   });
+  removeTrailingBlankParagraphs(template.content);
 
   const html = template.innerHTML.trim();
   return html === '<p><br></p>' ? '' : html;
@@ -113,6 +114,18 @@ function isAllowedImageSource(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function removeTrailingBlankParagraphs(fragment: DocumentFragment): void {
+  let lastElement = fragment.lastElementChild;
+  while (lastElement instanceof HTMLParagraphElement && isBlankParagraph(lastElement)) {
+    lastElement.remove();
+    lastElement = fragment.lastElementChild;
+  }
+}
+
+function isBlankParagraph(element: HTMLParagraphElement): boolean {
+  return !element.textContent?.trim() && !element.querySelector('img, video, iframe');
 }
 
 function isUnsafeAttributeUrl(element: Element, name: string, value: string): boolean {

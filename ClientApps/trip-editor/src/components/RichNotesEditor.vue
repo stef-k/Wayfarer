@@ -59,7 +59,6 @@ onMounted(() => {
   loadHtml(props.modelValue);
   quill.on('selection-change', handleSelectionChange);
   quill.on('text-change', handleTextChange);
-  quill.root.addEventListener('mousedown', handleContinuationPointerDown);
   quill.root.addEventListener('paste', handlePaste);
   quill.root.addEventListener('drop', handleDrop);
   quill.root.addEventListener('input', handleInput);
@@ -77,7 +76,6 @@ onUnmounted(() => {
   quill.root.removeEventListener('paste', handlePaste);
   quill.root.removeEventListener('drop', handleDrop);
   quill.root.removeEventListener('input', handleInput);
-  quill.root.removeEventListener('mousedown', handleContinuationPointerDown);
   quill.off('selection-change', handleSelectionChange);
   quill.off('text-change', handleTextChange);
   quill = null;
@@ -103,6 +101,7 @@ function loadHtml(value: string): void {
   quill.setContents([], 'silent');
   quill.clipboard.dangerouslyPasteHTML(normalizeNotesHtml(value), 'silent');
   normalizeEditorImagesForDisplay();
+  ensureEditableContinuationLine();
   isLoadingExternalValue = false;
 }
 
@@ -121,40 +120,21 @@ function handleTextChange(): void {
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
 
+  ensureEditableContinuationLine();
   emit('update:modelValue', currentHtml());
 }
 
-/// Turns the editor-only continuation zone below the last block into a reliable caret target.
-function handleContinuationPointerDown(event: MouseEvent): void {
-  if (!quill || !isContinuationZonePointer(event)) {
-    return;
-  }
-
-  event.preventDefault();
-  focusContinuationAtEnd();
-}
-
-/// Places the caret after terminal content without letting Quill scroll the editor away from the clicked end.
-function focusContinuationAtEnd(): void {
+/// Adds a real editor-local trailing line so users can click and type after terminal rich content.
+function ensureEditableContinuationLine(): void {
   if (!quill) {
     return;
   }
 
-  const scrollTop = quill.root.scrollTop;
-  const index = Math.max(0, quill.getLength() - 1);
-  quill.root.focus({ preventScroll: true });
-  quill.setSelection(index, 0, 'silent');
-  savedRange = { index, length: 0 };
-  restoreEditorScroll(scrollTop);
-  window.requestAnimationFrame(() => restoreEditorScroll(scrollTop));
-}
-
-function restoreEditorScroll(scrollTop: number): void {
-  if (!quill) {
+  if (!normalizeNotesHtml(quill.root.innerHTML) || isLastEditorBlockBlank()) {
     return;
   }
 
-  quill.root.scrollTop = scrollTop;
+  quill.insertText(Math.max(0, quill.getLength() - 1), '\n', 'silent');
 }
 
 function handlePaste(event: ClipboardEvent): void {
@@ -188,13 +168,8 @@ function handleInput(): void {
   }
 }
 
-function isContinuationZonePointer(event: MouseEvent): boolean {
+function isLastEditorBlockBlank(): boolean {
   if (!quill || quill.root.children.length === 0) {
-    return false;
-  }
-
-  const rootBounds = quill.root.getBoundingClientRect();
-  if (event.clientY < rootBounds.top || event.clientY > rootBounds.bottom) {
     return false;
   }
 
@@ -203,7 +178,7 @@ function isContinuationZonePointer(event: MouseEvent): boolean {
     return false;
   }
 
-  return event.clientY > lastBlock.getBoundingClientRect().bottom;
+  return !lastBlock.textContent?.trim() && !lastBlock.querySelector('img, video, iframe');
 }
 
 function containsDataImage(data: DataTransfer): boolean {
