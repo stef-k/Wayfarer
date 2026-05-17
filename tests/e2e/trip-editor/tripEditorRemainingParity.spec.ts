@@ -14,27 +14,27 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
 
     try {
       if (initiallyPublic) {
-        await savePublicState(page, false);
+        await setPublicState(page, false);
       }
 
-      const metadataResponse = waitForEditorMutation(page, '/metadata', 'PATCH');
-      await savePublicState(page, true);
-      await expect(await metadataResponse).toMatchObject({ status: 200, method: 'PATCH' });
+      const metadataResponse = await setPublicState(page, true);
+      await expect(metadataResponse).toMatchObject({ status: 200, method: 'PATCH' });
+      await expect(shareProgress).toBeVisible();
+      await expect(shareProgress).toBeEnabled();
 
       if (await shareProgress.isChecked()) {
-        await saveShareProgressState(page, false);
+        await setShareProgressState(page, false);
       }
 
-      const shareResponse = waitForEditorMutation(page, '/share-progress', 'PATCH');
-      await saveShareProgressState(page, true);
-      await expect(await shareResponse).toMatchObject({ status: 200, method: 'PATCH' });
+      const shareResponse = await setShareProgressState(page, true);
+      await expect(shareResponse).toMatchObject({ status: 200, method: 'PATCH' });
       await expect(page.locator('.trip-editor-form-error')).toHaveCount(0);
     } finally {
-      if ((await shareProgress.isChecked()) !== initiallyShared && (await publicTrip.isChecked())) {
-        await saveShareProgressState(page, initiallyShared);
+      if (!page.isClosed() && (await publicTrip.isChecked())) {
+        await setShareProgressState(page, initiallyShared);
       }
-      if ((await publicTrip.isChecked()) !== initiallyPublic) {
-        await savePublicState(page, initiallyPublic);
+      if (!page.isClosed()) {
+        await setPublicState(page, initiallyPublic);
       }
     }
   });
@@ -109,8 +109,13 @@ function utilityButton(page: Page, name: string): Locator {
   return page.locator('.trip-editor-map-utilities').getByRole('button', { name });
 }
 
-async function savePublicState(page: Page, enabled: boolean): Promise<void> {
+async function setPublicState(page: Page, enabled: boolean): Promise<{ method: string; status: number; url: string; body: string } | null> {
   const publicTrip = page.getByRole('checkbox', { name: 'Public trip', exact: true });
+  if ((await publicTrip.isChecked()) === enabled) {
+    return null;
+  }
+
+  const response = waitForEditorMutation(page, '/metadata', 'PATCH');
   if (enabled) {
     await publicTrip.check();
   } else {
@@ -118,10 +123,16 @@ async function savePublicState(page: Page, enabled: boolean): Promise<void> {
   }
   await page.getByRole('button', { name: 'Save & Continue' }).click();
   await expectSaved(page);
+  return await response;
 }
 
-async function saveShareProgressState(page: Page, enabled: boolean): Promise<void> {
+async function setShareProgressState(page: Page, enabled: boolean): Promise<{ method: string; status: number; url: string; body: string } | null> {
   const shareProgress = page.getByLabel('Show visit progress on public trip');
+  if ((await shareProgress.isChecked()) === enabled) {
+    return null;
+  }
+
+  const response = waitForEditorMutation(page, '/share-progress', 'PATCH');
   if (enabled) {
     await shareProgress.check();
   } else {
@@ -129,4 +140,5 @@ async function saveShareProgressState(page: Page, enabled: boolean): Promise<voi
   }
   await page.getByRole('button', { name: 'Save & Continue' }).click();
   await expectSaved(page);
+  return await response;
 }
