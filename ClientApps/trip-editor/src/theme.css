@@ -1,7 +1,7 @@
 :root {
-  --trip-editor-bg: color-mix(in srgb, var(--bs-body-bg, #f8fafc) 86%, #e2e8f0);
-  --trip-editor-surface: color-mix(in srgb, var(--bs-tertiary-bg, #ffffff) 90%, #e2e8f0);
-  --trip-editor-surface-muted: color-mix(in srgb, var(--bs-secondary-bg, #eef2f7) 86%, #cbd5e1);
+  --trip-editor-bg: color-mix(in srgb, var(--bs-body-bg, #ffffff) 96%, #e2e8f0);
+  --trip-editor-surface: color-mix(in srgb, var(--bs-tertiary-bg, #ffffff) 82%, #cbd5e1);
+  --trip-editor-surface-muted: color-mix(in srgb, var(--bs-secondary-bg, #eef2f7) 80%, #cbd5e1);
   --trip-editor-border: var(--bs-border-color, rgba(15, 23, 42, 0.14));
   --trip-editor-card: color-mix(in srgb, var(--bs-body-color, #111827) 4%, transparent);
   --trip-editor-card-strong: color-mix(in srgb, var(--bs-body-color, #111827) 8%, transparent);

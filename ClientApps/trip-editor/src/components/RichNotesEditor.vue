@@ -101,6 +101,7 @@ function loadHtml(value: string): void {
   quill.setContents([], 'silent');
   quill.clipboard.dangerouslyPasteHTML(normalizeNotesHtml(value), 'silent');
   normalizeEditorImagesForDisplay();
+  ensureEditableContinuationLine();
   isLoadingExternalValue = false;
 }
 
@@ -119,7 +120,21 @@ function handleTextChange(): void {
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
 
+  ensureEditableContinuationLine();
   emit('update:modelValue', currentHtml());
+}
+
+/// Adds a real editor-local trailing line so users can click and type after terminal rich content.
+function ensureEditableContinuationLine(): void {
+  if (!quill) {
+    return;
+  }
+
+  if (!normalizeNotesHtml(quill.root.innerHTML) || isLastEditorBlockBlank()) {
+    return;
+  }
+
+  quill.insertText(Math.max(0, quill.getLength() - 1), '\n', 'silent');
 }
 
 function handlePaste(event: ClipboardEvent): void {
@@ -151,6 +166,19 @@ function handleInput(): void {
     emit('update:modelValue', currentHtml());
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
+}
+
+function isLastEditorBlockBlank(): boolean {
+  if (!quill || quill.root.children.length === 0) {
+    return false;
+  }
+
+  const lastBlock = quill.root.children.item(quill.root.children.length - 1);
+  if (!(lastBlock instanceof HTMLElement)) {
+    return false;
+  }
+
+  return !lastBlock.textContent?.trim() && !lastBlock.querySelector('img, video, iframe');
 }
 
 function containsDataImage(data: DataTransfer): boolean {

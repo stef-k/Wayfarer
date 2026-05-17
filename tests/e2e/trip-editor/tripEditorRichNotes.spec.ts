@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -142,6 +142,110 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(richEditor(form).locator('.ql-editor img[src^="data:image"]')).toHaveCount(0);
   });
 
+  test('docked notes let users type into the trailing blank line after a terminal image', async ({ page }, testInfo) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    const form = page.locator('#trip-editor-metadata-form');
+    const editor = richEditor(form).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
+    await page.keyboard.type('Continuation after image');
+    await captureRichNotesEvidence(page, testInfo, 'docked-terminal-image-continuation');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg', 'Continuation after image']);
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+    expect(notesHtml).not.toContain('editor-only');
+    expect(notesHtml).not.toContain('contenteditable');
+  });
+
+  test('docked notes strip the empty artificial trailing blank line on save', async ({ page }) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    const form = page.locator('#trip-editor-metadata-form');
+    const editor = richEditor(form).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
+    await form.getByLabel('Name').fill('PW rich notes blank continuation docked');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg']);
+    expect(notesHtml).not.toContain('<p><br></p>');
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+  });
+
+  test('expanded notes let users type into the trailing blank line after terminal content', async ({ page }, testInfo) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    await page.getByRole('button', { name: 'Expand Editor' }).click();
+    const dialog = page.getByRole('dialog', { name: /Edit Trip -/ });
+    const editor = richEditor(dialog.locator('#trip-editor-metadata-form')).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
+    await page.keyboard.type('Expanded continuation');
+    await captureRichNotesEvidence(page, testInfo, 'expanded-terminal-content-continuation');
+    await dialog.getByRole('button', { name: 'Dock to sidebar' }).click();
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg', 'Expanded continuation']);
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+    expect(notesHtml).not.toContain('editor-only');
+    expect(notesHtml).not.toContain('<p><br></p><p><br></p>');
+  });
+
+  test('expanded notes strip the empty artificial trailing blank line on save', async ({ page }) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    await page.getByRole('button', { name: 'Expand Editor' }).click();
+    const dialog = page.getByRole('dialog', { name: /Edit Trip -/ });
+    const editor = richEditor(dialog.locator('#trip-editor-metadata-form')).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectEditableTrailingBlankLine(editor);
+    await clickEditableTrailingBlankLine(editor);
+    await dialog.getByRole('button', { name: 'Dock to sidebar' }).click();
+    await page.locator('#trip-editor-metadata-form').getByLabel('Name').fill('PW rich notes blank continuation expanded');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg']);
+    expect(notesHtml).not.toContain('<p><br></p>');
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+  });
+
   test('data image blocking handles mixed case and whitespace-padded variants before draft storage', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithRichNotesFixture(page);
@@ -272,6 +376,20 @@ function persistedQuillListNotes(): string {
     '</ol>',
     '<p data-extra="drop-paragraph">After list</p>'
   ].join('');
+}
+
+function terminalImageNotes(): string {
+  return '<p>Intro before image</p><p><img src="https://images.example.test/terminal-large.svg"></p>';
+}
+
+async function routeRichNoteImages(page: Page): Promise<void> {
+  await page.route(/\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Fterminal-large\.svg$/i, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520"><rect width="960" height="520" fill="#dbeafe"/><rect x="24" y="24" width="912" height="472" rx="24" fill="#1e293b"/><text x="72" y="270" font-family="Arial" font-size="52" fill="#bfdbfe">Terminal rich note image</text></svg>'
+    });
+  });
 }
 
 async function routeEditorMutations(page: Page, state: MutableEditorState, requests: Array<{ method: string; url: string; body: Record<string, any> }>): Promise<void> {
@@ -455,6 +573,50 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
   await expect(dialog.getByText('Embedded data images are not allowed')).toBeVisible();
   await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
+}
+
+async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {
+  const clickPoint = await editor.evaluate(element => {
+    element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    element.scrollTop = element.scrollHeight;
+    const trailingLine = element.lastElementChild;
+    if (!(trailingLine instanceof HTMLElement)) {
+      throw new Error('Rich notes editor has no trailing line.');
+    }
+
+    const lineBounds = trailingLine.getBoundingClientRect();
+    return {
+      x: lineBounds.left + lineBounds.width / 2,
+      y: lineBounds.top + Math.min(18, lineBounds.height / 2)
+    };
+  });
+  await editor.page().mouse.click(clickPoint.x, clickPoint.y);
+  await expect.poll(() => editor.evaluate(element => {
+    const selection = window.getSelection();
+    const anchorNode = selection?.anchorNode;
+    return document.activeElement === element || Boolean(anchorNode && element.contains(anchorNode));
+  })).toBe(true);
+}
+
+async function expectEditableTrailingBlankLine(editor: Locator): Promise<void> {
+  const trailingLine = await editor.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+    const line = element.lastElementChild;
+    if (!(line instanceof HTMLElement)) {
+      return { isBlank: false, height: 0 };
+    }
+
+    return {
+      isBlank: !line.textContent?.trim() && !line.querySelector('img, video, iframe'),
+      height: line.getBoundingClientRect().height
+    };
+  });
+  expect(trailingLine.isBlank, 'Rich notes editor should expose a real trailing blank line.').toBe(true);
+  expect(trailingLine.height, 'Rich notes trailing blank line should be a visible click target.').toBeGreaterThanOrEqual(32);
+}
+
+async function captureRichNotesEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 // Restores a deterministic caret after tests inject HTML outside Quill's event pipeline.

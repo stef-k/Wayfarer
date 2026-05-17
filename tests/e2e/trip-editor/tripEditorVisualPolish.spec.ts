@@ -34,6 +34,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await loadWorkspaceWithVisualFixture(page);
 
       await setTheme(page, 'light');
+      await expectLightThemeTone(page);
       await expectNoPageOverflow(page);
       await capture(page, testInfo, `${viewport.name}-light-docked-metadata`);
       note(testInfo, 'docked metadata, tags/share progress, map navigation toolbar', viewport.name, 'light', 'data-bs-theme', 'pass');
@@ -275,6 +276,44 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
   expect(overflow.documentOverflow, 'Trip Editor should not introduce horizontal document overflow.').toBeLessThanOrEqual(2);
   expect(overflow.bodyOverflow, 'Trip Editor should not introduce horizontal body overflow.').toBeLessThanOrEqual(2);
   expect(overflow.containerOverflow, 'Stable Trip Editor containers should fit within the viewport.').toEqual([]);
+}
+
+async function expectLightThemeTone(page: Page): Promise<void> {
+  const colors = await page.evaluate(() => {
+    const workspace = document.querySelector<HTMLElement>('.trip-editor-workspace');
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    if (!workspace || !sidebar) {
+      return null;
+    }
+
+    const toRgb = (value: string): [number, number, number] => {
+      const rgbMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (rgbMatch) {
+        return [Number(rgbMatch[1]), Number(rgbMatch[2]), Number(rgbMatch[3])];
+      }
+
+      const srgbMatch = value.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+      if (!srgbMatch) {
+        throw new Error(`Unsupported color ${value}`);
+      }
+
+      return [Number(srgbMatch[1]) * 255, Number(srgbMatch[2]) * 255, Number(srgbMatch[3]) * 255];
+    };
+
+    const luminance = ([red, green, blue]: [number, number, number]) => 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    const workspaceRgb = toRgb(getComputedStyle(workspace).backgroundColor);
+    const sidebarRgb = toRgb(getComputedStyle(sidebar).backgroundColor);
+    return {
+      workspaceRgb,
+      sidebarRgb,
+      workspaceLuminance: luminance(workspaceRgb),
+      sidebarLuminance: luminance(sidebarRgb)
+    };
+  });
+
+  expect(colors, 'Trip Editor light theme surfaces should render.').not.toBeNull();
+  expect(colors!.workspaceRgb, 'Workspace background should be toned down from pure white.').not.toEqual([255, 255, 255]);
+  expect(colors!.workspaceLuminance, 'Workspace should remain lighter than sidebar/editor surfaces.').toBeGreaterThan(colors!.sidebarLuminance);
 }
 
 async function expectDialogFitsViewport(page: Page): Promise<void> {
