@@ -10,6 +10,19 @@ import {
 
 type MutableEditorState = Record<string, any>;
 
+type TripEditorContainmentMetrics = {
+  bodyHeight: number;
+  documentHeight: number;
+  footerTop: number | null;
+  sidebarClientHeight: number;
+  sidebarOverflowY: string;
+  sidebarScrollHeight: number;
+  surfaceBodyOverflowY: string;
+  viewportHeight: number;
+  viewportWidth: number;
+  workspaceHeight: number;
+};
+
 const regionId = '00000000-0000-0000-0000-000000288301';
 const placeId = '00000000-0000-0000-0000-000000288302';
 const iconNames = [
@@ -24,8 +37,12 @@ test.describe('Trip Editor icon selector', () => {
     await signIn(page);
     const requests: Record<string, any>[] = [];
     await loadWorkspaceWithIconFixture(page, requests);
+    const beforePlaceEdit = await tripEditorContainmentMetrics(page);
 
     await openPlace(page);
+    await expectSelectedPlaceRowProminent(page);
+    await expectDockedEditorComfortable(page);
+    await expectTripEditorContainment(page, beforePlaceEdit);
     const iconSelector = page.locator('[data-selector-kind="icon"]');
     const colorSelector = page.locator('[data-selector-kind="color"]');
     await expect(iconSelector.locator('[data-icon-selector-selected-name]')).toHaveText('camera');
@@ -36,10 +53,13 @@ test.describe('Trip Editor icon selector', () => {
     await expectIconSelectorOptionsRender(page);
     await expectIconSelectorScrolls(page);
     await expectSelectorPanelContained(page);
+    await expectDockedEditorComfortable(page);
     await expectNoPageOverflow(page);
     await captureEvidence(page, testInfo, 'desktop-light-icon-selector-open');
 
     await setTheme(page, 'dark');
+    await expectSelectedPlaceRowProminent(page);
+    await expectDockedEditorComfortable(page);
     await expectNoPageOverflow(page);
     await captureEvidence(page, testInfo, 'desktop-dark-icon-selector-open');
     await setTheme(page, 'light');
@@ -88,9 +108,13 @@ test.describe('Trip Editor icon selector', () => {
     await page.setViewportSize({ width: 390, height: 900 });
     await openIconSelector(page);
     await expectSelectorPanelContained(page);
+    await expectDockedEditorComfortable(page);
+    await expectTripEditorContainment(page, await tripEditorContainmentMetrics(page));
     await expectNoPageOverflow(page);
     await captureEvidence(page, testInfo, 'narrow-light-icon-selector-open');
     await setTheme(page, 'dark');
+    await expectSelectedPlaceRowProminent(page);
+    await expectDockedEditorComfortable(page);
     await expectNoPageOverflow(page);
     await captureEvidence(page, testInfo, 'narrow-dark-icon-selector-open');
   });
@@ -225,6 +249,92 @@ async function expectSelectorPanelContained(page: Page): Promise<void> {
   expect(metrics.panelWidth, 'Open selector should have a comfortable row width.').toBeGreaterThanOrEqual(Math.min(300, metrics.formWidth - 4));
   expect(metrics.panelRight, 'Open selector should stay inside the viewport.').toBeLessThanOrEqual(metrics.viewportWidth + 1);
   expect(metrics.panelRight, 'Open selector should stay inside the editor surface.').toBeLessThanOrEqual(metrics.surfaceRight + 1);
+}
+
+async function expectSelectedPlaceRowProminent(page: Page): Promise<void> {
+  const row = page.locator(`[data-place-id="${placeId}"]`);
+  await expect(row).toHaveClass(/trip-editor-place-row--active/);
+  const styles = await row.evaluate(element => {
+    const computed = window.getComputedStyle(element);
+    return {
+      backgroundColor: computed.backgroundColor,
+      borderColor: computed.borderLeftColor,
+      borderLeftWidth: Number.parseFloat(computed.borderLeftWidth),
+      borderTopWidth: Number.parseFloat(computed.borderTopWidth)
+    };
+  });
+  expect(styles.borderLeftWidth, 'Selected place row should have a prominent left selection indicator.').toBeGreaterThanOrEqual(4);
+  expect(styles.borderTopWidth, 'Selected place row should have a stronger selected-state border.').toBeGreaterThanOrEqual(2);
+  expect(styles.borderColor, 'Selected place row should use an accent border, not an error color.').not.toBe('rgb(220, 53, 69)');
+  expect(styles.backgroundColor, 'Selected place row should keep a visible selected-state background.').not.toBe('rgba(0, 0, 0, 0)');
+}
+
+async function expectDockedEditorComfortable(page: Page): Promise<void> {
+  const metrics = await page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').evaluate(surface => {
+    const surfaceBox = surface.getBoundingClientRect();
+    const body = surface.querySelector<HTMLElement>('.trip-editor-surface__body');
+    const bodyBox = body?.getBoundingClientRect();
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    return {
+      bodyHeight: bodyBox?.height ?? 0,
+      bodyOverflowY: body ? window.getComputedStyle(body).overflowY : '',
+      panelBottom: document.querySelector<HTMLElement>('[data-icon-selector-panel]')?.getBoundingClientRect().bottom ?? 0,
+      sidebarClientHeight: sidebar?.clientHeight ?? 0,
+      sidebarOverflowY: sidebar ? window.getComputedStyle(sidebar).overflowY : '',
+      sidebarScrollHeight: sidebar?.scrollHeight ?? 0,
+      surfaceHeight: surfaceBox.height,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth
+    };
+  });
+  const desktopMinimum = Math.min(660, metrics.viewportHeight - 140);
+  if (metrics.viewportWidth > 900) {
+    expect(metrics.surfaceHeight, 'Docked place editor should have enough height for selector controls and fields.').toBeGreaterThanOrEqual(desktopMinimum);
+    expect(metrics.bodyHeight, 'Docked place editor body should leave comfortable room for fields.').toBeGreaterThanOrEqual(420);
+  } else {
+    expect(metrics.sidebarScrollHeight, 'Narrow sidebar should keep editor overflow contained in sidebar scrolling.').toBeGreaterThan(metrics.sidebarClientHeight);
+  }
+
+  expect(metrics.bodyOverflowY, 'Docked place editor body should scroll internally.').toBe('auto');
+  expect(['auto', 'scroll']).toContain(metrics.sidebarOverflowY);
+  if (metrics.panelBottom > 0) {
+    expect(metrics.panelBottom, 'Open selector panel should stay inside the usable editor surface.').toBeLessThanOrEqual(metrics.viewportHeight + 1);
+  }
+}
+
+async function tripEditorContainmentMetrics(page: Page): Promise<TripEditorContainmentMetrics> {
+  return await page.evaluate(() => {
+    const sidebar = document.querySelector<HTMLElement>('.trip-editor-sidebar');
+    const surfaceBody = document.querySelector<HTMLElement>('.trip-editor-place-editor-row .trip-editor-surface__body');
+    const footer = document.querySelector<HTMLElement>('body footer, .footer');
+    const workspace = document.querySelector<HTMLElement>('.trip-editor-workspace');
+    return {
+      bodyHeight: document.body?.scrollHeight ?? 0,
+      documentHeight: document.documentElement.scrollHeight,
+      footerTop: footer ? footer.getBoundingClientRect().top : null,
+      sidebarClientHeight: sidebar?.clientHeight ?? 0,
+      sidebarOverflowY: sidebar ? window.getComputedStyle(sidebar).overflowY : '',
+      sidebarScrollHeight: sidebar?.scrollHeight ?? 0,
+      surfaceBodyOverflowY: surfaceBody ? window.getComputedStyle(surfaceBody).overflowY : '',
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+      workspaceHeight: workspace?.getBoundingClientRect().height ?? 0
+    };
+  });
+}
+
+async function expectTripEditorContainment(page: Page, before: TripEditorContainmentMetrics): Promise<void> {
+  const after = await tripEditorContainmentMetrics(page);
+  expect(after.documentHeight - before.documentHeight, 'Opening place edit and selector should not expand document height.').toBeLessThanOrEqual(80);
+  expect(after.bodyHeight - before.bodyHeight, 'Opening place edit and selector should not expand body height.').toBeLessThanOrEqual(80);
+  if (after.viewportWidth > 900) {
+    expect(after.workspaceHeight, 'Trip Editor workspace should remain bounded on desktop.').toBeLessThanOrEqual(after.viewportHeight + 1);
+  }
+  expect(after.sidebarScrollHeight, 'Place editor overflow should stay inside the sidebar/editor containers.').toBeGreaterThanOrEqual(after.sidebarClientHeight);
+  expect(after.surfaceBodyOverflowY, 'Docked place editor body should scroll internally.').toBe('auto');
+  if (before.footerTop !== null && after.footerTop !== null) {
+    expect(after.footerTop - before.footerTop, 'Opening place edit and selector should not push the footer down.').toBeLessThanOrEqual(80);
+  }
 }
 
 function sidebarPlaceIcon(page: Page): Locator {

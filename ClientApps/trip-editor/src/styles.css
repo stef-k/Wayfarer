@@ -318,8 +318,7 @@ body {
 
 .trip-editor-region-card--shadow { border-style: dashed; }
 
-.trip-editor-region-card--active,
-.trip-editor-place-row--active {
+.trip-editor-region-card--active {
   background: color-mix(in srgb, var(--trip-editor-accent) 14%, var(--trip-editor-card-strong));
   border-color: color-mix(in srgb, var(--trip-editor-accent) 58%, var(--trip-editor-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trip-editor-accent) 34%, transparent);
@@ -400,8 +399,16 @@ body {
 }
 
 .trip-editor-place-row {
+  border: 2px solid transparent;
+  border-left-width: 4px;
   cursor: pointer;
   display: flex;
+}
+
+.trip-editor-place-row--active {
+  background: color-mix(in srgb, var(--trip-editor-accent) 16%, var(--trip-editor-card-strong));
+  border-color: color-mix(in srgb, var(--trip-editor-accent) 66%, var(--trip-editor-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trip-editor-accent) 28%, transparent);
 }
 
 .trip-editor-place-row:focus-visible {
