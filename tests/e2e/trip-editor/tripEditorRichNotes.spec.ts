@@ -584,9 +584,10 @@ async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {
       throw new Error('Rich notes editor has no trailing line.');
     }
 
+    trailingLine.scrollIntoView({ block: 'center', inline: 'nearest' });
     const lineBounds = trailingLine.getBoundingClientRect();
     return {
-      x: lineBounds.left + lineBounds.width / 2,
+      x: lineBounds.left + Math.min(24, Math.max(8, lineBounds.width / 4)),
       y: lineBounds.top + Math.min(18, lineBounds.height / 2)
     };
   });
