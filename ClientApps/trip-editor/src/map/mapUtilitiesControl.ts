@@ -1,7 +1,12 @@
 import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 
-export const createMapUtilitiesControl = (element: HTMLElement): L.Control => {
+export type MapUtilitiesControl = L.Control & {
+  cancelMeasure: () => void;
+};
+
+export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesControl => {
   const control = new L.Control({ position: 'topright' });
+  let cancelMeasure: (() => void) | null = null;
 
   control.onAdd = (map: LeafletMap) => {
     const container = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-utilities');
@@ -21,6 +26,7 @@ export const createMapUtilitiesControl = (element: HTMLElement): L.Control => {
       measureButton.classList.remove('active');
       element.style.cursor = '';
     };
+    cancelMeasure = stopMeasure;
 
     const startMeasure = (): void => {
       measureTool = createDistanceMeasureTool(map, () => {
@@ -67,6 +73,7 @@ export const createMapUtilitiesControl = (element: HTMLElement): L.Control => {
     control.onRemove = () => {
       map.off('zoomend', updateZoomText);
       stopMeasure();
+      cancelMeasure = null;
       if (copyTimer !== null) {
         window.clearTimeout(copyTimer);
       }
@@ -75,7 +82,9 @@ export const createMapUtilitiesControl = (element: HTMLElement): L.Control => {
     return container;
   };
 
-  return control;
+  return Object.assign(control, {
+    cancelMeasure: () => cancelMeasure?.()
+  });
 };
 
 function mapUtilityButton(container: HTMLElement, label: string, iconUrl: string): HTMLButtonElement {

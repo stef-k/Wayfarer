@@ -58,6 +58,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
   let selectedPlaceId: Guid | null = null;
   let initialViewApplied = false;
+  const prepareMapWork = (): void => { searchPreview.clear(); mapUtilities.cancelMeasure(); };
 
   map.on('moveend zoomend', updateMapViewDataset);
 
@@ -134,18 +135,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
         focusSelectedPlace(map, state, placeMarkers, selectedPlaceId, selectOptions);
       }
     },
-    startCoordinatePick: options => {
-      searchPreview.clear();
-      return coordinatePick.start(options);
-    },
-    startAreaPolygonWork: options => {
-      searchPreview.clear();
-      return areaPolygonWork.start(options);
-    },
-    startSegmentRouteWork: options => {
-      searchPreview.clear();
-      return segmentRouteWork.start(options);
-    },
+    startCoordinatePick: options => (prepareMapWork(), coordinatePick.start(options)),
+    startAreaPolygonWork: options => (prepareMapWork(), areaPolygonWork.start(options)),
+    startSegmentRouteWork: options => (prepareMapWork(), segmentRouteWork.start(options)),
     setSegmentRouteWorkRoute: route => segmentRouteWork.setRoute(route),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),

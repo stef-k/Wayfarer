@@ -45,9 +45,13 @@ test.describe.serial('Trip Editor area editing', () => {
     const mutations = watchEditorMutations(page);
 
     await openEditableArea(page);
+    const measureButton = page.locator('.trip-editor-map-utilities').getByRole('button', { name: 'Measure distance' });
+    await measureButton.click();
+    await expect(measureButton).toHaveClass(/active/);
     await page.getByRole('button', { name: 'Draw/Edit Area' }).click();
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Draw area polygon');
+    await expect(measureButton).not.toHaveClass(/active/);
     await expect(mapWork).toContainText('3 vertices ready');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     await expect(page.locator('.trip-editor-toolbar').getByRole('button', { name: 'Fit All' })).toHaveCount(0);
