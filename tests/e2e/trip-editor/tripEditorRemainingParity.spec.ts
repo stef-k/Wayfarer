@@ -7,32 +7,36 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
     await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
-    const metadataResponse = waitForEditorMutation(page, '/metadata', 'PATCH');
     const publicTrip = page.getByRole('checkbox', { name: 'Public trip', exact: true });
-    if (await publicTrip.isChecked()) {
-      await publicTrip.uncheck();
-      await page.getByRole('button', { name: 'Save & Continue' }).click();
-      await expectSaved(page);
-    }
-
-    await publicTrip.check();
-    await page.getByRole('button', { name: 'Save & Continue' }).click();
-    await expectSaved(page);
-    await expect(await metadataResponse).toMatchObject({ status: 200, method: 'PATCH' });
-
-    const shareResponse = waitForEditorMutation(page, '/share-progress', 'PATCH');
     const shareProgress = page.getByLabel('Show visit progress on public trip');
-    if (await shareProgress.isChecked()) {
-      await shareProgress.uncheck();
-      await page.getByRole('button', { name: 'Save & Continue' }).click();
-      await expectSaved(page);
-    }
+    const initiallyPublic = await publicTrip.isChecked();
+    const initiallyShared = await shareProgress.isChecked();
 
-    await shareProgress.check();
-    await page.getByRole('button', { name: 'Save & Continue' }).click();
-    await expectSaved(page);
-    await expect(await shareResponse).toMatchObject({ status: 200, method: 'PATCH' });
-    await expect(page.locator('.trip-editor-form-error')).toHaveCount(0);
+    try {
+      if (initiallyPublic) {
+        await savePublicState(page, false);
+      }
+
+      const metadataResponse = waitForEditorMutation(page, '/metadata', 'PATCH');
+      await savePublicState(page, true);
+      await expect(await metadataResponse).toMatchObject({ status: 200, method: 'PATCH' });
+
+      if (await shareProgress.isChecked()) {
+        await saveShareProgressState(page, false);
+      }
+
+      const shareResponse = waitForEditorMutation(page, '/share-progress', 'PATCH');
+      await saveShareProgressState(page, true);
+      await expect(await shareResponse).toMatchObject({ status: 200, method: 'PATCH' });
+      await expect(page.locator('.trip-editor-form-error')).toHaveCount(0);
+    } finally {
+      if ((await shareProgress.isChecked()) !== initiallyShared && (await publicTrip.isChecked())) {
+        await saveShareProgressState(page, initiallyShared);
+      }
+      if ((await publicTrip.isChecked()) !== initiallyPublic) {
+        await savePublicState(page, initiallyPublic);
+      }
+    }
   });
 
   test('sidebar search stays near the top and filters without backend search', async ({ page }) => {
@@ -54,7 +58,7 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
     expect((await searchPanel.boundingBox())!.y).toBeLessThan((await metadataPanel.boundingBox())!.y);
 
     await page.getByLabel('Sidebar search').fill('not-a-real-trip-editor-match');
-    await expect(page.locator('.trip-editor-empty-state')).toContainText('No matching regions, places, areas, or segments.');
+    await expect(searchPanel.locator('.trip-editor-empty-state')).toContainText('No matching regions, places, areas, or segments.');
     expect(forbiddenRequests).toEqual([]);
   });
 
@@ -103,4 +107,26 @@ async function expectSaved(page: Page): Promise<void> {
 
 function utilityButton(page: Page, name: string): Locator {
   return page.locator('.trip-editor-map-utilities').getByRole('button', { name });
+}
+
+async function savePublicState(page: Page, enabled: boolean): Promise<void> {
+  const publicTrip = page.getByRole('checkbox', { name: 'Public trip', exact: true });
+  if (enabled) {
+    await publicTrip.check();
+  } else {
+    await publicTrip.uncheck();
+  }
+  await page.getByRole('button', { name: 'Save & Continue' }).click();
+  await expectSaved(page);
+}
+
+async function saveShareProgressState(page: Page, enabled: boolean): Promise<void> {
+  const shareProgress = page.getByLabel('Show visit progress on public trip');
+  if (enabled) {
+    await shareProgress.check();
+  } else {
+    await shareProgress.uncheck();
+  }
+  await page.getByRole('button', { name: 'Save & Continue' }).click();
+  await expectSaved(page);
 }
