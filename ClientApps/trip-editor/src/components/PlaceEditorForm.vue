@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { placeMarkerIconUrl } from '../displayHelpers';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
+import IconSelector from './IconSelector.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
 
 const props = defineProps<{
@@ -23,7 +23,6 @@ const markerColorLabel = (color: string): string => {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} marker color`;
 };
 
-const iconLabel = (icon: string): string => `${icon.replace(/[-_]+/g, ' ')} place icon`;
 </script>
 
 <template>
@@ -70,19 +69,7 @@ const iconLabel = (icon: string): string => `${icon.replace(/[-_]+/g, ' ')} plac
     <div class="trip-editor-grid">
       <fieldset class="trip-editor-field trip-editor-place-icon-field">
         <legend>Icon</legend>
-        <div class="trip-editor-place-icon-grid" role="radiogroup" aria-label="Icon">
-          <label
-            v-for="icon in props.state.options.iconNames"
-            :key="icon"
-            class="trip-editor-place-icon-choice"
-            :class="{ 'trip-editor-place-icon-choice--selected': props.draft.iconName === icon }"
-            :title="iconLabel(icon)"
-          >
-            <input v-model="props.draft.iconName" class="trip-editor-place-icon-choice__input" type="radio" name="iconName" :value="icon" :aria-label="iconLabel(icon)" />
-            <img :src="placeMarkerIconUrl(icon, props.draft.markerColor || 'bg-blue')" width="24" height="39" alt="" data-place-icon-choice />
-            <span>{{ icon }}</span>
-          </label>
-        </div>
+        <IconSelector v-model="props.draft.iconName" :icons="props.state.options.iconNames" :marker-color="props.draft.markerColor || 'bg-blue'" />
         <small v-for="message in props.fieldErrors('iconName')" :key="message">{{ message }}</small>
       </fieldset>
       <fieldset class="trip-editor-field trip-editor-marker-color-field">

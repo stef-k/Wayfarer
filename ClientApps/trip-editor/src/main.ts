@@ -6,6 +6,7 @@ import './theme.css';
 import './map.css';
 import './styles.css';
 import './surfaces.css';
+import './iconSelector.css';
 import './richNotes.css';
 import './visitProgress.css';
 

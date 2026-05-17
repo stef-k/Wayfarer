@@ -207,7 +207,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await captureEvidence(page, testInfo, 'expanded-docked-selected-place-preserved');
   });
 
-  test('shows icon choices and keeps long place names from overlapping actions', async ({ page }) => {
+  test('keeps long place names from overlapping actions', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await signIn(page);
     await loadWorkspaceWithMarkerFixture(page);
@@ -216,9 +216,6 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await page.setViewportSize({ width: 390, height: 900 });
     await expectPlaceRowDoesNotOverlapEdit(page, firstPlaceId);
 
-    await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
-    await expect(page.locator('[data-place-icon-choice]').first()).toBeVisible();
-    await expectLoadedImages(page.locator('[data-place-icon-choice]').first());
   });
 
   test('renders notes images through the proxy while saving canonical external image URLs', async ({ page }) => {

@@ -183,48 +183,6 @@ body {
   padding: 0;
 }
 
-.trip-editor-place-icon-grid {
-  display: grid;
-  gap: 0.45rem;
-  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
-  max-height: 14rem;
-  min-width: 0;
-  overflow: auto;
-}
-
-.trip-editor-place-icon-choice {
-  align-items: center;
-  background: var(--trip-editor-field-bg);
-  border: 1px solid var(--trip-editor-field-border);
-  border-radius: 6px;
-  cursor: pointer;
-  display: grid;
-  gap: 0.25rem;
-  justify-items: center;
-  margin: 0;
-  min-width: 0;
-  padding: 0.4rem;
-}
-
-.trip-editor-place-icon-choice--selected {
-  border-color: #bfdbfe;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.35);
-}
-
-.trip-editor-place-icon-choice__input {
-  height: 1px;
-  opacity: 0;
-  position: absolute;
-  width: 1px;
-}
-
-.trip-editor-place-icon-choice span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .trip-editor-marker-swatch-group {
   display: flex;
   flex-wrap: wrap;
