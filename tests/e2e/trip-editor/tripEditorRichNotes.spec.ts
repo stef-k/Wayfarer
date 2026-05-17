@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -142,6 +142,59 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(richEditor(form).locator('.ql-editor img[src^="data:image"]')).toHaveCount(0);
   });
 
+  test('docked notes let users continue after a terminal image without persisting helper markup', async ({ page }, testInfo) => {
+    await signIn(page);
+    await routeRichNoteImages(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = terminalImageNotes();
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    const form = page.locator('#trip-editor-metadata-form');
+    const editor = richEditor(form).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
+    await expectContinuationSpace(editor);
+    await clickContinuationSpace(editor);
+    await page.keyboard.type('Continuation after image');
+    await captureRichNotesEvidence(page, testInfo, 'docked-terminal-image-continuation');
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg', 'Continuation after image']);
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+    expect(notesHtml).not.toContain('editor-only');
+    expect(notesHtml).not.toContain('contenteditable');
+  });
+
+  test('expanded notes let users press Enter and continue after terminal content with clean save HTML', async ({ page }, testInfo) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
+      editorState.metadata.notesHtml = '<p>Terminal paragraph</p>';
+    });
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+
+    await page.getByRole('button', { name: 'Expand Editor' }).click();
+    const dialog = page.getByRole('dialog', { name: /Edit Trip -/ });
+    const editor = richEditor(dialog.locator('#trip-editor-metadata-form')).locator('.ql-editor');
+    await expectContinuationSpace(editor);
+    await clickContinuationSpace(editor);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Expanded continuation');
+    await captureRichNotesEvidence(page, testInfo, 'expanded-terminal-content-continuation');
+    await dialog.getByRole('button', { name: 'Dock to sidebar' }).click();
+    await page.getByRole('button', { name: 'Save & Continue' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    const notesHtml = requests[0].body.notesHtml as string;
+    expectCanonicalNotes(notesHtml, ['Terminal paragraph', 'Expanded continuation']);
+    expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
+    expect(notesHtml).not.toContain('editor-only');
+    expect(notesHtml).not.toContain('<p><br></p><p><br></p>');
+  });
+
   test('data image blocking handles mixed case and whitespace-padded variants before draft storage', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithRichNotesFixture(page);
@@ -272,6 +325,20 @@ function persistedQuillListNotes(): string {
     '</ol>',
     '<p data-extra="drop-paragraph">After list</p>'
   ].join('');
+}
+
+function terminalImageNotes(): string {
+  return '<p>Intro before image</p><p><img src="https://images.example.test/terminal-large.svg"></p>';
+}
+
+async function routeRichNoteImages(page: Page): Promise<void> {
+  await page.route(/\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Fterminal-large\.svg$/i, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520"><rect width="960" height="520" fill="#dbeafe"/><rect x="24" y="24" width="912" height="472" rx="24" fill="#1e293b"/><text x="72" y="270" font-family="Arial" font-size="52" fill="#bfdbfe">Terminal rich note image</text></svg>'
+    });
+  });
 }
 
 async function routeEditorMutations(page: Page, state: MutableEditorState, requests: Array<{ method: string; url: string; body: Record<string, any> }>): Promise<void> {
@@ -455,6 +522,35 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
   await expect(dialog.getByText('Embedded data images are not allowed')).toBeVisible();
   await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
+}
+
+async function clickContinuationSpace(editor: Locator): Promise<void> {
+  await editor.evaluate(element => {
+    element.scrollIntoView({ block: 'center', inline: 'nearest' });
+    element.scrollTop = element.scrollHeight;
+  });
+  const box = await editor.boundingBox();
+  expect(box, 'Rich notes editor should have a rendered box.').not.toBeNull();
+  await editor.page().mouse.click(box!.x + box!.width / 2, box!.y + box!.height - 12);
+  await expect.poll(() => editor.evaluate(element => document.activeElement === element)).toBe(true);
+}
+
+async function expectContinuationSpace(editor: Locator): Promise<void> {
+  const gap = await editor.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+    const blocks = Array.from(element.children).filter(child => child.textContent?.trim() || child.querySelector('img, video, iframe'));
+    const lastBlock = blocks.at(-1);
+    if (!(lastBlock instanceof HTMLElement)) {
+      return 0;
+    }
+
+    return element.scrollHeight - (lastBlock.offsetTop + lastBlock.offsetHeight);
+  });
+  expect(gap, 'Rich notes editor should expose visible continuation space below terminal content.').toBeGreaterThanOrEqual(40);
+}
+
+async function captureRichNotesEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 // Restores a deterministic caret after tests inject HTML outside Quill's event pipeline.

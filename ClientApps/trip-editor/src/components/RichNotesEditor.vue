@@ -59,6 +59,7 @@ onMounted(() => {
   loadHtml(props.modelValue);
   quill.on('selection-change', handleSelectionChange);
   quill.on('text-change', handleTextChange);
+  quill.root.addEventListener('mousedown', handleContinuationPointerDown);
   quill.root.addEventListener('paste', handlePaste);
   quill.root.addEventListener('drop', handleDrop);
   quill.root.addEventListener('input', handleInput);
@@ -76,6 +77,7 @@ onUnmounted(() => {
   quill.root.removeEventListener('paste', handlePaste);
   quill.root.removeEventListener('drop', handleDrop);
   quill.root.removeEventListener('input', handleInput);
+  quill.root.removeEventListener('mousedown', handleContinuationPointerDown);
   quill.off('selection-change', handleSelectionChange);
   quill.off('text-change', handleTextChange);
   quill = null;
@@ -122,6 +124,17 @@ function handleTextChange(): void {
   emit('update:modelValue', currentHtml());
 }
 
+/// Turns the editor-only continuation zone below the last block into a reliable caret target.
+function handleContinuationPointerDown(event: MouseEvent): void {
+  if (!quill || !isContinuationZonePointer(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  quill.focus();
+  quill.setSelection(Math.max(0, quill.getLength() - 1), 0, 'user');
+}
+
 function handlePaste(event: ClipboardEvent): void {
   const clipboard = event.clipboardData;
   if (!clipboard || !containsDataImage(clipboard)) {
@@ -151,6 +164,24 @@ function handleInput(): void {
     emit('update:modelValue', currentHtml());
     showFeedback('Embedded data images are not allowed. Use an external image URL.');
   }
+}
+
+function isContinuationZonePointer(event: MouseEvent): boolean {
+  if (!quill || quill.root.children.length === 0) {
+    return false;
+  }
+
+  const rootBounds = quill.root.getBoundingClientRect();
+  if (event.clientY < rootBounds.top || event.clientY > rootBounds.bottom) {
+    return false;
+  }
+
+  const lastBlock = quill.root.children.item(quill.root.children.length - 1);
+  if (!(lastBlock instanceof HTMLElement)) {
+    return false;
+  }
+
+  return event.clientY > lastBlock.getBoundingClientRect().bottom;
 }
 
 function containsDataImage(data: DataTransfer): boolean {
