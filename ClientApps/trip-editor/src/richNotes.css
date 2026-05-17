@@ -27,10 +27,6 @@
   min-height: 9rem;
 }
 
-.trip-editor-rich-notes__editor.ql-container .ql-editor > p:last-child:has(> br:only-child) {
-  min-height: 5rem;
-}
-
 .trip-editor-rich-notes .ql-picker,
 .trip-editor-rich-notes .ql-stroke {
   color: var(--trip-editor-text);
