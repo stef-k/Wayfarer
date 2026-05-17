@@ -20,6 +20,7 @@ public sealed class SourceFileScanner
     {
         ".git",
         ".idea",
+        ".local",
         ".vs",
         "bin",
         "obj",

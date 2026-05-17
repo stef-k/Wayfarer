@@ -16,6 +16,12 @@ import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCo
 import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
+type PlaceDraftPreview = {
+  iconName: string;
+  markerColor: string;
+  placeId: Guid;
+};
+
 const props = defineProps<{
   state: EditorTripState;
   editorSurface: EditorSurfaceController;
@@ -36,6 +42,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   dirtyStateChanged: [isDirty: boolean];
+  placeDraftPreviewChanged: [preview: PlaceDraftPreview | null];
   searchAddOpened: [requestId: number];
 }>();
 
@@ -116,6 +123,21 @@ const renderedAreaIdsByRegionId = computed(() => {
   }
 
   return result;
+});
+const placePreview = computed<PlaceDraftPreview | null>(() => {
+  if (!placeDraft.id || !activePlace.value || !isPlaceEditOpen(activePlace.value)) {
+    return null;
+  }
+
+  return {
+    placeId: placeDraft.id,
+    iconName: placeDraft.iconName || activePlace.value.iconName,
+    markerColor: placeDraft.markerColor || 'bg-blue'
+  };
+});
+const placePreviewById = computed<Record<Guid, Pick<EditorPlace, 'iconName' | 'markerColor'>>>(() => {
+  const preview = placePreview.value;
+  return preview ? { [preview.placeId]: { iconName: preview.iconName, markerColor: preview.markerColor } } : {};
 });
 const forcedExpandedRegionIds = computed(() => {
   const ids = props.searchActive ? renderedRegions.value.map(region => region.id) : activeContextRegions().map(region => region.id);
@@ -235,6 +257,12 @@ watch(
 );
 
 watch(
+  placePreview,
+  preview => emit('placeDraftPreviewChanged', preview),
+  { immediate: true }
+);
+
+watch(
   () => props.pendingSearchAdd?.requestId,
   async requestId => {
     if (!requestId || !props.pendingSearchAdd) {
@@ -275,6 +303,7 @@ onUnmounted(() => {
   stopPlaceCoordinatePick(placeCoordinateMapWork);
   stopAreaPolygonEdit(areaPolygonMapWork);
   emit('dirtyStateChanged', false);
+  emit('placeDraftPreviewChanged', null);
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
@@ -437,7 +466,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
 
     <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-editor-id="activePlaceEditorId" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
+    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-editor-id="activePlaceEditorId" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :place-preview-by-id="placePreviewById" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
       <template #region-editor="{ region }">
         <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>

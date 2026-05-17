@@ -21,6 +21,7 @@ const props = defineProps<{
   isOrdering: boolean;
   isSaving: boolean;
   placeIdsByRegionId: Record<Guid, Guid[]>;
+  placePreviewById: Record<Guid, Pick<EditorPlace, 'iconName' | 'markerColor'>>;
   regions: EditorRegion[];
   searchActive: boolean;
   state: EditorTripState;
@@ -200,6 +201,12 @@ function orderedPlaces(regionId: Guid): EditorPlace[] {
   return (props.placeIdsByRegionId[regionId] ?? []).map(id => props.state.placesById[id]).filter(Boolean) as EditorPlace[];
 }
 
+/// Applies active place draft display values without mutating persisted editor state.
+function displayPlace(place: EditorPlace): EditorPlace {
+  const preview = props.placePreviewById[place.id];
+  return preview ? { ...place, ...preview } : place;
+}
+
 function orderedAreas(regionId: Guid): EditorArea[] {
   return (props.areaIdsByRegionId[regionId] ?? []).map(id => props.state.areasById[id]).filter(Boolean) as EditorArea[];
 }
@@ -299,7 +306,7 @@ function toggleRegion(regionId: Guid): void {
               <span aria-hidden="true">::</span>
             </button>
             <span class="trip-editor-place-row__icon" aria-hidden="true">
-              <img :src="placeMarkerIconUrl(place.iconName, place.markerColor)" width="24" height="39" alt="" data-sidebar-place-icon />
+              <img :src="placeMarkerIconUrl(displayPlace(place).iconName, displayPlace(place).markerColor)" width="24" height="39" alt="" data-sidebar-place-icon />
               <span v-if="place.visitSummary.isVisited" class="trip-editor-place-row__visit-badge">{{ place.visitSummary.visitCount === 1 ? '✓' : place.visitSummary.visitCount }}</span>
             </span>
             <span class="trip-editor-place-row__content">

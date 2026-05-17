@@ -12,6 +12,12 @@ import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, Edit
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
+type PlaceDraftPreview = {
+  iconName: string;
+  markerColor: string;
+  placeId: Guid;
+};
+
 const state = ref<EditorTripState | null>(null);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
@@ -21,6 +27,7 @@ const mapElement = ref<HTMLElement | null>(null);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
 const selectedPlaceId = ref<Guid | null>(null);
+const activePlaceDraftPreview = ref<PlaceDraftPreview | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
@@ -270,6 +277,26 @@ const setRegionDraftChanges = (isDirty: boolean): void => {
   hasRegionDraftChanges.value = isDirty;
 };
 
+/// Applies active place draft icon/color to the selected marker preview without saving it.
+const applyPlaceDraftPreview = (preview: PlaceDraftPreview | null): void => {
+  if (!state.value) {
+    activePlaceDraftPreview.value = preview;
+    return;
+  }
+
+  const previous = activePlaceDraftPreview.value;
+  if (previous && previous.placeId !== preview?.placeId) {
+    mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
+  }
+
+  activePlaceDraftPreview.value = preview;
+  if (preview) {
+    mapAdapter?.applyPlaceDraftMarker(state.value, preview.placeId, preview);
+  } else if (previous) {
+    mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
+  }
+};
+
 /// Applies mutation affected slices and authoritative deleted IDs to normalized editor state.
 const applyMutation = (result: EditorMutationResult<unknown>): void => {
   if (!state.value) {
@@ -348,9 +375,15 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     selectedPlaceId.value = null;
     navigationStatus.value = null;
   }
+  if (activePlaceDraftPreview.value && !next.placesById[activePlaceDraftPreview.value.placeId]) {
+    activePlaceDraftPreview.value = null;
+  }
 
   state.value = next;
   mapAdapter?.render(next, hiddenSegmentIds.value, selectedPlaceId.value);
+  if (activePlaceDraftPreview.value) {
+    mapAdapter?.applyPlaceDraftMarker(next, activePlaceDraftPreview.value.placeId, activePlaceDraftPreview.value);
+  }
 };
 
 /// Updates client-session-only segment visibility without touching the API contract.
@@ -432,6 +465,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"
+        @place-draft-preview-changed="applyPlaceDraftPreview"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
         :select-place="placeId => selectPlace(placeId, { focusMap: true })"
         :clear-selected-place="clearSelectedPlace"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { placeMarkerIconUrl } from '../displayHelpers';
+import { computed } from 'vue';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
+import IconSelector from './IconSelector.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
 
 const props = defineProps<{
@@ -18,12 +19,9 @@ const emit = defineEmits<{
   save: [];
 }>();
 
-const markerColorLabel = (color: string): string => {
-  const name = color.replace(/^bg-/, '').replace(/[-_]+/g, ' ');
-  return `${name.charAt(0).toUpperCase()}${name.slice(1)} marker color`;
-};
+const orderedMarkerColors = ['bg-blue', 'bg-purple', 'bg-black', 'bg-green', 'bg-red'];
+const markerColorOptions = computed(() => orderedMarkerColors.filter(color => props.state.options.markerColorClasses.includes(color)));
 
-const iconLabel = (icon: string): string => `${icon.replace(/[-_]+/g, ' ')} place icon`;
 </script>
 
 <template>
@@ -67,38 +65,15 @@ const iconLabel = (icon: string): string => `${icon.replace(/[-_]+/g, ' ')} plac
       </label>
     </div>
 
-    <div class="trip-editor-grid">
+    <div class="trip-editor-selector-grid">
       <fieldset class="trip-editor-field trip-editor-place-icon-field">
         <legend>Icon</legend>
-        <div class="trip-editor-place-icon-grid" role="radiogroup" aria-label="Icon">
-          <label
-            v-for="icon in props.state.options.iconNames"
-            :key="icon"
-            class="trip-editor-place-icon-choice"
-            :class="{ 'trip-editor-place-icon-choice--selected': props.draft.iconName === icon }"
-            :title="iconLabel(icon)"
-          >
-            <input v-model="props.draft.iconName" class="trip-editor-place-icon-choice__input" type="radio" name="iconName" :value="icon" :aria-label="iconLabel(icon)" />
-            <img :src="placeMarkerIconUrl(icon, props.draft.markerColor || 'bg-blue')" width="24" height="39" alt="" data-place-icon-choice />
-            <span>{{ icon }}</span>
-          </label>
-        </div>
+        <IconSelector v-model="props.draft.iconName" :icons="props.state.options.iconNames" :marker-color="props.draft.markerColor || 'bg-blue'" />
         <small v-for="message in props.fieldErrors('iconName')" :key="message">{{ message }}</small>
       </fieldset>
       <fieldset class="trip-editor-field trip-editor-marker-color-field">
         <legend>Marker Color</legend>
-        <div class="trip-editor-marker-swatch-group" role="radiogroup" aria-label="Marker Color">
-          <label
-            v-for="color in props.state.options.markerColorClasses"
-            :key="color"
-            class="trip-editor-marker-swatch"
-            :class="{ 'trip-editor-marker-swatch--selected': props.draft.markerColor === color }"
-            :title="markerColorLabel(color)"
-          >
-            <input v-model="props.draft.markerColor" class="trip-editor-marker-swatch__input" type="radio" name="markerColor" :value="color" :aria-label="markerColorLabel(color)" />
-            <span class="trip-editor-marker-swatch__sample" :class="color" aria-hidden="true"></span>
-          </label>
-        </div>
+        <IconSelector v-model="props.draft.markerColor" kind="color" :icons="markerColorOptions" marker-color="bg-blue" />
         <small v-for="message in props.fieldErrors('markerColor')" :key="message">{{ message }}</small>
       </fieldset>
     </div>

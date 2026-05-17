@@ -121,6 +121,7 @@ public sealed class LocCheckRunnerTests : IDisposable
     [Fact]
     public void Run_IgnoresExcludedFilesAndPaths()
     {
+        WriteLines(".local/publish/wwwroot/lib/vendor.js", 100);
         WriteLines("Migrations/Generated.cs", 100);
         WriteLines("wwwroot/lib/vendor.js", 100);
         WriteLines("wwwroot/dist/app.js", 100);

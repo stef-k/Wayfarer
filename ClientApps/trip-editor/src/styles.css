@@ -169,6 +169,12 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.trip-editor-selector-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .trip-editor-marker-color-field {
   border: 0;
   margin: 0;
@@ -181,92 +187,6 @@ body {
   margin: 0;
   min-width: 0;
   padding: 0;
-}
-
-.trip-editor-place-icon-grid {
-  display: grid;
-  gap: 0.45rem;
-  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
-  max-height: 14rem;
-  min-width: 0;
-  overflow: auto;
-}
-
-.trip-editor-place-icon-choice {
-  align-items: center;
-  background: var(--trip-editor-field-bg);
-  border: 1px solid var(--trip-editor-field-border);
-  border-radius: 6px;
-  cursor: pointer;
-  display: grid;
-  gap: 0.25rem;
-  justify-items: center;
-  margin: 0;
-  min-width: 0;
-  padding: 0.4rem;
-}
-
-.trip-editor-place-icon-choice--selected {
-  border-color: #bfdbfe;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.35);
-}
-
-.trip-editor-place-icon-choice__input {
-  height: 1px;
-  opacity: 0;
-  position: absolute;
-  width: 1px;
-}
-
-.trip-editor-place-icon-choice span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.trip-editor-marker-swatch-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.trip-editor-marker-swatch {
-  align-items: center;
-  border: 2px solid transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  display: inline-flex;
-  height: 2.1rem;
-  justify-content: center;
-  margin: 0;
-  width: 2.1rem;
-}
-
-.trip-editor-marker-swatch--selected {
-  border-color: #bfdbfe;
-  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.35);
-}
-
-.trip-editor-marker-swatch__input {
-  height: 1px;
-  opacity: 0;
-  position: absolute;
-  width: 1px;
-}
-
-.trip-editor-marker-swatch__sample {
-  background: var(--map-icon-bg, #0d6efd);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  border-radius: 999px;
-  display: block;
-  height: 1.35rem;
-  width: 1.35rem;
-}
-
-.trip-editor-marker-swatch:focus-within {
-  outline: 2px solid #93c5fd;
-  outline-offset: 2px;
 }
 
 .trip-editor-actions {
@@ -398,8 +318,7 @@ body {
 
 .trip-editor-region-card--shadow { border-style: dashed; }
 
-.trip-editor-region-card--active,
-.trip-editor-place-row--active {
+.trip-editor-region-card--active {
   background: color-mix(in srgb, var(--trip-editor-accent) 14%, var(--trip-editor-card-strong));
   border-color: color-mix(in srgb, var(--trip-editor-accent) 58%, var(--trip-editor-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trip-editor-accent) 34%, transparent);
@@ -480,8 +399,16 @@ body {
 }
 
 .trip-editor-place-row {
+  border: 2px solid transparent;
+  border-left-width: 4px;
   cursor: pointer;
   display: flex;
+}
+
+.trip-editor-place-row--active {
+  background: color-mix(in srgb, var(--trip-editor-accent) 16%, var(--trip-editor-card-strong));
+  border-color: color-mix(in srgb, var(--trip-editor-accent) 66%, var(--trip-editor-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trip-editor-accent) 28%, transparent);
 }
 
 .trip-editor-place-row:focus-visible {

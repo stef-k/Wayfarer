@@ -112,7 +112,7 @@
 .trip-editor-place-editor-row .trip-editor-surface--docked {
   contain: layout paint;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: min(42rem, calc(100vh - 10rem));
+  height: min(46rem, calc(100vh - 8rem));
   overflow: hidden;
 }
 
@@ -128,7 +128,7 @@
 
 .trip-editor-place-editor-row .trip-editor-surface-context--map-work {
   align-content: start;
-  height: min(42rem, calc(100vh - 10rem));
+  height: min(46rem, calc(100vh - 8rem));
   overflow: hidden;
 }
 
