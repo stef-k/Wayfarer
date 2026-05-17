@@ -44,7 +44,7 @@ export function buildRegionRequest(value: RegionDraft): EditorRegionSaveRequest 
 }
 
 export function emptyPlaceDraft(regionId: string | null = null): EditorPlaceDraft {
-  return { id: null, regionId, name: '', notesHtml: '', address: '', latitude: '', longitude: '', iconName: '', markerColor: '', reverseGeocode: false };
+  return { id: null, regionId, name: '', notesHtml: '', address: '', latitude: '', longitude: '', iconName: '', markerColor: 'bg-blue', reverseGeocode: false };
 }
 
 export function toPlaceDraft(place: EditorPlace | null, fallbackRegionId: string | null): EditorPlaceDraft {

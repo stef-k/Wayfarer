@@ -31,6 +31,7 @@
   align-items: center;
   display: flex;
   gap: 0.55rem;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -58,7 +59,8 @@
   gap: 0.45rem;
   left: 0;
   margin-top: 0.35rem;
-  max-width: 100%;
+  max-width: min(100%, calc(100vw - 2rem));
+  min-inline-size: min(22rem, calc(100vw - 2rem));
   min-width: 0;
   padding: 0.5rem;
   position: absolute;
@@ -81,11 +83,21 @@
   gap: 0.2rem;
   list-style: none;
   margin: 0;
-  max-height: min(16rem, 42vh);
+  max-height: min(12.5rem, 34vh);
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0;
+}
+
+.trip-editor-icon-selector__swatch {
+  background: var(--map-icon-bg, #0d6efd);
+  border: 1px solid color-mix(in srgb, var(--trip-editor-text) 22%, transparent);
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 1.35rem;
+  width: 1.35rem;
 }
 
 .trip-editor-icon-selector__option {
@@ -113,6 +125,8 @@
 
 @media (max-width: 575.98px) {
   .trip-editor-icon-selector__panel {
-    position: static;
+    left: 0;
+    min-inline-size: 100%;
+    right: 0;
   }
 }

@@ -15,6 +15,12 @@ type SidebarSearchResult = {
   areasByRegionId: Record<Guid, Guid[]>;
 };
 
+type PlaceDraftPreview = {
+  iconName: string;
+  markerColor: string;
+  placeId: Guid;
+};
+
 const props = defineProps<{
   state: EditorTripState;
   editorSurface: EditorSurfaceController;
@@ -40,6 +46,7 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
+  placeDraftPreviewChanged: [preview: PlaceDraftPreview | null];
   searchAddOpened: [requestId: number];
 }>();
 
@@ -215,6 +222,7 @@ function normalize(value: string): string {
       :clear-selected-place="clearSelectedPlace"
       @mutation-applied="result => emit('mutationApplied', result)"
       @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
+      @place-draft-preview-changed="preview => emit('placeDraftPreviewChanged', preview)"
       @search-add-opened="requestId => emit('searchAddOpened', requestId)"
     />
 

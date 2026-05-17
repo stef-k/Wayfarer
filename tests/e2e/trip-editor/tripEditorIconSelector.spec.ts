@@ -26,13 +26,16 @@ test.describe('Trip Editor icon selector', () => {
     await loadWorkspaceWithIconFixture(page, requests);
 
     await openPlace(page);
-    const selector = page.locator('[data-icon-selector]');
-    await expect(selector.locator('[data-icon-selector-selected-name]')).toHaveText('camera');
-    await expectLoadedImages(selector.locator('[data-icon-selector-selected-image]'));
+    const iconSelector = page.locator('[data-selector-kind="icon"]');
+    const colorSelector = page.locator('[data-selector-kind="color"]');
+    await expect(iconSelector.locator('[data-icon-selector-selected-name]')).toHaveText('camera');
+    await expect(colorSelector.locator('[data-icon-selector-selected-name]')).toHaveText('Blue');
+    await expectLoadedImages(iconSelector.locator('[data-icon-selector-selected-image]'));
 
     await openIconSelector(page);
     await expectIconSelectorOptionsRender(page);
     await expectIconSelectorScrolls(page);
+    await expectSelectorPanelContained(page);
     await expectNoPageOverflow(page);
     await captureEvidence(page, testInfo, 'desktop-light-icon-selector-open');
 
@@ -44,9 +47,22 @@ test.describe('Trip Editor icon selector', () => {
     await filterIconSelector(page, 'star');
     await expectOnlyMatchingIconOptions(page, 'star');
     await page.locator('[data-icon-selector-search]').press('Enter');
-    await expect(selector.locator('[data-icon-selector-selected-name]')).toHaveText('star');
-    await expect(selector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
-    await expectLoadedImages(selector.locator('[data-icon-selector-selected-image]'));
+    await expect(iconSelector.locator('[data-icon-selector-selected-name]')).toHaveText('star');
+    await expect(iconSelector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
+    await expect(sidebarPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
+    await expect(mapMarkerIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
+    await expectLoadedImages(iconSelector.locator('[data-icon-selector-selected-image]'));
+
+    await openColorSelector(page);
+    await expectColorSelectorOptions(page);
+    await expectSelectorPanelContained(page);
+    await filterOpenSelector(page, 'purple');
+    await expectOnlyMatchingIconOptions(page, 'purple');
+    await page.locator('[data-selector-kind="color"] [data-icon-selector-search]').press('Enter');
+    await expect(colorSelector.locator('[data-icon-selector-selected-name]')).toHaveText('Purple');
+    await expect(iconSelector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
+    await expect(sidebarPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
+    await expect(mapMarkerIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
 
     await openIconSelector(page);
     await page.locator('[data-icon-selector-search]').press('Escape');
@@ -59,16 +75,19 @@ test.describe('Trip Editor icon selector', () => {
     await page.getByRole('button', { name: 'Save Place' }).click();
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0].iconName).toBe('star');
+    expect(requests[0].markerColor).toBe('bg-purple');
     await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
 
     await page.reload();
     await expectMountedWorkspace(page);
     await openPlace(page);
-    await expect(page.locator('[data-icon-selector-selected-name]')).toHaveText('star');
+    await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-selected-name]')).toHaveText('star');
+    await expect(page.locator('[data-selector-kind="color"] [data-icon-selector-selected-name]')).toHaveText('Purple');
     await expectLoadedImages(page.locator('[data-icon-selector-selected-image]'));
 
     await page.setViewportSize({ width: 390, height: 900 });
     await openIconSelector(page);
+    await expectSelectorPanelContained(page);
     await expectNoPageOverflow(page);
     await captureEvidence(page, testInfo, 'narrow-light-icon-selector-open');
     await setTheme(page, 'dark');
@@ -108,6 +127,7 @@ function prepareIconState(state: MutableEditorState): void {
   state.permissions.canEditRegions = true;
   state.permissions.canEditPlaces = true;
   state.options.iconNames = iconNames;
+  state.options.markerColorClasses = ['bg-blue', 'bg-purple', 'bg-black', 'bg-green', 'bg-red'];
   state.regionsById = { [regionId]: { id: regionId, tripId: state.tripId, name: 'Icon Selector Region', notesHtml: '', coverImage: null, center: null, displayOrder: 1, isShadow: false, capabilities: editableCapabilities() } };
   state.regionOrder = [regionId];
   state.placesById = { [placeId]: { id: placeId, tripId: state.tripId, regionId, name: 'Icon Selector Place', notesHtml: '<p>Place notes</p>', address: 'Athens, Greece', location: { latitude: 37.9838, longitude: 23.7275 }, iconName: 'camera', markerColor: 'bg-blue', displayOrder: 1, visitSummary: { placeId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null }, capabilities: editableCapabilities() } };
@@ -138,14 +158,25 @@ async function openPlace(page: Page): Promise<void> {
 }
 
 async function openIconSelector(page: Page): Promise<void> {
-  await page.locator('[data-icon-selector-trigger]').click();
-  await expect(page.locator('[data-icon-selector-panel]')).toBeVisible();
-  await expect(page.locator('[data-icon-selector-search]')).toBeFocused();
+  await page.locator('[data-selector-kind="icon"] [data-icon-selector-trigger]').click();
+  await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-panel]')).toBeVisible();
+  await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-search]')).toBeFocused();
+}
+
+async function openColorSelector(page: Page): Promise<void> {
+  await page.locator('[data-selector-kind="color"] [data-icon-selector-trigger]').click();
+  await expect(page.locator('[data-selector-kind="color"] [data-icon-selector-panel]')).toBeVisible();
+  await expect(page.locator('[data-selector-kind="color"] [data-icon-selector-search]')).toBeFocused();
 }
 
 async function filterIconSelector(page: Page, query: string): Promise<void> {
-  await page.locator('[data-icon-selector-search]').fill(query);
+  await page.locator('[data-selector-kind="icon"] [data-icon-selector-search]').fill(query);
   await expect(page.locator('[data-icon-selector-option]').first()).toBeVisible();
+}
+
+async function filterOpenSelector(page: Page, query: string): Promise<void> {
+  await page.locator('[data-icon-selector-panel] [data-icon-selector-search]').fill(query);
+  await expect(page.locator('[data-icon-selector-panel] [data-icon-selector-option]').first()).toBeVisible();
 }
 
 async function expectIconSelectorOptionsRender(page: Page): Promise<void> {
@@ -162,13 +193,46 @@ async function expectOnlyMatchingIconOptions(page: Page, query: string): Promise
 }
 
 async function expectIconSelectorScrolls(page: Page): Promise<void> {
-  const metrics = await page.locator('[data-icon-selector-options]').evaluate(element => {
+  const metrics = await page.locator('[data-selector-kind="icon"] [data-icon-selector-options]').evaluate(element => {
     const styles = window.getComputedStyle(element);
     return { maxHeight: styles.maxHeight, overflowY: styles.overflowY, scrolls: element.scrollHeight > element.clientHeight };
   });
   expect(metrics.maxHeight, 'Icon options panel should enforce a max-height.').not.toBe('none');
   expect(metrics.overflowY, 'Icon options panel should scroll internally.').toBe('auto');
   expect(metrics.scrolls, 'Icon options panel should have internal scroll when many icons are available.').toBe(true);
+}
+
+async function expectColorSelectorOptions(page: Page): Promise<void> {
+  const optionNames = await page.locator('[data-selector-kind="color"] [data-icon-selector-option-name]').allTextContents();
+  expect(optionNames).toEqual(['Blue', 'Purple', 'Black', 'Green', 'Red']);
+  await expect(page.locator('[data-selector-kind="color"] [data-color-selector-option-swatch]')).toHaveCount(5);
+  await expect(page.locator('[data-selector-kind="color"] [data-icon-selector-search]')).toBeVisible();
+}
+
+async function expectSelectorPanelContained(page: Page): Promise<void> {
+  const metrics = await page.locator('[data-icon-selector-panel]').evaluate(panel => {
+    const panelBox = panel.getBoundingClientRect();
+    const formBox = document.querySelector<HTMLElement>('#trip-editor-place-form')?.getBoundingClientRect();
+    const surfaceBox = document.querySelector<HTMLElement>('.trip-editor-place-editor-row .trip-editor-surface')?.getBoundingClientRect();
+    return {
+      formWidth: formBox?.width ?? 0,
+      panelRight: panelBox.right,
+      panelWidth: panelBox.width,
+      surfaceRight: surfaceBox?.right ?? 0,
+      viewportWidth: document.documentElement.clientWidth
+    };
+  });
+  expect(metrics.panelWidth, 'Open selector should have a comfortable row width.').toBeGreaterThanOrEqual(Math.min(300, metrics.formWidth - 4));
+  expect(metrics.panelRight, 'Open selector should stay inside the viewport.').toBeLessThanOrEqual(metrics.viewportWidth + 1);
+  expect(metrics.panelRight, 'Open selector should stay inside the editor surface.').toBeLessThanOrEqual(metrics.surfaceRight + 1);
+}
+
+function sidebarPlaceIcon(page: Page): Locator {
+  return page.locator(`[data-place-id="${placeId}"] [data-sidebar-place-icon]`);
+}
+
+function mapMarkerIcon(page: Page): Locator {
+  return page.locator(`[data-place-marker-icon="${placeId}"]`);
 }
 
 async function expectLoadedImages(images: Locator): Promise<void> {

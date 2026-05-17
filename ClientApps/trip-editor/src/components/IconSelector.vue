@@ -8,6 +8,7 @@ import { placeMarkerIconUrl } from '../displayHelpers';
 
 const props = defineProps<{
   icons: string[];
+  kind?: 'icon' | 'color';
   markerColor: string;
   modelValue: string;
 }>();
@@ -24,21 +25,32 @@ const searchQuery = ref('');
 const highlightedIndex = ref(0);
 const selectorId = `trip-editor-icon-selector-${++nextSelectorId}`;
 const listboxId = `${selectorId}-listbox`;
+const selectorKind = computed(() => props.kind ?? 'icon');
+const fallbackValue = computed(() => selectorKind.value === 'color' ? 'bg-blue' : 'marker');
 
 const normalizedQuery = computed(() => searchQuery.value.trim().toLocaleLowerCase());
-const selectedIcon = computed(() => props.icons.includes(props.modelValue) ? props.modelValue : props.icons[0] ?? 'marker');
+const selectedIcon = computed(() => props.icons.includes(props.modelValue) ? props.modelValue : props.icons[0] ?? fallbackValue.value);
 const filteredIcons = computed(() => {
   if (!normalizedQuery.value) {
     return props.icons;
   }
 
-  return props.icons.filter(icon => icon.toLocaleLowerCase().includes(normalizedQuery.value));
+  return props.icons.filter(icon => optionLabel(icon).toLocaleLowerCase().includes(normalizedQuery.value) || icon.toLocaleLowerCase().includes(normalizedQuery.value));
 });
 const highlightedIcon = computed(() => filteredIcons.value[highlightedIndex.value] ?? '');
 const activeOptionId = computed(() => highlightedIcon.value ? optionId(highlightedIcon.value) : undefined);
+const searchLabel = computed(() => selectorKind.value === 'color' ? 'Search marker colors' : 'Search icons');
+const optionsLabel = computed(() => selectorKind.value === 'color' ? 'Marker color options' : 'Icon options');
+const searchPlaceholder = computed(() => selectorKind.value === 'color' ? 'Search colors' : 'Search icons');
 
 /// Converts stored icon ids into the same readable labels used by the legacy searchable selector.
 const iconLabel = (icon: string): string => icon.replace(/[-_]+/g, ' ');
+const optionLabel = (value: string): string => selectorKind.value === 'color' ? colorLabel(value) : iconLabel(value);
+const colorName = (color: string): string => color.replace(/^bg-/, '').replace(/[-_]+/g, ' ');
+const colorLabel = (color: string): string => {
+  const name = colorName(color);
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+};
 
 function openSelector(seed = ''): void {
   searchQuery.value = seed;
@@ -149,7 +161,7 @@ function firstHighlightedIndex(seed: string): number {
     return Math.max(0, props.icons.indexOf(selectedIcon.value));
   }
 
-  return Math.max(0, props.icons.findIndex(icon => icon.toLocaleLowerCase().includes(query)));
+  return Math.max(0, props.icons.findIndex(icon => icon.toLocaleLowerCase().includes(query) || optionLabel(icon).toLocaleLowerCase().includes(query)));
 }
 
 /// Keeps outside clicks from leaving the popover open while preserving normal tab flow.
@@ -177,7 +189,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 </script>
 
 <template>
-  <div ref="root" class="trip-editor-icon-selector" data-icon-selector @focusout="onFocusOut">
+  <div ref="root" class="trip-editor-icon-selector" :data-selector-kind="selectorKind" data-icon-selector @focusout="onFocusOut">
     <button
       ref="trigger"
       type="button"
@@ -190,14 +202,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
       @keydown="onTriggerKeydown"
     >
       <span class="trip-editor-icon-selector__selected">
-        <img :src="placeMarkerIconUrl(selectedIcon, props.markerColor || 'bg-blue')" width="24" height="39" alt="" data-icon-selector-selected-image />
-        <span class="trip-editor-icon-selector__selected-name" data-icon-selector-selected-name>{{ selectedIcon }}</span>
+        <img v-if="selectorKind === 'icon'" :src="placeMarkerIconUrl(selectedIcon, props.markerColor || 'bg-blue')" width="24" height="39" alt="" data-icon-selector-selected-image />
+        <span v-else class="trip-editor-icon-selector__swatch" :class="selectedIcon" aria-hidden="true" data-color-selector-selected-swatch></span>
+        <span class="trip-editor-icon-selector__selected-name" data-icon-selector-selected-name>{{ selectorKind === 'color' ? colorLabel(selectedIcon) : selectedIcon }}</span>
       </span>
       <span class="trip-editor-icon-selector__chevron" aria-hidden="true">v</span>
     </button>
 
     <div v-if="isOpen" class="trip-editor-icon-selector__panel" data-icon-selector-panel>
-      <label class="visually-hidden" :for="`${selectorId}-search`">Search icon</label>
+      <label class="visually-hidden" :for="`${selectorId}-search`">{{ searchLabel }}</label>
       <input
         :id="`${selectorId}-search`"
         ref="searchInput"
@@ -210,13 +223,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
         :aria-expanded="isOpen"
         :aria-controls="listboxId"
         :aria-activedescendant="activeOptionId"
-        placeholder="Search icons"
+        :placeholder="searchPlaceholder"
         data-icon-selector-search
         @input="onSearchInput"
         @keydown="onSearchKeydown"
       />
 
-      <ul :id="listboxId" class="trip-editor-icon-selector__options" role="listbox" aria-label="Icon options" data-icon-selector-options>
+      <ul :id="listboxId" class="trip-editor-icon-selector__options" role="listbox" :aria-label="optionsLabel" data-icon-selector-options>
         <li
           v-for="(icon, index) in filteredIcons"
           :id="optionId(icon)"
@@ -230,8 +243,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
           @mousedown.prevent
           @click="selectIcon(icon)"
         >
-          <img :src="placeMarkerIconUrl(icon, props.markerColor || 'bg-blue')" width="24" height="39" alt="" data-icon-selector-option-image />
-          <span data-icon-selector-option-name>{{ iconLabel(icon) }}</span>
+          <img v-if="selectorKind === 'icon'" :src="placeMarkerIconUrl(icon, props.markerColor || 'bg-blue')" width="24" height="39" alt="" data-icon-selector-option-image />
+          <span v-else class="trip-editor-icon-selector__swatch" :class="icon" aria-hidden="true" data-color-selector-option-swatch></span>
+          <span data-icon-selector-option-name>{{ optionLabel(icon) }}</span>
         </li>
         <li v-if="filteredIcons.length === 0" class="trip-editor-icon-selector__empty">No matching icons.</li>
       </ul>

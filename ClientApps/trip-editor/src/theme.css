@@ -1,13 +1,13 @@
 :root {
-  --trip-editor-bg: var(--bs-body-bg, #f8fafc);
-  --trip-editor-surface: var(--bs-tertiary-bg, #ffffff);
-  --trip-editor-surface-muted: var(--bs-secondary-bg, #eef2f7);
+  --trip-editor-bg: color-mix(in srgb, var(--bs-body-bg, #f8fafc) 86%, #e2e8f0);
+  --trip-editor-surface: color-mix(in srgb, var(--bs-tertiary-bg, #ffffff) 90%, #e2e8f0);
+  --trip-editor-surface-muted: color-mix(in srgb, var(--bs-secondary-bg, #eef2f7) 86%, #cbd5e1);
   --trip-editor-border: var(--bs-border-color, rgba(15, 23, 42, 0.14));
   --trip-editor-card: color-mix(in srgb, var(--bs-body-color, #111827) 4%, transparent);
   --trip-editor-card-strong: color-mix(in srgb, var(--bs-body-color, #111827) 8%, transparent);
   --trip-editor-text: var(--bs-body-color, #111827);
   --trip-editor-muted: var(--bs-secondary-color, #64748b);
-  --trip-editor-field-bg: var(--bs-body-bg, #ffffff);
+  --trip-editor-field-bg: color-mix(in srgb, var(--bs-body-bg, #ffffff) 92%, #e2e8f0);
   --trip-editor-field-border: var(--bs-border-color, #cbd5e1);
   --trip-editor-accent: var(--bs-primary, #0d6efd);
   --trip-editor-danger-bg: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.12));

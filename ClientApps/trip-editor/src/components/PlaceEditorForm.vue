@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
 import IconSelector from './IconSelector.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
@@ -18,10 +19,8 @@ const emit = defineEmits<{
   save: [];
 }>();
 
-const markerColorLabel = (color: string): string => {
-  const name = color.replace(/^bg-/, '').replace(/[-_]+/g, ' ');
-  return `${name.charAt(0).toUpperCase()}${name.slice(1)} marker color`;
-};
+const orderedMarkerColors = ['bg-blue', 'bg-purple', 'bg-black', 'bg-green', 'bg-red'];
+const markerColorOptions = computed(() => orderedMarkerColors.filter(color => props.state.options.markerColorClasses.includes(color)));
 
 </script>
 
@@ -66,7 +65,7 @@ const markerColorLabel = (color: string): string => {
       </label>
     </div>
 
-    <div class="trip-editor-grid">
+    <div class="trip-editor-selector-grid">
       <fieldset class="trip-editor-field trip-editor-place-icon-field">
         <legend>Icon</legend>
         <IconSelector v-model="props.draft.iconName" :icons="props.state.options.iconNames" :marker-color="props.draft.markerColor || 'bg-blue'" />
@@ -74,18 +73,7 @@ const markerColorLabel = (color: string): string => {
       </fieldset>
       <fieldset class="trip-editor-field trip-editor-marker-color-field">
         <legend>Marker Color</legend>
-        <div class="trip-editor-marker-swatch-group" role="radiogroup" aria-label="Marker Color">
-          <label
-            v-for="color in props.state.options.markerColorClasses"
-            :key="color"
-            class="trip-editor-marker-swatch"
-            :class="{ 'trip-editor-marker-swatch--selected': props.draft.markerColor === color }"
-            :title="markerColorLabel(color)"
-          >
-            <input v-model="props.draft.markerColor" class="trip-editor-marker-swatch__input" type="radio" name="markerColor" :value="color" :aria-label="markerColorLabel(color)" />
-            <span class="trip-editor-marker-swatch__sample" :class="color" aria-hidden="true"></span>
-          </label>
-        </div>
+        <IconSelector v-model="props.draft.markerColor" kind="color" :icons="markerColorOptions" marker-color="bg-blue" />
         <small v-for="message in props.fieldErrors('markerColor')" :key="message">{{ message }}</small>
       </fieldset>
     </div>
