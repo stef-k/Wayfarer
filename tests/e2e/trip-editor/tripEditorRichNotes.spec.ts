@@ -155,7 +155,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     const editor = richEditor(form).locator('.ql-editor');
     await expect(editor.locator('img')).toBeVisible();
     await expectContinuationSpace(editor);
-    await clickContinuationSpace(editor);
+    await clickContinuationSpaceWithoutScrollJump(editor);
     await page.keyboard.type('Continuation after image');
     await captureRichNotesEvidence(page, testInfo, 'docked-terminal-image-continuation');
     await page.getByRole('button', { name: 'Save & Continue' }).click();
@@ -170,8 +170,9 @@ test.describe.serial('Trip Editor rich notes parity', () => {
 
   test('expanded notes let users press Enter and continue after terminal content with clean save HTML', async ({ page }, testInfo) => {
     await signIn(page);
+    await routeRichNoteImages(page);
     const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
-      editorState.metadata.notesHtml = '<p>Terminal paragraph</p>';
+      editorState.metadata.notesHtml = terminalImageNotes();
     });
     const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
     await routeEditorMutations(page, state, requests);
@@ -179,9 +180,9 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await page.getByRole('button', { name: 'Expand Editor' }).click();
     const dialog = page.getByRole('dialog', { name: /Edit Trip -/ });
     const editor = richEditor(dialog.locator('#trip-editor-metadata-form')).locator('.ql-editor');
+    await expect(editor.locator('img')).toBeVisible();
     await expectContinuationSpace(editor);
-    await clickContinuationSpace(editor);
-    await page.keyboard.press('Enter');
+    await clickContinuationSpaceWithoutScrollJump(editor);
     await page.keyboard.type('Expanded continuation');
     await captureRichNotesEvidence(page, testInfo, 'expanded-terminal-content-continuation');
     await dialog.getByRole('button', { name: 'Dock to sidebar' }).click();
@@ -189,7 +190,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
 
     await expect.poll(() => requests.length).toBe(1);
     const notesHtml = requests[0].body.notesHtml as string;
-    expectCanonicalNotes(notesHtml, ['Terminal paragraph', 'Expanded continuation']);
+    expectCanonicalNotes(notesHtml, ['Intro before image', 'https://images.example.test/terminal-large.svg', 'Expanded continuation']);
     expect(notesHtml).not.toContain('trip-editor-rich-notes__continuation');
     expect(notesHtml).not.toContain('editor-only');
     expect(notesHtml).not.toContain('<p><br></p><p><br></p>');
@@ -524,15 +525,18 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 }
 
-async function clickContinuationSpace(editor: Locator): Promise<void> {
+async function clickContinuationSpaceWithoutScrollJump(editor: Locator): Promise<void> {
   await editor.evaluate(element => {
     element.scrollIntoView({ block: 'center', inline: 'nearest' });
     element.scrollTop = element.scrollHeight;
   });
+  const beforeClickScrollTop = await editor.evaluate(element => element.scrollTop);
   const box = await editor.boundingBox();
   expect(box, 'Rich notes editor should have a rendered box.').not.toBeNull();
   await editor.page().mouse.click(box!.x + box!.width / 2, box!.y + box!.height - 12);
   await expect.poll(() => editor.evaluate(element => document.activeElement === element)).toBe(true);
+  const afterClickScrollTop = await editor.evaluate(element => element.scrollTop);
+  expect(afterClickScrollTop, 'Continuation click should not jump the rich notes editor upward.').toBeGreaterThanOrEqual(beforeClickScrollTop - 4);
 }
 
 async function expectContinuationSpace(editor: Locator): Promise<void> {

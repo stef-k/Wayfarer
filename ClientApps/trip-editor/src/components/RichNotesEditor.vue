@@ -131,8 +131,30 @@ function handleContinuationPointerDown(event: MouseEvent): void {
   }
 
   event.preventDefault();
-  quill.focus();
-  quill.setSelection(Math.max(0, quill.getLength() - 1), 0, 'user');
+  focusContinuationAtEnd();
+}
+
+/// Places the caret after terminal content without letting Quill scroll the editor away from the clicked end.
+function focusContinuationAtEnd(): void {
+  if (!quill) {
+    return;
+  }
+
+  const scrollTop = quill.root.scrollTop;
+  const index = Math.max(0, quill.getLength() - 1);
+  quill.root.focus({ preventScroll: true });
+  quill.setSelection(index, 0, 'silent');
+  savedRange = { index, length: 0 };
+  restoreEditorScroll(scrollTop);
+  window.requestAnimationFrame(() => restoreEditorScroll(scrollTop));
+}
+
+function restoreEditorScroll(scrollTop: number): void {
+  if (!quill) {
+    return;
+  }
+
+  quill.root.scrollTop = scrollTop;
 }
 
 function handlePaste(event: ClipboardEvent): void {
