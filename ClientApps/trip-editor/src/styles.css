@@ -291,8 +291,14 @@ body {
 }
 
 .trip-editor-sidebar-search {
+  background: var(--trip-editor-surface);
   display: grid;
   gap: 0.6rem;
+  margin: 0 -1rem;
+  padding: 0.75rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .trip-editor-empty-state {
