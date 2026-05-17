@@ -526,14 +526,20 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
 }
 
 async function clickContinuationSpaceWithoutScrollJump(editor: Locator): Promise<void> {
-  await editor.evaluate(element => {
+  const clickPoint = await editor.evaluate(element => {
     element.scrollIntoView({ block: 'center', inline: 'nearest' });
     element.scrollTop = element.scrollHeight;
+    const editorBounds = element.getBoundingClientRect();
+    const blocks = Array.from(element.children).filter(child => child.textContent?.trim() || child.querySelector('img, video, iframe'));
+    const lastBlock = blocks.at(-1);
+    const lastBlockBottom = lastBlock instanceof HTMLElement ? lastBlock.getBoundingClientRect().bottom : editorBounds.top;
+    return {
+      x: editorBounds.left + editorBounds.width / 2,
+      y: Math.min(lastBlockBottom + 16, editorBounds.bottom - 12)
+    };
   });
   const beforeClickScrollTop = await editor.evaluate(element => element.scrollTop);
-  const box = await editor.boundingBox();
-  expect(box, 'Rich notes editor should have a rendered box.').not.toBeNull();
-  await editor.page().mouse.click(box!.x + box!.width / 2, box!.y + box!.height - 12);
+  await editor.page().mouse.click(clickPoint.x, clickPoint.y);
   await expect.poll(() => editor.evaluate(element => document.activeElement === element)).toBe(true);
   const afterClickScrollTop = await editor.evaluate(element => element.scrollTop);
   expect(afterClickScrollTop, 'Continuation click should not jump the rich notes editor upward.').toBeGreaterThanOrEqual(beforeClickScrollTop - 4);
