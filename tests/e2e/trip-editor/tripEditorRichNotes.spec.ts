@@ -170,10 +170,10 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
     await expect(editor.locator('img')).toHaveCount(0);
 
-    await editor.click();
     await editor.evaluate(element => {
       element.insertAdjacentHTML('beforeend', '<script>alert("x")</script><a href="javascript:alert(1)" onclick="alert(2)">Unsafe link</a><img src="javascript:alert(3)" onerror="alert(4)">');
     });
+    await focusEditorAtEnd(editor);
     await page.keyboard.type('Normalized rich note');
     await page.getByRole('button', { name: 'Save & Continue' }).click();
     await expect.poll(() => requests.length).toBe(1);
@@ -455,6 +455,20 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
   await expect(dialog.getByText('Embedded data images are not allowed')).toBeVisible();
   await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
+}
+
+// Restores a deterministic caret after tests inject HTML outside Quill's event pipeline.
+async function focusEditorAtEnd(editor: Locator): Promise<void> {
+  await editor.evaluate(element => {
+    element.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
+  await expect.poll(() => editor.evaluate(element => document.activeElement === element)).toBe(true);
 }
 
 async function openRegion(page: Page): Promise<void> {
