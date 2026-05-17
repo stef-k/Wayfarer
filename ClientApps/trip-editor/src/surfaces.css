@@ -19,6 +19,11 @@
   padding: 0.85rem;
 }
 
+.trip-editor-surface--docked {
+  position: relative;
+  z-index: 4;
+}
+
 .trip-editor-surface-context--map-work {
   border-style: dashed;
 }

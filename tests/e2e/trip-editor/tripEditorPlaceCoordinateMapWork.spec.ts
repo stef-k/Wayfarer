@@ -58,6 +58,27 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     expect(forbidden(), 'Coordinate picking must not call geocode/search providers.').toEqual([]);
   });
 
+  test('Pick on map cancels active distance measurement before handling map clicks', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+
+    await openEditablePlace(page);
+    const measureButton = utilityButton(page, 'Measure distance');
+    await measureButton.click();
+    await expect(measureButton).toHaveClass(/active/);
+    await clickMap(page, { xRatio: 0.32, yRatio: 0.48 });
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expect(measureButton).not.toHaveClass(/active/);
+    await clickMap(page, { xRatio: 0.48, yRatio: 0.42 });
+
+    const mapWork = page.getByRole('region', { name: 'Map work' });
+    await expect(mapWork).toContainText('Selected');
+    await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
+    await expect(page.getByTitle('Selected place location preview')).toHaveCount(1);
+    await expect(page.locator('.trip-editor-map-distance-label')).toHaveCount(0);
+  });
+
   test('edit-place docked Cancel restores coordinate fields only', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
@@ -338,6 +359,10 @@ async function clickMap(page: Page, position: { xRatio: number; yRatio: number }
       element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, view: window }));
     }
   }, position);
+}
+
+function utilityButton(page: Page, name: string): Locator {
+  return page.locator('.trip-editor-map-utilities').getByRole('button', { name });
 }
 
 // Dispatches through the persisted marker element when viewport chrome covers Playwright's default click point.

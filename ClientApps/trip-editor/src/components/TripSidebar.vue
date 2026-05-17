@@ -154,6 +154,14 @@ function normalize(value: string): string {
       <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? 'Public' : 'Private' }}</span>
     </header>
 
+    <section class="trip-editor-panel trip-editor-sidebar-search">
+      <label class="trip-editor-field">
+        <span>Sidebar search</span>
+        <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+      </label>
+      <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
+    </section>
+
     <MetadataEditor
       :metadata="state.metadata"
       :tags-by-slug="state.tagsBySlug"
@@ -195,14 +203,6 @@ function normalize(value: string): string {
       <div class="trip-editor-tags">
         <span v-for="slug in state.tagOrder" :key="slug">{{ state.tagsBySlug[slug]?.name }}</span>
       </div>
-    </section>
-
-    <section class="trip-editor-panel trip-editor-sidebar-search">
-      <label class="trip-editor-field">
-        <span>Sidebar search</span>
-        <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
-      </label>
-      <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
     </section>
 
     <RegionManager

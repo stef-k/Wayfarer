@@ -584,9 +584,10 @@ async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {
       throw new Error('Rich notes editor has no trailing line.');
     }
 
+    trailingLine.scrollIntoView({ block: 'center', inline: 'nearest' });
     const lineBounds = trailingLine.getBoundingClientRect();
     return {
-      x: lineBounds.left + lineBounds.width / 2,
+      x: lineBounds.left + Math.min(24, Math.max(8, lineBounds.width / 4)),
       y: lineBounds.top + Math.min(18, lineBounds.height / 2)
     };
   });
@@ -603,16 +604,21 @@ async function expectEditableTrailingBlankLine(editor: Locator): Promise<void> {
     element.scrollTop = element.scrollHeight;
     const line = element.lastElementChild;
     if (!(line instanceof HTMLElement)) {
-      return { isBlank: false, height: 0 };
+      return { isBlank: false, hasLargeTailGap: true };
     }
 
+    const editorBounds = element.getBoundingClientRect();
+    const lineBounds = line.getBoundingClientRect();
+    const distanceFromLineToEditorBottom = editorBounds.bottom - lineBounds.bottom;
+    const distanceFromLineToScrollBottom = element.scrollHeight - line.offsetTop - line.offsetHeight;
+    const largeGapLimit = Math.max(96, editorBounds.height * 0.2);
     return {
       isBlank: !line.textContent?.trim() && !line.querySelector('img, video, iframe'),
-      height: line.getBoundingClientRect().height
+      hasLargeTailGap: distanceFromLineToEditorBottom > largeGapLimit || distanceFromLineToScrollBottom > largeGapLimit
     };
   });
   expect(trailingLine.isBlank, 'Rich notes editor should expose a real trailing blank line.').toBe(true);
-  expect(trailingLine.height, 'Rich notes trailing blank line should be a visible click target.').toBeGreaterThanOrEqual(32);
+  expect(trailingLine.hasLargeTailGap, 'Rich notes editor should not add a large fake tail gap below the editable trailing line.').toBe(false);
 }
 
 async function captureRichNotesEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
