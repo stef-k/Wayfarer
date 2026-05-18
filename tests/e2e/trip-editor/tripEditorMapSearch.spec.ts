@@ -318,7 +318,7 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(page.locator('img[alt="Pending place location: Preview Place"]')).toHaveCount(0);
   });
 
-  test('target region selector includes the unassigned shadow region and handles eligibility defaults', async ({ page }) => {
+  test('target region selector includes Unassigned Places and handles eligibility defaults', async ({ page }) => {
     await signIn(page);
     const baseState = await loadEditorState(page);
     await routeEditorState(page, withOneEligibleRegion(baseState));
@@ -330,15 +330,15 @@ test.describe('Trip Editor map geocode search', () => {
     await page.getByRole('button', { name: 'Eligible Place' }).click();
     const select = page.getByLabel('Target region');
     await expect(select).toBeDisabled();
-    await expect(select).not.toHaveValue(shadowRegionId(baseState));
+    await expect(select).not.toHaveValue(unassignedPlacesRegionId(baseState));
 
-    await routeEditorState(page, withOnlyShadowSearchTarget(baseState));
+    await routeEditorState(page, withOnlyUnassignedPlacesSearchTarget(baseState));
     await page.reload();
     await expectMountedWorkspace(page);
     await runSearch(page, 'eligible place');
     await page.getByRole('button', { name: 'Eligible Place' }).click();
     await expect(page.getByLabel('Target region')).toContainText('Unassigned Places');
-    await expect(page.getByLabel('Target region')).toHaveValue(shadowRegionId(baseState));
+    await expect(page.getByLabel('Target region')).toHaveValue(unassignedPlacesRegionId(baseState));
     await expect(page.getByRole('button', { name: 'Add as place' })).toBeEnabled();
 
     await routeEditorState(page, withTwoEligibleRegions(baseState));
@@ -347,8 +347,57 @@ test.describe('Trip Editor map geocode search', () => {
     await runSearch(page, 'eligible place');
     await page.getByRole('button', { name: 'Eligible Place' }).click();
     await expect(page.getByLabel('Target region')).toBeEnabled();
-    await expect(page.getByLabel('Target region')).toHaveValue(shadowRegionId(baseState));
+    await expect(page.getByLabel('Target region')).toHaveValue(unassignedPlacesRegionId(baseState));
     await expect(page.getByRole('button', { name: 'Add as place' })).toBeEnabled();
+  });
+
+  test('place Region selector includes Unassigned Places and saves a move back', async ({ page }) => {
+    await signIn(page);
+    const baseState = await loadEditorState(page);
+    const fixture = withMovablePlace(baseState);
+    const requests: Array<Record<string, any>> = [];
+    await routeEditorStateWithPlaceMove(page, fixture.state, requests, fixture.placeId);
+
+    await page.goto(absoluteUrl(editorPath));
+    await expectMountedWorkspace(page);
+    await expect(page.locator(`[data-region-id="${fixture.unassignedRegionId}"] .trip-editor-region-card__header small`)).toHaveCount(0);
+    await page.locator(`[data-place-id="${fixture.placeId}"]`).getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByRole('heading', { name: 'Edit Place - Move Back Place' })).toBeVisible();
+
+    const select = page.locator('#trip-editor-place-form').getByLabel('Region');
+    await expect(select).toContainText('Unassigned Places');
+    await expect(select).toHaveValue(fixture.normalRegionId);
+    await select.selectOption(fixture.unassignedRegionId);
+    await page.getByRole('button', { name: 'Save Place' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0].regionId).toBe(fixture.unassignedRegionId);
+    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
+  });
+
+  test('geosearch Add as place defaults back to Unassigned Places after one normal-region add', async ({ page }) => {
+    await signIn(page);
+    const baseState = withTwoEligibleRegions(await loadEditorState(page));
+    const unassignedId = unassignedPlacesRegionId(baseState);
+    const normalId = firstNormalRegionId(baseState);
+    await routeEditorState(page, baseState);
+    await routeGeocode(page, async route => fulfillGeocode(route, [result('Reset Target Place')]));
+
+    await page.goto(absoluteUrl(editorPath));
+    await expectMountedWorkspace(page);
+    await runSearch(page, 'reset target place');
+    await page.getByRole('button', { name: 'Reset Target Place' }).click();
+    const select = page.getByLabel('Target region');
+    await expect(select).toHaveValue(unassignedId);
+    await select.selectOption(normalId);
+    await page.getByRole('button', { name: 'Add as place' }).click();
+    await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Map search' }).getByRole('button', { name: 'Reset Target Place' })).toHaveCount(0);
+
+    await closeDraftWithDiscard(page);
+    await runSearch(page, 'reset target place');
+    await page.getByRole('button', { name: 'Reset Target Place' }).click();
+    await expect(page.getByLabel('Target region')).toHaveValue(unassignedId);
   });
 
   test('dirty active draft prompts before search-add opens Add Place', async ({ page }) => {
@@ -514,17 +563,27 @@ function withNoEligibleRegions(state: any): any {
   return clone;
 }
 
-function withOnlyShadowSearchTarget(state: any): any {
+function withOnlyUnassignedPlacesSearchTarget(state: any): any {
   const clone = withNoEligibleRegions(state);
-  const shadow = Object.values<any>(clone.regionsById).find(region => region.isShadow);
-  shadow.capabilities.canTargetForSearchAdd = true;
+  const unassigned = unassignedPlacesRegion(clone);
+  unassigned.capabilities.canTargetForSearchAdd = true;
   return clone;
 }
 
-function shadowRegionId(state: any): string {
-  const shadow = Object.values<any>(state.regionsById).find(region => region.isShadow);
-  expect(shadow, 'Trip Editor fixture must include the built-in Unassigned Places region.').toBeTruthy();
-  return shadow.id;
+function unassignedPlacesRegion(state: any): any {
+  const unassigned = Object.values<any>(state.regionsById).find(region => region.isShadow && region.name === 'Unassigned Places');
+  expect(unassigned, 'Trip Editor fixture must include the built-in Unassigned Places region.').toBeTruthy();
+  return unassigned;
+}
+
+function unassignedPlacesRegionId(state: any): string {
+  return unassignedPlacesRegion(state).id;
+}
+
+function firstNormalRegionId(state: any): string {
+  const region = Object.values<any>(state.regionsById).find(region => !region.isShadow);
+  expect(region, 'Trip Editor fixture must include a normal region.').toBeTruthy();
+  return region.id;
 }
 
 function withOneEligibleRegion(state: any): any {
@@ -536,7 +595,7 @@ function withOneEligibleRegion(state: any): any {
 }
 
 function withTwoEligibleRegions(state: any): any {
-  const clone = withOnlyShadowSearchTarget(state);
+  const clone = withOnlyUnassignedPlacesSearchTarget(state);
   const first = Object.values<any>(clone.regionsById).find(region => !region.isShadow);
   first.capabilities.canAddChildren = true;
   first.capabilities.canTargetForSearchAdd = true;
@@ -546,4 +605,73 @@ function withTwoEligibleRegions(state: any): any {
   clone.placeOrderByRegionId[second.id] = [];
   clone.areaOrderByRegionId[second.id] = [];
   return clone;
+}
+
+function withMovablePlace(state: any): { state: any; normalRegionId: string; placeId: string; unassignedRegionId: string } {
+  const clone = structuredClone(state);
+  clone.permissions.canEditPlaces = true;
+  const normalRegionId = firstNormalRegionId(clone);
+  const unassignedRegionId = unassignedPlacesRegionId(clone);
+  clone.regionsById[normalRegionId].capabilities.canAddChildren = true;
+  clone.placeOrderByRegionId[normalRegionId] = clone.placeOrderByRegionId[normalRegionId] ?? [];
+  clone.placeOrderByRegionId[unassignedRegionId] = clone.placeOrderByRegionId[unassignedRegionId] ?? [];
+  const placeId = '00000000-0000-0000-0000-000000295901';
+  clone.placesById[placeId] = {
+    id: placeId,
+    tripId: clone.tripId,
+    regionId: normalRegionId,
+    name: 'Move Back Place',
+    notesHtml: '<p>Move back notes</p>',
+    address: 'Athens, Greece',
+    location: { latitude: 37.9838, longitude: 23.7275 },
+    iconName: clone.options.iconNames[0] ?? 'marker',
+    markerColor: clone.options.markerColorClasses[0] ?? 'bg-blue',
+    displayOrder: 1,
+    visitSummary: { placeId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
+    capabilities: { canEdit: true, canRename: true, canDelete: true, canReorder: true, canMove: true, canAddChildren: false, canTargetForSearchAdd: false }
+  };
+  clone.placeOrderByRegionId[normalRegionId] = [placeId, ...clone.placeOrderByRegionId[normalRegionId].filter((id: string) => id !== placeId)];
+  return { state: clone, normalRegionId, placeId, unassignedRegionId };
+}
+
+async function routeEditorStateWithPlaceMove(page: Page, state: any, requests: Array<Record<string, any>>, placeId: string): Promise<void> {
+  const matcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
+  await page.unroute(matcher).catch(() => undefined);
+  await page.route(matcher, async route => {
+    const request = route.request();
+    if (request.method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
+      return;
+    }
+
+    const body = request.postDataJSON() as Record<string, any>;
+    requests.push(body);
+    const place = { ...state.placesById[placeId], ...body, regionId: body.regionId };
+    state.placesById[placeId] = place;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: place,
+        affected: {
+          metadata: null,
+          regions: [],
+          regionOrder: null,
+          places: [place],
+          placeOrdersByRegionId: {},
+          areas: [],
+          areaOrdersByRegionId: {},
+          segments: [],
+          segmentOrder: null,
+          tags: [],
+          tagOrder: null,
+          visitProgress: null,
+          options: null
+        },
+        deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] },
+        warnings: []
+      })
+    });
+  });
 }

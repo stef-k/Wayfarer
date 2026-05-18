@@ -266,7 +266,6 @@ function toggleRegion(regionId: Guid): void {
         </button>
         <div>
           <h3>{{ region.name }}</h3>
-          <small v-if="region.isShadow">Shadow region</small>
         </div>
         <div class="trip-editor-region-card__actions">
           <button

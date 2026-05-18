@@ -50,14 +50,25 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
     await routeEditorMutations(page, state, requests);
 
-    await richEditor(page.locator('#trip-editor-metadata-form')).locator('.ql-editor').click();
-    await page.keyboard.type('Metadata rich note');
-    await insertImageUrl(page.locator('#trip-editor-metadata-form'), 'https://example.com/photo.jpg');
+    const metadataForm = page.locator('#trip-editor-metadata-form');
+    const metadataEditor = richEditor(metadataForm);
+    await metadataEditor.locator('.ql-editor').click();
+    await metadataEditor.locator('button.ql-align').first().click();
+    await page.keyboard.type('Left aligned note');
+    await page.keyboard.press('Enter');
+    await metadataEditor.locator('button.ql-align[value="center"]').click();
+    await page.keyboard.type('Center aligned note');
+    await page.keyboard.press('Enter');
+    await metadataEditor.locator('button.ql-align[value="right"]').click();
+    await page.keyboard.type('Right aligned note');
+    await insertImageUrl(metadataForm, 'https://example.com/photo.jpg');
     await page.getByRole('button', { name: 'Save & Continue' }).click();
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0].method).toBe('PATCH');
     expect(requests[0].url).toContain('/metadata');
-    expectCanonicalNotes(requests[0].body.notesHtml, ['Metadata rich note', 'https://example.com/photo.jpg']);
+    expectCanonicalNotes(requests[0].body.notesHtml, ['Left aligned note', '<p class="ql-align-center">Center aligned note</p>', '<p class="ql-align-right">Right aligned note', 'https://example.com/photo.jpg']);
+    expect(requests[0].body.notesHtml).not.toContain('ql-align-left');
+    expect(requests[0].body.notesHtml).not.toContain('style=');
 
     await openRegion(page);
     await richEditor(page.locator('#trip-editor-region-form')).locator('.ql-editor').fill('');

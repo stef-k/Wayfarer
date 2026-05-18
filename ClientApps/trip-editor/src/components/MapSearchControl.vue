@@ -39,6 +39,7 @@ const canSearch = computed(() => trimmedQuery.value.length >= minChars && !isSea
 const eligibleRegions = computed(() => props.state.regionOrder
   .map(id => props.state.regionsById[id])
   .filter((region): region is EditorRegion => Boolean(region) && props.state.permissions.canEditPlaces && region.capabilities.canTargetForSearchAdd));
+const unassignedPlacesRegion = computed(() => eligibleRegions.value.find(isUnassignedPlacesRegion) ?? null);
 const selectedResult = computed(() => results.value.find(result => result.id === selectedResultId.value) ?? null);
 const canAdd = computed(() => Boolean(selectedResult.value && selectedRegionId.value));
 const helperText = computed(() => eligibleRegions.value.length === 0 ? 'No editable region is available for this search result.' : null);
@@ -87,6 +88,11 @@ watch(
 );
 
 watch(eligibleRegions, regions => {
+  if (unassignedPlacesRegion.value) {
+    selectedRegionId.value = unassignedPlacesRegion.value.id;
+    return;
+  }
+
   if (regions.length === 1) {
     selectedRegionId.value = regions[0].id;
     return;
@@ -94,12 +100,6 @@ watch(eligibleRegions, regions => {
 
   if (props.activeTarget?.kind === 'place' && props.activeTarget.parentRegionId && regions.some(region => region.id === props.activeTarget?.parentRegionId)) {
     selectedRegionId.value = props.activeTarget.parentRegionId;
-    return;
-  }
-
-  const shadowRegion = regions.find(region => region.isShadow);
-  if (shadowRegion && (!selectedRegionId.value || !regions.some(region => region.id === selectedRegionId.value))) {
-    selectedRegionId.value = shadowRegion.id;
     return;
   }
 
@@ -139,6 +139,7 @@ const submitSearch = async (): Promise<void> => {
     results.value = response.results.slice(0, limit.value);
     attribution.value = response.attribution;
     status.value = results.value.length === 0 ? 'no-results' : 'success';
+    resetSelectedTargetRegion();
   } catch (error) {
     if (searchController.signal.aborted || sequence !== requestSequence) {
       return;
@@ -188,6 +189,7 @@ const clearResults = (): void => {
   results.value = [];
   selectedResultId.value = null;
   submittedQuery.value = '';
+  resetSelectedTargetRegion();
   emit('clearPreview');
 };
 
@@ -198,6 +200,14 @@ const roundedCoordinate = (value: number): string => value.toFixed(5);
 
 const normalizeQuery = (value: string): string =>
   value.trim().split(/\s+/u).filter(Boolean).join(' ').toLowerCase();
+
+const resetSelectedTargetRegion = (): void => {
+  selectedRegionId.value = unassignedPlacesRegion.value?.id ?? (eligibleRegions.value.length === 1 ? eligibleRegions.value[0].id : '');
+};
+
+function isUnassignedPlacesRegion(region: EditorRegion): boolean {
+  return region.isShadow && region.name === 'Unassigned Places';
+}
 
 onUnmounted(() => {
   clearResults();

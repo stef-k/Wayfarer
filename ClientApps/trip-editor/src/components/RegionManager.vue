@@ -83,8 +83,13 @@ const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) 
 const areaDirty = computed(() => JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
 const isDirty = computed(() => regionDirty.value || placeDirty.value || areaDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
+const unassignedPlacesRegion = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).find(region => region?.isShadow && region.name === 'Unassigned Places') ?? null);
 const placeTargetRegions = computed(() => {
   const regions = [...normalRegions.value];
+  if (unassignedPlacesRegion.value && !regions.some(region => region.id === unassignedPlacesRegion.value?.id)) {
+    regions.push(unassignedPlacesRegion.value);
+  }
+
   const activeCreateRegionId = !placeDraft.id ? placeDraft.regionId : null;
   const activeCreateRegion = activeCreateRegionId ? props.state.regionsById[activeCreateRegionId] : null;
   if (activeCreateRegion?.isShadow && !regions.some(region => region.id === activeCreateRegion.id)) {
@@ -192,7 +197,7 @@ const activePlaceTarget = computed<EditorTarget>(() => ({
   kind: 'place',
   mode: placeDraft.id ? 'edit' : 'add',
   title: placeDraft.id ? `Edit Place - ${activePlace.value?.name ?? placeDraft.name}` : 'Add Place',
-  subtitle: placeDraft.regionId ? props.state.regionsById[placeDraft.regionId]?.name : undefined,
+  subtitle: placeDraft.regionId && !props.state.regionsById[placeDraft.regionId]?.isShadow ? props.state.regionsById[placeDraft.regionId]?.name : undefined,
   entityId: placeDraft.id ?? undefined,
   parentRegionId: placeDraft.regionId ?? undefined
 }));
