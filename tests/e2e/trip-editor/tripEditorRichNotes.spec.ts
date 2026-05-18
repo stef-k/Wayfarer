@@ -61,6 +61,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await page.keyboard.press('Enter');
     await metadataEditor.locator('button.ql-align[value="right"]').click();
     await page.keyboard.type('Right aligned note');
+    await routeRichNoteImages(page, 'https://example.com/photo.jpg');
     await insertImageUrl(metadataForm, 'https://example.com/photo.jpg');
     await page.getByRole('button', { name: 'Save & Continue' }).click();
     await expect.poll(() => requests.length).toBe(1);
@@ -144,6 +145,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await loadWorkspaceWithRichNotesFixture(page);
 
     const form = page.locator('#trip-editor-metadata-form');
+    await routeRichNoteImages(page, 'https://images.example.test/rich-note.png');
     await insertImageUrl(form, 'https://images.example.test/rich-note.png');
     const image = richEditor(form).locator('.ql-editor img');
     await expect(image).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Frich-note\.png$/);
@@ -393,14 +395,10 @@ function terminalImageNotes(): string {
   return '<p>Intro before image</p><p><img src="https://images.example.test/terminal-large.svg"></p>';
 }
 
-async function routeRichNoteImages(page: Page): Promise<void> {
-  await page.route(/\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Fterminal-large\.svg$/i, async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'image/svg+xml',
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520"><rect width="960" height="520" fill="#dbeafe"/><rect x="24" y="24" width="912" height="472" rx="24" fill="#1e293b"/><text x="72" y="270" font-family="Arial" font-size="52" fill="#bfdbfe">Terminal rich note image</text></svg>'
-    });
-  });
+async function routeRichNoteImages(page: Page, ...urls: string[]): Promise<void> {
+  for (const url of ['https://images.example.test/terminal-large.svg', ...urls]) {
+    await page.route(new RegExp(`/Public/ProxyImage\\?url=${encodeURIComponent(url).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'), route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#dbeafe"/></svg>' }));
+  }
 }
 
 async function routeEditorMutations(page: Page, state: MutableEditorState, requests: Array<{ method: string; url: string; body: Record<string, any> }>): Promise<void> {
