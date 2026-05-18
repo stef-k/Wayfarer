@@ -251,7 +251,7 @@ public static class EditorTripStateMapper
         region.DisplayOrder == 0 && string.Equals(region.Name, EditorRegionRequestParser.ShadowRegionName, StringComparison.Ordinal);
 
     private static EditorEntityCapabilitiesDto ShadowCapabilities() =>
-        new(false, false, false, false, false, false, false);
+        new(false, false, false, false, false, false, true);
 
     private static EditorEntityCapabilitiesDto EditableRegionCapabilities() =>
         new(true, true, true, true, false, true, true);

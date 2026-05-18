@@ -270,8 +270,12 @@ test.describe('Trip Editor map geocode search', () => {
     expect(await pageHeight(page), 'Narrow search results should stay bounded by the internal results panel.').toBeLessThanOrEqual(beforeNarrowSearchHeight + 340);
   });
 
-  test('result preview marker appears, clears, and search-add opens the existing Add Place draft without saving', async ({ page }, testInfo) => {
+  test('result preview marker becomes a pending add-place marker and search-add opens the existing Add Place draft without saving', async ({ page }, testInfo) => {
     await signIn(page);
+    const baseState = await loadEditorState(page);
+    baseState.options.iconNames = ['anchor', 'marker', ...baseState.options.iconNames.filter((icon: string) => icon !== 'anchor' && icon !== 'marker')];
+    baseState.options.markerColorClasses = ['bg-black', 'bg-blue', ...baseState.options.markerColorClasses.filter((color: string) => color !== 'bg-black' && color !== 'bg-blue')];
+    await routeEditorState(page, baseState);
     let saveCalls = 0;
     await page.route('**/api/trips/*/editor/regions/*/places', async route => {
       saveCalls += 1;
@@ -301,11 +305,20 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(page.getByLabel('Longitude')).toHaveValue('23.7257');
     await expect(page.getByLabel('Reverse geocode this location on save')).not.toBeChecked();
     await expect(page.locator('img[alt="Search result preview: Preview Place"]')).toHaveCount(0);
+    await expect(page.locator('img[alt="Pending place location: Preview Place"]')).toBeVisible();
+    await expectLoadedImages(page.locator('[data-place-draft-preview-marker]'));
+    await expect(page.locator('[data-place-draft-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
+    await expect(page.getByRole('region', { name: 'Map search' }).getByRole('button', { name: 'Preview Place' })).toHaveCount(0);
+    await expect(page.locator('.trip-editor-map-search__results')).toHaveCount(0);
+    await expect(page.locator('#trip-editor-place-form [data-selector-kind="icon"] [data-icon-selector-selected-name]')).toHaveText('marker');
+    await expect(page.locator('#trip-editor-place-form [data-selector-kind="color"] [data-icon-selector-selected-name]')).toHaveText('Blue');
+    await expectInViewport(page.locator('#trip-editor-place-form'));
     expect(saveCalls, 'Search-add should only open a draft; Save Place owns persistence.').toBe(0);
     await closeDraftWithDiscard(page);
+    await expect(page.locator('img[alt="Pending place location: Preview Place"]')).toHaveCount(0);
   });
 
-  test('target region selector excludes shadow regions and handles eligibility defaults', async ({ page }) => {
+  test('target region selector includes Unassigned Places and handles eligibility defaults', async ({ page }) => {
     await signIn(page);
     const baseState = await loadEditorState(page);
     await routeEditorState(page, withOneEligibleRegion(baseState));
@@ -317,15 +330,16 @@ test.describe('Trip Editor map geocode search', () => {
     await page.getByRole('button', { name: 'Eligible Place' }).click();
     const select = page.getByLabel('Target region');
     await expect(select).toBeDisabled();
-    await expect(select).not.toContainText('Unassigned Places');
+    await expect(select).not.toHaveValue(unassignedPlacesRegionId(baseState));
 
-    await routeEditorState(page, withNoEligibleRegions(baseState));
+    await routeEditorState(page, withOnlyUnassignedPlacesSearchTarget(baseState));
     await page.reload();
     await expectMountedWorkspace(page);
     await runSearch(page, 'eligible place');
     await page.getByRole('button', { name: 'Eligible Place' }).click();
-    await expect(page.getByText('No editable region is available for this search result.')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add as place' })).toBeDisabled();
+    await expect(page.getByLabel('Target region')).toContainText('Unassigned Places');
+    await expect(page.getByLabel('Target region')).toHaveValue(unassignedPlacesRegionId(baseState));
+    await expect(page.getByRole('button', { name: 'Add as place' })).toBeEnabled();
 
     await routeEditorState(page, withTwoEligibleRegions(baseState));
     await page.reload();
@@ -333,8 +347,33 @@ test.describe('Trip Editor map geocode search', () => {
     await runSearch(page, 'eligible place');
     await page.getByRole('button', { name: 'Eligible Place' }).click();
     await expect(page.getByLabel('Target region')).toBeEnabled();
-    await expect(page.getByLabel('Target region')).toHaveValue('');
-    await expect(page.getByRole('button', { name: 'Add as place' })).toBeDisabled();
+    await expect(page.getByLabel('Target region')).toHaveValue(unassignedPlacesRegionId(baseState));
+    await expect(page.getByRole('button', { name: 'Add as place' })).toBeEnabled();
+  });
+
+  test('geosearch Add as place defaults back to Unassigned Places after one normal-region add', async ({ page }) => {
+    await signIn(page);
+    const baseState = withTwoEligibleRegions(await loadEditorState(page));
+    const unassignedId = unassignedPlacesRegionId(baseState);
+    const normalId = firstNormalRegionId(baseState);
+    await routeEditorState(page, baseState);
+    await routeGeocode(page, async route => fulfillGeocode(route, [result('Reset Target Place')]));
+
+    await page.goto(absoluteUrl(editorPath));
+    await expectMountedWorkspace(page);
+    await runSearch(page, 'reset target place');
+    await page.getByRole('button', { name: 'Reset Target Place' }).click();
+    const select = page.getByLabel('Target region');
+    await expect(select).toHaveValue(unassignedId);
+    await select.selectOption(normalId);
+    await page.getByRole('button', { name: 'Add as place' }).click();
+    await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Map search' }).getByRole('button', { name: 'Reset Target Place' })).toHaveCount(0);
+
+    await closeDraftWithDiscard(page);
+    await runSearch(page, 'reset target place');
+    await page.getByRole('button', { name: 'Reset Target Place' }).click();
+    await expect(page.getByLabel('Target region')).toHaveValue(unassignedId);
   });
 
   test('dirty active draft prompts before search-add opens Add Place', async ({ page }) => {
@@ -403,6 +442,17 @@ async function expectContainedResultsPanel(resultsPanel: Locator): Promise<void>
   expect(['auto', 'scroll']).toContain(metrics.overflowY);
   expect(metrics.clientHeight, 'Search results panel should stay under the bounded max-height.').toBeLessThanOrEqual(parseFloat(metrics.maxHeight) + 2);
   expect(metrics.scrollHeight, 'Long search results should scroll inside the panel.').toBeGreaterThan(metrics.clientHeight + 20);
+}
+
+async function expectInViewport(locator: Locator): Promise<void> {
+  await expect.poll(async () => locator.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    const sidebar = element.closest('.trip-editor-sidebar');
+    const container = sidebar?.getBoundingClientRect();
+    return container
+      ? rect.bottom > container.top && rect.top < container.bottom
+      : rect.bottom > 0 && rect.top < window.innerHeight;
+  })).toBe(true);
 }
 
 async function pageHeight(page: Page): Promise<number> {
@@ -489,6 +539,29 @@ function withNoEligibleRegions(state: any): any {
   return clone;
 }
 
+function withOnlyUnassignedPlacesSearchTarget(state: any): any {
+  const clone = withNoEligibleRegions(state);
+  const unassigned = unassignedPlacesRegion(clone);
+  unassigned.capabilities.canTargetForSearchAdd = true;
+  return clone;
+}
+
+function unassignedPlacesRegion(state: any): any {
+  const unassigned = Object.values<any>(state.regionsById).find(region => region.isShadow && region.name === 'Unassigned Places');
+  expect(unassigned, 'Trip Editor fixture must include the built-in Unassigned Places region.').toBeTruthy();
+  return unassigned;
+}
+
+function unassignedPlacesRegionId(state: any): string {
+  return unassignedPlacesRegion(state).id;
+}
+
+function firstNormalRegionId(state: any): string {
+  const region = Object.values<any>(state.regionsById).find(region => !region.isShadow);
+  expect(region, 'Trip Editor fixture must include a normal region.').toBeTruthy();
+  return region.id;
+}
+
 function withOneEligibleRegion(state: any): any {
   const clone = withNoEligibleRegions(state);
   const region = Object.values<any>(clone.regionsById).find(region => !region.isShadow);
@@ -498,8 +571,10 @@ function withOneEligibleRegion(state: any): any {
 }
 
 function withTwoEligibleRegions(state: any): any {
-  const clone = withOneEligibleRegion(state);
+  const clone = withOnlyUnassignedPlacesSearchTarget(state);
   const first = Object.values<any>(clone.regionsById).find(region => !region.isShadow);
+  first.capabilities.canAddChildren = true;
+  first.capabilities.canTargetForSearchAdd = true;
   const second = { ...first, id: '11111111-1111-4111-8111-111111111111', name: 'Second Search Target', displayOrder: 999 };
   clone.regionsById[second.id] = second;
   clone.regionOrder = [...clone.regionOrder, second.id];

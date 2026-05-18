@@ -43,7 +43,7 @@ public sealed class TripEditorPlaceMutationService
     }
 
     /// <summary>
-    /// Creates a place in a normal owned region and appends it to that region.
+    /// Creates a place in an owned region, including the built-in unassigned region, and appends it to that region.
     /// </summary>
     public async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>> CreatePlaceAsync(
         Guid tripId,
@@ -62,11 +62,6 @@ public sealed class TripEditorPlaceMutationService
         if (region == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        if (IsShadowRegion(region))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Forbidden("Places cannot be created in the shadow region from this editor action.");
         }
 
         var parsed = await ParseAndValidateCreateAsync(requestBody, cancellationToken);
@@ -101,7 +96,7 @@ public sealed class TripEditorPlaceMutationService
     }
 
     /// <summary>
-    /// Updates a place, optionally moving it to a different normal owned region.
+    /// Updates a place, optionally moving it to a different owned region.
     /// </summary>
     public async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>> UpdatePlaceAsync(
         Guid tripId,
@@ -133,11 +128,6 @@ public sealed class TripEditorPlaceMutationService
         if (targetRegion == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        if (IsShadowRegion(targetRegion))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Forbidden("Places cannot be moved to the shadow region from this editor action.");
         }
 
         var oldRegionId = place.RegionId;
@@ -255,7 +245,7 @@ public sealed class TripEditorPlaceMutationService
 
         if (IsShadowRegion(region))
         {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Forbidden("Places in the shadow region cannot be reordered from this editor action.");
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Forbidden("Places in Unassigned Places cannot be reordered from this editor action.");
         }
 
         var request = await ParseJsonBodyAsync(requestBody, "Place order request must be valid JSON.", cancellationToken);

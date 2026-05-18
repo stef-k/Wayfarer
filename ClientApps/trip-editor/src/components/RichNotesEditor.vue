@@ -27,11 +27,13 @@ let quill: Quill | null = null;
 let savedRange: Range | null = null;
 let isLoadingExternalValue = false;
 let feedbackTimer: number | null = null;
+const pendingInsertedImageSources = new Set<string>();
 
 const toolbarOptions = [
   [{ header: [1, 2, 3, 4, 5, 6, false] }],
   ['bold', 'italic', 'underline'],
   [{ list: 'ordered' }, { list: 'bullet' }],
+  [{ align: '' }, { align: 'center' }, { align: 'right' }],
   ['link', 'image'],
   [{ font: [] }],
   ['clean']
@@ -56,12 +58,14 @@ onMounted(() => {
     theme: 'snow'
   });
 
-  loadHtml(props.modelValue);
   quill.on('selection-change', handleSelectionChange);
   quill.on('text-change', handleTextChange);
   quill.root.addEventListener('paste', handlePaste);
   quill.root.addEventListener('drop', handleDrop);
   quill.root.addEventListener('input', handleInput);
+  quill.root.addEventListener('load', handleImageLoad, true);
+  quill.root.addEventListener('error', handleImageLoadFailure, true);
+  loadHtml(props.modelValue);
 });
 
 onUnmounted(() => {
@@ -76,8 +80,11 @@ onUnmounted(() => {
   quill.root.removeEventListener('paste', handlePaste);
   quill.root.removeEventListener('drop', handleDrop);
   quill.root.removeEventListener('input', handleInput);
+  quill.root.removeEventListener('load', handleImageLoad, true);
+  quill.root.removeEventListener('error', handleImageLoadFailure, true);
   quill.off('selection-change', handleSelectionChange);
   quill.off('text-change', handleTextChange);
+  pendingInsertedImageSources.clear();
   quill = null;
 });
 
@@ -225,6 +232,7 @@ function insertImageUrl(): void {
   }
 
   const index = savedRange ? savedRange.index : Math.max(0, quill.getLength() - 1);
+  pendingInsertedImageSources.add(canonicalImageSource(url));
   quill.setSelection(index, savedRange?.length ?? 0, 'silent');
   quill.insertEmbed(index, 'image', url, 'user');
   quill.setSelection(index + 1, 0, 'silent');
@@ -268,6 +276,28 @@ function normalizeEditorImagesForDisplay(): boolean {
     image.setAttribute('src', displayImageSource(source));
   });
   return removed;
+}
+
+function handleImageLoad(event: Event): void {
+  if (event.target instanceof HTMLImageElement) {
+    pendingInsertedImageSources.delete(canonicalImageSource(event.target.getAttribute('src') ?? ''));
+  }
+}
+
+function handleImageLoadFailure(event: Event): void {
+  if (!quill || !(event.target instanceof HTMLImageElement)) {
+    return;
+  }
+
+  const source = canonicalImageSource(event.target.getAttribute('src') ?? '');
+  if (!pendingInsertedImageSources.delete(source)) {
+    return;
+  }
+
+  event.target.remove();
+  ensureEditableContinuationLine();
+  emit('update:modelValue', currentHtml());
+  showFeedback('Image URL could not be loaded. Check that it points to a reachable image file.');
 }
 
 function showFeedback(message: string): void {

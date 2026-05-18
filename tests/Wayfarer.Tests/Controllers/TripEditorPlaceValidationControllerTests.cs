@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Models.Dtos.Editor;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -70,22 +71,44 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
     }
 
     [Fact]
-    public async Task ShadowRegionTargetsReturnForbidden()
+    public async Task UnassignedPlacesAllowsCreateAndMoveButRejectsOrder()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
-        var shadow = trip.Regions.Single(r => r.Name == "Unassigned Places");
+        var unassigned = trip.Regions.Single(r => r.Name == "Unassigned Places");
+        var normal = trip.Regions.Single(r => r.Name == "Athens");
         var place = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var create = await SendJson(controller, c => c.CreatePlace(trip.Id, shadow.Id, CancellationToken.None), ValidCreateBody("Blocked"));
-        var update = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(shadow.Id, "Blocked"));
-        var order = await SendJson(controller, c => c.OrderPlaces(trip.Id, shadow.Id, CancellationToken.None), """{ "placeIds": [] }""");
+        var create = await SendJson(controller, c => c.CreatePlace(trip.Id, unassigned.Id, CancellationToken.None), ValidCreateBody("Unassigned"));
+        var update = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(unassigned.Id, "Moved"));
+        var order = await SendJson(controller, c => c.OrderPlaces(trip.Id, unassigned.Id, CancellationToken.None), """{ "placeIds": [] }""");
 
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(create).StatusCode);
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(update).StatusCode);
+        var created = AssertMutation<EditorPlaceDto>(create);
+        Assert.Equal(unassigned.Id, created.Data.RegionId);
+        var moved = AssertMutation<EditorPlaceDto>(update);
+        Assert.Equal(unassigned.Id, moved.Data.RegionId);
+        Assert.Empty(moved.Affected.PlaceOrdersByRegionId[normal.Id]);
+        Assert.Equal(new[] { created.Data.Id, place.Id }, moved.Affected.PlaceOrdersByRegionId[unassigned.Id]);
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(order).StatusCode);
+    }
+
+    [Fact]
+    public async Task PlaceUpdateRejectsRegionOutsideOwnedTrip()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var otherTrip = SeedTripGraph(db, "other-user");
+        var place = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
+        var otherRegion = otherTrip.Regions.Single(r => r.Name == "Thessaloniki");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(otherRegion.Id, "Blocked"));
+
+        Assert.IsType<NotFoundResult>(result);
+        Assert.Equal(trip.Regions.Single(r => r.Name == "Athens").Id, db.Places.Single(p => p.Id == place.Id).RegionId);
     }
 
     [Fact]

@@ -39,12 +39,12 @@ export function regionMarkerIcon(region: EditorRegion): L.DivIcon {
   });
 }
 
-/// Builds temporary preview markers for coordinate picking and map search.
-export function previewMarkerIcon(kind: 'coordinate' | 'search', label: string): L.DivIcon {
+/// Builds temporary preview markers for coordinate picking, map search, and unsaved place drafts.
+export function previewMarkerIcon(kind: 'coordinate' | 'place-draft' | 'search', label: string, marker: Pick<EditorPlace, 'iconName' | 'markerColor'> = { iconName: 'marker', markerColor: 'bg-blue' }): L.DivIcon {
   return appMarkerIcon({
     className: `trip-editor-map-marker trip-editor-map-marker--preview trip-editor-map-marker--preview-${kind}`,
     imageClassName: 'trip-editor-map-marker__image',
-    src: placeMarkerIconUrl('marker', 'bg-blue'),
+    src: placeMarkerIconUrl(marker.iconName, marker.markerColor),
     alt: label,
     dataAttribute: `data-${kind}-preview-marker="true"`,
     iconSize: [markerWidth, markerHeight],

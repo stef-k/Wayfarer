@@ -34,12 +34,14 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(form.getByLabel('Longitude')).toHaveValue('');
 
     await expectPickOnMapHelp(page);
+    const normalCursor = await mapCursor(page);
     await page.getByRole('button', { name: 'Pick on map' }).click();
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Pick place location');
     await expect(mapWork).toContainText('No coordinate selected');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeDisabled();
     await expectNoSearchAddUi(page);
+    await expect.poll(() => mapCursor(page)).toBe('default');
 
     await clickMap(page, { xRatio: 0.38, yRatio: 0.46 });
     await expect(mapWork).toContainText('Selected');
@@ -54,6 +56,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(form.getByLabel('Latitude')).not.toHaveValue('');
     await expect(form.getByLabel('Longitude')).not.toHaveValue('');
     await expect(page.getByTitle('Selected place location preview')).toHaveCount(0);
+    await expect.poll(() => mapCursor(page)).toBe(normalCursor);
     expect(mutations(), 'Done must not call create/update/order/delete endpoints.').toEqual([]);
     expect(forbidden(), 'Coordinate picking must not call geocode/search providers.').toEqual([]);
   });
@@ -359,6 +362,10 @@ async function clickMap(page: Page, position: { xRatio: number; yRatio: number }
       element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, view: window }));
     }
   }, position);
+}
+
+async function mapCursor(page: Page): Promise<string> {
+  return page.getByLabel('Read-only trip map').evaluate(element => getComputedStyle(element).cursor);
 }
 
 function utilityButton(page: Page, name: string): Locator {

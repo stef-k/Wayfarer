@@ -1,6 +1,9 @@
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest } from '../types';
 import { normalizeNotesHtml } from '../notes/notesHtml';
 
+export const defaultPlaceIconName = 'marker';
+export const defaultPlaceMarkerColor = 'bg-blue';
+
 export type RegionDraft = {
   id: string | null;
   name: string;
@@ -44,7 +47,7 @@ export function buildRegionRequest(value: RegionDraft): EditorRegionSaveRequest 
 }
 
 export function emptyPlaceDraft(regionId: string | null = null): EditorPlaceDraft {
-  return { id: null, regionId, name: '', notesHtml: '', address: '', latitude: '', longitude: '', iconName: '', markerColor: 'bg-blue', reverseGeocode: false };
+  return { id: null, regionId, name: '', notesHtml: '', address: '', latitude: '', longitude: '', iconName: defaultPlaceIconName, markerColor: defaultPlaceMarkerColor, reverseGeocode: false };
 }
 
 export function toPlaceDraft(place: EditorPlace | null, fallbackRegionId: string | null): EditorPlaceDraft {

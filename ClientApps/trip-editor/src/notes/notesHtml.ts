@@ -1,4 +1,5 @@
 const forbiddenElements = 'script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, option';
+const allowedQuillAlignmentClasses = new Set(['ql-align-center', 'ql-align-right']);
 const allowedQuillFontClasses = new Set(['ql-font-serif', 'ql-font-monospace']);
 const allowedQuillListKinds = new Set(['bullet', 'ordered']);
 
@@ -87,7 +88,9 @@ function normalizeClassAttribute(element: Element): void {
 
 function isAllowedClass(element: Element, className: string): boolean {
   // Quill's font dropdown stores user-visible font choices as span classes.
-  return element.tagName.toLowerCase() === 'span' && allowedQuillFontClasses.has(className);
+  const tagName = element.tagName.toLowerCase();
+  return (tagName === 'span' && allowedQuillFontClasses.has(className))
+    || (isQuillBlockElement(tagName) && allowedQuillAlignmentClasses.has(className));
 }
 
 function isAllowedElementAttribute(element: Element, name: string): boolean {
@@ -100,6 +103,10 @@ function isAllowedElementAttribute(element: Element, name: string): boolean {
 
 function isAllowedQuillListKind(element: Element): boolean {
   return allowedQuillListKinds.has(element.getAttribute('data-list') ?? '');
+}
+
+function isQuillBlockElement(tagName: string): boolean {
+  return ['blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'p'].includes(tagName);
 }
 
 function isAllowedImageSource(value: string): boolean {
