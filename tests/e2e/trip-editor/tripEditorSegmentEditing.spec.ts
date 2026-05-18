@@ -34,11 +34,12 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.locator('#trip-editor-segment-form')).toHaveCount(1);
   });
 
-  test('route map-work from docked and expanded writes draft only until Save', async ({ page }) => {
+  test('route map-work from docked and expanded sends a mocked route save only after Save', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithSegmentFixture(page);
     const savedRequests: Array<Record<string, any>> = [];
     await page.unroute(editorApiMatcher);
+    // Mocked segment mutations prove request shape and route UI handling, not real segment CRUD persistence.
     await page.route(editorApiMatcher, async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
@@ -134,10 +135,11 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect.poll(routeCount).toBeGreaterThan(0);
   });
 
-  test('reorders segments and persists order after reload', async ({ page }) => {
+  test('reorders segments and applies the mocked order response after reload', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithSegmentFixture(page);
     await page.unroute(editorApiMatcher);
+    // This fulfilled order response proves frontend reorder handling only; pair with backend/real endpoint tests for CRUD proof.
     await page.route(editorApiMatcher, async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });

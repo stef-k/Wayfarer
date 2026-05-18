@@ -65,12 +65,13 @@ test.describe.serial('Trip Editor area editing', () => {
     expect(mutations(), 'Area map-work Done must not call create/update/geometry endpoints.').toEqual([]);
   });
 
-  test('new area starts without a temporary polygon and Save after Done persists it', async ({ page }) => {
+  test('new area starts without a temporary polygon and Save after Done sends a mocked create request', async ({ page }) => {
     await useMapWorkViewport(page);
     await signIn(page);
     const state = await loadWorkspaceWithAreaFixture(page);
     const regionId = normalRegion(state).id;
     const savedRequests: Array<Record<string, any>> = [];
+    // Mocked area mutations prove request shape and affected-slice UI handling, not real area CRUD persistence.
     await page.route(editorApiMatcher, async route => {
       if (route.request().method() === 'GET') {
         await route.fallback();
@@ -102,12 +103,13 @@ test.describe.serial('Trip Editor area editing', () => {
     expect(savedRequests[0].geometry.coordinates[0]).toHaveLength(4);
   });
 
-  test('existing polygon map-work preserves interior rings on Done and Save', async ({ page }) => {
+  test('existing polygon map-work preserves interior rings in the mocked update request', async ({ page }) => {
     await signIn(page);
     const savedRequests: Array<Record<string, any>> = [];
     const state = await loadWorkspaceWithAreaFixture(page, fixture => {
       fixture.areasById[areaId].geometry = polygonWithHole();
     });
+    // Mocked area mutations prove request shape and affected-slice UI handling, not real area CRUD persistence.
     await page.route(editorApiMatcher, async route => {
       if (route.request().method() === 'GET') {
         await route.fallback();
@@ -161,11 +163,12 @@ test.describe.serial('Trip Editor area editing', () => {
     }
   });
 
-  test('reorders areas within one normal region and persists after reload', async ({ page }) => {
+  test('reorders areas within one normal region and applies the mocked order response after reload', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithAreaFixture(page);
     const regionId = normalRegion(state).id;
     await page.unroute(editorApiMatcher);
+    // This fulfilled order response proves frontend reorder handling only; pair with backend/real endpoint tests for CRUD proof.
     await page.route(editorApiMatcher, async route => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });

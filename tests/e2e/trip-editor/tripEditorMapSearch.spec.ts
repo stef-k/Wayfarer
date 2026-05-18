@@ -351,7 +351,7 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(page.getByRole('button', { name: 'Add as place' })).toBeEnabled();
   });
 
-  test('geosearch Add as place defaults back to Unassigned Places after one normal-region add', async ({ page }) => {
+  test('geosearch Add as place defaults back to Unassigned Places after one normal-region draft handoff', async ({ page }) => {
     await signIn(page);
     const baseState = withTwoEligibleRegions(await loadEditorState(page));
     const unassignedId = unassignedPlacesRegionId(baseState);
@@ -465,6 +465,7 @@ async function routeGeocode(page: Page, handler: (route: Route) => Promise<void>
 
 async function fulfillGeocode(route: Route, results: unknown[], query?: string): Promise<void> {
   const echoedQuery = query ?? new URL(route.request().url()).searchParams.get('q') ?? '';
+  // Mocked geocode responses prove proxy/search UI behavior; saved place CRUD needs a real create-place pairing.
   await route.fulfill({
     status: 200,
     contentType: 'application/json',
