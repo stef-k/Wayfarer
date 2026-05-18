@@ -8,6 +8,24 @@ Running Tests
 - `dotnet test`
 - Trip Editor E2E: `npm run test:e2e:trip-editor`
 
+Trip Editor Asset-Mode Smoke
+- These smokes are explicit opt-in checks. They do not run as part of `npm run test:e2e:trip-editor`.
+- Development smoke proves ASP.NET Development + Vite dev-server integration only.
+- Published smoke proves `dotnet publish` output and production bundle serving only.
+- Neither smoke proves CRUD or editor workflow behavior. Those contracts are covered by the earlier #297 CRUD, error-state, search-add, and rich-notes batches.
+- Configure the same `WAYFARER_E2E_USERNAME`, `WAYFARER_E2E_PASSWORD`, and `WAYFARER_E2E_TRIP_ID` values used by Trip Editor Playwright verification. The runner also reads ignored `.local/manual-verification.md`.
+- Optional URLs:
+  - `WAYFARER_ASSET_SMOKE_DEV_URL` defaults to `WAYFARER_E2E_BASE_URL` or `http://localhost:5012`.
+  - `WAYFARER_ASSET_SMOKE_PUBLISHED_URL` defaults to `http://localhost:5013`.
+- Published smoke runs `dotnet frontend build`, `npm run build`, and `dotnet publish Wayfarer.csproj -c Release -o .local/publish-smoke`, then starts the published app in non-Development mode. It uses `ConnectionStrings__DefaultConnection` when set, otherwise it falls back to the local `appsettings.Development.json` connection string while still running the app with `ASPNETCORE_ENVIRONMENT=Production`.
+- Generated output and server logs stay under ignored `.local/...` paths.
+
+```powershell
+npm run smoke:trip-editor:assets:dev
+npm run smoke:trip-editor:assets:published
+npm run smoke:trip-editor:assets
+```
+
 Trip Editor Playwright Verification
 - This is dev-only tooling for the Vue Trip Editor. It is not part of production deployment, and `npm run build` does not run Playwright.
 - Start the ASP.NET Core app first:
