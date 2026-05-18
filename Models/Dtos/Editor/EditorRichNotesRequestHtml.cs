@@ -30,9 +30,19 @@ internal static class EditorRichNotesRequestHtml
         "base", "button", "embed", "form", "iframe", "input", "link", "meta", "object", "option", "script", "select", "style", "textarea"
     };
 
-    private static readonly HashSet<string> AllowedClasses = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> AllowedAlignmentClasses = new(StringComparer.Ordinal)
     {
-        "ql-align-center", "ql-align-right", "ql-font-monospace", "ql-font-serif"
+        "ql-align-center", "ql-align-right"
+    };
+
+    private static readonly HashSet<string> AllowedFontClasses = new(StringComparer.Ordinal)
+    {
+        "ql-font-monospace", "ql-font-serif"
+    };
+
+    private static readonly HashSet<string> QuillBlockTags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "li", "p"
     };
 
     private static readonly HashSet<string> AllowedListKinds = new(StringComparer.Ordinal)
@@ -139,7 +149,7 @@ internal static class EditorRichNotesRequestHtml
 
     private static bool NormalizeClassAttribute(IElement element)
     {
-        var allowed = element.ClassList.Where(className => AllowedClasses.Contains(className)).ToArray();
+        var allowed = element.ClassList.Where(className => IsAllowedClass(element, className)).ToArray();
         if (allowed.Length == 0)
         {
             return false;
@@ -148,6 +158,10 @@ internal static class EditorRichNotesRequestHtml
         element.SetAttribute("class", string.Join(" ", allowed));
         return true;
     }
+
+    private static bool IsAllowedClass(IElement element, string className) =>
+        (string.Equals(element.TagName, "span", StringComparison.OrdinalIgnoreCase) && AllowedFontClasses.Contains(className))
+        || (QuillBlockTags.Contains(element.TagName) && AllowedAlignmentClasses.Contains(className));
 
     private static void NormalizeImage(IElement element)
     {

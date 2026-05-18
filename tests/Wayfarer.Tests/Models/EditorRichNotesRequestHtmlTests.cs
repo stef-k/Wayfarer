@@ -19,6 +19,7 @@ public sealed class EditorRichNotesRequestHtmlTests
             "<p class=\"ql-align-left\">Left</p>",
             "<p class=\"ql-align-center\">Center</p>",
             "<p class=\"ql-align-right\">Right</p>",
+            "<p><span class=\"ql-font-serif\">Serif</span></p>",
             "<p><a href=\"https://example.test/page\" onclick=\"alert(1)\">Link</a></p>",
             "<p><img src=\"https://cdn.example.test/image.jpg\" onerror=\"alert(1)\"></p>");
 
@@ -32,12 +33,25 @@ public sealed class EditorRichNotesRequestHtmlTests
         Assert.Contains("<p>Left</p>", result);
         Assert.Contains("<p class=\"ql-align-center\">Center</p>", result);
         Assert.Contains("<p class=\"ql-align-right\">Right</p>", result);
+        Assert.Contains("<span class=\"ql-font-serif\">Serif</span>", result);
         Assert.Contains("href=\"https://example.test/page\"", result);
         Assert.Contains("src=\"https://cdn.example.test/image.jpg\"", result);
         Assert.DoesNotContain("ql-align-left", result);
         Assert.DoesNotContain("ql-ui", result);
         Assert.DoesNotContain("onclick", result);
         Assert.DoesNotContain("onerror", result);
+    }
+
+    [Fact]
+    public void NormalizeForPersistence_StripsQuillClassesFromUnsupportedElements()
+    {
+        var result = EditorRichNotesRequestHtml.NormalizeForPersistence(
+            "<p><span class=\"ql-align-right\">Inline alignment</span></p><p class=\"ql-font-serif\">Block font</p>");
+
+        Assert.Contains("<span>Inline alignment</span>", result);
+        Assert.Contains("<p>Block font</p>", result);
+        Assert.DoesNotContain("ql-align-right", result);
+        Assert.DoesNotContain("ql-font-serif", result);
     }
 
     [Fact]
