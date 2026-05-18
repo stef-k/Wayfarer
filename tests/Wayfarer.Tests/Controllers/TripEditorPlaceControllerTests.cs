@@ -60,6 +60,28 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
     }
 
     [Fact]
+    public async Task UpdatePlaceMoveFromUnassignedPlacesToNormalRegionReturnsBothRegionOrders()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var unassigned = trip.Regions.Single(r => r.Name == "Unassigned Places");
+        var normal = trip.Regions.Single(r => r.Name == "Athens");
+        var existingNormalPlaceId = normal.Places.Single().Id;
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var created = AssertMutation<EditorPlaceDto>(await SendJson(controller, c => c.CreatePlace(trip.Id, unassigned.Id, CancellationToken.None), ValidCreateBody("Unassigned")));
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, created.Data.Id, CancellationToken.None), ValidUpdateBody(normal.Id, "Assigned"));
+
+        var envelope = AssertMutation<EditorPlaceDto>(result);
+        Assert.Equal(normal.Id, envelope.Data.RegionId);
+        Assert.Empty(envelope.Affected.PlaceOrdersByRegionId[unassigned.Id]);
+        Assert.Equal(new[] { existingNormalPlaceId, created.Data.Id }, envelope.Affected.PlaceOrdersByRegionId[normal.Id]);
+        Assert.Equal(1, db.Places.Single(p => p.Id == existingNormalPlaceId).DisplayOrder);
+        Assert.Equal(2, db.Places.Single(p => p.Id == created.Data.Id).DisplayOrder);
+    }
+
+    [Fact]
     public async Task DeletePlaceDeletesEndpointSegmentsAndReturnsDeletedIds()
     {
         using var db = CreateDbContext();

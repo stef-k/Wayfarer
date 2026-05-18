@@ -96,7 +96,7 @@ public sealed class TripEditorPlaceMutationService
     }
 
     /// <summary>
-    /// Updates a place, optionally moving it to a different normal owned region.
+    /// Updates a place, optionally moving it to a different owned region.
     /// </summary>
     public async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>> UpdatePlaceAsync(
         Guid tripId,
@@ -128,11 +128,6 @@ public sealed class TripEditorPlaceMutationService
         if (targetRegion == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        if (IsShadowRegion(targetRegion) && place.RegionId != targetRegion.Id)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Forbidden("Places cannot be moved to the shadow region from this editor action.");
         }
 
         var oldRegionId = place.RegionId;
@@ -250,7 +245,7 @@ public sealed class TripEditorPlaceMutationService
 
         if (IsShadowRegion(region))
         {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Forbidden("Places in the shadow region cannot be reordered from this editor action.");
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Forbidden("Places in Unassigned Places cannot be reordered from this editor action.");
         }
 
         var request = await ParseJsonBodyAsync(requestBody, "Place order request must be valid JSON.", cancellationToken);

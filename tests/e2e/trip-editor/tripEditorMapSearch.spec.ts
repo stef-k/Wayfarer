@@ -351,7 +351,7 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(page.getByRole('button', { name: 'Add as place' })).toBeEnabled();
   });
 
-  test('place Region selector includes Unassigned Places and saves a move back', async ({ page }) => {
+  test('place Region selector saves moves into and out of Unassigned Places', async ({ page }) => {
     await signIn(page);
     const baseState = await loadEditorState(page);
     const fixture = withMovablePlace(baseState);
@@ -373,6 +373,18 @@ test.describe('Trip Editor map geocode search', () => {
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0].regionId).toBe(fixture.unassignedRegionId);
     await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
+    await expect(placeRow(page, fixture.unassignedRegionId, fixture.placeId)).toBeVisible();
+    await expect(placeRow(page, fixture.normalRegionId, fixture.placeId)).toHaveCount(0);
+    await expect(select).toHaveValue(fixture.unassignedRegionId);
+
+    await select.selectOption(fixture.normalRegionId);
+    await page.getByRole('button', { name: 'Save Place' }).click();
+
+    await expect.poll(() => requests.length).toBe(2);
+    expect(requests[1].regionId).toBe(fixture.normalRegionId);
+    await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
+    await expect(placeRow(page, fixture.normalRegionId, fixture.placeId)).toBeVisible();
+    await expect(placeRow(page, fixture.unassignedRegionId, fixture.placeId)).toHaveCount(0);
   });
 
   test('geosearch Add as place defaults back to Unassigned Places after one normal-region add', async ({ page }) => {
@@ -646,8 +658,21 @@ async function routeEditorStateWithPlaceMove(page: Page, state: any, requests: A
 
     const body = request.postDataJSON() as Record<string, any>;
     requests.push(body);
-    const place = { ...state.placesById[placeId], ...body, regionId: body.regionId };
+    const previousRegionId = state.placesById[placeId].regionId;
+    const targetRegionId = body.regionId;
+    const place = { ...state.placesById[placeId], ...body, regionId: targetRegionId };
     state.placesById[placeId] = place;
+    state.placeOrderByRegionId[previousRegionId] = (state.placeOrderByRegionId[previousRegionId] ?? []).filter((id: string) => id !== placeId);
+    state.placeOrderByRegionId[targetRegionId] = [
+      ...(state.placeOrderByRegionId[targetRegionId] ?? []).filter((id: string) => id !== placeId),
+      placeId
+    ];
+    const placeOrdersByRegionId = previousRegionId === targetRegionId
+      ? {}
+      : {
+          [previousRegionId]: state.placeOrderByRegionId[previousRegionId],
+          [targetRegionId]: state.placeOrderByRegionId[targetRegionId]
+        };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -659,7 +684,7 @@ async function routeEditorStateWithPlaceMove(page: Page, state: any, requests: A
           regions: [],
           regionOrder: null,
           places: [place],
-          placeOrdersByRegionId: {},
+          placeOrdersByRegionId,
           areas: [],
           areaOrdersByRegionId: {},
           segments: [],
@@ -674,4 +699,8 @@ async function routeEditorStateWithPlaceMove(page: Page, state: any, requests: A
       })
     });
   });
+}
+
+function placeRow(page: Page, regionId: string, placeId: string): Locator {
+  return page.locator(`[data-region-id="${regionId}"] [data-place-id="${placeId}"]`);
 }
