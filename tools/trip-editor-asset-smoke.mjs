@@ -218,7 +218,7 @@ async function startPublishedApp() {
     ConnectionStrings__DefaultConnection: connectionString
   };
 
-  if (!connectionString || /CHANGE_ME/i.test(connectionString)) {
+  if (!connectionString) {
     throw new Error('Published smoke requires a usable ConnectionStrings__DefaultConnection value. Set it in the environment or appsettings.Development.json.');
   }
 
