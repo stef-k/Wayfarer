@@ -254,6 +254,7 @@ const { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceCreateFrom
   placeCoordinateMapWork,
   placeCreateBaselineRequest,
   placeEditBaselineRequest,
+  placeFormId,
   placeDraft,
   props,
   regionCreateBaselineRequest,
@@ -301,7 +302,7 @@ watch(
     }
 
     const region = props.state.regionsById[props.pendingSearchAdd.regionId];
-    if (!region || region.isShadow || !props.state.permissions.canEditPlaces || !region.capabilities.canAddChildren) {
+    if (!region || !props.state.permissions.canEditPlaces || !region.capabilities.canTargetForSearchAdd) {
       return;
     }
 

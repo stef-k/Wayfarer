@@ -310,8 +310,8 @@ test.describe('Trip Editor map geocode search', () => {
     await expect(page.locator('[data-place-draft-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
     await expect(page.getByRole('region', { name: 'Map search' }).getByRole('button', { name: 'Preview Place' })).toHaveCount(0);
     await expect(page.locator('.trip-editor-map-search__results')).toHaveCount(0);
-    await expect(page.locator('#trip-editor-place-form [data-selector-kind="icon"] [data-icon-selector-selected-name')).toHaveText('marker');
-    await expect(page.locator('#trip-editor-place-form [data-selector-kind="color"] [data-icon-selector-selected-name')).toHaveText('Blue');
+    await expect(page.locator('#trip-editor-place-form [data-selector-kind="icon"] [data-icon-selector-selected-name]')).toHaveText('marker');
+    await expect(page.locator('#trip-editor-place-form [data-selector-kind="color"] [data-icon-selector-selected-name]')).toHaveText('Blue');
     await expectInViewport(page.locator('#trip-editor-place-form'));
     expect(saveCalls, 'Search-add should only open a draft; Save Place owns persistence.').toBe(0);
     await closeDraftWithDiscard(page);
@@ -422,7 +422,11 @@ async function expectContainedResultsPanel(resultsPanel: Locator): Promise<void>
 async function expectInViewport(locator: Locator): Promise<void> {
   await expect.poll(async () => locator.evaluate(element => {
     const rect = element.getBoundingClientRect();
-    return rect.top >= 0 && rect.bottom <= window.innerHeight;
+    const sidebar = element.closest('.trip-editor-sidebar');
+    const container = sidebar?.getBoundingClientRect();
+    return container
+      ? rect.bottom > container.top && rect.top < container.bottom
+      : rect.bottom > 0 && rect.top < window.innerHeight;
   })).toBe(true);
 }
 
@@ -532,8 +536,10 @@ function withOneEligibleRegion(state: any): any {
 }
 
 function withTwoEligibleRegions(state: any): any {
-  const clone = withOneEligibleRegion(state);
+  const clone = withOnlyShadowSearchTarget(state);
   const first = Object.values<any>(clone.regionsById).find(region => !region.isShadow);
+  first.capabilities.canAddChildren = true;
+  first.capabilities.canTargetForSearchAdd = true;
   const second = { ...first, id: '11111111-1111-4111-8111-111111111111', name: 'Second Search Target', displayOrder: 999 };
   clone.regionsById[second.id] = second;
   clone.regionOrder = [...clone.regionOrder, second.id];

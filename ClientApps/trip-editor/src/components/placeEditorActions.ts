@@ -197,6 +197,13 @@ function searchResultName(result: EditorGeocodeSearchResult): string {
 
 function focusPlaceDraftForm(formId: string): void {
   const form = document.getElementById(formId);
-  form?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-  form?.querySelector<HTMLElement>('input, select, textarea, button')?.focus({ preventScroll: true });
+  const sidebar = form?.closest<HTMLElement>('.trip-editor-sidebar');
+  if (form && sidebar) {
+    const formTop = form.getBoundingClientRect().top;
+    const sidebarTop = sidebar.getBoundingClientRect().top;
+    sidebar.scrollTo({ top: sidebar.scrollTop + formTop - sidebarTop - 16, behavior: 'auto' });
+  }
+
+  form?.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' });
+  form?.querySelector<HTMLElement>('input, select, textarea, button')?.focus({ preventScroll: false });
 }

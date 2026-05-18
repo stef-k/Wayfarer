@@ -14,10 +14,12 @@ const regionId = '00000000-0000-0000-0000-000000272001';
 const placeId = '00000000-0000-0000-0000-000000272002';
 const areaId = '00000000-0000-0000-0000-000000272003';
 const segmentId = '00000000-0000-0000-0000-000000272004';
+const newPlaceId = '00000000-0000-0000-0000-000000272005';
 const regionName = 'PW rich notes region';
 const placeName = 'PW rich notes place';
 const areaName = 'PW rich notes area';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
+const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64');
 
 test.describe.serial('Trip Editor rich notes parity', () => {
   test('all owner forms render the shared rich notes editor instead of raw notes textareas', async ({ page }) => {
@@ -140,6 +142,32 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await pasteDataImage(richEditor(form).locator('.ql-editor'));
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
     await expect(richEditor(form).locator('.ql-editor img[src^="data:image"]')).toHaveCount(0);
+  });
+
+  test('new place notes image URL preview uses the proxy and keeps the canonical URL for save', async ({ page }) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithRichNotesFixture(page);
+    const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
+    await routeEditorMutations(page, state, requests);
+    await routeProxyImage(page, 'https://images.example.test/new-place.png');
+
+    await openNewPlace(page);
+    const form = page.locator('#trip-editor-place-form');
+    await insertImageUrl(form, 'https://images.example.test/new-place.png');
+
+    const image = richEditor(form).locator('.ql-editor img');
+    await expect(image).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Fnew-place\.png$/);
+    await expectLoadedImages(image);
+
+    await form.getByLabel('Name').fill('New place image note');
+    await form.getByLabel('Latitude').fill('37.9838');
+    await form.getByLabel('Longitude').fill('23.7275');
+    await page.getByRole('button', { name: 'Save Place' }).click();
+
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0].method).toBe('POST');
+    expect(requests[0].url).toContain('/places');
+    expectCanonicalNotes(requests[0].body.notesHtml, ['https://images.example.test/new-place.png']);
   });
 
   test('docked notes let users type into the trailing blank line after a terminal image', async ({ page }, testInfo) => {
@@ -392,6 +420,13 @@ async function routeRichNoteImages(page: Page): Promise<void> {
   });
 }
 
+async function routeProxyImage(page: Page, url: string): Promise<void> {
+  const escapedUrl = encodeURIComponent(url).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await page.route(new RegExp(`/Public/ProxyImage\\?url=${escapedUrl}$`, 'i'), async route => {
+    await route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng });
+  });
+}
+
 async function routeEditorMutations(page: Page, state: MutableEditorState, requests: Array<{ method: string; url: string; body: Record<string, any> }>): Promise<void> {
   await page.unroute(editorApiMatcher);
   await page.route(editorApiMatcher, async route => routeEditorState(route, state, requests));
@@ -419,6 +454,21 @@ function applyMutation(state: MutableEditorState, method: string, url: string, b
   if (method === 'PUT' && url.includes(`/regions/${regionId}`)) {
     state.regionsById[regionId] = { ...state.regionsById[regionId], ...body };
     return mutationResult(state.regionsById[regionId], { regions: [state.regionsById[regionId]] });
+  }
+
+  if (method === 'POST' && url.includes(`/regions/${regionId}/places`)) {
+    const place = {
+      id: newPlaceId,
+      tripId: state.tripId,
+      regionId,
+      displayOrder: state.placeOrderByRegionId[regionId].length + 1,
+      visitSummary: { placeId: newPlaceId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
+      capabilities: editableCapabilities(),
+      ...body
+    };
+    state.placesById[newPlaceId] = place;
+    state.placeOrderByRegionId[regionId] = [...state.placeOrderByRegionId[regionId], newPlaceId];
+    return mutationResult(place, { places: [place], placeOrderByRegionId: { [regionId]: state.placeOrderByRegionId[regionId] } });
   }
 
   throw new Error(`Unexpected rich notes mutation ${method} ${url}`);
@@ -649,6 +699,11 @@ async function openPlace(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: `Edit Place - ${placeName}` })).toBeVisible();
 }
 
+async function openNewPlace(page: Page): Promise<void> {
+  await page.locator(`[data-region-id="${regionId}"]`).getByRole('button', { name: 'Add Place' }).click();
+  await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
+}
+
 async function openArea(page: Page): Promise<void> {
   await page.locator(`[data-area-id="${areaId}"]`).getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByRole('heading', { name: `Edit Area - ${areaName}` })).toBeVisible();
@@ -668,4 +723,12 @@ function expectCanonicalNotes(value: string, expectedParts: string[]): void {
   expect(value).not.toContain('data-original');
   expect(value).not.toContain('data:image');
   expect(value).not.toContain('trip-img-modal');
+}
+
+async function expectLoadedImages(images: Locator): Promise<void> {
+  const count = await images.count();
+  expect(count, 'Expected at least one image to validate.').toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    await expect.poll(async () => images.nth(index).evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)).toBe(true);
+  }
 }
