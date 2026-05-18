@@ -3,7 +3,7 @@ import { createPlace, deletePlace, orderPlaces, updatePlace } from '../api/tripE
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildPlaceCreateTarget, buildPlaceEditTarget } from './regionPlaceEditorTargets';
-import { buildPlaceRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, withoutRegionId } from './regionPlaceDrafts';
+import { buildPlaceRequest, defaultPlaceIconName, defaultPlaceMarkerColor, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, withoutRegionId } from './regionPlaceDrafts';
 import { beginPlaceCoordinateMapWork } from './placeCoordinateMapWork';
 
 /// Coordinates place-specific editor actions while RegionManager owns shared draft state.
@@ -19,7 +19,7 @@ export function usePlaceEditorActions(context: any) {
   const openPlaceCreateDraft = async (region: EditorRegion, result: EditorGeocodeSearchResult | null): Promise<boolean> => {
     const target = buildPlaceCreateTarget(region);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
-    if (region.isShadow || !(await context.props.editorSurface.activateTarget(target)) || (isAlreadyActive && !result)) {
+    if (!(await context.props.editorSurface.activateTarget(target)) || (isAlreadyActive && !result)) {
       return false;
     }
 
@@ -34,14 +34,16 @@ export function usePlaceEditorActions(context: any) {
     context.placeDraft.address = result?.address || result?.displayName || '';
     context.placeDraft.latitude = result?.latitude ?? '';
     context.placeDraft.longitude = result?.longitude ?? '';
-    context.placeDraft.iconName = context.props.state.options.iconNames[0] ?? 'marker';
-    context.placeDraft.markerColor = context.props.state.options.markerColorClasses[0] ?? 'bg-blue';
+    context.placeDraft.iconName = defaultPlaceIconName;
+    context.placeDraft.markerColor = defaultPlaceMarkerColor;
     context.placeDraft.reverseGeocode = false;
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     context.placeEditBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
+    await nextTick();
+    focusPlaceDraftForm(context.placeFormId);
     return true;
   };
 
@@ -74,8 +76,8 @@ export function usePlaceEditorActions(context: any) {
       const regionId = context.placeDraft.regionId;
       Object.assign(context.placeDraft, emptyPlaceDraft(regionId));
       context.placeDraft.name = 'New Place';
-      context.placeDraft.iconName = context.props.state.options.iconNames[0] ?? 'marker';
-      context.placeDraft.markerColor = context.props.state.options.markerColorClasses[0] ?? 'bg-blue';
+      context.placeDraft.iconName = defaultPlaceIconName;
+      context.placeDraft.markerColor = defaultPlaceMarkerColor;
     } else {
       Object.assign(context.placeDraft, toPlaceDraft(context.activePlace.value, context.placeDraft.regionId));
       context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
@@ -191,4 +193,10 @@ export function usePlaceEditorActions(context: any) {
 
 function searchResultName(result: EditorGeocodeSearchResult): string {
   return result.name || result.displayName.split(',').map(part => part.trim()).find(Boolean) || 'New Place';
+}
+
+function focusPlaceDraftForm(formId: string): void {
+  const form = document.getElementById(formId);
+  form?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+  form?.querySelector<HTMLElement>('input, select, textarea, button')?.focus({ preventScroll: true });
 }

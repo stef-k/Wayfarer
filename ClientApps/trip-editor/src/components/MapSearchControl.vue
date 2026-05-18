@@ -6,6 +6,7 @@ import type { EditorGeocodeSearchResult, EditorRegion, EditorTripState, Guid } f
 
 const props = defineProps<{
   activeTarget: EditorTarget | null;
+  completedAddRequestId: number | null;
   editorEndpoint: string;
   state: EditorTripState;
 }>();
@@ -37,7 +38,7 @@ const isSearching = computed(() => status.value === 'loading');
 const canSearch = computed(() => trimmedQuery.value.length >= minChars && !isSearching.value);
 const eligibleRegions = computed(() => props.state.regionOrder
   .map(id => props.state.regionsById[id])
-  .filter((region): region is EditorRegion => Boolean(region) && !region.isShadow && props.state.permissions.canEditPlaces && region.capabilities.canAddChildren));
+  .filter((region): region is EditorRegion => Boolean(region) && props.state.permissions.canEditPlaces && region.capabilities.canTargetForSearchAdd));
 const selectedResult = computed(() => results.value.find(result => result.id === selectedResultId.value) ?? null);
 const canAdd = computed(() => Boolean(selectedResult.value && selectedRegionId.value));
 const helperText = computed(() => eligibleRegions.value.length === 0 ? 'No editable region is available for this search result.' : null);
@@ -75,14 +76,30 @@ watch(query, value => {
   }
 });
 
+watch(
+  () => props.completedAddRequestId,
+  requestId => {
+    if (requestId && requestId === addSequence) {
+      query.value = '';
+      clearResults();
+    }
+  }
+);
+
 watch(eligibleRegions, regions => {
   if (regions.length === 1) {
     selectedRegionId.value = regions[0].id;
     return;
   }
 
-  if (regions.length > 1 && props.activeTarget?.kind === 'place' && props.activeTarget.parentRegionId && regions.some(region => region.id === props.activeTarget?.parentRegionId)) {
+  if (props.activeTarget?.kind === 'place' && props.activeTarget.parentRegionId && regions.some(region => region.id === props.activeTarget?.parentRegionId)) {
     selectedRegionId.value = props.activeTarget.parentRegionId;
+    return;
+  }
+
+  const shadowRegion = regions.find(region => region.isShadow);
+  if (shadowRegion && (!selectedRegionId.value || !regions.some(region => region.id === selectedRegionId.value))) {
+    selectedRegionId.value = shadowRegion.id;
     return;
   }
 

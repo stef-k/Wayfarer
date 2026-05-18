@@ -70,7 +70,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
     }
 
     [Fact]
-    public async Task ShadowRegionTargetsReturnForbidden()
+    public async Task ShadowRegionAllowsCreateButRejectsMoveAndOrder()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
@@ -79,11 +79,12 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var create = await SendJson(controller, c => c.CreatePlace(trip.Id, shadow.Id, CancellationToken.None), ValidCreateBody("Blocked"));
+        var create = await SendJson(controller, c => c.CreatePlace(trip.Id, shadow.Id, CancellationToken.None), ValidCreateBody("Unassigned"));
         var update = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(shadow.Id, "Blocked"));
         var order = await SendJson(controller, c => c.OrderPlaces(trip.Id, shadow.Id, CancellationToken.None), """{ "placeIds": [] }""");
 
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(create).StatusCode);
+        var created = Assert.IsType<OkObjectResult>(create);
+        Assert.Equal(StatusCodes.Status200OK, created.StatusCode);
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(update).StatusCode);
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(order).StatusCode);
     }

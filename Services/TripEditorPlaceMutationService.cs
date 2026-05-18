@@ -43,7 +43,7 @@ public sealed class TripEditorPlaceMutationService
     }
 
     /// <summary>
-    /// Creates a place in a normal owned region and appends it to that region.
+    /// Creates a place in an owned region, including the built-in unassigned region, and appends it to that region.
     /// </summary>
     public async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>> CreatePlaceAsync(
         Guid tripId,
@@ -62,11 +62,6 @@ public sealed class TripEditorPlaceMutationService
         if (region == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        if (IsShadowRegion(region))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Forbidden("Places cannot be created in the shadow region from this editor action.");
         }
 
         var parsed = await ParseAndValidateCreateAsync(requestBody, cancellationToken);
@@ -135,7 +130,7 @@ public sealed class TripEditorPlaceMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
         }
 
-        if (IsShadowRegion(targetRegion))
+        if (IsShadowRegion(targetRegion) && place.RegionId != targetRegion.Id)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Forbidden("Places cannot be moved to the shadow region from this editor action.");
         }

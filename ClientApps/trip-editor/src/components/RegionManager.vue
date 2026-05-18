@@ -17,9 +17,11 @@ import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMut
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 type PlaceDraftPreview = {
+  coordinate: { latitude: number; longitude: number } | null;
   iconName: string;
   markerColor: string;
-  placeId: Guid;
+  label: string;
+  placeId: Guid | null;
 };
 
 const props = defineProps<{
@@ -81,6 +83,16 @@ const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) 
 const areaDirty = computed(() => JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
 const isDirty = computed(() => regionDirty.value || placeDirty.value || areaDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
+const placeTargetRegions = computed(() => {
+  const regions = [...normalRegions.value];
+  const activeCreateRegionId = !placeDraft.id ? placeDraft.regionId : null;
+  const activeCreateRegion = activeCreateRegionId ? props.state.regionsById[activeCreateRegionId] : null;
+  if (activeCreateRegion?.isShadow && !regions.some(region => region.id === activeCreateRegion.id)) {
+    regions.push(activeCreateRegion);
+  }
+
+  return regions;
+});
 const renderedRegions = computed(() => {
   const regions = props.searchActive ? [...props.searchRegions] : [...orderedRegions.value];
   const included = new Set(regions.map(region => region.id));
@@ -125,19 +137,38 @@ const renderedAreaIdsByRegionId = computed(() => {
   return result;
 });
 const placePreview = computed<PlaceDraftPreview | null>(() => {
-  if (!placeDraft.id || !activePlace.value || !isPlaceEditOpen(activePlace.value)) {
+  if (placeDraft.id && activePlace.value && isPlaceEditOpen(activePlace.value)) {
+    return {
+      coordinate: parseDraftCoordinate(),
+      placeId: placeDraft.id,
+      label: placeDraft.name || activePlace.value.name,
+      iconName: placeDraft.iconName || activePlace.value.iconName,
+      markerColor: placeDraft.markerColor || 'bg-blue'
+    };
+  }
+
+  if (!placeDraft.id && placeDraft.regionId && props.editorSurface.isTargetActive(activePlaceTarget.value)) {
+    return {
+      coordinate: parseDraftCoordinate(),
+      placeId: null,
+      label: placeDraft.name || 'New place',
+      iconName: placeDraft.iconName || 'marker',
+      markerColor: placeDraft.markerColor || 'bg-blue'
+    };
+  }
+
+  return null;
+});
+const persistedPlacePreview = computed<PlaceDraftPreview | null>(() => {
+  if (!placePreview.value?.placeId) {
     return null;
   }
 
-  return {
-    placeId: placeDraft.id,
-    iconName: placeDraft.iconName || activePlace.value.iconName,
-    markerColor: placeDraft.markerColor || 'bg-blue'
-  };
+  return placePreview.value;
 });
 const placePreviewById = computed<Record<Guid, Pick<EditorPlace, 'iconName' | 'markerColor'>>>(() => {
-  const preview = placePreview.value;
-  return preview ? { [preview.placeId]: { iconName: preview.iconName, markerColor: preview.markerColor } } : {};
+  const preview = persistedPlacePreview.value;
+  return preview?.placeId ? { [preview.placeId]: { iconName: preview.iconName, markerColor: preview.markerColor } } : {};
 });
 const forcedExpandedRegionIds = computed(() => {
   const ids = props.searchActive ? renderedRegions.value.map(region => region.id) : activeContextRegions().map(region => region.id);
@@ -377,6 +408,12 @@ function pushUnique(record: Record<Guid, Guid[]>, regionId: Guid, id: Guid): voi
   }
 }
 
+function parseDraftCoordinate(): { latitude: number; longitude: number } | null {
+  const latitude = Number(String(placeDraft.latitude ?? '').trim());
+  const longitude = Number(String(placeDraft.longitude ?? '').trim());
+  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : null;
+}
+
 function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> {
   if (!isDirty.value) {
     return Promise.resolve(true);
@@ -472,7 +509,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
       </template>
 
       <template #place-editor="{ place }">
-        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+        <PlaceEditorSurface v-if="isPlaceEditOpen(place)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="placeTargetRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
 
       <template #area-editor="{ area }">
@@ -480,7 +517,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
       </template>
 
       <template #add-place-editor="{ region }">
-        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="normalRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
+        <PlaceEditorSurface v-if="isPlaceCreateOpen(region)" :active-place="activePlace" :controller="editorSurface" :draft="placeDraft" :field-errors="fieldErrors" :form-id="placeFormId" :form-summary-errors="formSummaryErrors" :is-dirty="placeDirty" :is-saving="isSaving" :normal-regions="placeTargetRegions" :state="state" :status-text="statusText" :target="activePlaceTarget" @cancel="cancelPlaceDraft" @delete="deleteDraftPlace" @pick-coordinate="pickPlaceCoordinate" @reset="resetPlaceDraft" @save="savePlaceDraft" />
       </template>
 
       <template #add-area-editor="{ region }">

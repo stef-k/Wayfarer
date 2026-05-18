@@ -13,9 +13,11 @@ import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, Edit
 const props = defineProps<{ config: BootstrapConfig }>();
 
 type PlaceDraftPreview = {
+  coordinate: EditorCoordinate | null;
   iconName: string;
+  label: string;
   markerColor: string;
-  placeId: Guid;
+  placeId: Guid | null;
 };
 
 const state = ref<EditorTripState | null>(null);
@@ -29,6 +31,7 @@ const hiddenSegmentIds = ref<Set<string>>(new Set());
 const selectedPlaceId = ref<Guid | null>(null);
 const activePlaceDraftPreview = ref<PlaceDraftPreview | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
+const completedSearchAddRequestId = ref<number | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 const coordinatePicker = {
@@ -261,6 +264,7 @@ const clearSearchPreview = (): void => {
 
 /// Requests that the sidebar open the existing Add Place draft for a provider result.
 const requestSearchAddPlace = (request: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number }): void => {
+  completedSearchAddRequestId.value = null;
   pendingSearchAdd.value = request;
 };
 
@@ -268,6 +272,7 @@ const requestSearchAddPlace = (request: { result: EditorGeocodeSearchResult; reg
 const handleSearchAddOpened = (requestId: number): void => {
   if (pendingSearchAdd.value?.requestId === requestId) {
     clearSearchPreview();
+    completedSearchAddRequestId.value = requestId;
     pendingSearchAdd.value = null;
   }
 };
@@ -285,15 +290,24 @@ const applyPlaceDraftPreview = (preview: PlaceDraftPreview | null): void => {
   }
 
   const previous = activePlaceDraftPreview.value;
-  if (previous && previous.placeId !== preview?.placeId) {
+  if (previous?.placeId && previous.placeId !== preview?.placeId) {
     mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
+  }
+  if (previous && previous.placeId === null && preview?.placeId !== null) {
+    mapAdapter?.clearPlaceDraftPreview();
   }
 
   activePlaceDraftPreview.value = preview;
-  if (preview) {
+  if (preview?.placeId) {
     mapAdapter?.applyPlaceDraftMarker(state.value, preview.placeId, preview);
+    mapAdapter?.clearPlaceDraftPreview();
+  } else if (preview?.coordinate) {
+    mapAdapter?.showPlaceDraftPreview(preview.coordinate, preview.label, preview);
   } else if (previous) {
-    mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
+    if (previous.placeId) {
+      mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
+    }
+    mapAdapter?.clearPlaceDraftPreview();
   }
 };
 
@@ -375,14 +389,18 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     selectedPlaceId.value = null;
     navigationStatus.value = null;
   }
-  if (activePlaceDraftPreview.value && !next.placesById[activePlaceDraftPreview.value.placeId]) {
+  if (activePlaceDraftPreview.value?.placeId && !next.placesById[activePlaceDraftPreview.value.placeId]) {
     activePlaceDraftPreview.value = null;
   }
 
   state.value = next;
   mapAdapter?.render(next, hiddenSegmentIds.value, selectedPlaceId.value);
   if (activePlaceDraftPreview.value) {
-    mapAdapter?.applyPlaceDraftMarker(next, activePlaceDraftPreview.value.placeId, activePlaceDraftPreview.value);
+    if (activePlaceDraftPreview.value.placeId) {
+      mapAdapter?.applyPlaceDraftMarker(next, activePlaceDraftPreview.value.placeId, activePlaceDraftPreview.value);
+    } else if (activePlaceDraftPreview.value.coordinate) {
+      mapAdapter?.showPlaceDraftPreview(activePlaceDraftPreview.value.coordinate, activePlaceDraftPreview.value.label, activePlaceDraftPreview.value);
+    }
   }
 };
 
@@ -493,6 +511,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         <MapSearchControl
           v-if="!isMapWorkActive"
           :active-target="activeEditorTarget"
+          :completed-add-request-id="completedSearchAddRequestId"
           :editor-endpoint="props.config.editorEndpoint"
           :state="state"
           @add-place="requestSearchAddPlace"
