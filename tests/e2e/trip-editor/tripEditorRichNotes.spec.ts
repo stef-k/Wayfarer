@@ -44,7 +44,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(page.getByText('Notes HTML')).toHaveCount(0);
   });
 
-  test('metadata and child owner saves send canonical rich notes through existing mutation endpoints', async ({ page }) => {
+  test('metadata and child owner saves send canonical rich notes through mocked mutation routes', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithRichNotesFixture(page);
     const requests: Array<{ method: string; url: string; body: Record<string, any> }> = [];
@@ -80,7 +80,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expectCanonicalNotes(requests[1].body.notesHtml, ['Region rich note']);
   });
 
-  test('metadata save sanitizes unedited persisted notes when another field changes', async ({ page }) => {
+  test('metadata mocked save sanitizes unedited persisted notes when another field changes', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
       editorState.metadata.notesHtml = unsafePersistedMetadataNotes();
@@ -117,7 +117,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expect(notesHtml).not.toContain('not a url');
   });
 
-  test('bullet and ordered lists keep Quill list metadata through reload and save normalization', async ({ page }) => {
+  test('bullet and ordered lists keep Quill list metadata through fixture load and mocked save normalization', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithRichNotesFixture(page, editorState => {
       editorState.metadata.notesHtml = persistedQuillListNotes();
@@ -405,6 +405,7 @@ async function routeRichNoteImages(page: Page): Promise<void> {
 
 async function routeEditorMutations(page: Page, state: MutableEditorState, requests: Array<{ method: string; url: string; body: Record<string, any> }>): Promise<void> {
   await page.unroute(editorApiMatcher);
+  // Mocked mutation routes keep rich-editor behavior deterministic; pair with backend/real endpoint coverage for CRUD proof.
   await page.route(editorApiMatcher, async route => routeEditorState(route, state, requests));
 }
 

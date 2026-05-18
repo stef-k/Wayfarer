@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { absoluteUrl, editorApiPath, editorPath, expectMountedWorkspace, signIn } from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor remaining parity verification', () => {
-  test('public trip and share-progress saves use editor endpoints successfully', async ({ page }) => {
+  test('public trip and share-progress saves return success from editor endpoints', async ({ page }) => {
     await signIn(page);
     await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);

@@ -8,7 +8,7 @@ import {
 } from './tripEditorTestUtils';
 
 test.describe('Trip Editor place reassignment', () => {
-  test('place Region selector saves moves into and out of Unassigned Places', async ({ page }) => {
+  test('place Region selector sends mocked moves into and out of Unassigned Places', async ({ page }) => {
     await signIn(page);
     const baseState = await loadEditorState(page);
     const fixture = withMovablePlace(baseState);
@@ -78,6 +78,7 @@ function withMovablePlace(state: any): { state: any; normalRegionId: string; pla
 
 async function routeEditorStateWithPlaceMove(page: Page, state: any, requests: Array<Record<string, any>>, placeId: string): Promise<void> {
   const matcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
+  // Mocked mutation responses prove request shape and frontend affected-slice handling only, not endpoint CRUD persistence.
   await page.route(matcher, async route => {
     const request = route.request();
     if (request.method() === 'GET') {

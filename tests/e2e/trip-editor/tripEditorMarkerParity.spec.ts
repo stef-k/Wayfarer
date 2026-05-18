@@ -218,7 +218,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
 
   });
 
-  test('renders notes images through the proxy while saving canonical external image URLs', async ({ page }) => {
+  test('renders notes images through the proxy while sending canonical external image URLs', async ({ page }) => {
     const requests: Record<string, any>[] = [];
     await signIn(page);
     await loadWorkspaceWithMarkerFixture(page, requests);
@@ -236,7 +236,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     expect(requests[0].notesHtml).not.toContain('/Public/ProxyImage');
   });
 
-  test('shows deterministic place save success and error feedback', async ({ page }) => {
+  test('shows deterministic mocked place save success and error feedback', async ({ page }) => {
     const requests: Record<string, any>[] = [];
     await signIn(page);
     await loadWorkspaceWithMarkerFixture(page, requests);
@@ -310,6 +310,7 @@ async function routeEditorState(route: Route, state: MutableEditorState, request
   }
 
   if (request.method() === 'PUT' && request.url().includes(`/places/${firstPlaceId}`)) {
+    // Mocked place mutations cover frontend request shape and feedback states, not real endpoint persistence.
     const body = request.postDataJSON() as Record<string, any>;
     requests.push(body);
     state.placesById[firstPlaceId] = { ...state.placesById[firstPlaceId], ...body };

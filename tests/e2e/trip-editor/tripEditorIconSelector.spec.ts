@@ -32,7 +32,7 @@ const iconNames = [
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe('Trip Editor icon selector', () => {
-  test('filters, selects, saves, and stays contained across responsive themes', async ({ page }, testInfo) => {
+  test('filters, selects, sends a mocked place save, and stays contained across responsive themes', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await signIn(page);
     const requests: Record<string, any>[] = [];
@@ -137,6 +137,7 @@ async function routeEditorState(route: Route, state: MutableEditorState, request
   }
 
   if (request.method() === 'PUT' && request.url().includes(`/places/${placeId}`)) {
+    // This fulfilled response proves selector request shape and UI handling, not persisted icon/color CRUD.
     const body = request.postDataJSON() as Record<string, any>;
     requests.push(body);
     state.placesById[placeId] = { ...state.placesById[placeId], ...body };

@@ -238,7 +238,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(page.locator('#trip-editor-place-form').getByLabel('Name')).toHaveValue('Unsaved switch name');
   });
 
-  test('Save after Done sends the picked coordinate through the existing place endpoint', async ({ page }) => {
+  test('Save after Done sends the picked coordinate to a mocked existing place endpoint', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
     const forbidden = watchForbiddenPickRequests(page);
@@ -256,6 +256,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
 
       const body = request.postDataJSON() as Record<string, any>;
       savedRequests.push(body);
+      // Fulfilled here to prove picked-coordinate request shape and UI save handling only.
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
