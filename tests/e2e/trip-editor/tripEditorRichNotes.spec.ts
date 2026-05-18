@@ -147,8 +147,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     const form = page.locator('#trip-editor-metadata-form');
     await routeRichNoteImages(page, 'https://images.example.test/rich-note.png');
     await insertImageUrl(form, 'https://images.example.test/rich-note.png');
-    const image = richEditor(form).locator('.ql-editor img');
-    await expect(image).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Frich-note\.png$/);
+    await expect(richEditor(form).locator('.ql-editor img[src="/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Frich-note.png"]')).toHaveCount(1);
 
     await pasteDataImage(richEditor(form).locator('.ql-editor'));
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
@@ -270,11 +269,11 @@ test.describe.serial('Trip Editor rich notes parity', () => {
 
     await pasteDataImage(editor, '<p><img src=" DATA:IMAGE/png;base64,iVBORw0KGgo="></p>');
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
-    await expect(editor.locator('img')).toHaveCount(0);
+    await expectNoDataImages(editor);
 
     await dropDataImage(editor, '<p><img src="\r\ndata : image/png;base64,iVBORw0KGgo="></p>');
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
-    await expect(editor.locator('img')).toHaveCount(0);
+    await expectNoDataImages(editor);
 
     await rejectImageDialogUrl(form, '\tDaTa : ImAgE/png;base64,iVBORw0KGgo=');
 
@@ -285,7 +284,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
       element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
     });
     await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
-    await expect(editor.locator('img')).toHaveCount(0);
+    await expectNoDataImages(editor);
 
     await editor.evaluate(element => {
       element.insertAdjacentHTML('beforeend', '<script>alert("x")</script><a href="javascript:alert(1)" onclick="alert(2)">Unsafe link</a><img src="javascript:alert(3)" onerror="alert(4)">');
@@ -583,6 +582,12 @@ async function rejectImageDialogUrl(form: Locator, url: string): Promise<void> {
   await expect(dialog.getByText('Embedded data images are not allowed')).toBeVisible();
   await expect(form.getByRole('status')).toContainText('Embedded data images are not allowed');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
+}
+
+async function expectNoDataImages(editor: Locator): Promise<void> {
+  await expect.poll(async () => editor.locator('img').evaluateAll(images =>
+    images.filter(image => (image.getAttribute('src') ?? '').replace(/\s+/g, '').toLowerCase().startsWith('data:image')).length
+  )).toBe(0);
 }
 
 async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {

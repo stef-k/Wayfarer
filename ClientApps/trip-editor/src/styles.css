@@ -399,6 +399,18 @@ body {
   padding: 0.5rem 0.65rem;
 }
 
+.trip-editor-segments .trip-editor-segment-row {
+  align-items: start;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 .trip-editor-place-row,
 .trip-editor-area-row {
   align-items: center;

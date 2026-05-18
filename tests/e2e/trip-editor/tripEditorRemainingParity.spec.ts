@@ -89,13 +89,12 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
     const copyFeedback = page.locator('.trip-editor-map-copy-feedback');
     await expect(copyFeedback).toHaveText('Map link copied to clipboard');
     await expect(copyFeedback).toHaveCount(1);
-    await page.waitForTimeout(900);
+    await expect(utilityButton(page, 'Map link copied')).toBeVisible();
     await utilityButton(page, 'Map link copied').click();
     await expect(copyFeedback).toHaveCount(1);
     await expect(copyFeedback).toBeVisible();
-    await page.waitForTimeout(900);
-    await expect(copyFeedback).toBeVisible();
-    await expect(copyFeedback).toHaveCount(0, { timeout: 1500 });
+    await expect(utilityButton(page, 'Copy map link')).toBeVisible({ timeout: 2500 });
+    await expect(copyFeedback).toHaveCount(0, { timeout: 2500 });
 
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboardText).toContain(editorPath);

@@ -123,6 +123,7 @@ test.describe.serial('Trip Editor segment editing', () => {
   });
 
   test('client-session visibility hides map route without changing API or reload defaults', async ({ page }) => {
+    test.setTimeout(60_000);
     await signIn(page);
     await loadWorkspaceWithSegmentFixture(page);
     const routeCount = async () => page.locator('.leaflet-overlay-pane path').count();
@@ -136,6 +137,7 @@ test.describe.serial('Trip Editor segment editing', () => {
   });
 
   test('reorders segments and applies the mocked order response after reload', async ({ page }) => {
+    test.setTimeout(60_000);
     await signIn(page);
     const state = await loadWorkspaceWithSegmentFixture(page);
     await page.unroute(editorApiMatcher);

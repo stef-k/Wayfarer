@@ -169,7 +169,9 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       });
 
       await deleteSegmentViaEndpoint(page, secondId);
+      removeDisposableId(disposableSegmentIds, secondId);
       await deleteSegmentViaEndpoint(page, firstId);
+      removeDisposableId(disposableSegmentIds, firstId);
       await page.reload();
       await expectMountedWorkspace(page);
       await expect(segmentRow(page, secondId)).toHaveCount(0);
@@ -293,6 +295,13 @@ async function cleanupSegments(page: Page, segmentIds: string[]): Promise<void> 
       await page.reload();
       await expectMountedWorkspace(page);
     }
+  }
+}
+
+function removeDisposableId(ids: string[], id: string): void {
+  const index = ids.indexOf(id);
+  if (index >= 0) {
+    ids.splice(index, 1);
   }
 }
 
