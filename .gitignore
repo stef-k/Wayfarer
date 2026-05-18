@@ -180,6 +180,9 @@ wwwroot/vite/trip-editor/
 playwright-report/
 test-results/
 .local/manual-verification.md
+.local/publish-smoke/
+.local/asset-smoke/
+.local/asset-smoke-cache/
 .local/playwright/
 .local/test-results/
 .local/browser-profiles/

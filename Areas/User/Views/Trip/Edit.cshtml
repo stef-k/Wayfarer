@@ -38,7 +38,9 @@
 }
 
 @{
-    var manifest = ReadTripEditorManifest(manifestPath, entryScript);
+    var manifest = Environment.IsDevelopment()
+        ? (Script: (string?)null, Css: (IReadOnlyList<string>)Array.Empty<string>())
+        : ReadTripEditorManifest(manifestPath, entryScript);
 }
 
 @section Styles {
