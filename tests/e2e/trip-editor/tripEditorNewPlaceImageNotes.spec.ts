@@ -13,6 +13,8 @@ type MutableEditorState = Record<string, any>;
 const regionId = '00000000-0000-0000-0000-000000295101';
 const newPlaceId = '00000000-0000-0000-0000-000000295102';
 const imageUrl = 'https://images.example.test/new-place.png';
+const htmlUrl = 'https://images.example.test/not-an-image';
+const missingUrl = 'https://images.example.test/missing-image.png';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64');
 
@@ -41,6 +43,22 @@ test.describe('Trip Editor new-place notes image URL parity', () => {
     expect(requests[0].method).toBe('POST');
     expect(requests[0].url).toContain('/places');
     expectCanonicalNotes(requests[0].body.notesHtml, [imageUrl]);
+  });
+
+  test('new place notes remove failed image URL previews without saving broken proxy markup', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspace(page);
+    await routeProxyResponse(page, htmlUrl, { status: 200, contentType: 'text/html', body: '<!doctype html><title>Not an image</title>' });
+    await routeProxyResponse(page, missingUrl, { status: 404, contentType: 'text/plain', body: 'missing' });
+
+    await openNewPlace(page);
+    const form = page.locator('#trip-editor-place-form');
+
+    await insertImageUrl(form, htmlUrl);
+    await expectRejectedImageUrl(form, htmlUrl);
+
+    await insertImageUrl(form, missingUrl);
+    await expectRejectedImageUrl(form, missingUrl);
   });
 });
 
@@ -72,9 +90,13 @@ function prepareState(state: MutableEditorState): void {
 }
 
 async function routeProxyImage(page: Page, url: string): Promise<void> {
+  await routeProxyResponse(page, url, { status: 200, contentType: 'image/png', body: tinyPng });
+}
+
+async function routeProxyResponse(page: Page, url: string, response: { status: number; contentType: string; body: string | Buffer }): Promise<void> {
   const escapedUrl = encodeURIComponent(url).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await page.route(new RegExp(`/Public/ProxyImage\\?url=${escapedUrl}$`, 'i'), async route => {
-    await route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng });
+    await route.fulfill(response);
   });
 }
 
@@ -168,6 +190,13 @@ async function insertImageUrl(form: Locator, url: string): Promise<void> {
   await dialog.getByLabel('Image URL').fill(url);
   await dialog.getByRole('button', { name: 'Insert Image' }).click();
   await expect(dialog).toHaveCount(0);
+}
+
+async function expectRejectedImageUrl(form: Locator, url: string): Promise<void> {
+  const encoded = encodeURIComponent(url);
+  await expect(form.getByRole('status')).toContainText('Image URL could not be loaded');
+  await expect(richEditor(form).locator(`.ql-editor img[src*="${encoded}"]`)).toHaveCount(0);
+  await expect(richEditor(form).locator('.ql-editor')).not.toContainText(url);
 }
 
 async function expectLoadedImages(images: Locator): Promise<void> {
