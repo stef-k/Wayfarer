@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Services;
 
@@ -11,10 +10,6 @@ namespace Wayfarer.Models.Dtos.Editor;
 internal static class EditorSegmentRequestParser
 {
     private static readonly string[] ServerOwnedFields = { "id", "tripId", "displayOrder", "capabilities" };
-    private static readonly Regex DataImageSourceRegex = new(
-        @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     /// <summary>
     /// Attempts to parse a complete-draft segment save request.
     /// </summary>
@@ -49,7 +44,7 @@ internal static class EditorSegmentRequestParser
             CanonicalMode(mode),
             distance,
             duration,
-            notesHtml,
+            EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
             route);
         return true;
     }
@@ -288,7 +283,7 @@ internal static class EditorSegmentRequestParser
 
     private static void ValidateNotes(string? notesHtml, Dictionary<string, string[]> errors)
     {
-        if (!string.IsNullOrEmpty(notesHtml) && DataImageSourceRegex.IsMatch(notesHtml))
+        if (EditorRichNotesRequestHtml.ContainsDataImageSource(notesHtml))
         {
             errors["notesHtml"] = new[] { "Notes cannot contain data image sources." };
         }

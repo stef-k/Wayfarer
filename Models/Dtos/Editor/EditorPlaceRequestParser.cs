@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Wayfarer.Models.Dtos.Editor;
 
@@ -16,10 +15,6 @@ internal static class EditorPlaceRequestParser
         "visitSummary",
         "capabilities"
     };
-
-    private static readonly Regex DataImageSourceRegex = new(
-        @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Attempts to parse a complete-draft place create request.
@@ -51,7 +46,7 @@ internal static class EditorPlaceRequestParser
 
         update = new EditorPlaceCreateRequest(
             fields.Name!,
-            fields.NotesHtml,
+            EditorRichNotesRequestHtml.NormalizeForPersistence(fields.NotesHtml),
             fields.Address,
             fields.Location,
             fields.IconName!,
@@ -90,7 +85,7 @@ internal static class EditorPlaceRequestParser
         update = new EditorPlaceUpdateRequest(
             regionId!.Value,
             fields.Name!,
-            fields.NotesHtml,
+            EditorRichNotesRequestHtml.NormalizeForPersistence(fields.NotesHtml),
             fields.Address,
             fields.Location,
             fields.IconName!,
@@ -337,7 +332,7 @@ internal static class EditorPlaceRequestParser
     }
 
     private static bool ContainsDataImageSource(string? notesHtml) =>
-        !string.IsNullOrEmpty(notesHtml) && DataImageSourceRegex.IsMatch(notesHtml);
+        EditorRichNotesRequestHtml.ContainsDataImageSource(notesHtml);
 
     private sealed record PlaceSaveFields(
         string? Name,

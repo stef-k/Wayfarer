@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Wayfarer.Models.Dtos.Editor;
 
@@ -15,10 +14,6 @@ internal static class EditorTripMetadataUpdateRequestParser
         "progressPublicUrl",
         "updatedAt"
     };
-
-    private static readonly Regex DataImageSourceRegex = new(
-        @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Attempts to parse an editor metadata update request and returns field-keyed validation errors.
@@ -55,7 +50,7 @@ internal static class EditorTripMetadataUpdateRequestParser
             return false;
         }
 
-        update = new EditorTripMetadataUpdateRequest(name!, notesHtml, isPublic!.Value, coverImage, center, zoom);
+        update = new EditorTripMetadataUpdateRequest(name!, EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml), isPublic!.Value, coverImage, center, zoom);
         return true;
     }
 
@@ -267,7 +262,7 @@ internal static class EditorTripMetadataUpdateRequestParser
 
     private static void ValidateNotesHtml(string? notesHtml, Dictionary<string, string[]> errors)
     {
-        if (!string.IsNullOrEmpty(notesHtml) && DataImageSourceRegex.IsMatch(notesHtml))
+        if (EditorRichNotesRequestHtml.ContainsDataImageSource(notesHtml))
         {
             errors["notesHtml"] = new[] { "Notes images must use external image URLs, not data:image sources." };
         }

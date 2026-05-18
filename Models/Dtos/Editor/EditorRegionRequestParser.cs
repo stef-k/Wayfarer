@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace Wayfarer.Models.Dtos.Editor;
 
@@ -19,10 +18,6 @@ internal static class EditorRegionRequestParser
         "isShadow",
         "capabilities"
     };
-
-    private static readonly Regex DataImageSourceRegex = new(
-        @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Attempts to parse a complete-draft region save request.
@@ -57,7 +52,7 @@ internal static class EditorRegionRequestParser
             return false;
         }
 
-        update = new EditorRegionSaveRequest(name!, notesHtml, coverImage, center);
+        update = new EditorRegionSaveRequest(name!, EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml), coverImage, center);
         return true;
     }
 
@@ -276,7 +271,7 @@ internal static class EditorRegionRequestParser
 
     private static void ValidateNotesHtml(string? notesHtml, Dictionary<string, string[]> errors)
     {
-        if (!string.IsNullOrEmpty(notesHtml) && DataImageSourceRegex.IsMatch(notesHtml))
+        if (EditorRichNotesRequestHtml.ContainsDataImageSource(notesHtml))
         {
             errors["notesHtml"] = new[] { "Notes images must use external image URLs, not data:image sources." };
         }

@@ -11,10 +11,6 @@ internal static class EditorAreaRequestParser
 {
     private static readonly string[] SaveServerOwnedFields = { "id", "tripId", "displayOrder", "capabilities" };
     private static readonly Regex FillHexRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
-    private static readonly Regex DataImageSourceRegex = new(
-        @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     /// <summary>
     /// Attempts to parse a complete-draft area create request.
     /// </summary>
@@ -46,7 +42,7 @@ internal static class EditorAreaRequestParser
 
         update = new EditorAreaSaveRequest(
             string.IsNullOrWhiteSpace(name) ? "Area" : name!.Trim(),
-            notesHtml,
+            EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
             string.IsNullOrWhiteSpace(fillHex) ? "#ff6600" : fillHex!.Trim().ToLowerInvariant(),
             geometry!);
         return true;
@@ -78,7 +74,7 @@ internal static class EditorAreaRequestParser
             return false;
         }
 
-        update = new EditorAreaSaveRequest(name!.Trim(), notesHtml, fillHex!.Trim().ToLowerInvariant(), geometry!);
+        update = new EditorAreaSaveRequest(name!.Trim(), EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml), fillHex!.Trim().ToLowerInvariant(), geometry!);
         return true;
     }
 
@@ -350,7 +346,7 @@ internal static class EditorAreaRequestParser
 
     private static void ValidateNotes(string? notesHtml, Dictionary<string, string[]> errors)
     {
-        if (!string.IsNullOrEmpty(notesHtml) && DataImageSourceRegex.IsMatch(notesHtml))
+        if (EditorRichNotesRequestHtml.ContainsDataImageSource(notesHtml))
         {
             errors["notesHtml"] = new[] { "Notes cannot contain data image sources." };
         }
