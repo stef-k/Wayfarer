@@ -4,8 +4,10 @@ import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
 import { createMapUtilitiesControl } from './mapUtilitiesControl';
+import { createPlaceDraftPreviewLayer } from './placeDraftPreviewLayer';
 import { placeMarkerIcon, previewMarkerIcon, regionMarkerIcon } from './markerRendering';
 import { placePopupHtml } from './placePopupRendering';
+import { createSearchPreviewLayer } from './searchPreviewLayer';
 import { createSegmentRouteWorkLayer } from './segmentRouteWorkLayer';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
@@ -159,66 +161,6 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       map.off('moveend zoomend', updateMapViewDataset);
       map.remove();
     }
-  };
-};
-
-const createPlaceDraftPreviewLayer = (map: LeafletMap): {
-  clear: () => void;
-  dispose: () => void;
-  show: (coordinate: EditorCoordinate, label: string, preview: Pick<EditorPlace, 'iconName' | 'markerColor'>) => void;
-} => {
-  const layer = L.layerGroup().addTo(map);
-
-  const clear = (): void => {
-    layer.clearLayers();
-  };
-
-  const show = (coordinate: EditorCoordinate, label: string, preview: Pick<EditorPlace, 'iconName' | 'markerColor'>): void => {
-    clear();
-    L.marker([coordinate.latitude, coordinate.longitude], {
-      icon: previewMarkerIcon('place-draft', `Pending place location: ${label}`, preview),
-      interactive: false,
-      keyboard: false,
-      title: `Pending place location: ${label}`,
-      alt: `Pending place location: ${label}`
-    }).addTo(layer);
-    map.setView([coordinate.latitude, coordinate.longitude], Math.max(map.getZoom(), 13));
-  };
-
-  return {
-    clear,
-    dispose: clear,
-    show
-  };
-};
-
-const createSearchPreviewLayer = (map: LeafletMap): {
-  clear: () => void;
-  dispose: () => void;
-  show: (coordinate: EditorCoordinate, label: string) => void;
-} => {
-  const layer = L.layerGroup().addTo(map);
-
-  const clear = (): void => {
-    layer.clearLayers();
-  };
-
-  const show = (coordinate: EditorCoordinate, label: string): void => {
-    clear();
-    L.marker([coordinate.latitude, coordinate.longitude], {
-      icon: previewMarkerIcon('search', `Search result preview: ${label}`),
-      interactive: false,
-      keyboard: false,
-      title: `Search result preview: ${label}`,
-      alt: `Search result preview: ${label}`
-    }).addTo(layer);
-    map.setView([coordinate.latitude, coordinate.longitude], Math.max(map.getZoom(), 13));
-  };
-
-  return {
-    clear,
-    dispose: clear,
-    show
   };
 };
 
