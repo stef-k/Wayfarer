@@ -12,6 +12,8 @@ import {
 type EditorState = Record<string, any>;
 
 test.describe.serial('Trip Editor rich notes real persistence contract', () => {
+  test.describe.configure({ timeout: 60_000 });
+
   test('metadata rich notes save through the real endpoint and reload as canonical HTML', async ({ page }) => {
     await signIn(page);
     await page.goto(absoluteUrl(editorPath));

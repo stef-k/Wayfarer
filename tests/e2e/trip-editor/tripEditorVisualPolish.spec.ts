@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -39,7 +39,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await capture(page, testInfo, `${viewport.name}-light-docked-metadata`);
       note(testInfo, 'docked metadata, tags/share progress, map navigation toolbar', viewport.name, 'light', 'data-bs-theme', 'pass');
 
-      await page.getByRole('button', { name: 'Expand Editor' }).click();
+      await expandDockedEditor(page);
       await expect(page.getByRole('dialog', { name: /Edit Trip -/ })).toBeVisible();
       await expectDialogFitsViewport(page);
       await capture(page, testInfo, `${viewport.name}-light-expanded-metadata`);
@@ -75,7 +75,8 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await openPlace(page);
       await capture(page, testInfo, `${viewport.name}-dark-place-edit-docked`);
       note(testInfo, 'child entity edit docked', viewport.name, 'dark', 'data-bs-theme', 'pass');
-      await page.getByRole('button', { name: 'Expand Editor' }).click();
+      await expandDockedEditor(page);
+      await expect(page.getByRole('dialog', { name: /Edit Place -/ })).toBeVisible();
       await expectDialogFitsViewport(page);
       await capture(page, testInfo, `${viewport.name}-dark-place-edit-expanded`);
       note(testInfo, 'child entity edit expanded', viewport.name, 'dark', 'data-bs-theme', 'pass');
@@ -231,6 +232,16 @@ async function openSegment(page: Page): Promise<void> {
 async function openVisits(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Visits' }).click();
   await expect(page.getByRole('dialog', { name: 'Visit progress and history' })).toBeVisible();
+}
+
+function dockedEditor(page: Page): Locator {
+  return page.locator('.trip-editor-surface--docked').first();
+}
+
+async function expandDockedEditor(page: Page): Promise<void> {
+  const button = dockedEditor(page).getByRole('button', { name: 'Expand Editor' });
+  await button.scrollIntoViewIfNeeded();
+  await button.click();
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {

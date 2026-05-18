@@ -9,7 +9,7 @@ export const editorApiPath = `/api/trips/${config.tripId}/editor`;
 const forbiddenSidebarSearchRequest = /nominatim|geosearch|search-add|searchadd|\/search(?:[/?#]|$)/i;
 
 export type EditorTripFixture = {
-  regionsById: Record<string, { id: string; name: string; isShadow: boolean }>;
+  regionsById: Record<string, { id: string; name: string; isShadow: boolean; capabilities?: { canEdit?: boolean } }>;
   regionOrder: string[];
   placesById: Record<string, { id: string; name: string; address: string; regionId: string }>;
   placeOrderByRegionId: Record<string, string[]>;
@@ -113,7 +113,10 @@ export async function loadEditorStateFixture(page: Page): Promise<EditorTripFixt
 
 // Derives stable sidebar search examples from the configured trip fixture.
 export function sidebarSearchFixture(state: EditorTripFixture): SidebarSearchFixture {
-  const place = Object.values(state.placesById)[0];
+  const place = Object.values(state.placesById).find(candidate => {
+    const region = state.regionsById[candidate.regionId];
+    return region && !region.isShadow && region.capabilities?.canEdit !== false;
+  }) ?? Object.values(state.placesById)[0];
   if (!place) {
     throw new Error('Configured Trip Editor fixture must contain at least one loaded place for sidebar search coverage.');
   }
