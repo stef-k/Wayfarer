@@ -6,6 +6,7 @@
 import { chromium, expect } from '@playwright/test';
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,7 +60,8 @@ function loadTripEditorConfig() {
   const getValue = key => (process.env[key] || localConfig[key] || '').trim();
   const result = {
     devBaseUrl: (process.env.WAYFARER_ASSET_SMOKE_DEV_URL || getValue('WAYFARER_E2E_BASE_URL') || 'http://localhost:5012').replace(/\/+$/, ''),
-    publishedBaseUrl: (process.env.WAYFARER_ASSET_SMOKE_PUBLISHED_URL || 'http://localhost:5013').replace(/\/+$/, ''),
+    configuredPublishedBaseUrl: (process.env.WAYFARER_ASSET_SMOKE_PUBLISHED_URL || '').replace(/\/+$/, ''),
+    publishedBaseUrl: '',
     username: getValue('WAYFARER_E2E_USERNAME'),
     password: process.env.WAYFARER_E2E_PASSWORD || localConfig.WAYFARER_E2E_PASSWORD || '',
     tripId: getValue('WAYFARER_E2E_TRIP_ID')
@@ -170,7 +172,7 @@ async function ensureDevelopmentServers() {
 async function runPublishedSmoke() {
   console.log('\n[published] Starting published-output production asset smoke.');
   await preparePublishedOutput();
-  await startPublishedApp();
+  const publishedProcess = await startPublishedApp();
 
   const browser = await chromium.launch();
   const context = await browser.newContext({ baseURL: config.publishedBaseUrl });
@@ -181,6 +183,7 @@ async function runPublishedSmoke() {
     await signIn(page, config.publishedBaseUrl);
     await page.goto(`${config.publishedBaseUrl}${editorPath()}`, { waitUntil: 'domcontentloaded' });
     await expectMountedEditor(page);
+    assertProcessRunning(publishedProcess, 'published Production app');
 
     await expectServedAsset(context, '/Wayfarer.styles.css', 'Razor scoped stylesheet');
     await expectServedAsset(context, '/vite/trip-editor/manifest.json', 'Trip Editor manifest');
@@ -207,6 +210,7 @@ async function preparePublishedOutput() {
 }
 
 async function startPublishedApp() {
+  config.publishedBaseUrl = await resolvePublishedBaseUrl();
   const connectionString = process.env.ConnectionStrings__DefaultConnection || readDevelopmentConnectionString();
   const env = {
     ASPNETCORE_ENVIRONMENT: 'Production',
@@ -224,8 +228,56 @@ async function startPublishedApp() {
 
   const executable = isWindows ? path.join(publishDir, 'Wayfarer.exe') : dotnetCommand;
   const args = isWindows ? [] : [path.join(publishDir, 'Wayfarer.dll')];
-  startProcess(executable, args, env, 'published-production', publishDir);
-  await waitForUrl(`${config.publishedBaseUrl}/Identity/Account/Login`, 'published Production app');
+  const publishedProcess = startProcess(executable, args, env, 'published-production', publishDir);
+  await waitForUrl(`${config.publishedBaseUrl}/Identity/Account/Login`, 'published Production app', publishedProcess);
+  assertProcessRunning(publishedProcess, 'published Production app');
+  return publishedProcess;
+}
+
+// Uses an ephemeral port by default so published smoke cannot accidentally test an older local server.
+async function resolvePublishedBaseUrl() {
+  if (config.configuredPublishedBaseUrl) {
+    const loginUrl = `${config.configuredPublishedBaseUrl}/Identity/Account/Login`;
+    if (await urlResponds(loginUrl)) {
+      throw new Error(
+        [
+          `Configured published smoke URL is already responding at ${loginUrl}.`,
+          'Stop the existing server or choose a free WAYFARER_ASSET_SMOKE_PUBLISHED_URL; this smoke must launch and verify the just-published output.'
+        ].join(' ')
+      );
+    }
+
+    console.log(`[published] Using configured published smoke URL ${config.configuredPublishedBaseUrl}.`);
+    return config.configuredPublishedBaseUrl;
+  }
+
+  const port = await allocateFreeLocalhostPort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  console.log(`[published] Using allocated published smoke URL ${baseUrl}.`);
+  return baseUrl;
+}
+
+function allocateFreeLocalhostPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen({ host: '127.0.0.1', port: 0 }, () => {
+      const address = server.address();
+      server.close(error => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        if (!address || typeof address === 'string') {
+          reject(new Error('Failed to allocate a localhost port for published smoke.'));
+          return;
+        }
+
+        resolve(address.port);
+      });
+    });
+  });
 }
 
 // Reuses the local development database string only as launch configuration; the app still runs non-Development.
@@ -333,9 +385,25 @@ function startProcess(command, args, extraEnv, name, cwd = rootDir) {
     windowsHide: true
   });
 
+  const processInfo = {
+    child,
+    name,
+    logStream,
+    logPath,
+    stdoutTail: '',
+    stderrTail: ''
+  };
+
+  child.stdout.on('data', chunk => {
+    processInfo.stdoutTail = appendTail(processInfo.stdoutTail, chunk);
+  });
+  child.stderr.on('data', chunk => {
+    processInfo.stderrTail = appendTail(processInfo.stderrTail, chunk);
+  });
   child.stdout.pipe(logStream);
   child.stderr.pipe(logStream);
-  startedProcesses.push({ child, name, logStream });
+  startedProcesses.push(processInfo);
+  return processInfo;
 }
 
 // Runs Windows .cmd shims through cmd.exe so npm scripts launch reliably from Node.
@@ -347,9 +415,13 @@ function normalizeCommand(command, args) {
   return { command, args };
 }
 
-async function waitForUrl(url, label) {
+async function waitForUrl(url, label, processInfo = null) {
   const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
+    if (processInfo) {
+      assertProcessRunning(processInfo, label);
+    }
+
     if (await urlResponds(url)) {
       console.log(`[server] ${label} is responding at ${url}.`);
       return;
@@ -383,6 +455,32 @@ async function stopStartedProcesses() {
 
     logStream.end();
   }
+}
+
+function assertProcessRunning(processInfo, label) {
+  if (processInfo.child.exitCode === null && processInfo.child.signalCode === null) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `${label} exited before smoke verification completed.`,
+      `Exit code: ${processInfo.child.exitCode ?? 'none'}; signal: ${processInfo.child.signalCode ?? 'none'}.`,
+      `Log: ${path.relative(rootDir, processInfo.logPath)}`,
+      formatTail('stdout', processInfo.stdoutTail),
+      formatTail('stderr', processInfo.stderrTail)
+    ].join('\n')
+  );
+}
+
+function appendTail(current, chunk) {
+  const next = `${current}${chunk.toString('utf8')}`;
+  return next.length > 8000 ? next.slice(-8000) : next;
+}
+
+function formatTail(label, value) {
+  const trimmed = value.trim();
+  return trimmed ? `${label} tail:\n${trimmed}` : `${label} tail: <empty>`;
 }
 
 function safeRemoveDirectory(targetDir) {

@@ -16,9 +16,9 @@ Trip Editor Asset-Mode Smoke
 - Configure the same `WAYFARER_E2E_USERNAME`, `WAYFARER_E2E_PASSWORD`, and `WAYFARER_E2E_TRIP_ID` values used by Trip Editor Playwright verification. The runner also reads ignored `.local/manual-verification.md`.
 - Optional URLs:
   - `WAYFARER_ASSET_SMOKE_DEV_URL` defaults to `WAYFARER_E2E_BASE_URL` or `http://localhost:5012`.
-  - `WAYFARER_ASSET_SMOKE_PUBLISHED_URL` defaults to `http://localhost:5013`.
-- Published smoke runs `dotnet frontend build`, `npm run build`, and `dotnet publish Wayfarer.csproj -c Release -o .local/publish-smoke`, then starts the published app in non-Development mode. It uses `ConnectionStrings__DefaultConnection` when set, otherwise it falls back to the local `appsettings.Development.json` connection string while still running the app with `ASPNETCORE_ENVIRONMENT=Production`.
-- Generated output and server logs stay under ignored `.local/...` paths.
+  - `WAYFARER_ASSET_SMOKE_PUBLISHED_URL` is optional. When unset, the runner allocates a free `127.0.0.1` port for the published app. When set, that URL/port must be free before launch so the smoke cannot pass against an older server.
+- Published smoke runs `dotnet frontend build`, `npm run build`, and `dotnet publish Wayfarer.csproj -c Release -o .local/publish-smoke`, then starts the published app in non-Development mode. It requires usable Trip Editor credentials/config, a reachable configured database, and either `ConnectionStrings__DefaultConnection` or a local `appsettings.Development.json` connection string while still running the app with `ASPNETCORE_ENVIRONMENT=Production`.
+- Generated output, cache folders, and server logs stay under `.local/publish-smoke`, `.local/asset-smoke`, and `.local/asset-smoke-cache`, which are ignored by committed `.gitignore` rules.
 
 ```powershell
 npm run smoke:trip-editor:assets:dev
