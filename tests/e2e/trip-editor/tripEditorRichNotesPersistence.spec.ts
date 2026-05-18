@@ -33,8 +33,13 @@ test.describe.serial('Trip Editor rich notes real persistence contract', () => {
       await richEditor(form).locator('button.ql-align[value="center"]').click();
       await page.keyboard.type('Centered persisted note');
       await insertImageUrl(form, imageUrl);
+      await expect(editor).toContainText(runText);
+      await expect(editor.locator('p.ql-align-center')).toContainText('Centered persisted note');
 
+      const saveResponse = page.waitForResponse(response =>
+        response.url().endsWith(`${editorApiPath}/metadata`) && response.request().method() === 'PATCH');
       await page.getByRole('button', { name: 'Save & Continue' }).click();
+      expect((await saveResponse).ok()).toBeTruthy();
       await expectSaved(page);
 
       await expectState(page, state => {
@@ -51,7 +56,7 @@ test.describe.serial('Trip Editor rich notes real persistence contract', () => {
       const reloadedForm = page.locator('#trip-editor-metadata-form');
       const reloadedEditor = richEditor(reloadedForm).locator('.ql-editor');
       await expect(reloadedEditor).toContainText(runText);
-      await expect(reloadedEditor.locator('p.ql-align-center')).toContainText('Centered persisted note');
+      await expect(reloadedEditor.locator('p.ql-align-center').filter({ hasText: 'Centered persisted note' })).toBeVisible();
       await expect(reloadedEditor.locator('img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Frich-notes-persistence\.png$/);
     } finally {
       if (!page.isClosed()) {
