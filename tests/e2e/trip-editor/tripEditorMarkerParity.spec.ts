@@ -214,6 +214,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectPlaceRowDoesNotOverlapEdit(page, firstPlaceId);
 
     await page.setViewportSize({ width: 390, height: 900 });
+    await page.getByRole('button', { name: 'Regions', exact: true }).click();
     await expectPlaceRowDoesNotOverlapEdit(page, firstPlaceId);
 
   });

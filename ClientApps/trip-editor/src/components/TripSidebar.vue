@@ -217,7 +217,7 @@ function normalize(value: string): string {
       </nav>
 
       <div class="trip-editor-mobile-drawer__body">
-        <section v-show="activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab" aria-label="Trip tab">
+        <section v-show="activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab" aria-label="Trip tab" :aria-hidden="activeMobileTab !== 'trip'" :inert="activeMobileTab !== 'trip'">
           <MetadataEditor
             :metadata="state.metadata"
             :tags-by-slug="state.tagsBySlug"
@@ -266,7 +266,7 @@ function normalize(value: string): string {
           />
         </section>
 
-        <section v-show="activeMobileTab === 'regions'" class="trip-editor-mobile-drawer__tab" aria-label="Regions tab">
+        <section v-show="activeMobileTab === 'regions'" class="trip-editor-mobile-drawer__tab" aria-label="Regions tab" :aria-hidden="activeMobileTab !== 'regions'" :inert="activeMobileTab !== 'regions'">
           <section class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
               <span>Sidebar search</span>
@@ -297,7 +297,7 @@ function normalize(value: string): string {
           />
         </section>
 
-        <section v-show="activeMobileTab === 'segments'" class="trip-editor-mobile-drawer__tab" aria-label="Segments tab">
+        <section v-show="activeMobileTab === 'segments'" class="trip-editor-mobile-drawer__tab" aria-label="Segments tab" :aria-hidden="activeMobileTab !== 'segments'" :inert="activeMobileTab !== 'segments'">
           <section class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
               <span>Sidebar search</span>
