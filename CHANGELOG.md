@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [1.3.0] - 2026-05-19
+
+### Added
+- Replaced the legacy Trip Edit experience with the Vue/Vite Trip Editor on the canonical `/User/Trip/Edit/{id}` route (#236, #238, #240, #242, #244, #246, #252, #258, #259, #263, #264, #265, #268, #271, #278, #280, #281, #282, #283)
+- Added Trip Editor support for metadata, regions, places, areas, segments, tags, share-progress settings, visit progress/history, rich notes, geosearch add-place, coordinate picking, map navigation, map utilities, and shared docked/expanded editor surfaces (#238, #240, #242, #246, #252, #258, #259, #263, #264, #265, #268, #271, #278, #280)
+- Added searchable icon and marker-color selectors, selected-place map/sidebar/status synchronization, popup/marker parity, and responsive light/dark Trip Editor polish (#288, #289, #290, #291, #292, #294)
+- Added real endpoint Trip Editor contract coverage for CRUD persistence, search-add persistence, rich-notes persistence, stale/error/dirty/delete feedback, and Development/published asset smoke checks (#297, #298, #299, #300, #301, #302, #303, #304)
+
+### Changed
+- `GET /User/Trip/Edit/{id}` now serves the Vue Trip Editor directly; the old `/User/Trip/Workspace/{id}` route and legacy editor fallback were removed during cutover cleanup (#282, #283)
+- Trip Editor rich notes are normalized at the Trip Editor request boundary before persistence, including canonical image URL handling, allowed Quill formatting/alignment, unsafe attribute stripping, and trailing helper paragraph cleanup (#302)
+- Deployment now requires the Trip Editor Vite assets to be built before `dotnet publish`; server-build deployments need Node.js/npm build tooling and must generate `wwwroot/vite/trip-editor/manifest.json` (#287, #303)
+- Development mode uses the Vite dev server assets only, while published/non-Development mode loads manifest-based Trip Editor bundle assets (#303)
+- Trip Editor Playwright coverage now distinguishes real endpoint contract proof from mocked UI/request-shape/visual tests (#297, #298)
+
+### Fixed
+- Fixed published-output Trip Editor asset loading by moving the Vite manifest to the publish-safe `wwwroot/vite/trip-editor/manifest.json` path (#287)
+- Fixed ASP.NET static asset serving/compression interactions for generated `/dist` and `/vite/trip-editor` bundle outputs (#285)
+- Fixed source-tree Production-run documentation by documenting published-output acceptance as the supported production-like local test path (#286)
+- Fixed Trip Editor release-candidate parity regressions found during manual validation, including Unassigned Places behavior, geosearch add-place defaults and persistence, marker/icon rendering, map search result containment, coordinate pick behavior, copy-link feedback, and selected editor/sidebar state coherence (#288, #289, #290, #291, #292, #294, #296)
+- Fixed final Trip Editor E2E nondeterminism around copy-link feedback timing, inline segment editor layout overlap, sidebar search fixtures, visual-polish expand targeting, real CRUD cleanup, and rich-notes image assertions (#304)
+
 ## [1.2.28] - 2026-04-13
 
 ### Added
