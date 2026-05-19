@@ -87,10 +87,12 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await dockPlaceEditorAfterExpandedEvidence(page);
 
       await startPlaceCoordinateMapWork(page);
+      const placeMapWork = page.getByRole('region', { name: 'Map work' });
+      await expect(placeMapWork).toContainText('Pick place location');
       await capture(page, testInfo, `${viewport.name}-dark-place-coordinate-map-work`);
       note(testInfo, 'place coordinate map-work', viewport.name, 'dark', 'data-bs-theme', 'pass');
-      await clickMap(page, { xRatio: 0.48, yRatio: 0.42 });
-      await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+      await pickPlaceMapWorkCoordinate(page);
+      await placeMapWork.getByRole('button', { name: 'Cancel' }).click();
       await expect(page.getByRole('dialog', { name: 'Discard map editing changes?' })).toBeVisible();
       await capture(page, testInfo, `${viewport.name}-dark-map-work-confirm`);
       note(testInfo, 'map-work cancel/discard confirmation', viewport.name, 'dark', 'data-bs-theme', 'pass');
@@ -127,6 +129,16 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
 
       await openPlace(page);
       await page.locator('#trip-editor-place-form').getByLabel('Name').fill('Unsaved navigation guard');
+      if (await isMobileDrawerVisible(page)) {
+        await openMobileTabIfVisible(page, 'Trip');
+        const tabSwitchDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+        await expect(tabSwitchDiscard).toContainText('Discard unsaved place changes before switching tabs?');
+        await capture(page, testInfo, `${viewport.name}-dark-navigation-confirm`);
+        note(testInfo, 'dirty tab-switch confirmation before hiding active place editor', viewport.name, 'dark', 'data-bs-theme', 'pass');
+        await tabSwitchDiscard.getByRole('button', { name: 'Keep editing' }).click();
+        return;
+      }
+
       await openVisits(page);
       await page.getByRole('link', { name: 'Manage visit' }).click();
       await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
@@ -242,6 +254,30 @@ async function startPlaceCoordinateMapWork(page: Page): Promise<void> {
   await expect(mapWork).toBeVisible();
 }
 
+async function pickPlaceMapWorkCoordinate(page: Page): Promise<void> {
+  const mapWork = page.getByRole('region', { name: 'Map work' });
+  const points = [
+    { xRatio: 0.64, yRatio: 0.38 },
+    { xRatio: 0.22, yRatio: 0.78 },
+    { xRatio: 0.52, yRatio: 0.72 },
+    { xRatio: 0.88, yRatio: 0.52 }
+  ];
+
+  for (const point of points) {
+    if (!(await mapWork.isVisible().catch(() => false))) {
+      await startPlaceCoordinateMapWork(page);
+    }
+
+    await clickMap(page, point);
+    if (await mapWork.getByText('Selected').isVisible({ timeout: 1200 }).catch(() => false)) {
+      await expect(mapWork).toContainText('Selected');
+      return;
+    }
+  }
+
+  await expect(mapWork).toContainText('Selected');
+}
+
 async function openArea(page: Page): Promise<void> {
   await openMobileTabIfVisible(page, 'Regions');
   await openEntityEditor(page, `[data-area-id="${areaId}"]`, '#trip-editor-area-form', /Edit Area - Visual Area/);
@@ -342,6 +378,10 @@ async function openMobileTabIfVisible(page: Page, name: 'Trip' | 'Regions' | 'Se
   }
 }
 
+async function isMobileDrawerVisible(page: Page): Promise<boolean> {
+  return await page.getByRole('navigation', { name: 'Trip editor sections' }).isVisible().catch(() => false);
+}
+
 function dockedEditor(page: Page): Locator {
   return page.locator('.trip-editor-surface--docked').first();
 }
@@ -360,15 +400,23 @@ async function clickMap(page: Page, position: { xRatio: number; yRatio: number }
   await map.scrollIntoViewIfNeeded();
   const point = await map.evaluate((element, preferredPoint) => {
     const box = element.getBoundingClientRect();
-    const blockedElements = Array.from(document.querySelectorAll<HTMLElement>('.leaflet-marker-icon, .leaflet-control, .trip-editor-map-work-toolbar, .trip-editor-toolbar, .trip-editor-map-search'));
+    const blockedElements = Array.from(document.querySelectorAll<HTMLElement>('.leaflet-marker-icon, .leaflet-marker-shadow, .leaflet-marker-pane button, .leaflet-control, .trip-editor-map-work-toolbar, .trip-editor-toolbar, .trip-editor-map-search'));
     const blockedBoxes = blockedElements.map(item => item.getBoundingClientRect());
     const candidates = [
       preferredPoint,
       { xRatio: 0.18, yRatio: 0.38 },
       { xRatio: 0.68, yRatio: 0.42 },
       { xRatio: 0.34, yRatio: 0.64 },
-      { xRatio: 0.78, yRatio: 0.72 }
+      { xRatio: 0.78, yRatio: 0.72 },
+      { xRatio: 0.22, yRatio: 0.78 },
+      { xRatio: 0.52, yRatio: 0.72 },
+      { xRatio: 0.88, yRatio: 0.52 }
     ];
+    for (const yRatio of [0.2, 0.32, 0.44, 0.56, 0.68, 0.8]) {
+      for (const xRatio of [0.14, 0.26, 0.38, 0.5, 0.62, 0.74, 0.86]) {
+        candidates.push({ xRatio, yRatio });
+      }
+    }
 
     for (const candidate of candidates) {
       const clientX = box.left + box.width * candidate.xRatio;
@@ -382,16 +430,15 @@ async function clickMap(page: Page, position: { xRatio: number; yRatio: number }
         clientX <= blocked.right + 8 &&
         clientY >= blocked.top - 8 &&
         clientY <= blocked.bottom + 8);
+      const hitTarget = document.elementFromPoint(clientX, clientY);
+      const hitsInteractiveChrome = Boolean(hitTarget?.closest('button, .leaflet-marker-pane, .leaflet-control, .trip-editor-map-work-toolbar, .trip-editor-toolbar, .trip-editor-map-search'));
 
-      if (isInViewport && !isBlocked) {
+      if (isInViewport && !isBlocked && !hitsInteractiveChrome) {
         return { x: clientX, y: clientY };
       }
     }
 
-    return {
-      x: box.left + box.width * preferredPoint.xRatio,
-      y: box.top + box.height * preferredPoint.yRatio
-    };
+    throw new Error('Unable to find an unobstructed map point for map-work click evidence.');
   }, position);
   await page.mouse.click(point.x, point.y);
 }
