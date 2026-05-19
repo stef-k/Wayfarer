@@ -357,14 +357,43 @@ async function expandDockedEditor(page: Page, containedSelector?: string): Promi
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
   const map = page.getByLabel('Read-only trip map');
-  await map.evaluate((element, point) => {
+  await map.scrollIntoViewIfNeeded();
+  const point = await map.evaluate((element, preferredPoint) => {
     const box = element.getBoundingClientRect();
-    const clientX = box.left + box.width * point.xRatio;
-    const clientY = box.top + box.height * point.yRatio;
-    for (const type of ['mousedown', 'mouseup', 'click']) {
-      element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, view: window }));
+    const blockedElements = Array.from(document.querySelectorAll<HTMLElement>('.leaflet-marker-icon, .leaflet-control, .trip-editor-map-work-toolbar, .trip-editor-toolbar, .trip-editor-map-search'));
+    const blockedBoxes = blockedElements.map(item => item.getBoundingClientRect());
+    const candidates = [
+      preferredPoint,
+      { xRatio: 0.18, yRatio: 0.38 },
+      { xRatio: 0.68, yRatio: 0.42 },
+      { xRatio: 0.34, yRatio: 0.64 },
+      { xRatio: 0.78, yRatio: 0.72 }
+    ];
+
+    for (const candidate of candidates) {
+      const clientX = box.left + box.width * candidate.xRatio;
+      const clientY = box.top + box.height * candidate.yRatio;
+      const isInViewport = clientX >= 0 &&
+        clientX <= window.innerWidth &&
+        clientY >= 0 &&
+        clientY <= window.innerHeight;
+      const isBlocked = blockedBoxes.some(blocked =>
+        clientX >= blocked.left - 8 &&
+        clientX <= blocked.right + 8 &&
+        clientY >= blocked.top - 8 &&
+        clientY <= blocked.bottom + 8);
+
+      if (isInViewport && !isBlocked) {
+        return { x: clientX, y: clientY };
+      }
     }
+
+    return {
+      x: box.left + box.width * preferredPoint.xRatio,
+      y: box.top + box.height * preferredPoint.yRatio
+    };
   }, position);
+  await page.mouse.click(point.x, point.y);
 }
 
 async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
