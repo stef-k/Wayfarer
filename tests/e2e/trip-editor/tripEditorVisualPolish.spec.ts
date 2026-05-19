@@ -123,6 +123,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       note(testInfo, 'delete confirmation', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Keep place' }).click();
 
+      await openPlace(page);
       await page.locator('#trip-editor-place-form').getByLabel('Name').fill('Unsaved navigation guard');
       await openVisits(page);
       await page.getByRole('link', { name: 'Manage visit' }).click();
