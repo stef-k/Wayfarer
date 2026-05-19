@@ -298,6 +298,10 @@ async function closeActiveDockedEditorIfNeeded(page: Page): Promise<void> {
   const activeSurface = page.locator('.trip-editor-surface--docked').first();
   if (await activeSurface.isVisible().catch(() => false)) {
     await activeSurface.getByRole('button', { name: 'Close' }).click();
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    if (await discardDialog.isVisible().catch(() => false)) {
+      await discardDialog.getByRole('button', { name: 'Discard' }).click();
+    }
   }
 }
 

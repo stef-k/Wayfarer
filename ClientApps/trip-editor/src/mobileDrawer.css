@@ -1,3 +1,13 @@
+.trip-editor-mobile-drawer,
+.trip-editor-mobile-drawer__body {
+  display: contents;
+}
+
+.trip-editor-mobile-drawer__handle,
+.trip-editor-mobile-drawer__tabs {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .trip-editor-workspace {
     display: block;
@@ -59,6 +69,7 @@
   .trip-editor-mobile-drawer__handle {
     background: var(--trip-editor-field-border);
     border-radius: 999px;
+    display: block;
     height: 0.25rem;
     justify-self: center;
     margin-bottom: 0.45rem;
@@ -94,6 +105,7 @@
   }
 
   .trip-editor-mobile-drawer__body {
+    display: block;
     overflow: hidden;
   }
 
@@ -116,5 +128,9 @@
   .trip-editor-sidebar--mobile-drawer .trip-editor-sidebar-search {
     margin: 0;
     position: static;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-icon-selector__options {
+    max-height: min(8rem, 18dvh);
   }
 }

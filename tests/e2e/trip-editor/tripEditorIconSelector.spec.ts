@@ -106,6 +106,9 @@ test.describe('Trip Editor icon selector', () => {
     await expectLoadedImages(page.locator('[data-icon-selector-selected-image]'));
 
     await page.setViewportSize({ width: 390, height: 900 });
+    await expect(page.getByRole('button', { name: 'Regions' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: /Edit Place - Icon Selector Place/ })).toBeVisible();
+    await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-trigger]')).toBeVisible();
     await openIconSelector(page);
     await expectSelectorPanelContained(page);
     await expectDockedEditorComfortable(page);
@@ -279,6 +282,11 @@ async function expectDockedEditorComfortable(page: Page): Promise<void> {
     return {
       bodyHeight: bodyBox?.height ?? 0,
       bodyOverflowY: body ? window.getComputedStyle(body).overflowY : '',
+      drawerTabClientHeight: document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tab[aria-label="Regions tab"]')?.clientHeight ?? 0,
+      drawerTabOverflowY: document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tab[aria-label="Regions tab"]')
+        ? window.getComputedStyle(document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tab[aria-label="Regions tab"]')!).overflowY
+        : '',
+      drawerTabScrollHeight: document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tab[aria-label="Regions tab"]')?.scrollHeight ?? 0,
       panelBottom: document.querySelector<HTMLElement>('[data-icon-selector-panel]')?.getBoundingClientRect().bottom ?? 0,
       sidebarClientHeight: sidebar?.clientHeight ?? 0,
       sidebarOverflowY: sidebar ? window.getComputedStyle(sidebar).overflowY : '',
@@ -292,12 +300,17 @@ async function expectDockedEditorComfortable(page: Page): Promise<void> {
   if (metrics.viewportWidth > 900) {
     expect(metrics.surfaceHeight, 'Docked place editor should have enough height for selector controls and fields.').toBeGreaterThanOrEqual(desktopMinimum);
     expect(metrics.bodyHeight, 'Docked place editor body should leave comfortable room for fields.').toBeGreaterThanOrEqual(420);
+  } else if (metrics.viewportWidth <= 640) {
+    expect(metrics.drawerTabOverflowY, 'Phone drawer should keep active editor overflow inside the active tab.').toBe('auto');
+    expect(metrics.drawerTabScrollHeight, 'Phone drawer active tab should own the editor scroll range.').toBeGreaterThanOrEqual(metrics.drawerTabClientHeight);
   } else {
     expect(metrics.sidebarScrollHeight, 'Narrow sidebar should keep editor overflow contained in sidebar scrolling.').toBeGreaterThan(metrics.sidebarClientHeight);
   }
 
   expect(metrics.bodyOverflowY, 'Docked place editor body should scroll internally.').toBe('auto');
-  expect(['auto', 'scroll']).toContain(metrics.sidebarOverflowY);
+  if (metrics.viewportWidth > 640) {
+    expect(['auto', 'scroll']).toContain(metrics.sidebarOverflowY);
+  }
   if (metrics.panelBottom > 0) {
     expect(metrics.panelBottom, 'Open selector panel should stay inside the usable editor surface.').toBeLessThanOrEqual(metrics.viewportHeight + 1);
   }
