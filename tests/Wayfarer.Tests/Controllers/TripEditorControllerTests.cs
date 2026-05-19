@@ -23,6 +23,8 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorControllerTests : TestBase
 {
+    private const string PublicTripViewRouteName = "PublicTripView";
+
     [Fact]
     public async Task GetEditorStateWithoutUserReturnsUnauthorized()
     {
@@ -162,7 +164,7 @@ public sealed class TripEditorControllerTests : TestBase
             .Single(method => method.Name == nameof(PublicTripViewerController.View))
             .GetCustomAttributes(typeof(RouteAttribute), inherit: false)
             .Cast<RouteAttribute>()
-            .Single(attribute => attribute.Name == PublicTripViewerController.PublicTripViewRouteName);
+            .Single(attribute => attribute.Name == PublicTripViewRouteName);
 
         Assert.Equal("/Public/Trips/{id}", route.Template);
     }
@@ -322,7 +324,7 @@ public sealed class TripEditorControllerTests : TestBase
             {
                 var id = context.Values?.GetType().GetProperty("id")?.GetValue(context.Values);
                 var progress = context.Values?.GetType().GetProperty("progress")?.GetValue(context.Values);
-                Assert.Equal(PublicTripViewerController.PublicTripViewRouteName, context.RouteName);
+                Assert.Equal(PublicTripViewRouteName, context.RouteName);
                 Assert.Equal("https", context.Protocol);
                 return progress == null
                     ? $"https://example.test/Public/Trips/{id}"

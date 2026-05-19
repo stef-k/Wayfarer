@@ -12,7 +12,6 @@ using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
-using PublicTripViewerController = Wayfarer.Areas.Public.Controllers.TripViewerController;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -22,6 +21,8 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorMetadataControllerTests : TestBase
 {
+    private const string PublicTripViewRouteName = "PublicTripView";
+
     [Fact]
     public async Task PatchMetadataForOwnerUpdatesMetadataAndReturnsMetadataOnlyEnvelope()
     {
@@ -246,7 +247,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
             {
                 var id = context.Values?.GetType().GetProperty("id")?.GetValue(context.Values);
                 var progress = context.Values?.GetType().GetProperty("progress")?.GetValue(context.Values);
-                Assert.Equal(PublicTripViewerController.PublicTripViewRouteName, context.RouteName);
+                Assert.Equal(PublicTripViewRouteName, context.RouteName);
                 Assert.Equal("https", context.Protocol);
                 return progress == null
                     ? $"https://example.test/Public/Trips/{id}"

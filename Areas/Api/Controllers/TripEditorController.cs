@@ -9,7 +9,6 @@ using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
 using Wayfarer.Util;
-using PublicTripViewerController = Wayfarer.Areas.Public.Controllers.TripViewerController;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -22,6 +21,8 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Route("api/trips/{tripId:guid}/editor")]
 public sealed partial class TripEditorController : ControllerBase
 {
+    private const string PublicTripViewRouteName = "PublicTripView";
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
     private readonly IIconColorProvider _iconColorProvider;
@@ -375,7 +376,7 @@ public sealed partial class TripEditorController : ControllerBase
 
         return Url.RouteUrl(new UrlRouteContext
         {
-            RouteName = PublicTripViewerController.PublicTripViewRouteName,
+            RouteName = PublicTripViewRouteName,
             Values = values,
             Protocol = Request.Scheme
         });

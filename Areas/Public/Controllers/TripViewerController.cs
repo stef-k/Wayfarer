@@ -16,11 +16,6 @@ namespace Wayfarer.Areas.Public.Controllers;
 public class TripViewerController : BaseController
 {
     /// <summary>
-    /// Canonical named route for absolute public trip links generated outside the public controller.
-    /// </summary>
-    public const string PublicTripViewRouteName = "PublicTripView";
-
-    /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous requests by IP address.
     /// Uses atomic operations via <see cref="RateLimitHelper"/> to prevent race conditions.
     /// Exposed internally for periodic background cleanup by <see cref="Wayfarer.Jobs.RateLimitCleanupJob"/>.
@@ -224,7 +219,7 @@ public class TripViewerController : BaseController
 
     // GET: /Public/Trips/{id}?embed=true
     [HttpGet]
-    [Route("/Public/Trips/{id}", Name = PublicTripViewRouteName, Order = 2)]
+    [Route("/Public/Trips/{id}", Name = "PublicTripView", Order = 2)]
     public async Task<IActionResult> View(Guid id, bool embed = false)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
