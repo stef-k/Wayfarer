@@ -4,6 +4,7 @@
 }
 
 .trip-editor-mobile-drawer__handle,
+.trip-editor-mobile-drawer__state-controls,
 .trip-editor-mobile-drawer__tabs {
   display: none;
 }
@@ -49,6 +50,21 @@
     min-height: 10.75rem;
   }
 
+  .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="collapsed"] {
+    max-height: 6.75rem;
+    min-height: 6.75rem;
+  }
+
+  .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="expanded-edit"] {
+    max-height: min(68dvh, 38rem);
+    min-height: min(42dvh, 26rem);
+  }
+
+  .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="collapsed"] .trip-editor-mobile-drawer__tabs,
+  .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="collapsed"] .trip-editor-mobile-drawer__body {
+    display: none;
+  }
+
   .trip-editor-sidebar--mobile-drawer .trip-editor-sidebar__header {
     align-items: center;
     flex-direction: row;
@@ -62,7 +78,7 @@
 
   .trip-editor-mobile-drawer {
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     min-height: 0;
   }
 
@@ -81,6 +97,29 @@
     gap: 0.35rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-bottom: 0.55rem;
+  }
+
+  .trip-editor-mobile-drawer__state-controls {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: flex-end;
+    margin-bottom: 0.45rem;
+  }
+
+  .trip-editor-mobile-drawer__state-controls button {
+    background: transparent;
+    border: 1px solid var(--trip-editor-field-border);
+    border-radius: 6px;
+    color: var(--trip-editor-muted);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.25rem 0.45rem;
+  }
+
+  .trip-editor-mobile-drawer__state-controls button[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--trip-editor-accent) 14%, var(--trip-editor-surface));
+    color: var(--trip-editor-text);
   }
 
   .trip-editor-mobile-drawer__tabs button {

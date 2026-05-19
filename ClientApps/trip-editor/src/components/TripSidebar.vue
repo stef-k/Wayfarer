@@ -58,11 +58,13 @@ const emit = defineEmits<{
 }>();
 
 type MobileDrawerTab = 'trip' | 'regions' | 'segments';
+type MobileDrawerState = 'collapsed' | 'peek' | 'expanded-view' | 'expanded-edit';
 
 const searchQuery = ref('');
 const segmentDraftDirty = ref(false);
 const isVisitProgressOpen = ref(false);
 const activeMobileTab = ref<MobileDrawerTab>('trip');
+const mobileDrawerState = ref<Exclude<MobileDrawerState, 'expanded-edit'>>('expanded-view');
 const normalizedSearchQuery = computed(() => normalize(searchQuery.value));
 const searchMinimumCharacters = computed(() => props.state.options.limits?.sidebarSearchMinCharacters ?? 1);
 const isSearchActive = computed(() => normalizedSearchQuery.value.length >= searchMinimumCharacters.value);
@@ -106,12 +108,12 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
 });
 const hasSidebarSearchMatches = computed(() => sidebarSearch.value.hasMatches || filteredSegments.value.length > 0);
 const hasAnyDraftChanges = computed(() => props.hasRegionDraftChanges || segmentDraftDirty.value);
-const drawerMode = computed(() => {
+const drawerMode = computed<MobileDrawerState>(() => {
   if (props.editorSurface.isMapWorkActive.value) {
     return 'peek';
   }
 
-  return props.editorSurface.activeTarget.value ? 'expanded-edit' : 'expanded-view';
+  return props.editorSurface.activeTarget.value ? 'expanded-edit' : mobileDrawerState.value;
 });
 
 watch(
@@ -154,8 +156,29 @@ watch(
   }
 );
 
-function setMobileTab(tab: MobileDrawerTab): void {
+async function setMobileTab(tab: MobileDrawerTab): Promise<void> {
+  if (activeMobileTab.value === tab) {
+    return;
+  }
+
+  const activeTarget = props.editorSurface.activeTarget.value;
+  if (props.mobileDrawerActive && activeTarget && tabForTargetKind(activeTarget.kind) !== tab) {
+    const canSwitch = await props.editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(activeTarget.kind)} changes before switching tabs?`);
+    if (!canSwitch) {
+      activeMobileTab.value = tabForTargetKind(activeTarget.kind);
+      return;
+    }
+  }
+
   activeMobileTab.value = tab;
+}
+
+function setMobileDrawerState(state: Exclude<MobileDrawerState, 'expanded-edit'>): void {
+  if (props.editorSurface.isMapWorkActive.value || props.editorSurface.activeTarget.value) {
+    return;
+  }
+
+  mobileDrawerState.value = state;
 }
 
 function tabForTargetKind(kind: string): MobileDrawerTab {
@@ -168,6 +191,14 @@ function tabForTargetKind(kind: string): MobileDrawerTab {
   }
 
   return 'trip';
+}
+
+function targetKindLabel(kind: string): string {
+  if (kind === 'metadata') {
+    return 'trip';
+  }
+
+  return kind;
 }
 
 const segmentLabel = (state: EditorTripState, segment: EditorSegment): string => {
@@ -240,6 +271,12 @@ function normalize(value: string): string {
 
     <div class="trip-editor-mobile-drawer" aria-label="Trip editor mobile drawer">
       <div class="trip-editor-mobile-drawer__handle" aria-hidden="true"></div>
+      <div v-if="!editorSurface.activeTarget.value && !editorSurface.isMapWorkActive.value" class="trip-editor-mobile-drawer__state-controls" aria-label="Drawer size">
+        <button type="button" :aria-pressed="drawerMode === 'collapsed'" @click="setMobileDrawerState('collapsed')">Collapse</button>
+        <button type="button" :aria-pressed="drawerMode === 'peek'" @click="setMobileDrawerState('peek')">Peek</button>
+        <button type="button" :aria-pressed="drawerMode === 'expanded-view'" @click="setMobileDrawerState('expanded-view')">Expand</button>
+      </div>
+
       <nav class="trip-editor-mobile-drawer__tabs" aria-label="Trip editor sections">
         <button type="button" :class="{ active: activeMobileTab === 'trip' }" :aria-pressed="activeMobileTab === 'trip'" @click="setMobileTab('trip')">Trip</button>
         <button type="button" :class="{ active: activeMobileTab === 'regions' }" :aria-pressed="activeMobileTab === 'regions'" @click="setMobileTab('regions')">Regions</button>

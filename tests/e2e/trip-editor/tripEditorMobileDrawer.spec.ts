@@ -1,9 +1,11 @@
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorSurface,
   editorPath,
   expectInitializedTripMap,
   expectMountedWorkspace,
+  firstVisibleAddPlace,
   signIn
 } from './tripEditorTestUtils';
 
@@ -20,12 +22,34 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expect(page.getByRole('button', { name: 'Segments' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toHaveCount(0);
+    await expectDrawerState(page, 'expanded-view');
     await expectMapFirstPhoneLayout(page);
     await capture(page, testInfo, 'phone-light-initial-trip-map-first');
 
     await page.evaluate(() => document.documentElement.setAttribute('data-bs-theme', 'dark'));
     await expectMapFirstPhoneLayout(page);
     await capture(page, testInfo, 'phone-dark-initial-trip-map-first');
+  });
+
+  test('phone drawer exposes deterministic collapsed, peek, and expanded view states', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+
+    await expectDrawerState(page, 'expanded-view');
+
+    await page.getByRole('button', { name: 'Collapse' }).click();
+    await expectDrawerState(page, 'collapsed');
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeHidden();
+    await expectMapFirstPhoneLayout(page);
+
+    await page.getByRole('button', { name: 'Peek' }).click();
+    await expectDrawerState(page, 'peek');
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expectMapFirstPhoneLayout(page);
+
+    await page.getByRole('button', { name: 'Expand' }).click();
+    await expectDrawerState(page, 'expanded-view');
+    await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('phone routes tab-owned editing, search-add, and map-work through the drawer', async ({ page }, testInfo) => {
@@ -45,6 +69,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('button', { name: 'Edit Trip' }).click();
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
+    await expectDrawerState(page, 'expanded-edit');
     await capture(page, testInfo, 'phone-dark-active-trip-edit');
     await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
 
@@ -60,10 +85,80 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
 
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
+    await expectDrawerState(page, 'peek');
     await expect(page.getByRole('region', { name: 'Map search' })).toHaveCount(0);
     await expectMapFirstPhoneLayout(page);
     await capture(page, testInfo, 'phone-place-coordinate-map-work');
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+  });
+
+  test('dirty metadata tab switch keeps editing on cancel and discards before switching', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+
+    await page.getByRole('button', { name: 'Edit Trip' }).click();
+    const form = activeEditorSurface(page);
+    const name = form.getByLabel('Name');
+    const originalName = await name.inputValue();
+    const draftName = `${originalName} mobile tab draft`;
+    await name.fill(draftName);
+
+    await page.getByRole('button', { name: 'Segments' }).click();
+    const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(keepDialog).toContainText('Discard unsaved trip changes before switching tabs?');
+    await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(name).toHaveValue(draftName);
+
+    await page.getByRole('button', { name: 'Segments' }).click();
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toContainText('Discard unsaved trip changes before switching tabs?');
+    await discardDialog.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.getByRole('button', { name: 'Segments' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#trip-editor-metadata-form')).toHaveCount(0);
+  });
+
+  test('dirty region and place editors cannot be hidden by mobile tab switching', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+
+    await page.getByRole('button', { name: 'Regions' }).click();
+    await page.locator('.trip-editor-region-card--normal').first().locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' }).click();
+    await expectDirtyTabSwitchGuard(page, {
+      dirtyFieldLabel: 'Name',
+      draftValue: 'Mobile dirty region tab guard',
+      owningTab: 'Regions',
+      targetTab: 'Segments',
+      promptText: 'Discard unsaved region changes before switching tabs?',
+      activeHeading: /Edit Region -/
+    });
+
+    await page.getByRole('button', { name: 'Regions' }).click();
+    await firstVisibleAddPlace(page).click();
+    await expectDirtyTabSwitchGuard(page, {
+      dirtyFieldLabel: 'Name',
+      draftValue: 'Mobile dirty place tab guard',
+      owningTab: 'Regions',
+      targetTab: 'Trip',
+      promptText: 'Discard unsaved place changes before switching tabs?',
+      activeHeading: 'Add Place'
+    });
+  });
+
+  test('dirty segment editor cannot be hidden by mobile tab switching', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+
+    await page.getByRole('button', { name: 'Segments' }).click();
+    await page.getByRole('button', { name: 'Add Segment' }).click();
+    await expectDirtyTabSwitchGuard(page, {
+      dirtyFieldLabel: 'Estimated distance km',
+      draftValue: '12',
+      owningTab: 'Segments',
+      targetTab: 'Trip',
+      promptText: 'Discard unsaved segment changes before switching tabs?',
+      activeHeading: 'Add Segment'
+    });
   });
 
   test('metadata draft survives desktop-phone-desktop breakpoint transitions', async ({ page }) => {
@@ -136,6 +231,41 @@ async function openEditorAt(page: Page, viewport: { width: number; height: numbe
   await page.setViewportSize(viewport);
   await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
+}
+
+async function expectDrawerState(page: Page, state: string): Promise<void> {
+  await expect(page.locator('.trip-editor-sidebar--mobile-drawer')).toHaveAttribute('data-mobile-drawer-state', state);
+}
+
+async function expectDirtyTabSwitchGuard(
+  page: Page,
+  options: {
+    activeHeading: string | RegExp;
+    dirtyFieldLabel: string;
+    draftValue: string;
+    owningTab: string;
+    promptText: string;
+    targetTab: string;
+  }
+): Promise<void> {
+  const form = activeEditorSurface(page);
+  const field = form.getByLabel(options.dirtyFieldLabel);
+  await expect(page.getByRole('heading', { name: options.activeHeading })).toBeVisible();
+  await field.fill(options.draftValue);
+
+  await page.getByRole('button', { name: options.targetTab }).click();
+  const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+  await expect(keepDialog).toContainText(options.promptText);
+  await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(page.getByRole('button', { name: options.owningTab, exact: options.owningTab === 'Trip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(field).toHaveValue(options.draftValue);
+
+  await page.getByRole('button', { name: options.targetTab }).click();
+  const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+  await expect(discardDialog).toContainText(options.promptText);
+  await discardDialog.getByRole('button', { name: 'Discard' }).click();
+  await expect(page.getByRole('button', { name: options.targetTab, exact: options.targetTab === 'Trip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: options.activeHeading })).toHaveCount(0);
 }
 
 async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
