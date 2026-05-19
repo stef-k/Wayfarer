@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
@@ -20,6 +21,8 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Route("api/trips/{tripId:guid}/editor")]
 public sealed partial class TripEditorController : ControllerBase
 {
+    private const string PublicTripViewRouteName = "PublicTripView";
+
     private readonly ApplicationDbContext _dbContext;
     private readonly IWebHostEnvironment _environment;
     private readonly IIconColorProvider _iconColorProvider;
@@ -362,11 +365,25 @@ public sealed partial class TripEditorController : ControllerBase
             new EditorLimitsDto(6, 1));
     }
 
-    private string? GeneratePublicTripUrl(Guid tripId) =>
-        Url.Action("View", "TripViewer", new { area = "Public", id = tripId }, Request.Scheme);
+    /// <summary>
+    /// Generates absolute public trip links through the named attribute route to avoid conventional area fallback URLs.
+    /// </summary>
+    private string? GeneratePublicTripUrl(Guid tripId, int? progress = null)
+    {
+        object values = progress.HasValue
+            ? new { id = tripId, progress = progress.Value }
+            : new { id = tripId };
+
+        return Url.RouteUrl(new UrlRouteContext
+        {
+            RouteName = PublicTripViewRouteName,
+            Values = values,
+            Protocol = Request.Scheme
+        });
+    }
 
     private string? GenerateProgressPublicTripUrl(Guid tripId) =>
-        Url.Action("View", "TripViewer", new { area = "Public", id = tripId, progress = 1 }, Request.Scheme);
+        GeneratePublicTripUrl(tripId, progress: 1);
 
     private IActionResult? RequireEditorUser(out string? userId)
     {

@@ -21,6 +21,8 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorMetadataControllerTests : TestBase
 {
+    private const string PublicTripViewRouteName = "PublicTripView";
+
     [Fact]
     public async Task PatchMetadataForOwnerUpdatesMetadataAndReturnsMetadataOnlyEnvelope()
     {
@@ -210,9 +212,13 @@ public sealed class TripEditorMetadataControllerTests : TestBase
 
     private static void ConfigureControllerWithUserRole(ControllerBase controller, string userId, string role = "User")
     {
+        var httpContext = BuildHttpContextWithUser(userId, role);
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("example.test");
+
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = BuildHttpContextWithUser(userId, role)
+            HttpContext = httpContext
         };
     }
 
@@ -235,12 +241,14 @@ public sealed class TripEditorMetadataControllerTests : TestBase
             new TripEditorSegmentMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
 
-        var url = new Mock<IUrlHelper>();
-        url.Setup(u => u.Action(It.IsAny<UrlActionContext>()))
-            .Returns((UrlActionContext context) =>
+        var url = new Mock<IUrlHelper>(MockBehavior.Strict);
+        url.Setup(u => u.RouteUrl(It.IsAny<UrlRouteContext>()))
+            .Returns((UrlRouteContext context) =>
             {
                 var id = context.Values?.GetType().GetProperty("id")?.GetValue(context.Values);
                 var progress = context.Values?.GetType().GetProperty("progress")?.GetValue(context.Values);
+                Assert.Equal(PublicTripViewRouteName, context.RouteName);
+                Assert.Equal("https", context.Protocol);
                 return progress == null
                     ? $"https://example.test/Public/Trips/{id}"
                     : $"https://example.test/Public/Trips/{id}?progress={progress}";

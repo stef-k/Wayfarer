@@ -217,9 +217,9 @@ public class TripViewerController : BaseController
         return RedirectToRoute("PublicTripsIndex", new { tags = slug, view, sort, page });
     }
 
-    // GET: /Public/Trips/View/{id}?embed=true
+    // GET: /Public/Trips/{id}?embed=true
     [HttpGet]
-    [Route("/Public/Trips/{id}", Order = 2)]
+    [Route("/Public/Trips/{id}", Name = "PublicTripView", Order = 2)]
     public async Task<IActionResult> View(Guid id, bool embed = false)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

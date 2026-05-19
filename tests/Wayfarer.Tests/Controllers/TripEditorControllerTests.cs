@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +13,7 @@ using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using PublicTripViewerController = Wayfarer.Areas.Public.Controllers.TripViewerController;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -21,6 +23,8 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorControllerTests : TestBase
 {
+    private const string PublicTripViewRouteName = "PublicTripView";
+
     [Fact]
     public async Task GetEditorStateWithoutUserReturnsUnauthorized()
     {
@@ -153,6 +157,19 @@ public sealed class TripEditorControllerTests : TestBase
     }
 
     [Fact]
+    public void PublicTripViewRouteUsesCanonicalPublicTripsTemplate()
+    {
+        var route = typeof(PublicTripViewerController)
+            .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Single(method => method.Name == nameof(PublicTripViewerController.View))
+            .GetCustomAttributes(typeof(RouteAttribute), inherit: false)
+            .Cast<RouteAttribute>()
+            .Single(attribute => attribute.Name == PublicTripViewRouteName);
+
+        Assert.Equal("/Public/Trips/{id}", route.Template);
+    }
+
+    [Fact]
     public async Task GetEditorStateMapsCoordinatesAndGeoJsonWithExpectedShapes()
     {
         using var db = CreateDbContext();
@@ -265,9 +282,13 @@ public sealed class TripEditorControllerTests : TestBase
 
     private static void ConfigureControllerWithUserRole(ControllerBase controller, string userId, string role = "User")
     {
+        var httpContext = BuildHttpContextWithUser(userId, role);
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("example.test");
+
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = BuildHttpContextWithUser(userId, role)
+            HttpContext = httpContext
         };
     }
 
@@ -297,12 +318,14 @@ public sealed class TripEditorControllerTests : TestBase
             new TripEditorSegmentMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
 
-        var url = new Mock<IUrlHelper>();
-        url.Setup(u => u.Action(It.IsAny<UrlActionContext>()))
-            .Returns((UrlActionContext context) =>
+        var url = new Mock<IUrlHelper>(MockBehavior.Strict);
+        url.Setup(u => u.RouteUrl(It.IsAny<UrlRouteContext>()))
+            .Returns((UrlRouteContext context) =>
             {
                 var id = context.Values?.GetType().GetProperty("id")?.GetValue(context.Values);
                 var progress = context.Values?.GetType().GetProperty("progress")?.GetValue(context.Values);
+                Assert.Equal(PublicTripViewRouteName, context.RouteName);
+                Assert.Equal("https", context.Protocol);
                 return progress == null
                     ? $"https://example.test/Public/Trips/{id}"
                     : $"https://example.test/Public/Trips/{id}?progress={progress}";
