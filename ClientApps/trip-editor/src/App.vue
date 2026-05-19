@@ -205,6 +205,10 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
     return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before switching tabs?`);
   }
 
+  if (target.kind !== 'place') {
+    return true;
+  }
+
   if (target.mode === 'add') {
     return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
   }
