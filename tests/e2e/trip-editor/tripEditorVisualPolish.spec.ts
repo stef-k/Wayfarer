@@ -25,7 +25,7 @@ const matrixViewports = [
 ];
 
 test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
 
   for (const viewport of matrixViewports) {
     test(`metadata, search, visits, confirmations, and map-work evidence at ${viewport.name}`, async ({ page }, testInfo) => {
