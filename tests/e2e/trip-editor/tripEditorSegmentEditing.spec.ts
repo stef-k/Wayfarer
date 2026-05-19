@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorCancelButton,
   editorApiPath,
   expectMountedWorkspace,
   expectNoLegacyEditorAction,
@@ -26,7 +27,7 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.locator('#trip-editor-segment-form')).toHaveCount(1);
     await page.locator('#trip-editor-segment-form').getByLabel('Transport mode').selectOption('walk');
 
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await openEditableSegment(page);
     await page.getByRole('button', { name: 'Expand Editor' }).click();
@@ -155,7 +156,8 @@ test.describe.serial('Trip Editor segment editing', () => {
     });
 
     await expectSegmentOrder(page, [segmentId, secondSegmentId]);
-    await segmentRow(page, segmentId).getByRole('button', { name: 'Drag to reorder segment' }).dragTo(segmentRow(page, secondSegmentId));
+    await segmentRow(page, segmentId).getByRole('button', { name: 'Drag to reorder segment' }).focus();
+    await page.keyboard.press('ArrowDown');
     await expectSegmentOrder(page, [secondSegmentId, segmentId]);
     await page.reload();
     await expectMountedWorkspace(page);

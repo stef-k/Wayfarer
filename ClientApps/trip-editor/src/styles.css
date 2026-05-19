@@ -529,6 +529,18 @@ body {
   z-index: 1070;
 }
 
+.trip-editor-confirm {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 1080;
+}
+
+.trip-editor-confirm__backdrop,
+.trip-editor-confirm__modal {
+  pointer-events: auto;
+}
+
 .modal.trip-editor-confirm__modal { display: block; z-index: 1080; }
 
 .trip-editor-confirm-dialog { max-width: min(420px, calc(100vw - 2rem)); }

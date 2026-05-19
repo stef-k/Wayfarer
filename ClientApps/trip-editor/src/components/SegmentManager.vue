@@ -49,6 +49,7 @@ const lastSavedAt = ref<string | null>(null);
 const routeMapWork = reactive<SegmentRouteMapWorkState>({ route: null, stopEdit: null });
 let unregisterHandler: (() => void) | null = null;
 let sortable: { destroy: () => void } | null = null;
+let sortableRetry: number | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
 
 const activeSegment = computed(() => (draft.id ? props.state.segmentsById[draft.id] ?? null : null));
@@ -251,9 +252,35 @@ async function reorder(ids: Guid[], previousIds: Guid[]): Promise<void> {
   }
 }
 
+async function moveSegmentByKeyboard(segmentId: Guid, offset: number): Promise<void> {
+  if (props.searchActive || isOrdering.value) {
+    return;
+  }
+
+  const ids = props.segments.map(segment => segment.id);
+  const index = ids.indexOf(segmentId);
+  const nextIndex = index + offset;
+  if (index < 0 || nextIndex < 0 || nextIndex >= ids.length) {
+    return;
+  }
+
+  const previousIds = props.state.segmentOrder.filter(id => props.state.segmentsById[id]);
+  const [id] = ids.splice(index, 1);
+  ids.splice(nextIndex, 0, id);
+  await reorder(ids, previousIds);
+}
+
 function attachSortable(): void {
   destroySortable();
-  if (props.searchActive || !segmentList.value || !window.Sortable) {
+  if (props.searchActive || !segmentList.value) {
+    return;
+  }
+
+  if (!window.Sortable) {
+    sortableRetry = window.setTimeout(() => {
+      sortableRetry = null;
+      attachSortable();
+    }, 50);
     return;
   }
 
@@ -278,6 +305,10 @@ function attachSortable(): void {
 }
 
 function destroySortable(): void {
+  if (sortableRetry !== null) {
+    window.clearTimeout(sortableRetry);
+    sortableRetry = null;
+  }
   sortable?.destroy();
   sortable = null;
 }
@@ -352,7 +383,7 @@ function modeText(segment: EditorSegment): string {
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
-        <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" title="Drag to reorder segment" aria-label="Drag to reorder segment">↕</button>
+        <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" title="Drag to reorder segment" aria-label="Drag to reorder segment" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
         <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" :aria-label="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
         <button type="button" class="trip-editor-list-button" @click="openEdit(segment)">
           <span>{{ segmentLabel(segment) }}</span>

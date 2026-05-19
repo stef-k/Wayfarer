@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorAlert,
+  activeEditorCancelButton,
   editorApiPath,
   editorPath,
   expectMountedWorkspace,
@@ -31,7 +33,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await page.getByRole('button', { name: 'Save Place' }).click();
 
     await expect.poll(staleSave.requests).toBe(1);
-    await expect(page.getByRole('alert')).toContainText('Trip Editor place update returned 404');
+    await expect(activeEditorAlert(page)).toContainText('Trip Editor place update returned 404');
     await expectFailedStatus(page);
     await expect(form.getByLabel('Name')).toHaveValue(draftName);
     await expect(form.getByLabel('Address')).toHaveValue('PW failed place save address');
@@ -39,7 +41,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
 
     await staleSave.unroute();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(form).toHaveCount(0);
     await expect(placeRow(page, fixture.place.id).locator('.trip-editor-place-row__name')).toHaveText(fixture.place.name);
@@ -63,13 +65,13 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await page.getByRole('button', { name: 'Save Segment' }).click();
 
     await expect.poll(failure.requests).toBe(1);
-    await expect(page.getByRole('alert')).toContainText('Trip Editor segment update returned 500');
+    await expect(activeEditorAlert(page)).toContainText('Trip Editor segment update returned 500');
     await expectFailedStatus(page);
     await expect(form.getByLabel('Estimated distance km')).toHaveValue('123.45');
     await expectPersistedSegmentDistance(page, segment.id, segment.estimatedDistanceKm);
 
     await failure.unroute();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(form).toHaveCount(0);
   });
@@ -99,7 +101,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
 
     await expect.poll(failure.requests).toBe(1);
-    await expect(page.getByRole('alert')).toContainText('Trip Editor place delete returned 500');
+    await expect(activeEditorAlert(page)).toContainText('Trip Editor place delete returned 500');
     await expectFailedStatus(page);
     await expect(form).toBeVisible();
     await expect(placeRow(page, fixture.place.id)).toBeVisible();
@@ -118,7 +120,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     }
 
     await editPlace(page, fixture.place.id);
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
     await expect(page.locator('#trip-editor-place-form')).toHaveCount(0);
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
@@ -126,14 +128,14 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await editPlace(page, fixture.place.id);
     const form = page.locator('#trip-editor-place-form');
     await form.getByLabel('Address').fill('PW dirty cancel draft address');
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     const discard = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(discard).toBeVisible();
     await discard.getByRole('button', { name: 'Keep editing' }).click();
     await expect(form.getByLabel('Address')).toHaveValue('PW dirty cancel draft address');
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
 
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(form).toHaveCount(0);
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
