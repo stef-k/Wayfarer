@@ -18,7 +18,12 @@ type MutableEditorState = Record<string, any>;
 test.describe.serial('Trip Editor mobile bottom drawer', () => {
   test('phone starts map-first with Trip as the drawer tab', async ({ page }, testInfo) => {
     await signIn(page);
-    await openEditorWithTripSummaryFixture(page, { width: 390, height: 844 });
+    await openEditorWithTripSummaryFixture(page, { width: 390, height: 844 }, state => {
+      state.metadata.isPublic = true;
+      state.metadata.shareProgressEnabled = true;
+      state.metadata.publicUrl = '/Public/Trips/mobile-drawer-public';
+      state.metadata.progressPublicUrl = '/Public/Trips/mobile-drawer-progress';
+    });
 
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -38,6 +43,34 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.evaluate(() => document.documentElement.setAttribute('data-bs-theme', 'dark'));
     await expectMapFirstPhoneLayout(page);
     await capture(page, testInfo, 'phone-dark-initial-trip-map-first');
+  });
+
+  test('Trip summary exposes disabled and private share-progress states without progress links', async ({ page }) => {
+    await signIn(page);
+
+    await openEditorWithTripSummaryFixture(page, { width: 390, height: 844 }, state => {
+      state.metadata.isPublic = true;
+      state.metadata.shareProgressEnabled = false;
+      state.metadata.publicUrl = '/Public/Trips/mobile-drawer-public-disabled-progress';
+      state.metadata.progressPublicUrl = '/Public/Trips/mobile-drawer-progress-disabled';
+    });
+    let tripTab = page.locator('.trip-editor-mobile-drawer__tab--trip');
+    await expect(tripTab).toContainText('Public trip');
+    await expect(tripTab).toContainText('Share progress: Disabled');
+    await expect(tripTab.getByRole('link', { name: 'Open public trip' })).toHaveAttribute('href', '/Public/Trips/mobile-drawer-public-disabled-progress');
+    await expect(tripTab.getByRole('link', { name: 'Open progress URL' })).toHaveCount(0);
+
+    await openEditorWithTripSummaryFixture(page, { width: 390, height: 844 }, state => {
+      state.metadata.isPublic = false;
+      state.metadata.shareProgressEnabled = true;
+      state.metadata.publicUrl = null;
+      state.metadata.progressPublicUrl = '/Public/Trips/mobile-drawer-progress-private';
+    });
+    tripTab = page.locator('.trip-editor-mobile-drawer__tab--trip');
+    await expect(tripTab).toContainText('Private trip');
+    await expect(tripTab).toContainText('Share progress: Unavailable until trip is public');
+    await expect(tripTab.getByRole('link', { name: 'Open public trip' })).toHaveCount(0);
+    await expect(tripTab.getByRole('link', { name: 'Open progress URL' })).toHaveCount(0);
   });
 
   test('phone drawer exposes deterministic collapsed, peek, and expanded view states', async ({ page }) => {
@@ -95,6 +128,10 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
     await expectDrawerState(page, 'peek');
+    const mapWorkEditor = page.locator('.trip-editor-sidebar--mobile-drawer .trip-editor-surface--map-work');
+    await expect(mapWorkEditor).toContainText('New place');
+    await expect(mapWorkEditor).toContainText('Add Place');
+    await expect(mapWorkEditor.getByRole('status')).toContainText('Saved');
     await expect(page.getByRole('region', { name: 'Map search' })).toHaveCount(0);
     await expectMapFirstPhoneLayout(page);
     await capture(page, testInfo, 'phone-place-coordinate-map-work');
@@ -329,15 +366,16 @@ async function openEditorAt(page: Page, viewport: { width: number; height: numbe
   await expectMountedWorkspace(page);
 }
 
-// Opens a read-only state variant with public progress URLs for Trip summary assertions.
-async function openEditorWithTripSummaryFixture(page: Page, viewport: { width: number; height: number }): Promise<void> {
+// Opens a read-only state variant for Trip summary assertions.
+async function openEditorWithTripSummaryFixture(
+  page: Page,
+  viewport: { width: number; height: number },
+  configureState: (state: MutableEditorState) => void
+): Promise<void> {
   await page.setViewportSize(viewport);
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
-  state.metadata.isPublic = true;
-  state.metadata.shareProgressEnabled = true;
-  state.metadata.publicUrl = '/Public/Trips/mobile-drawer-public';
-  state.metadata.progressPublicUrl = '/Public/Trips/mobile-drawer-progress';
+  configureState(state);
   await page.route(editorApiMatcher, async route => {
     if (route.request().method() !== 'GET') {
       throw new Error(`Unexpected Trip summary fixture mutation ${route.request().method()} ${route.request().url()}`);
