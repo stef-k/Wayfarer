@@ -201,8 +201,8 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
     return true;
   }
 
-  if (target.kind !== 'place') {
-    return true;
+  if (mobileDrawerActive.value && tabForTargetKind(target.kind) !== 'regions') {
+    return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before switching tabs?`);
   }
 
   if (target.mode === 'add') {
@@ -210,6 +210,28 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
   }
 
   return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
+}
+
+/// Maps active editor ownership to the phone drawer tab that can keep it visible.
+function tabForTargetKind(kind: string): 'trip' | 'regions' | 'segments' {
+  if (kind === 'segment') {
+    return 'segments';
+  }
+
+  if (kind === 'region' || kind === 'place' || kind === 'area') {
+    return 'regions';
+  }
+
+  return 'trip';
+}
+
+/// Keeps dirty-discard copy aligned with the manual phone tab switch guard.
+function targetKindLabel(kind: string): string {
+  if (kind === 'metadata') {
+    return 'trip';
+  }
+
+  return kind;
 }
 
 /// Clears selected-place context, closing the selected place editor first when that editor owns the selection.

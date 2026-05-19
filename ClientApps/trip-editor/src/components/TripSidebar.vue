@@ -151,7 +151,7 @@ watch(
   () => props.selectedPlaceId,
   placeId => {
     if (props.mobileDrawerActive && placeId) {
-      activeMobileTab.value = 'regions';
+      void setMobileTab('regions');
     }
   }
 );

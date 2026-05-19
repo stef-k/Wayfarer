@@ -118,6 +118,92 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expect(page.locator('#trip-editor-metadata-form')).toHaveCount(0);
   });
 
+  test('dirty metadata blocks marker selection routing until discard', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+    await expectInitializedTripMap(page);
+
+    await page.getByRole('button', { name: 'Edit Trip' }).click();
+    const form = activeEditorSurface(page);
+    const name = form.getByLabel('Name');
+    const originalName = await name.inputValue();
+    const draftName = `${originalName} marker route draft`;
+    await name.fill(draftName);
+
+    await tapFirstSavedPlaceMarker(page);
+    const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(keepDialog).toContainText('Discard unsaved trip changes before switching tabs?');
+    await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(drawerTab(page, 'Trip')).toHaveAttribute('aria-pressed', 'true');
+    await expect(name).toHaveValue(draftName);
+    await expectSelectedMarkerCount(page, 0);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Clear Selection' })).toHaveCount(0);
+
+    await tapFirstSavedPlaceMarker(page);
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toContainText('Discard unsaved trip changes before switching tabs?');
+    await discardDialog.getByRole('button', { name: 'Discard' }).click();
+    await expect(drawerTab(page, 'Regions')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#trip-editor-metadata-form')).toHaveCount(0);
+    await expectSelectedMarkerCount(page, 1);
+    await expect(page.locator('.leaflet-popup')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Clear Selection' })).toBeVisible();
+  });
+
+  test('dirty regions-owned area editor remains visible during same-tab marker selection', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+    await expectInitializedTripMap(page);
+
+    await page.getByRole('button', { name: 'Regions' }).click();
+    await page.getByRole('button', { name: 'Add Area' }).first().click();
+    const form = activeEditorSurface(page);
+    const name = form.getByLabel('Name');
+    await expect(page.getByRole('heading', { name: 'Add Area' })).toBeVisible();
+    await name.fill('Mobile dirty area selection guard');
+
+    await tapFirstSavedPlaceMarker(page);
+    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
+    await expect(drawerTab(page, 'Regions')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: 'Add Area' })).toBeVisible();
+    await expect(name).toHaveValue('Mobile dirty area selection guard');
+    await expectSelectedMarkerCount(page, 1);
+    await expect(page.getByRole('button', { name: 'Clear Selection' })).toBeVisible();
+  });
+
+  test('dirty segment editor blocks marker selection routing until discard', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+    await expectInitializedTripMap(page);
+
+    await page.getByRole('button', { name: 'Segments' }).click();
+    await page.getByRole('button', { name: 'Add Segment' }).click();
+    const form = activeEditorSurface(page);
+    const distance = form.getByLabel('Estimated distance km');
+    await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
+    await distance.fill('14');
+
+    await tapFirstSavedPlaceMarker(page);
+    const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(keepDialog).toContainText('Discard unsaved segment changes before switching tabs?');
+    await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(drawerTab(page, 'Segments')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
+    await expect(distance).toHaveValue('14');
+    await expectSelectedMarkerCount(page, 0);
+    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+
+    await tapFirstSavedPlaceMarker(page);
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toContainText('Discard unsaved segment changes before switching tabs?');
+    await discardDialog.getByRole('button', { name: 'Discard' }).click();
+    await expect(drawerTab(page, 'Regions')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('heading', { name: 'Add Segment' })).toHaveCount(0);
+    await expectSelectedMarkerCount(page, 1);
+    await expect(page.locator('.leaflet-popup')).toBeVisible();
+  });
+
   test('dirty region and place editors cannot be hidden by mobile tab switching', async ({ page }) => {
     await signIn(page);
     await openEditorAt(page, { width: 390, height: 844 });
@@ -270,6 +356,18 @@ async function expectDirtyTabSwitchGuard(
 
 function drawerTab(page: Page, name: string) {
   return page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name, exact: true });
+}
+
+async function tapFirstSavedPlaceMarker(page: Page): Promise<void> {
+  const marker = page.locator('[data-place-marker-icon]').first();
+  await expect(marker).toBeVisible();
+  await marker.evaluate(element => {
+    element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  });
+}
+
+async function expectSelectedMarkerCount(page: Page, count: number): Promise<void> {
+  await expect(page.locator('.trip-editor-map-marker--selected [data-place-marker-icon]')).toHaveCount(count);
 }
 
 async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
