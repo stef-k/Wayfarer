@@ -34,7 +34,7 @@ var builder = WebApplication.CreateBuilder(args);
 #region CLI Command Handling
 
 // Handling the "reset-password" command from the CLI
-if (args.Length > 0 && args[0] == "reset-password") await HandlePasswordResetCommand(args);
+if (args.Length > 0 && args[0] == "reset-password") { await HandlePasswordResetCommand(args); return; }
 
 #endregion CLI Command Handling
 
@@ -187,7 +187,7 @@ static async Task HandlePasswordResetCommand(string[] args)
     var username = args[1];
     var newPassword = args[2];
 
-    // Rebuild services to handle the password reset
+    // Build a minimal command host so UserManager is resolved from a normal DI scope.
     var builder = WebApplication.CreateBuilder(args);
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
@@ -197,11 +197,10 @@ static async Task HandlePasswordResetCommand(string[] args)
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
 
-    var services = builder.Services.BuildServiceProvider();
+    await using var app = builder.Build();
+    using var scope = app.Services.CreateScope();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-
-    builder.Services.AddHttpContextAccessor();
     var user = await userManager.FindByNameAsync(username);
     if (user == null)
     {
