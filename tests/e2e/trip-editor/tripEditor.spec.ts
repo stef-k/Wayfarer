@@ -274,7 +274,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await page.getByRole('button', { name: 'Save & Exit' }).click();
 
     await expect(page).toHaveURL(pathRegex(editorPath));
-    await expect(page.getByRole('alert')).toContainText('One or more validation errors occurred.');
+    await expect(activeEditorAlert(page)).toContainText('One or more validation errors occurred.');
     await expect(page.locator('.trip-editor-surface--docked')).toContainText('Injected tag save failure.');
   });
 

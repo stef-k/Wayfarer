@@ -378,8 +378,9 @@ async function discardDirtyMapWork(page: Page): Promise<void> {
 
 async function dragAreaRow(page: Page, fromName: string, toName: string): Promise<void> {
   const from = areaRow(page, fromName);
-  const to = areaRow(page, toName);
-  await from.getByRole('button', { name: 'Drag to reorder area' }).dragTo(to);
+  await expect(areaRow(page, toName)).toBeVisible();
+  await from.getByRole('button', { name: 'Drag to reorder area' }).focus();
+  await page.keyboard.press('ArrowDown');
 }
 
 async function expectAreaOrder(page: Page, names: string[]): Promise<void> {
