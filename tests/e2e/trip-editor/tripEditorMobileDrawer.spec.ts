@@ -66,6 +66,38 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
   });
 
+  test('metadata draft survives desktop-phone-desktop breakpoint transitions', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 1280, height: 900 });
+
+    const nameInput = page.locator('#trip-editor-metadata-form').getByLabel('Name');
+    const originalName = await nameInput.inputValue();
+    const draftName = `${originalName} unsaved resize`;
+    await nameInput.fill(draftName);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
+
+    await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toBeVisible();
+    await discardDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(discardDialog).toHaveCount(0);
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toHaveCount(0);
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
+
+    await page.getByRole('button', { name: 'Cancel / Reset' }).click();
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(originalName);
+    await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
+  });
+
   test('protected tablet and intermediate widths do not activate the drawer', async ({ page }, testInfo) => {
     await signIn(page);
     for (const viewport of [

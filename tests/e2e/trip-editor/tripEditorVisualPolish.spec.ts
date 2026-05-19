@@ -98,12 +98,14 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
 
       await openArea(page);
       await page.getByRole('button', { name: 'Draw/Edit Area' }).click();
+      await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
       await capture(page, testInfo, `${viewport.name}-dark-area-polygon-map-work`);
       note(testInfo, 'area polygon map-work', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await finishMapWorkIfVisible(page);
 
       await openSegment(page);
       await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+      await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
       await capture(page, testInfo, `${viewport.name}-dark-segment-route-map-work`);
       note(testInfo, 'segment route map-work', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await finishMapWorkIfVisible(page);

@@ -236,41 +236,6 @@ function normalize(value: string): string {
         <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
       </section>
 
-      <MetadataEditor
-        :metadata="state.metadata"
-        :tags-by-slug="state.tagsBySlug"
-        :tag-order="state.tagOrder"
-        :tag-options="state.options.tag"
-        :editor-surface="editorSurface"
-        :editor-endpoint="editorEndpoint"
-        :antiforgery-token="antiforgeryToken"
-        :trip-index-url="tripIndexUrl"
-        :has-region-draft-changes="hasAnyDraftChanges"
-        :auto-open="true"
-        @saved="metadata => emit('metadataSaved', metadata)"
-        @mutation-applied="result => emit('mutationApplied', result)"
-      />
-
-      <section v-if="state.permissions.canReadVisitProgress" class="trip-editor-panel">
-        <div class="trip-editor-panel__line">
-          <span>Visit progress</span>
-          <strong>{{ state.visitProgress.percentVisited }}%</strong>
-        </div>
-        <div class="trip-editor-progress" aria-hidden="true">
-          <span :style="{ width: `${state.visitProgress.percentVisited}%` }"></span>
-        </div>
-        <div class="trip-editor-panel__line trip-editor-visit-progress-entry">
-          <p>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited</p>
-          <button type="button" class="btn btn-outline-light btn-sm" @click="isVisitProgressOpen = true">Visits</button>
-        </div>
-      </section>
-
-      <section v-if="state.tagOrder.length > 0" class="trip-editor-panel">
-        <h2>Tags</h2>
-        <div class="trip-editor-tags">
-          <span v-for="slug in state.tagOrder" :key="slug">{{ state.tagsBySlug[slug]?.name }}</span>
-        </div>
-      </section>
     </template>
 
     <div class="trip-editor-mobile-drawer" aria-label="Trip editor mobile drawer">
@@ -282,7 +247,7 @@ function normalize(value: string): string {
       </nav>
 
       <div class="trip-editor-mobile-drawer__body">
-        <section v-if="mobileDrawerActive" v-show="activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" aria-label="Trip tab" :aria-hidden="activeMobileTab !== 'trip'" :inert="activeMobileTab !== 'trip'">
+        <section v-show="!mobileDrawerActive || activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" aria-label="Trip tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'trip'" :inert="mobileDrawerActive && activeMobileTab !== 'trip'">
           <MetadataEditor
             :metadata="state.metadata"
             :tags-by-slug="state.tagsBySlug"
@@ -293,7 +258,7 @@ function normalize(value: string): string {
             :antiforgery-token="antiforgeryToken"
             :trip-index-url="tripIndexUrl"
             :has-region-draft-changes="hasAnyDraftChanges"
-            :auto-open="false"
+            :auto-open="!mobileDrawerActive"
             @saved="metadata => emit('metadataSaved', metadata)"
             @mutation-applied="result => emit('mutationApplied', result)"
           />
@@ -320,7 +285,7 @@ function normalize(value: string): string {
           </section>
 
           <MapSearchControl
-            v-if="!isMapWorkActive"
+            v-if="mobileDrawerActive && !isMapWorkActive"
             :active-target="editorSurface.activeTarget.value"
             :completed-add-request-id="completedSearchAddRequestId ?? null"
             :editor-endpoint="editorEndpoint"
