@@ -228,6 +228,14 @@ function normalize(value: string): string {
     </header>
 
     <template v-if="!mobileDrawerActive">
+      <section class="trip-editor-panel trip-editor-sidebar-search">
+        <label class="trip-editor-field">
+          <span>Sidebar search</span>
+          <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+        </label>
+        <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
+      </section>
+
       <MetadataEditor
         :metadata="state.metadata"
         :tags-by-slug="state.tagsBySlug"
@@ -324,7 +332,7 @@ function normalize(value: string): string {
         </section>
 
         <section v-show="!mobileDrawerActive || activeMobileTab === 'regions'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--regions" aria-label="Regions tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'regions'" :inert="mobileDrawerActive && activeMobileTab !== 'regions'">
-          <section class="trip-editor-panel trip-editor-sidebar-search">
+          <section v-if="mobileDrawerActive" class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
               <span>Sidebar search</span>
               <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
