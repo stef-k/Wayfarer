@@ -255,3 +255,52 @@
     padding-right: 0.75rem;
   }
 }
+
+@media (max-width: 640px) {
+  .trip-editor-map-work-toolbar {
+    background: color-mix(in srgb, var(--trip-editor-surface) 94%, transparent);
+    border: 1px solid var(--trip-editor-border);
+    border-radius: 8px;
+    box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.2);
+    flex-direction: column;
+    gap: 0.55rem;
+    left: 0.75rem;
+    max-width: calc(100% - 1.5rem);
+    padding: 0.55rem;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.75rem;
+    z-index: 14;
+  }
+
+  .trip-editor-map-work-toolbar__actions {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .trip-editor-map-work-toolbar__actions .btn {
+    flex: 0 0 auto;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface {
+    margin-top: 0;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__header,
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer {
+    position: sticky;
+    z-index: 2;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__header {
+    background: var(--trip-editor-card);
+    top: 0;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer {
+    background: var(--trip-editor-card);
+    bottom: 0;
+  }
+}

@@ -26,6 +26,7 @@ const isLoading = ref(true);
 const hasRegionDraftChanges = ref(false);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
+const mobileDrawerActive = ref(false);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
 const selectedPlaceId = ref<Guid | null>(null);
@@ -34,6 +35,7 @@ const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid
 const completedSearchAddRequestId = ref<number | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
+let mobileDrawerQuery: MediaQueryList | null = null;
 const coordinatePicker = {
   applyPlaceDraftCoordinate: (placeId: Guid, coordinate: EditorCoordinate): void => mapAdapter?.applyPlaceDraftCoordinate(placeId, coordinate),
   startCoordinatePick: (options: CoordinatePickOptions): (() => void) => mapAdapter?.startCoordinatePick(options) ?? (() => undefined)
@@ -112,6 +114,9 @@ watch(
 
 onMounted(async () => {
   setConfirmDialogFocusFallback(workspaceElement.value);
+  mobileDrawerQuery = window.matchMedia('(max-width: 640px)');
+  mobileDrawerActive.value = mobileDrawerQuery.matches;
+  mobileDrawerQuery.addEventListener('change', updateMobileDrawerState);
 
   try {
     const loadedState = await loadEditorState(props.config.editorEndpoint);
@@ -135,8 +140,14 @@ onMounted(async () => {
 onUnmounted(() => {
   disposeConfirmDialogHost();
   setConfirmDialogFocusFallback(null);
+  mobileDrawerQuery?.removeEventListener('change', updateMobileDrawerState);
   mapAdapter?.dispose();
 });
+
+/// Keeps the release-scoped phone drawer below tablet/intermediate widths.
+function updateMobileDrawerState(event: MediaQueryListEvent): void {
+  mobileDrawerActive.value = event.matches;
+}
 
 const applyMetadata = (metadata: EditorTripMetadata): void => {
   if (!state.value) {
@@ -477,6 +488,9 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :hidden-segment-ids="hiddenSegmentIds"
         :selected-place-id="selectedPlaceId"
         :pending-search-add="pendingSearchAdd"
+        :mobile-drawer-active="mobileDrawerActive"
+        :is-map-work-active="isMapWorkActive"
+        :completed-search-add-request-id="completedSearchAddRequestId"
         :coordinate-picker="coordinatePicker"
         :polygon-editor="polygonEditor"
         :route-editor="routeEditor"
@@ -488,6 +502,9 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :select-place="placeId => selectPlace(placeId, { focusMap: true })"
         :clear-selected-place="clearSelectedPlace"
         @search-add-opened="handleSearchAddOpened"
+        @search-add-place="requestSearchAddPlace"
+        @search-clear-preview="clearSearchPreview"
+        @search-preview="previewSearchResult"
       />
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">
@@ -509,7 +526,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         </header>
         <MapWorkToolbar :controller="editorSurface" />
         <MapSearchControl
-          v-if="!isMapWorkActive"
+          v-if="!isMapWorkActive && !mobileDrawerActive"
           :active-target="activeEditorTarget"
           :completed-add-request-id="completedSearchAddRequestId"
           :editor-endpoint="props.config.editorEndpoint"

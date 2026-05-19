@@ -283,6 +283,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
     await expect(page.locator('.trip-editor-sidebar')).toBeVisible();
     await expect(page.getByLabel('Read-only trip map')).toBeVisible();
+    await page.getByRole('button', { name: 'Edit Trip' }).click();
     await page.getByRole('button', { name: 'Expand Editor' }).click();
     await expect(page.getByRole('dialog', { name: /Edit Trip -/i })).toBeVisible();
     await expectNoObviousOverflow(page.getByRole('dialog', { name: /Edit Trip -/i }));

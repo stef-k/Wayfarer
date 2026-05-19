@@ -315,3 +315,65 @@
   gap: 0.2rem;
   min-width: 0;
 }
+
+@media (max-width: 640px) {
+  .trip-editor-map-shell {
+    position: relative;
+  }
+
+  .trip-editor-map {
+    height: 100%;
+    inset: 0;
+    min-height: 0;
+    position: absolute;
+    width: 100%;
+  }
+
+  .trip-editor-toolbar {
+    background: color-mix(in srgb, var(--trip-editor-bg) 88%, transparent);
+    border: 1px solid var(--trip-editor-border);
+    border-radius: 8px;
+    box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.18);
+    flex-direction: column;
+    gap: 0.45rem;
+    left: 0.75rem;
+    max-width: calc(100% - 1.5rem);
+    padding: 0.5rem;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.75rem;
+    z-index: 12;
+  }
+
+  .trip-editor-toolbar__context {
+    flex: 0 1 auto;
+    gap: 0;
+  }
+
+  .trip-editor-toolbar__actions {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    width: 100%;
+  }
+
+  .trip-editor-toolbar__actions .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .trip-editor-map-search {
+    border: 1px solid var(--trip-editor-border);
+    border-radius: 8px;
+    margin-top: 0.6rem;
+    max-height: min(20rem, 34dvh);
+    overflow: hidden;
+    padding: 0.65rem;
+  }
+
+  .trip-editor-map-search__results {
+    max-height: min(12rem, 22dvh);
+  }
+}

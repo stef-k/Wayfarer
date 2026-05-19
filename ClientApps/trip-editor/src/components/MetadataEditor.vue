@@ -26,6 +26,7 @@ const props = defineProps<{
   antiforgeryToken: string;
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
+  autoOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -123,13 +124,24 @@ watch(
   }
 );
 
+watch(
+  () => props.autoOpen,
+  autoOpen => {
+    if (autoOpen !== false && !isActive.value) {
+      void openMetadata();
+    }
+  }
+);
+
 onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
   unregisterSurfaceHandler = props.editorSurface.registerTargetHandler(target.value.key, {
     isDirty: () => isDirty.value,
     discard: resetDraft
   });
-  void openMetadata();
+  if (props.autoOpen !== false) {
+    void openMetadata();
+  }
 });
 
 onUnmounted(() => {

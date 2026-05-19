@@ -39,6 +39,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await capture(page, testInfo, `${viewport.name}-light-docked-metadata`);
       note(testInfo, 'docked metadata, tags/share progress, map navigation toolbar', viewport.name, 'light', 'data-bs-theme', 'pass');
 
+      await openTripEditIfNeeded(page);
       await expandDockedEditor(page);
       await expect(page.getByRole('dialog', { name: /Edit Trip -/ })).toBeVisible();
       await expectDialogFitsViewport(page);
@@ -52,6 +53,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await page.getByRole('dialog', { name: /Edit Trip -/ }).getByRole('button', { name: 'Dock to sidebar' }).click();
 
       await setTheme(page, 'dark');
+      await openMobileTabIfVisible(page, 'Regions');
       await page.getByLabel('Sidebar search').fill('not-a-visual-match');
       await expect(page.getByText('No matching regions, places, areas, or segments.')).toBeVisible();
       await capture(page, testInfo, `${viewport.name}-dark-sidebar-no-match`);
@@ -59,6 +61,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       await page.getByLabel('Sidebar search').fill('');
 
       await routeGeocode(page);
+      await openMobileTabIfVisible(page, 'Trip');
       await page.getByRole('searchbox', { name: 'Map search' }).fill('visual place');
       await page.getByRole('region', { name: 'Map search' }).getByRole('button', { name: 'Search' }).click();
       await page.getByRole('button', { name: 'Visual Search Place' }).click();
@@ -215,23 +218,42 @@ async function routeGeocode(page: Page): Promise<void> {
 }
 
 async function openPlace(page: Page): Promise<void> {
+  await openMobileTabIfVisible(page, 'Regions');
   await page.locator(`[data-place-id="${placeId}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('heading', { name: /Edit Place - Visual Place/ })).toBeVisible();
 }
 
 async function openArea(page: Page): Promise<void> {
+  await openMobileTabIfVisible(page, 'Regions');
   await page.locator(`[data-area-id="${areaId}"]`).getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('heading', { name: /Edit Area - Visual Area/ })).toBeVisible();
 }
 
 async function openSegment(page: Page): Promise<void> {
+  await openMobileTabIfVisible(page, 'Segments');
   await page.locator(`[data-segment-id="${segmentId}"] .trip-editor-list-button`).click();
   await expect(page.getByRole('heading', { name: /Edit Segment -/ })).toBeVisible();
 }
 
 async function openVisits(page: Page): Promise<void> {
+  await openMobileTabIfVisible(page, 'Trip');
   await page.getByRole('button', { name: 'Visits' }).click();
   await expect(page.getByRole('dialog', { name: 'Visit progress and history' })).toBeVisible();
+}
+
+async function openTripEditIfNeeded(page: Page): Promise<void> {
+  const editTrip = page.getByRole('button', { name: 'Edit Trip' });
+  if (await editTrip.isVisible().catch(() => false)) {
+    await editTrip.click();
+    await expect(page.getByRole('heading', { name: /Edit Trip -/ })).toBeVisible();
+  }
+}
+
+async function openMobileTabIfVisible(page: Page, name: 'Trip' | 'Regions' | 'Segments'): Promise<void> {
+  const tab = page.getByRole('button', { name, exact: true });
+  if (await tab.isVisible().catch(() => false)) {
+    await tab.click();
+  }
 }
 
 function dockedEditor(page: Page): Locator {

@@ -77,7 +77,13 @@ export async function expectMountedWorkspace(page: Page): Promise<void> {
   await expect(app).toBeVisible();
   await expect(app.locator('.trip-editor-workspace')).toBeVisible();
   await expect(app).not.toContainText('Trip Editor development server is not available');
-  await expectActiveMetadataSurface(page);
+  if (await isPhoneDrawerViewport(page)) {
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
+  } else {
+    await expectActiveMetadataSurface(page);
+  }
   await expectInitializedTripMap(page);
 }
 
@@ -85,6 +91,10 @@ export async function expectMountedWorkspace(page: Page): Promise<void> {
 export async function expectActiveMetadataSurface(page: Page): Promise<void> {
   await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
   await expect(page.locator('.trip-editor-surface--docked')).toContainText(/Edit Trip -/i);
+}
+
+async function isPhoneDrawerViewport(page: Page): Promise<boolean> {
+  return await page.evaluate(() => window.matchMedia('(max-width: 640px)').matches);
 }
 
 // Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
