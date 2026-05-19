@@ -86,7 +86,11 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       note(testInfo, 'child entity edit expanded', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await dockPlaceEditorAfterExpandedEvidence(page);
 
-      await page.getByRole('button', { name: 'Pick on map' }).click();
+      await openPlace(page);
+      const pickOnMap = page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').getByRole('button', { name: 'Pick on map' });
+      await pickOnMap.scrollIntoViewIfNeeded();
+      await expect(pickOnMap).toBeVisible();
+      await pickOnMap.click();
       await capture(page, testInfo, `${viewport.name}-dark-place-coordinate-map-work`);
       note(testInfo, 'place coordinate map-work', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await clickMap(page, { xRatio: 0.48, yRatio: 0.42 });
@@ -282,9 +286,19 @@ async function openTripEditIfNeeded(page: Page): Promise<void> {
 }
 
 async function openEntityEditor(page: Page, rowSelector: string, formSelector: string, heading: RegExp): Promise<void> {
+  if (await page.locator(formSelector).isVisible().catch(() => false)) {
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    return;
+  }
+
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await closeActiveDockedEditorIfNeeded(page);
-    await page.locator(rowSelector).getByRole('button', { name: 'Edit', exact: true }).click({ force: true });
+    const row = page.locator(rowSelector).first();
+    await row.scrollIntoViewIfNeeded();
+    await expect(row).toBeVisible();
+    const editButton = row.getByRole('button', { name: 'Edit', exact: true });
+    await expect(editButton).toBeEnabled();
+    await editButton.click();
     if (await page.locator(formSelector).isVisible().catch(() => false)) {
       await expect(page.getByRole('heading', { name: heading })).toBeVisible();
       return;
@@ -301,6 +315,7 @@ async function closeActiveDockedEditorIfNeeded(page: Page): Promise<void> {
     const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
     if (await discardDialog.isVisible().catch(() => false)) {
       await discardDialog.getByRole('button', { name: 'Discard' }).click();
+      await expect(discardDialog).toBeHidden();
     }
   }
 }

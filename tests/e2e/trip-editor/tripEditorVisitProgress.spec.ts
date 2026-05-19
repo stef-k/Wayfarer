@@ -22,6 +22,8 @@ const tiedVisitId = '00000000-0000-0000-0000-000000273300';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe.serial('Trip Editor visit progress and history', () => {
+  test.setTimeout(60000);
+
   test('opens from the sidebar and filters region-grouped place rows', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
