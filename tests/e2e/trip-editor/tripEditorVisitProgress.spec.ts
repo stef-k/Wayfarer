@@ -29,11 +29,21 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await openVisits(page);
     const dialog = visitDialog(page);
     await expect(dialog).toContainText('2 / 3 places visited');
+    await expect(dialog.getByText('67%')).toBeVisible();
+    await expect(dialog.getByRole('progressbar', { name: 'Overall visit progress' })).toHaveAttribute('aria-valuenow', '67');
+    await expect(dialog.locator('.trip-editor-visit-filter-option')).toHaveCount(3);
     await expect(visitPlaceRow(page, visitedPlaceId)).toContainText('PW visited place');
     await expect(visitPlaceRow(page, notVisitedPlaceId)).toContainText('PW not visited place');
     await expect(visitPlaceRow(page, missingHistoryPlaceId)).toContainText('PW missing history place');
+    await expect(dialog.getByRole('region', { name: 'PW visit region one' })).toContainText('2 / 2 visited');
+    await expect(dialog.getByRole('progressbar', { name: 'PW visit region one visit progress' })).toHaveAttribute('aria-valuenow', '100');
+    await expect(dialog.getByRole('region', { name: 'PW visit region two' })).toContainText('0 / 1 visited');
+    await expect(dialog.getByRole('progressbar', { name: 'PW visit region two visit progress' })).toHaveAttribute('aria-valuenow', '0');
+    await expect(visitPlaceRow(page, visitedPlaceId).getByRole('img', { name: 'Visited' })).toBeVisible();
+    await expect(visitPlaceRow(page, notVisitedPlaceId).getByRole('img', { name: 'Not visited' })).toBeVisible();
 
     await dialog.getByRole('radio', { name: 'Visited', exact: true }).check();
+    await expect(dialog.getByRole('radio', { name: 'Visited', exact: true })).toBeChecked();
     await expect(visitPlaceRow(page, visitedPlaceId)).toBeVisible();
     await expect(visitPlaceRow(page, missingHistoryPlaceId)).toBeVisible();
     await expect(visitPlaceRow(page, notVisitedPlaceId)).toHaveCount(0);
@@ -56,6 +66,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     const row = visitPlaceRow(page, visitedPlaceId);
     await expect(row).toContainText('Visited');
     await expect(row).toContainText('3 visits');
+    await expect(row.locator('.trip-editor-visit-count-pill')).toHaveText('3 visits');
     await expect(row).toContainText('First visit');
     await expect(row).toContainText('2026-01-01 08:00 UTC');
     await expect(row).toContainText('Last visit');
@@ -68,6 +79,7 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await expect(row.locator(`[data-visit-id="${newerVisitId}"]`)).toContainText('2026-01-03 08:00 UTC');
     await expect(row.locator(`[data-visit-id="${newerVisitId}"]`)).toContainText('Open');
     await expect(row.locator(`[data-visit-id="${newerVisitId}"]`)).toContainText('Duration unavailable');
+    await expect(row.locator(`[data-visit-id="${newerVisitId}"]`).getByRole('link', { name: 'Manage visit' })).toHaveAttribute('href', `/User/Visit/Edit/${newerVisitId}`);
     await expect(row.locator(`[data-visit-id="${olderVisitId}"]`)).toContainText('45 min');
   });
 
@@ -152,6 +164,21 @@ test.describe.serial('Trip Editor visit progress and history', () => {
     await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
     await openVisits(page);
     await expect(visitPlaceRow(page, missingHistoryPlaceId)).toContainText('No visit history rows available for this place.');
+  });
+
+  test('keeps the visit progress modal contained at desktop and narrow widths', async ({ page }) => {
+    for (const viewport of [
+      { width: 1280, height: 900 },
+      { width: 390, height: 900 }
+    ]) {
+      await page.setViewportSize(viewport);
+      await signIn(page);
+      await loadWorkspaceWithVisitFixture(page, prepareMixedVisitState);
+      await openVisits(page);
+      await expectDialogFitsViewport(page);
+      await expectNoPageOverflow(page);
+      await visitDialog(page).getByRole('button', { name: 'Close' }).click();
+    }
   });
 });
 
@@ -296,6 +323,30 @@ function visitDialog(page: Page) {
 
 function visitPlaceRow(page: Page, placeId: string) {
   return page.locator(`[data-visit-place-id="${placeId}"]`);
+}
+
+async function expectNoPageOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const documentOverflow = document.documentElement.scrollWidth - viewportWidth;
+    const bodyOverflow = document.body ? document.body.scrollWidth - viewportWidth : 0;
+
+    return { documentOverflow, bodyOverflow };
+  });
+
+  expect(overflow.documentOverflow, 'Visit progress modal should not introduce horizontal document overflow.').toBeLessThanOrEqual(2);
+  expect(overflow.bodyOverflow, 'Visit progress modal should not introduce horizontal body overflow.').toBeLessThanOrEqual(2);
+}
+
+async function expectDialogFitsViewport(page: Page): Promise<void> {
+  const dialog = page.locator('.trip-editor-expanded__dialog:visible').first();
+  const [box, viewport] = await Promise.all([dialog.boundingBox(), page.viewportSize()]);
+  expect(box, 'Visit progress dialog should have a rendered box.').not.toBeNull();
+  expect(viewport, 'Viewport should be available for dialog fit check.').not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(-1);
+  expect(box!.y).toBeGreaterThanOrEqual(-1);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 1);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height + 1);
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
