@@ -253,19 +253,23 @@ async function expectDirtyTabSwitchGuard(
   await expect(page.getByRole('heading', { name: options.activeHeading })).toBeVisible();
   await field.fill(options.draftValue);
 
-  await page.getByRole('button', { name: options.targetTab }).click();
+  await drawerTab(page, options.targetTab).click();
   const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
   await expect(keepDialog).toContainText(options.promptText);
   await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
-  await expect(page.getByRole('button', { name: options.owningTab, exact: options.owningTab === 'Trip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(drawerTab(page, options.owningTab)).toHaveAttribute('aria-pressed', 'true');
   await expect(field).toHaveValue(options.draftValue);
 
-  await page.getByRole('button', { name: options.targetTab }).click();
+  await drawerTab(page, options.targetTab).click();
   const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
   await expect(discardDialog).toContainText(options.promptText);
   await discardDialog.getByRole('button', { name: 'Discard' }).click();
-  await expect(page.getByRole('button', { name: options.targetTab, exact: options.targetTab === 'Trip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(drawerTab(page, options.targetTab)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('heading', { name: options.activeHeading })).toHaveCount(0);
+}
+
+function drawerTab(page: Page, name: string) {
+  return page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name, exact: true });
 }
 
 async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
