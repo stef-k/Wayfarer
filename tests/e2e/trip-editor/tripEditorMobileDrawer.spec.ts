@@ -2,25 +2,34 @@ import { expect, test, type Page, type Route, type TestInfo } from '@playwright/
 import {
   absoluteUrl,
   activeEditorSurface,
+  editorApiPath,
   editorPath,
   expectInitializedTripMap,
   expectMountedWorkspace,
   firstVisibleAddPlace,
+  loadEditorStateFixture,
   signIn
 } from './tripEditorTestUtils';
 
 const geocodePath = /\/api\/trips\/[^/]+\/editor\/geocode\/search/i;
+const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
+type MutableEditorState = Record<string, any>;
 
 test.describe.serial('Trip Editor mobile bottom drawer', () => {
   test('phone starts map-first with Trip as the drawer tab', async ({ page }, testInfo) => {
     await signIn(page);
-    await openEditorAt(page, { width: 390, height: 844 });
+    await openEditorWithTripSummaryFixture(page, { width: 390, height: 844 });
 
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('button', { name: 'Regions' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Segments' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
+    const tripTab = page.locator('.trip-editor-mobile-drawer__tab--trip');
+    await expect(tripTab).toContainText('Public trip');
+    await expect(tripTab).toContainText('Share progress: Enabled');
+    await expect(tripTab.getByRole('link', { name: 'Open public trip' })).toHaveAttribute('href', '/Public/Trips/mobile-drawer-public');
+    await expect(tripTab.getByRole('link', { name: 'Open progress URL' })).toHaveAttribute('href', '/Public/Trips/mobile-drawer-progress');
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toHaveCount(0);
     await expectDrawerState(page, 'expanded-view');
     await expectMapFirstPhoneLayout(page);
@@ -282,6 +291,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
   test('protected tablet and intermediate widths do not activate the drawer', async ({ page }, testInfo) => {
     await signIn(page);
     for (const viewport of [
+      { name: 'exact-boundary-641', width: 641, height: 900 },
       { name: 'intermediate-700', width: 700, height: 900 },
       { name: 'tablet-768', width: 768, height: 1024 }
     ]) {
@@ -315,6 +325,26 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
 
 async function openEditorAt(page: Page, viewport: { width: number; height: number }): Promise<void> {
   await page.setViewportSize(viewport);
+  await page.goto(absoluteUrl(editorPath));
+  await expectMountedWorkspace(page);
+}
+
+// Opens a read-only state variant with public progress URLs for Trip summary assertions.
+async function openEditorWithTripSummaryFixture(page: Page, viewport: { width: number; height: number }): Promise<void> {
+  await page.setViewportSize(viewport);
+  await page.unroute(editorApiMatcher).catch(() => undefined);
+  const state = await loadEditorStateFixture(page) as MutableEditorState;
+  state.metadata.isPublic = true;
+  state.metadata.shareProgressEnabled = true;
+  state.metadata.publicUrl = '/Public/Trips/mobile-drawer-public';
+  state.metadata.progressPublicUrl = '/Public/Trips/mobile-drawer-progress';
+  await page.route(editorApiMatcher, async route => {
+    if (route.request().method() !== 'GET') {
+      throw new Error(`Unexpected Trip summary fixture mutation ${route.request().method()} ${route.request().url()}`);
+    }
+
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
+  });
   await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
 }

@@ -72,6 +72,12 @@
   text-transform: uppercase;
 }
 
+.trip-editor-editor-summary__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .trip-editor-surface__controls,
 .trip-editor-surface__footer,
 .trip-editor-map-work-toolbar__actions {
