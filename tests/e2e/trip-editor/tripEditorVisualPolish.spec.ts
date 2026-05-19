@@ -86,11 +86,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
       note(testInfo, 'child entity edit expanded', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await dockPlaceEditorAfterExpandedEvidence(page);
 
-      await openPlace(page);
-      const pickOnMap = page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').getByRole('button', { name: 'Pick on map' });
-      await pickOnMap.scrollIntoViewIfNeeded();
-      await expect(pickOnMap).toBeVisible();
-      await pickOnMap.click();
+      await startPlaceCoordinateMapWork(page);
       await capture(page, testInfo, `${viewport.name}-dark-place-coordinate-map-work`);
       note(testInfo, 'place coordinate map-work', viewport.name, 'dark', 'data-bs-theme', 'pass');
       await clickMap(page, { xRatio: 0.48, yRatio: 0.42 });
@@ -225,6 +221,22 @@ async function routeGeocode(page: Page): Promise<void> {
 async function openPlace(page: Page): Promise<void> {
   await openMobileTabIfVisible(page, 'Regions');
   await openEntityEditor(page, `[data-place-id="${placeId}"]`, '#trip-editor-place-form', /Edit Place - Visual Place/);
+}
+
+async function startPlaceCoordinateMapWork(page: Page): Promise<void> {
+  const mapWork = page.getByRole('region', { name: 'Map work' });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await openPlace(page);
+    const pickOnMap = page.locator('.trip-editor-place-editor-row .trip-editor-surface--docked').getByRole('button', { name: 'Pick on map' });
+    await pickOnMap.scrollIntoViewIfNeeded();
+    await expect(pickOnMap).toBeVisible();
+    await pickOnMap.click();
+    if (await mapWork.isVisible({ timeout: 3000 }).catch(() => false)) {
+      return;
+    }
+  }
+
+  await expect(mapWork).toBeVisible();
 }
 
 async function openArea(page: Page): Promise<void> {
