@@ -12,6 +12,7 @@ using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using PublicTripViewerController = Wayfarer.Areas.Public.Controllers.TripViewerController;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -233,12 +234,14 @@ public sealed class TripEditorTagsShareProgressControllerTests : TestBase
             new TripEditorSegmentMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
 
-        var url = new Mock<IUrlHelper>();
-        url.Setup(u => u.Action(It.IsAny<UrlActionContext>()))
-            .Returns((UrlActionContext context) =>
+        var url = new Mock<IUrlHelper>(MockBehavior.Strict);
+        url.Setup(u => u.RouteUrl(It.IsAny<UrlRouteContext>()))
+            .Returns((UrlRouteContext context) =>
             {
                 var id = context.Values?.GetType().GetProperty("id")?.GetValue(context.Values);
                 var progress = context.Values?.GetType().GetProperty("progress")?.GetValue(context.Values);
+                Assert.Equal(PublicTripViewerController.PublicTripViewRouteName, context.RouteName);
+                Assert.Equal("https", context.Protocol);
                 return progress == null
                     ? $"https://example.test/Public/Trips/{id}"
                     : $"https://example.test/Public/Trips/{id}?progress={progress}";
@@ -263,9 +266,13 @@ public sealed class TripEditorTagsShareProgressControllerTests : TestBase
 
     private static void ConfigureControllerWithUserRole(ControllerBase controller, string userId, string role = "User")
     {
+        var httpContext = BuildHttpContextWithUser(userId, role);
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("example.test");
+
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = BuildHttpContextWithUser(userId, role)
+            HttpContext = httpContext
         };
     }
 
