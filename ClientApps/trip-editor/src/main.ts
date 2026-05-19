@@ -5,6 +5,7 @@ import 'quill/dist/quill.snow.css';
 import './theme.css';
 import './map.css';
 import './styles.css';
+import './mobileDrawer.css';
 import './surfaces.css';
 import './iconSelector.css';
 import './richNotes.css';
