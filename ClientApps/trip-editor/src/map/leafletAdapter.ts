@@ -9,6 +9,7 @@ import { placeMarkerIcon, previewMarkerIcon, regionMarkerIcon } from './markerRe
 import { placePopupHtml } from './placePopupRendering';
 import { createSearchPreviewLayer } from './searchPreviewLayer';
 import { createSegmentRouteWorkLayer } from './segmentRouteWorkLayer';
+import { createTripEditorTileLayer } from './tileRetryLayer';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 
@@ -67,7 +68,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
 
   map.on('moveend zoomend', updateMapViewDataset);
 
-  L.tileLayer(tilesUrl, {
+  createTripEditorTileLayer(tilesUrl, {
     attribution: providerAttribution(window.wayfarerTileConfig?.attribution),
     maxZoom: 19
   }).addTo(map);
