@@ -107,11 +107,30 @@ public class TileCacheService
     private static readonly object _initLock = new();
 
     /// <summary>
-    /// Coalesces concurrent re-validation requests for the same tile.
-    /// Key: "{z}_{x}_{y}", Value: lazy task that performs exactly one conditional HTTP request.
-    /// Prevents duplicate outbound requests to OSM when multiple clients request the same expired tile.
+    /// Coalesces bounded background refresh series for expired cached tiles.
+    /// Key: "{z}_{x}_{y}". At most one active series may exist per tile key.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, Lazy<Task<byte[]?>>> _revalidationFlights = new();
+    private static readonly ConcurrentDictionary<string, TileRefreshSeries> _refreshSeries = new();
+
+    /// <summary>
+    /// Maximum number of upstream attempts in one stale-tile refresh series.
+    /// </summary>
+    private const int RefreshSeriesMaxAttempts = 3;
+
+    /// <summary>
+    /// Maximum wall-clock lifetime for one stale-tile refresh series.
+    /// </summary>
+    private static readonly TimeSpan RefreshSeriesMaxDuration = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Initial delay before retrying a failed stale-tile refresh attempt.
+    /// </summary>
+    private static readonly TimeSpan RefreshRetryInitialDelay = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Maximum delay before retrying a failed stale-tile refresh attempt.
+    /// </summary>
+    private static readonly TimeSpan RefreshRetryMaxDelay = TimeSpan.FromSeconds(60);
 
     /// <summary>
     /// In-memory cache of sidecar metadata for zoom 0-8 tiles.
@@ -347,11 +366,11 @@ public class TileCacheService
     /// <summary>
     /// Resets all static state so each test starts with a clean slate.
     /// Must be called between tests to prevent cross-test interference from
-    /// <see cref="_revalidationFlights"/>, <see cref="_sidecarCache"/>, and <see cref="_currentCacheSize"/>.
+    /// <see cref="_refreshSeries"/>, <see cref="_sidecarCache"/>, and <see cref="_currentCacheSize"/>.
     /// </summary>
     internal static void ResetStaticStateForTesting()
     {
-        _revalidationFlights.Clear();
+        _refreshSeries.Clear();
         _sidecarCache.Clear();
         Interlocked.Exchange(ref _currentCacheSize, 0);
         Interlocked.Exchange(ref _evictionInProgress, 0);
@@ -1194,36 +1213,18 @@ public class TileCacheService
                     }
                 }
 
-                // Tile is expired — re-validate with upstream (if we have a URL)
+                // Tile is expired — serve the existing local file immediately and refresh in
+                // the background. Revalidation must not sit on the user-facing response path
+                // while a complete cached file exists locally.
                 if (!string.IsNullOrEmpty(tileUrl))
                 {
-                    // Coalesce concurrent re-validations: only ONE HTTP request per expired tile.
-                    // Use CancellationToken.None so the outbound request completes even if the
-                    // first caller disconnects — other coalesced callers still need the result,
-                    // and the cached data benefits future requests. Individual callers respect their
-                    // own cancellation token when they await flight.Value. HttpClient.Timeout still
-                    // protects against unresponsive upstream servers.
-                    var flight = _revalidationFlights.GetOrAdd(tileKey,
-                        _ => new Lazy<Task<byte[]?>>(
-                            () => RevalidateTileAsync(tileUrl, tileFilePath, tileKey, zoomLvl,
-                                xVal, yVal, etag, lastModified, clientIp, CancellationToken.None)));
-                    try
-                    {
-                        var revalidationResult = await flight.Value;
-                        if (revalidationResult != null) return TileRetrievalResult.Success(revalidationResult);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Re-validation failed for tile {TileKey}, serving stale", tileKey);
-                    }
-                    finally
-                    {
-                        // Only remove our own entry (value-checking overload)
-                        _revalidationFlights.TryRemove(new KeyValuePair<string, Lazy<Task<byte[]?>>>(tileKey, flight));
-                    }
+                    ScheduleBackgroundRefresh(tileUrl, tileFilePath, tileKey, zoomLvl, xVal, yVal,
+                        etag, lastModified, clientIp);
                 }
 
-                // Graceful degradation: serve stale cached tile if re-validation failed.
+                // Graceful degradation: serve stale cached tile even when budget is exhausted
+                // or the background refresh cannot start. No lock needed for reads (see
+                // fast-path comment above).
                 // No lock needed for reads (see fast-path comment above).
                 byte[]? staleTileData = null;
                 try
@@ -1238,7 +1239,15 @@ public class TileCacheService
                     // File deleted by concurrent eviction/purge — treat as cache miss.
                 }
 
-                if (staleTileData != null) return TileRetrievalResult.Success(staleTileData);
+                if (staleTileData != null)
+                {
+                    if (zoomLvl >= DbMetadataZoomThreshold)
+                    {
+                        await TouchLastAccessedFromHotHitAsync(zoomLvl, xVal, yVal);
+                    }
+
+                    return TileRetrievalResult.Success(staleTileData);
+                }
             }
 
             // 2. If the tile is not on disk, but we have a URL, attempt to fetch it.
@@ -1279,12 +1288,98 @@ public class TileCacheService
     }
 
     /// <summary>
+    /// Schedules a bounded background refresh for an expired local tile.
+    /// Concurrent stale hits for the same key share the active series.
+    /// </summary>
+    private void ScheduleBackgroundRefresh(string tileUrl, string tileFilePath, string tileKey,
+        int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp)
+    {
+        var series = new TileRefreshSeries(tileKey, tileUrl, tileFilePath, zoom, x, y, etag, lastModified, clientIp);
+        var activeSeries = _refreshSeries.GetOrAdd(tileKey, series);
+        if (!ReferenceEquals(activeSeries, series))
+        {
+            _logger.LogDebug("Refresh already active for stale tile {TileKey}", tileKey);
+            return;
+        }
+
+        _ = Task.Run(() => RunBackgroundRefreshSeriesAsync(series), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Runs one bounded refresh series with exponential jittered backoff.
+    /// </summary>
+    private async Task RunBackgroundRefreshSeriesAsync(TileRefreshSeries series)
+    {
+        try
+        {
+            while (series.Attempts < RefreshSeriesMaxAttempts &&
+                   DateTime.UtcNow - series.StartedAtUtc < RefreshSeriesMaxDuration)
+            {
+                series.Attempts++;
+
+                try
+                {
+                    var refreshed = await RevalidateTileAsync(series.TileUrl, series.TileFilePath,
+                        series.TileKey, series.Zoom, series.X, series.Y, series.ETag,
+                        series.LastModified, series.ClientIp, CancellationToken.None);
+
+                    if (refreshed != null)
+                    {
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Background refresh attempt {Attempt} failed for tile {TileKey}",
+                        series.Attempts, series.TileKey);
+                }
+
+                if (series.Attempts >= RefreshSeriesMaxAttempts)
+                {
+                    break;
+                }
+
+                var elapsed = DateTime.UtcNow - series.StartedAtUtc;
+                var remaining = RefreshSeriesMaxDuration - elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var delay = CalculateRefreshRetryDelay(series.Attempts);
+                if (delay > remaining)
+                {
+                    delay = remaining;
+                }
+
+                await Task.Delay(delay).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _refreshSeries.TryRemove(new KeyValuePair<string, TileRefreshSeries>(series.TileKey, series));
+        }
+    }
+
+    /// <summary>
+    /// Calculates exponential refresh retry delay with jitter to avoid synchronized retries.
+    /// </summary>
+    private static TimeSpan CalculateRefreshRetryDelay(int failedAttempts)
+    {
+        var exponent = Math.Max(0, failedAttempts - 1);
+        var delayMs = RefreshRetryInitialDelay.TotalMilliseconds * Math.Pow(2, exponent);
+        delayMs = Math.Min(delayMs, RefreshRetryMaxDelay.TotalMilliseconds);
+        delayMs *= 0.75 + Random.Shared.NextDouble() * 0.5;
+        return TimeSpan.FromMilliseconds(delayMs);
+    }
+
+    /// <summary>
     /// Re-validates an expired cached tile by sending a conditional HTTP request.
     /// On 304 Not Modified: updates metadata expiry and serves cached file.
     /// On 200 OK: replaces file on disk and updates all metadata.
     /// On failure: returns null (caller will serve stale cached tile).
-    /// Called via the <see cref="_revalidationFlights"/> coalescing dictionary to ensure
-    /// exactly one outbound request per expired tile.
+    /// Called from the bounded <see cref="_refreshSeries"/> coordinator to ensure at most
+    /// one active refresh series exists per expired tile.
     /// Uses its own DB scope because the coalescing pattern means the originating request's
     /// scoped DbContext may be disposed while other callers are still awaiting the result.
     /// </summary>
@@ -1364,15 +1459,17 @@ public class TileCacheService
         if (response.IsSuccessStatusCode)
         {
             // 200: tile has changed. Replace file and update metadata.
-            var tileData = await response.Content.ReadAsByteArrayAsync();
+            var tileData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             var newEtag = response.Headers.ETag?.Tag;
             var newLastModified = response.Content.Headers.LastModified?.UtcDateTime;
             var newExpiry = ParseCacheExpiry(response);
+            var tempFilePath = CreateTempTilePath(tileFilePath);
 
             await _cacheLock.WaitAsync();
             try
             {
-                await File.WriteAllBytesAsync(tileFilePath, tileData);
+                await File.WriteAllBytesAsync(tempFilePath, tileData, cancellationToken);
+                ReplaceTileFileAtomically(tempFilePath, tileFilePath);
 
                 if (zoom < DbMetadataZoomThreshold)
                 {
@@ -1383,6 +1480,11 @@ public class TileCacheService
                         ExpiresAtUtc = newExpiry
                     });
                 }
+            }
+            catch
+            {
+                TryDeleteTempTile(tempFilePath);
+                throw;
             }
             finally
             {
@@ -1405,6 +1507,49 @@ public class TileCacheService
         _logger.LogWarning("Conditional request returned {StatusCode} for {TileUrl}",
             response.StatusCode, TileProviderCatalog.RedactApiKey(tileUrl));
         return null;
+    }
+
+    /// <summary>
+    /// Creates a same-directory temporary path for atomic tile replacement.
+    /// </summary>
+    private static string CreateTempTilePath(string tileFilePath)
+    {
+        var directory = Path.GetDirectoryName(tileFilePath) ?? ".";
+        var fileName = Path.GetFileName(tileFilePath);
+        return Path.Combine(directory, $"{fileName}.{Guid.NewGuid():N}.tmp");
+    }
+
+    /// <summary>
+    /// Replaces the final tile with a same-directory temp file so readers never see partial bytes.
+    /// </summary>
+    private static void ReplaceTileFileAtomically(string tempFilePath, string tileFilePath)
+    {
+        if (File.Exists(tileFilePath))
+        {
+            File.Replace(tempFilePath, tileFilePath, null);
+        }
+        else
+        {
+            File.Move(tempFilePath, tileFilePath);
+        }
+    }
+
+    /// <summary>
+    /// Deletes a failed refresh temp file without masking the original replacement error.
+    /// </summary>
+    private static void TryDeleteTempTile(string tempFilePath)
+    {
+        try
+        {
+            if (File.Exists(tempFilePath))
+            {
+                File.Delete(tempFilePath);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup only.
+        }
     }
 
     // ── DB metadata helpers (zoom >= 9) ─────────────────────────────────
@@ -2239,4 +2384,36 @@ public class TileCacheService
     /// Reads the current admin-configured hot metadata cache budget.
     /// </summary>
     private int GetTileMetadataHotCacheSizeMb() => _applicationSettings.GetSettings().TileMetadataHotCacheSizeMB;
+
+    /// <summary>
+    /// Captures immutable inputs and retry state for one bounded stale-tile refresh series.
+    /// </summary>
+    private sealed class TileRefreshSeries
+    {
+        public string TileKey { get; }
+        public string TileUrl { get; }
+        public string TileFilePath { get; }
+        public int Zoom { get; }
+        public int X { get; }
+        public int Y { get; }
+        public string? ETag { get; }
+        public DateTime? LastModified { get; }
+        public string? ClientIp { get; }
+        public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+        public int Attempts { get; set; }
+
+        public TileRefreshSeries(string tileKey, string tileUrl, string tileFilePath,
+            int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp)
+        {
+            TileKey = tileKey;
+            TileUrl = tileUrl;
+            TileFilePath = tileFilePath;
+            Zoom = zoom;
+            X = x;
+            Y = y;
+            ETag = etag;
+            LastModified = lastModified;
+            ClientIp = clientIp;
+        }
+    }
 }
