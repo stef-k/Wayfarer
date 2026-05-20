@@ -52,6 +52,17 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     /// </summary>
     private static readonly object _initLock = new();
 
+    /// <summary>
+    /// Test-overridable file replacement hook for deterministic write-failure coverage.
+    /// </summary>
+    private static Action<string, string> _replaceImageFile = ReplaceImageFileAtomicallyCore;
+
+    /// <summary>
+    /// Test-overridable metadata save hook for deterministic persistence-failure coverage.
+    /// </summary>
+    private static Func<ApplicationDbContext, Task<int>> _saveMetadataChanges =
+        dbContext => dbContext.SaveChangesAsync();
+
     public ProxiedImageCacheService(
         ILogger<ProxiedImageCacheService> logger,
         ApplicationDbContext dbContext,
@@ -167,7 +178,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                     {
                         _dbContext.ImageCacheMetadata.Remove(staleMetadata);
                         Interlocked.Add(ref _currentCacheSize, -staleMetadata.Size);
-                        await _dbContext.SaveChangesAsync();
+                        await SaveMetadataChangesAsync();
                     }
                 }
                 finally
@@ -188,13 +199,13 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     }
 
     /// <inheritdoc />
-    public async Task SetAsync(string cacheKey, byte[] bytes, string contentType)
+    public async Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType)
     {
         var settings = _settingsService.GetSettings();
 
         // Caching disabled
         if (settings.MaxCacheImageSizeInMB < 0)
-            return;
+            return ProxiedImageCacheStoreResult.Failure;
 
         var filePath = Path.Combine(_cacheDirectory, $"{cacheKey}.dat");
         var tempFilePath = CreateTempImagePath(filePath);
@@ -206,7 +217,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error writing proxy image file for key {CacheKey}.", cacheKey);
-            return;
+            return ProxiedImageCacheStoreResult.Failure;
         }
 
         // Lock only for DB operations and size counter mutations
@@ -219,15 +230,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
 
             if (existing != null)
             {
-                ReplaceImageFileAtomically(tempFilePath, existing.FilePath);
-                var sizeDelta = bytes.Length - existing.Size;
-                existing.ContentType = contentType;
-                existing.Size = bytes.Length;
-                existing.CreatedAt = DateTime.UtcNow;
-                existing.LastAccessed = DateTime.UtcNow;
-                await SaveWithConcurrencyRetryAsync(existing);
-                Interlocked.Add(ref _currentCacheSize, sizeDelta);
-                return;
+                return await ReplaceExistingEntryAsync(existing, tempFilePath, bytes, contentType);
             }
 
             // Evict in a loop until enough space is available or no more entries remain
@@ -238,7 +241,8 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 if (evictedCount == 0) break;
             }
 
-            // Create DB metadata entry — wrap in try/catch to delete orphaned file on failure
+            // New entries move bytes first, then persist metadata. If metadata fails, the
+            // unreferenced file is deleted and callers see a failed store.
             var metadata = new ImageCacheMetadata
             {
                 CacheKey = cacheKey,
@@ -253,27 +257,82 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             try
             {
                 ReplaceImageFileAtomically(tempFilePath, filePath);
-                await _dbContext.SaveChangesAsync();
+                await SaveMetadataChangesAsync();
                 Interlocked.Add(ref _currentCacheSize, bytes.Length);
             }
             catch
             {
-                // DB save failed — delete the orphaned file so it doesn't linger uncounted
+                _dbContext.ImageCacheMetadata.Remove(metadata);
                 try { File.Delete(filePath); } catch { /* best-effort cleanup */ }
                 try { File.Delete(tempFilePath); } catch { /* best-effort cleanup */ }
-                throw;
+                return ProxiedImageCacheStoreResult.Failure;
             }
 
             _logger.LogInformation("Cached proxy image: key={CacheKey}, size={Size} bytes.", cacheKey, bytes.Length);
+            return ProxiedImageCacheStoreResult.Success;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error caching proxy image for key {CacheKey}.", cacheKey);
+            return ProxiedImageCacheStoreResult.Failure;
         }
         finally
         {
             TryDeleteTempImage(tempFilePath);
             _cacheLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Stores replacement bytes without overwriting the old usable file before metadata succeeds.
+    /// </summary>
+    private async Task<ProxiedImageCacheStoreResult> ReplaceExistingEntryAsync(
+        ImageCacheMetadata existing,
+        string tempFilePath,
+        byte[] bytes,
+        string contentType)
+    {
+        var oldFilePath = existing.FilePath;
+        var oldContentType = existing.ContentType;
+        var oldSize = existing.Size;
+        var oldCreatedAt = existing.CreatedAt;
+        var oldLastAccessed = existing.LastAccessed;
+        var newFilePath = CreateReplacementImagePath(oldFilePath);
+
+        try
+        {
+            // The metadata row is the commit point. New bytes live in an unreferenced
+            // sibling file until the row points at them, so failed metadata leaves the
+            // old file and metadata usable. On post-save cleanup failure, serving still
+            // uses the new metadata and file; only the old file may linger.
+            ReplaceImageFileAtomically(tempFilePath, newFilePath);
+            var now = DateTime.UtcNow;
+            existing.FilePath = newFilePath;
+            existing.ContentType = contentType;
+            existing.Size = bytes.Length;
+            existing.CreatedAt = now;
+            existing.LastAccessed = now;
+
+            var saved = await SaveWithConcurrencyRetryAsync(existing);
+            if (!saved)
+            {
+                RestoreMetadataValues(existing, oldFilePath, oldContentType, oldSize, oldCreatedAt, oldLastAccessed);
+                TryDeleteTempImage(newFilePath);
+                return ProxiedImageCacheStoreResult.Failure;
+            }
+
+            Interlocked.Add(ref _currentCacheSize, bytes.Length - oldSize);
+            TryDeleteTempImage(oldFilePath);
+            _logger.LogInformation("Refreshed proxy image: key={CacheKey}, size={Size} bytes.",
+                existing.CacheKey, bytes.Length);
+            return ProxiedImageCacheStoreResult.Success;
+        }
+        catch (Exception ex)
+        {
+            RestoreMetadataValues(existing, oldFilePath, oldContentType, oldSize, oldCreatedAt, oldLastAccessed);
+            TryDeleteTempImage(newFilePath);
+            _logger.LogError(ex, "Error replacing proxy image file for key {CacheKey}.", existing.CacheKey);
+            return ProxiedImageCacheStoreResult.Failure;
         }
     }
 
@@ -351,7 +410,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+        await SaveMetadataChangesAsync();
         _logger.LogInformation("Evicted {Count} LRU image cache entries.", entriesToEvict.Count);
         return entriesToEvict.Count;
     }
@@ -360,7 +419,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     /// Saves metadata changes with retry on concurrency conflicts.
     /// Uses the same retry pattern as <see cref="TileCacheService"/>.
     /// </summary>
-    private async Task SaveWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
+    private async Task<bool> SaveWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
     {
         var attempts = 0;
         var updated = false;
@@ -371,7 +430,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             try
             {
                 _dbContext.ImageCacheMetadata.Update(metadata);
-                await _dbContext.SaveChangesAsync();
+                await SaveMetadataChangesAsync();
                 updated = true;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -383,7 +442,7 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 {
                     _logger.LogWarning("Image cache metadata was deleted by another process for key {CacheKey}.",
                         metadata.CacheKey);
-                    return;
+                    return false;
                 }
 
                 // Reload database values and reapply our LastAccessed update
@@ -392,6 +451,8 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 entry.OriginalValues.SetValues(databaseValues);
             }
         }
+
+        return updated;
     }
 
     /// <summary>
@@ -405,9 +466,44 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     }
 
     /// <summary>
+    /// Creates a same-directory replacement path that is not referenced until metadata commits.
+    /// </summary>
+    private static string CreateReplacementImagePath(string filePath)
+    {
+        var directory = Path.GetDirectoryName(filePath) ?? ".";
+        var extension = Path.GetExtension(filePath);
+        var baseName = Path.GetFileNameWithoutExtension(filePath);
+        return Path.Combine(directory, $"{baseName}.{Guid.NewGuid():N}{extension}");
+    }
+
+    /// <summary>
+    /// Restores tracked metadata values after an uncommitted replacement failure.
+    /// </summary>
+    private static void RestoreMetadataValues(
+        ImageCacheMetadata metadata,
+        string filePath,
+        string contentType,
+        int size,
+        DateTime createdAt,
+        DateTime lastAccessed)
+    {
+        metadata.FilePath = filePath;
+        metadata.ContentType = contentType;
+        metadata.Size = size;
+        metadata.CreatedAt = createdAt;
+        metadata.LastAccessed = lastAccessed;
+    }
+
+    /// <summary>
+    /// Replaces the final image using the active production or test hook.
+    /// </summary>
+    private static void ReplaceImageFileAtomically(string tempFilePath, string filePath) =>
+        _replaceImageFile(tempFilePath, filePath);
+
+    /// <summary>
     /// Replaces the final image with a same-directory temp file so readers never see partial bytes.
     /// </summary>
-    private static void ReplaceImageFileAtomically(string tempFilePath, string filePath)
+    private static void ReplaceImageFileAtomicallyCore(string tempFilePath, string filePath)
     {
         if (File.Exists(filePath))
         {
@@ -416,6 +512,27 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         }
 
         File.Move(tempFilePath, filePath);
+    }
+
+    /// <summary>
+    /// Saves metadata changes using the active production or test hook.
+    /// </summary>
+    private Task<int> SaveMetadataChangesAsync() => _saveMetadataChanges(_dbContext);
+
+    /// <summary>
+    /// Overrides image replacement for deterministic tests.
+    /// </summary>
+    internal static void SetImageFileReplacerForTesting(Action<string, string>? replacer)
+    {
+        _replaceImageFile = replacer ?? ReplaceImageFileAtomicallyCore;
+    }
+
+    /// <summary>
+    /// Overrides metadata persistence for deterministic tests.
+    /// </summary>
+    internal static void SetMetadataSaverForTesting(Func<ApplicationDbContext, Task<int>>? saver)
+    {
+        _saveMetadataChanges = saver ?? (dbContext => dbContext.SaveChangesAsync());
     }
 
     /// <summary>

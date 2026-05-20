@@ -20,10 +20,14 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
     {
         _tempDir = Path.Combine(Path.GetTempPath(), $"wayfarer_imgcache_test_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
+        ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
+        ProxiedImageCacheService.SetMetadataSaverForTesting(null);
     }
 
     public new void Dispose()
     {
+        ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
+        ProxiedImageCacheService.SetMetadataSaverForTesting(null);
         try
         {
             if (Directory.Exists(_tempDir))
@@ -50,10 +54,11 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         var imageBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4 };
         var contentType = "image/jpeg";
 
-        await service.SetAsync("test_key_1", imageBytes, contentType);
+        var stored = await service.SetAsync("test_key_1", imageBytes, contentType);
 
         var result = await service.GetAsync("test_key_1");
 
+        Assert.True(stored.Stored);
         Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
         Assert.Equal(imageBytes, result.Bytes);
         Assert.Equal(contentType, result.ContentType);
@@ -134,6 +139,70 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Assert.Equal("image/png", result.ContentType);
         Assert.True(metadata.CreatedAt > staleCreatedAt);
         Assert.Equal(3, metadata.Size);
+    }
+
+    [Fact]
+    public async Task SetAsync_ReturnsFailure_WhenNewMetadataSaveFails()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+        ProxiedImageCacheService.SetMetadataSaverForTesting(_ => throw new InvalidOperationException("metadata failed"));
+
+        var stored = await service.SetAsync("metadata_new_fail", new byte[] { 1, 2, 3 }, "image/jpeg");
+
+        Assert.False(stored.Stored);
+        Assert.Empty(db.ImageCacheMetadata.Where(m => m.CacheKey == "metadata_new_fail"));
+        Assert.Empty(Directory.GetFiles(_tempDir));
+    }
+
+    [Fact]
+    public async Task SetAsync_ExistingMetadataFailurePreservesOldFileAndMetadata()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+        var oldBytes = new byte[] { 1, 2 };
+
+        Assert.True((await service.SetAsync("metadata_existing_fail", oldBytes, "image/jpeg")).Stored);
+        var oldMetadata = db.ImageCacheMetadata.Single(m => m.CacheKey == "metadata_existing_fail");
+        var oldFilePath = oldMetadata.FilePath;
+        var oldCreatedAt = oldMetadata.CreatedAt;
+        ProxiedImageCacheService.SetMetadataSaverForTesting(_ => throw new InvalidOperationException("metadata failed"));
+
+        var stored = await service.SetAsync("metadata_existing_fail", new byte[] { 3, 4, 5 }, "image/png");
+        ProxiedImageCacheService.SetMetadataSaverForTesting(null);
+        var result = await service.GetAsync("metadata_existing_fail");
+        await db.Entry(oldMetadata).ReloadAsync();
+
+        Assert.False(stored.Stored);
+        Assert.Equal(oldBytes, result.Bytes);
+        Assert.Equal("image/jpeg", result.ContentType);
+        Assert.Equal(oldFilePath, oldMetadata.FilePath);
+        Assert.Equal(oldCreatedAt, oldMetadata.CreatedAt);
+        Assert.Single(Directory.GetFiles(_tempDir));
+    }
+
+    [Fact]
+    public async Task SetAsync_ExistingFileReplaceFailurePreservesOldFileAndMetadata()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+        var oldBytes = new byte[] { 1, 2 };
+
+        Assert.True((await service.SetAsync("replace_existing_fail", oldBytes, "image/jpeg")).Stored);
+        var oldMetadata = db.ImageCacheMetadata.Single(m => m.CacheKey == "replace_existing_fail");
+        var oldFilePath = oldMetadata.FilePath;
+        ProxiedImageCacheService.SetImageFileReplacerForTesting((_, _) => throw new IOException("replace failed"));
+
+        var stored = await service.SetAsync("replace_existing_fail", new byte[] { 3, 4, 5 }, "image/png");
+        ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
+        var result = await service.GetAsync("replace_existing_fail");
+        await db.Entry(oldMetadata).ReloadAsync();
+
+        Assert.False(stored.Stored);
+        Assert.Equal(oldBytes, result.Bytes);
+        Assert.Equal("image/jpeg", result.ContentType);
+        Assert.Equal(oldFilePath, oldMetadata.FilePath);
+        Assert.Single(Directory.GetFiles(_tempDir));
     }
 
     [Fact]

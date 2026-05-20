@@ -37,6 +37,7 @@ public class ImageProxyService : IImageProxyService
     private static readonly TimeSpan RefreshRetryInitialDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RefreshRetryMaxDelay = TimeSpan.FromSeconds(60);
     private static Func<int, TimeSpan> _refreshRetryDelayProvider = CalculateRefreshRetryDelay;
+    private static TimeSpan _refreshSeriesMaxDuration = RefreshSeriesMaxDuration;
 
     public ImageProxyService(
         HttpClient httpClient,
@@ -224,7 +225,13 @@ public class ImageProxyService : IImageProxyService
                 }
             }
 
-            await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
+            var stored = await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
+            if (!stored.Stored)
+            {
+                _logger.LogWarning("Failed to store proxied image cache entry for {Url}.", request.Url);
+                return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
+            }
+
             _logger.LogDebug("Cached proxied image: {Url} ({Size} bytes).", request.Url, bytes.Length);
             return new ImageProxyResult(ImageProxyResultStatus.Fetched, cacheKey, bytes, contentType);
         }
@@ -278,7 +285,7 @@ public class ImageProxyService : IImageProxyService
         try
         {
             while (series.Attempts < RefreshSeriesMaxAttempts &&
-                   DateTime.UtcNow - series.StartedAtUtc < RefreshSeriesMaxDuration)
+                   DateTime.UtcNow < series.ExpiresAtUtc)
             {
                 series.Attempts++;
 
@@ -303,7 +310,7 @@ public class ImageProxyService : IImageProxyService
                     break;
                 }
 
-                var remaining = RefreshSeriesMaxDuration - (DateTime.UtcNow - series.StartedAtUtc);
+                var remaining = series.ExpiresAtUtc - DateTime.UtcNow;
                 if (remaining <= TimeSpan.Zero)
                 {
                     break;
@@ -354,15 +361,18 @@ public class ImageProxyService : IImageProxyService
         public string CacheKey { get; }
         public ImageProxyRequest Request { get; }
         public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+        public DateTime ExpiresAtUtc { get; }
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
 
-        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private readonly CancellationTokenSource _cancellationTokenSource;
 
         public ImageRefreshSeries(string cacheKey, ImageProxyRequest request)
         {
             CacheKey = cacheKey;
             Request = request;
+            ExpiresAtUtc = StartedAtUtc.Add(_refreshSeriesMaxDuration);
+            _cancellationTokenSource = new CancellationTokenSource(_refreshSeriesMaxDuration);
         }
 
         public void CancelForTesting() => _cancellationTokenSource.Cancel();
@@ -400,6 +410,7 @@ public class ImageProxyService : IImageProxyService
         _refreshSeries.Clear();
         _originWork.Clear();
         SetRefreshRetryDelayForTesting(null);
+        SetRefreshSeriesMaxDurationForTesting(null);
         while (_originWorkBudget.CurrentCount < 4)
         {
             _originWorkBudget.Release();
@@ -412,5 +423,13 @@ public class ImageProxyService : IImageProxyService
     internal static void SetRefreshRetryDelayForTesting(Func<int, TimeSpan>? delayProvider)
     {
         _refreshRetryDelayProvider = delayProvider ?? CalculateRefreshRetryDelay;
+    }
+
+    /// <summary>
+    /// Overrides the refresh series deadline for deterministic tests.
+    /// </summary>
+    internal static void SetRefreshSeriesMaxDurationForTesting(TimeSpan? maxDuration)
+    {
+        _refreshSeriesMaxDuration = maxDuration ?? RefreshSeriesMaxDuration;
     }
 }
