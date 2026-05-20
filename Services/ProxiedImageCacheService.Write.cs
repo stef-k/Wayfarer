@@ -263,6 +263,14 @@ public partial class ProxiedImageCacheService
     }
 
     /// <summary>
+    /// Installs a narrow test-only hook before cache file reads.
+    /// </summary>
+    internal static void SetBeforeFileReadForTesting(Func<string, string, Task>? hook)
+    {
+        _beforeFileReadForTesting = hook ?? ((_, _) => Task.CompletedTask);
+    }
+
+    /// <summary>
     /// Deletes an unused temp file without masking the original write or replacement error.
     /// </summary>
     private static void TryDeleteTempImage(string tempFilePath)

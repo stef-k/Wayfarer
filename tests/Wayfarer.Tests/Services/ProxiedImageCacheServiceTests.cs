@@ -22,12 +22,14 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Directory.CreateDirectory(_tempDir);
         ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
         ProxiedImageCacheService.SetMetadataSaverForTesting(null);
+        ProxiedImageCacheService.SetBeforeFileReadForTesting(null);
     }
 
     public new void Dispose()
     {
         ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
         ProxiedImageCacheService.SetMetadataSaverForTesting(null);
+        ProxiedImageCacheService.SetBeforeFileReadForTesting(null);
         try
         {
             if (Directory.Exists(_tempDir))
@@ -139,6 +141,45 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Assert.Equal("image/png", result.ContentType);
         Assert.True(metadata.CreatedAt > staleCreatedAt);
         Assert.Equal(3, metadata.Size);
+    }
+
+    [Fact]
+    public async Task GetAsync_DoesNotDeleteMetadata_WhenRefreshMovedCapturedFilePath()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+        var oldBytes = new byte[] { 1, 2 };
+        var newBytes = new byte[] { 3, 4, 5 };
+
+        Assert.True((await service.SetAsync("refresh_race_key", oldBytes, "image/jpeg")).Stored);
+        var oldMetadata = db.ImageCacheMetadata.Single(m => m.CacheKey == "refresh_race_key");
+        var oldFilePath = oldMetadata.FilePath;
+        var hookRan = false;
+
+        ProxiedImageCacheService.SetBeforeFileReadForTesting(async (cacheKey, capturedFilePath) =>
+        {
+            if (hookRan || cacheKey != "refresh_race_key")
+            {
+                return;
+            }
+
+            hookRan = true;
+            Assert.Equal(oldFilePath, capturedFilePath);
+            Assert.True((await service.SetAsync("refresh_race_key", newBytes, "image/png")).Stored);
+            Assert.False(File.Exists(oldFilePath));
+        });
+
+        var result = await service.GetAsync("refresh_race_key");
+        ProxiedImageCacheService.SetBeforeFileReadForTesting(null);
+        var currentMetadata = db.ImageCacheMetadata.Single(m => m.CacheKey == "refresh_race_key");
+
+        Assert.True(hookRan);
+        Assert.NotEqual(oldFilePath, currentMetadata.FilePath);
+        Assert.True(File.Exists(currentMetadata.FilePath));
+        Assert.Equal(newBytes, File.ReadAllBytes(currentMetadata.FilePath));
+        Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
+        Assert.Equal(newBytes, result.Bytes);
+        Assert.Equal("image/png", result.ContentType);
     }
 
     [Fact]

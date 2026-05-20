@@ -63,6 +63,11 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     private static Func<ApplicationDbContext, Task<int>> _saveMetadataChanges =
         dbContext => dbContext.SaveChangesAsync();
 
+    /// <summary>
+    /// Test-only hook that runs after metadata is captured and before file existence is checked.
+    /// </summary>
+    private static Func<string, string, Task> _beforeFileReadForTesting = (_, _) => Task.CompletedTask;
+
     public ProxiedImageCacheService(
         ILogger<ProxiedImageCacheService> logger,
         ApplicationDbContext dbContext,
@@ -165,27 +170,11 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         // If the file was evicted between the DB check and this read, return null (cache miss).
         try
         {
+            await _beforeFileReadForTesting(cacheKey, filePath);
+
             if (!File.Exists(filePath))
             {
-                // File missing on disk — clean up the DB entry (rare error path, uses lock)
-                _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
-                await _cacheLock.WaitAsync();
-                try
-                {
-                    var staleMetadata = await _dbContext.ImageCacheMetadata
-                        .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
-                    if (staleMetadata != null)
-                    {
-                        _dbContext.ImageCacheMetadata.Remove(staleMetadata);
-                        Interlocked.Add(ref _currentCacheSize, -staleMetadata.Size);
-                        await SaveMetadataChangesAsync();
-                    }
-                }
-                finally
-                {
-                    _cacheLock.Release();
-                }
-                return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, filePath);
+                return await HandleMissingCapturedFileAsync(cacheKey, filePath, settings);
             }
 
             var bytes = await File.ReadAllBytesAsync(filePath);
@@ -196,6 +185,80 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
             _logger.LogError(ex, "Error reading cached image file for key {CacheKey}.", cacheKey);
             return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, filePath);
         }
+    }
+
+    /// <summary>
+    /// Cleans up a missing file only when the current metadata still points at that same file.
+    /// </summary>
+    private async Task<ProxiedImageCacheResult> HandleMissingCapturedFileAsync(
+        string cacheKey,
+        string capturedFilePath,
+        ApplicationSettings settings)
+    {
+        await _cacheLock.WaitAsync();
+        try
+        {
+            var currentMetadata = await _dbContext.ImageCacheMetadata
+                .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
+
+            if (currentMetadata != null)
+            {
+                await _dbContext.Entry(currentMetadata).ReloadAsync();
+            }
+
+            if (currentMetadata == null || _dbContext.Entry(currentMetadata).State == EntityState.Detached)
+            {
+                return new ProxiedImageCacheResult(
+                    ProxiedImageCacheStatus.DiskMissingOrError,
+                    null,
+                    null,
+                    capturedFilePath);
+            }
+
+            if (!string.Equals(currentMetadata.FilePath, capturedFilePath, StringComparison.Ordinal))
+            {
+                return await ReadConcurrentRefreshFileAsync(currentMetadata, settings);
+            }
+
+            _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
+            _dbContext.ImageCacheMetadata.Remove(currentMetadata);
+            Interlocked.Add(ref _currentCacheSize, -currentMetadata.Size);
+            await SaveMetadataChangesAsync();
+
+            return new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.DiskMissingOrError,
+                null,
+                null,
+                capturedFilePath);
+        }
+        finally
+        {
+            _cacheLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Reads the current file when a concurrent refresh moved metadata away from the captured path.
+    /// </summary>
+    private static async Task<ProxiedImageCacheResult> ReadConcurrentRefreshFileAsync(
+        ImageCacheMetadata metadata,
+        ApplicationSettings settings)
+    {
+        if (!File.Exists(metadata.FilePath))
+        {
+            return new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.DiskMissingOrError,
+                null,
+                null,
+                metadata.FilePath);
+        }
+
+        var maxAge = TimeSpan.FromDays(settings.ImageCacheExpiryDays);
+        var status = DateTime.UtcNow - metadata.CreatedAt > maxAge
+            ? ProxiedImageCacheStatus.StaleHit
+            : ProxiedImageCacheStatus.FreshHit;
+        var bytes = await File.ReadAllBytesAsync(metadata.FilePath);
+        return new ProxiedImageCacheResult(status, bytes, metadata.ContentType, metadata.FilePath);
     }
 
     /// <inheritdoc />
