@@ -336,7 +336,13 @@ public class PublicTripImagesTests : TestBase
         var client = new System.Net.Http.HttpClient();
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         var tagService = Mock.Of<ITripTagService>();
-        imageCacheService ??= Mock.Of<IProxiedImageCacheService>();
+        if (imageCacheService == null)
+        {
+            var cacheMock = new Mock<IProxiedImageCacheService>();
+            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+                .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+            imageCacheService = cacheMock.Object;
+        }
         if (settingsService == null)
         {
             var settingsMock = new Mock<IApplicationSettingsService>();

@@ -432,7 +432,13 @@ public class TripViewerControllerTests : TestBase
         var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 1, 2 }) }));
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         tagService ??= Mock.Of<ITripTagService>();
-        imageCacheService ??= Mock.Of<IProxiedImageCacheService>();
+        if (imageCacheService == null)
+        {
+            var cacheMock = new Mock<IProxiedImageCacheService>();
+            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+                .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+            imageCacheService = cacheMock.Object;
+        }
         if (settingsService == null)
         {
             var settingsMock = new Mock<IApplicationSettingsService>();

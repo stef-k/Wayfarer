@@ -114,6 +114,29 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
     }
 
     [Fact]
+    public async Task SetAsync_ReplacesExistingBytes_AndUpdatesMetadata()
+    {
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
+
+        await service.SetAsync("refresh_key", new byte[] { 1, 2 }, "image/jpeg");
+        var metadata = db.ImageCacheMetadata.First(m => m.CacheKey == "refresh_key");
+        metadata.CreatedAt = DateTime.UtcNow.AddDays(-10);
+        var staleCreatedAt = metadata.CreatedAt;
+        await db.SaveChangesAsync();
+
+        await service.SetAsync("refresh_key", new byte[] { 3, 4, 5 }, "image/png");
+
+        var result = await service.GetAsync("refresh_key");
+        await db.Entry(metadata).ReloadAsync();
+        Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
+        Assert.Equal(new byte[] { 3, 4, 5 }, result.Bytes);
+        Assert.Equal("image/png", result.ContentType);
+        Assert.True(metadata.CreatedAt > staleCreatedAt);
+        Assert.Equal(3, metadata.Size);
+    }
+
+    [Fact]
     public async Task GetAsync_ReturnsNull_WhenCachingDisabled()
     {
         var service = CreateService(maxSizeMB: -1);

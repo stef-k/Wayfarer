@@ -36,7 +36,8 @@ public class TripThumbnailServiceTests
         var result = service.GetThumbUrl(tripId, null, null, null, coverUrl);
 
         // Assert
-        Assert.Equal(coverUrl, result);
+        Assert.StartsWith("/Public/ProxyImage?url=", result);
+        Assert.Contains("cover.jpg", System.Net.WebUtility.UrlDecode(result));
     }
 
     [Fact]
@@ -96,7 +97,8 @@ public class TripThumbnailServiceTests
         var result = service.GetThumbUrl(tripId, 40.7128, -74.0060, 10, coverUrl);
 
         // Assert
-        Assert.Equal(coverUrl, result);
+        Assert.StartsWith("/Public/ProxyImage?url=", result);
+        Assert.Contains("my-trip.jpg", System.Net.WebUtility.UrlDecode(result));
     }
 
     [Fact]
@@ -161,7 +163,8 @@ public class TripThumbnailServiceTests
             tripId, 40.7128, -74.0060, 10, coverUrl, DateTime.UtcNow);
 
         // Assert
-        Assert.Equal(coverUrl, result);
+        Assert.StartsWith("/Public/ProxyImage?url=", result);
+        Assert.Contains("cover.jpg", System.Net.WebUtility.UrlDecode(result));
     }
 
     [Fact]
@@ -185,7 +188,8 @@ public class TripThumbnailServiceTests
             tripId, 40.7128, -74.0060, 10, coverUrl, DateTime.UtcNow);
 
         // Assert
-        Assert.Equal(coverUrl, result);
+        Assert.StartsWith("/Public/ProxyImage?url=", result);
+        Assert.Contains("cover.jpg", System.Net.WebUtility.UrlDecode(result));
     }
 
     [Fact]
@@ -226,7 +230,8 @@ public class TripThumbnailServiceTests
             tripId, null, null, null, coverUrl, DateTime.UtcNow);
 
         // Assert
-        Assert.Equal(coverUrl, result);
+        Assert.StartsWith("/Public/ProxyImage?url=", result);
+        Assert.Contains("cover.jpg", System.Net.WebUtility.UrlDecode(result));
         _mockGenerator.Verify(g => g.GetOrGenerateThumbnailAsync(
             It.IsAny<Guid>(), It.IsAny<double>(), It.IsAny<double>(),
             It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(),

@@ -16,6 +16,11 @@ namespace Wayfarer.Tests.Services;
 /// </summary>
 public class ImageProxyServiceTests : TestBase
 {
+    public ImageProxyServiceTests()
+    {
+        ImageProxyService.ResetStaticStateForTesting();
+    }
+
     [Fact]
     public async Task FetchAndCacheAsync_ReturnsFalse_ForDisallowedUrl()
     {
@@ -120,11 +125,107 @@ public class ImageProxyServiceTests : TestBase
         cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Fact]
+    public async Task GetOrFetchAsync_CoalescesConcurrentCacheMisses_ByCacheKey()
+    {
+        var handler = new CountingHttpMessageHandler(
+            () => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = CreateContent(new byte[] { 1, 2, 3 }, "application/octet-stream")
+            },
+            delay: TimeSpan.FromMilliseconds(50));
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
+        var request = new ImageProxyRequest("https://example.com/coalesced.bin", Optimize: false);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8)
+            .Select(_ => service.GetOrFetchAsync(request, allowOriginFetch: true)));
+
+        Assert.All(results, result => Assert.Equal(ImageProxyResultStatus.Fetched, result.Status));
+        Assert.Equal(1, handler.RequestCount);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_CoalescesConcurrentRefreshes_ByCacheKey()
+    {
+        var handler = new CountingHttpMessageHandler(
+            () => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = CreateContent(new byte[] { 4, 5, 6 }, "application/octet-stream")
+            },
+            delay: TimeSpan.FromMilliseconds(50));
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
+        var request = new ImageProxyRequest("https://example.com/stale-refresh.bin", Optimize: false);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 8)
+            .Select(_ => service.RefreshAsync(request)));
+
+        Assert.All(results, result => Assert.Equal(ImageProxyResultStatus.Fetched, result.Status));
+        Assert.Equal(1, handler.RequestCount);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_FailurePreservesStaleCacheMetadata()
+    {
+        var handler = new MockHttpMessageHandler(HttpStatusCode.NotFound, Array.Empty<byte>(), "text/html");
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
+
+        var result = await service.RefreshAsync(new ImageProxyRequest("https://example.com/missing.jpg"));
+
+        Assert.Equal(ImageProxyResultStatus.NotFound, result.Status);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetOrFetchAsync_LimitsDistinctOriginWork_ToFourConcurrentOperations()
+    {
+        var handler = new SlowCountingHttpMessageHandler();
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
+
+        await Task.WhenAll(Enumerable.Range(0, 12)
+            .Select(i => service.GetOrFetchAsync(
+                new ImageProxyRequest($"https://example.com/image-{i}.bin", Optimize: false),
+                allowOriginFetch: true)));
+
+        Assert.True(handler.MaxActiveRequests <= 4);
+    }
+
+    [Fact]
+    public async Task FetchAndCacheAsync_ConcurrentWarmupUsesPerKeyCoalescing()
+    {
+        var handler = new CountingHttpMessageHandler(
+            () => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = CreateContent(new byte[] { 7, 8, 9 }, "application/octet-stream")
+            },
+            delay: TimeSpan.FromMilliseconds(50));
+        var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 6)
+            .Select(_ => service.FetchAndCacheAsync("https://example.com/warmup.bin")));
+
+        Assert.Contains(true, results);
+        Assert.Equal(1, handler.RequestCount);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+    }
+
     /// <summary>
     /// Creates an <see cref="ImageProxyService"/> with test doubles.
     /// </summary>
     private ImageProxyService CreateImageProxyService(
-        MockHttpMessageHandler? handler = null,
+        HttpMessageHandler? handler = null,
         Mock<IProxiedImageCacheService>? cacheMock = null,
         Mock<IApplicationSettingsService>? settingsMock = null)
     {
@@ -173,6 +274,79 @@ public class ImageProxyServiceTests : TestBase
             if (_contentLength.HasValue)
                 response.Content.Headers.ContentLength = _contentLength.Value;
             return Task.FromResult(response);
+        }
+    }
+
+    private static ByteArrayContent CreateContent(byte[] bytes, string contentType)
+    {
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+        return content;
+    }
+
+    private sealed class CountingHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpResponseMessage> _responseFactory;
+        private readonly TimeSpan _delay;
+        private int _requestCount;
+
+        public int RequestCount => _requestCount;
+
+        public CountingHttpMessageHandler(Func<HttpResponseMessage> responseFactory, TimeSpan? delay = null)
+        {
+            _responseFactory = responseFactory;
+            _delay = delay ?? TimeSpan.Zero;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _requestCount);
+            if (_delay > TimeSpan.Zero)
+            {
+                await Task.Delay(_delay, cancellationToken);
+            }
+
+            return _responseFactory();
+        }
+    }
+
+    private sealed class SlowCountingHttpMessageHandler : HttpMessageHandler
+    {
+        private int _activeRequests;
+        private int _maxActiveRequests;
+
+        public int MaxActiveRequests => _maxActiveRequests;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var active = Interlocked.Increment(ref _activeRequests);
+            UpdateMaxActive(active);
+            try
+            {
+                await Task.Delay(50, cancellationToken);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = CreateContent(new byte[] { 1 }, "application/octet-stream")
+                };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeRequests);
+            }
+        }
+
+        private void UpdateMaxActive(int active)
+        {
+            int current;
+            do
+            {
+                current = _maxActiveRequests;
+                if (active <= current)
+                {
+                    return;
+                }
+            }
+            while (Interlocked.CompareExchange(ref _maxActiveRequests, active, current) != current);
         }
     }
 }

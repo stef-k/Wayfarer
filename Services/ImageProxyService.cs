@@ -18,6 +18,12 @@ public interface IImageProxyService
     Task<ImageProxyResult> GetOrFetchAsync(ImageProxyRequest request, bool allowOriginFetch, CancellationToken ct = default);
 
     /// <summary>
+    /// Forces origin refresh for a cache key through the shared per-key coordinator and process budget.
+    /// Used by bounded stale refresh and warm-up paths.
+    /// </summary>
+    Task<ImageProxyResult> RefreshAsync(ImageProxyRequest request, CancellationToken ct = default);
+
+    /// <summary>
     /// Fetches an external image, optimizes it via ImageSharp, and stores it in the
     /// proxied image cache. Returns true if the image was fetched and cached, false
     /// if already cached, disallowed, or failed.
@@ -168,12 +174,29 @@ public class ImageProxyService : IImageProxyService
             return false;
         }
 
-        var result = await RunOriginWorkCoalescedAsync(
+        var result = existing.Status == ProxiedImageCacheStatus.StaleHit
+            ? await RefreshAsync(request, ct)
+            : await RunOriginWorkCoalescedAsync(
+                cacheKey,
+                () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
+                ct);
+
+        return result.Status == ImageProxyResultStatus.Fetched;
+    }
+
+    /// <inheritdoc />
+    public Task<ImageProxyResult> RefreshAsync(ImageProxyRequest request, CancellationToken ct = default)
+    {
+        if (!ImageProxyHelper.IsUrlAllowed(request.Url))
+        {
+            return Task.FromResult(new ImageProxyResult(ImageProxyResultStatus.BadRequest, string.Empty, null, null));
+        }
+
+        var cacheKey = ComputeCacheKey(request);
+        return RunOriginWorkCoalescedAsync(
             cacheKey,
             () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
             ct);
-
-        return result.Status == ImageProxyResultStatus.Fetched;
     }
 
     /// <summary>
@@ -333,7 +356,7 @@ public class ImageProxyService : IImageProxyService
                 {
                     using var scope = _serviceScopeFactory.CreateScope();
                     var imageProxyService = scope.ServiceProvider.GetRequiredService<IImageProxyService>();
-                    var result = await imageProxyService.GetOrFetchAsync(series.Request, true, series.CancellationToken);
+                    var result = await imageProxyService.RefreshAsync(series.Request, series.CancellationToken);
                     if (result.Status == ImageProxyResultStatus.Fetched)
                     {
                         return;
