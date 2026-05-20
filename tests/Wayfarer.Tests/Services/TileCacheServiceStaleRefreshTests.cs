@@ -105,7 +105,8 @@ public partial class TileCacheServiceTests
         var retrieveTask = service.RetrieveTileAsync("9", "14", "15", "http://tiles/9/14/15.png");
 
         Assert.Same(retrieveTask, await Task.WhenAny(retrieveTask, Task.Delay(TimeSpan.FromSeconds(1))));
-        Assert.Equal(originalBytes, retrieveTask.Result.TileData);
+        var result = await retrieveTask;
+        Assert.Equal(originalBytes, result.TileData);
         Assert.True(await handler.WaitForConditionalRequestAsync(TimeSpan.FromSeconds(2)));
 
         handler.CompleteConditionalRequest();
@@ -127,7 +128,8 @@ public partial class TileCacheServiceTests
         var retrieveTask = service.RetrieveTileAsync("5", "14", "15", "http://tiles/5/14/15.png");
 
         Assert.Same(retrieveTask, await Task.WhenAny(retrieveTask, Task.Delay(TimeSpan.FromSeconds(1))));
-        Assert.Equal(originalBytes, retrieveTask.Result.TileData);
+        var result = await retrieveTask;
+        Assert.Equal(originalBytes, result.TileData);
         Assert.True(await handler.WaitForConditionalRequestAsync(TimeSpan.FromSeconds(2)));
 
         handler.CompleteConditionalRequest();
