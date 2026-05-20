@@ -72,6 +72,12 @@
   text-transform: uppercase;
 }
 
+.trip-editor-editor-summary__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .trip-editor-surface__controls,
 .trip-editor-surface__footer,
 .trip-editor-map-work-toolbar__actions {
@@ -153,7 +159,7 @@
   inset: 0;
   pointer-events: none;
   position: fixed;
-  z-index: 1060;
+  z-index: 1040;
 }
 
 .trip-editor-expanded__backdrop {
@@ -253,5 +259,65 @@
   .trip-editor-map-work-toolbar {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .trip-editor-map-work-toolbar {
+    background: color-mix(in srgb, var(--trip-editor-surface) 94%, transparent);
+    border: 1px solid var(--trip-editor-border);
+    border-radius: 8px;
+    box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.2);
+    flex-direction: column;
+    gap: 0.55rem;
+    left: 0.75rem;
+    max-width: calc(100% - 1.5rem);
+    padding: 0.55rem;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.75rem;
+    z-index: 14;
+  }
+
+  .trip-editor-map-work-toolbar__actions {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .trip-editor-map-work-toolbar__actions .btn {
+    flex: 0 0 auto;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface {
+    margin-top: 0;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__header,
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer {
+    margin-left: -0.85rem;
+    margin-right: -0.85rem;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+    position: sticky;
+    z-index: 2;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__header {
+    background: var(--trip-editor-surface);
+    border-bottom: 1px solid var(--trip-editor-border);
+    margin-top: -0.85rem;
+    padding-top: 0.85rem;
+    top: 0;
+    z-index: 3;
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer {
+    background: var(--trip-editor-surface);
+    border-top: 1px solid var(--trip-editor-border);
+    margin-bottom: -0.85rem;
+    padding-bottom: 0.85rem;
+    bottom: 0;
   }
 }

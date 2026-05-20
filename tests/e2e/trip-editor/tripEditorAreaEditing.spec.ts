@@ -355,15 +355,19 @@ async function dragFirstEditableVertex(page: Page): Promise<void> {
   await page.evaluate(() => window.scrollTo(0, 0));
   const vertex = page.locator('.leaflet-editing-icon').first();
   await expect(vertex).toBeVisible();
+  await vertex.scrollIntoViewIfNeeded();
   const box = await vertex.boundingBox();
   expect(box, 'Editable area vertex should have a browser-visible box before dragging.').not.toBeNull();
   const startX = box!.x + box!.width / 2;
   const startY = box!.y + box!.height / 2;
   await page.mouse.move(startX, startY);
   await page.mouse.down();
-  await page.mouse.move(startX + 96, startY + 72, { steps: 8 });
+  await page.mouse.move(startX + 180, startY + 120, { steps: 16 });
   await page.mouse.up();
-  await page.waitForTimeout(250);
+  await expect.poll(async () => {
+    const movedBox = await vertex.boundingBox();
+    return movedBox ? Math.abs(movedBox.x - box!.x) + Math.abs(movedBox.y - box!.y) : 0;
+  }).toBeGreaterThan(8);
 }
 
 async function discardDirtyMapWork(page: Page): Promise<void> {
@@ -374,8 +378,9 @@ async function discardDirtyMapWork(page: Page): Promise<void> {
 
 async function dragAreaRow(page: Page, fromName: string, toName: string): Promise<void> {
   const from = areaRow(page, fromName);
-  const to = areaRow(page, toName);
-  await from.getByRole('button', { name: 'Drag to reorder area' }).dragTo(to);
+  await expect(areaRow(page, toName)).toBeVisible();
+  await from.getByRole('button', { name: 'Drag to reorder area' }).focus();
+  await page.keyboard.press('ArrowDown');
 }
 
 async function expectAreaOrder(page: Page, names: string[]): Promise<void> {

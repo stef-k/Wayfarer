@@ -72,6 +72,7 @@ export function useEditorSurface() {
     expand,
     enterMapWork,
     finishMapWork,
+    isActiveTargetDirty,
     isTargetActive,
     replaceActiveTarget,
     registerTargetHandler
@@ -157,6 +158,16 @@ export function dock(target?: EditorTarget): void {
 
 export function isTargetActive(target: EditorTarget): boolean {
   return isSameConcreteTarget(activeTarget.value, target);
+}
+
+/// Reads the active editor handler's dirty state without prompting or mutating draft ownership.
+export function isActiveTargetDirty(): boolean {
+  const target = activeTarget.value;
+  if (!target) {
+    return false;
+  }
+
+  return handlers.get(target.key)?.isDirty() ?? false;
 }
 
 export function enterMapWork(options: MapWorkOptions): boolean {

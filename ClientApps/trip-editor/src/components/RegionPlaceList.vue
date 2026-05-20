@@ -237,6 +237,24 @@ function toggleRegion(regionId: Guid): void {
 
   collapsedRegionIds.value = next;
 }
+
+function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void {
+  if (props.searchActive || props.isOrdering) {
+    return;
+  }
+
+  const ids = [...(props.areaIdsByRegionId[regionId] ?? [])];
+  const index = ids.indexOf(areaId);
+  const nextIndex = index + offset;
+  if (index < 0 || nextIndex < 0 || nextIndex >= ids.length) {
+    return;
+  }
+
+  const previousIds = [...(props.state.areaOrderByRegionId[regionId] ?? [])];
+  const [id] = ids.splice(index, 1);
+  ids.splice(nextIndex, 0, id);
+  emit('areaReorder', regionId, ids, previousIds);
+}
 </script>
 
 <template>
@@ -335,6 +353,8 @@ function toggleRegion(regionId: Guid): void {
                 title="Drag to reorder area"
                 aria-label="Drag to reorder area"
                 :disabled="props.searchActive || props.isOrdering"
+                @keydown.arrow-up.prevent="moveAreaByKeyboard(region.id, area.id, -1)"
+                @keydown.arrow-down.prevent="moveAreaByKeyboard(region.id, area.id, 1)"
               >
                 <span aria-hidden="true">::</span>
               </button>

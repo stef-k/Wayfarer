@@ -26,6 +26,7 @@ const props = defineProps<{
   antiforgeryToken: string;
   tripIndexUrl: string;
   hasRegionDraftChanges: boolean;
+  autoOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -71,6 +72,15 @@ const visibleShareProgressEnabled = computed({
   }
 });
 const progressUrl = computed(() => (!shareProgressUnavailable.value && draft.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
+/// Reports persisted share-progress state for read-only Trip summaries.
+const shareProgressSummary = computed(() => {
+  if (!props.metadata.isPublic) {
+    return 'Unavailable until trip is public';
+  }
+
+  return props.metadata.shareProgressEnabled ? 'Enabled' : 'Disabled';
+});
+const summaryProgressUrl = computed(() => (props.metadata.isPublic && props.metadata.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
 const target = computed<EditorTarget>(() => ({
   key: 'metadata',
   identity: 'metadata',
@@ -123,13 +133,24 @@ watch(
   }
 );
 
+watch(
+  () => props.autoOpen,
+  autoOpen => {
+    if (autoOpen !== false && !isActive.value) {
+      void openMetadata();
+    }
+  }
+);
+
 onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
   unregisterSurfaceHandler = props.editorSurface.registerTargetHandler(target.value.key, {
     isDirty: () => isDirty.value,
     discard: resetDraft
   });
-  void openMetadata();
+  if (props.autoOpen !== false) {
+    void openMetadata();
+  }
 });
 
 onUnmounted(() => {
@@ -369,6 +390,11 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     <div>
       <h2>Trip Settings</h2>
       <p>{{ metadata.isPublic ? 'Public trip' : 'Private trip' }}</p>
+      <p>Share progress: {{ shareProgressSummary }}</p>
+      <div v-if="metadata.publicUrl || summaryProgressUrl" class="trip-editor-editor-summary__links">
+        <a v-if="metadata.publicUrl" :href="metadata.publicUrl" target="_blank" rel="noopener">Open public trip</a>
+        <a v-if="summaryProgressUrl" :href="summaryProgressUrl" target="_blank" rel="noopener">Open progress URL</a>
+      </div>
     </div>
     <button type="button" class="btn btn-outline-light btn-sm" @click="openMetadata">Edit Trip</button>
   </section>

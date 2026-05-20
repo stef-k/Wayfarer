@@ -77,7 +77,13 @@ export async function expectMountedWorkspace(page: Page): Promise<void> {
   await expect(app).toBeVisible();
   await expect(app.locator('.trip-editor-workspace')).toBeVisible();
   await expect(app).not.toContainText('Trip Editor development server is not available');
-  await expectActiveMetadataSurface(page);
+  if (await isPhoneDrawerViewport(page)) {
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
+  } else {
+    await expectActiveMetadataSurface(page);
+  }
   await expectInitializedTripMap(page);
 }
 
@@ -85,6 +91,10 @@ export async function expectMountedWorkspace(page: Page): Promise<void> {
 export async function expectActiveMetadataSurface(page: Page): Promise<void> {
   await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
   await expect(page.locator('.trip-editor-surface--docked')).toContainText(/Edit Trip -/i);
+}
+
+async function isPhoneDrawerViewport(page: Page): Promise<boolean> {
+  return await page.evaluate(() => window.matchMedia('(max-width: 640px)').matches);
 }
 
 // Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
@@ -190,9 +200,29 @@ export function firstRegionWithChildren(page: Page): Locator {
   return page.locator('.trip-editor-region-card').filter({ has: page.locator('ul li') }).first();
 }
 
+// Locates the active docked or expanded editor surface without matching global modals.
+export function activeEditorSurface(page: Page): Locator {
+  return page.locator('.trip-editor-expanded__dialog, .trip-editor-surface--docked').filter({ visible: true }).last();
+}
+
+// Locates form-level validation or mutation feedback in the active editor surface.
+export function activeEditorAlert(page: Page): Locator {
+  return page.locator('.trip-editor-form-error[role="alert"]').filter({ visible: true }).first();
+}
+
+// Locates the active editor cancel action without matching confirmation dialogs.
+export function activeEditorCancelButton(page: Page): Locator {
+  return activeEditorSurface(page).getByRole('button', { name: 'Cancel' });
+}
+
+// Locates the active editor close action without matching toast or shell modal controls.
+export function activeEditorCloseButton(page: Page): Locator {
+  return activeEditorSurface(page).getByRole('button', { name: 'Close' });
+}
+
 // Closes the active editor, accepting the shared discard dialog when dirty.
 export async function closeDraftWithDiscard(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  await activeEditorCancelButton(page).click();
   const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
   if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
     await dialog.getByRole('button', { name: 'Discard' }).click();

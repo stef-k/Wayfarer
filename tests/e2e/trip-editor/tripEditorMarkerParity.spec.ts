@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorCancelButton,
   editorApiPath,
   editorPath,
   expectMountedWorkspace,
@@ -96,7 +97,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
     await expectSelectedPlace(page, firstPlaceId);
 
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await expectNoSelectedPlace(page);
     await expect(page.locator('.trip-editor-place-editor-row')).toHaveCount(0);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
@@ -214,6 +215,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await expectPlaceRowDoesNotOverlapEdit(page, firstPlaceId);
 
     await page.setViewportSize({ width: 390, height: 900 });
+    await page.getByRole('button', { name: 'Regions', exact: true }).click();
     await expectPlaceRowDoesNotOverlapEdit(page, firstPlaceId);
 
   });

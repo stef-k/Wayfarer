@@ -5,7 +5,10 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     port: 5173,
-    strictPort: true
+    strictPort: true,
+    watch: {
+      ignored: ['**/.local/**', '**/playwright-report/**', '**/test-results/**']
+    }
   },
   build: {
     outDir: 'wwwroot/vite/trip-editor',

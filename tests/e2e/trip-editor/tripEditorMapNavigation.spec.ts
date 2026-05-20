@@ -216,10 +216,15 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
 
   test('defers to map-work toolbar', async ({ page }) => {
     await signIn(page);
-    await page.goto(absoluteUrl(editorPath));
-    await expectMountedWorkspace(page);
+    const fixture = await loadWorkspaceWithEditorState(page, state => {
+      const region = normalRegion(state);
+      test.skip(!region, 'Configured Trip Editor fixture has no normal region for map-work toolbar coverage.');
+      return { regionName: region!.name };
+    });
 
-    await enterMapWorkFromE2e(page);
+    await regionCard(page, fixture.regionName).getByRole('button', { name: 'Add Place' }).click();
+    await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
+    await page.getByRole('button', { name: 'Pick on map' }).click();
 
     const toolbar = page.locator('.trip-editor-toolbar');
     await expect(toolbar.getByRole('button', { name: 'Fit All' })).toHaveCount(0);
@@ -227,8 +232,12 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toHaveCount(0);
 
     const mapWork = page.getByRole('region', { name: 'Map work' });
+    await expect(mapWork).toContainText('Pick place location');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeVisible();
     await expect(mapWork.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await clickMap(page, { xRatio: 0.42, yRatio: 0.46 });
+    await expect(mapWork).toContainText('Selected');
+    await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     await mapWork.getByRole('button', { name: 'Done' }).click();
     await expect(toolbar.getByRole('button', { name: 'Fit All' })).toBeVisible();
   });
@@ -491,32 +500,10 @@ async function expectRenderedRouteGeometry(page: Page): Promise<void> {
   await expect(page.getByLabel('Read-only trip map').locator('.leaflet-overlay-pane path')).not.toHaveCount(0);
 }
 
-async function enterMapWorkFromE2e(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const entryScript = document.querySelector<HTMLScriptElement>('script[src*="/ClientApps/trip-editor/src/main.ts"]');
-    const moduleUrl = new URL('/ClientApps/trip-editor/src/composables/useEditorSurface.ts', entryScript?.src ?? window.location.origin).href;
-    // Use the real surface singleton through Vite so map-work assertions do not add fake UI controls.
-    const surface = await import(/* @vite-ignore */ moduleUrl) as {
-      enterMapWork: (options: {
-        modeName: string;
-        instruction: string;
-        statusText: string;
-        isDirty: () => boolean;
-        snapshot: () => unknown;
-        rollback: (snapshot: unknown) => void;
-        done: () => void;
-        cancel: () => void;
-      }) => boolean;
-    };
-    surface.enterMapWork({
-      modeName: 'Verify map work',
-      instruction: 'Use map-work toolbar actions.',
-      statusText: 'Navigation toolbar deferred',
-      isDirty: () => false,
-      snapshot: () => null,
-      rollback: () => undefined,
-      done: () => undefined,
-      cancel: () => undefined
-    });
-  });
+async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
+  const map = page.getByLabel('Read-only trip map');
+  await map.scrollIntoViewIfNeeded();
+  const box = await map.boundingBox();
+  expect(box, 'Read-only trip map should be rendered before map-work clicks.').not.toBeNull();
+  await page.mouse.click(box!.x + box!.width * position.xRatio, box!.y + box!.height * position.yRatio);
 }

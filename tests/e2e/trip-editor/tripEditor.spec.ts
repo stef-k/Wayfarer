@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorAlert,
+  activeEditorCancelButton,
+  activeEditorCloseButton,
   closeDraftWithDiscard,
   config,
   editorApiPath,
@@ -101,9 +104,9 @@ test.describe.serial('Trip Editor dev verification', () => {
       await regionDialog.getByRole('button', { name: 'Dock to sidebar' }).click();
       await page.locator('.trip-editor-surface--docked').getByLabel('Name').fill('');
       await page.getByRole('button', { name: 'Save Region' }).click();
-      await expect(page.getByRole('alert')).toBeVisible();
+      await expect(activeEditorAlert(page)).toBeVisible();
       await page.getByRole('button', { name: 'Reset' }).click();
-      await page.getByRole('button', { name: 'Cancel' }).click();
+      await activeEditorCancelButton(page).click();
 
       await editableRegion.getByRole('button', { name: 'Add Place' }).click();
       await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
@@ -144,7 +147,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await metadataDialog.getByRole('button', { name: 'Dock to sidebar' }).click();
     await expect(page.locator('.trip-editor-surface--docked').getByLabel('Name')).toHaveValue(draftName);
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await activeEditorCloseButton(page).click();
     const dialog = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(dialog).toBeVisible();
     await capture(page, testInfo, 'validation-confirmation');
@@ -152,7 +155,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(dialog).toHaveCount(0);
     await expect(page.locator('.trip-editor-surface--docked').getByLabel('Name')).toHaveValue(draftName);
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await activeEditorCloseButton(page).click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
     await page.getByRole('button', { name: 'Edit Trip' }).click();
@@ -177,7 +180,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expect(page.getByRole('heading', { name: 'Add Place' })).toBeVisible();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await activeEditorCancelButton(page).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add Region' })).toBeVisible();
   });
@@ -271,7 +274,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await page.getByRole('button', { name: 'Save & Exit' }).click();
 
     await expect(page).toHaveURL(pathRegex(editorPath));
-    await expect(page.getByRole('alert')).toContainText('One or more validation errors occurred.');
+    await expect(activeEditorAlert(page)).toContainText('One or more validation errors occurred.');
     await expect(page.locator('.trip-editor-surface--docked')).toContainText('Injected tag save failure.');
   });
 
@@ -283,6 +286,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
     await expect(page.locator('.trip-editor-sidebar')).toBeVisible();
     await expect(page.getByLabel('Read-only trip map')).toBeVisible();
+    await page.getByRole('button', { name: 'Edit Trip' }).click();
     await page.getByRole('button', { name: 'Expand Editor' }).click();
     await expect(page.getByRole('dialog', { name: /Edit Trip -/i })).toBeVisible();
     await expectNoObviousOverflow(page.getByRole('dialog', { name: /Edit Trip -/i }));
