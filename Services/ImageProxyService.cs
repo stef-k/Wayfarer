@@ -226,7 +226,7 @@ public class ImageProxyService : IImageProxyService
             }
 
             var stored = await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
-            if (!stored.Stored)
+            if (stored?.Stored != true)
             {
                 _logger.LogWarning("Failed to store proxied image cache entry for {Url}.", request.Url);
                 return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);

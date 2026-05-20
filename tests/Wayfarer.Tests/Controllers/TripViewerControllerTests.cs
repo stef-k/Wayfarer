@@ -380,6 +380,8 @@ public class TripViewerControllerTests : TestBase
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+        cacheMock.Setup(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+            .ReturnsAsync(ProxiedImageCacheStoreResult.Success);
 
         var controller = BuildController(
             CreateDbContext(),
@@ -416,6 +418,8 @@ public class TripViewerControllerTests : TestBase
             var cacheMock = new Mock<IProxiedImageCacheService>();
             cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
                 .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+            cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+                .ReturnsAsync(ProxiedImageCacheStoreResult.Success);
             imageCacheService = cacheMock.Object;
         }
         if (settingsService == null)

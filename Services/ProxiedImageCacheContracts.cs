@@ -13,7 +13,7 @@ public interface IProxiedImageCacheService
 
     /// <summary>
     /// Stores processed image bytes under the given cache key.
-    /// Existing entries are atomically replaced so readers see complete old or new bytes.
+    /// Existing entries keep old bytes usable unless new bytes and metadata both commit.
     /// </summary>
     Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType);
 
