@@ -78,14 +78,22 @@ class TripEditorRetryTileLayer extends L.TileLayer {
   private fetchWithRetry(url: string, tile: RetryTileImage, done: L.DoneCallback, attempt: number, signal: AbortSignal): void {
     acquireTileFetchSlot(signal).then(acquired => {
       if (!acquired) return;
+      let slotReleased = false;
+      const releaseSlotOnce = (): void => {
+        if (!slotReleased) {
+          slotReleased = true;
+          releaseTileFetchSlot();
+        }
+      };
+
       if (signal.aborted) {
-        releaseTileFetchSlot();
+        releaseSlotOnce();
         return;
       }
 
       fetch(url, { signal })
         .then(response => {
-          releaseTileFetchSlot();
+          releaseSlotOnce();
           if (response.ok) return this.loadTileBlob(response, tile, done, signal);
           if (response.status === 503) {
             this.scheduleRetry(url, tile, done, attempt, signal, response.headers.get('Retry-After'));
@@ -95,7 +103,7 @@ class TripEditorRetryTileLayer extends L.TileLayer {
           done(new Error(`Tile fetch failed: ${response.status}`), tile);
         })
         .catch(error => {
-          releaseTileFetchSlot();
+          releaseSlotOnce();
           if (error instanceof DOMException && error.name === 'AbortError') return;
           this.scheduleRetry(url, tile, done, attempt, signal);
         });

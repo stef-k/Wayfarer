@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
 
 public partial class TileCacheService
 {
@@ -60,9 +61,7 @@ public partial class TileCacheService
 
                 try
                 {
-                    var refreshed = await RevalidateTileAsync(series.TileUrl, series.TileFilePath,
-                        series.TileKey, series.Zoom, series.X, series.Y, series.ETag,
-                        series.LastModified, series.ClientIp, series.CancellationToken);
+                    var refreshed = await RevalidateTileInFreshScopeAsync(series);
 
                     if (refreshed != null)
                     {
@@ -110,6 +109,19 @@ public partial class TileCacheService
         delayMs = Math.Min(delayMs, RefreshRetryMaxDelay.TotalMilliseconds);
         delayMs *= 0.75 + Random.Shared.NextDouble() * 0.5;
         return TimeSpan.FromMilliseconds(delayMs);
+    }
+
+    /// <summary>
+    /// Runs a background refresh attempt through a newly-created DI scope.
+    /// The scheduled series carries only immutable primitive values from the request.
+    /// </summary>
+    private async Task<byte[]?> RevalidateTileInFreshScopeAsync(TileRefreshSeries series)
+    {
+        using var scope = _serviceScopeFactory.CreateScope();
+        var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+        return await tileCacheService.RevalidateTileAsync(series.TileUrl, series.TileFilePath,
+            series.TileKey, series.Zoom, series.X, series.Y, series.ETag,
+            series.LastModified, series.ClientIp, series.CancellationToken);
     }
 
     /// <summary>
