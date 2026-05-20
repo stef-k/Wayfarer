@@ -36,7 +36,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expect(tripTab.getByRole('link', { name: 'Open public trip' })).toHaveAttribute('href', '/Public/Trips/mobile-drawer-public');
     await expect(tripTab.getByRole('link', { name: 'Open progress URL' })).toHaveAttribute('href', '/Public/Trips/mobile-drawer-progress');
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toHaveCount(0);
-    await expectDrawerState(page, 'expanded-view');
+    await expectDrawerState(page, 'peek');
     await expectMapFirstPhoneLayout(page);
     await capture(page, testInfo, 'phone-light-initial-trip-map-first');
 
@@ -77,21 +77,37 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await signIn(page);
     await openEditorAt(page, { width: 390, height: 844 });
 
-    await expectDrawerState(page, 'expanded-view');
+    await expect(page.locator('.trip-editor-mobile-drawer__handle')).toHaveCount(0);
+    await expectDrawerState(page, 'peek');
+    await expectCompactDrawerChrome(page);
+    await expectDrawerHeight(page, { min: 170, max: 190 });
+    const initialPeekHeight = await drawerHeight(page);
 
     await page.getByRole('button', { name: 'Collapse' }).click();
     await expectDrawerState(page, 'collapsed');
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeHidden();
+    await expectDrawerHeight(page, { min: 84, max: 100 });
     await expectMapFirstPhoneLayout(page);
 
     await page.getByRole('button', { name: 'Peek' }).click();
     await expectDrawerState(page, 'peek');
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expectHeightCloseTo(page, initialPeekHeight);
     await expectMapFirstPhoneLayout(page);
 
     await page.getByRole('button', { name: 'Expand' }).click();
     await expectDrawerState(page, 'expanded-view');
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expectDrawerHeight(page, { min: 640, max: 735 });
+    const expandedHeight = await drawerHeight(page);
+
+    await page.getByRole('button', { name: 'Regions' }).click();
+    await expectDrawerState(page, 'expanded-view');
+    await expectHeightCloseTo(page, expandedHeight);
+
+    await page.getByRole('button', { name: 'Segments' }).click();
+    await expectDrawerState(page, 'expanded-view');
+    await expectHeightCloseTo(page, expandedHeight);
   });
 
   test('phone routes tab-owned editing, search-add, and map-work through the drawer', async ({ page }, testInfo) => {
@@ -111,9 +127,24 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('button', { name: 'Edit Trip' }).click();
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
+    await expect(page.locator('.trip-editor-mobile-drawer__state-controls')).toBeVisible();
     await expectDrawerState(page, 'expanded-edit');
+    await expectDrawerHeight(page, { min: 720, max: 735 });
+    await expectOpaqueStickyChrome(page);
+    const metadataName = page.locator('#trip-editor-metadata-form').getByLabel('Name');
+    const activeDraftName = `${await metadataName.inputValue()} drawer recoverable edit`;
+    await metadataName.fill(activeDraftName);
+    await page.getByRole('button', { name: 'Collapse' }).click();
+    await expectDrawerState(page, 'collapsed');
+    await expect(page.locator('#trip-editor-metadata-form')).toBeHidden();
+    await page.getByRole('button', { name: 'Expand' }).click();
+    await expectDrawerState(page, 'expanded-edit');
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(activeDraftName);
     await capture(page, testInfo, 'phone-dark-active-trip-edit');
     await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
+    const discardActiveEdit = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardActiveEdit).toBeVisible();
+    await discardActiveEdit.getByRole('button', { name: 'Discard' }).click();
 
     await page.getByRole('searchbox', { name: 'Map search' }).fill('drawer search place');
     await page.getByRole('region', { name: 'Map search' }).getByRole('button', { name: 'Search' }).click();
@@ -389,6 +420,54 @@ async function openEditorWithTripSummaryFixture(
 
 async function expectDrawerState(page: Page, state: string): Promise<void> {
   await expect(page.locator('.trip-editor-sidebar--mobile-drawer')).toHaveAttribute('data-mobile-drawer-state', state);
+}
+
+async function drawerHeight(page: Page): Promise<number> {
+  return page.locator('.trip-editor-sidebar--mobile-drawer').evaluate(element => element.getBoundingClientRect().height);
+}
+
+async function expectDrawerHeight(page: Page, expected: { min: number; max: number }): Promise<void> {
+  const height = await drawerHeight(page);
+  expect(height).toBeGreaterThanOrEqual(expected.min);
+  expect(height).toBeLessThanOrEqual(expected.max);
+}
+
+async function expectHeightCloseTo(page: Page, expectedHeight: number): Promise<void> {
+  const height = await drawerHeight(page);
+  expect(Math.abs(height - expectedHeight)).toBeLessThanOrEqual(2);
+}
+
+async function expectCompactDrawerChrome(page: Page): Promise<void> {
+  const metrics = await page.evaluate(() => {
+    const stateControl = document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__state-controls button')?.getBoundingClientRect();
+    const tabControl = document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tabs button')?.getBoundingClientRect();
+    return {
+      stateControlHeight: stateControl?.height ?? 0,
+      tabControlHeight: tabControl?.height ?? 0
+    };
+  });
+  expect(metrics.stateControlHeight).toBeLessThanOrEqual(34);
+  expect(metrics.tabControlHeight).toBeLessThanOrEqual(34);
+  expect(Math.abs(metrics.tabControlHeight - metrics.stateControlHeight)).toBeLessThanOrEqual(4);
+}
+
+async function expectOpaqueStickyChrome(page: Page): Promise<void> {
+  const chrome = await page.evaluate(() => {
+    const header = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer .trip-editor-surface__header');
+    const footer = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer');
+    return [header, footer].map(element => {
+      const backgroundColor = element ? getComputedStyle(element).backgroundColor : '';
+      return {
+        backgroundColor,
+        isOpaque: backgroundColor !== 'transparent' && !backgroundColor.endsWith(', 0)') && !backgroundColor.includes('/ 0')
+      };
+    });
+  });
+  expect(chrome).toHaveLength(2);
+  for (const item of chrome) {
+    expect(item.backgroundColor.length).toBeGreaterThan(0);
+    expect(item.isOpaque).toBe(true);
+  }
 }
 
 async function expectDirtyTabSwitchGuard(

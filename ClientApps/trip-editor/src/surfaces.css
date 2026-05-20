@@ -296,17 +296,28 @@
 
   .trip-editor-sidebar--mobile-drawer .trip-editor-surface__header,
   .trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer {
+    margin-left: -0.85rem;
+    margin-right: -0.85rem;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
     position: sticky;
     z-index: 2;
   }
 
   .trip-editor-sidebar--mobile-drawer .trip-editor-surface__header {
-    background: var(--trip-editor-card);
+    background: var(--trip-editor-surface);
+    border-bottom: 1px solid var(--trip-editor-border);
+    margin-top: -0.85rem;
+    padding-top: 0.85rem;
     top: 0;
+    z-index: 3;
   }
 
   .trip-editor-sidebar--mobile-drawer .trip-editor-surface__footer {
-    background: var(--trip-editor-card);
+    background: var(--trip-editor-surface);
+    border-top: 1px solid var(--trip-editor-border);
+    margin-bottom: -0.85rem;
+    padding-bottom: 0.85rem;
     bottom: 0;
   }
 }

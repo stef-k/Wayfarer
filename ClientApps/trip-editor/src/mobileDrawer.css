@@ -3,13 +3,19 @@
   display: contents;
 }
 
-.trip-editor-mobile-drawer__handle,
 .trip-editor-mobile-drawer__state-controls,
 .trip-editor-mobile-drawer__tabs {
   display: none;
 }
 
 @media (max-width: 640px) {
+  :root {
+    --trip-editor-mobile-drawer-collapsed-height: 5.75rem;
+    --trip-editor-mobile-drawer-peek-height: 11.25rem;
+    --trip-editor-mobile-drawer-expanded-view-height: min(78dvh, calc(100dvh - 7rem));
+    --trip-editor-mobile-drawer-expanded-edit-height: min(88dvh, calc(100dvh - 7rem));
+  }
+
   .trip-editor-workspace {
     display: block;
     height: calc(100dvh - 96px);
@@ -35,9 +41,10 @@
     contain: layout paint;
     display: flex;
     flex-direction: column;
+    height: var(--trip-editor-mobile-drawer-expanded-view-height);
     left: 0;
-    max-height: min(48dvh, 28rem);
-    min-height: 15rem;
+    max-height: var(--trip-editor-mobile-drawer-expanded-view-height);
+    min-height: var(--trip-editor-mobile-drawer-expanded-view-height);
     overflow: hidden;
     padding: 0.6rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
     position: absolute;
@@ -46,18 +53,21 @@
   }
 
   .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="peek"] {
-    max-height: 10.75rem;
-    min-height: 10.75rem;
+    height: var(--trip-editor-mobile-drawer-peek-height);
+    max-height: var(--trip-editor-mobile-drawer-peek-height);
+    min-height: var(--trip-editor-mobile-drawer-peek-height);
   }
 
   .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="collapsed"] {
-    max-height: 6.75rem;
-    min-height: 6.75rem;
+    height: var(--trip-editor-mobile-drawer-collapsed-height);
+    max-height: var(--trip-editor-mobile-drawer-collapsed-height);
+    min-height: var(--trip-editor-mobile-drawer-collapsed-height);
   }
 
   .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="expanded-edit"] {
-    max-height: min(68dvh, 38rem);
-    min-height: min(42dvh, 26rem);
+    height: var(--trip-editor-mobile-drawer-expanded-edit-height);
+    max-height: var(--trip-editor-mobile-drawer-expanded-edit-height);
+    min-height: var(--trip-editor-mobile-drawer-expanded-edit-height);
   }
 
   .trip-editor-sidebar--mobile-drawer[data-mobile-drawer-state="collapsed"] .trip-editor-mobile-drawer__tabs,
@@ -78,43 +88,40 @@
 
   .trip-editor-mobile-drawer {
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     min-height: 0;
-  }
-
-  .trip-editor-mobile-drawer__handle {
-    background: var(--trip-editor-field-border);
-    border-radius: 999px;
-    display: block;
-    height: 0.25rem;
-    justify-self: center;
-    margin-bottom: 0.45rem;
-    width: 3.25rem;
   }
 
   .trip-editor-mobile-drawer__tabs {
     display: grid;
-    gap: 0.35rem;
+    gap: 0.3rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-bottom: 0.55rem;
+    margin-bottom: 0.45rem;
   }
 
   .trip-editor-mobile-drawer__state-controls {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.3rem;
     justify-content: flex-end;
-    margin-bottom: 0.45rem;
+    margin-bottom: 0.35rem;
   }
 
-  .trip-editor-mobile-drawer__state-controls button {
+  .trip-editor-mobile-drawer__state-controls button,
+  .trip-editor-mobile-drawer__tabs button {
     background: transparent;
     border: 1px solid var(--trip-editor-field-border);
     border-radius: 6px;
-    color: var(--trip-editor-muted);
     font: inherit;
     font-size: 0.8rem;
     font-weight: 700;
+    line-height: 1.15;
+    min-height: 1.85rem;
+    min-width: 0;
     padding: 0.25rem 0.45rem;
+  }
+
+  .trip-editor-mobile-drawer__state-controls button {
+    color: var(--trip-editor-muted);
   }
 
   .trip-editor-mobile-drawer__state-controls button[aria-pressed="true"] {
@@ -124,13 +131,7 @@
 
   .trip-editor-mobile-drawer__tabs button {
     background: var(--trip-editor-surface-muted);
-    border: 1px solid var(--trip-editor-field-border);
-    border-radius: 6px;
     color: var(--trip-editor-text);
-    font: inherit;
-    font-weight: 700;
-    min-width: 0;
-    padding: 0.4rem 0.35rem;
   }
 
   .trip-editor-mobile-drawer__tabs button.active {

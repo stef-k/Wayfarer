@@ -64,7 +64,7 @@ const searchQuery = ref('');
 const segmentDraftDirty = ref(false);
 const isVisitProgressOpen = ref(false);
 const activeMobileTab = ref<MobileDrawerTab>('trip');
-const mobileDrawerState = ref<Exclude<MobileDrawerState, 'expanded-edit'>>('expanded-view');
+const mobileDrawerState = ref<Exclude<MobileDrawerState, 'expanded-edit'>>('peek');
 const normalizedSearchQuery = computed(() => normalize(searchQuery.value));
 const searchMinimumCharacters = computed(() => props.state.options.limits?.sidebarSearchMinCharacters ?? 1);
 const isSearchActive = computed(() => normalizedSearchQuery.value.length >= searchMinimumCharacters.value);
@@ -108,12 +108,17 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
 });
 const hasSidebarSearchMatches = computed(() => sidebarSearch.value.hasMatches || filteredSegments.value.length > 0);
 const hasAnyDraftChanges = computed(() => props.hasRegionDraftChanges || segmentDraftDirty.value);
+/// Resolves the visible phone drawer height while preserving the active shared editor.
 const drawerMode = computed<MobileDrawerState>(() => {
   if (props.editorSurface.isMapWorkActive.value) {
     return 'peek';
   }
 
-  return props.editorSurface.activeTarget.value ? 'expanded-edit' : mobileDrawerState.value;
+  if (props.editorSurface.activeTarget.value && mobileDrawerState.value === 'expanded-view') {
+    return 'expanded-edit';
+  }
+
+  return mobileDrawerState.value;
 });
 
 watch(
@@ -125,6 +130,9 @@ watch(
     }
 
     activeMobileTab.value = tabForTargetKind(target.kind);
+    if (props.mobileDrawerActive) {
+      mobileDrawerState.value = 'expanded-view';
+    }
   }
 );
 
@@ -174,7 +182,7 @@ async function setMobileTab(tab: MobileDrawerTab): Promise<void> {
 }
 
 function setMobileDrawerState(state: Exclude<MobileDrawerState, 'expanded-edit'>): void {
-  if (props.editorSurface.isMapWorkActive.value || props.editorSurface.activeTarget.value) {
+  if (props.editorSurface.isMapWorkActive.value) {
     return;
   }
 
@@ -270,11 +278,10 @@ function normalize(value: string): string {
     </template>
 
     <div class="trip-editor-mobile-drawer" aria-label="Trip editor mobile drawer">
-      <div class="trip-editor-mobile-drawer__handle" aria-hidden="true"></div>
-      <div v-if="!editorSurface.activeTarget.value && !editorSurface.isMapWorkActive.value" class="trip-editor-mobile-drawer__state-controls" aria-label="Drawer size">
+      <div v-if="!editorSurface.isMapWorkActive.value" class="trip-editor-mobile-drawer__state-controls" aria-label="Drawer size">
         <button type="button" :aria-pressed="drawerMode === 'collapsed'" @click="setMobileDrawerState('collapsed')">Collapse</button>
         <button type="button" :aria-pressed="drawerMode === 'peek'" @click="setMobileDrawerState('peek')">Peek</button>
-        <button type="button" :aria-pressed="drawerMode === 'expanded-view'" @click="setMobileDrawerState('expanded-view')">Expand</button>
+        <button type="button" :aria-pressed="drawerMode === 'expanded-view' || drawerMode === 'expanded-edit'" @click="setMobileDrawerState('expanded-view')">Expand</button>
       </div>
 
       <nav class="trip-editor-mobile-drawer__tabs" aria-label="Trip editor sections">
