@@ -89,6 +89,52 @@ public partial class TileCacheServiceTests
     }
 
     [Fact]
+    public async Task RetrieveTileAsync_ExpiredHighZoomReturnsBeforeRefreshCompletes()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        var handler = new BlockingRefreshTileHandler("\"high-block\"");
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, dbName: dbName, hotCache: hotCache);
+
+        await service.CacheTileAsync("http://tiles/9/14/15.png", "9", "14", "15");
+        var tilePath = Path.Combine(dir.Path, "9_14_15.png");
+        var originalBytes = await File.ReadAllBytesAsync(tilePath);
+        ExpireDbTile(db, hotCache, 9, 14, 15);
+
+        var retrieveTask = service.RetrieveTileAsync("9", "14", "15", "http://tiles/9/14/15.png");
+
+        Assert.Same(retrieveTask, await Task.WhenAny(retrieveTask, Task.Delay(TimeSpan.FromSeconds(1))));
+        Assert.Equal(originalBytes, retrieveTask.Result.TileData);
+        Assert.True(await handler.WaitForConditionalRequestAsync(TimeSpan.FromSeconds(2)));
+
+        handler.CompleteConditionalRequest();
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_14_15", TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_ExpiredLowZoomReturnsBeforeRefreshCompletes()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new BlockingRefreshTileHandler("\"low-block\"");
+        var service = CreateService(db, dir.Path, handler);
+        var tilePath = Path.Combine(dir.Path, "5_14_15.png");
+        var originalBytes = new byte[] { 7, 9, 11 };
+        await File.WriteAllBytesAsync(tilePath, originalBytes);
+        WriteSidecar(tilePath, "\"low-block\"", DateTime.UtcNow.AddHours(-1));
+
+        var retrieveTask = service.RetrieveTileAsync("5", "14", "15", "http://tiles/5/14/15.png");
+
+        Assert.Same(retrieveTask, await Task.WhenAny(retrieveTask, Task.Delay(TimeSpan.FromSeconds(1))));
+        Assert.Equal(originalBytes, retrieveTask.Result.TileData);
+        Assert.True(await handler.WaitForConditionalRequestAsync(TimeSpan.FromSeconds(2)));
+
+        handler.CompleteConditionalRequest();
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("5_14_15", TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
     public async Task BackgroundRefresh_ReplacementFailurePreservesOldFileAndMetadata()
     {
         using var dir = new TempDir();
@@ -329,6 +375,50 @@ public partial class TileCacheServiceTests
             }
 
             return Task.FromResult(response);
+        }
+    }
+
+    /// <summary>
+    /// Blocks only conditional refresh requests so tests can prove stale bytes return first.
+    /// </summary>
+    private sealed class BlockingRefreshTileHandler : HttpMessageHandler
+    {
+        private readonly string _etag;
+        private readonly byte[] _payload = { 10, 20, 30, 40 };
+        private readonly TaskCompletionSource _conditionalStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _releaseConditional =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public BlockingRefreshTileHandler(string etag) => _etag = etag;
+
+        public Task<bool> WaitForConditionalRequestAsync(TimeSpan timeout) =>
+            Task.WhenAny(_conditionalStarted.Task, Task.Delay(timeout))
+                .ContinueWith(t => ReferenceEquals(t.Result, _conditionalStarted.Task));
+
+        public void CompleteConditionalRequest() => _releaseConditional.TrySetResult();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var isConditional = request.Headers.IfNoneMatch.Any() || request.Headers.IfModifiedSince.HasValue;
+            if (isConditional)
+            {
+                _conditionalStarted.TrySetResult();
+                await _releaseConditional.Task.WaitAsync(cancellationToken);
+                var notModified = new HttpResponseMessage(HttpStatusCode.NotModified);
+                notModified.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = TimeSpan.FromHours(1) };
+                notModified.Headers.ETag = EntityTagHeaderValue.Parse(_etag);
+                return notModified;
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(_payload)
+            };
+            response.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = TimeSpan.FromHours(1) };
+            response.Headers.ETag = EntityTagHeaderValue.Parse(_etag);
+            return response;
         }
     }
 }
