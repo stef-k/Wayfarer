@@ -351,6 +351,8 @@ public partial class TileCacheService
 
         _refreshSeries.Clear();
         _sidecarCache.Clear();
+        SetRefreshRetryDelayForTesting(null);
+        SetTileFileReplacerForTesting(null);
         Interlocked.Exchange(ref _currentCacheSize, 0);
         Interlocked.Exchange(ref _evictionInProgress, 0);
         Interlocked.Exchange(ref _purgeInProgress, 0);
@@ -483,7 +485,7 @@ public partial class TileCacheService
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
-        string? clientIp = null, CancellationToken cancellationToken = default)
+        string? clientIp = null, bool allowHttpContext = true, CancellationToken cancellationToken = default)
     {
         // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
         // then record the hit only after the global budget is acquired. This prevents
@@ -501,7 +503,7 @@ public partial class TileCacheService
             if (perIpLimit > 0)
             {
                 resolvedIpForBudget = clientIp;
-                if (resolvedIpForBudget == null)
+                if (resolvedIpForBudget == null && allowHttpContext)
                 {
                     var ctx = _httpContextAccessor.HttpContext;
                     if (ctx != null)
@@ -551,7 +553,7 @@ public partial class TileCacheService
             // OSM requires a Referer header. Derive it from the incoming HTTP request
             // so it automatically matches the public URL (works behind reverse proxies,
             // Cloudflare Tunnel, etc. when forwarded headers are configured).
-            var ctx = _httpContextAccessor.HttpContext;
+            var ctx = allowHttpContext ? _httpContextAccessor.HttpContext : null;
             if (ctx != null)
             {
                 request.Headers.Referrer = new Uri($"{ctx.Request.Scheme}://{ctx.Request.Host}");
@@ -617,7 +619,8 @@ public partial class TileCacheService
     /// Returns the response (caller checks for 304 vs 200).
     /// </summary>
     private Task<HttpResponseMessage?> SendConditionalTileRequestAsync(string tileUrl, string? etag,
-        DateTime? lastModified, string? clientIp = null, CancellationToken cancellationToken = default)
+        DateTime? lastModified, string? clientIp = null, bool allowHttpContext = true,
+        CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
         {
@@ -634,7 +637,7 @@ public partial class TileCacheService
             {
                 request.Headers.IfModifiedSince = new DateTimeOffset(lastModified.Value, TimeSpan.Zero);
             }
-        }, clientIp: clientIp, cancellationToken: cancellationToken);
+        }, clientIp: clientIp, allowHttpContext: allowHttpContext, cancellationToken: cancellationToken);
     }
 
     private static bool IsRedirectStatus(HttpStatusCode statusCode)
@@ -1280,7 +1283,8 @@ public partial class TileCacheService
         int zoom, int x, int y, string? etag, DateTime? lastModified,
         string? clientIp = null, CancellationToken cancellationToken = default)
     {
-        using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, clientIp, cancellationToken);
+        using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, clientIp,
+            allowHttpContext: false, cancellationToken: cancellationToken);
         if (response == null)
         {
             _logger.LogWarning("Conditional tile request rejected for {TileUrl}",

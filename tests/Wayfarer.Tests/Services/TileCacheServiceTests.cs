@@ -730,15 +730,35 @@ public partial class TileCacheServiceTests : TestBase
         // the same in-memory database by name. This mirrors production behavior where
         // each scope gets its own DbContext with a separate change tracker.
         var appSettings = new StubSettingsService(maxCacheMb);
-        var scopeFactory = dbName != null
-            ? new SingleScopeFactory(() =>
-                new ApplicationDbContext(
-                    new DbContextOptionsBuilder<ApplicationDbContext>()
-                        .UseInMemoryDatabase(dbName)
-                        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-                        .Options,
-                    new ServiceCollection().BuildServiceProvider()))
-            : new SingleScopeFactory(() => db);
+        var effectiveHotCache = hotCache ?? new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        Func<ApplicationDbContext> scopedDbFactory = dbName != null
+            ? () => new ApplicationDbContext(
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseInMemoryDatabase(dbName)
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                    .Options,
+                new ServiceCollection().BuildServiceProvider())
+            : () => db;
+        SingleScopeFactory? scopeFactory = null;
+        scopeFactory = new SingleScopeFactory(() =>
+        {
+            var scopedDb = scopedDbFactory();
+            var scopedService = new TileCacheService(
+                NullLogger<TileCacheService>.Instance,
+                config,
+                httpClient,
+                scopedDb,
+                appSettings,
+                scopeFactory!,
+                new HttpContextAccessor(),
+                effectiveHotCache);
+            var provider = new ServiceCollection()
+                .AddSingleton(scopedDb)
+                .AddSingleton<ApplicationDbContext>(scopedDb)
+                .AddSingleton(scopedService)
+                .BuildServiceProvider();
+            return provider;
+        });
         return new TileCacheService(
             NullLogger<TileCacheService>.Instance,
             config,
@@ -747,7 +767,7 @@ public partial class TileCacheServiceTests : TestBase
             appSettings,
             scopeFactory,
             httpContextAccessor ?? new HttpContextAccessor(),
-            hotCache ?? new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
+            effectiveHotCache);
     }
 
     /// <summary>
@@ -966,18 +986,13 @@ public partial class TileCacheServiceTests : TestBase
     /// </summary>
     private sealed class SingleScopeFactory : IServiceScopeFactory
     {
-        private readonly Func<ApplicationDbContext> _dbFactory;
+        private readonly Func<IServiceProvider> _providerFactory;
 
-        public SingleScopeFactory(Func<ApplicationDbContext> dbFactory) => _dbFactory = dbFactory;
+        public SingleScopeFactory(Func<IServiceProvider> providerFactory) => _providerFactory = providerFactory;
 
         public IServiceScope CreateScope()
         {
-            var db = _dbFactory();
-            var provider = new ServiceCollection()
-                .AddSingleton(db)
-                .AddSingleton<ApplicationDbContext>(db)
-                .BuildServiceProvider();
-            return new SimpleScope(provider);
+            return new SimpleScope(_providerFactory());
         }
 
         private sealed class SimpleScope : IServiceScope
@@ -1010,26 +1025,48 @@ public partial class TileCacheServiceTests : TestBase
                 .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
                 .Options,
             new ServiceCollection().BuildServiceProvider());
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["CacheSettings:TileCacheDirectory"] = dir.Path,
+                ["Application:ContactEmail"] = "test@example.com"
+            }).Build();
+        var httpClient = new HttpClient(new StubTileHandler());
+        var appSettings = new StubSettingsService();
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        SingleScopeFactory? scopeFactory = null;
+        scopeFactory = new SingleScopeFactory(() =>
+        {
+            var scopedDb = new ApplicationDbContext(
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseInMemoryDatabase(dbName)
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                    .Options,
+                new ServiceCollection().BuildServiceProvider());
+            var scopedService = new TileCacheService(
+                NullLogger<TileCacheService>.Instance,
+                config,
+                httpClient,
+                scopedDb,
+                appSettings,
+                scopeFactory!,
+                new HttpContextAccessor(),
+                hotCache);
+            return new ServiceCollection()
+                .AddSingleton(scopedDb)
+                .AddSingleton<ApplicationDbContext>(scopedDb)
+                .AddSingleton(scopedService)
+                .BuildServiceProvider();
+        });
         var service2 = new TileCacheService(
             NullLogger<TileCacheService>.Instance,
-            new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["CacheSettings:TileCacheDirectory"] = dir.Path,
-                    ["Application:ContactEmail"] = "test@example.com"
-                }).Build(),
-            new HttpClient(new StubTileHandler()),
+            config,
+            httpClient,
             db2,
-            new StubSettingsService(),
-            new SingleScopeFactory(() =>
-                new ApplicationDbContext(
-                    new DbContextOptionsBuilder<ApplicationDbContext>()
-                        .UseInMemoryDatabase(dbName)
-                        .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-                        .Options,
-                    new ServiceCollection().BuildServiceProvider())),
+            appSettings,
+            scopeFactory,
             new HttpContextAccessor(),
-            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
+            hotCache);
 
         // Start the first purge.
         var firstPurge = service1.PurgeAllCacheAsync();

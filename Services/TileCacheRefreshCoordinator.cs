@@ -30,6 +30,16 @@ public partial class TileCacheService
     private static readonly TimeSpan RefreshRetryMaxDelay = TimeSpan.FromSeconds(60);
 
     /// <summary>
+    /// Test-overridable delay provider for bounded refresh retry backoff.
+    /// </summary>
+    private static Func<int, TimeSpan> _refreshRetryDelayProvider = CalculateRefreshRetryDelay;
+
+    /// <summary>
+    /// Test-overridable tile replacement hook for deterministic replacement-failure coverage.
+    /// </summary>
+    private static Action<string, string> _replaceTileFile = ReplaceTileFileAtomicallyCore;
+
+    /// <summary>
     /// Schedules a bounded background refresh for an expired local tile.
     /// Concurrent stale hits for the same key share the active series.
     /// </summary>
@@ -85,7 +95,7 @@ public partial class TileCacheService
                     break;
                 }
 
-                var delay = CalculateRefreshRetryDelay(series.Attempts);
+                var delay = _refreshRetryDelayProvider(series.Attempts);
                 await Task.Delay(delay > remaining ? remaining : delay, series.CancellationToken).ConfigureAwait(false);
             }
         }
@@ -137,7 +147,13 @@ public partial class TileCacheService
     /// <summary>
     /// Replaces the final tile with a same-directory temp file so readers never see partial bytes.
     /// </summary>
-    private static void ReplaceTileFileAtomically(string tempFilePath, string tileFilePath)
+    private static void ReplaceTileFileAtomically(string tempFilePath, string tileFilePath) =>
+        _replaceTileFile(tempFilePath, tileFilePath);
+
+    /// <summary>
+    /// Replaces the final tile with a same-directory temp file using the production file operation.
+    /// </summary>
+    private static void ReplaceTileFileAtomicallyCore(string tempFilePath, string tileFilePath)
     {
         if (File.Exists(tileFilePath))
         {
@@ -195,6 +211,22 @@ public partial class TileCacheService
         {
             series.CancelForTesting();
         }
+    }
+
+    /// <summary>
+    /// Overrides refresh retry delay calculation for deterministic tests.
+    /// </summary>
+    internal static void SetRefreshRetryDelayForTesting(Func<int, TimeSpan>? delayProvider)
+    {
+        _refreshRetryDelayProvider = delayProvider ?? CalculateRefreshRetryDelay;
+    }
+
+    /// <summary>
+    /// Overrides tile replacement for deterministic replacement-failure tests.
+    /// </summary>
+    internal static void SetTileFileReplacerForTesting(Action<string, string>? replacer)
+    {
+        _replaceTileFile = replacer ?? ReplaceTileFileAtomicallyCore;
     }
 
     /// <summary>

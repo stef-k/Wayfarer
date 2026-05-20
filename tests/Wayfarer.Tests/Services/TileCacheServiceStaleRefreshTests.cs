@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -8,137 +9,280 @@ using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
+/// <summary>
+/// Focused stale tile refresh coverage for scoped background work and metadata preservation.
+/// </summary>
 public partial class TileCacheServiceTests
 {
     [Fact]
-    public async Task RetrieveTileAsync_ExpiredHighZoomTile_ReturnsLocalBytesBeforeUpstreamCompletes()
+    public async Task BackgroundRefresh_UsesFreshScopeWithoutRequestHttpContext()
     {
         using var dir = new TempDir();
-        var db = CreateDbContext();
-        var handler = new BlockingRevalidationHandler(etag: "\"stale-high\"");
+        var (db, dbName) = CreateNamedDbContext();
+        var handler = new RefreshTestTileHandler(etag: "\"scope-v1\"");
         var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
-        var service = CreateService(db, dir.Path, handler, hotCache: hotCache);
+        var accessor = new HttpContextAccessor { HttpContext = BuildRequestContext() };
+        var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor, dbName: dbName, hotCache: hotCache);
 
-        await service.CacheTileAsync("http://tiles/9/21/22.png", "9", "21", "22");
-        var cachedBytes = await File.ReadAllBytesAsync(Path.Combine(dir.Path, "9_21_22.png"));
-        var meta = db.TileCacheMetadata.Single();
-        meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
-        await db.SaveChangesAsync();
-        hotCache.Remove(9, 21, 22);
+        await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
+        ExpireDbTile(db, hotCache, 9, 1, 2);
 
-        var retrieveTask = service.RetrieveTileAsync("9", "21", "22", "http://tiles/9/21/22.png");
-        var completed = await Task.WhenAny(retrieveTask, Task.Delay(250));
+        var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(2)));
 
-        Assert.Same(retrieveTask, completed);
-        var result = await retrieveTask;
-        Assert.Equal(cachedBytes, result.TileData);
-        Assert.True(await handler.WaitForRevalidationStartedAsync());
-        Assert.False(handler.RevalidationCompleted);
-
-        handler.ReleaseRevalidation();
-        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_21_22", TimeSpan.FromSeconds(2)));
+        Assert.NotNull(result.TileData);
+        Assert.True(handler.Referrers.Count >= 2);
+        Assert.NotNull(handler.Referrers[0]);
+        Assert.Null(handler.Referrers[^1]);
     }
 
     [Fact]
-    public async Task RetrieveTileAsync_ExpiredLowZoomSidecarTile_ReturnsLocalBytesBeforeUpstreamCompletes()
+    public async Task BackgroundRefresh_DelayedRetryConsumesGlobalBudgetWithoutRequestContext()
     {
         using var dir = new TempDir();
-        var db = CreateDbContext();
-        var handler = new BlockingRevalidationHandler(etag: "\"stale-low\"");
-        var service = CreateService(db, dir.Path, handler);
+        var (db, dbName) = CreateNamedDbContext();
+        var handler = new RefreshTestTileHandler(etag: "\"retry-budget\"") { DrainBudgetAfterFirstConditionalFailure = true };
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var accessor = new HttpContextAccessor { HttpContext = BuildRequestContext() };
+        var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor, dbName: dbName, hotCache: hotCache);
+        TileCacheService.SetRefreshRetryDelayForTesting(_ => TimeSpan.Zero);
 
-        await service.CacheTileAsync("http://tiles/5/21/22.png", "5", "21", "22");
-        var tileFilePath = Path.Combine(dir.Path, "5_21_22.png");
-        var cachedBytes = await File.ReadAllBytesAsync(tileFilePath);
-        await File.WriteAllTextAsync(tileFilePath + ".meta", JsonSerializer.Serialize(new TileSidecarMetadata
+        await service.CacheTileAsync("http://tiles/9/2/3.png", "9", "2", "3");
+        ExpireDbTile(db, hotCache, 9, 2, 3);
+
+        var result = await service.RetrieveTileAsync("9", "2", "3", "http://tiles/9/2/3.png");
+        await Task.Delay(200);
+        TileCacheService.CancelRefreshForTesting("9_2_3");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_2_3", TimeSpan.FromSeconds(5)));
+
+        Assert.NotNull(result.TileData);
+        Assert.Equal(1, handler.ConditionalCallCount);
+        Assert.Null(handler.Referrers.Last());
+    }
+
+    [Fact]
+    public async Task BackgroundRefresh_ExhaustedAttemptsAllowLaterRequestToStartNewSeries()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        var handler = new RefreshTestTileHandler(etag: "\"retry-reset\"") { ConditionalFailuresRemaining = 3 };
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, dbName: dbName, hotCache: hotCache);
+        TileCacheService.SetRefreshRetryDelayForTesting(_ => TimeSpan.Zero);
+
+        await service.CacheTileAsync("http://tiles/9/4/5.png", "9", "4", "5");
+        ExpireDbTile(db, hotCache, 9, 4, 5);
+
+        await service.RetrieveTileAsync("9", "4", "5", "http://tiles/9/4/5.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_4_5", TimeSpan.FromSeconds(2)));
+        Assert.Equal(3, handler.ConditionalCallCount);
+
+        await service.RetrieveTileAsync("9", "4", "5", "http://tiles/9/4/5.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_4_5", TimeSpan.FromSeconds(2)));
+
+        Assert.Equal(4, handler.ConditionalCallCount);
+    }
+
+    [Fact]
+    public async Task BackgroundRefresh_ReplacementFailurePreservesOldFileAndMetadata()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        var handler = new RefreshTestTileHandler(etag: "\"old\"", newEtagOnRevalidation: "\"new\"")
         {
-            ETag = "\"stale-low\"",
-            LastModifiedUpstream = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc),
-            ExpiresAtUtc = DateTime.UtcNow.AddHours(-1)
-        }));
-        TileCacheService.ResetStaticStateForTesting();
+            ForceRevalidation200 = true
+        };
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, dbName: dbName, hotCache: hotCache);
+        TileCacheService.SetRefreshRetryDelayForTesting(_ => TimeSpan.Zero);
+        TileCacheService.SetTileFileReplacerForTesting((_, _) => throw new IOException("replacement failed"));
 
-        var retrieveTask = service.RetrieveTileAsync("5", "21", "22", "http://tiles/5/21/22.png");
-        var completed = await Task.WhenAny(retrieveTask, Task.Delay(250));
+        await service.CacheTileAsync("http://tiles/9/6/7.png", "9", "6", "7");
+        var tilePath = Path.Combine(dir.Path, "9_6_7.png");
+        var originalBytes = await File.ReadAllBytesAsync(tilePath);
+        ExpireDbTile(db, hotCache, 9, 6, 7);
 
-        Assert.Same(retrieveTask, completed);
-        var result = await retrieveTask;
-        Assert.Equal(cachedBytes, result.TileData);
-        Assert.True(await handler.WaitForRevalidationStartedAsync());
-        Assert.False(handler.RevalidationCompleted);
+        await service.RetrieveTileAsync("9", "6", "7", "http://tiles/9/6/7.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_6_7", TimeSpan.FromSeconds(2)));
 
-        handler.ReleaseRevalidation();
-        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("5_21_22", TimeSpan.FromSeconds(2)));
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(tilePath));
+        Assert.Empty(Directory.GetFiles(dir.Path, "*.tmp"));
+        var meta = db.TileCacheMetadata.Single();
+        Assert.Equal("\"old\"", meta.ETag);
+        Assert.Equal(originalBytes.Length, meta.Size);
     }
 
     [Fact]
-    public async Task RetrieveTileAsync_BudgetExhaustion_DoesNotBlockStaleCachedTile()
+    public async Task RetrieveTileAsync_StaleHighZoomHitTouchesLastAccessed()
+    {
+        using var dir = new TempDir();
+        var (db, dbName) = CreateNamedDbContext();
+        var handler = new RefreshTestTileHandler(etag: "\"touch\"");
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, handler, dbName: dbName, hotCache: hotCache);
+
+        await service.CacheTileAsync("http://tiles/9/8/9.png", "9", "8", "9");
+        var oldAccessed = DateTime.UtcNow.AddMinutes(-20);
+        ExpireDbTile(db, hotCache, 9, 8, 9, oldAccessed);
+
+        var result = await service.RetrieveTileAsync("9", "8", "9", "http://tiles/9/8/9.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_8_9", TimeSpan.FromSeconds(2)));
+
+        Assert.NotNull(result.TileData);
+        var meta = db.TileCacheMetadata.Single();
+        Assert.True(meta.LastAccessed > oldAccessed);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_LowZoom304RefreshUpdatesSidecarWithoutReplacingFile()
     {
         using var dir = new TempDir();
         var db = CreateDbContext();
-        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
-        var service = CreateService(db, dir.Path, hotCache: hotCache);
+        var handler = new RefreshTestTileHandler(etag: "\"low-304\"");
+        var service = CreateService(db, dir.Path, handler);
+        var tilePath = Path.Combine(dir.Path, "5_10_11.png");
+        var originalBytes = new byte[] { 1, 3, 5 };
+        await File.WriteAllBytesAsync(tilePath, originalBytes);
+        WriteSidecar(tilePath, "\"low-304\"", DateTime.UtcNow.AddHours(-1));
 
-        await service.CacheTileAsync("http://tiles/9/31/32.png", "9", "31", "32");
-        var cachedBytes = await File.ReadAllBytesAsync(Path.Combine(dir.Path, "9_31_32.png"));
-        var meta = db.TileCacheMetadata.Single();
+        var result = await service.RetrieveTileAsync("5", "10", "11", "http://tiles/5/10/11.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("5_10_11", TimeSpan.FromSeconds(2)));
+
+        Assert.Equal(originalBytes, result.TileData);
+        Assert.Equal(originalBytes, await File.ReadAllBytesAsync(tilePath));
+        Assert.True(ReadSidecar(tilePath).ExpiresAtUtc > DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_LowZoom200RefreshReplacesFileAndSidecar()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var handler = new RefreshTestTileHandler(etag: "\"low-old\"", newEtagOnRevalidation: "\"low-new\"")
+        {
+            ForceRevalidation200 = true
+        };
+        var service = CreateService(db, dir.Path, handler);
+        var tilePath = Path.Combine(dir.Path, "5_12_13.png");
+        await File.WriteAllBytesAsync(tilePath, new byte[] { 2, 4, 6 });
+        WriteSidecar(tilePath, "\"low-old\"", DateTime.UtcNow.AddHours(-1));
+
+        await service.RetrieveTileAsync("5", "12", "13", "http://tiles/5/12/13.png");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("5_12_13", TimeSpan.FromSeconds(2)));
+
+        Assert.Equal(RefreshTestTileHandler.NewPayload, await File.ReadAllBytesAsync(tilePath));
+        var sidecar = ReadSidecar(tilePath);
+        Assert.Equal("\"low-new\"", sidecar.ETag);
+        Assert.True(sidecar.ExpiresAtUtc > DateTime.UtcNow);
+    }
+
+    private static DefaultHttpContext BuildRequestContext()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = "https";
+        context.Request.Host = new HostString("wayfarer.test");
+        return context;
+    }
+
+    private static void ExpireDbTile(ApplicationDbContext db, TileMetadataHotCache hotCache,
+        int zoom, int x, int y, DateTime? lastAccessed = null)
+    {
+        var meta = db.TileCacheMetadata.Single(t => t.Zoom == zoom && t.X == x && t.Y == y);
         meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
-        await db.SaveChangesAsync();
-        hotCache.Remove(9, 31, 32);
-        TileCacheService.OutboundBudget.DrainForTesting();
+        if (lastAccessed.HasValue)
+        {
+            meta.LastAccessed = lastAccessed.Value;
+        }
 
-        var result = await service.RetrieveTileAsync("9", "31", "32", "http://tiles/9/31/32.png");
-        TileCacheService.CancelRefreshForTesting("9_31_32");
-        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_31_32", TimeSpan.FromSeconds(2)));
+        db.SaveChanges();
+        hotCache.Remove(zoom, x, y);
+    }
 
-        Assert.False(result.BudgetExhausted);
-        Assert.Equal(cachedBytes, result.TileData);
+    private static void WriteSidecar(string tilePath, string etag, DateTime expiresAtUtc)
+    {
+        var sidecar = new TileSidecarMetadata
+        {
+            ETag = etag,
+            ExpiresAtUtc = expiresAtUtc
+        };
+        File.WriteAllText(tilePath + ".meta", JsonSerializer.Serialize(sidecar));
+    }
+
+    private static TileSidecarMetadata ReadSidecar(string tilePath)
+    {
+        var json = File.ReadAllText(tilePath + ".meta");
+        return JsonSerializer.Deserialize<TileSidecarMetadata>(json)!;
     }
 
     /// <summary>
-    /// Returns an initial cache response, then blocks conditional revalidation until released.
+    /// Conditional tile handler with failure and header capture controls for stale refresh tests.
     /// </summary>
-    private sealed class BlockingRevalidationHandler : HttpMessageHandler
+    private sealed class RefreshTestTileHandler : HttpMessageHandler
     {
-        private readonly string _etag;
-        private readonly TaskCompletionSource _revalidationStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource _releaseRevalidation = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int _callCount;
+        public static readonly byte[] NewPayload = { 50, 60, 70, 80 };
 
-        public bool RevalidationCompleted { get; private set; }
+        private readonly string? _etag;
+        private readonly string? _newEtagOnRevalidation;
+        private readonly byte[] _payload = { 10, 20, 30, 40 };
 
-        public BlockingRevalidationHandler(string etag) => _etag = etag;
+        public int ConditionalCallCount { get; private set; }
+        public int ConditionalFailuresRemaining { get; set; }
+        public bool DrainBudgetAfterFirstConditionalFailure { get; set; }
+        public bool ForceRevalidation200 { get; set; }
+        public List<Uri?> Referrers { get; } = new();
 
-        public async Task<bool> WaitForRevalidationStartedAsync()
+        public RefreshTestTileHandler(string? etag, string? newEtagOnRevalidation = null)
         {
-            var completed = await Task.WhenAny(_revalidationStarted.Task, Task.Delay(1000));
-            return completed == _revalidationStarted.Task;
+            _etag = etag;
+            _newEtagOnRevalidation = newEtagOnRevalidation;
         }
 
-        public void ReleaseRevalidation() => _releaseRevalidation.TrySetResult();
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            if (Interlocked.Increment(ref _callCount) == 1)
+            Referrers.Add(request.Headers.Referrer);
+            var isConditional = request.Headers.IfNoneMatch.Any() || request.Headers.IfModifiedSince.HasValue;
+            if (isConditional)
             {
-                var response = new HttpResponseMessage(HttpStatusCode.OK)
+                ConditionalCallCount++;
+                if (ConditionalFailuresRemaining > 0)
                 {
-                    Content = new ByteArrayContent(new byte[] { 10, 20, 30, 40 })
-                };
-                response.Headers.ETag = EntityTagHeaderValue.Parse(_etag);
-                response.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = TimeSpan.FromSeconds(3600) };
-                return response;
+                    ConditionalFailuresRemaining--;
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+                }
+
+                if (DrainBudgetAfterFirstConditionalFailure && ConditionalCallCount == 1)
+                {
+                    TileCacheService.OutboundBudget.DrainForTesting();
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+                }
             }
 
-            _revalidationStarted.TrySetResult();
-            await _releaseRevalidation.Task.WaitAsync(cancellationToken);
-            RevalidationCompleted = true;
+            if (isConditional && !ForceRevalidation200)
+            {
+                var notModified = new HttpResponseMessage(HttpStatusCode.NotModified);
+                notModified.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = TimeSpan.FromHours(1) };
+                if (!string.IsNullOrEmpty(_etag))
+                {
+                    notModified.Headers.ETag = EntityTagHeaderValue.Parse(_etag);
+                }
 
-            var notModified = new HttpResponseMessage(HttpStatusCode.NotModified);
-            notModified.Headers.ETag = EntityTagHeaderValue.Parse(_etag);
-            notModified.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = TimeSpan.FromSeconds(3600) };
-            return notModified;
+                return Task.FromResult(notModified);
+            }
+
+            var payload = isConditional && ForceRevalidation200 ? NewPayload : _payload;
+            var etag = isConditional && ForceRevalidation200 ? _newEtagOnRevalidation : _etag;
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(payload)
+            };
+            response.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = TimeSpan.FromHours(1) };
+            if (!string.IsNullOrEmpty(etag))
+            {
+                response.Headers.ETag = EntityTagHeaderValue.Parse(etag);
+            }
+
+            return Task.FromResult(response);
         }
     }
 }
