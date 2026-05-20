@@ -146,6 +146,15 @@ watch(
     const target = props.editorSurface.activeTarget.value;
     if (target) {
       activeMobileTab.value = tabForTargetKind(target.kind);
+      if (target.kind === 'metadata' && !props.editorSurface.isActiveTargetDirty()) {
+        props.editorSurface.clearActiveTarget(target);
+        mobileDrawerState.value = 'peek';
+        return;
+      }
+
+      if (target.kind === 'metadata') {
+        mobileDrawerState.value = 'expanded-view';
+      }
       return;
     }
 

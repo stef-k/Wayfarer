@@ -45,6 +45,22 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await capture(page, testInfo, 'phone-dark-initial-trip-map-first');
   });
 
+  test('desktop clean metadata edit resizes to phone Trip summary', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 1280, height: 900 });
+
+    await expect(page.locator('.trip-editor-surface--docked .trip-editor-metadata')).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expect(drawerTab(page, 'Trip')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#trip-editor-metadata-form')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
+    await expectDrawerState(page, 'peek');
+  });
+
   test('Trip summary exposes disabled and private share-progress states without progress links', async ({ page }) => {
     await signIn(page);
 
@@ -324,7 +340,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     });
   });
 
-  test('metadata draft survives desktop-phone-desktop breakpoint transitions', async ({ page }) => {
+  test('dirty metadata edit survives desktop-phone-desktop breakpoint transitions', async ({ page }) => {
     await signIn(page);
     await openEditorAt(page, { width: 1280, height: 900 });
 
@@ -336,6 +352,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expectDrawerState(page, 'expanded-edit');
     await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
 
     await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
@@ -354,6 +371,34 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Edit Trip' })).toBeVisible();
+  });
+
+  test('dirty metadata phone-desktop-phone resize preserves draft and close prompt', async ({ page }) => {
+    await signIn(page);
+    await openEditorAt(page, { width: 390, height: 844 });
+
+    await page.getByRole('button', { name: 'Edit Trip' }).click();
+    const nameInput = page.locator('#trip-editor-metadata-form').getByLabel('Name');
+    const originalName = await nameInput.inputValue();
+    const draftName = `${originalName} phone resize draft`;
+    await nameInput.fill(draftName);
+    await expectDrawerState(page, 'expanded-edit');
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toHaveCount(0);
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
+    await expect(drawerTab(page, 'Trip')).toHaveAttribute('aria-pressed', 'true');
+    await expectDrawerState(page, 'expanded-edit');
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
+
+    await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
+    const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(discardDialog).toContainText('Discard unsaved changes and close this editor?');
+    await discardDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(draftName);
   });
 
   test('protected tablet and intermediate widths do not activate the drawer', async ({ page }, testInfo) => {
