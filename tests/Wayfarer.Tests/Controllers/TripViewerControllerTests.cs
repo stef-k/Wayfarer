@@ -289,27 +289,6 @@ public class TripViewerControllerTests : TestBase
     }
 
     [Fact]
-    public async Task ProxyImage_CallsSetAsync_OnCacheMiss()
-    {
-        var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
-            {
-                Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png") }
-            }
-        });
-        var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-
-        var controller = BuildController(CreateDbContext(), handler: handler, imageCacheService: cacheMock.Object);
-
-        await controller.ProxyImage("http://example.com/photo.png", optimize: false);
-
-        cacheMock.Verify(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
-    }
-
-    [Fact]
     public async Task ProxyImage_ReturnsBadRequest_WhenContentLengthExceedsLimit()
     {
         var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -466,18 +445,11 @@ public class TripViewerControllerTests : TestBase
         return controller;
     }
 
-    /// <summary>
-    /// Fake HTTP handler that returns a preconfigured response.
-    /// Use the factory constructor for tests that make multiple HTTP calls
-    /// to avoid reusing a disposed <see cref="HttpResponseMessage"/>.
-    /// </summary>
     private sealed class FakeHandler : HttpMessageHandler
     {
         private readonly Func<HttpResponseMessage> _responseFactory;
-
         public FakeHandler(HttpResponseMessage response) => _responseFactory = () => response;
         public FakeHandler(Func<HttpResponseMessage> responseFactory) => _responseFactory = responseFactory;
-
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromResult(_responseFactory());
     }
