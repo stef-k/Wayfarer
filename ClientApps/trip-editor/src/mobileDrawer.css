@@ -12,8 +12,8 @@
   :root {
     --trip-editor-mobile-drawer-collapsed-height: 5.75rem;
     --trip-editor-mobile-drawer-peek-height: 11.25rem;
-    --trip-editor-mobile-drawer-expanded-view-height: min(78dvh, calc(100dvh - 7rem));
-    --trip-editor-mobile-drawer-expanded-edit-height: min(88dvh, calc(100dvh - 7rem));
+    --trip-editor-mobile-drawer-expanded-view-height: min(78dvh, calc(100dvh - 7.5rem));
+    --trip-editor-mobile-drawer-expanded-edit-height: min(88dvh, calc(100dvh - 7.5rem));
   }
 
   .trip-editor-workspace {
@@ -171,6 +171,13 @@
   }
 
   .trip-editor-sidebar--mobile-drawer .trip-editor-icon-selector__options {
-    max-height: min(8rem, 18dvh);
+    max-height: min(7.25rem, 16dvh);
+  }
+
+  .trip-editor-sidebar--mobile-drawer .trip-editor-icon-selector__panel {
+    bottom: calc(100% + 0.35rem);
+    margin-bottom: 0;
+    margin-top: 0;
+    top: auto;
   }
 }
