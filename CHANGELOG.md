@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [1.3.2] - 2026-05-20
+
+### Changed
+- Map tiles from the local cache now render immediately when stale while bounded background refresh revalidates them with the provider, preserving OSM-safe conditional requests and avoiding request-path waits on cached map views (#316, #318)
+- Proxied trip and region images now serve stale optimized local cache files immediately while refresh and cache-miss work is coalesced per image and protected by a process-wide origin/ImageSharp budget (#317, #320)
+- Local proxied-image cache hits now bypass anonymous image-proxy rate limiting, while origin downloads and optimization work remain protected for both anonymous and authenticated users (#317, #320)
+
+### Fixed
+- Fixed repeated slow tile reloads for cached map areas by moving expired tile revalidation off the response path, adding bounded retry/backoff, atomic tile replacement, and Trip Editor retry/concurrency parity (#316, #318)
+- Fixed slow repeated proxied image loads for cached trip images by keeping expired local files usable, refreshing them in bounded background work, and preserving old bytes/metadata on refresh failures (#317, #320)
+- Fixed raw cover fallback render paths for public trip thumbnails, quick views, and legacy trip/region cover views so they use the local image proxy instead of direct external image URLs (#317, #320)
+
+### Deferred
+- Trip export snapshot cover downloads still use the raw cover URL and are tracked separately for a later release (#319)
+
 ## [1.3.1] - 2026-05-20
 
 ### Changed
