@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [1.3.1] - 2026-05-20
+
+### Changed
+- Improved the Trip Editor visit progress/history modal with region progress bars, clearer filter controls, status icons, visit-count pills, and compact first/last/history rows (#309, #311)
+- Added a phone-only Trip Editor map-first bottom drawer with `Trip`, `Regions`, and `Segments` tabs, deterministic drawer states, mobile search placement, dirty-editor guards, and protected desktop/tablet breakpoints (#312, #313, #314)
+- The `reset-password` admin CLI now runs as a scoped command host and exits after completion instead of continuing into normal web app startup (#306, #307)
+
+### Fixed
+- Fixed Trip Editor public/progress URLs so editor-generated links use the canonical public trip route instead of `/Public/TripViewer/View/{id}` (#308, #310)
+- Fixed the `reset-password` CLI service setup to avoid the ASP0000 `BuildServiceProvider` warning while preserving normal Identity password reset behavior (#306, #307)
+- Fixed Trip Editor mobile drawer polish issues found during published-bundle validation, including transparent sticky edit headers/footers, non-draggable handle affordance, inconsistent drawer controls/heights, and desktop-to-phone Trip edit/view resize behavior (#314, #313)
+
 ## [1.3.0] - 2026-05-19
 
 ### Added
