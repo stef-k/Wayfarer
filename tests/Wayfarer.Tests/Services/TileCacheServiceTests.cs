@@ -396,6 +396,7 @@ public class TileCacheServiceTests : TestBase
         Assert.False(handler.RevalidationCompleted);
 
         handler.ReleaseRevalidation();
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_21_22", TimeSpan.FromSeconds(2)));
     }
 
     [Fact]
@@ -427,6 +428,7 @@ public class TileCacheServiceTests : TestBase
         Assert.False(handler.RevalidationCompleted);
 
         handler.ReleaseRevalidation();
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("5_21_22", TimeSpan.FromSeconds(2)));
     }
 
     [Fact]
@@ -509,6 +511,7 @@ public class TileCacheServiceTests : TestBase
         // Retrieve should send conditional request because tile is expired
         var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
         var bytes = result.TileData;
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(2)));
 
         Assert.NotNull(bytes);
         Assert.True(handler.CallCount > callCountAfterCache, "Expected conditional HTTP request");
@@ -536,6 +539,7 @@ public class TileCacheServiceTests : TestBase
         // Retrieve: tile is expired, handler returns 304 when If-None-Match matches
         var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
         var bytes = result.TileData;
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(2)));
 
         Assert.NotNull(bytes);
         Assert.Equal(originalFile, bytes); // Same data, not re-downloaded
@@ -572,8 +576,11 @@ public class TileCacheServiceTests : TestBase
 
         var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
         var bytes = result.TileData;
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(2)));
 
         Assert.NotNull(bytes);
+        Assert.Equal(new byte[] { 50, 60, 70, 80 }, await File.ReadAllBytesAsync(Path.Combine(dir.Path, "9_1_2.png")));
+        Assert.Empty(Directory.GetFiles(dir.Path, "*.tmp"));
         // DB metadata should now have the new etag
         db.Entry(meta).Reload();
         Assert.Equal("\"v2\"", meta.ETag);
@@ -605,8 +612,34 @@ public class TileCacheServiceTests : TestBase
         // Retrieve should serve stale cached file despite re-validation failure
         var result = await service.RetrieveTileAsync("9", "1", "2", "http://tiles/9/1/2.png");
         var bytes = result.TileData;
+        TileCacheService.CancelRefreshForTesting("9_1_2");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(2)));
 
         Assert.NotNull(bytes);
+    }
+
+    [Fact]
+    public async Task RetrieveTileAsync_BudgetExhaustion_DoesNotBlockStaleCachedTile()
+    {
+        using var dir = new TempDir();
+        var db = CreateDbContext();
+        var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
+        var service = CreateService(db, dir.Path, hotCache: hotCache);
+
+        await service.CacheTileAsync("http://tiles/9/31/32.png", "9", "31", "32");
+        var cachedBytes = await File.ReadAllBytesAsync(Path.Combine(dir.Path, "9_31_32.png"));
+        var meta = db.TileCacheMetadata.Single();
+        meta.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
+        await db.SaveChangesAsync();
+        hotCache.Remove(9, 31, 32);
+        TileCacheService.OutboundBudget.DrainForTesting();
+
+        var result = await service.RetrieveTileAsync("9", "31", "32", "http://tiles/9/31/32.png");
+        TileCacheService.CancelRefreshForTesting("9_31_32");
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_31_32", TimeSpan.FromSeconds(2)));
+
+        Assert.False(result.BudgetExhausted);
+        Assert.Equal(cachedBytes, result.TileData);
     }
 
     [Fact]
@@ -676,6 +709,7 @@ public class TileCacheServiceTests : TestBase
             .ToList();
 
         var results = await Task.WhenAll(tasks);
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_5_5", TimeSpan.FromSeconds(2)));
 
         // All should return data
         Assert.All(results, r => Assert.NotNull(r.TileData));

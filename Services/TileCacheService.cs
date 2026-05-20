@@ -370,6 +370,11 @@ public class TileCacheService
     /// </summary>
     internal static void ResetStaticStateForTesting()
     {
+        foreach (var series in _refreshSeries.Values)
+        {
+            series.CancelForTesting();
+        }
+
         _refreshSeries.Clear();
         _sidecarCache.Clear();
         Interlocked.Exchange(ref _currentCacheSize, 0);
@@ -377,6 +382,37 @@ public class TileCacheService
         Interlocked.Exchange(ref _purgeInProgress, 0);
         _cacheSizeInitialized = false;
         OutboundBudget.ResetForTesting();
+    }
+
+    /// <summary>
+    /// Waits until a tile refresh series is no longer active.
+    /// Test-only helper for observing fire-and-forget background refresh completion.
+    /// </summary>
+    internal static async Task<bool> WaitForRefreshIdleForTestingAsync(string tileKey, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow.Add(timeout);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (!_refreshSeries.ContainsKey(tileKey))
+            {
+                return true;
+            }
+
+            await Task.Delay(10);
+        }
+
+        return !_refreshSeries.ContainsKey(tileKey);
+    }
+
+    /// <summary>
+    /// Cancels an active tile refresh series in tests.
+    /// </summary>
+    internal static void CancelRefreshForTesting(string tileKey)
+    {
+        if (_refreshSeries.TryGetValue(tileKey, out var series))
+        {
+            series.CancelForTesting();
+        }
     }
 
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
@@ -1321,7 +1357,7 @@ public class TileCacheService
                 {
                     var refreshed = await RevalidateTileAsync(series.TileUrl, series.TileFilePath,
                         series.TileKey, series.Zoom, series.X, series.Y, series.ETag,
-                        series.LastModified, series.ClientIp, CancellationToken.None);
+                        series.LastModified, series.ClientIp, series.CancellationToken);
 
                     if (refreshed != null)
                     {
@@ -1352,8 +1388,12 @@ public class TileCacheService
                     delay = remaining;
                 }
 
-                await Task.Delay(delay).ConfigureAwait(false);
+                await Task.Delay(delay, series.CancellationToken).ConfigureAwait(false);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("Background refresh cancelled for tile {TileKey}", series.TileKey);
         }
         finally
         {
@@ -2400,7 +2440,10 @@ public class TileCacheService
         public DateTime? LastModified { get; }
         public string? ClientIp { get; }
         public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+        public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
+
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
 
         public TileRefreshSeries(string tileKey, string tileUrl, string tileFilePath,
             int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp)
@@ -2415,5 +2458,7 @@ public class TileCacheService
             LastModified = lastModified;
             ClientIp = clientIp;
         }
+
+        public void CancelForTesting() => _cancellationTokenSource.Cancel();
     }
 }
