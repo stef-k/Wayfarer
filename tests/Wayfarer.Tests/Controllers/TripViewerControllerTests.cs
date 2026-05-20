@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Public.Controllers;
@@ -272,7 +273,11 @@ public class TripViewerControllerTests : TestBase
         var cachedBytes = new byte[] { 0xFF, 0xD8, 0xFF };
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((cachedBytes, "image/jpeg"));
+            .ReturnsAsync(new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.FreshHit,
+                cachedBytes,
+                "image/jpeg",
+                null));
 
         var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object);
 
@@ -281,27 +286,6 @@ public class TripViewerControllerTests : TestBase
         var file = Assert.IsType<FileContentResult>(result);
         Assert.Equal(cachedBytes, file.FileContents);
         Assert.Equal("image/jpeg", file.ContentType);
-    }
-
-    [Fact]
-    public async Task ProxyImage_CallsSetAsync_OnCacheMiss()
-    {
-        var handler = new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new ByteArrayContent(new byte[] { 1, 2, 3 })
-            {
-                Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png") }
-            }
-        });
-        var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(((byte[], string)?)null);
-
-        var controller = BuildController(CreateDbContext(), handler: handler, imageCacheService: cacheMock.Object);
-
-        await controller.ProxyImage("http://example.com/photo.png", optimize: false);
-
-        cacheMock.Verify(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
     }
 
     [Fact]
@@ -359,7 +343,11 @@ public class TripViewerControllerTests : TestBase
         var cachedBytes = new byte[] { 0xFF, 0xD8, 0xFF };
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((cachedBytes, "image/jpeg"));
+            .ReturnsAsync(new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.FreshHit,
+                cachedBytes,
+                "image/jpeg",
+                null));
 
         var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object, settingsService: settingsMock.Object);
 
@@ -391,7 +379,9 @@ public class TripViewerControllerTests : TestBase
         });
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(((byte[], string)?)null);
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+        cacheMock.Setup(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+            .ReturnsAsync(ProxiedImageCacheStoreResult.Success);
 
         var controller = BuildController(
             CreateDbContext(),
@@ -423,20 +413,34 @@ public class TripViewerControllerTests : TestBase
         var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 1, 2 }) }));
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         tagService ??= Mock.Of<ITripTagService>();
-        imageCacheService ??= Mock.Of<IProxiedImageCacheService>();
+        if (imageCacheService == null)
+        {
+            var cacheMock = new Mock<IProxiedImageCacheService>();
+            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+                .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
+            cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+                .ReturnsAsync(ProxiedImageCacheStoreResult.Success);
+            imageCacheService = cacheMock.Object;
+        }
         if (settingsService == null)
         {
             var settingsMock = new Mock<IApplicationSettingsService>();
             settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
             settingsService = settingsMock.Object;
         }
+        var imageProxyService = new ImageProxyService(
+            client,
+            imageCacheService,
+            settingsService,
+            Mock.Of<IServiceScopeFactory>(),
+            NullLogger<ImageProxyService>.Instance);
         var controller = new TripViewerController(
             NullLogger<TripViewerController>.Instance,
             db,
             client,
             thumbnailService,
             tagService,
-            imageCacheService,
+            imageProxyService,
             settingsService);
         controller.ControllerContext = new ControllerContext
         {
@@ -445,18 +449,11 @@ public class TripViewerControllerTests : TestBase
         return controller;
     }
 
-    /// <summary>
-    /// Fake HTTP handler that returns a preconfigured response.
-    /// Use the factory constructor for tests that make multiple HTTP calls
-    /// to avoid reusing a disposed <see cref="HttpResponseMessage"/>.
-    /// </summary>
     private sealed class FakeHandler : HttpMessageHandler
     {
         private readonly Func<HttpResponseMessage> _responseFactory;
-
         public FakeHandler(HttpResponseMessage response) => _responseFactory = () => response;
         public FakeHandler(Func<HttpResponseMessage> responseFactory) => _responseFactory = responseFactory;
-
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => Task.FromResult(_responseFactory());
     }

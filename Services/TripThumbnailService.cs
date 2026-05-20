@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Wayfarer.Util;
 
 namespace Wayfarer.Services;
 
@@ -44,10 +45,10 @@ public sealed class TripThumbnailService : ITripThumbnailService
         //     // Return snapshot URL
         // }
 
-        // Priority 2: CoverImageUrl
+        // Priority 2: CoverImageUrl through the proxy/cache endpoint
         if (!string.IsNullOrWhiteSpace(coverImageUrl))
         {
-            return coverImageUrl;
+            return ImageProxyHelper.ToProxyUrl(coverImageUrl);
         }
 
         // Priority 3: Placeholder SVG
@@ -95,10 +96,10 @@ public sealed class TripThumbnailService : ITripThumbnailService
             }
         }
 
-        // Priority 2: CoverImageUrl
+        // Priority 2: CoverImageUrl through the proxy/cache endpoint
         if (!string.IsNullOrWhiteSpace(coverImageUrl))
         {
-            return coverImageUrl;
+            return ImageProxyHelper.ToProxyUrl(coverImageUrl);
         }
 
         // Priority 3: Placeholder SVG

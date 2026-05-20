@@ -66,6 +66,23 @@ public static class ImageProxyHelper
     }
 
     /// <summary>
+    /// Builds a relative proxy endpoint URL for an external image URL.
+    /// Returns the original value for blank, relative, data, or already-proxied URLs.
+    /// </summary>
+    public static string? ToProxyUrl(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl) ||
+            imageUrl.StartsWith("/Public/ProxyImage", StringComparison.OrdinalIgnoreCase) ||
+            !Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return imageUrl;
+        }
+
+        return $"/Public/ProxyImage?url={System.Net.WebUtility.UrlEncode(imageUrl)}";
+    }
+
+    /// <summary>
     /// Optimizes an image using ImageSharp: resize and compress while maintaining quality.
     /// Preserves PNG transparency for icons, converts photos to JPEG.
     /// Uses pure managed code with no native dependencies for cross-platform support.

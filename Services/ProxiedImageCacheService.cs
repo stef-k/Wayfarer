@@ -5,52 +5,13 @@ using Wayfarer.Parsers;
 namespace Wayfarer.Services;
 
 /// <summary>
-/// Defines the contract for caching proxied and optimized external images on disk.
-/// Provides disk-based caching with DB-tracked LRU eviction, following the same
-/// pattern as <see cref="TileCacheService"/>.
-/// Read operations are lock-free for performance; writes and eviction use a global lock.
-/// </summary>
-public interface IProxiedImageCacheService
-{
-    /// <summary>
-    /// Returns cached image bytes and content type if a valid (non-expired) entry exists.
-    /// Conditionally updates LastAccessed (only when stale &gt;1 hour) for LRU ordering.
-    /// Lock-free on the read path for concurrent performance.
-    /// Returns null on cache miss or expired entry.
-    /// </summary>
-    Task<(byte[] Bytes, string ContentType)?> GetAsync(string cacheKey);
-
-    /// <summary>
-    /// Stores processed image bytes under the given cache key.
-    /// Triggers LRU eviction if the cache size limit would be exceeded.
-    /// </summary>
-    Task SetAsync(string cacheKey, byte[] bytes, string contentType);
-
-    /// <summary>
-    /// Ensures the cache directory exists and initializes cache size tracking from the database.
-    /// Called once at application startup.
-    /// </summary>
-    void Initialize();
-
-    /// <summary>
-    /// Returns the total cached image size in megabytes (from DB metadata).
-    /// </summary>
-    Task<double> GetCacheSizeInMbAsync();
-
-    /// <summary>
-    /// Returns the total number of cached images (from DB metadata).
-    /// </summary>
-    Task<int> GetCachedImageCountAsync();
-}
-
-/// <summary>
 /// Disk-based image proxy cache with DB-tracked LRU eviction.
 /// Caches optimized images from the ProxyImage endpoint to avoid repeated
 /// downloads and ImageSharp processing on every request.
 /// Read operations are lock-free for concurrent performance; writes and eviction
 /// are serialized via static SemaphoreSlim (same pattern as <see cref="TileCacheService"/>).
 /// </summary>
-public class ProxiedImageCacheService : IProxiedImageCacheService
+public partial class ProxiedImageCacheService : IProxiedImageCacheService
 {
     private readonly ILogger<ProxiedImageCacheService> _logger;
     private readonly ApplicationDbContext _dbContext;
@@ -90,6 +51,22 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     /// Lock for one-time cache size initialization.
     /// </summary>
     private static readonly object _initLock = new();
+
+    /// <summary>
+    /// Test-overridable file replacement hook for deterministic write-failure coverage.
+    /// </summary>
+    private static Action<string, string> _replaceImageFile = ReplaceImageFileAtomicallyCore;
+
+    /// <summary>
+    /// Test-overridable metadata save hook for deterministic persistence-failure coverage.
+    /// </summary>
+    private static Func<ApplicationDbContext, Task<int>> _saveMetadataChanges =
+        dbContext => dbContext.SaveChangesAsync();
+
+    /// <summary>
+    /// Test-only hook that runs after metadata is captured and before file existence is checked.
+    /// </summary>
+    private static Func<string, string, Task> _beforeFileReadForTesting = (_, _) => Task.CompletedTask;
 
     public ProxiedImageCacheService(
         ILogger<ProxiedImageCacheService> logger,
@@ -136,16 +113,17 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
     }
 
     /// <inheritdoc />
-    public async Task<(byte[] Bytes, string ContentType)?> GetAsync(string cacheKey)
+    public async Task<ProxiedImageCacheResult> GetAsync(string cacheKey)
     {
         var settings = _settingsService.GetSettings();
 
         // Caching disabled
         if (settings.MaxCacheImageSizeInMB < 0)
-            return null;
+            return new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null);
 
         string? filePath;
         string? contentType;
+        ProxiedImageCacheStatus status;
 
         // Lock-free DB read — scoped DbContext makes concurrent reads safe
         try
@@ -154,28 +132,14 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
                 .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
 
             if (metadata == null)
-                return null;
+                return new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null);
 
-            // Check time-based expiry — acquire lock only for removal (rare path)
+            // Expired entries are stale-but-servable while the file remains present.
+            // Expiry is the refresh cadence, not a user-facing delete trigger.
             var maxAge = TimeSpan.FromDays(settings.ImageCacheExpiryDays);
-            if (DateTime.UtcNow - metadata.CreatedAt > maxAge)
-            {
-                _logger.LogInformation("Image cache entry expired for key {CacheKey}. Removing.", cacheKey);
-                await _cacheLock.WaitAsync();
-                try
-                {
-                    // Re-fetch inside lock to avoid double-remove race
-                    var refetched = await _dbContext.ImageCacheMetadata
-                        .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
-                    if (refetched != null)
-                        await RemoveEntryAsync(refetched);
-                }
-                finally
-                {
-                    _cacheLock.Release();
-                }
-                return null;
-            }
+            status = DateTime.UtcNow - metadata.CreatedAt > maxAge
+                ? ProxiedImageCacheStatus.StaleHit
+                : ProxiedImageCacheStatus.FreshHit;
 
             // Conditional LastAccessed update — only when stale (>1 hour)
             // No lock needed; concurrent updates both write "now" (harmless)
@@ -199,126 +163,102 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading image cache for key {CacheKey}.", cacheKey);
-            return null;
+            return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, null);
         }
 
         // File I/O outside the lock — unique filename per cache key prevents conflicts.
         // If the file was evicted between the DB check and this read, return null (cache miss).
         try
         {
+            await _beforeFileReadForTesting(cacheKey, filePath);
+
             if (!File.Exists(filePath))
             {
-                // File missing on disk — clean up the DB entry (rare error path, uses lock)
-                _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
-                await _cacheLock.WaitAsync();
-                try
-                {
-                    var staleMetadata = await _dbContext.ImageCacheMetadata
-                        .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
-                    if (staleMetadata != null)
-                    {
-                        _dbContext.ImageCacheMetadata.Remove(staleMetadata);
-                        Interlocked.Add(ref _currentCacheSize, -staleMetadata.Size);
-                        await _dbContext.SaveChangesAsync();
-                    }
-                }
-                finally
-                {
-                    _cacheLock.Release();
-                }
-                return null;
+                return await HandleMissingCapturedFileAsync(cacheKey, filePath, settings);
             }
 
             var bytes = await File.ReadAllBytesAsync(filePath);
-            return (bytes, contentType!);
+            return new ProxiedImageCacheResult(status, bytes, contentType!, filePath);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading cached image file for key {CacheKey}.", cacheKey);
-            return null;
+            return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, filePath);
         }
     }
 
-    /// <inheritdoc />
-    public async Task SetAsync(string cacheKey, byte[] bytes, string contentType)
+    /// <summary>
+    /// Cleans up a missing file only when the current metadata still points at that same file.
+    /// </summary>
+    private async Task<ProxiedImageCacheResult> HandleMissingCapturedFileAsync(
+        string cacheKey,
+        string capturedFilePath,
+        ApplicationSettings settings)
     {
-        var settings = _settingsService.GetSettings();
-
-        // Caching disabled
-        if (settings.MaxCacheImageSizeInMB < 0)
-            return;
-
-        // Write the file to disk outside the lock — filename is unique per cache key,
-        // so no two requests write the same path.
-        var filePath = Path.Combine(_cacheDirectory, $"{cacheKey}.dat");
-        try
-        {
-            await File.WriteAllBytesAsync(filePath, bytes);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error writing proxy image file for key {CacheKey}.", cacheKey);
-            return;
-        }
-
-        // Lock only for DB operations and size counter mutations
         await _cacheLock.WaitAsync();
         try
         {
-            // Check if entry already exists (race: another request cached it while we were downloading)
-            var existing = await _dbContext.ImageCacheMetadata
+            var currentMetadata = await _dbContext.ImageCacheMetadata
                 .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
 
-            if (existing != null)
+            if (currentMetadata != null)
             {
-                // Already cached — update LastAccessed and return
-                existing.LastAccessed = DateTime.UtcNow;
-                await SaveWithConcurrencyRetryAsync(existing);
-                return;
+                await _dbContext.Entry(currentMetadata).ReloadAsync();
             }
 
-            // Evict in a loop until enough space is available or no more entries remain
-            var maxSizeBytes = settings.MaxCacheImageSizeInMB * 1024L * 1024L;
-            while (Interlocked.Read(ref _currentCacheSize) + bytes.Length > maxSizeBytes)
+            if (currentMetadata == null || _dbContext.Entry(currentMetadata).State == EntityState.Detached)
             {
-                var evictedCount = await EvictLruEntriesAsync();
-                if (evictedCount == 0) break;
+                return new ProxiedImageCacheResult(
+                    ProxiedImageCacheStatus.DiskMissingOrError,
+                    null,
+                    null,
+                    capturedFilePath);
             }
 
-            // Create DB metadata entry — wrap in try/catch to delete orphaned file on failure
-            var metadata = new ImageCacheMetadata
+            if (!string.Equals(currentMetadata.FilePath, capturedFilePath, StringComparison.Ordinal))
             {
-                CacheKey = cacheKey,
-                ContentType = contentType,
-                FilePath = filePath,
-                Size = bytes.Length,
-                CreatedAt = DateTime.UtcNow,
-                LastAccessed = DateTime.UtcNow
-            };
-
-            _dbContext.ImageCacheMetadata.Add(metadata);
-            try
-            {
-                await _dbContext.SaveChangesAsync();
-                Interlocked.Add(ref _currentCacheSize, bytes.Length);
-            }
-            catch
-            {
-                // DB save failed — delete the orphaned file so it doesn't linger uncounted
-                try { File.Delete(filePath); } catch { /* best-effort cleanup */ }
-                throw;
+                return await ReadConcurrentRefreshFileAsync(currentMetadata, settings);
             }
 
-            _logger.LogInformation("Cached proxy image: key={CacheKey}, size={Size} bytes.", cacheKey, bytes.Length);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error caching proxy image for key {CacheKey}.", cacheKey);
+            _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
+            _dbContext.ImageCacheMetadata.Remove(currentMetadata);
+            Interlocked.Add(ref _currentCacheSize, -currentMetadata.Size);
+            await SaveMetadataChangesAsync();
+
+            return new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.DiskMissingOrError,
+                null,
+                null,
+                capturedFilePath);
         }
         finally
         {
             _cacheLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Reads the current file when a concurrent refresh moved metadata away from the captured path.
+    /// </summary>
+    private static async Task<ProxiedImageCacheResult> ReadConcurrentRefreshFileAsync(
+        ImageCacheMetadata metadata,
+        ApplicationSettings settings)
+    {
+        if (!File.Exists(metadata.FilePath))
+        {
+            return new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.DiskMissingOrError,
+                null,
+                null,
+                metadata.FilePath);
+        }
+
+        var maxAge = TimeSpan.FromDays(settings.ImageCacheExpiryDays);
+        var status = DateTime.UtcNow - metadata.CreatedAt > maxAge
+            ? ProxiedImageCacheStatus.StaleHit
+            : ProxiedImageCacheStatus.FreshHit;
+        var bytes = await File.ReadAllBytesAsync(metadata.FilePath);
+        return new ProxiedImageCacheResult(status, bytes, metadata.ContentType, metadata.FilePath);
     }
 
     /// <inheritdoc />
@@ -395,69 +335,9 @@ public class ProxiedImageCacheService : IProxiedImageCacheService
             }
         }
 
-        await _dbContext.SaveChangesAsync();
+        await SaveMetadataChangesAsync();
         _logger.LogInformation("Evicted {Count} LRU image cache entries.", entriesToEvict.Count);
         return entriesToEvict.Count;
     }
 
-    /// <summary>
-    /// Removes a single cache entry (file + DB metadata) and adjusts the size counter.
-    /// </summary>
-    private async Task RemoveEntryAsync(ImageCacheMetadata metadata)
-    {
-        _dbContext.ImageCacheMetadata.Remove(metadata);
-        Interlocked.Add(ref _currentCacheSize, -metadata.Size);
-
-        if (File.Exists(metadata.FilePath))
-        {
-            try
-            {
-                File.Delete(metadata.FilePath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to delete expired image cache file {FilePath}.", metadata.FilePath);
-            }
-        }
-
-        await _dbContext.SaveChangesAsync();
-    }
-
-    /// <summary>
-    /// Saves metadata changes with retry on concurrency conflicts.
-    /// Uses the same retry pattern as <see cref="TileCacheService"/>.
-    /// </summary>
-    private async Task SaveWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
-    {
-        var attempts = 0;
-        var updated = false;
-
-        while (!updated && attempts < 3)
-        {
-            attempts++;
-            try
-            {
-                _dbContext.ImageCacheMetadata.Update(metadata);
-                await _dbContext.SaveChangesAsync();
-                updated = true;
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                var entry = ex.Entries.Single();
-                var databaseValues = await entry.GetDatabaseValuesAsync();
-
-                if (databaseValues == null)
-                {
-                    _logger.LogWarning("Image cache metadata was deleted by another process for key {CacheKey}.",
-                        metadata.CacheKey);
-                    return;
-                }
-
-                // Reload database values and reapply our LastAccessed update
-                var dbMetadata = (ImageCacheMetadata)databaseValues.ToObject();
-                metadata.LastAccessed = DateTime.UtcNow;
-                entry.OriginalValues.SetValues(databaseValues);
-            }
-        }
-    }
 }

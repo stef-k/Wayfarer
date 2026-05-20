@@ -72,7 +72,7 @@
                     }
                     else
                     {
-                        <img src="@Model.CoverImageUrl" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
+                        <img src="@ImageProxyHelper.ToProxyUrl(Model.CoverImageUrl)" class="img-fluid object-fit-cover w-100 h-100" alt="Cover for @Model.Name"/>
                     }
                 </div>
             }
@@ -407,7 +407,7 @@
                 @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
                 {
                     <div class="mb-3">
-                        <img src="@Model.CoverImageUrl" class="img-fluid w-100 rounded" alt="Cover for @Model.Name" style="max-height: 400px; object-fit: cover;"/>
+                        <img src="@ImageProxyHelper.ToProxyUrl(Model.CoverImageUrl)" class="img-fluid w-100 rounded" alt="Cover for @Model.Name" style="max-height: 400px; object-fit: cover;"/>
                     </div>
                 }
                 else if (Model.CenterLat.HasValue && Model.CenterLon.HasValue)
@@ -488,7 +488,7 @@
                             @if (!string.IsNullOrWhiteSpace(region.CoverImageUrl))
                             {
                                 <div class="mb-3">
-                                    <img src="@region.CoverImageUrl" alt="@region.Name" class="img-fluid rounded" style="max-height: 200px; object-fit: cover; width: 100%;" />
+                                    <img src="@ImageProxyHelper.ToProxyUrl(region.CoverImageUrl)" alt="@region.Name" class="img-fluid rounded" style="max-height: 200px; object-fit: cover; width: 100%;" />
                                 </div>
                             }
 
