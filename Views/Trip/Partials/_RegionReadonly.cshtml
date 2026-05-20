@@ -50,7 +50,7 @@
             @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
             {
                 <div class="region-cover-image px-2 py-1 border-bottom">
-                    <img src="@Model.CoverImageUrl" alt="@Model.Name" class="img-fluid rounded" style="max-height: 150px; object-fit: cover; width: 100%;" />
+                    <img src="@ImageProxyHelper.ToProxyUrl(Model.CoverImageUrl)" alt="@Model.Name" class="img-fluid rounded" style="max-height: 150px; object-fit: cover; width: 100%;" />
                 </div>
             }
             @* Region notes - shown if present, scrollable like trip notes *@

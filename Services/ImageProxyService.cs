@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Wayfarer.Parsers;
 using Wayfarer.Util;
 
@@ -11,6 +12,12 @@ namespace Wayfarer.Services;
 public interface IImageProxyService
 {
     /// <summary>
+    /// Gets a proxied image from cache or, when allowed, from the origin.
+    /// Local cache hits schedule stale refresh as needed before origin rate limits apply.
+    /// </summary>
+    Task<ImageProxyResult> GetOrFetchAsync(ImageProxyRequest request, bool allowOriginFetch, CancellationToken ct = default);
+
+    /// <summary>
     /// Fetches an external image, optimizes it via ImageSharp, and stores it in the
     /// proxied image cache. Returns true if the image was fetched and cached, false
     /// if already cached, disallowed, or failed.
@@ -19,6 +26,46 @@ public interface IImageProxyService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>True if newly cached, false otherwise.</returns>
     Task<bool> FetchAndCacheAsync(string imageUrl, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Immutable request parameters that determine a proxied image cache key and output bytes.
+/// </summary>
+public sealed record ImageProxyRequest(
+    string Url,
+    int? MaxWidth = null,
+    int? MaxHeight = null,
+    int? Quality = null,
+    bool Optimize = true);
+
+/// <summary>
+/// Result status for proxied image service work.
+/// </summary>
+public enum ImageProxyResultStatus
+{
+    FreshHit,
+    StaleHit,
+    Fetched,
+    OriginRequired,
+    BadRequest,
+    NotFound,
+    TooLarge,
+    Failed
+}
+
+/// <summary>
+/// Result returned by the proxied image pipeline.
+/// </summary>
+public sealed record ImageProxyResult(
+    ImageProxyResultStatus Status,
+    string CacheKey,
+    byte[]? Bytes,
+    string? ContentType)
+{
+    /// <summary>
+    /// Gets whether bytes are available to serve to the HTTP caller.
+    /// </summary>
+    public bool HasBytes => Bytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(ContentType);
 }
 
 /// <summary>
@@ -31,106 +78,386 @@ public class ImageProxyService : IImageProxyService
     private readonly HttpClient _httpClient;
     private readonly IProxiedImageCacheService _imageCacheService;
     private readonly IApplicationSettingsService _settingsService;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<ImageProxyService> _logger;
+
+    /// <summary>
+    /// Coalesces active origin download and ImageSharp work by image cache key.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, Lazy<Task<ImageProxyResult>>> _originWork = new();
+
+    /// <summary>
+    /// Coalesces bounded stale refresh series by image cache key.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, ImageRefreshSeries> _refreshSeries = new();
+
+    /// <summary>
+    /// Process-wide concurrency budget for origin download and ImageSharp optimization.
+    /// </summary>
+    private static readonly SemaphoreSlim _originWorkBudget = new(4, 4);
+
+    private const int RefreshSeriesMaxAttempts = 3;
+    private static readonly TimeSpan RefreshSeriesMaxDuration = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan RefreshRetryInitialDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RefreshRetryMaxDelay = TimeSpan.FromSeconds(60);
+    private static Func<int, TimeSpan> _refreshRetryDelayProvider = CalculateRefreshRetryDelay;
 
     public ImageProxyService(
         HttpClient httpClient,
         IProxiedImageCacheService imageCacheService,
         IApplicationSettingsService settingsService,
+        IServiceScopeFactory serviceScopeFactory,
         ILogger<ImageProxyService> logger)
     {
         _httpClient = httpClient;
         _imageCacheService = imageCacheService;
         _settingsService = settingsService;
+        _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public async Task<ImageProxyResult> GetOrFetchAsync(
+        ImageProxyRequest request,
+        bool allowOriginFetch,
+        CancellationToken ct = default)
+    {
+        if (!ImageProxyHelper.IsUrlAllowed(request.Url))
+        {
+            _logger.LogDebug("Image URL disallowed by SSRF check: {Url}", request.Url);
+            return new ImageProxyResult(ImageProxyResultStatus.BadRequest, string.Empty, null, null);
+        }
+
+        var cacheKey = ComputeCacheKey(request);
+        var cached = await _imageCacheService.GetAsync(cacheKey);
+        if (cached.Status is ProxiedImageCacheStatus.FreshHit or ProxiedImageCacheStatus.StaleHit && cached.HasBytes)
+        {
+            if (cached.Status == ProxiedImageCacheStatus.StaleHit)
+            {
+                ScheduleBackgroundRefresh(cacheKey, request);
+            }
+
+            var status = cached.Status == ProxiedImageCacheStatus.FreshHit
+                ? ImageProxyResultStatus.FreshHit
+                : ImageProxyResultStatus.StaleHit;
+            return new ImageProxyResult(status, cacheKey, cached.Bytes, cached.ContentType);
+        }
+
+        if (!allowOriginFetch)
+        {
+            return new ImageProxyResult(ImageProxyResultStatus.OriginRequired, cacheKey, null, null);
+        }
+
+        return await RunOriginWorkCoalescedAsync(
+            cacheKey,
+            () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
+            ct);
     }
 
     /// <inheritdoc />
     public async Task<bool> FetchAndCacheAsync(string imageUrl, CancellationToken ct = default)
     {
-        // SSRF protection — shared with TripViewerController
+        var request = new ImageProxyRequest(imageUrl);
         if (!ImageProxyHelper.IsUrlAllowed(imageUrl))
+            return false;
+
+        var cacheKey = ComputeCacheKey(request);
+        var existing = await _imageCacheService.GetAsync(cacheKey);
+        if (existing.Status == ProxiedImageCacheStatus.FreshHit)
         {
-            _logger.LogDebug("Image URL disallowed by SSRF check: {Url}", imageUrl);
             return false;
         }
 
-        // Compute cache key with default proxy params (no resize, optimize=true)
-        var cacheKey = ImageProxyHelper.ComputeImageCacheKey(imageUrl, null, null, null, true);
+        var result = await RunOriginWorkCoalescedAsync(
+            cacheKey,
+            () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
+            ct);
 
-        // Already cached — skip
-        var existing = await _imageCacheService.GetAsync(cacheKey);
-        if (existing.HasValue)
-            return false;
+        return result.Status == ImageProxyResultStatus.Fetched;
+    }
 
-        // Download from origin
+    /// <summary>
+    /// Runs origin work once per cache key and shares the result with concurrent callers.
+    /// </summary>
+    private static async Task<ImageProxyResult> RunOriginWorkCoalescedAsync(
+        string cacheKey,
+        Func<Task<ImageProxyResult>> work,
+        CancellationToken ct)
+    {
+        var lazy = new Lazy<Task<ImageProxyResult>>(async () =>
+        {
+            await _originWorkBudget.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                return await work().ConfigureAwait(false);
+            }
+            finally
+            {
+                _originWorkBudget.Release();
+            }
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
+
+        var active = _originWork.GetOrAdd(cacheKey, lazy);
+        try
+        {
+            return await active.Value.ConfigureAwait(false);
+        }
+        finally
+        {
+            if (ReferenceEquals(active, lazy))
+            {
+                _originWork.TryRemove(new KeyValuePair<string, Lazy<Task<ImageProxyResult>>>(cacheKey, lazy));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Downloads, optionally optimizes, and stores an image for one cache key.
+    /// </summary>
+    private async Task<ImageProxyResult> DownloadOptimizeAndCacheAsync(
+        ImageProxyRequest request,
+        string cacheKey,
+        CancellationToken ct)
+    {
         var maxBytes = _settingsService.GetSettings().MaxProxyImageDownloadMB * 1024L * 1024;
         HttpResponseMessage resp;
         try
         {
-            resp = await _httpClient.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            resp = await _httpClient.GetAsync(request.Url, HttpCompletionOption.ResponseHeadersRead, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to download image from {Url}.", imageUrl);
-            return false;
+            _logger.LogWarning(ex, "Failed to download image from {Url}.", request.Url);
+            return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
         }
 
         using (resp)
         {
             if (!resp.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Upstream returned {StatusCode} for image {Url}.", (int)resp.StatusCode, imageUrl);
-                return false;
+                _logger.LogWarning("Upstream returned {StatusCode} for image {Url}.", (int)resp.StatusCode, request.Url);
+                return new ImageProxyResult(ImageProxyResultStatus.NotFound, cacheKey, null, null);
             }
 
-            // Reject early if Content-Length exceeds limit
             if (resp.Content.Headers.ContentLength > maxBytes)
             {
-                _logger.LogWarning("Image too large ({Size} bytes) from {Url}.", resp.Content.Headers.ContentLength, imageUrl);
-                return false;
+                _logger.LogWarning("Image too large ({Size} bytes) from {Url}.", resp.Content.Headers.ContentLength, request.Url);
+                return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
             }
 
-            // Stream-read with hard cap
             var contentType = resp.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-            byte[] bytes;
-            await using (var bodyStream = await resp.Content.ReadAsStreamAsync(ct))
+            var bytes = await ReadWithLimitAsync(resp, maxBytes, ct);
+            if (bytes == null)
             {
-                using var limitedStream = new MemoryStream();
-                var buffer = new byte[81920];
-                long totalRead = 0;
-                int read;
-                while ((read = await bodyStream.ReadAsync(buffer, ct)) > 0)
-                {
-                    totalRead += read;
-                    if (totalRead > maxBytes)
-                    {
-                        _logger.LogWarning("Image exceeded size limit during download from {Url}.", imageUrl);
-                        return false;
-                    }
-                    limitedStream.Write(buffer, 0, read);
-                }
-                bytes = limitedStream.ToArray();
+                return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
             }
 
-            // Optimize via shared ImageSharp pipeline (same as TripViewerController)
-            if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            if (request.Optimize && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    bytes = ImageProxyHelper.OptimizeImage(bytes, null, null, 95, out bool isPng);
+                    bytes = ImageProxyHelper.OptimizeImage(
+                        bytes,
+                        request.MaxWidth,
+                        request.MaxHeight,
+                        request.Quality ?? 95,
+                        out var isPng);
                     contentType = isPng ? "image/png" : "image/jpeg";
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to optimize image from {Url}, caching original.", imageUrl);
+                    _logger.LogWarning(ex, "Failed to optimize image from {Url}.", request.Url);
+                    return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
                 }
             }
 
-            // Store in cache
             await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
-            _logger.LogDebug("Warm-up cached image: {Url} ({Size} bytes).", imageUrl, bytes.Length);
-            return true;
+            _logger.LogDebug("Cached proxied image: {Url} ({Size} bytes).", request.Url, bytes.Length);
+            return new ImageProxyResult(ImageProxyResultStatus.Fetched, cacheKey, bytes, contentType);
         }
+    }
+
+    /// <summary>
+    /// Reads an origin response with a hard maximum byte count.
+    /// </summary>
+    private static async Task<byte[]?> ReadWithLimitAsync(HttpResponseMessage resp, long maxBytes, CancellationToken ct)
+    {
+        await using var bodyStream = await resp.Content.ReadAsStreamAsync(ct);
+        using var limitedStream = new MemoryStream();
+        var buffer = new byte[81920];
+        long totalRead = 0;
+        int read;
+        while ((read = await bodyStream.ReadAsync(buffer, ct)) > 0)
+        {
+            totalRead += read;
+            if (totalRead > maxBytes)
+            {
+                return null;
+            }
+
+            limitedStream.Write(buffer, 0, read);
+        }
+
+        return limitedStream.ToArray();
+    }
+
+    /// <summary>
+    /// Schedules a bounded stale refresh series if one is not already active for the key.
+    /// </summary>
+    private void ScheduleBackgroundRefresh(string cacheKey, ImageProxyRequest request)
+    {
+        var series = new ImageRefreshSeries(cacheKey, request);
+        var activeSeries = _refreshSeries.GetOrAdd(cacheKey, series);
+        if (!ReferenceEquals(activeSeries, series))
+        {
+            _logger.LogDebug("Image refresh already active for cache key {CacheKey}.", cacheKey);
+            return;
+        }
+
+        _ = Task.Run(() => RunBackgroundRefreshSeriesAsync(series), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Runs one bounded background refresh series through fresh DI scopes.
+    /// </summary>
+    private async Task RunBackgroundRefreshSeriesAsync(ImageRefreshSeries series)
+    {
+        try
+        {
+            while (series.Attempts < RefreshSeriesMaxAttempts &&
+                   DateTime.UtcNow - series.StartedAtUtc < RefreshSeriesMaxDuration)
+            {
+                series.Attempts++;
+
+                try
+                {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var imageProxyService = scope.ServiceProvider.GetRequiredService<IImageProxyService>();
+                    var result = await imageProxyService.GetOrFetchAsync(series.Request, true, series.CancellationToken);
+                    if (result.Status == ImageProxyResultStatus.Fetched)
+                    {
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Background image refresh attempt {Attempt} failed for key {CacheKey}.",
+                        series.Attempts, series.CacheKey);
+                }
+
+                if (series.Attempts >= RefreshSeriesMaxAttempts)
+                {
+                    break;
+                }
+
+                var remaining = RefreshSeriesMaxDuration - (DateTime.UtcNow - series.StartedAtUtc);
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var delay = _refreshRetryDelayProvider(series.Attempts);
+                await Task.Delay(delay > remaining ? remaining : delay, series.CancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("Background image refresh cancelled for key {CacheKey}.", series.CacheKey);
+        }
+        finally
+        {
+            _refreshSeries.TryRemove(new KeyValuePair<string, ImageRefreshSeries>(series.CacheKey, series));
+        }
+    }
+
+    /// <summary>
+    /// Calculates exponential refresh retry delay with jitter.
+    /// </summary>
+    private static TimeSpan CalculateRefreshRetryDelay(int failedAttempts)
+    {
+        var exponent = Math.Max(0, failedAttempts - 1);
+        var delayMs = RefreshRetryInitialDelay.TotalMilliseconds * Math.Pow(2, exponent);
+        delayMs = Math.Min(delayMs, RefreshRetryMaxDelay.TotalMilliseconds);
+        delayMs *= 0.75 + Random.Shared.NextDouble() * 0.5;
+        return TimeSpan.FromMilliseconds(delayMs);
+    }
+
+    /// <summary>
+    /// Computes the deterministic cache key for a request.
+    /// </summary>
+    private static string ComputeCacheKey(ImageProxyRequest request) =>
+        ImageProxyHelper.ComputeImageCacheKey(
+            request.Url,
+            request.MaxWidth,
+            request.MaxHeight,
+            request.Quality,
+            request.Optimize);
+
+    /// <summary>
+    /// Captures immutable inputs and retry state for one bounded stale-image refresh series.
+    /// </summary>
+    private sealed class ImageRefreshSeries
+    {
+        public string CacheKey { get; }
+        public ImageProxyRequest Request { get; }
+        public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+        public CancellationToken CancellationToken => _cancellationTokenSource.Token;
+        public int Attempts { get; set; }
+
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
+
+        public ImageRefreshSeries(string cacheKey, ImageProxyRequest request)
+        {
+            CacheKey = cacheKey;
+            Request = request;
+        }
+
+        public void CancelForTesting() => _cancellationTokenSource.Cancel();
+    }
+
+    /// <summary>
+    /// Waits until a background image refresh series is no longer active.
+    /// </summary>
+    internal static async Task<bool> WaitForRefreshIdleForTestingAsync(string cacheKey, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow.Add(timeout);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (!_refreshSeries.ContainsKey(cacheKey))
+            {
+                return true;
+            }
+
+            await Task.Delay(10);
+        }
+
+        return !_refreshSeries.ContainsKey(cacheKey);
+    }
+
+    /// <summary>
+    /// Resets static image proxy coordination state between tests.
+    /// </summary>
+    internal static void ResetStaticStateForTesting()
+    {
+        foreach (var series in _refreshSeries.Values)
+        {
+            series.CancelForTesting();
+        }
+
+        _refreshSeries.Clear();
+        _originWork.Clear();
+        SetRefreshRetryDelayForTesting(null);
+        while (_originWorkBudget.CurrentCount < 4)
+        {
+            _originWorkBudget.Release();
+        }
+    }
+
+    /// <summary>
+    /// Overrides refresh retry delay calculation for deterministic tests.
+    /// </summary>
+    internal static void SetRefreshRetryDelayForTesting(Func<int, TimeSpan>? delayProvider)
+    {
+        _refreshRetryDelayProvider = delayProvider ?? CalculateRefreshRetryDelay;
     }
 }

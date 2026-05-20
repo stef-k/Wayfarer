@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Public.Controllers;
@@ -34,7 +35,11 @@ public class PublicTripImagesTests : TestBase
         // Mock cache to return a hit so the endpoint serves bytes
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(((byte[] Bytes, string ContentType)?)(new byte[] { 0xFF, 0xD8 }, "image/jpeg"));
+            .ReturnsAsync(new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.FreshHit,
+                new byte[] { 0xFF, 0xD8 },
+                "image/jpeg",
+                null));
 
         var controller = BuildController(db, imageCacheService: cacheMock.Object);
         var result = await controller.GetCoverImage(tripId);
@@ -202,7 +207,11 @@ public class PublicTripImagesTests : TestBase
 
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(((byte[] Bytes, string ContentType)?)(new byte[] { 0xFF, 0xD8 }, "image/jpeg"));
+            .ReturnsAsync(new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.FreshHit,
+                new byte[] { 0xFF, 0xD8 },
+                "image/jpeg",
+                null));
 
         var controller = BuildController(db, settingsService: settingsMock.Object, imageCacheService: cacheMock.Object);
         var result = await controller.GetCoverImage(tripId);
@@ -253,10 +262,14 @@ public class PublicTripImagesTests : TestBase
             ProxyImageRateLimitPerMinute = 1
         });
 
-        // Mock cache to return a hit so the first request succeeds
+        // Mock cache to return a hit so both requests are served before rate limiting.
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(((byte[] Bytes, string ContentType)?)(new byte[] { 0xFF, 0xD8 }, "image/jpeg"));
+            .ReturnsAsync(new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.FreshHit,
+                new byte[] { 0xFF, 0xD8 },
+                "image/jpeg",
+                null));
 
         var controller = BuildController(db, settingsService: settingsMock.Object, imageCacheService: cacheMock.Object);
         // Set a unique IP per test to avoid cross-test pollution
@@ -266,10 +279,9 @@ public class PublicTripImagesTests : TestBase
         var result1 = await controller.GetCoverImage(tripId);
         Assert.IsType<FileContentResult>(result1);
 
-        // Second request should be rate limited
+        // Second request should also bypass rate limiting because it is a local hit.
         var result2 = await controller.GetCoverImage(tripId);
-        var status = Assert.IsType<ObjectResult>(result2);
-        Assert.Equal(429, status.StatusCode);
+        Assert.IsType<FileContentResult>(result2);
     }
 
     [Fact]
@@ -331,13 +343,19 @@ public class PublicTripImagesTests : TestBase
             settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
             settingsService = settingsMock.Object;
         }
+        var imageProxyService = new ImageProxyService(
+            client,
+            imageCacheService,
+            settingsService,
+            Mock.Of<IServiceScopeFactory>(),
+            NullLogger<ImageProxyService>.Instance);
         var controller = new TripViewerController(
             NullLogger<TripViewerController>.Instance,
             db,
             client,
             thumbnailService,
             tagService,
-            imageCacheService,
+            imageProxyService,
             settingsService);
         controller.ControllerContext = new ControllerContext
         {

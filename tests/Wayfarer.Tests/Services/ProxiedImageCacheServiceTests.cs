@@ -40,7 +40,7 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var result = await service.GetAsync("nonexistent_key");
 
-        Assert.Null(result);
+        Assert.Equal(ProxiedImageCacheStatus.Miss, result.Status);
     }
 
     [Fact]
@@ -54,13 +54,13 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var result = await service.GetAsync("test_key_1");
 
-        Assert.NotNull(result);
-        Assert.Equal(imageBytes, result!.Value.Bytes);
-        Assert.Equal(contentType, result.Value.ContentType);
+        Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
+        Assert.Equal(imageBytes, result.Bytes);
+        Assert.Equal(contentType, result.ContentType);
     }
 
     [Fact]
-    public async Task GetAsync_ReturnsNull_WhenEntryExpired()
+    public async Task GetAsync_ReturnsStaleHit_WhenEntryExpired()
     {
         var db = CreateDbContext();
         var service = CreateService(db: db, expiryDays: 1);
@@ -75,7 +75,9 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var result = await service.GetAsync("expired_key");
 
-        Assert.Null(result);
+        Assert.Equal(ProxiedImageCacheStatus.StaleHit, result.Status);
+        Assert.Equal(imageBytes, result.Bytes);
+        Assert.Single(db.ImageCacheMetadata.Where(m => m.CacheKey == "expired_key"));
     }
 
     [Fact]
@@ -93,7 +95,7 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var result = await service.GetAsync("disk_missing_key");
 
-        Assert.Null(result);
+        Assert.Equal(ProxiedImageCacheStatus.DiskMissingOrError, result.Status);
         // DB entry should also be cleaned up
         Assert.Empty(db.ImageCacheMetadata.Where(m => m.CacheKey == "disk_missing_key"));
     }
@@ -119,7 +121,7 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var result = await service.GetAsync("disabled_key");
 
-        Assert.Null(result);
+        Assert.Equal(ProxiedImageCacheStatus.Miss, result.Status);
     }
 
     [Fact]

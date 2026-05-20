@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Models;
@@ -30,12 +31,12 @@ public class ImageProxyServiceTests : TestBase
     {
         // Minimal valid JPEG bytes (SOI + EOI markers)
         var jpegBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 };
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jpegBytes, "image/jpeg");
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jpegBytes, "application/octet-stream");
         var cacheMock = new Mock<IProxiedImageCacheService>();
 
         // No existing cache entry
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((ValueTuple<byte[], string>?)null);
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
@@ -51,7 +52,7 @@ public class ImageProxyServiceTests : TestBase
         var handler = new MockHttpMessageHandler(HttpStatusCode.NotFound, Array.Empty<byte>(), "text/html");
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((ValueTuple<byte[], string>?)null);
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
@@ -66,7 +67,11 @@ public class ImageProxyServiceTests : TestBase
     {
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((new byte[] { 1, 2, 3 }, "image/jpeg"));
+            .ReturnsAsync(new ProxiedImageCacheResult(
+                ProxiedImageCacheStatus.FreshHit,
+                new byte[] { 1, 2, 3 },
+                "image/jpeg",
+                null));
 
         var service = CreateImageProxyService(cacheMock: cacheMock);
 
@@ -82,7 +87,7 @@ public class ImageProxyServiceTests : TestBase
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 55L * 1024 * 1024);
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((ValueTuple<byte[], string>?)null);
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
@@ -105,7 +110,7 @@ public class ImageProxyServiceTests : TestBase
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 12L * 1024 * 1024);
         var cacheMock = new Mock<IProxiedImageCacheService>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync((ValueTuple<byte[], string>?)null);
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock, settingsMock: settingsMock);
 
@@ -136,6 +141,7 @@ public class ImageProxyServiceTests : TestBase
             httpClient,
             cacheMock.Object,
             settingsMock.Object,
+            Mock.Of<IServiceScopeFactory>(),
             NullLogger<ImageProxyService>.Instance);
     }
 
