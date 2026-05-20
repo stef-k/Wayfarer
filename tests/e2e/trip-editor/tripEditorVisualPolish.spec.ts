@@ -527,7 +527,9 @@ async function expectDialogFitsViewport(page: Page): Promise<void> {
 
 async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   await expectNoPageOverflow(page);
-  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
+  const capturesExpandedDialog = await page.locator('.trip-editor-expanded__dialog:visible').first().isVisible().catch(() => false);
+  // Teleported expanded dialogs are fixed overlays; viewport capture preserves their rendered state.
+  await page.screenshot({ fullPage: !capturesExpandedDialog, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
 
 function note(testInfo: TestInfo, state: string, viewport: string, theme: string, themeSource: string, result: string): void {
