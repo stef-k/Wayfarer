@@ -2,8 +2,13 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
 
@@ -212,6 +217,47 @@ public partial class TileCacheServiceTests
     {
         var json = File.ReadAllText(tilePath + ".meta");
         return JsonSerializer.Deserialize<TileSidecarMetadata>(json)!;
+    }
+
+    private static Func<ApplicationDbContext> CreateScopedDbFactory(ApplicationDbContext db, string? dbName)
+    {
+        if (dbName == null)
+        {
+            return () => db;
+        }
+
+        return () => new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options,
+            new ServiceCollection().BuildServiceProvider());
+    }
+
+    private static SingleScopeFactory CreateTileCacheScopeFactory(IConfiguration config, HttpClient httpClient,
+        IApplicationSettingsService appSettings, TileMetadataHotCache hotCache,
+        Func<ApplicationDbContext> scopedDbFactory)
+    {
+        SingleScopeFactory? scopeFactory = null;
+        scopeFactory = new SingleScopeFactory(() =>
+        {
+            var scopedDb = scopedDbFactory();
+            var scopedService = new TileCacheService(
+                NullLogger<TileCacheService>.Instance,
+                config,
+                httpClient,
+                scopedDb,
+                appSettings,
+                scopeFactory!,
+                new HttpContextAccessor(),
+                hotCache);
+            return new ServiceCollection()
+                .AddSingleton(scopedDb)
+                .AddSingleton<ApplicationDbContext>(scopedDb)
+                .AddSingleton(scopedService)
+                .BuildServiceProvider();
+        });
+        return scopeFactory;
     }
 
     /// <summary>

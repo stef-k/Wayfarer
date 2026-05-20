@@ -731,34 +731,8 @@ public partial class TileCacheServiceTests : TestBase
         // each scope gets its own DbContext with a separate change tracker.
         var appSettings = new StubSettingsService(maxCacheMb);
         var effectiveHotCache = hotCache ?? new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
-        Func<ApplicationDbContext> scopedDbFactory = dbName != null
-            ? () => new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>()
-                    .UseInMemoryDatabase(dbName)
-                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-                    .Options,
-                new ServiceCollection().BuildServiceProvider())
-            : () => db;
-        SingleScopeFactory? scopeFactory = null;
-        scopeFactory = new SingleScopeFactory(() =>
-        {
-            var scopedDb = scopedDbFactory();
-            var scopedService = new TileCacheService(
-                NullLogger<TileCacheService>.Instance,
-                config,
-                httpClient,
-                scopedDb,
-                appSettings,
-                scopeFactory!,
-                new HttpContextAccessor(),
-                effectiveHotCache);
-            var provider = new ServiceCollection()
-                .AddSingleton(scopedDb)
-                .AddSingleton<ApplicationDbContext>(scopedDb)
-                .AddSingleton(scopedService)
-                .BuildServiceProvider();
-            return provider;
-        });
+        var scopedDbFactory = CreateScopedDbFactory(db, dbName);
+        var scopeFactory = CreateTileCacheScopeFactory(config, httpClient, appSettings, effectiveHotCache, scopedDbFactory);
         return new TileCacheService(
             NullLogger<TileCacheService>.Instance,
             config,
@@ -1034,30 +1008,12 @@ public partial class TileCacheServiceTests : TestBase
         var httpClient = new HttpClient(new StubTileHandler());
         var appSettings = new StubSettingsService();
         var hotCache = new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance);
-        SingleScopeFactory? scopeFactory = null;
-        scopeFactory = new SingleScopeFactory(() =>
-        {
-            var scopedDb = new ApplicationDbContext(
-                new DbContextOptionsBuilder<ApplicationDbContext>()
-                    .UseInMemoryDatabase(dbName)
-                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-                    .Options,
-                new ServiceCollection().BuildServiceProvider());
-            var scopedService = new TileCacheService(
-                NullLogger<TileCacheService>.Instance,
-                config,
-                httpClient,
-                scopedDb,
-                appSettings,
-                scopeFactory!,
-                new HttpContextAccessor(),
-                hotCache);
-            return new ServiceCollection()
-                .AddSingleton(scopedDb)
-                .AddSingleton<ApplicationDbContext>(scopedDb)
-                .AddSingleton(scopedService)
-                .BuildServiceProvider();
-        });
+        var scopeFactory = CreateTileCacheScopeFactory(
+            config,
+            httpClient,
+            appSettings,
+            hotCache,
+            CreateScopedDbFactory(db2, dbName));
         var service2 = new TileCacheService(
             NullLogger<TileCacheService>.Instance,
             config,
