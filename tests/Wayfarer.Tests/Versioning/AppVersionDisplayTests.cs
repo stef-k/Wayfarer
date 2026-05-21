@@ -31,6 +31,9 @@ public class AppVersionDisplayTests
 
         layout.Should().Contain("@inject IAppVersionProvider AppVersionProvider");
         layout.Should().Contain("@AppVersionDisplay.FooterText(AppVersionProvider)");
+        layout.Should().Contain("&copy; @DateTime.UtcNow.Year - @AppVersionDisplay.FooterText(AppVersionProvider) by");
+        layout.Should().NotContain("&copy; 2025");
+        layout.Should().NotContain("Privacy</a> -");
         layout.Should().NotContain("Wayfarer v1.4.0");
     }
 
