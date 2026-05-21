@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Wayfarer.Services;
+using Xunit;
 
 namespace Wayfarer.Tests.Versioning;
 
@@ -18,6 +19,7 @@ public class AppVersionDisplayTests
     {
         var layoutPath = Path.GetFullPath(Path.Combine(
             AppContext.BaseDirectory,
+            "..",
             "..",
             "..",
             "..",

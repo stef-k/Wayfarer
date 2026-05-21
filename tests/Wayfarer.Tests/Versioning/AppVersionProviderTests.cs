@@ -2,11 +2,20 @@ using System.Reflection;
 using System.Reflection.Emit;
 using FluentAssertions;
 using Wayfarer.Services;
+using Xunit;
 
 namespace Wayfarer.Tests.Versioning;
 
 public class AppVersionProviderTests
 {
+    [Fact]
+    public void Version_DefaultProviderReadsCompiledWayfarerVersion()
+    {
+        var provider = new AppVersionProvider();
+
+        provider.Version.Should().Be("1.4.0");
+    }
+
     [Fact]
     public void Version_ReadsAssemblyInformationalVersion()
     {
@@ -26,7 +35,7 @@ public class AppVersionProviderTests
             .InformationalVersion;
 
         provider.Version.Should().Be(expectedVersion);
-        typeof(AppVersionProviderTests).Assembly.Should().NotBe(Assembly.GetEntryAssembly());
+        Assert.NotSame(typeof(AppVersionProviderTests).Assembly, Assembly.GetEntryAssembly());
     }
 
     private static Assembly CreateAssemblyWithInformationalVersion(string version)

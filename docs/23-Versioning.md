@@ -9,6 +9,7 @@ MSBuild metadata directly from it:
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
+<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 ```
 
 The running app reads `AssemblyInformationalVersion` from the compiled Wayfarer

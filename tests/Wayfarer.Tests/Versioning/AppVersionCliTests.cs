@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Wayfarer.CommandLine;
 using Wayfarer.Services;
+using Xunit;
 
 namespace Wayfarer.Tests.Versioning;
 

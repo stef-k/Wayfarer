@@ -4,5 +4,6 @@
     <Version>$(WayfarerVersion)</Version>
     <PackageVersion>$(WayfarerVersion)</PackageVersion>
     <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>

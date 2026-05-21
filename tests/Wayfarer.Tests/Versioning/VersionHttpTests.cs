@@ -3,13 +3,15 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Middleware;
 using Wayfarer.Services;
+using Xunit;
 
 namespace Wayfarer.Tests.Versioning;
 
@@ -20,8 +22,8 @@ public class VersionHttpTests : IDisposable
     [Fact]
     public async Task GetVersion_ReturnsExpectedJsonAndContentType()
     {
-        using var server = CreateApiServer();
-        using var client = server.CreateClient();
+        using var host = await CreateApiHostAsync();
+        using var client = host.GetTestClient();
 
         using var response = await client.GetAsync("/api/version");
         var body = await response.Content.ReadAsStringAsync();
@@ -37,8 +39,8 @@ public class VersionHttpTests : IDisposable
     [Fact]
     public async Task VersionHeader_AppearsOnApiResponse()
     {
-        using var server = CreateApiServer();
-        using var client = server.CreateClient();
+        using var host = await CreateApiHostAsync();
+        using var client = host.GetTestClient();
 
         using var response = await client.GetAsync("/api/version");
 
@@ -51,8 +53,8 @@ public class VersionHttpTests : IDisposable
         Directory.CreateDirectory(_tempDirectory);
         await File.WriteAllTextAsync(Path.Combine(_tempDirectory, "version-test.txt"), "docs");
 
-        using var server = CreateDocsStaticServer(_tempDirectory);
-        using var client = server.CreateClient();
+        using var host = await CreateDocsStaticHostAsync(_tempDirectory);
+        using var client = host.GetTestClient();
 
         using var response = await client.GetAsync("/docs/version-test.txt");
 
@@ -68,9 +70,11 @@ public class VersionHttpTests : IDisposable
         }
     }
 
-    private static TestServer CreateApiServer()
+    private static async Task<IHost> CreateApiHostAsync()
     {
-        return new TestServer(new WebHostBuilder()
+        var host = new HostBuilder()
+            .ConfigureWebHost(webHost => webHost
+                .UseTestServer()
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.0"));
@@ -82,12 +86,18 @@ public class VersionHttpTests : IDisposable
                 app.UseMiddleware<AppVersionHeaderMiddleware>();
                 app.UseRouting();
                 app.UseEndpoints(endpoints => endpoints.MapControllers());
-            }));
+            }))
+            .Build();
+
+        await host.StartAsync();
+        return host;
     }
 
-    private static TestServer CreateDocsStaticServer(string docsPath)
+    private static async Task<IHost> CreateDocsStaticHostAsync(string docsPath)
     {
-        return new TestServer(new WebHostBuilder()
+        var host = new HostBuilder()
+            .ConfigureWebHost(webHost => webHost
+                .UseTestServer()
             .ConfigureServices(services =>
             {
                 services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.0"));
@@ -101,7 +111,11 @@ public class VersionHttpTests : IDisposable
                     RequestPath = "/docs",
                     ContentTypeProvider = new FileExtensionContentTypeProvider()
                 });
-            }));
+            }))
+            .Build();
+
+        await host.StartAsync();
+        return host;
     }
 
     private sealed class StubAppVersionProvider : IAppVersionProvider
