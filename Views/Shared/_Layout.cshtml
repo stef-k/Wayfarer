@@ -3,6 +3,7 @@
 @using Wayfarer.Services
 @using Wayfarer.Areas.Public.Controllers
 @inject Wayfarer.Parsers.IApplicationSettingsService ApplicationSettingsService
+@inject IAppVersionProvider AppVersionProvider
 @{
     bool embed = ViewBag.IsEmbed as bool? ?? false;
 }
@@ -143,7 +144,8 @@
                     <a href="https://stef-k.github.io/WayfarerMobile/" target="_blank"
                         class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Mobile</a> -
                     <a asp-area="" asp-controller="Home" asp-action="Privacy"
-                        class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a>
+                        class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a> -
+                    @AppVersionDisplay.FooterText(AppVersionProvider)
                 </div>
             </footer>
 
