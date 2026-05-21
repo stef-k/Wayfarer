@@ -35,6 +35,57 @@ public class TripExportCoverSnapshotBuilderTests
         Assert.Equal("data:image/jpeg;base64,AQID", dataUri);
     }
 
+    [Fact]
+    public async Task BuildDataUriAsync_ForwardsCancellationTokenToProxy()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        var forwardedToken = CancellationToken.None;
+        var imageProxy = new Mock<IImageProxyService>();
+        imageProxy
+            .Setup(s => s.GetOrFetchAsync(
+                It.Is<ImageProxyRequest>(r => r.Url == "https://example.com/cover.jpg"),
+                true,
+                It.IsAny<CancellationToken>()))
+            .Callback<ImageProxyRequest, bool, CancellationToken>((_, _, ct) => forwardedToken = ct)
+            .ReturnsAsync(new ImageProxyResult(
+                ImageProxyResultStatus.Fetched,
+                "cover-key",
+                new byte[] { 1 },
+                "image/jpeg"));
+
+        // Act
+        await TripExportCoverSnapshotBuilder.BuildDataUriAsync(
+            imageProxy.Object,
+            "https://example.com/cover.jpg",
+            cancellation.Token);
+
+        // Assert
+        Assert.Equal(cancellation.Token, forwardedToken);
+    }
+
+    [Fact]
+    public async Task BuildDataUriAsync_RethrowsProxyCancellation()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        var imageProxy = new Mock<IImageProxyService>();
+        imageProxy
+            .Setup(s => s.GetOrFetchAsync(
+                It.IsAny<ImageProxyRequest>(),
+                true,
+                It.Is<CancellationToken>(ct => ct == cancellation.Token)))
+            .Returns(Task.FromCanceled<ImageProxyResult>(cancellation.Token));
+
+        // Act and assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            TripExportCoverSnapshotBuilder.BuildDataUriAsync(
+                imageProxy.Object,
+                "https://example.com/cover.jpg",
+                cancellation.Token));
+    }
+
     [Theory]
     [InlineData(ImageProxyResultStatus.BadRequest, null, null)]
     [InlineData(ImageProxyResultStatus.NotFound, null, null)]
