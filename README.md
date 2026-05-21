@@ -89,6 +89,15 @@ dotnet ef database update   # apply Postgres/PostGIS migrations
 dotnet run                  # launch locally (reads appsettings.Development.json)
 ```
 
+Useful app CLI commands:
+
+```bash
+dotnet run --no-launch-profile -- help
+dotnet run --no-launch-profile -- version
+```
+
+For deployment/admin CLI details, including password reset, see the Deployment Guide.
+
 For Vue Trip Editor development, run the ASP.NET Core app and the Vite
 dev server side-by-side:
 
