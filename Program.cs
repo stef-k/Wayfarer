@@ -25,10 +25,6 @@ using Wayfarer.Services;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 using IPNetwork = System.Net.IPNetwork;
-// for AddQuartz(), AddQuartzHostedService()
-// for UseMicrosoftDependencyInjectionJobFactory(), UsePersistentStore(), etc.
-// for IJobFactory
-// for UseNewtonsoftJsonSerializer()
 
 if (AppVersionCli.TryHandle(args, new AppVersionProvider(), Console.Out, Console.Error, out var versionExitCode))
 {
@@ -40,21 +36,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 #region CLI Command Handling
 
-// Handling the "reset-password" command from the CLI
 if (args.Length > 0 && args[0] == "reset-password") { await HandlePasswordResetCommand(args); return; }
 
 #endregion CLI Command Handling
 
 #region Configuration Setup
 
-// Configuring the application settings, such as JSON configuration files
 ConfigureConfiguration(builder);
 
 #endregion Configuration Setup
 
 #region Serilog Logging Setup
 
-// Setting up logging, including Serilog for file, console, and PostgreSQL logging
 ConfigureLogging(builder);
 
 #endregion Serilog Logging Setup
@@ -472,8 +465,6 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Explicitly register IHttpContextAccessor for services that need it (e.g., TileCacheService).
     // Some framework components may register it implicitly, but explicit registration is safer.
     builder.Services.AddHttpContextAccessor();
-
-    // Register the compiled app version provider for CLI, HTTP, and Razor surfaces.
     builder.Services.AddSingleton<IAppVersionProvider, AppVersionProvider>();
 
     // Register memory cache for application services
@@ -710,8 +701,6 @@ static async Task ConfigureMiddleware(WebApplication app)
 
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
     app.UseForwardedHeaders();
-
-    // Adds the compiled app version before Swagger, error handlers, static files, and endpoints.
     app.UseMiddleware<AppVersionHeaderMiddleware>();
 
     app.UseMiddleware<RequestIdLoggingMiddleware>(); // Enriches Serilog LogContext with HttpContext.TraceIdentifier
