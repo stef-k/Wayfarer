@@ -14,14 +14,14 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>
 /// Tests for <see cref="TripExportService"/> covering KML export operations.
-/// Note: PDF generation tests are skipped due to complex external dependencies (Playwright, HttpContext).
+/// Note: Full PDF generation tests are skipped due to complex external dependencies (Playwright, HttpContext).
 /// </summary>
 public class TripExportServiceTests : TestBase
 {
     /// <summary>
-    /// Creates a TripExportService with minimal mocked dependencies for KML-only testing.
+    /// Creates a TripExportService with minimal mocked dependencies for scoped export testing.
     /// </summary>
-    private TripExportService CreateService(ApplicationDbContext db)
+    private TripExportService CreateService(ApplicationDbContext db, IImageProxyService? imageProxyService = null)
     {
         var mockConfig = new Mock<IConfiguration>();
         mockConfig.Setup(c => c["CacheSettings:ChromeCacheDirectory"]).Returns("TestCache");
@@ -34,7 +34,7 @@ public class TripExportServiceTests : TestBase
             null!, // IRazorViewRenderer - not needed for KML
             NullLogger<TripExportService>.Instance,
             mockConfig.Object,
-            null!  // SseService - not needed for KML
+            null!, imageProxyService ?? Mock.Of<IImageProxyService>()
         );
     }
 

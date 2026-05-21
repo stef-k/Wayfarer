@@ -10,6 +10,7 @@ using Microsoft.Playwright;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Services;
 using static Wayfarer.Parsers.KmlMappings;
 
 namespace Wayfarer.Parsers
@@ -29,6 +30,7 @@ namespace Wayfarer.Parsers
         readonly ILogger<TripExportService> _logger;
         readonly IConfiguration _configuration;
         readonly SseService _sseService;
+        readonly IImageProxyService _imageProxyService;
         readonly string _chromeCachePath;
         private static readonly CultureInfo CI = CultureInfo.InvariantCulture;
 
@@ -40,7 +42,8 @@ namespace Wayfarer.Parsers
             IRazorViewRenderer razor,
             ILogger<TripExportService> logger,
             IConfiguration configuration,
-            SseService sseService)
+            SseService sseService,
+            IImageProxyService imageProxyService)
         {
             _db = dbContext;
             _snap = mapSnapshot;
@@ -50,6 +53,7 @@ namespace Wayfarer.Parsers
             _logger = logger;
             _configuration = configuration;
             _sseService = sseService;
+            _imageProxyService = imageProxyService;
 
             // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
             _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
@@ -354,20 +358,13 @@ namespace Wayfarer.Parsers
 
             /* 3 ── snapshots dictionary --------------------------------------- */
             var snap = new Dictionary<string, byte[]>();
+            string? coverDataUri = null;
 
             // cover photo (download once)
             if (!string.IsNullOrWhiteSpace(trip.CoverImageUrl))
             {
                 await ReportProgress("📷 Downloading cover photo...");
-                try
-                {
-                    using var http = new HttpClient();
-                    snap["cover"] = await http.GetByteArrayAsync(trip.CoverImageUrl, cancellationToken);
-                }
-                catch
-                {
-                    /* ignore – cover simply omitted on failure */
-                }
+                coverDataUri = await TripExportCoverSnapshotBuilder.BuildDataUriAsync(_imageProxyService, trip.CoverImageUrl, cancellationToken);
             }
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -461,6 +458,7 @@ namespace Wayfarer.Parsers
 
             // convert snapshots dictionary to data-URI strings
             var snapUris = snap.ToDictionary(kvp => kvp.Key, kvp => ToDataUri(kvp.Value));
+            if (coverDataUri is not null) snapUris["cover"] = coverDataUri;
 
             // build view-model
             var vm = new TripPrintViewModel
