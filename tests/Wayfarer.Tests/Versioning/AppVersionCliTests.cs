@@ -47,7 +47,7 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             new[] { command },
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);
@@ -66,14 +66,14 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             new[] { "version" },
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);
 
         handled.Should().BeTrue();
         exitCode.Should().Be(0);
-        output.ToString().Should().Be($"Wayfarer 1.4.0{Environment.NewLine}");
+        output.ToString().Should().Be($"Wayfarer 1.4.1{Environment.NewLine}");
         error.ToString().Should().BeEmpty();
     }
 
@@ -87,7 +87,7 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             new[] { "version", option },
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);
@@ -108,7 +108,7 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             new[] { "reset-password", option },
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);
@@ -135,7 +135,7 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             args,
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);
@@ -152,7 +152,7 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             new[] { "unknown" },
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);
@@ -171,7 +171,7 @@ public class AppVersionCliTests
 
         var handled = AppVersionCli.TryHandle(
             new[] { "reset-password", "user", "pass" },
-            new StubAppVersionProvider("1.4.0"),
+            new StubAppVersionProvider("1.4.1"),
             output,
             error,
             out var exitCode);

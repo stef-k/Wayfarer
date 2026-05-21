@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.4.1] - 2026-05-21
+
+### Changed
+- Moved the shared footer version next to the copyright year and made the year use UTC so deployed pages show the current year without duplicating `Wayfarer` at the end of the footer (#330)
+
 ## [1.4.0] - 2026-05-21
 
 ### Added

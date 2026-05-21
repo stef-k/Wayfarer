@@ -33,7 +33,7 @@ public class VersionHttpTests : IDisposable
         using var document = JsonDocument.Parse(body);
         var property = document.RootElement.EnumerateObject().Should().ContainSingle().Subject;
         property.Name.Should().Be("version");
-        property.Value.GetString().Should().Be("1.4.0");
+        property.Value.GetString().Should().Be("1.4.1");
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class VersionHttpTests : IDisposable
 
         using var response = await client.GetAsync("/api/version");
 
-        response.Headers.GetValues(AppVersionHeaderMiddleware.HeaderName).Should().ContainSingle("1.4.0");
+        response.Headers.GetValues(AppVersionHeaderMiddleware.HeaderName).Should().ContainSingle("1.4.1");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class VersionHttpTests : IDisposable
         using var response = await client.GetAsync("/docs/version-test.txt");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        response.Headers.GetValues(AppVersionHeaderMiddleware.HeaderName).Should().ContainSingle("1.4.0");
+        response.Headers.GetValues(AppVersionHeaderMiddleware.HeaderName).Should().ContainSingle("1.4.1");
     }
 
     public void Dispose()
@@ -77,7 +77,7 @@ public class VersionHttpTests : IDisposable
                 .UseTestServer()
             .ConfigureServices(services =>
             {
-                services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.0"));
+                services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.1"));
                 services.AddControllers()
                     .AddApplicationPart(typeof(VersionController).Assembly);
             })
@@ -100,7 +100,7 @@ public class VersionHttpTests : IDisposable
                 .UseTestServer()
             .ConfigureServices(services =>
             {
-                services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.0"));
+                services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.1"));
             })
             .Configure(app =>
             {
