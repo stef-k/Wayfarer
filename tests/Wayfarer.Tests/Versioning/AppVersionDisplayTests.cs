@@ -9,9 +9,9 @@ public class AppVersionDisplayTests
     [Fact]
     public void FooterText_RendersSharedLayoutVersionText()
     {
-        AppVersionDisplay.FooterText(new StubAppVersionProvider("1.4.0"))
+        AppVersionDisplay.FooterText(new StubAppVersionProvider("1.4.1"))
             .Should()
-            .Be("Wayfarer v1.4.0");
+            .Be("Wayfarer v1.4.1");
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class AppVersionDisplayTests
         layout.Should().Contain("&copy; @DateTime.UtcNow.Year - @AppVersionDisplay.FooterText(AppVersionProvider) by");
         layout.Should().NotContain("&copy; 2025");
         layout.Should().NotContain("Privacy</a> -");
-        layout.Should().NotContain("Wayfarer v1.4.0");
+        layout.Should().NotContain("Wayfarer v1.4.1");
     }
 
     private sealed class StubAppVersionProvider : IAppVersionProvider
