@@ -22,11 +22,19 @@ Use `dotnet run --no-launch-profile -- version` when validating exact CLI
 output. The app writes exactly `Wayfarer 1.4.0`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
-## Manual bump process
+## Release helper
 
-To prepare a later release version, edit only the root `Version.props` file and
-change `WayfarerVersion` to the target release value. Rebuild the app so the new
-value is compiled into assembly metadata.
+Use the repo-local helper to prepare and validate release metadata:
 
-Release helper automation, changelog checks, tag validation, and GitHub release
-validation are deferred to issue #324.
+```powershell
+python tools/release/version.py prepare <next-version>
+python tools/release/version.py check
+python tools/release/version.py check --require-tag
+python tools/release/version.py check --require-github-release
+```
+
+`prepare <next-version>` updates only `WayfarerVersion` in `Version.props` and
+adds the required changelog skeleton for the target release. The default `check`
+command validates only offline repo files; tag and GitHub release checks run
+only when their explicit flags are supplied. The helper validates release state
+but does not create, edit, publish, or delete GitHub releases.
