@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <WayfarerVersion>1.4.0</WayfarerVersion>
+    <Version>$(WayfarerVersion)</Version>
+    <PackageVersion>$(WayfarerVersion)</PackageVersion>
+    <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
+  </PropertyGroup>
+</Project>

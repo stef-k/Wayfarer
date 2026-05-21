@@ -16,6 +16,7 @@ using Quartz;
 using Quartz.Impl;
 using Quartz.Spi;
 using Serilog;
+using Wayfarer.CommandLine;
 using Wayfarer.Jobs;
 using Wayfarer.Middleware;
 using Wayfarer.Models;
@@ -28,6 +29,12 @@ using IPNetwork = System.Net.IPNetwork;
 // for UseMicrosoftDependencyInjectionJobFactory(), UsePersistentStore(), etc.
 // for IJobFactory
 // for UseNewtonsoftJsonSerializer()
+
+if (AppVersionCli.TryHandle(args, new AppVersionProvider(), Console.Out, Console.Error, out var versionExitCode))
+{
+    Environment.ExitCode = versionExitCode;
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -466,6 +473,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Some framework components may register it implicitly, but explicit registration is safer.
     builder.Services.AddHttpContextAccessor();
 
+    // Register the compiled app version provider for CLI, HTTP, and Razor surfaces.
+    builder.Services.AddSingleton<IAppVersionProvider, AppVersionProvider>();
+
     // Register memory cache for application services
     builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<TileMetadataHotCache>(); builder.Services.AddTripEditorGeocodeSearch(builder.Configuration);
@@ -700,6 +710,9 @@ static async Task ConfigureMiddleware(WebApplication app)
 
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx
     app.UseForwardedHeaders();
+
+    // Adds the compiled app version before Swagger, error handlers, static files, and endpoints.
+    app.UseMiddleware<AppVersionHeaderMiddleware>();
 
     app.UseMiddleware<RequestIdLoggingMiddleware>(); // Enriches Serilog LogContext with HttpContext.TraceIdentifier
     app.UseMiddleware<PerformanceMonitoringMiddleware>(); // Custom middleware for monitoring performance
