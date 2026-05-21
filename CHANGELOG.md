@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.4.0] - 2026-05-21
+
+### Added
+- Added a single compiled Wayfarer runtime version source backed by `Version.props`, exposed through the app CLI, `/api/version`, `X-Wayfarer-Version`, and the shared footer display (#322, #325)
+- Added repo-local release helper automation for deterministic version bump preparation, changelog skeleton insertion, offline release checks, explicit local tag checks, and explicit GitHub release validation (#324, #326)
+- Added app CLI help output for `help`, `version --help`, and reset-password usage without starting the web host or database-backed command path (#327, #328)
+
+### Changed
+- PDF trip export cover snapshots now use the shared image proxy/cache pipeline instead of direct raw cover-image downloads, preserving proxy validation, cache reuse, and origin-work coordination (#319, #323)
+
 ## [1.3.2] - 2026-05-20
 
 ### Changed
