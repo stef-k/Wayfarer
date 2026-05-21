@@ -18,6 +18,8 @@ Database
 - The app auto‑creates Quartz tables at startup (`QuartzSchemaInstaller`).
 
 Admin CLI
+- Help: `dotnet run --no-launch-profile -- help`
+- Version: `dotnet run --no-launch-profile -- version`
 - Reset password: `dotnet run -- reset-password <username> <new-password>`
 - Use temporary values; rotate immediately. Do not document real passwords.
 

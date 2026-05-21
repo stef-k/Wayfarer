@@ -467,6 +467,12 @@ sudo tail -f /var/log/wayfarer/wayfarer-*.log
 
 ## CLI Commands
 
+List app CLI commands:
+
+```bash
+dotnet run --no-launch-profile -- help
+```
+
 ### Password Reset
 
 Reset a user's password from the command line:
