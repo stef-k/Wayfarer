@@ -14,8 +14,13 @@ MSBuild metadata directly from it:
 
 The running app reads `AssemblyInformationalVersion` from the compiled Wayfarer
 assembly through `IAppVersionProvider`. Runtime surfaces such as
-`dotnet run -- version`, `GET /api/version`, `X-Wayfarer-Version`, and the shared
-layout footer use that provider instead of separate constants.
+`dotnet run --no-launch-profile -- version`, `GET /api/version`,
+`X-Wayfarer-Version`, and the shared layout footer use that provider instead of
+separate constants.
+
+Use `dotnet run --no-launch-profile -- version` when validating exact CLI
+output. The app writes exactly `Wayfarer 1.4.0`; `--no-launch-profile` avoids
+.NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Manual bump process
 
