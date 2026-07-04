@@ -31,6 +31,15 @@ const regionGroups = computed(() => state.value ? buildRegionGroups(state.value)
 const segments = computed(() => state.value ? buildSegmentSummaries(state.value) : []);
 const selected = computed(() => state.value && selection.value ? selectedEntity(state.value, selection.value) : null);
 const expandedMobileDrawer = computed(() => isCompactViewport.value && (drawerState.value === 'hierarchy' || drawerState.value === 'detail'));
+const embedOpenAction = computed(() => {
+  if (!state.value || state.value.viewerMode !== 'embed') return null;
+
+  const action = state.value.actions.openCanonical.allowed
+    ? state.value.actions.openCanonical
+    : state.value.actions.fullscreen;
+
+  return action.allowed && action.url ? action : null;
+});
 
 onMounted(() => {
   updateViewportMode();
@@ -170,6 +179,7 @@ function signalLayoutAfterTransition(): void {
       :class="`trip-viewer-workspace--drawer-${drawerState}`"
     >
       <TripSidebar
+        v-if="!isEmbed"
         :state="state"
         :groups="regionGroups"
         :segments="segments"
@@ -184,11 +194,13 @@ function signalLayoutAfterTransition(): void {
         @select="selection => selectEntity(selection, 'map')"
       />
       <TripDetail
+        v-if="!isEmbed"
         :state="state"
         :entity="selected"
         @focus="selection => selectEntity(selection, 'desktop')"
       />
       <MobileDrawer
+        v-if="!isEmbed"
         :state="state"
         :groups="regionGroups"
         :segments="segments"
@@ -200,6 +212,15 @@ function signalLayoutAfterTransition(): void {
         @select="selectEntity"
         @focus="selection => selectEntity(selection, 'drawer')"
       />
+      <a
+        v-if="isEmbed && embedOpenAction"
+        class="trip-viewer-embed-open"
+        :href="embedOpenAction.url ?? '#'"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Open trip
+      </a>
     </div>
 
     <div v-else class="trip-viewer-state trip-viewer-state--error" role="alert">

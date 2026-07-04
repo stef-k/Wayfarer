@@ -197,11 +197,55 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         }
     }
 
+    [Fact]
+    public void BuildCanonicalEmbedUrl_UsesLegacyPublicRouteAndThumbnailZoomOut()
+    {
+        var tripId = Guid.NewGuid();
+
+        var result = InvokeBuildCanonicalEmbedUrl(
+            "http://127.0.0.1:5000",
+            tripId,
+            40.1234567,
+            25.9876543,
+            9);
+
+        Assert.Equal(
+            $"http://127.0.0.1:5000/Public/Trips/{tripId}?embed=true&lat=40.123457&lon=25.987654&zoom=8",
+            result);
+        Assert.DoesNotContain("/Public/TripsNext/", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildCanonicalEmbedUrl_DoesNotZoomBelowOne()
+    {
+        var result = InvokeBuildCanonicalEmbedUrl(
+            "http://127.0.0.1:5000",
+            Guid.NewGuid(),
+            40,
+            25,
+            1);
+
+        Assert.EndsWith("&zoom=1", result, StringComparison.Ordinal);
+    }
+
     private static string InvokeGetLocalBaseUrl(TripMapThumbnailGenerator generator)
     {
         var method = typeof(TripMapThumbnailGenerator).GetMethod("GetLocalBaseUrl",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         return (string)method!.Invoke(generator, null)!;
+    }
+
+    private static string InvokeBuildCanonicalEmbedUrl(
+        string baseUrl,
+        Guid tripId,
+        double lat,
+        double lon,
+        int zoom)
+    {
+        var method = typeof(TripMapThumbnailGenerator).GetMethod(
+            "BuildCanonicalEmbedUrl",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        return (string)method!.Invoke(null, new object[] { baseUrl, tripId, lat, lon, zoom })!;
     }
 
     public void Dispose()

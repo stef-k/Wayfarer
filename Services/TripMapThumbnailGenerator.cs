@@ -220,10 +220,7 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
         // Playwright runs on same server, so we use http://127.0.0.1:{port} for performance and simplicity
         var baseUrl = GetLocalBaseUrl();
 
-        // Zoom out by 1 level for better thumbnail overview (lower zoom = more area visible)
-        var thumbnailZoom = Math.Max(1, zoom - 1);
-
-        var embedUrl = $"{baseUrl}/Public/Trips/{tripId}?embed=true&lat={lat.ToString("F6", CultureInfo.InvariantCulture)}&lon={lon.ToString("F6", CultureInfo.InvariantCulture)}&zoom={thumbnailZoom}";
+        var embedUrl = BuildCanonicalEmbedUrl(baseUrl, tripId, lat, lon, zoom);
 
         _logger.LogDebug("Capturing thumbnail from: {Url}", embedUrl);
 
@@ -293,6 +290,16 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
             await browser.CloseAsync();
             playwright.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Builds the canonical public embed route used for thumbnails until the Vue preview cutover in #341.
+    /// </summary>
+    private static string BuildCanonicalEmbedUrl(string baseUrl, Guid tripId, double lat, double lon, int zoom)
+    {
+        // Zoom out by 1 level for better thumbnail overview (lower zoom = more area visible).
+        var thumbnailZoom = Math.Max(1, zoom - 1);
+        return $"{baseUrl}/Public/Trips/{tripId}?embed=true&lat={lat.ToString("F6", CultureInfo.InvariantCulture)}&lon={lon.ToString("F6", CultureInfo.InvariantCulture)}&zoom={thumbnailZoom}";
     }
 
     /// <summary>

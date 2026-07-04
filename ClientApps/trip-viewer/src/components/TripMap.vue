@@ -35,6 +35,7 @@ onMounted(() => {
 
   renderLayers();
   applyInitialView();
+  invalidateAfterLayout();
   updateBrowserMapQuery();
 
   map.on('moveend', updateBrowserMapQuery);
@@ -62,11 +63,17 @@ watch(() => props.selection, () => {
 }, { deep: true });
 
 watch(() => props.layoutSignal, () => {
-  // Leaflet needs a deferred size pass after responsive drawer and orientation transitions.
-  void nextTick(() => {
-    map?.invalidateSize({ pan: false });
-  });
+  invalidateAfterLayout();
 });
+
+function invalidateAfterLayout(): void {
+  // Leaflet needs a deferred size pass after responsive, iframe, and screenshot viewport transitions.
+  void nextTick(() => {
+    window.requestAnimationFrame(() => {
+      map?.invalidateSize({ pan: false });
+    });
+  });
+}
 
 function renderLayers(): void {
   if (!layerGroup) return;

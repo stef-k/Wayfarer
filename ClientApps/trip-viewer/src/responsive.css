@@ -76,8 +76,7 @@ body.trip-viewer-body--drawer-open {
   }
 
   .trip-viewer-preview--embed .trip-viewer-mobile-drawer {
-    border-left: 0;
-    border-right: 0;
+    display: none;
   }
 
   .trip-viewer-mobile-drawer--collapsed {

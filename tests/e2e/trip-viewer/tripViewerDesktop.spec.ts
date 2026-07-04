@@ -146,7 +146,81 @@ test('renders mobile not-found and auth states without partial trip data', async
   await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveCount(0);
 });
 
-async function loadMockedViewer(page: Page, state: unknown = mockViewerState(), status = 200): Promise<void> {
+test('renders embed as a screenshot-safe map-only preview with public open action', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 450 });
+  await loadMockedViewer(page, {
+    state: mockViewerState({ viewerMode: 'embed' }),
+    configMode: 'embed',
+    endpoint: '/viewer-state?embed=true&lat=40.1&lon=25.2&zoom=8'
+  });
+
+  await expect(page.locator('.trip-viewer-preview--embed')).toBeVisible();
+  await expect(page.getByLabel('Trip map')).toBeVisible();
+  await expect(page.locator('.trip-viewer-sidebar')).toHaveCount(0);
+  await expect(page.getByLabel('Selection details')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Open trip' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
+  await expect(page.getByRole('link', { name: 'Edit' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Clone' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Wayfarer KML' })).toHaveCount(0);
+  await expect(page.getByLabel('Trip map')).toHaveCSS('min-height', '450px');
+});
+
+test('fetches the shell-emitted embed state endpoint with lng compatibility params intact', async ({ page }) => {
+  const requested: string[] = [];
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page, {
+    state: mockViewerState({ viewerMode: 'embed' }),
+    configMode: 'embed',
+    endpoint: '/viewer-state?embed=true&lat=40.1&lng=25.2&zoom=8',
+    onStateRequest: url => requested.push(url)
+  });
+
+  expect(requested).toContain('http://localhost:5173/viewer-state?embed=true&lat=40.1&lng=25.2&zoom=8');
+  await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Open trip' })).toBeVisible();
+});
+
+test('renders compact embed not-found and auth states without app surfaces', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 450 });
+  await loadMockedViewer(page, {
+    state: mockViewerState({ viewerMode: 'embed' }),
+    configMode: 'embed',
+    status: 404
+  });
+
+  await expect(page.locator('.trip-viewer-preview--embed')).toBeVisible();
+  await expect(page.locator('strong').filter({ hasText: 'Trip not found' })).toBeVisible();
+  await expect(page.locator('.trip-viewer-sidebar')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(0);
+
+  await loadMockedViewer(page, {
+    state: mockViewerState({ viewerMode: 'embed' }),
+    configMode: 'embed',
+    status: 403
+  });
+  await expect(page.locator('strong').filter({ hasText: 'Trip unavailable' })).toBeVisible();
+  await expect(page.locator('.trip-viewer-sidebar')).toHaveCount(0);
+});
+
+async function loadMockedViewer(
+  page: Page,
+  input: unknown | {
+    state?: unknown;
+    status?: number;
+    configMode?: 'private' | 'public' | 'embed';
+    endpoint?: string;
+    onStateRequest?: (url: string) => void;
+  } = mockViewerState(),
+  legacyStatus = 200
+): Promise<void> {
+  const options = isViewerLoadOptions(input)
+    ? input
+    : { state: input, status: legacyStatus };
+  const status = options.status ?? 200;
+  const endpoint = options.endpoint ?? '/viewer-state';
+  const configMode = options.configMode ?? 'public';
+
   await page.route('**/__trip-viewer-test.html', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html>
@@ -156,10 +230,10 @@ async function loadMockedViewer(page: Page, state: unknown = mockViewerState(), 
           <div id="trip-viewer-app"
             data-trip-id="trip-1"
             data-trip-name="Mocked Desktop Trip"
-            data-viewer-mode="public"
-            data-viewer-state-endpoint="/viewer-state"
+            data-viewer-mode="${configMode}"
+            data-viewer-state-endpoint="${endpoint}"
             data-public-view-url="/Public/TripsNext/trip-1"
-            data-open-canonical-url=""
+            data-open-canonical-url="${configMode === 'embed' ? '/Public/TripsNext/trip-1' : ''}"
             data-tiles-url="/tiles/{z}/{x}/{y}.png"
             data-tile-attribution="Test tiles"
             data-asset-mode="development"></div>
@@ -168,11 +242,14 @@ async function loadMockedViewer(page: Page, state: unknown = mockViewerState(), 
       </html>`
   }));
 
-  await page.route('**/viewer-state', route => route.fulfill({
-    contentType: 'application/json',
-    status,
-    body: JSON.stringify(state)
-  }));
+  await page.route('**/viewer-state**', route => {
+    options.onStateRequest?.(route.request().url());
+    return route.fulfill({
+      contentType: 'application/json',
+      status,
+      body: JSON.stringify(options.state ?? mockViewerState())
+    });
+  });
 
   await page.route('**/tiles/**', route => route.fulfill({
     contentType: 'image/png',
@@ -185,13 +262,21 @@ async function loadMockedViewer(page: Page, state: unknown = mockViewerState(), 
   }
 }
 
-function mockViewerState(options?: { canDisplayProgress?: boolean; canDisplayCounts?: boolean; canReadVisitCounts?: boolean; clonePost?: boolean }): unknown {
+function mockViewerState(options?: {
+  canDisplayProgress?: boolean;
+  canDisplayCounts?: boolean;
+  canReadVisitCounts?: boolean;
+  clonePost?: boolean;
+  viewerMode?: 'private' | 'public' | 'embed';
+}): unknown {
   const canDisplayProgress = options?.canDisplayProgress ?? true;
   const canDisplayCounts = options?.canDisplayCounts ?? true;
   const canReadVisitCounts = options?.canReadVisitCounts ?? true;
+  const viewerMode = options?.viewerMode ?? 'public';
+  const isEmbed = viewerMode === 'embed';
 
   return {
-    viewerMode: 'public',
+    viewerMode,
     trip: {
       id: 'trip-1',
       name: 'Mocked Desktop Trip',
@@ -299,8 +384,8 @@ function mockViewerState(options?: { canDisplayProgress?: boolean; canDisplayCou
     },
     permissions: {
       canViewPrivateState: false,
-      canViewPublicState: true,
-      canViewEmbedState: false,
+      canViewPublicState: !isEmbed,
+      canViewEmbedState: isEmbed,
       isOwner: false,
       canReadNotes: true,
       canReadVisitCounts,
@@ -311,18 +396,18 @@ function mockViewerState(options?: { canDisplayProgress?: boolean; canDisplayCou
     },
     actions: {
       edit: action(false),
-      clone: options?.clonePost ? action(true, '/User/Trip/Clone/trip-1', 'POST') : action(false, '/Identity/Account/Login', 'GET', true),
-      exportWayfarerKml: action(true, '/Trip/ExportWayfarerKml/trip-1'),
-      exportGoogleMyMapsKml: action(true, '/Trip/ExportGoogleMyMapsKml/trip-1'),
-      exportPdf: action(true, '/Trip/ExportPdf/trip-1'),
-      share: action(true, '/Public/TripsNext/trip-1'),
-      copyPublicUrl: action(true, '/Public/TripsNext/trip-1'),
+      clone: isEmbed ? action(false) : options?.clonePost ? action(true, '/User/Trip/Clone/trip-1', 'POST') : action(false, '/Identity/Account/Login', 'GET', true),
+      exportWayfarerKml: isEmbed ? action(false) : action(true, '/Trip/ExportWayfarerKml/trip-1'),
+      exportGoogleMyMapsKml: isEmbed ? action(false) : action(true, '/Trip/ExportGoogleMyMapsKml/trip-1'),
+      exportPdf: isEmbed ? action(false) : action(true, '/Trip/ExportPdf/trip-1'),
+      share: isEmbed ? action(false) : action(true, '/Public/TripsNext/trip-1'),
+      copyPublicUrl: isEmbed ? action(false) : action(true, '/Public/TripsNext/trip-1'),
       copyCoverUrl: action(false),
       copyMapSnapshotUrl: action(false),
       fullscreen: action(false),
-      openCanonical: action(false),
-      readable: action(true),
-      print: action(true)
+      openCanonical: isEmbed ? action(true, '/Public/TripsNext/trip-1') : action(false),
+      readable: isEmbed ? action(false) : action(true),
+      print: isEmbed ? action(false) : action(true)
     },
     map: {
       initialView: { latitude: 20, longitude: 0, zoom: 2, source: 'world', canonicalQuery: 'lat=20&lon=0&zoom=2' },
@@ -332,6 +417,18 @@ function mockViewerState(options?: { canDisplayProgress?: boolean; canDisplayCou
       tileAttribution: 'Test tiles'
     }
   };
+}
+
+function isViewerLoadOptions(value: unknown): value is {
+  state?: unknown;
+  status?: number;
+  configMode?: 'private' | 'public' | 'embed';
+  endpoint?: string;
+  onStateRequest?: (url: string) => void;
+} {
+  return typeof value === 'object'
+    && value !== null
+    && ('state' in value || 'status' in value || 'configMode' in value || 'endpoint' in value);
 }
 
 function notes(displayHtml: string, plainText: string, mediaOnly = false): unknown {
