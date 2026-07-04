@@ -157,7 +157,9 @@ namespace Wayfarer.Areas.User.Controllers
                 TripId = trip.Id,
                 TripName = trip.Name,
                 ViewerMode = "private",
-                ViewerStateEndpoint = $"/User/Trip/ViewNext/{trip.Id}/state",
+                ViewerStateEndpoint = TripViewerShellViewModel.BuildStateEndpoint(
+                    $"/User/Trip/ViewNext/{trip.Id}/state",
+                    Request.Query),
                 PublicViewUrl = trip.IsPublic ? $"/Public/TripsNext/{trip.Id}" : null,
                 OpenCanonicalUrl = null,
                 TilesUrl = "/Public/tiles/{z}/{x}/{y}.png",

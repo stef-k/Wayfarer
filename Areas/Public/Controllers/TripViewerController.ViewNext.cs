@@ -35,9 +35,10 @@ public partial class TripViewerController
             TripId = trip.Id,
             TripName = trip.Name,
             ViewerMode = viewerMode,
-            ViewerStateEndpoint = embed
-                ? $"/Public/TripsNext/{trip.Id}/state?embed=true"
-                : $"/Public/TripsNext/{trip.Id}/state",
+            ViewerStateEndpoint = TripViewerShellViewModel.BuildStateEndpoint(
+                $"/Public/TripsNext/{trip.Id}/state",
+                Request.Query,
+                embed),
             PublicViewUrl = $"/Public/TripsNext/{trip.Id}",
             OpenCanonicalUrl = embed ? $"/Public/TripsNext/{trip.Id}" : null,
             TilesUrl = "/Public/tiles/{z}/{x}/{y}.png",

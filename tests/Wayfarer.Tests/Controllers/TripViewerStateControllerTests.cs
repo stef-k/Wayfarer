@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Primitives;
 using Moq;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
@@ -121,6 +122,65 @@ public sealed class TripViewerStateControllerTests : TestBase
     }
 
     [Fact]
+    public async Task ViewNext_Get_PreservesAllowedMapQueryParameters_ForEmbedStateEndpoint()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        SetRequestQuery(controller, ("embed", "true"), ("lat", "1"), ("lon", "2"), ("zoom", "3"), ("mode", "private"));
+
+        var result = await controller.ViewNext(trip.Id, embed: true);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal("embed", model.ViewerMode);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}/state?embed=true&lat=1&lon=2&zoom=3", model.ViewerStateEndpoint);
+        Assert.DoesNotContain("mode=", model.ViewerStateEndpoint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ViewNext_Get_PreservesLngCompatibility_ForEmbedStateEndpoint()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        SetRequestQuery(controller, ("lat", "1"), ("lng", "2"), ("zoom", "3"));
+
+        var result = await controller.ViewNext(trip.Id, embed: true);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}/state?embed=true&lat=1&lng=2&zoom=3", model.ViewerStateEndpoint);
+    }
+
+    [Fact]
+    public async Task ViewNext_Get_ForwardsLonAndLng_WhenBothMapParametersExist()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        SetRequestQuery(controller, ("lat", "1"), ("lon", "2"), ("lng", "9"), ("zoom", "3"));
+
+        var result = await controller.ViewNext(trip.Id, embed: true);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}/state?embed=true&lat=1&lon=2&lng=9&zoom=3", model.ViewerStateEndpoint);
+    }
+
+    [Fact]
     public async Task ViewNext_Get_ReturnsNotFound_ForPrivateTrip()
     {
         var db = CreateDbContext();
@@ -162,5 +222,13 @@ public sealed class TripViewerStateControllerTests : TestBase
             settings.Object);
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         return controller;
+    }
+
+    private static void SetRequestQuery(Controller controller, params (string Key, string Value)[] values)
+    {
+        var queryValues = values.ToDictionary(
+            value => value.Key,
+            value => new StringValues(value.Value));
+        controller.ControllerContext.HttpContext.Request.Query = new QueryCollection(queryValues);
     }
 }

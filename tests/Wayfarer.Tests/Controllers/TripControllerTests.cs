@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Primitives;
 using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.User.Controllers;
@@ -508,6 +509,29 @@ public class TripControllerTests : TestBase
         Assert.Equal(ApplicationSettings.DefaultTileProviderAttribution, model.TileAttribution);
     }
 
+    [Fact]
+    public async Task ViewNext_Get_PreservesAllowedMapQueryParameters_ForPrivateShell()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Owned Trip", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+        SetRequestQuery(controller, ("lat", "1"), ("lon", "2"), ("zoom", "3"), ("viewerMode", "embed"), ("action", "edit"));
+
+        var result = await controller.ViewNext(trip.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal("private", model.ViewerMode);
+        Assert.Equal($"/User/Trip/ViewNext/{trip.Id}/state?lat=1&lon=2&zoom=3", model.ViewerStateEndpoint);
+        Assert.DoesNotContain("viewerMode=", model.ViewerStateEndpoint, StringComparison.Ordinal);
+        Assert.DoesNotContain("action=", model.ViewerStateEndpoint, StringComparison.Ordinal);
+    }
+
     private TripController BuildController(ApplicationDbContext db)
     {
         var controller = new TripController(
@@ -559,6 +583,14 @@ public class TripControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    private static void SetRequestQuery(Controller controller, params (string Key, string Value)[] values)
+    {
+        var queryValues = values.ToDictionary(
+            value => value.Key,
+            value => new StringValues(value.Value));
+        controller.ControllerContext.HttpContext.Request.Query = new QueryCollection(queryValues);
     }
 
     /// <summary>

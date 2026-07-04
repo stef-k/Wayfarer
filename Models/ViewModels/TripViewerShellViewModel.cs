@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Extensions;
+
 namespace Wayfarer.Models.ViewModels;
 
 /// <summary>
@@ -5,6 +8,8 @@ namespace Wayfarer.Models.ViewModels;
 /// </summary>
 public sealed record TripViewerShellViewModel
 {
+    private static readonly string[] AllowedMapQueryParameterNames = ["lat", "lon", "lng", "zoom"];
+
     /// <summary>Identifier of the trip authorized for this shell request.</summary>
     public Guid TripId { get; init; }
 
@@ -31,4 +36,35 @@ public sealed record TripViewerShellViewModel
 
     /// <summary>True when the shell should use the chrome-free embed layout.</summary>
     public bool IsEmbed => ViewerMode == "embed";
+
+    /// <summary>
+    /// Builds the state endpoint URL by preserving only screenshot-compatible map query parameters.
+    /// </summary>
+    public static string BuildStateEndpoint(string statePath, IQueryCollection query, bool embed = false)
+    {
+        var queryBuilder = new QueryBuilder();
+        if (embed)
+        {
+            queryBuilder.Add("embed", "true");
+        }
+
+        foreach (var parameterName in AllowedMapQueryParameterNames)
+        {
+            if (!query.TryGetValue(parameterName, out var values))
+            {
+                continue;
+            }
+
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    queryBuilder.Add(parameterName, value);
+                }
+            }
+        }
+
+        var queryString = queryBuilder.ToQueryString();
+        return queryString.HasValue ? statePath + queryString.Value : statePath;
+    }
 }
