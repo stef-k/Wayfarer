@@ -183,20 +183,47 @@ public sealed record TripViewerPermissionsDto(
     bool CanPrint);
 
 /// <summary>All server-generated viewer actions.</summary>
-public sealed record TripViewerActionsDto(
-    TripViewerActionDto Edit,
-    TripViewerActionDto Clone,
-    TripViewerActionDto ExportWayfarerKml,
-    TripViewerActionDto ExportGoogleMyMapsKml,
-    TripViewerActionDto ExportPdf,
-    TripViewerActionDto Share,
-    TripViewerActionDto CopyPublicUrl,
-    TripViewerActionDto CopyCoverUrl,
-    TripViewerActionDto CopyMapSnapshotUrl,
-    TripViewerActionDto Fullscreen,
-    TripViewerActionDto OpenCanonical,
-    TripViewerActionDto Readable,
-    TripViewerActionDto Print);
+public sealed class TripViewerActionsDto
+{
+    /// <summary>Owner edit navigation action.</summary>
+    public required TripViewerActionDto Edit { get; init; }
+
+    /// <summary>Clone or login-to-clone action.</summary>
+    public required TripViewerActionDto Clone { get; init; }
+
+    /// <summary>Wayfarer KML export action.</summary>
+    public required TripViewerActionDto ExportWayfarerKml { get; init; }
+
+    /// <summary>Google My Maps KML export action.</summary>
+    public required TripViewerActionDto ExportGoogleMyMapsKml { get; init; }
+
+    /// <summary>PDF export action.</summary>
+    public required TripViewerActionDto ExportPdf { get; init; }
+
+    /// <summary>Share action.</summary>
+    public required TripViewerActionDto Share { get; init; }
+
+    /// <summary>Copy public URL action.</summary>
+    public required TripViewerActionDto CopyPublicUrl { get; init; }
+
+    /// <summary>Copy cover URL action.</summary>
+    public required TripViewerActionDto CopyCoverUrl { get; init; }
+
+    /// <summary>Copy map snapshot URL action.</summary>
+    public required TripViewerActionDto CopyMapSnapshotUrl { get; init; }
+
+    /// <summary>Fullscreen action used by embed mode.</summary>
+    public required TripViewerActionDto Fullscreen { get; init; }
+
+    /// <summary>Open canonical public viewer action used by embed mode.</summary>
+    public required TripViewerActionDto OpenCanonical { get; init; }
+
+    /// <summary>Readable mode action.</summary>
+    public required TripViewerActionDto Readable { get; init; }
+
+    /// <summary>Print action.</summary>
+    public required TripViewerActionDto Print { get; init; }
+}
 
 /// <summary>Single viewer action flag and optional URL details.</summary>
 public sealed record TripViewerActionDto(

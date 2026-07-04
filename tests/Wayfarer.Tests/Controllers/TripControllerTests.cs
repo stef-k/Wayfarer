@@ -10,6 +10,7 @@ using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos.TripViewer;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -22,6 +23,53 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class TripControllerTests : TestBase
 {
+    [Fact]
+    public async Task ViewNextState_ReturnsForbid_WhenUserMissing()
+    {
+        var db = CreateDbContext();
+        var trip = TestDataFixtures.CreateTrip("owner", "Trip", isPublic: false);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.ViewNextState(trip.Id);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task ViewNextState_ReturnsNotFound_ForAnotherUsersTrip()
+    {
+        var db = CreateDbContext();
+        var trip = TestDataFixtures.CreateTrip("owner", "Trip", isPublic: false);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildControllerWithUser(db, "other");
+
+        var result = await controller.ViewNextState(trip.Id);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task ViewNextState_ReturnsPrivateMode_ForOwnedTrip()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Trip", isPublic: false);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildControllerWithUser(db, owner.Id);
+
+        var result = await controller.ViewNextState(trip.Id);
+
+        var json = Assert.IsType<JsonResult>(result);
+        var state = Assert.IsType<TripViewerStateDto>(json.Value);
+        Assert.Equal("private", state.ViewerMode);
+        Assert.True(state.Permissions.CanViewPrivateState);
+    }
+
     [Fact]
     public void Index_ReturnsViewResult_WithNoModel()
     {

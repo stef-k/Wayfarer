@@ -11,6 +11,7 @@ using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Util;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Models.Dtos.TripViewer;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -24,6 +25,64 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class TripViewerControllerTests : TestBase
 {
+    [Fact]
+    public async Task ViewNextState_ReturnsNotFound_WhenPrivate()
+    {
+        var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Private", IsPublic = false };
+        db.Trips.Add(trip);
+        db.SaveChanges();
+        var controller = BuildController(db);
+
+        var result = await controller.ViewNextState(trip.Id);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task ViewNextState_ReturnsPublicMode_ForAuthenticatedOwnerPublicRoute()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        ConfigureControllerWithUser(controller, owner.Id);
+
+        var result = await controller.ViewNextState(trip.Id);
+
+        var json = Assert.IsType<JsonResult>(result);
+        var state = Assert.IsType<TripViewerStateDto>(json.Value);
+        Assert.Equal("public", state.ViewerMode);
+        Assert.True(state.Permissions.IsOwner);
+        Assert.False(state.Permissions.CanViewPrivateState);
+    }
+
+    [Fact]
+    public async Task ViewNextState_ReturnsEmbedModeAndRedactsOwnerActions()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        ConfigureControllerWithUser(controller, owner.Id);
+
+        var result = await controller.ViewNextState(trip.Id, embed: true);
+
+        var json = Assert.IsType<JsonResult>(result);
+        var state = Assert.IsType<TripViewerStateDto>(json.Value);
+        Assert.Equal("embed", state.ViewerMode);
+        Assert.False(state.Permissions.IsOwner);
+        Assert.False(state.Actions.Edit.Allowed);
+        Assert.True(state.Actions.OpenCanonical.Allowed);
+    }
+
     [Fact]
     public async Task View_ReturnsNotFound_WhenPrivate()
     {
