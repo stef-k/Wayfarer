@@ -68,7 +68,7 @@ public sealed record TripViewerTripDto(
     TripViewerCoordinateDto? Center,
     int? Zoom,
     DateTime UpdatedAt,
-    string PrivateUrl,
+    string? PrivateUrl,
     string PublicUrl,
     string PublicEmbedUrl);
 

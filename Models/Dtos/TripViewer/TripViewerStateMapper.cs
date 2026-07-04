@@ -16,6 +16,20 @@ public static class TripViewerStateMapper
     private const string PublicMode = "public";
     private const string EmbedMode = "embed";
     private static readonly GeoJsonWriter GeoJsonWriter = new();
+    private static readonly HashSet<string> ViewerIconNames = new(StringComparer.Ordinal)
+    {
+        "anchor", "atm", "barbecue", "beach", "bike", "boat", "camera", "camping", "car", "charging-point",
+        "checkmark", "clouds", "construction", "danger", "drink", "eat", "ev-station", "fitness", "flag",
+        "flight", "gas", "help", "hike", "hospital", "hotel", "info", "kayak", "latest", "luggage", "map",
+        "marker", "museum", "no-wheelchair", "no-wifi", "park", "parking", "pet", "pharmacy", "phishing",
+        "police", "run", "sail", "scuba-dive", "sea", "shopping", "ski", "smoke", "smoke-free", "sos",
+        "star", "subway", "surf", "swim", "taxi", "telephone", "thunderstorm", "tool", "train", "walk",
+        "water", "wc", "wheelchair", "wifi"
+    };
+    private static readonly HashSet<string> ViewerMarkerColors = new(StringComparer.Ordinal)
+    {
+        "bg-blue", "bg-purple", "bg-black", "bg-green", "bg-red"
+    };
 
     /// <summary>Builds private owner viewer state for an already ownership-filtered trip.</summary>
     public static TripViewerStateDto ToPrivateState(
@@ -92,7 +106,7 @@ public static class TripViewerStateMapper
             trip.CenterLat.HasValue && trip.CenterLon.HasValue ? new TripViewerCoordinateDto(trip.CenterLat.Value, trip.CenterLon.Value) : null,
             trip.Zoom,
             trip.UpdatedAt,
-            $"/User/Trip/ViewNext/{trip.Id}",
+            context.ViewerMode == PrivateMode ? $"/User/Trip/ViewNext/{trip.Id}" : null,
             $"/Public/TripsNext/{trip.Id}",
             $"/Public/TripsNext/{trip.Id}?embed=true");
 
@@ -126,8 +140,8 @@ public static class TripViewerStateMapper
             TripViewerNotesFormatter.Format(place.Notes),
             place.Address ?? string.Empty,
             ToCoordinate(place.Location),
-            string.IsNullOrWhiteSpace(place.IconName) ? "marker" : place.IconName,
-            string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor,
+            SafeIconName(place.IconName),
+            SafeMarkerColor(place.MarkerColor),
             place.DisplayOrder ?? 0,
             visitSummary);
 
@@ -386,6 +400,12 @@ public static class TripViewerStateMapper
     }
 
     private static string ToProxyUrl(string rawUrl) => $"/Public/ProxyImage?url={Uri.EscapeDataString(rawUrl)}";
+
+    private static string SafeIconName(string? iconName) =>
+        !string.IsNullOrWhiteSpace(iconName) && ViewerIconNames.Contains(iconName) ? iconName : "marker";
+
+    private static string SafeMarkerColor(string? markerColor) =>
+        !string.IsNullOrWhiteSpace(markerColor) && ViewerMarkerColors.Contains(markerColor) ? markerColor : "bg-blue";
 
     private sealed record ViewerContext(
         string ViewerMode,

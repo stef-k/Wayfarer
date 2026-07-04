@@ -38,6 +38,7 @@ public sealed class TripViewerStateMapperTests : TestBase
         Assert.NotEmpty(state.VisitProgress.HistoryRows);
         Assert.NotNull(state.VisitProgress.PlaceSummariesByPlaceId[fixture.Place.Id].FirstVisitAt);
         Assert.Equal(45, state.VisitProgress.HistoryRows.Single().DurationMinutes);
+        Assert.Equal($"/User/Trip/ViewNext/{fixture.Trip.Id}", state.Trip.PrivateUrl);
     }
 
     [Fact]
@@ -71,6 +72,7 @@ public sealed class TripViewerStateMapperTests : TestBase
         Assert.False(state.Actions.ExportPdf.Allowed);
         Assert.False(state.Actions.CopyCoverUrl.Allowed);
         Assert.True(state.Actions.OpenCanonical.Allowed);
+        Assert.Null(state.Trip.PrivateUrl);
         Assert.Empty(state.VisitProgress.HistoryRows);
         Assert.Null(state.VisitProgress.PlaceSummariesByPlaceId[fixture.Place.Id].FirstVisitAt);
         Assert.Null(state.Trip.CoverImage!.RawUrl);
@@ -90,6 +92,38 @@ public sealed class TripViewerStateMapperTests : TestBase
         Assert.False(state.Actions.Clone.Allowed);
         Assert.True(state.Actions.Clone.RequiresAuthentication);
         Assert.Contains("/Identity/Account/Login", state.Actions.Clone.Url);
+        Assert.Null(state.Trip.PrivateUrl);
+    }
+
+    [Theory]
+    [InlineData("""<a href="https://example.test">safe</a>""", "href=\"https://example.test\"", true)]
+    [InlineData("""<a href="http://example.test">safe</a>""", "href=\"http://example.test\"", true)]
+    [InlineData("""<a href="javascript:alert(1)">unsafe</a>""", "href=", false)]
+    [InlineData("""<a href="data:text/html,unsafe">unsafe</a>""", "href=", false)]
+    [InlineData("""<a href="vbscript:msgbox(1)">unsafe</a>""", "href=", false)]
+    [InlineData("""<a href="ftp://example.test/file">unsafe</a>""", "href=", false)]
+    [InlineData("""<a href="mailto:test@example.test">unsafe</a>""", "href=", false)]
+    [InlineData("""<a href="/relative">unsafe</a>""", "href=", false)]
+    [InlineData("""<a href="//example.test/path">unsafe</a>""", "href=", false)]
+    [InlineData("<a href=\"java\u0000script:alert(1)\">unsafe</a>", "href=", false)]
+    public void NotesPayload_AllowsOnlyAbsoluteHttpLinks(string html, string expected, bool shouldPreserveSafeAttributes)
+    {
+        var fixture = BuildTripFixture(isPublic: true, shareProgress: true);
+        fixture.Trip.Notes = html;
+
+        var state = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: false, isAuthenticated: false, embed: false, new QueryCollection());
+
+        if (shouldPreserveSafeAttributes)
+        {
+            Assert.Contains(expected, state.Trip.Notes.DisplayHtml);
+            Assert.Contains("rel=\"noopener noreferrer\"", state.Trip.Notes.DisplayHtml);
+            Assert.Contains("target=\"_blank\"", state.Trip.Notes.DisplayHtml);
+        }
+        else
+        {
+            Assert.DoesNotContain(expected, state.Trip.Notes.DisplayHtml);
+            Assert.DoesNotContain("target=\"_blank\"", state.Trip.Notes.DisplayHtml);
+        }
     }
 
     [Fact]
@@ -183,6 +217,32 @@ public sealed class TripViewerStateMapperTests : TestBase
         Assert.Equal("lat=1.5&lon=2.5&zoom=6", state.Map.InitialView.CanonicalQuery);
         Assert.Contains("lng", state.Map.AcceptedQueryParameters);
         Assert.DoesNotContain("lng", state.Map.EmittedQueryParameters);
+    }
+
+    [Fact]
+    public void Places_AllowValidViewerMarkerValues()
+    {
+        var fixture = BuildTripFixture(isPublic: true, shareProgress: true);
+        fixture.Place.IconName = "museum";
+        fixture.Place.MarkerColor = "bg-green";
+
+        var state = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: false, isAuthenticated: false, embed: false, new QueryCollection());
+
+        Assert.Equal("museum", state.PlacesById[fixture.Place.Id].IconName);
+        Assert.Equal("bg-green", state.PlacesById[fixture.Place.Id].MarkerColor);
+    }
+
+    [Fact]
+    public void Places_FallbackInvalidViewerMarkerValues()
+    {
+        var fixture = BuildTripFixture(isPublic: true, shareProgress: true);
+        fixture.Place.IconName = "../private";
+        fixture.Place.MarkerColor = "bg-unknown";
+
+        var state = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: false, isAuthenticated: false, embed: false, new QueryCollection());
+
+        Assert.Equal("marker", state.PlacesById[fixture.Place.Id].IconName);
+        Assert.Equal("bg-blue", state.PlacesById[fixture.Place.Id].MarkerColor);
     }
 
     private static QueryCollection Query(string? lat = null, string? lon = null, string? lng = null, string? zoom = null)

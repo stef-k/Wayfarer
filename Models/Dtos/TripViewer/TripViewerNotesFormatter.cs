@@ -126,7 +126,7 @@ internal static class TripViewerNotesFormatter
 
         if (name == "href" && string.Equals(element.TagName, "a", StringComparison.OrdinalIgnoreCase))
         {
-            return IsAllowedLink(attribute.Value);
+            return TryNormalizeAllowedLink(attribute.Value, out _);
         }
 
         if (name == "src" && string.Equals(element.TagName, "img", StringComparison.OrdinalIgnoreCase))
@@ -157,13 +157,14 @@ internal static class TripViewerNotesFormatter
 
     private static void NormalizeLink(IElement element)
     {
-        if (!IsAllowedLink(element.GetAttribute("href") ?? string.Empty))
+        if (!TryNormalizeAllowedLink(element.GetAttribute("href") ?? string.Empty, out var href))
         {
             element.RemoveAttribute("href");
         }
 
         if (element.HasAttribute("href"))
         {
+            element.SetAttribute("href", href);
             element.SetAttribute("rel", "noopener noreferrer");
             element.SetAttribute("target", "_blank");
         }
@@ -182,17 +183,18 @@ internal static class TripViewerNotesFormatter
         element.SetAttribute("loading", "lazy");
     }
 
-    private static bool IsAllowedLink(string value)
-    {
-        var compact = CompactUrlScheme(value);
-        return !compact.StartsWith("javascript:", StringComparison.Ordinal)
-            && !compact.StartsWith("data:", StringComparison.Ordinal)
-            && !compact.StartsWith("vbscript:", StringComparison.Ordinal);
-    }
+    private static bool TryNormalizeAllowedLink(string value, out string href) =>
+        TryNormalizeAbsoluteHttpUrl(value, out href);
 
     private static bool IsAllowedAbsoluteHttpUrl(string value) =>
-        Uri.TryCreate(StripUrlBoundaryControls(value), UriKind.Absolute, out var uri)
+        TryNormalizeAbsoluteHttpUrl(value, out _);
+
+    private static bool TryNormalizeAbsoluteHttpUrl(string value, out string normalized)
+    {
+        normalized = NormalizeUrlControls(value);
+        return Uri.TryCreate(normalized, UriKind.Absolute, out var uri)
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    }
 
     private static string CanonicalImageSource(string value)
     {
@@ -234,11 +236,8 @@ internal static class TripViewerNotesFormatter
     private static string StripUrlBoundaryControls(string value) =>
         Regex.Replace(value, @"^[\u0000-\u0020\u007f-\u009f]+|[\u0000-\u0020\u007f-\u009f]+$", string.Empty);
 
-    private static string CompactUrlScheme(string value)
-    {
-        var stripped = StripUrlBoundaryControls(value);
-        return Regex.Replace(stripped[..Math.Min(64, stripped.Length)], @"[\u0000-\u0020\u007f-\u009f]+", string.Empty).ToLowerInvariant();
-    }
+    private static string NormalizeUrlControls(string value) =>
+        Regex.Replace(StripUrlBoundaryControls(WebUtility.HtmlDecode(value)), @"[\u0000-\u001f\u007f-\u009f]+", string.Empty);
 
     private static string NormalizePlainText(string value) =>
         Regex.Replace(WebUtility.HtmlDecode(value).Replace('\u00a0', ' '), @"\s+", " ").Trim();

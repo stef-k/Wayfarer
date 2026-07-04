@@ -51,6 +51,7 @@ public sealed class TripViewerStateControllerTests : TestBase
         Assert.Equal("public", state.ViewerMode);
         Assert.True(state.Permissions.IsOwner);
         Assert.False(state.Permissions.CanViewPrivateState);
+        Assert.Null(state.Trip.PrivateUrl);
     }
 
     [Fact]
@@ -72,6 +73,7 @@ public sealed class TripViewerStateControllerTests : TestBase
         Assert.False(state.Permissions.IsOwner);
         Assert.False(state.Actions.Edit.Allowed);
         Assert.True(state.Actions.OpenCanonical.Allowed);
+        Assert.Null(state.Trip.PrivateUrl);
     }
 
     private static TripViewerStateDto StateFrom(IActionResult result)
