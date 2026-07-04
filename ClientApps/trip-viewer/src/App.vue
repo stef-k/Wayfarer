@@ -1,30 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { TripViewerMountConfig } from './main';
+import type { TripViewerState, ViewerSelection } from './types';
+import { normalizeViewerState } from './state';
+import { buildRegionGroups, buildSegmentSummaries, selectedEntity, tripSelection } from './viewModel';
+import TripMap from './components/TripMap.vue';
+import TripSidebar from './components/TripSidebar.vue';
+import TripDetail from './components/TripDetail.vue';
 
 type LoadStatus = 'loading' | 'loaded' | 'auth' | 'not-found' | 'server-error' | 'network-error' | 'invalid-config';
-
-type ViewerState = {
-  viewerMode?: string;
-  ViewerMode?: string;
-  trip?: ViewerTrip;
-  Trip?: ViewerTrip;
-  regionOrder?: unknown[];
-  RegionOrder?: unknown[];
-  placesById?: Record<string, unknown>;
-  PlacesById?: Record<string, unknown>;
-  segmentsById?: Record<string, unknown>;
-  SegmentsById?: Record<string, unknown>;
-};
-
-type ViewerTrip = {
-  name?: string;
-  Name?: string;
-  isPublic?: boolean;
-  IsPublic?: boolean;
-  updatedAt?: string;
-  UpdatedAt?: string;
-};
 
 const props = defineProps<{
   config: TripViewerMountConfig | null;
@@ -32,16 +16,14 @@ const props = defineProps<{
 }>();
 
 const status = ref<LoadStatus>(props.configError ? 'invalid-config' : 'loading');
-const state = ref<ViewerState | null>(null);
+const state = ref<TripViewerState | null>(null);
+const selection = ref<ViewerSelection | null>(null);
 const detail = ref(props.configError ?? '');
 
-const isEmbed = computed(() => props.config?.viewerMode === 'embed');
-const trip = computed(() => state.value ? readObject<ViewerTrip>(state.value, 'trip') : null);
-const stateViewerMode = computed(() => state.value ? readString(state.value, 'viewerMode') : null);
-const tripName = computed(() => trip.value ? readString(trip.value, 'name') : props.config?.tripName ?? 'Trip');
-const regionCount = computed(() => state.value ? readArray(state.value, 'regionOrder').length : 0);
-const placeCount = computed(() => state.value ? Object.keys(readRecord(state.value, 'placesById')).length : 0);
-const segmentCount = computed(() => state.value ? Object.keys(readRecord(state.value, 'segmentsById')).length : 0);
+const isEmbed = computed(() => props.config?.viewerMode === 'embed' || state.value?.viewerMode === 'embed');
+const regionGroups = computed(() => state.value ? buildRegionGroups(state.value) : []);
+const segments = computed(() => state.value ? buildSegmentSummaries(state.value) : []);
+const selected = computed(() => state.value && selection.value ? selectedEntity(state.value, selection.value) : null);
 
 onMounted(() => {
   if (!props.config) {
@@ -84,7 +66,9 @@ async function loadViewerState(): Promise<void> {
       return;
     }
 
-    state.value = await response.json() as ViewerState;
+    const loadedState = normalizeViewerState(await response.json());
+    state.value = loadedState;
+    selection.value = tripSelection(loadedState);
     status.value = 'loaded';
   } catch (error) {
     status.value = 'network-error';
@@ -92,29 +76,8 @@ async function loadViewerState(): Promise<void> {
   }
 }
 
-// Reads DTO fields from either PascalCase or camelCase JSON without changing the backend contract.
-function readValue<T>(source: Record<string, unknown>, key: string): T | null {
-  const pascalKey = `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-  return (source[key] ?? source[pascalKey] ?? null) as T | null;
-}
-
-function readObject<T extends Record<string, unknown>>(source: Record<string, unknown>, key: string): T | null {
-  const value = readValue<unknown>(source, key);
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as T : null;
-}
-
-function readString(source: Record<string, unknown>, key: string): string | null {
-  const value = readValue<unknown>(source, key);
-  return typeof value === 'string' ? value : null;
-}
-
-function readArray(source: Record<string, unknown>, key: string): unknown[] {
-  const value = readValue<unknown>(source, key);
-  return Array.isArray(value) ? value : [];
-}
-
-function readRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
-  return readObject<Record<string, unknown>>(source, key) ?? {};
+function selectEntity(nextSelection: ViewerSelection): void {
+  selection.value = nextSelection;
 }
 </script>
 
@@ -128,25 +91,25 @@ function readRecord(source: Record<string, unknown>, key: string): Record<string
       </div>
     </div>
 
-    <div v-else-if="status === 'loaded'" class="trip-viewer-state trip-viewer-state--loaded">
-      <div>
-        <strong>{{ tripName }}</strong>
-        <span>Trip Viewer DTO loaded for {{ stateViewerMode ?? props.config?.viewerMode }} mode.</span>
-      </div>
-      <dl class="trip-viewer-summary">
-        <div>
-          <dt>Regions</dt>
-          <dd>{{ regionCount }}</dd>
-        </div>
-        <div>
-          <dt>Places</dt>
-          <dd>{{ placeCount }}</dd>
-        </div>
-        <div>
-          <dt>Segments</dt>
-          <dd>{{ segmentCount }}</dd>
-        </div>
-      </dl>
+    <div v-else-if="status === 'loaded' && state && selected && selection" class="trip-viewer-workspace">
+      <TripSidebar
+        :state="state"
+        :groups="regionGroups"
+        :segments="segments"
+        :selection="selection"
+        @select="selectEntity"
+      />
+      <TripMap
+        :state="state"
+        :segments="segments"
+        :selection="selection"
+        @select="selectEntity"
+      />
+      <TripDetail
+        :state="state"
+        :entity="selected"
+        @focus="selectEntity"
+      />
     </div>
 
     <div v-else class="trip-viewer-state trip-viewer-state--error" role="alert">

@@ -1,8 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
+import type { ViewerMode } from './types';
 import './styles.css';
-
-type ViewerMode = 'private' | 'public' | 'embed';
 
 export type TripViewerMountConfig = {
   tripId: string;
