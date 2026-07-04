@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import type { ViewerMode } from './types';
 import './styles.css';
+import './responsive.css';
 
 export type TripViewerMountConfig = {
   tripId: string;
