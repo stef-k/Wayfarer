@@ -9,7 +9,7 @@
         <UserSecretsId>aspnet-Wayfarer-61e4bfbb-7b73-4610-9e19-3a5a901d3bdd</UserSecretsId>
         <!-- Generated frontend bundles are served from wwwroot by UseStaticFiles so their
              compressed variants cannot drift from static-web-asset endpoint metadata. -->
-        <StaticWebAssetEndpointExclusionPattern>$(StaticWebAssetEndpointExclusionPattern);dist/**;vite/trip-editor/**;wwwroot/dist/**;wwwroot/vite/trip-editor/**</StaticWebAssetEndpointExclusionPattern>
+        <StaticWebAssetEndpointExclusionPattern>$(StaticWebAssetEndpointExclusionPattern);dist/**;vite/trip-editor/**;vite/trip-viewer/**;wwwroot/dist/**;wwwroot/vite/trip-editor/**;wwwroot/vite/trip-viewer/**</StaticWebAssetEndpointExclusionPattern>
     </PropertyGroup>
 
     <ItemGroup>

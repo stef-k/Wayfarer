@@ -30,6 +30,7 @@
         <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.css" />
         <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
     }
+    @RenderSection("Styles", required: false)
 </head>
 <body data-bs-theme="light">
     <div class="@(ViewData["BodyClass"] as string ?? "container")">

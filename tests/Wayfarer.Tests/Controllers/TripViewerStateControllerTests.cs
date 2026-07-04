@@ -6,6 +6,7 @@ using Moq;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.TripViewer;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -74,6 +75,64 @@ public sealed class TripViewerStateControllerTests : TestBase
         Assert.False(state.Actions.Edit.Allowed);
         Assert.True(state.Actions.OpenCanonical.Allowed);
         Assert.Null(state.Trip.PrivateUrl);
+    }
+
+    [Fact]
+    public async Task ViewNext_Get_ReturnsPublicViewerShell_ForPublicTrip()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.ViewNext(trip.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("~/Views/Trip/ViewNext.cshtml", view.ViewName);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal("public", model.ViewerMode);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}/state", model.ViewerStateEndpoint);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}", model.PublicViewUrl);
+        Assert.Null(model.OpenCanonicalUrl);
+    }
+
+    [Fact]
+    public async Task ViewNext_Get_ReturnsEmbedViewerShell_WithEmbedStateEndpoint()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.ViewNext(trip.Id, embed: true);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal("embed", model.ViewerMode);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}/state?embed=true", model.ViewerStateEndpoint);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}", model.OpenCanonicalUrl);
+        Assert.True(model.IsEmbed);
+    }
+
+    [Fact]
+    public async Task ViewNext_Get_ReturnsNotFound_ForPrivateTrip()
+    {
+        var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Private", IsPublic = false };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.ViewNext(trip.Id);
+
+        Assert.IsType<NotFoundResult>(result);
     }
 
     private static TripViewerStateDto StateFrom(IActionResult result)

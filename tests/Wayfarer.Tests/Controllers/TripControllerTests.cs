@@ -12,6 +12,7 @@ using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.TripViewer;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -84,7 +85,8 @@ public class TripControllerTests : TestBase
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
-            Mock.Of<ICacheWarmupScheduler>());
+            Mock.Of<ICacheWarmupScheduler>(),
+            SettingsService());
         ConfigureControllerWithUser(controller, currentUser.Id);
 
         // Act
@@ -479,6 +481,33 @@ public class TripControllerTests : TestBase
         Assert.Equal("/User/Trip/Index", model.TripIndexUrl);
     }
 
+    [Fact]
+    public async Task ViewNext_Get_ReturnsPrivateViewerShell_WhenTripOwned()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(user);
+        var trip = TestDataFixtures.CreateTrip(user, "Owned Trip", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildControllerWithUser(db, user.Id);
+
+        var result = await controller.ViewNext(trip.Id);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("~/Views/Trip/ViewNext.cshtml", view.ViewName);
+        var model = Assert.IsType<TripViewerShellViewModel>(view.Model);
+        Assert.Equal(trip.Id, model.TripId);
+        Assert.Equal("Owned Trip", model.TripName);
+        Assert.Equal("private", model.ViewerMode);
+        Assert.Equal($"/User/Trip/ViewNext/{trip.Id}/state", model.ViewerStateEndpoint);
+        Assert.Equal($"/Public/TripsNext/{trip.Id}", model.PublicViewUrl);
+        Assert.Null(model.OpenCanonicalUrl);
+        Assert.Equal("/Public/tiles/{z}/{x}/{y}.png", model.TilesUrl);
+        Assert.Equal(ApplicationSettings.DefaultTileProviderAttribution, model.TileAttribution);
+    }
+
     private TripController BuildController(ApplicationDbContext db)
     {
         var controller = new TripController(
@@ -486,7 +515,8 @@ public class TripControllerTests : TestBase
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
-            Mock.Of<ICacheWarmupScheduler>());
+            Mock.Of<ICacheWarmupScheduler>(),
+            SettingsService());
 
         var httpContext = new DefaultHttpContext();
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
@@ -503,7 +533,8 @@ public class TripControllerTests : TestBase
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
-            Mock.Of<ICacheWarmupScheduler>());
+            Mock.Of<ICacheWarmupScheduler>(),
+            SettingsService());
 
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
@@ -522,11 +553,22 @@ public class TripControllerTests : TestBase
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
-            warmupMock.Object);
+            warmupMock.Object,
+            SettingsService());
 
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    /// <summary>
+    /// Provides deterministic tile attribution for shell assertions.
+    /// </summary>
+    private static IApplicationSettingsService SettingsService()
+    {
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+        return settings.Object;
     }
 
     [Fact]

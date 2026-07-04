@@ -1,0 +1,105 @@
+@model Wayfarer.Models.ViewModels.TripViewerShellViewModel
+@inject IWebHostEnvironment Environment
+@using System.Text.Json
+
+@{
+    Layout = Model.IsEmbed ? "~/Views/Shared/_EmbedLayout.cshtml" : "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = Model.TripName;
+    var manifestPath = System.IO.Path.Combine(Environment.WebRootPath, "vite", "trip-viewer", "manifest.json");
+    var entryScript = "ClientApps/trip-viewer/src/main.ts";
+    var assetMode = Environment.IsDevelopment() ? "development" : "published";
+}
+
+@functions {
+    /// <summary>
+    /// Reads the Trip Viewer Vite manifest and emits built asset tags for this shell only.
+    /// </summary>
+    private static (string? Script, IReadOnlyList<string> Css) ReadTripViewerManifest(string manifestPath, string entryScript)
+    {
+        if (!System.IO.File.Exists(manifestPath))
+        {
+            return (null, Array.Empty<string>());
+        }
+
+        using var document = JsonDocument.Parse(System.IO.File.ReadAllText(manifestPath));
+        if (!document.RootElement.TryGetProperty(entryScript, out var entry))
+        {
+            return (null, Array.Empty<string>());
+        }
+
+        var script = entry.TryGetProperty("file", out var file) ? $"/vite/trip-viewer/{file.GetString()}" : null;
+        var css = entry.TryGetProperty("css", out var cssItems)
+            ? cssItems.EnumerateArray()
+                .Select(item => $"/vite/trip-viewer/{item.GetString()}")
+                .ToArray()
+            : Array.Empty<string>();
+
+        return (script, css);
+    }
+}
+
+@{
+    var manifest = Environment.IsDevelopment()
+        ? (Script: (string?)null, Css: (IReadOnlyList<string>)Array.Empty<string>())
+        : ReadTripViewerManifest(manifestPath, entryScript);
+}
+
+@section Styles {
+    @foreach (var href in manifest.Css)
+    {
+        <link rel="stylesheet" href="@href" />
+    }
+    <style>
+        .trip-viewer-embed-body {
+            width: 100vw;
+            min-height: 100vh;
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+}
+
+<div id="trip-viewer-app"
+     data-trip-id="@Model.TripId"
+     data-trip-name="@Model.TripName"
+     data-viewer-mode="@Model.ViewerMode"
+     data-viewer-state-endpoint="@Model.ViewerStateEndpoint"
+     data-public-view-url="@(Model.PublicViewUrl ?? string.Empty)"
+     data-open-canonical-url="@(Model.OpenCanonicalUrl ?? string.Empty)"
+     data-tiles-url="@Model.TilesUrl"
+     data-tile-attribution="@Model.TileAttribution"
+     data-asset-mode="@assetMode">
+    <div class="trip-viewer-shell-state trip-viewer-shell-state--loading" role="status">
+        <div class="spinner-border spinner-border-sm me-2" aria-hidden="true"></div>
+        Loading trip viewer...
+    </div>
+</div>
+
+@section Scripts {
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/@@vite/client"></script>
+        <script type="module" src="http://localhost:5173/ClientApps/trip-viewer/src/main.ts"></script>
+        <script>
+            // Development-only hint when the Vite server on port 5173 is not running.
+            setTimeout(() => {
+                const app = document.getElementById('trip-viewer-app');
+                if (app?.querySelector('.trip-viewer-shell-state--loading')) {
+                    app.innerHTML =
+                        '<div class="alert alert-danger m-3">Trip Viewer development server is not available at http://localhost:5173/ClientApps/trip-viewer/src/main.ts. Run npm run dev.</div>';
+                }
+            }, 4000);
+        </script>
+    }
+    else if (!string.IsNullOrWhiteSpace(manifest.Script))
+    {
+        <script type="module" src="@manifest.Script"></script>
+    }
+    else
+    {
+        <script>
+            document.getElementById('trip-viewer-app').innerHTML =
+                '<div class="alert alert-danger m-3">Trip Viewer assets are missing. Run npm ci and npm run build.</div>';
+        </script>
+    }
+}

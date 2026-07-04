@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -49,10 +50,21 @@ public class TripControllerCreateRedirectTests : TestBase
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
-            Mock.Of<ICacheWarmupScheduler>());
+            Mock.Of<ICacheWarmupScheduler>(),
+            SettingsService());
 
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    /// <summary>
+    /// Provides default application settings for controller construction.
+    /// </summary>
+    private static IApplicationSettingsService SettingsService()
+    {
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+        return settings.Object;
     }
 }

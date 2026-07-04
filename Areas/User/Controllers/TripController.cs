@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.TripViewer;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Util;
 
@@ -17,18 +18,21 @@ namespace Wayfarer.Areas.User.Controllers
         private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
         private readonly ITripTagService _tripTagService;
         private readonly ICacheWarmupScheduler _warmupScheduler;
+        private readonly IApplicationSettingsService _settingsService;
 
         public TripController(
             ILogger<TripController> logger,
             ApplicationDbContext dbContext,
             ITripMapThumbnailGenerator thumbnailGenerator,
             ITripTagService tripTagService,
-            ICacheWarmupScheduler warmupScheduler)
+            ICacheWarmupScheduler warmupScheduler,
+            IApplicationSettingsService settingsService)
             : base(logger, dbContext)
         {
             _thumbnailGenerator = thumbnailGenerator;
             _tripTagService = tripTagService;
             _warmupScheduler = warmupScheduler;
+            _settingsService = settingsService;
         }
 
         /// <summary>
@@ -122,6 +126,43 @@ namespace Wayfarer.Areas.User.Controllers
                     .ToListAsync();
 
             return Json(TripViewerStateMapper.ToPrivateState(trip, visitEvents, Request.Query));
+        }
+
+        /// <summary>
+        /// Shows the preview Vue Trip Viewer shell for an owned trip without changing the canonical viewer route.
+        /// </summary>
+        [HttpGet]
+        [Route("/User/Trip/ViewNext/{id}", Name = "UserTripViewNext")]
+        public async Task<IActionResult> ViewNext(Guid id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId == null) return Forbid();
+
+            var trip = await _dbContext.Trips
+                .AsNoTracking()
+                .Where(t => t.Id == id && t.UserId == userId)
+                .Select(t => new { t.Id, t.Name, t.IsPublic })
+                .FirstOrDefaultAsync();
+
+            if (trip == null) return NotFound();
+
+            ViewData["Title"] = trip.Name;
+            ViewData["BodyClass"] = "container-fluid";
+            ViewData["LoadLeaflet"] = false;
+            ViewData["LoadQuill"] = false;
+
+            var settings = _settingsService.GetSettings();
+            return View("~/Views/Trip/ViewNext.cshtml", new TripViewerShellViewModel
+            {
+                TripId = trip.Id,
+                TripName = trip.Name,
+                ViewerMode = "private",
+                ViewerStateEndpoint = $"/User/Trip/ViewNext/{trip.Id}/state",
+                PublicViewUrl = trip.IsPublic ? $"/Public/TripsNext/{trip.Id}" : null,
+                OpenCanonicalUrl = null,
+                TilesUrl = "/Public/tiles/{z}/{x}/{y}.png",
+                TileAttribution = settings.TileProviderAttribution
+            });
         }
 
         // GET: /User/Trip/Create

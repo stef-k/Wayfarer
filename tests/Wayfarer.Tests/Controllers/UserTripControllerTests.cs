@@ -7,6 +7,7 @@ using Moq;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -94,7 +95,8 @@ public class UserTripControllerTests : TestBase
             db,
             Mock.Of<ITripMapThumbnailGenerator>(),
             Mock.Of<ITripTagService>(),
-            Mock.Of<ICacheWarmupScheduler>());
+            Mock.Of<ICacheWarmupScheduler>(),
+            SettingsService());
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = BuildHttpContextWithUser(userId)
@@ -103,5 +105,15 @@ public class UserTripControllerTests : TestBase
             controller.ControllerContext.HttpContext,
             Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    /// <summary>
+    /// Provides default application settings for controller construction.
+    /// </summary>
+    private static IApplicationSettingsService SettingsService()
+    {
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+        return settings.Object;
     }
 }
