@@ -4,17 +4,39 @@ test('renders mocked #335 desktop viewer state and sidebar detail selection', as
   await loadMockedViewer(page);
 
   await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ }).getByText('Harbor')).toBeVisible();
   await expect(page.getByRole('button', { name: /Region Harbor/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Harbor Cafe to Lookout/ })).toBeVisible();
   await expect(page.locator('.trip-viewer-map .leaflet-tile-pane')).toHaveCount(1);
 
+  const markerAlts = await page.locator('.trip-viewer-map-marker__image').evaluateAll(images => images.map(image => image.getAttribute('alt') ?? ''));
+  expect(markerAlts.indexOf('Harbor Cafe, visited 2 time(s)')).toBeLessThan(markerAlts.indexOf('Lookout'));
+
   await page.getByRole('button', { name: /Waterfront Zone/ }).click();
 
   await expect(page.getByRole('heading', { name: 'Waterfront Zone' })).toBeVisible();
   await expect(page.getByLabel('Selection details').getByText('Media note', { exact: true })).toBeVisible();
   await expect(page.locator('.trip-viewer-detail__notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
+});
+
+test('renders #335 tags and action contract items without adding deferred behavior', async ({ page }) => {
+  await loadMockedViewer(page);
+
+  await expect(page.getByLabel('Trip tags').getByText('Harbor')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Share' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
+  await expect(page.getByRole('link', { name: 'Public URL' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
+  await expect(page.getByRole('link', { name: 'Clone sign-in' })).toHaveAttribute('href', '/Identity/Account/Login');
+  await expect(page.getByRole('button', { name: 'Readable' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeDisabled();
+});
+
+test('represents allowed non-get actions as deferred preview actions', async ({ page }) => {
+  await loadMockedViewer(page, mockViewerState({ clonePost: true }));
+
+  await expect(page.getByRole('button', { name: 'Clone' })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Clone sign-in' })).toHaveCount(0);
 });
 
 test('syncs mocked map marker and popup selection to the detail surface', async ({ page }) => {
@@ -33,7 +55,20 @@ test('syncs mocked map marker and popup selection to the detail surface', async 
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
 });
 
-async function loadMockedViewer(page: Page): Promise<void> {
+test('hides visit badges and counts when #335 progress flags deny display', async ({ page }) => {
+  const state = mockViewerState({ canDisplayProgress: false, canDisplayCounts: false, canReadVisitCounts: false });
+  await loadMockedViewer(page, state);
+
+  await expect(page.getByAltText('Harbor Cafe')).toBeVisible();
+  await expect(page.getByAltText(/visited 2 time/)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' }).click();
+
+  await expect(page.getByLabel('Selection details').getByText('Visits')).toHaveCount(0);
+  await expect(page.getByLabel('Selection details').getByText('Progress')).toHaveCount(0);
+});
+
+async function loadMockedViewer(page: Page, state: unknown = mockViewerState()): Promise<void> {
   await page.route('**/__trip-viewer-test.html', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html>
@@ -57,7 +92,7 @@ async function loadMockedViewer(page: Page): Promise<void> {
 
   await page.route('**/viewer-state', route => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify(mockViewerState())
+    body: JSON.stringify(state)
   }));
 
   await page.route('**/tiles/**', route => route.fulfill({
@@ -69,7 +104,11 @@ async function loadMockedViewer(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
 }
 
-function mockViewerState(): unknown {
+function mockViewerState(options?: { canDisplayProgress?: boolean; canDisplayCounts?: boolean; canReadVisitCounts?: boolean; clonePost?: boolean }): unknown {
+  const canDisplayProgress = options?.canDisplayProgress ?? true;
+  const canDisplayCounts = options?.canDisplayCounts ?? true;
+  const canReadVisitCounts = options?.canReadVisitCounts ?? true;
+
   return {
     viewerMode: 'public',
     trip: {
@@ -102,19 +141,6 @@ function mockViewerState(): unknown {
     },
     regionOrder: ['region-1'],
     placesById: {
-      'place-1': {
-        id: 'place-1',
-        tripId: 'trip-1',
-        regionId: 'region-1',
-        name: 'Harbor Cafe',
-        notes: notes('<p>Dock coffee and breakfast.</p>', 'Dock coffee and breakfast.'),
-        address: '1 Dock Street',
-        location: { latitude: 40.701, longitude: -74.002 },
-        iconName: 'eat',
-        markerColor: 'bg-blue',
-        displayOrder: 1,
-        visitSummary: { placeId: 'place-1', visitCount: 2, isVisited: true, firstVisitAt: null, lastVisitAt: null }
-      },
       'place-2': {
         id: 'place-2',
         tripId: 'trip-1',
@@ -127,6 +153,19 @@ function mockViewerState(): unknown {
         markerColor: 'bg-green',
         displayOrder: 2,
         visitSummary: { placeId: 'place-2', visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null }
+      },
+      'place-1': {
+        id: 'place-1',
+        tripId: 'trip-1',
+        regionId: 'region-1',
+        name: 'Harbor Cafe',
+        notes: notes('<p>Dock coffee and breakfast.</p>', 'Dock coffee and breakfast.'),
+        address: '1 Dock Street',
+        location: { latitude: 40.701, longitude: -74.002 },
+        iconName: 'eat',
+        markerColor: 'bg-blue',
+        displayOrder: 1,
+        visitSummary: { placeId: 'place-1', visitCount: 2, isVisited: true, firstVisitAt: null, lastVisitAt: null }
       }
     },
     placeOrderByRegionId: { 'region-1': ['place-1', 'place-2'] },
@@ -166,13 +205,15 @@ function mockViewerState(): unknown {
     tagsBySlug: { harbor: { id: 'tag-1', name: 'Harbor', slug: 'harbor' } },
     tagOrder: ['harbor'],
     visitProgress: {
-      canDisplayProgress: true,
-      canDisplayCounts: true,
+      canDisplayProgress,
+      canDisplayCounts,
       canDisplayHistory: false,
       totalPlaces: 2,
-      visitedPlaces: 1,
-      percentVisited: 50,
-      placeSummariesByPlaceId: {},
+      visitedPlaces: canDisplayCounts ? 1 : 0,
+      percentVisited: canDisplayCounts ? 50 : 0,
+      placeSummariesByPlaceId: {
+        'place-1': { placeId: 'place-1', visitCount: 2, isVisited: true, firstVisitAt: null, lastVisitAt: null }
+      },
       historyRows: []
     },
     permissions: {
@@ -181,7 +222,7 @@ function mockViewerState(): unknown {
       canViewEmbedState: false,
       isOwner: false,
       canReadNotes: true,
-      canReadVisitCounts: true,
+      canReadVisitCounts,
       canReadVisitHistory: false,
       canToggleShareProgress: false,
       canUseReadableMode: true,
@@ -189,7 +230,7 @@ function mockViewerState(): unknown {
     },
     actions: {
       edit: action(false),
-      clone: action(false, '/Identity/Account/Login', 'GET', true),
+      clone: options?.clonePost ? action(true, '/User/Trip/Clone/trip-1', 'POST') : action(false, '/Identity/Account/Login', 'GET', true),
       exportWayfarerKml: action(true, '/Trip/ExportWayfarerKml/trip-1'),
       exportGoogleMyMapsKml: action(true, '/Trip/ExportGoogleMyMapsKml/trip-1'),
       exportPdf: action(true, '/Trip/ExportPdf/trip-1'),

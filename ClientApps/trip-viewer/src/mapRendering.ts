@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import type { ViewerCoordinate, ViewerPlace } from './types';
+import type { ViewerCoordinate, ViewerPlace, ViewerPlaceVisitSummary } from './types';
 
 const iconBasePath = '/icons/wayfarer-map-icons/dist/png/marker';
 const markerSelectionColors: Record<string, string> = {
@@ -14,13 +14,16 @@ export function toLatLng(coordinate: ViewerCoordinate): L.LatLngExpression {
   return [coordinate.latitude, coordinate.longitude];
 }
 
-export function placeMarkerIcon(place: ViewerPlace, selected: boolean): L.DivIcon {
-  const visitBadge = place.visitSummary.isVisited
-    ? `<span class="trip-viewer-map-marker__badge">${escapeHtml(place.visitSummary.visitCount === 1 ? '✓' : String(place.visitSummary.visitCount))}</span>`
+// These read-only helpers intentionally stay viewer-local for #337. The editor map modules also own mutation
+// layers, dirty state, geocoding, and Leaflet Draw wiring that the preview viewer must not import.
+export function placeMarkerIcon(place: ViewerPlace, selected: boolean, visitSummary: ViewerPlaceVisitSummary | null): L.DivIcon {
+  const visitBadge = visitSummary?.isVisited
+    ? `<span class="trip-viewer-map-marker__badge">${escapeHtml(visitSummary.visitCount === 1 ? '✓' : String(visitSummary.visitCount))}</span>`
     : '';
+  const alt = visitSummary?.isVisited ? `${place.name}, visited ${visitSummary.visitCount} time(s)` : place.name;
 
   return appMarkerIcon({
-    alt: place.visitSummary.isVisited ? `${place.name}, visited ${place.visitSummary.visitCount} time(s)` : place.name,
+    alt,
     className: `trip-viewer-map-marker${selected ? ' trip-viewer-map-marker--selected' : ''}`,
     src: markerIconUrl(place.iconName, place.markerColor),
     style: `--trip-viewer-marker-selected-color: ${markerSelectionColors[place.markerColor] ?? '#0d6efd'}`,

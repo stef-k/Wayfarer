@@ -6,9 +6,11 @@ import type {
   ViewerCoordinate,
   ViewerNotes,
   ViewerPlace,
+  ViewerPlaceVisitSummary,
   ViewerRegion,
   ViewerSegment,
-  ViewerSelection
+  ViewerSelection,
+  ViewerTag
 } from './types';
 
 export interface RegionGroup {
@@ -61,6 +63,20 @@ export function buildSegmentSummaries(state: TripViewerState): SegmentSummary[] 
       fromPlace: segment.fromPlaceId ? state.placesById[segment.fromPlaceId] ?? null : null,
       toPlace: segment.toPlaceId ? state.placesById[segment.toPlaceId] ?? null : null
     }));
+}
+
+export function orderedTags(state: TripViewerState): ViewerTag[] {
+  return state.tagOrder
+    .map(slug => state.tagsBySlug[slug])
+    .filter(isDefined);
+}
+
+export function visitSummaryForPlace(state: TripViewerState, place: ViewerPlace): ViewerPlaceVisitSummary | null {
+  if (!state.visitProgress.canDisplayProgress || !state.visitProgress.canDisplayCounts || !state.permissions.canReadVisitCounts) {
+    return null;
+  }
+
+  return state.visitProgress.placeSummariesByPlaceId[place.id] ?? place.visitSummary;
 }
 
 export function selectedEntity(state: TripViewerState, selection: ViewerSelection): SelectedEntity {

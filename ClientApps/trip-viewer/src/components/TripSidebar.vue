@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { RegionGroup, SegmentSummary } from '../viewModel';
-import { isSameSelection, notesPreview, segmentTitle } from '../viewModel';
+import { isSameSelection, notesPreview, orderedTags, segmentTitle } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
 const props = defineProps<{
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 
 const select = (selection: ViewerSelection): void => emit('select', selection);
 const selected = (selection: ViewerSelection): boolean => isSameSelection(props.selection, selection);
+const tripTags = computed(() => orderedTags(props.state));
 </script>
 
 <template>
@@ -29,6 +31,7 @@ const selected = (selection: ViewerSelection): boolean => isSameSelection(props.
       <span>Trip</span>
       <strong>{{ state.trip.name }}</strong>
       <small>{{ state.regionOrder.length }} regions · {{ Object.keys(state.placesById).length }} places · {{ state.segmentOrder.length }} segments</small>
+      <span v-if="tripTags.length" class="trip-viewer-list-tags">{{ tripTags.map(tag => tag.name).join(', ') }}</span>
     </button>
 
     <section v-for="group in groups" :key="group.region.id" class="trip-viewer-sidebar__group">

@@ -2,7 +2,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { notesPreview, segmentTitle } from '../viewModel';
+import { notesPreview, segmentTitle, visitSummaryForPlace } from '../viewModel';
 import type { SegmentSummary } from '../viewModel';
 import { placeMarkerIcon, popupHtml, regionMarkerIcon, toLatLng } from '../mapRendering';
 import type { EntityType, Guid, TripViewerState, ViewerSelection } from '../types';
@@ -75,27 +75,31 @@ function renderLayers(): void {
     addFeature('region', region.id, marker);
   });
 
-  Object.values(props.state.placesById).forEach(place => {
-    if (!place.location) return;
-    const marker = L.marker(toLatLng(place.location), { icon: placeMarkerIcon(place, isSelected('place', place.id)) })
-      .bindPopup(popupHtml(place.name, 'Place', notesPreview(place.notes), 'place', place.id))
-      .on('click', () => emit('select', { type: 'place', id: place.id }));
-    addFeature('place', place.id, marker);
-  });
+  props.state.regionOrder.forEach(regionId => {
+    (props.state.placeOrderByRegionId[regionId] ?? []).forEach(placeId => {
+      const place = props.state.placesById[placeId];
+      if (!place?.location) return;
+      const marker = L.marker(toLatLng(place.location), { icon: placeMarkerIcon(place, isSelected('place', place.id), visitSummaryForPlace(props.state, place)) })
+        .bindPopup(popupHtml(place.name, 'Place', notesPreview(place.notes), 'place', place.id))
+        .on('click', () => emit('select', { type: 'place', id: place.id }));
+      addFeature('place', place.id, marker);
+    });
 
-  Object.values(props.state.areasById).forEach(area => {
-    if (!area.geometry) return;
-    const polygon = L.geoJSON(area.geometry, {
-      style: {
-        color: isSelected('area', area.id) ? '#0d6efd' : area.fillHex,
-        fillColor: area.fillHex,
-        fillOpacity: isSelected('area', area.id) ? 0.34 : 0.22,
-        opacity: 0.9,
-        weight: isSelected('area', area.id) ? 4 : 2
-      }
-    }).bindPopup(popupHtml(area.name, 'Area', notesPreview(area.notes), 'area', area.id))
-      .on('click', () => emit('select', { type: 'area', id: area.id }));
-    addFeature('area', area.id, polygon);
+    (props.state.areaOrderByRegionId[regionId] ?? []).forEach(areaId => {
+      const area = props.state.areasById[areaId];
+      if (!area?.geometry) return;
+      const polygon = L.geoJSON(area.geometry, {
+        style: {
+          color: isSelected('area', area.id) ? '#0d6efd' : area.fillHex,
+          fillColor: area.fillHex,
+          fillOpacity: isSelected('area', area.id) ? 0.34 : 0.22,
+          opacity: 0.9,
+          weight: isSelected('area', area.id) ? 4 : 2
+        }
+      }).bindPopup(popupHtml(area.name, 'Area', notesPreview(area.notes), 'area', area.id))
+        .on('click', () => emit('select', { type: 'area', id: area.id }));
+      addFeature('area', area.id, polygon);
+    });
   });
 
   props.segments.forEach(summary => {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
 import ActionsBar from './ActionsBar.vue';
-import { coordinateLabel, distanceLabel, durationLabel } from '../viewModel';
+import { coordinateLabel, distanceLabel, durationLabel, orderedTags, visitSummaryForPlace } from '../viewModel';
 import type { SelectedEntity } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
@@ -13,6 +14,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   focus: [selection: ViewerSelection];
 }>();
+
+const tripTags = computed(() => orderedTags(props.state));
+const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryForPlace(props.state, props.entity.place) : null);
 </script>
 
 <template>
@@ -24,6 +28,10 @@ const emit = defineEmits<{
     </header>
 
     <ActionsBar v-if="entity.type === 'trip'" :actions="state.actions" :embed="state.viewerMode === 'embed'" />
+
+    <ul v-if="entity.type === 'trip' && tripTags.length" class="trip-viewer-tags" aria-label="Trip tags">
+      <li v-for="tag in tripTags" :key="tag.slug">{{ tag.name }}</li>
+    </ul>
 
     <img v-if="entity.type === 'trip' && state.trip.coverImage?.displayUrl" class="trip-viewer-cover" :src="state.trip.coverImage.displayUrl" alt="" loading="lazy">
     <img v-if="entity.region?.coverImage?.displayUrl && entity.type === 'region'" class="trip-viewer-cover" :src="entity.region.coverImage.displayUrl" alt="" loading="lazy">
@@ -38,7 +46,7 @@ const emit = defineEmits<{
           <dt>Owner</dt>
           <dd>{{ state.trip.ownerDisplayName }}</dd>
         </div>
-        <div v-if="state.visitProgress.canDisplayCounts">
+        <div v-if="state.visitProgress.canDisplayProgress && state.visitProgress.canDisplayCounts && state.permissions.canReadVisitCounts">
           <dt>Progress</dt>
           <dd>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places · {{ state.visitProgress.percentVisited }}%</dd>
         </div>
@@ -60,9 +68,9 @@ const emit = defineEmits<{
           <dt>Coordinates</dt>
           <dd>{{ coordinateLabel(entity.place.location) }}</dd>
         </div>
-        <div v-if="state.visitProgress.canDisplayCounts">
+        <div v-if="selectedVisitSummary">
           <dt>Visits</dt>
-          <dd>{{ entity.place.visitSummary.isVisited ? entity.place.visitSummary.visitCount : 0 }}</dd>
+          <dd>{{ selectedVisitSummary.isVisited ? selectedVisitSummary.visitCount : 0 }}</dd>
         </div>
       </template>
 
