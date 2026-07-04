@@ -9,6 +9,7 @@
     "build:trip-editor": "vite build --mode trip-editor",
     "build:trip-viewer": "vite build --mode trip-viewer",
     "test:e2e:trip-editor": "playwright test --config=playwright.config.ts",
+    "test:e2e:trip-viewer": "playwright test --config=playwright.trip-viewer.config.ts",
     "smoke:trip-editor:assets": "node tools/trip-editor-asset-smoke.mjs --mode=all",
     "smoke:trip-editor:assets:dev": "node tools/trip-editor-asset-smoke.mjs --mode=development",
     "smoke:trip-editor:assets:published": "node tools/trip-editor-asset-smoke.mjs --mode=published"
