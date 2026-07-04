@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { notesPreview, segmentTitle, visitSummaryForPlace } from '../viewModel';
 import type { SegmentSummary } from '../viewModel';
 import { placeMarkerIcon, popupHtml, regionMarkerIcon, toLatLng } from '../mapRendering';
@@ -11,6 +11,7 @@ const props = defineProps<{
   state: TripViewerState;
   selection: ViewerSelection;
   segments: SegmentSummary[];
+  layoutSignal: number;
 }>();
 
 const emit = defineEmits<{
@@ -59,6 +60,13 @@ watch(() => props.selection, () => {
   renderLayers();
   focusSelection(props.selection);
 }, { deep: true });
+
+watch(() => props.layoutSignal, () => {
+  // Leaflet needs a deferred size pass after responsive drawer and orientation transitions.
+  void nextTick(() => {
+    map?.invalidateSize({ pan: false });
+  });
+});
 
 function renderLayers(): void {
   if (!layerGroup) return;

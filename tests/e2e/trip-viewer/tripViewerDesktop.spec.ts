@@ -68,7 +68,85 @@ test('hides visit badges and counts when #335 progress flags deny display', asyn
   await expect(page.getByLabel('Selection details').getByText('Progress')).toHaveCount(0);
 });
 
-async function loadMockedViewer(page: Page, state: unknown = mockViewerState()): Promise<void> {
+test('preserves #337 persistent desktop surfaces at desktop width', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page);
+
+  await expect(page.getByLabel('Trip contents')).toBeVisible();
+  await expect(page.getByLabel('Trip map')).toBeVisible();
+  await expect(page.getByLabel('Selection details')).toBeVisible();
+  await expect(page.locator('.trip-viewer-mobile-drawer')).toBeHidden();
+});
+
+test('uses a mobile map-first drawer with hierarchy, detail, collapse, and escape states', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page);
+
+  await expect(page.getByLabel('Trip map')).toBeVisible();
+  await expect(page.locator('.trip-viewer-mobile-drawer--peek')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Contents' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Contents' }).click();
+  await expect(page.locator('.trip-viewer-mobile-drawer--hierarchy')).toBeVisible();
+  await expect(page.getByLabel('Trip hierarchy').getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
+
+  await page.getByLabel('Trip hierarchy').getByRole('button', { name: 'Harbor Cafe 1 Dock Street' }).click();
+  await expect(page.locator('.trip-viewer-mobile-drawer--detail')).toBeVisible();
+  await expect(page.getByLabel('Selected trip details').getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+  await expect(page.getByLabel('Selected trip details').getByText('Dock coffee and breakfast.')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.trip-viewer-mobile-drawer--peek')).toBeVisible();
+
+  await page.getByLabel('Collapse trip drawer').click();
+  await expect(page.locator('.trip-viewer-mobile-drawer--collapsed')).toBeVisible();
+  await expect(page.getByLabel('Trip map')).toBeVisible();
+});
+
+test('syncs mobile map and popup selection into the drawer detail view', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await loadMockedViewer(page);
+
+  await page.getByAltText(/Harbor Cafe/).click();
+  await expect(page.locator('.trip-viewer-mobile-drawer--detail')).toBeVisible();
+  await expect(page.getByLabel('Selected trip details').getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.locator('.trip-viewer-mobile-drawer--peek')).toBeVisible();
+
+  await page.getByAltText(/Harbor Cafe/).click();
+  await page.getByRole('button', { name: 'View details' }).click();
+
+  await expect(page.locator('.trip-viewer-mobile-drawer--detail')).toBeVisible();
+  await expect(page.getByLabel('Selected trip details').getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+});
+
+test('keeps image-only mobile notes inside the scrollable detail drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page);
+
+  await page.getByRole('button', { name: 'Contents' }).click();
+  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Waterfront Zone/ }).click();
+
+  const detailPanel = page.getByLabel('Selected trip details');
+  await expect(detailPanel.getByText('Media note', { exact: true })).toBeVisible();
+  await expect(detailPanel.locator('.trip-viewer-detail__notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
+  await expect(detailPanel.locator('.trip-viewer-notes')).toHaveCSS('overflow-y', 'auto');
+});
+
+test('renders mobile not-found and auth states without partial trip data', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page, mockViewerState(), 404);
+
+  await expect(page.locator('strong').filter({ hasText: 'Trip not found' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveCount(0);
+
+  await loadMockedViewer(page, mockViewerState(), 403);
+  await expect(page.locator('strong').filter({ hasText: 'Trip unavailable' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveCount(0);
+});
+
+async function loadMockedViewer(page: Page, state: unknown = mockViewerState(), status = 200): Promise<void> {
   await page.route('**/__trip-viewer-test.html', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html>
@@ -92,6 +170,7 @@ async function loadMockedViewer(page: Page, state: unknown = mockViewerState()):
 
   await page.route('**/viewer-state', route => route.fulfill({
     contentType: 'application/json',
+    status,
     body: JSON.stringify(state)
   }));
 
@@ -101,7 +180,9 @@ async function loadMockedViewer(page: Page, state: unknown = mockViewerState()):
   }));
 
   await page.goto('/__trip-viewer-test.html');
-  await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
+  if (status === 200) {
+    await expect(page.locator('.trip-viewer-workspace')).toBeVisible();
+  }
 }
 
 function mockViewerState(options?: { canDisplayProgress?: boolean; canDisplayCounts?: boolean; canReadVisitCounts?: boolean; clonePost?: boolean }): unknown {
