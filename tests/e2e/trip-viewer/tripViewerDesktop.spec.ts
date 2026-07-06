@@ -33,18 +33,34 @@ test('renders #335 tags and action contract items with readable and print parity
 });
 
 test('opens readable document mode from #335 readable action and preserves image-only notes', async ({ page }) => {
-  await loadMockedViewer(page);
+  await loadMockedViewer(page, mockViewerState({ mapSnapshotUrl: '/Public/Trips/trip-1/MapSnapshot' }));
 
   await page.getByRole('button', { name: 'Readable' }).click();
 
   const document = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(document.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
+  await expect(document.getByRole('img', { name: 'Trip map snapshot' })).toHaveAttribute('src', '/Public/Trips/trip-1/MapSnapshot');
   await expect(document.locator('.trip-viewer-readable__region > header').getByRole('heading', { name: 'Harbor', exact: true })).toBeVisible();
   await expect(document.getByRole('heading', { name: 'Harbor Cafe', exact: true })).toBeVisible();
   await expect(document.getByRole('heading', { name: 'Waterfront Zone', exact: true })).toBeVisible();
   await expect(document.getByText('Media note', { exact: true })).toBeVisible();
   await expect(document.locator('.trip-viewer-notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
   await expect(document.getByRole('button', { name: 'Back to top' })).toBeVisible();
+});
+
+test('shows a DTO-backed readable map fallback when no map snapshot URL is returned', async ({ page }) => {
+  await loadMockedViewer(page, mockViewerState({ mapSnapshotUrl: null }));
+
+  await page.getByRole('button', { name: 'Readable' }).click();
+
+  const mapPreview = page.getByRole('dialog', { name: 'Readable trip itinerary' }).getByLabel('Readable map preview');
+  await expect(mapPreview.getByRole('heading', { name: 'Map preview' })).toBeVisible();
+  await expect(mapPreview.getByText('Map preview unavailable')).toBeVisible();
+  await expect(mapPreview.getByText('Showing read-only map context from returned trip state.')).toBeVisible();
+  await expect(mapPreview.getByText('Places')).toBeVisible();
+  await expect(mapPreview.getByText('Places').locator('..').getByText('2', { exact: true })).toBeVisible();
+  await expect(mapPreview.getByText('Initial center')).toBeVisible();
+  await expect(mapPreview.getByText('20.00000, 0.00000')).toBeVisible();
 });
 
 test('invokes browser print from the #335 print action without export navigation', async ({ page }) => {
@@ -132,13 +148,21 @@ test('searches returned DTO text, notes, tags, addresses, and shows no-results s
 });
 
 test('initial placeId query selects only a place returned by #335 state', async ({ page }) => {
-  await loadMockedViewer(page, { state: mockViewerState(), pageUrl: '/__trip-viewer-test.html?placeId=place-1&lat=1&lon=2&zoom=3' });
+  await loadMockedViewer(page, {
+    state: mockViewerState({ initialView: { latitude: 1, longitude: 2, zoom: 3, source: 'query', canonicalQuery: 'lat=1&lon=2&zoom=3' } }),
+    pageUrl: '/__trip-viewer-test.html?placeId=place-1&lat=1&lon=2&zoom=3'
+  });
 
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
+  await expect(page.locator('.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toBeVisible();
+  await expectMarkerInsideMap(page, '.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]');
+  expect(new URL(page.url()).searchParams.get('lat')).toBe('1.000000');
+  expect(new URL(page.url()).searchParams.get('lon')).toBe('2.000000');
 
   await loadMockedViewer(page, { state: mockViewerState(), pageUrl: '/__trip-viewer-test.html?placeId=redacted-place' });
   await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
+  await expect(page.locator('.trip-viewer-map-marker--selected')).toHaveCount(0);
 });
 
 test('preserves #337 persistent desktop surfaces at desktop width', async ({ page }) => {
@@ -330,6 +354,11 @@ async function loadMockedViewer(
     body: transparentPng()
   }));
 
+  await page.route('**/Public/Trips/**/MapSnapshot', route => route.fulfill({
+    contentType: 'image/png',
+    body: transparentPng()
+  }));
+
   await page.goto(options.pageUrl ?? '/__trip-viewer-test.html');
   if (status === 200) {
     await expect(page.locator('.trip-viewer-workspace')).toBeVisible();
@@ -343,6 +372,8 @@ function mockViewerState(options?: {
   clonePost?: boolean;
   canDisplayHistory?: boolean;
   canReadVisitHistory?: boolean;
+  initialView?: { latitude: number; longitude: number; zoom: number; source: string; canonicalQuery: string };
+  mapSnapshotUrl?: string | null;
   viewerMode?: 'private' | 'public' | 'embed';
 }): unknown {
   const canDisplayProgress = options?.canDisplayProgress ?? true;
@@ -488,14 +519,14 @@ function mockViewerState(options?: {
       share: isEmbed ? action(false) : action(true, '/Public/TripsNext/trip-1'),
       copyPublicUrl: isEmbed ? action(false) : action(true, '/Public/TripsNext/trip-1'),
       copyCoverUrl: action(false),
-      copyMapSnapshotUrl: action(false),
+      copyMapSnapshotUrl: options?.mapSnapshotUrl ? action(true, options.mapSnapshotUrl) : action(false),
       fullscreen: action(false),
       openCanonical: isEmbed ? action(true, '/Public/TripsNext/trip-1') : action(false),
       readable: isEmbed ? action(false) : action(true),
       print: isEmbed ? action(false) : action(true)
     },
     map: {
-      initialView: { latitude: 20, longitude: 0, zoom: 2, source: 'world', canonicalQuery: 'lat=20&lon=0&zoom=2' },
+      initialView: options?.initialView ?? { latitude: 20, longitude: 0, zoom: 2, source: 'world', canonicalQuery: 'lat=20&lon=0&zoom=2' },
       acceptedQueryParameters: ['lat', 'lon', 'lng', 'zoom'],
       emittedQueryParameters: ['lat', 'lon', 'zoom'],
       tileUrlTemplate: '/tiles/{z}/{x}/{y}.png',
@@ -529,6 +560,20 @@ function notes(displayHtml: string, plainText: string, mediaOnly = false): unkno
 
 function action(allowed: boolean, url: string | null = null, method: string | null = 'GET', requiresAuthentication = false): unknown {
   return { allowed, url, method, requiresAuthentication };
+}
+
+async function expectMarkerInsideMap(page: Page, markerSelector: string): Promise<void> {
+  const mapBox = await page.getByLabel('Trip map').boundingBox();
+  const markerBox = await page.locator(markerSelector).boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(markerBox).not.toBeNull();
+
+  const markerCenterX = markerBox!.x + markerBox!.width / 2;
+  const markerCenterY = markerBox!.y + markerBox!.height / 2;
+  expect(markerCenterX).toBeGreaterThanOrEqual(mapBox!.x);
+  expect(markerCenterX).toBeLessThanOrEqual(mapBox!.x + mapBox!.width);
+  expect(markerCenterY).toBeGreaterThanOrEqual(mapBox!.y);
+  expect(markerCenterY).toBeLessThanOrEqual(mapBox!.y + mapBox!.height);
 }
 
 function transparentPng(): Buffer {

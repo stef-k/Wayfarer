@@ -19,6 +19,29 @@ const emit = defineEmits<{
 
 const documentElement = ref<HTMLElement | null>(null);
 const tags = computed(() => orderedTags(props.state));
+// Uses only a server-returned public-safe snapshot action; readable mode never derives image URLs client-side.
+const mapSnapshotUrl = computed(() => {
+  const action = props.state.actions.copyMapSnapshotUrl;
+  return action.allowed && action.url && action.method === 'GET' && !action.requiresAuthentication
+    ? action.url
+    : null;
+});
+// Summarizes map context from already-returned DTO fields when no snapshot URL is available.
+const mapPreview = computed(() => {
+  const mappedPlaces = props.groups.reduce((total, group) => total + group.places.filter(place => place.location).length, 0);
+  const regionCenters = props.groups.filter(group => group.region.center).length;
+  const mappedAreas = props.groups.reduce((total, group) => total + group.areas.filter(area => area.geometry).length, 0);
+  const mappedSegments = props.segments.filter(summary => summary.segment.route || (summary.segment.fallbackStart && summary.segment.fallbackEnd)).length;
+  return {
+    hasFeatures: mappedPlaces + regionCenters + mappedAreas + mappedSegments > 0,
+    mappedPlaces,
+    regionCenters,
+    mappedAreas,
+    mappedSegments,
+    center: `${props.state.map.initialView.latitude.toFixed(5)}, ${props.state.map.initialView.longitude.toFixed(5)}`,
+    zoom: props.state.map.initialView.zoom
+  };
+});
 
 function backToTop(): void {
   documentElement.value?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -44,6 +67,47 @@ function backToTop(): void {
       </header>
 
       <img v-if="state.trip.coverImage?.displayUrl" class="trip-viewer-readable__cover" :src="state.trip.coverImage.displayUrl" alt="" loading="lazy">
+
+      <section class="trip-viewer-readable__map" aria-label="Readable map preview">
+        <h2>Map preview</h2>
+        <img
+          v-if="mapSnapshotUrl"
+          class="trip-viewer-readable__snapshot"
+          :src="mapSnapshotUrl"
+          alt="Trip map snapshot"
+          loading="lazy"
+        >
+        <div v-else class="trip-viewer-readable__map-fallback">
+          <strong>{{ mapPreview.hasFeatures ? 'Map preview unavailable' : 'No mapped trip features available' }}</strong>
+          <p>Showing read-only map context from returned trip state.</p>
+          <dl>
+            <div>
+              <dt>Places</dt>
+              <dd>{{ mapPreview.mappedPlaces }}</dd>
+            </div>
+            <div>
+              <dt>Regions</dt>
+              <dd>{{ mapPreview.regionCenters }}</dd>
+            </div>
+            <div>
+              <dt>Areas</dt>
+              <dd>{{ mapPreview.mappedAreas }}</dd>
+            </div>
+            <div>
+              <dt>Segments</dt>
+              <dd>{{ mapPreview.mappedSegments }}</dd>
+            </div>
+            <div>
+              <dt>Initial center</dt>
+              <dd>{{ mapPreview.center }}</dd>
+            </div>
+            <div>
+              <dt>Zoom</dt>
+              <dd>{{ mapPreview.zoom }}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
 
       <section>
         <h2>Trip notes</h2>

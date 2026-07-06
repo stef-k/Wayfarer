@@ -37,6 +37,8 @@ onMounted(() => {
   applyInitialView();
   invalidateAfterLayout();
   updateBrowserMapQuery();
+  // Applies startup query selection after initial map params are synced, before move tracking begins.
+  focusSelection(props.selection);
 
   map.on('moveend', updateBrowserMapQuery);
   map.on('popupopen', event => {
