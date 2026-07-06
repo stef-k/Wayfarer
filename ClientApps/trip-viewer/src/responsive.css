@@ -27,6 +27,7 @@ body.trip-viewer-body--drawer-open {
     position: relative;
   }
 
+  .trip-viewer-workspace > .trip-viewer-navigation,
   .trip-viewer-workspace > .trip-viewer-sidebar,
   .trip-viewer-workspace > .trip-viewer-detail {
     display: none;
@@ -189,6 +190,7 @@ body.trip-viewer-body--drawer-open {
   }
 
   .trip-viewer-mobile-drawer__panel .trip-viewer-sidebar,
+  .trip-viewer-mobile-drawer__panel .trip-viewer-navigation,
   .trip-viewer-mobile-drawer__panel .trip-viewer-detail {
     border: 0;
     border-radius: 0;

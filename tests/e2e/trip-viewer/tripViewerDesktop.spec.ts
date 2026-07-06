@@ -21,15 +21,46 @@ test('renders mocked #335 desktop viewer state and sidebar detail selection', as
   await expect(page.locator('.trip-viewer-detail__notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
 });
 
-test('renders #335 tags and action contract items without adding deferred behavior', async ({ page }) => {
+test('renders #335 tags and action contract items with readable and print parity actions', async ({ page }) => {
   await loadMockedViewer(page);
 
   await expect(page.getByLabel('Trip tags').getByText('Harbor')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Share' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
   await expect(page.getByRole('link', { name: 'Public URL' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
   await expect(page.getByRole('link', { name: 'Clone sign-in' })).toHaveAttribute('href', '/Identity/Account/Login');
-  await expect(page.getByRole('button', { name: 'Readable' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Print' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Readable' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeEnabled();
+});
+
+test('opens readable document mode from #335 readable action and preserves image-only notes', async ({ page }) => {
+  await loadMockedViewer(page);
+
+  await page.getByRole('button', { name: 'Readable' }).click();
+
+  const document = page.getByRole('dialog', { name: 'Readable trip itinerary' });
+  await expect(document.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
+  await expect(document.locator('.trip-viewer-readable__region > header').getByRole('heading', { name: 'Harbor', exact: true })).toBeVisible();
+  await expect(document.getByRole('heading', { name: 'Harbor Cafe', exact: true })).toBeVisible();
+  await expect(document.getByRole('heading', { name: 'Waterfront Zone', exact: true })).toBeVisible();
+  await expect(document.getByText('Media note', { exact: true })).toBeVisible();
+  await expect(document.locator('.trip-viewer-notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
+  await expect(document.getByRole('button', { name: 'Back to top' })).toBeVisible();
+});
+
+test('invokes browser print from the #335 print action without export navigation', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'print', {
+      configurable: true,
+      value: () => { (window as unknown as { __printed?: boolean }).__printed = true; }
+    });
+  });
+  await loadMockedViewer(page);
+
+  await page.getByRole('button', { name: 'Print' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Readable trip itinerary' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __printed?: boolean }).__printed === true)).toBe(true);
+  expect(new URL(page.url()).pathname).toBe('/__trip-viewer-test.html');
 });
 
 test('represents allowed non-get actions as deferred preview actions', async ({ page }) => {
@@ -66,6 +97,48 @@ test('hides visit badges and counts when #335 progress flags deny display', asyn
 
   await expect(page.getByLabel('Selection details').getByText('Visits')).toHaveCount(0);
   await expect(page.getByLabel('Selection details').getByText('Progress')).toHaveCount(0);
+});
+
+test('renders progress counts, filters, and private history only from #335 progress permissions', async ({ page }) => {
+  await loadMockedViewer(page, mockViewerState({ canDisplayHistory: true, canReadVisitHistory: true }));
+
+  const progress = page.getByLabel('Visit progress');
+  await expect(progress.getByText('1 / 2 places')).toBeVisible();
+  await expect(progress.getByText('50% visited')).toBeVisible();
+  await expect(progress.getByRole('button', { name: 'Visited', exact: true })).toBeVisible();
+  const regionProgress = progress.locator('.trip-viewer-progress__region');
+  await expect(regionProgress.getByText('Harbor Cafe')).toBeVisible();
+  await expect(progress.getByLabel('Visit history', { exact: true }).getByText('Harbor Cafe')).toBeVisible();
+  await expect(progress.getByText('30 min')).toBeVisible();
+
+  await progress.getByRole('button', { name: 'Not visited', exact: true }).click();
+  await expect(regionProgress.getByText('Lookout')).toBeVisible();
+  await expect(regionProgress.getByText('Harbor Cafe')).toHaveCount(0);
+});
+
+test('searches returned DTO text, notes, tags, addresses, and shows no-results state', async ({ page }) => {
+  await loadMockedViewer(page);
+
+  await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('dock coffee');
+  await expect(page.getByRole('button', { name: /place Harbor Cafe/ })).toBeVisible();
+  await page.getByRole('button', { name: /place Harbor Cafe/ }).click();
+  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+
+  await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('harbor');
+  await expect(page.getByRole('button', { name: /tag Harbor/ })).toBeVisible();
+
+  await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('not-present');
+  await expect(page.getByText('No matching trip content.')).toBeVisible();
+});
+
+test('initial placeId query selects only a place returned by #335 state', async ({ page }) => {
+  await loadMockedViewer(page, { state: mockViewerState(), pageUrl: '/__trip-viewer-test.html?placeId=place-1&lat=1&lon=2&zoom=3' });
+
+  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
+
+  await loadMockedViewer(page, { state: mockViewerState(), pageUrl: '/__trip-viewer-test.html?placeId=redacted-place' });
+  await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
 });
 
 test('preserves #337 persistent desktop surfaces at desktop width', async ({ page }) => {
@@ -210,6 +283,7 @@ async function loadMockedViewer(
     status?: number;
     configMode?: 'private' | 'public' | 'embed';
     endpoint?: string;
+    pageUrl?: string;
     onStateRequest?: (url: string) => void;
   } = mockViewerState(),
   legacyStatus = 200
@@ -221,7 +295,7 @@ async function loadMockedViewer(
   const endpoint = options.endpoint ?? '/viewer-state';
   const configMode = options.configMode ?? 'public';
 
-  await page.route('**/__trip-viewer-test.html', route => route.fulfill({
+  await page.route('**/__trip-viewer-test.html**', route => route.fulfill({
     contentType: 'text/html',
     body: `<!doctype html>
       <html>
@@ -256,7 +330,7 @@ async function loadMockedViewer(
     body: transparentPng()
   }));
 
-  await page.goto('/__trip-viewer-test.html');
+  await page.goto(options.pageUrl ?? '/__trip-viewer-test.html');
   if (status === 200) {
     await expect(page.locator('.trip-viewer-workspace')).toBeVisible();
   }
@@ -267,11 +341,15 @@ function mockViewerState(options?: {
   canDisplayCounts?: boolean;
   canReadVisitCounts?: boolean;
   clonePost?: boolean;
+  canDisplayHistory?: boolean;
+  canReadVisitHistory?: boolean;
   viewerMode?: 'private' | 'public' | 'embed';
 }): unknown {
   const canDisplayProgress = options?.canDisplayProgress ?? true;
   const canDisplayCounts = options?.canDisplayCounts ?? true;
   const canReadVisitCounts = options?.canReadVisitCounts ?? true;
+  const canDisplayHistory = options?.canDisplayHistory ?? false;
+  const canReadVisitHistory = options?.canReadVisitHistory ?? false;
   const viewerMode = options?.viewerMode ?? 'public';
   const isEmbed = viewerMode === 'embed';
 
@@ -373,14 +451,21 @@ function mockViewerState(options?: {
     visitProgress: {
       canDisplayProgress,
       canDisplayCounts,
-      canDisplayHistory: false,
+      canDisplayHistory,
       totalPlaces: 2,
       visitedPlaces: canDisplayCounts ? 1 : 0,
       percentVisited: canDisplayCounts ? 50 : 0,
       placeSummariesByPlaceId: {
         'place-1': { placeId: 'place-1', visitCount: 2, isVisited: true, firstVisitAt: null, lastVisitAt: null }
       },
-      historyRows: []
+      historyRows: canDisplayHistory ? [{
+        visitId: 'visit-1',
+        placeId: 'place-1',
+        regionId: 'region-1',
+        startedAt: '2026-07-04T09:30:00Z',
+        endedAt: '2026-07-04T10:00:00Z',
+        durationMinutes: 30
+      }] : []
     },
     permissions: {
       canViewPrivateState: false,
@@ -389,7 +474,7 @@ function mockViewerState(options?: {
       isOwner: false,
       canReadNotes: true,
       canReadVisitCounts,
-      canReadVisitHistory: false,
+      canReadVisitHistory,
       canToggleShareProgress: false,
       canUseReadableMode: true,
       canPrint: true
@@ -424,11 +509,12 @@ function isViewerLoadOptions(value: unknown): value is {
   status?: number;
   configMode?: 'private' | 'public' | 'embed';
   endpoint?: string;
+  pageUrl?: string;
   onStateRequest?: (url: string) => void;
 } {
   return typeof value === 'object'
     && value !== null
-    && ('state' in value || 'status' in value || 'configMode' in value || 'endpoint' in value);
+    && ('state' in value || 'status' in value || 'configMode' in value || 'endpoint' in value || 'pageUrl' in value);
 }
 
 function notes(displayHtml: string, plainText: string, mediaOnly = false): unknown {

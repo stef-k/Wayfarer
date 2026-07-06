@@ -6,6 +6,8 @@ import { normalizeViewerState } from './state';
 import { buildRegionGroups, buildSegmentSummaries, selectedEntity, tripSelection } from './viewModel';
 import MobileDrawer from './components/MobileDrawer.vue';
 import type { DrawerState } from './components/MobileDrawer.vue';
+import ReadableDocument from './components/ReadableDocument.vue';
+import SearchPanel from './components/SearchPanel.vue';
 import TripMap from './components/TripMap.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import TripDetail from './components/TripDetail.vue';
@@ -25,6 +27,7 @@ const drawerState = ref<DrawerState>('peek');
 const detailReturnTarget = ref<'peek' | 'hierarchy'>('peek');
 const isCompactViewport = ref(false);
 const layoutSignal = ref(0);
+const readableOpen = ref(false);
 
 const isEmbed = computed(() => props.config?.viewerMode === 'embed' || state.value?.viewerMode === 'embed');
 const regionGroups = computed(() => state.value ? buildRegionGroups(state.value) : []);
@@ -103,7 +106,7 @@ async function loadViewerState(): Promise<void> {
 
     const loadedState = normalizeViewerState(await response.json());
     state.value = loadedState;
-    selection.value = tripSelection(loadedState);
+    selection.value = initialSelection(loadedState);
     drawerState.value = 'peek';
     detailReturnTarget.value = 'peek';
     status.value = 'loaded';
@@ -128,6 +131,34 @@ function selectEntity(nextSelection: ViewerSelection, source: 'map' | 'desktop' 
 
   drawerState.value = 'detail';
   detailReturnTarget.value = source === 'hierarchy' ? 'hierarchy' : 'peek';
+}
+
+function initialSelection(loadedState: TripViewerState): ViewerSelection {
+  if (loadedState.viewerMode === 'embed') {
+    return tripSelection(loadedState);
+  }
+
+  const placeId = new URLSearchParams(window.location.search).get('placeId');
+  return placeId && loadedState.placesById[placeId]
+    ? { type: 'place', id: placeId }
+    : tripSelection(loadedState);
+}
+
+function openReadable(): void {
+  if (!state.value || isEmbed.value || !state.value.actions.readable.allowed || !state.value.permissions.canUseReadableMode) {
+    return;
+  }
+
+  readableOpen.value = true;
+}
+
+function printReadable(): void {
+  if (!state.value || isEmbed.value || !state.value.actions.print.allowed || !state.value.permissions.canPrint) {
+    return;
+  }
+
+  readableOpen.value = true;
+  window.setTimeout(() => window.print(), 0);
 }
 
 function updateDrawerState(nextState: DrawerState): void {
@@ -178,14 +209,19 @@ function signalLayoutAfterTransition(): void {
       class="trip-viewer-workspace"
       :class="`trip-viewer-workspace--drawer-${drawerState}`"
     >
-      <TripSidebar
-        v-if="!isEmbed"
-        :state="state"
-        :groups="regionGroups"
-        :segments="segments"
-        :selection="selection"
-        @select="selection => selectEntity(selection, 'desktop')"
-      />
+      <aside v-if="!isEmbed" class="trip-viewer-navigation" aria-label="Trip navigation">
+        <SearchPanel
+          :state="state"
+          @select="selection => selectEntity(selection, 'desktop')"
+        />
+        <TripSidebar
+          :state="state"
+          :groups="regionGroups"
+          :segments="segments"
+          :selection="selection"
+          @select="selection => selectEntity(selection, 'desktop')"
+        />
+      </aside>
       <TripMap
         :state="state"
         :segments="segments"
@@ -197,7 +233,10 @@ function signalLayoutAfterTransition(): void {
         v-if="!isEmbed"
         :state="state"
         :entity="selected"
+        :groups="regionGroups"
         @focus="selection => selectEntity(selection, 'desktop')"
+        @readable="openReadable"
+        @print="printReadable"
       />
       <MobileDrawer
         v-if="!isEmbed"
@@ -211,6 +250,16 @@ function signalLayoutAfterTransition(): void {
         @update:drawer-state="updateDrawerState"
         @select="selectEntity"
         @focus="selection => selectEntity(selection, 'drawer')"
+        @readable="openReadable"
+        @print="printReadable"
+      />
+      <ReadableDocument
+        v-if="!isEmbed && readableOpen"
+        :state="state"
+        :groups="regionGroups"
+        :segments="segments"
+        @close="readableOpen = false"
+        @print="printReadable"
       />
       <a
         v-if="isEmbed && embedOpenAction"

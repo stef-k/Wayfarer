@@ -2,17 +2,21 @@
 import { computed } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
 import ActionsBar from './ActionsBar.vue';
+import ProgressPanel from './ProgressPanel.vue';
 import { coordinateLabel, distanceLabel, durationLabel, orderedTags, visitSummaryForPlace } from '../viewModel';
-import type { SelectedEntity } from '../viewModel';
+import type { RegionGroup, SelectedEntity } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
 const props = defineProps<{
   entity: SelectedEntity;
   state: TripViewerState;
+  groups: RegionGroup[];
 }>();
 
 const emit = defineEmits<{
   focus: [selection: ViewerSelection];
+  readable: [];
+  print: [];
 }>();
 
 const tripTags = computed(() => orderedTags(props.state));
@@ -27,7 +31,13 @@ const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryFor
       <small v-if="entity.region && entity.type !== 'region'">In {{ entity.region.name }}</small>
     </header>
 
-    <ActionsBar v-if="entity.type === 'trip'" :actions="state.actions" :embed="state.viewerMode === 'embed'" />
+    <ActionsBar
+      v-if="entity.type === 'trip'"
+      :actions="state.actions"
+      :embed="state.viewerMode === 'embed'"
+      @readable="emit('readable')"
+      @print="emit('print')"
+    />
 
     <ul v-if="entity.type === 'trip' && tripTags.length" class="trip-viewer-tags" aria-label="Trip tags">
       <li v-for="tag in tripTags" :key="tag.slug">{{ tag.name }}</li>
@@ -45,10 +55,6 @@ const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryFor
         <div v-if="state.trip.ownerDisplayName">
           <dt>Owner</dt>
           <dd>{{ state.trip.ownerDisplayName }}</dd>
-        </div>
-        <div v-if="state.visitProgress.canDisplayProgress && state.visitProgress.canDisplayCounts && state.permissions.canReadVisitCounts">
-          <dt>Progress</dt>
-          <dd>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places · {{ state.visitProgress.percentVisited }}%</dd>
         </div>
       </template>
 
@@ -100,6 +106,8 @@ const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryFor
         </div>
       </template>
     </dl>
+
+    <ProgressPanel v-if="entity.type === 'trip'" :state="state" :groups="groups" />
 
     <button v-if="entity.type !== 'trip'" type="button" class="trip-viewer-focus-button" @click="emit('focus', { type: entity.type, id: entity.id })">
       Focus on map

@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import type { RegionGroup, SegmentSummary, SelectedEntity } from '../viewModel';
 import { notesPreview } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
+import SearchPanel from './SearchPanel.vue';
 import TripDetail from './TripDetail.vue';
 import TripSidebar from './TripSidebar.vue';
 
@@ -22,6 +23,8 @@ const emit = defineEmits<{
   'update:drawerState': [state: DrawerState];
   select: [selection: ViewerSelection, source: 'drawer' | 'hierarchy'];
   focus: [selection: ViewerSelection];
+  readable: [];
+  print: [];
 }>();
 
 const drawerElement = ref<HTMLElement | null>(null);
@@ -108,6 +111,7 @@ function handleKeydown(event: KeyboardEvent): void {
     </section>
 
     <section v-else-if="drawerState === 'hierarchy'" class="trip-viewer-mobile-drawer__panel" aria-label="Trip hierarchy">
+      <SearchPanel :state="state" @select="selectFromHierarchy" />
       <TripSidebar
         :state="state"
         :groups="groups"
@@ -121,7 +125,10 @@ function handleKeydown(event: KeyboardEvent): void {
       <TripDetail
         :state="state"
         :entity="entity"
+        :groups="groups"
         @focus="emit('focus', $event)"
+        @readable="emit('readable')"
+        @print="emit('print')"
       />
     </section>
   </aside>

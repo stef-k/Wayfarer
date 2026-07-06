@@ -6,6 +6,11 @@ const props = defineProps<{
   embed: boolean;
 }>();
 
+const emit = defineEmits<{
+  readable: [];
+  print: [];
+}>();
+
 const actionItems: Array<{ key: keyof ViewerActions; label: string }> = [
   { key: 'edit', label: 'Edit' },
   { key: 'clone', label: 'Clone' },
@@ -25,10 +30,17 @@ const actionItems: Array<{ key: keyof ViewerActions; label: string }> = [
 const visibleUrlAction = (action: ViewerAction): boolean =>
   Boolean(action.url) && (action.allowed || action.requiresAuthentication) && (action.method == null || action.method.toUpperCase() === 'GET');
 
-// #337 renders safe navigation actions only. Non-GET clone and no-URL readable/print remain #340/parity work,
-// but they are represented here so returned #335 action flags are not silently dropped.
+const functionalLocalAction = (key: keyof ViewerActions, action: ViewerAction): boolean =>
+  !props.embed && action.allowed && (key === 'readable' || key === 'print');
+
+// Non-GET clone remains represented instead of silently converted into a GET navigation.
 const deferredAction = (action: ViewerAction): boolean =>
   !visibleUrlAction(action) && (action.allowed || action.requiresAuthentication);
+
+function runLocalAction(key: keyof ViewerActions): void {
+  if (key === 'readable') emit('readable');
+  if (key === 'print') emit('print');
+}
 </script>
 
 <template>
@@ -43,6 +55,14 @@ const deferredAction = (action: ViewerAction): boolean =>
       >
         {{ item.label }}<span v-if="props.actions[item.key].requiresAuthentication"> sign-in</span>
       </a>
+      <button
+        v-else-if="functionalLocalAction(item.key, props.actions[item.key])"
+        type="button"
+        class="trip-viewer-action"
+        @click="runLocalAction(item.key)"
+      >
+        {{ item.label }}
+      </button>
       <button
         v-else-if="deferredAction(props.actions[item.key])"
         type="button"
