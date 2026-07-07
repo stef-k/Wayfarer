@@ -36,7 +36,7 @@ body {
 
 #trip-viewer-app {
   display: flex;
-  height: 100dvh;
+  height: var(--trip-viewer-available-height, 100dvh);
   min-height: 0;
   overflow: hidden;
   background: var(--trip-viewer-bg);
@@ -46,7 +46,7 @@ body {
 .trip-viewer-preview {
   display: grid;
   flex: 1;
-  height: 100%;
+  height: var(--trip-viewer-available-height, 100%);
   min-height: 0;
   min-width: 0;
   padding: 16px;

@@ -1,7 +1,7 @@
 .trip-viewer-workspace {
   display: grid;
   grid-template-columns: minmax(18rem, 28rem) minmax(0, 1fr);
-  height: calc(100dvh - 32px);
+  height: calc(var(--trip-viewer-available-height, 100dvh) - 32px);
   min-height: 0;
   min-width: 0;
   gap: 12px;
@@ -15,7 +15,7 @@
 
 .trip-viewer-preview--embed .trip-viewer-workspace {
   grid-template-columns: minmax(0, 1fr);
-  height: 100dvh;
+  height: var(--trip-viewer-available-height, 100dvh);
   position: relative;
 }
 

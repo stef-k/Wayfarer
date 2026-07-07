@@ -202,6 +202,7 @@ function updateDrawerState(nextState: DrawerState): void {
 }
 
 function updateViewportMode(): void {
+  updateAvailableHeight();
   const nextCompact = window.matchMedia('(max-width: 1023px)').matches;
   const wasCompact = isCompactViewport.value;
   isCompactViewport.value = nextCompact;
@@ -216,6 +217,16 @@ function updateViewportMode(): void {
   }
 
   signalLayoutAfterTransition();
+}
+
+function updateAvailableHeight(): void {
+  const app = document.getElementById('trip-viewer-app');
+  if (!app) return;
+
+  const top = app.getBoundingClientRect().top;
+  const footerHeight = document.querySelector('footer')?.getBoundingClientRect().height ?? 0;
+  const availableHeight = Math.max(320, window.innerHeight - top - footerHeight);
+  app.style.setProperty('--trip-viewer-available-height', `${availableHeight}px`);
 }
 
 function signalLayoutAfterTransition(): void {

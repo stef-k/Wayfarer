@@ -15,14 +15,14 @@ body.trip-viewer-body--drawer-open {
 
 @media (max-width: 1023px) {
   .trip-viewer-preview {
-    min-height: 100dvh;
+    min-height: var(--trip-viewer-available-height, 100dvh);
     padding: 0;
   }
 
   .trip-viewer-workspace {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr);
-    min-height: 100dvh;
+    min-height: var(--trip-viewer-available-height, 100dvh);
     overflow: hidden;
     position: relative;
   }
@@ -38,12 +38,12 @@ body.trip-viewer-body--drawer-open {
   .trip-viewer-map-shell {
     border-radius: 0;
     box-shadow: none;
-    min-height: 100dvh;
+    min-height: var(--trip-viewer-available-height, 100dvh);
     order: 1;
   }
 
   .trip-viewer-map {
-    min-height: 100dvh;
+    min-height: var(--trip-viewer-available-height, 100dvh);
   }
 
   .trip-viewer-workspace--drawer-collapsed .leaflet-bottom {
