@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import type { ViewerMode } from './types';
 import './styles.css';
+import './shell.css';
 import './parity.css';
 import './responsive.css';
 

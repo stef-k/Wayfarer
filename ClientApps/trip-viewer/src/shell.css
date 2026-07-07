@@ -1,0 +1,106 @@
+.trip-viewer-workspace {
+  display: grid;
+  grid-template-columns: minmax(18rem, 28rem) minmax(0, 1fr);
+  height: calc(100dvh - 32px);
+  min-height: 0;
+  min-width: 0;
+  gap: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.trip-viewer-workspace--panel-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.trip-viewer-preview--embed .trip-viewer-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  height: 100dvh;
+  position: relative;
+}
+
+.trip-viewer-content-surface {
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.trip-viewer-content-surface__toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--trip-viewer-border);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 10px 12px;
+}
+
+.trip-viewer-content-surface__toolbar > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trip-viewer-content-surface__toolbar span {
+  color: var(--trip-viewer-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.trip-viewer-content-surface__toolbar strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-viewer-content-surface__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.trip-viewer-content-surface__actions button,
+.trip-viewer-panel-toggle {
+  background: var(--trip-viewer-surface-strong);
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 6px;
+  color: var(--trip-viewer-text);
+  font: inherit;
+  font-weight: 700;
+  min-height: 34px;
+  padding: 5px 9px;
+}
+
+.trip-viewer-content-surface__actions button:hover,
+.trip-viewer-panel-toggle:hover {
+  border-color: var(--trip-viewer-accent);
+  color: var(--trip-viewer-accent);
+}
+
+.trip-viewer-content-surface__scroll {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+}
+
+.trip-viewer-panel-toggle {
+  left: 12px;
+  position: absolute;
+  top: 12px;
+  z-index: 700;
+}
+
+.trip-viewer-content-surface__scroll .trip-viewer-detail {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0 0 10px;
+}
