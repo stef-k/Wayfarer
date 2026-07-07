@@ -199,6 +199,31 @@ test('uses one desktop content surface plus map with contained viewport and side
   await expect(contentSurface).toBeVisible();
 });
 
+test('contains desktop preview below authenticated MVC chrome after shell shifts', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page, {
+    state: mockViewerState({ viewerMode: 'private' }),
+    configMode: 'private',
+    shellChrome: 'late-shift'
+  });
+
+  await expect(page.locator('.test-mvc-chrome--expanded')).toBeVisible();
+  await expect(page.getByLabel('Trip map')).toBeVisible();
+
+  await expect.poll(() => page.evaluate(() => {
+    const root = document.getElementById('trip-viewer-app');
+    const footer = document.querySelector('footer');
+    const scrollingElement = document.scrollingElement;
+    if (!root || !footer || !scrollingElement) return false;
+
+    const rootRect = root.getBoundingClientRect();
+    const footerRect = footer.getBoundingClientRect();
+    return rootRect.bottom <= footerRect.top + 1
+      && footerRect.bottom <= window.innerHeight + 1
+      && scrollingElement.scrollHeight <= scrollingElement.clientHeight + 1;
+  })).toBe(true);
+});
+
 test('desktop entity detail replaces contents and can return to full trip state', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 });
   await loadMockedViewer(page);
@@ -352,6 +377,7 @@ async function loadMockedViewer(
     endpoint?: string;
     pageUrl?: string;
     onStateRequest?: (url: string) => void;
+    shellChrome?: 'none' | 'late-shift';
   } = mockViewerState(),
   legacyStatus = 200
 ): Promise<void> {
@@ -361,6 +387,26 @@ async function loadMockedViewer(
   const status = options.status ?? 200;
   const endpoint = options.endpoint ?? '/viewer-state';
   const configMode = options.configMode ?? 'public';
+  const shellChrome = options.shellChrome ?? 'none';
+  const shellChromeMarkup = shellChrome === 'late-shift'
+    ? `<style>
+          .test-mvc-chrome, .test-mvc-footer { align-items: center; background: #f8f9fa; display: flex; padding: 0 24px; }
+          .test-mvc-chrome { border-bottom: 1px solid #dee2e6; height: 96px; transition: height 40ms linear; }
+          .test-mvc-chrome--expanded { height: 147px; }
+          .test-mvc-footer { border-top: 1px solid #dee2e6; height: 25px; }
+        </style>
+        <header class="test-mvc-chrome">Authenticated shell</header>`
+    : '';
+  const shellFooterMarkup = shellChrome === 'late-shift'
+    ? '<footer class="test-mvc-footer">Footer</footer>'
+    : '';
+  const shellShiftScript = shellChrome === 'late-shift'
+    ? `<script>
+          window.setTimeout(() => {
+            document.querySelector('.test-mvc-chrome')?.classList.add('test-mvc-chrome--expanded');
+          }, 80);
+        </script>`
+    : '';
 
   await page.route('**/__trip-viewer-test.html**', route => route.fulfill({
     contentType: 'text/html',
@@ -368,6 +414,7 @@ async function loadMockedViewer(
       <html>
         <head><title>Trip Viewer Test</title></head>
         <body>
+          ${shellChromeMarkup}
           <div id="trip-viewer-app"
             data-trip-id="trip-1"
             data-trip-name="Mocked Desktop Trip"
@@ -378,7 +425,9 @@ async function loadMockedViewer(
             data-tiles-url="/tiles/{z}/{x}/{y}.png"
             data-tile-attribution="Test tiles"
             data-asset-mode="development"></div>
+          ${shellFooterMarkup}
           <script type="module" src="/ClientApps/trip-viewer/src/main.ts"></script>
+          ${shellShiftScript}
         </body>
       </html>`
   }));

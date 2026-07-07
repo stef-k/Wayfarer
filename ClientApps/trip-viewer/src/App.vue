@@ -31,6 +31,9 @@ const fullTripViewSignal = ref(0);
 const readableOpen = ref(false);
 const desktopPanelOpen = ref(true);
 const desktopSurfaceMode = ref<'contents' | 'detail'>('contents');
+let availableHeightFrame = 0;
+let appResizeObserver: ResizeObserver | null = null;
+let documentMutationObserver: MutationObserver | null = null;
 
 const isEmbed = computed(() => props.config?.viewerMode === 'embed' || state.value?.viewerMode === 'embed');
 const regionGroups = computed(() => state.value ? buildRegionGroups(state.value) : []);
@@ -50,6 +53,7 @@ const embedOpenAction = computed(() => {
 });
 
 onMounted(() => {
+  startAvailableHeightTracking();
   updateViewportMode();
   window.addEventListener('resize', updateViewportMode);
   window.addEventListener('orientationchange', updateViewportMode);
@@ -64,6 +68,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateViewportMode);
   window.removeEventListener('orientationchange', updateViewportMode);
+  stopAvailableHeightTracking();
   document.body.classList.remove('trip-viewer-body--drawer-open');
 });
 
@@ -74,6 +79,10 @@ watch(expandedMobileDrawer, expanded => {
 
 watch(drawerState, () => {
   signalLayoutAfterTransition();
+});
+
+watch(status, () => {
+  scheduleAvailableHeightUpdate();
 });
 
 // Fetches the server-emitted #335 state endpoint without deriving privileged URLs client-side.
@@ -202,7 +211,7 @@ function updateDrawerState(nextState: DrawerState): void {
 }
 
 function updateViewportMode(): void {
-  updateAvailableHeight();
+  scheduleAvailableHeightUpdate();
   const nextCompact = window.matchMedia('(max-width: 1023px)').matches;
   const wasCompact = isCompactViewport.value;
   isCompactViewport.value = nextCompact;
@@ -219,6 +228,50 @@ function updateViewportMode(): void {
   signalLayoutAfterTransition();
 }
 
+function startAvailableHeightTracking(): void {
+  const app = document.getElementById('trip-viewer-app');
+  if (!app) return;
+
+  if ('ResizeObserver' in window) {
+    appResizeObserver = new ResizeObserver(scheduleAvailableHeightUpdate);
+    appResizeObserver.observe(app);
+    appResizeObserver.observe(document.body);
+    document.querySelectorAll('header, nav, main, footer').forEach(element => appResizeObserver?.observe(element));
+  }
+
+  if ('MutationObserver' in window) {
+    documentMutationObserver = new MutationObserver(scheduleAvailableHeightUpdate);
+    documentMutationObserver.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true
+    });
+  }
+
+  scheduleAvailableHeightUpdate();
+}
+
+function stopAvailableHeightTracking(): void {
+  if (availableHeightFrame) {
+    window.cancelAnimationFrame(availableHeightFrame);
+    availableHeightFrame = 0;
+  }
+
+  appResizeObserver?.disconnect();
+  appResizeObserver = null;
+  documentMutationObserver?.disconnect();
+  documentMutationObserver = null;
+}
+
+function scheduleAvailableHeightUpdate(): void {
+  if (availableHeightFrame) return;
+
+  availableHeightFrame = window.requestAnimationFrame(() => {
+    availableHeightFrame = 0;
+    updateAvailableHeight();
+  });
+}
+
 function updateAvailableHeight(): void {
   const app = document.getElementById('trip-viewer-app');
   if (!app) return;
@@ -226,7 +279,10 @@ function updateAvailableHeight(): void {
   const top = app.getBoundingClientRect().top;
   const footerHeight = document.querySelector('footer')?.getBoundingClientRect().height ?? 0;
   const availableHeight = Math.max(320, window.innerHeight - top - footerHeight);
-  app.style.setProperty('--trip-viewer-available-height', `${availableHeight}px`);
+  const nextHeight = `${availableHeight}px`;
+  if (app.style.getPropertyValue('--trip-viewer-available-height') !== nextHeight) {
+    app.style.setProperty('--trip-viewer-available-height', nextHeight);
+  }
 }
 
 function signalLayoutAfterTransition(): void {

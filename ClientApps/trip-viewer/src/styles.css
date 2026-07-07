@@ -29,6 +29,11 @@ body,
   min-height: 100%;
 }
 
+#trip-viewer-app,
+#trip-viewer-app * {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   overflow: hidden;
