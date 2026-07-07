@@ -105,8 +105,7 @@ function handleKeydown(event: KeyboardEvent): void {
       <p v-if="selectedSummary">{{ selectedSummary }}</p>
       <p v-else>{{ state.regionOrder.length }} regions · {{ Object.keys(state.placesById).length }} places · {{ state.segmentOrder.length }} segments</p>
       <div class="trip-viewer-mobile-drawer__actions">
-        <button type="button" @click="setDrawerState('hierarchy')">Contents</button>
-        <button type="button" @click="setDrawerState('detail')">Details</button>
+        <button type="button" @click="setDrawerState('hierarchy')">Browse trip contents</button>
       </div>
     </section>
 

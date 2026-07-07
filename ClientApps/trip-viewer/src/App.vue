@@ -27,13 +27,18 @@ const drawerState = ref<DrawerState>('peek');
 const detailReturnTarget = ref<'peek' | 'hierarchy'>('peek');
 const isCompactViewport = ref(false);
 const layoutSignal = ref(0);
+const fullTripViewSignal = ref(0);
 const readableOpen = ref(false);
+const desktopPanelOpen = ref(true);
+const desktopSurfaceMode = ref<'contents' | 'detail'>('contents');
 
 const isEmbed = computed(() => props.config?.viewerMode === 'embed' || state.value?.viewerMode === 'embed');
 const regionGroups = computed(() => state.value ? buildRegionGroups(state.value) : []);
 const segments = computed(() => state.value ? buildSegmentSummaries(state.value) : []);
 const selected = computed(() => state.value && selection.value ? selectedEntity(state.value, selection.value) : null);
+const tripSummary = computed(() => state.value ? selectedEntity(state.value, tripSelection(state.value)) : null);
 const expandedMobileDrawer = computed(() => isCompactViewport.value && (drawerState.value === 'hierarchy' || drawerState.value === 'detail'));
+const showDesktopDetail = computed(() => !isCompactViewport.value && desktopSurfaceMode.value === 'detail');
 const embedOpenAction = computed(() => {
   if (!state.value || state.value.viewerMode !== 'embed') return null;
 
@@ -109,6 +114,8 @@ async function loadViewerState(): Promise<void> {
     selection.value = initialSelection(loadedState);
     drawerState.value = 'peek';
     detailReturnTarget.value = 'peek';
+    desktopPanelOpen.value = true;
+    desktopSurfaceMode.value = selection.value.type === 'trip' ? 'contents' : 'detail';
     status.value = 'loaded';
     signalLayoutAfterTransition();
   } catch (error) {
@@ -120,6 +127,9 @@ async function loadViewerState(): Promise<void> {
 function selectEntity(nextSelection: ViewerSelection, source: 'map' | 'desktop' | 'drawer' | 'hierarchy' = 'desktop'): void {
   selection.value = nextSelection;
   if (!isCompactViewport.value) {
+    desktopPanelOpen.value = true;
+    desktopSurfaceMode.value = nextSelection.type === 'trip' ? 'contents' : 'detail';
+    signalLayoutAfterTransition();
     return;
   }
 
@@ -131,6 +141,29 @@ function selectEntity(nextSelection: ViewerSelection, source: 'map' | 'desktop' 
 
   drawerState.value = 'detail';
   detailReturnTarget.value = source === 'hierarchy' ? 'hierarchy' : 'peek';
+}
+
+function showDesktopContents(): void {
+  desktopPanelOpen.value = true;
+  desktopSurfaceMode.value = 'contents';
+  signalLayoutAfterTransition();
+}
+
+function hideDesktopPanel(): void {
+  desktopPanelOpen.value = false;
+  signalLayoutAfterTransition();
+}
+
+function restoreFullTripView(): void {
+  if (!state.value) return;
+
+  selection.value = tripSelection(state.value);
+  desktopPanelOpen.value = true;
+  desktopSurfaceMode.value = 'contents';
+  drawerState.value = 'peek';
+  detailReturnTarget.value = 'peek';
+  fullTripViewSignal.value += 1;
+  signalLayoutAfterTransition();
 }
 
 function initialSelection(loadedState: TripViewerState): ViewerSelection {
@@ -207,36 +240,76 @@ function signalLayoutAfterTransition(): void {
     <div
       v-else-if="status === 'loaded' && state && selected && selection"
       class="trip-viewer-workspace"
-      :class="`trip-viewer-workspace--drawer-${drawerState}`"
+      :class="[
+        `trip-viewer-workspace--drawer-${drawerState}`,
+        {
+          'trip-viewer-workspace--panel-hidden': !desktopPanelOpen,
+          'trip-viewer-workspace--detail-open': desktopSurfaceMode === 'detail'
+        }
+      ]"
     >
-      <aside v-if="!isEmbed" class="trip-viewer-navigation" aria-label="Trip navigation">
-        <SearchPanel
-          :state="state"
-          @select="selection => selectEntity(selection, 'desktop')"
-        />
-        <TripSidebar
-          :state="state"
-          :groups="regionGroups"
-          :segments="segments"
-          :selection="selection"
-          @select="selection => selectEntity(selection, 'desktop')"
-        />
+      <aside v-if="!isEmbed && desktopPanelOpen" class="trip-viewer-content-surface" aria-label="Trip content">
+        <header class="trip-viewer-content-surface__toolbar">
+          <div>
+            <span>{{ showDesktopDetail ? selected.eyebrow : 'Trip contents' }}</span>
+            <strong>{{ showDesktopDetail ? selected.title : state.trip.name }}</strong>
+          </div>
+          <div class="trip-viewer-content-surface__actions">
+            <button v-if="showDesktopDetail" type="button" @click="showDesktopContents">Back</button>
+            <button type="button" @click="restoreFullTripView">Full trip</button>
+            <button type="button" @click="hideDesktopPanel">Hide</button>
+          </div>
+        </header>
+
+        <div v-if="!showDesktopDetail" class="trip-viewer-content-surface__scroll">
+          <TripDetail
+            v-if="tripSummary"
+            :state="state"
+            :entity="tripSummary"
+            :groups="regionGroups"
+            @focus="selection => selectEntity(selection, 'desktop')"
+            @readable="openReadable"
+            @print="printReadable"
+          />
+          <SearchPanel
+            :state="state"
+            @select="selection => selectEntity(selection, 'desktop')"
+          />
+          <TripSidebar
+            :state="state"
+            :groups="regionGroups"
+            :segments="segments"
+            :selection="selection"
+            @select="selection => selectEntity(selection, 'desktop')"
+          />
+        </div>
+
+        <div v-else class="trip-viewer-content-surface__scroll">
+          <TripDetail
+            :state="state"
+            :entity="selected"
+            :groups="regionGroups"
+            @focus="selection => selectEntity(selection, 'desktop')"
+            @readable="openReadable"
+            @print="printReadable"
+          />
+        </div>
       </aside>
+      <button
+        v-if="!isEmbed && !desktopPanelOpen"
+        type="button"
+        class="trip-viewer-panel-toggle"
+        @click="showDesktopContents"
+      >
+        Show trip
+      </button>
       <TripMap
         :state="state"
         :segments="segments"
         :selection="selection"
         :layout-signal="layoutSignal"
+        :full-trip-view-signal="fullTripViewSignal"
         @select="selection => selectEntity(selection, 'map')"
-      />
-      <TripDetail
-        v-if="!isEmbed"
-        :state="state"
-        :entity="selected"
-        :groups="regionGroups"
-        @focus="selection => selectEntity(selection, 'desktop')"
-        @readable="openReadable"
-        @print="printReadable"
       />
       <MobileDrawer
         v-if="!isEmbed"

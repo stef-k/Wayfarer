@@ -12,6 +12,7 @@ const props = defineProps<{
   selection: ViewerSelection;
   segments: SegmentSummary[];
   layoutSignal: number;
+  fullTripViewSignal: number;
 }>();
 
 const emit = defineEmits<{
@@ -65,6 +66,11 @@ watch(() => props.selection, () => {
 }, { deep: true });
 
 watch(() => props.layoutSignal, () => {
+  invalidateAfterLayout();
+});
+
+watch(() => props.fullTripViewSignal, () => {
+  applyInitialView();
   invalidateAfterLayout();
 });
 

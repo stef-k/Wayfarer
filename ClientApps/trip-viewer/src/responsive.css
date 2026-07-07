@@ -28,6 +28,8 @@ body.trip-viewer-body--drawer-open {
   }
 
   .trip-viewer-workspace > .trip-viewer-navigation,
+  .trip-viewer-workspace > .trip-viewer-content-surface,
+  .trip-viewer-workspace > .trip-viewer-panel-toggle,
   .trip-viewer-workspace > .trip-viewer-sidebar,
   .trip-viewer-workspace > .trip-viewer-detail {
     display: none;
@@ -178,7 +180,7 @@ body.trip-viewer-body--drawer-open {
   .trip-viewer-mobile-drawer__actions {
     display: grid;
     gap: 8px;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .trip-viewer-mobile-drawer__panel {

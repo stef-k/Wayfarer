@@ -93,6 +93,7 @@ test('syncs mocked map marker and popup selection to the detail surface', async 
 
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
   await expect(page.getByLabel('Selection details').getByText('Dock coffee and breakfast.')).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
 
   await page.getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
@@ -139,6 +140,7 @@ test('searches returned DTO text, notes, tags, addresses, and shows no-results s
   await expect(page.getByRole('button', { name: /place Harbor Cafe/ })).toBeVisible();
   await page.getByRole('button', { name: /place Harbor Cafe/ }).click();
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
 
   await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('harbor');
   await expect(page.getByRole('button', { name: /tag Harbor/ })).toBeVisible();
@@ -154,6 +156,7 @@ test('initial placeId query selects only a place returned by #335 state', async 
   });
 
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
   await expect(page.locator('.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toBeVisible();
   await expectMarkerInsideMap(page, '.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]');
@@ -165,14 +168,54 @@ test('initial placeId query selects only a place returned by #335 state', async 
   await expect(page.locator('.trip-viewer-map-marker--selected')).toHaveCount(0);
 });
 
-test('preserves #337 persistent desktop surfaces at desktop width', async ({ page }) => {
+test('uses one desktop content surface plus map with contained viewport and sidebar hide show', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 });
   await loadMockedViewer(page);
 
-  await expect(page.getByLabel('Trip contents')).toBeVisible();
+  const contentSurface = page.getByRole('complementary', { name: 'Trip content', exact: true });
+  await expect(contentSurface).toBeVisible();
   await expect(page.getByLabel('Trip map')).toBeVisible();
-  await expect(page.getByLabel('Selection details')).toBeVisible();
+  await expect(page.locator('.trip-viewer-workspace > .trip-viewer-detail')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-workspace > .trip-viewer-navigation')).toHaveCount(0);
   await expect(page.locator('.trip-viewer-mobile-drawer')).toBeHidden();
+
+  await expect.poll(() => page.evaluate(() => {
+    const root = document.getElementById('trip-viewer-app');
+    const scrollingElement = document.scrollingElement;
+    return Boolean(root)
+      && root!.clientHeight <= window.innerHeight
+      && scrollingElement !== null
+      && scrollingElement.scrollHeight <= scrollingElement.clientHeight + 1;
+  })).toBe(true);
+
+  const widthWithPanel = await page.getByLabel('Trip map').evaluate(element => element.getBoundingClientRect().width);
+  await page.getByRole('button', { name: 'Hide' }).click();
+  await expect(contentSurface).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show trip' })).toBeVisible();
+  const widthWithoutPanel = await page.getByLabel('Trip map').evaluate(element => element.getBoundingClientRect().width);
+  expect(widthWithoutPanel).toBeGreaterThan(widthWithPanel);
+
+  await page.getByRole('button', { name: 'Show trip' }).click();
+  await expect(contentSurface).toBeVisible();
+});
+
+test('desktop entity detail replaces contents and can return to full trip state', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page);
+
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+
+  await expect(page.getByLabel('Trip content').getByRole('heading', { name: 'Waterfront Zone' })).toBeVisible();
+  await expect(page.getByLabel('Trip content').getByText('Media note', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toBeVisible();
+
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+  await page.getByRole('button', { name: 'Full trip' }).click();
+  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveClass(/trip-viewer-list-item--selected/);
+  await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toBeVisible();
 });
 
 test('uses a mobile map-first drawer with hierarchy, detail, collapse, and escape states', async ({ page }) => {
@@ -181,9 +224,9 @@ test('uses a mobile map-first drawer with hierarchy, detail, collapse, and escap
 
   await expect(page.getByLabel('Trip map')).toBeVisible();
   await expect(page.locator('.trip-viewer-mobile-drawer--peek')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Contents' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Browse trip contents' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Contents' }).click();
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
   await expect(page.locator('.trip-viewer-mobile-drawer--hierarchy')).toBeVisible();
   await expect(page.getByLabel('Trip hierarchy').getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
 
@@ -222,7 +265,7 @@ test('keeps image-only mobile notes inside the scrollable detail drawer', async 
   await page.setViewportSize({ width: 390, height: 844 });
   await loadMockedViewer(page);
 
-  await page.getByRole('button', { name: 'Contents' }).click();
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
   await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Waterfront Zone/ }).click();
 
   const detailPanel = page.getByLabel('Selected trip details');
