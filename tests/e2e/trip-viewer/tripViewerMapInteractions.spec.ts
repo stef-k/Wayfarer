@@ -47,7 +47,7 @@ test('measure mode consumes feature taps and restores normal popup selection aft
   await page.getByAltText(/Harbor Cafe/).click();
   await expect(page.locator('.trip-viewer-map-distance-label')).toHaveCount(0);
   await expect(page.locator('.trip-viewer-mobile-drawer--detail')).toHaveCount(0);
-  await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+  await expect.poll(() => page.locator('.leaflet-popup').count()).toBe(0);
 
   await page.getByRole('button', { name: 'Measure distance' }).click();
   await page.getByAltText(/Harbor Cafe/).click();

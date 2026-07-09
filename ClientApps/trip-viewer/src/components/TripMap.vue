@@ -211,6 +211,8 @@ function selectFeature(event: L.LeafletMouseEvent, nextSelection: ViewerSelectio
     event.originalEvent?.preventDefault();
     L.DomEvent.stopPropagation(event.originalEvent);
     map?.closePopup();
+    // Leaflet's bound-popup listener can run after this feature listener; close it on completion too.
+    window.setTimeout(() => map?.closePopup(), 0);
     return;
   }
 
