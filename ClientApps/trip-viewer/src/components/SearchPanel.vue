@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { SearchResult } from '../search';
 import { hasSearchQuery, searchViewerState } from '../search';
 import type { TripViewerState, ViewerSelection } from '../types';
 
 const props = defineProps<{
   state: TripViewerState;
+  modelValue: string;
 }>();
 
 const emit = defineEmits<{
   select: [selection: ViewerSelection];
+  'update:modelValue': [value: string];
   clear: [];
 }>();
 
-const query = ref('');
+const query = computed({
+  get: () => props.modelValue,
+  set: value => emit('update:modelValue', value)
+});
 const hasQuery = computed(() => hasSearchQuery(query.value));
 const results = computed(() => hasQuery.value ? searchViewerState(props.state, query.value) : []);
 

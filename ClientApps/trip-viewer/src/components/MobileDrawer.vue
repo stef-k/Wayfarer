@@ -23,12 +23,14 @@ const emit = defineEmits<{
   'update:drawerState': [state: DrawerState];
   select: [selection: ViewerSelection, source: 'drawer' | 'hierarchy'];
   focus: [selection: ViewerSelection];
+  clear: [];
   readable: [];
   print: [];
 }>();
 
 const drawerElement = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
+const searchQuery = ref('');
 const isExpanded = computed(() => props.drawerState === 'hierarchy' || props.drawerState === 'detail');
 const selectedSummary = computed(() => notesPreview(props.entity.notes, 86));
 
@@ -110,7 +112,12 @@ function handleKeydown(event: KeyboardEvent): void {
     </section>
 
     <section v-else-if="drawerState === 'hierarchy'" class="trip-viewer-mobile-drawer__panel" aria-label="Trip hierarchy">
-      <SearchPanel :state="state" @select="selectFromHierarchy" />
+      <SearchPanel
+        v-model="searchQuery"
+        :state="state"
+        @select="selectFromHierarchy"
+        @clear="emit('clear')"
+      />
       <TripSidebar
         :state="state"
         :groups="groups"

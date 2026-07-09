@@ -123,7 +123,7 @@ test('uses Wayfarer marker icons, attribution, and read-only map tools', async (
 
   await expect(page.locator('.trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/eat\.png$/);
   await expect(page.locator('.trip-viewer-map-marker__image[alt="Lookout"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-green\/camera\.png$/);
-  await expect(page.getByRole('link', { name: 'Wayfarer' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Wayfarer', exact: true })).toBeVisible();
   await expect(page.getByText('Test tiles')).toBeVisible();
   await expect(page.getByText(/Zoom: \d+/)).toBeVisible();
 
@@ -137,8 +137,8 @@ test('uses Wayfarer marker icons, attribution, and read-only map tools', async (
   await page.getByRole('button', { name: 'Measure distance' }).click();
   const mapBox = await page.getByLabel('Trip map').boundingBox();
   expect(mapBox).not.toBeNull();
-  await page.mouse.click(mapBox!.x + mapBox!.width * 0.45, mapBox!.y + mapBox!.height * 0.45);
-  await page.mouse.click(mapBox!.x + mapBox!.width * 0.55, mapBox!.y + mapBox!.height * 0.55);
+  await page.mouse.click(mapBox!.x + mapBox!.width * 0.25, mapBox!.y + mapBox!.height * 0.24);
+  await page.mouse.click(mapBox!.x + mapBox!.width * 0.75, mapBox!.y + mapBox!.height * 0.3);
   await expect(page.locator('.trip-viewer-map-distance-label')).toContainText(/km/);
 });
 
@@ -155,7 +155,7 @@ test('clearing search restores full trip hierarchy, selection, and map state', a
 
   await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveClass(/trip-viewer-list-item--selected/);
-  await expect(page.getByRole('button', { name: /Harbor Cafe/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
   await expect(page.locator('.trip-viewer-map-marker--selected')).toHaveCount(0);
 });
 

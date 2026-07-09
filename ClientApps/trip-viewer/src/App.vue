@@ -29,6 +29,7 @@ const isCompactViewport = ref(false);
 const layoutSignal = ref(0);
 const fullTripViewSignal = ref(0);
 const readableOpen = ref(false);
+const searchQuery = ref('');
 const desktopPanelOpen = ref(true);
 const desktopSurfaceMode = ref<'contents' | 'detail'>('contents');
 let availableHeightFrame = 0;
@@ -125,6 +126,7 @@ async function loadViewerState(): Promise<void> {
     detailReturnTarget.value = 'peek';
     desktopPanelOpen.value = true;
     desktopSurfaceMode.value = selection.value.type === 'trip' ? 'contents' : 'detail';
+    searchQuery.value = '';
     status.value = 'loaded';
     signalLayoutAfterTransition();
   } catch (error) {
@@ -339,6 +341,7 @@ function signalLayoutAfterTransition(): void {
             @print="printReadable"
           />
           <SearchPanel
+            v-model="searchQuery"
             :state="state"
             @select="selection => selectEntity(selection, 'desktop')"
             @clear="restoreFullTripView"
@@ -391,6 +394,7 @@ function signalLayoutAfterTransition(): void {
         @update:drawer-state="updateDrawerState"
         @select="selectEntity"
         @focus="selection => selectEntity(selection, 'drawer')"
+        @clear="restoreFullTripView"
         @readable="openReadable"
         @print="printReadable"
       />
