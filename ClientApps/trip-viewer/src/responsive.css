@@ -238,6 +238,12 @@ body.trip-viewer-body--drawer-open {
     min-height: 40px;
   }
 
+  .trip-viewer-actions__menu {
+    max-width: calc(100vw - 1rem);
+    position: fixed;
+    right: 0.5rem;
+  }
+
   .trip-viewer-map .leaflet-control-attribution {
     max-width: calc(100vw - 5.5rem);
   }

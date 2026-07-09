@@ -189,7 +189,8 @@ function initialSelection(loadedState: TripViewerState): ViewerSelection {
 }
 
 function openReadable(): void {
-  if (!state.value || isEmbed.value || !state.value.actions.readable.allowed || !state.value.permissions.canUseReadableMode) {
+  // The server-returned action is the authority for entering readable mode.
+  if (!state.value || isEmbed.value || !state.value.actions.readable.allowed) {
     return;
   }
 
@@ -197,7 +198,8 @@ function openReadable(): void {
 }
 
 function printReadable(): void {
-  if (!state.value || isEmbed.value || !state.value.actions.print.allowed || !state.value.permissions.canPrint) {
+  // Browser print remains a local action and never navigates to the PDF export URL.
+  if (!state.value || isEmbed.value || !state.value.actions.print.allowed) {
     return;
   }
 

@@ -22,21 +22,16 @@ test('renders mocked #335 desktop viewer state and sidebar detail selection', as
   await expect(page.locator('.trip-viewer-detail__notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
 });
 
-test('renders #335 tags and action contract items with readable and print parity actions', async ({ page }) => {
+test('renders #335 tags beside the full-trip detail', async ({ page }) => {
   await loadMockedViewer(page);
 
   await expect(page.getByLabel('Trip tags').getByText('Harbor')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Share' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
-  await expect(page.getByRole('link', { name: 'Public URL' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
-  await expect(page.getByRole('link', { name: 'Clone sign-in' })).toHaveAttribute('href', '/Identity/Account/Login');
-  await expect(page.getByRole('button', { name: 'Readable' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Print' })).toBeEnabled();
 });
 
 test('opens readable document mode from #335 readable action and preserves image-only notes', async ({ page }) => {
   await loadMockedViewer(page, mockViewerState({ mapSnapshotUrl: '/Public/Trips/trip-1/MapSnapshot' }));
 
-  await page.getByRole('button', { name: 'Readable' }).click();
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
 
   const document = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(document.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
@@ -52,7 +47,7 @@ test('opens readable document mode from #335 readable action and preserves image
 test('shows a DTO-backed readable map fallback when no map snapshot URL is returned', async ({ page }) => {
   await loadMockedViewer(page, mockViewerState({ mapSnapshotUrl: null }));
 
-  await page.getByRole('button', { name: 'Readable' }).click();
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
 
   const mapPreview = page.getByRole('dialog', { name: 'Readable trip itinerary' }).getByLabel('Readable map preview');
   await expect(mapPreview.getByRole('heading', { name: 'Map preview' })).toBeVisible();
@@ -73,18 +68,12 @@ test('invokes browser print from the #335 print action without export navigation
   });
   await loadMockedViewer(page);
 
-  await page.getByRole('button', { name: 'Print' }).click();
+  await page.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Print' }).click();
 
   await expect(page.getByRole('dialog', { name: 'Readable trip itinerary' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __printed?: boolean }).__printed === true)).toBe(true);
   expect(new URL(page.url()).pathname).toBe('/__trip-viewer-test.html');
-});
-
-test('represents allowed non-get actions as deferred preview actions', async ({ page }) => {
-  await loadMockedViewer(page, mockViewerState({ clonePost: true }));
-
-  await expect(page.getByRole('button', { name: 'Clone' })).toBeDisabled();
-  await expect(page.getByRole('link', { name: 'Clone sign-in' })).toHaveCount(0);
 });
 
 test('hides visit badges and counts when #335 progress flags deny display', async ({ page }) => {

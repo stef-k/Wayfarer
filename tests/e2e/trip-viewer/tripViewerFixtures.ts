@@ -261,6 +261,61 @@ export function mockViewerState(options?: {
   };
 }
 
+// Provides explicit #347 server-action matrices without deriving URLs in the viewer tests.
+export function mockActionState(scenario: 'private-owner' | 'public-owner' | 'public-non-owner' | 'public-anonymous' | 'embed'): unknown {
+  const state = mockViewerState({ viewerMode: scenario === 'embed' ? 'embed' : scenario === 'private-owner' ? 'private' : 'public' }) as any;
+  const action = (allowed: boolean, url: string | null = null, method: string | null = 'GET', requiresAuthentication = false) => ({ allowed, url, method, requiresAuthentication });
+  const publicUrl = '/Public/TripsNext/trip-1';
+  const hidden = action(false);
+
+  state.actions = {
+    edit: hidden,
+    clone: hidden,
+    exportWayfarerKml: hidden,
+    exportGoogleMyMapsKml: hidden,
+    exportPdf: hidden,
+    share: hidden,
+    copyPublicUrl: hidden,
+    copyCoverUrl: hidden,
+    copyMapSnapshotUrl: hidden,
+    fullscreen: hidden,
+    openCanonical: hidden,
+    readable: hidden,
+    print: hidden
+  };
+
+  if (scenario === 'embed') {
+    state.actions.openCanonical = action(true, publicUrl);
+    state.actions.fullscreen = action(true, publicUrl);
+    return state;
+  }
+
+  state.actions.exportWayfarerKml = action(true, '/Trip/ExportWayfarerKml/trip-1');
+  state.actions.exportGoogleMyMapsKml = action(true, '/Trip/ExportGoogleMyMapsKml/trip-1');
+  state.actions.exportPdf = action(true, '/Trip/ExportPdf/trip-1');
+  state.actions.readable = action(true);
+  state.actions.print = action(true);
+
+  if (scenario === 'private-owner') {
+    state.actions.edit = action(true, '/User/Trip/Edit/trip-1');
+    return state;
+  }
+
+  state.actions.share = action(true, publicUrl);
+  state.actions.copyPublicUrl = action(true, publicUrl);
+  if (scenario === 'public-owner') {
+    state.actions.edit = action(true, '/User/Trip/Edit/trip-1');
+    state.actions.copyCoverUrl = action(true, '/Public/Trips/trip-1/CoverImage');
+    state.actions.copyMapSnapshotUrl = action(true, '/Public/Trips/trip-1/MapSnapshot');
+  } else if (scenario === 'public-non-owner') {
+    state.actions.clone = action(true, '/User/Trip/Clone/trip-1', 'POST');
+  } else {
+    state.actions.clone = action(false, '/Identity/Account/Login', 'GET', true);
+  }
+
+  return state;
+}
+
 function isViewerLoadOptions(value: unknown): value is {
   state?: unknown;
   status?: number;

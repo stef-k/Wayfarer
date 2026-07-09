@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
-import ProgressPanel from './ProgressPanel.vue';
 import type { RegionGroup, SegmentSummary } from '../viewModel';
 import { distanceLabel, durationLabel, orderedTags, segmentTitle } from '../viewModel';
 import type { TripViewerState } from '../types';
@@ -52,7 +51,8 @@ function backToTop(): void {
   <section class="trip-viewer-readable" role="dialog" aria-modal="true" aria-label="Readable trip itinerary">
     <header class="trip-viewer-readable__toolbar">
       <button type="button" @click="emit('close')">Close</button>
-      <button v-if="state.actions.print.allowed && state.permissions.canPrint" type="button" @click="emit('print')">Print</button>
+      <!-- Readable mode intentionally retains only Close, browser Print, and Back to top. -->
+      <button v-if="state.actions.print.allowed" type="button" @click="emit('print')">Print</button>
     </header>
 
     <article ref="documentElement" class="trip-viewer-readable__document">
@@ -113,8 +113,6 @@ function backToTop(): void {
         <h2>Trip notes</h2>
         <NotesDisplay :notes="state.trip.notes" />
       </section>
-
-      <ProgressPanel :state="state" :groups="groups" />
 
       <section v-for="group in groups" :key="group.region.id" class="trip-viewer-readable__region">
         <header>
