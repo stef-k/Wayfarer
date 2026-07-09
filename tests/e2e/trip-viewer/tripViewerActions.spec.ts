@@ -1,6 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { loadMockedViewer, mockActionState } from './tripViewerFixtures';
 
+// Overrides only the server-returned embed aliases needed for navigation-safety cases.
+function embedStateWithActions(openCanonical: Record<string, unknown>, fullscreen: Record<string, unknown>): unknown {
+  const state = mockActionState('embed') as { actions: { openCanonical: Record<string, unknown>; fullscreen: Record<string, unknown> } };
+  state.actions.openCanonical = { ...state.actions.openCanonical, ...openCanonical };
+  state.actions.fullscreen = { ...state.actions.fullscreen, ...fullscreen };
+  return state;
+}
+
 // Covers #347's action matrix separately from layout and map-interaction responsibilities.
 test('groups private-owner actions into the required primary and More menu order', async ({ page }) => {
   await loadMockedViewer(page, { state: mockActionState('private-owner'), configMode: 'private' });
@@ -106,7 +114,38 @@ test('keeps readable controls scoped and embed action aliases map-only', async (
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed?: boolean }).printed === true)).toBe(true);
 
   await loadMockedViewer(page, { state: mockActionState('embed'), configMode: 'embed' });
-  await expect(page.getByRole('link', { name: 'Open trip' })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Open trip' })).toHaveAttribute('href', '/Public/TripsNext/trip-1');
   await expect(page.getByRole('navigation', { name: 'Trip actions' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'More actions' })).toHaveCount(0);
+});
+
+test('does not render a POST openCanonical action as embed navigation', async ({ page }) => {
+  await loadMockedViewer(page, {
+    state: embedStateWithActions({ allowed: true, url: '/Public/TripsNext/post', method: 'POST' }, { allowed: false }),
+    configMode: 'embed'
+  });
+
+  await expect(page.getByRole('link', { name: 'Open trip' })).toHaveCount(0);
+});
+
+test('uses a valid GET fullscreen action only when openCanonical is non-GET', async ({ page }) => {
+  await loadMockedViewer(page, {
+    state: embedStateWithActions(
+      { allowed: true, url: '/Public/TripsNext/post', method: 'POST' },
+      { allowed: true, url: '/Public/TripsNext/fullscreen', method: 'get' }),
+    configMode: 'embed'
+  });
+
+  await expect(page.getByRole('link', { name: 'Open trip' })).toHaveAttribute('href', '/Public/TripsNext/fullscreen');
+});
+
+test('does not render embed navigation when both aliases are non-GET', async ({ page }) => {
+  await loadMockedViewer(page, {
+    state: embedStateWithActions(
+      { allowed: true, url: '/Public/TripsNext/post', method: 'POST' },
+      { allowed: true, url: '/Public/TripsNext/fullscreen', method: 'DELETE' }),
+    configMode: 'embed'
+  });
+
+  await expect(page.getByRole('link', { name: 'Open trip' })).toHaveCount(0);
 });

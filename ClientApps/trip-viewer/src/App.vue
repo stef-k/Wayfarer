@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { TripViewerMountConfig } from './main';
-import type { TripViewerState, ViewerSelection } from './types';
+import type { TripViewerState, ViewerAction, ViewerSelection } from './types';
 import { normalizeViewerState } from './state';
 import { buildRegionGroups, buildSegmentSummaries, selectedEntity, tripSelection } from './viewModel';
 import MobileDrawer from './components/MobileDrawer.vue';
@@ -43,14 +43,22 @@ const selected = computed(() => state.value && selection.value ? selectedEntity(
 const tripSummary = computed(() => state.value ? selectedEntity(state.value, tripSelection(state.value)) : null);
 const expandedMobileDrawer = computed(() => isCompactViewport.value && (drawerState.value === 'hierarchy' || drawerState.value === 'detail'));
 const showDesktopDetail = computed(() => !isCompactViewport.value && desktopSurfaceMode.value === 'detail');
+
+// Permits only server-authorized GET (or #335-compatible omitted-method) navigation actions.
+function isNavigationAction(action: ViewerAction): boolean {
+  return action.allowed
+    && Boolean(action.url)
+    && (action.method == null || action.method.toUpperCase() === 'GET');
+}
+
 const embedOpenAction = computed(() => {
   if (!state.value || state.value.viewerMode !== 'embed') return null;
 
-  const action = state.value.actions.openCanonical.allowed
-    ? state.value.actions.openCanonical
-    : state.value.actions.fullscreen;
+  const canonicalAction = state.value.actions.openCanonical;
+  if (isNavigationAction(canonicalAction)) return canonicalAction;
 
-  return action.allowed && action.url ? action : null;
+  const fullscreenAction = state.value.actions.fullscreen;
+  return isNavigationAction(fullscreenAction) ? fullscreenAction : null;
 });
 
 onMounted(() => {
