@@ -2,9 +2,10 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { notesPreview, segmentTitle, visitSummaryForPlace } from '../viewModel';
+import { coordinateLabel, distanceLabel, durationLabel, notesPreview, segmentTitle, visitSummaryForPlace } from '../viewModel';
 import type { SegmentSummary } from '../viewModel';
-import { placeMarkerIcon, popupHtml, regionMarkerIcon, toLatLng } from '../mapRendering';
+import { placeMarkerIcon, popupHtml, regionMarkerIcon, toLatLng, wayfarerAttributionPrefix } from '../mapRendering';
+import type { PopupRow } from '../mapRendering';
 import type { EntityType, Guid, TripViewerState, ViewerSelection } from '../types';
 
 const props = defineProps<{
@@ -22,16 +23,24 @@ const emit = defineEmits<{
 const mapElement = ref<HTMLDivElement | null>(null);
 let map: L.Map | null = null;
 let layerGroup: L.LayerGroup | null = null;
+let mapTools: L.Control | null = null;
+let measureTool: MeasureTool | null = null;
 const featureLayers = new Map<string, L.Layer>();
 
 onMounted(() => {
   if (!mapElement.value) return;
 
-  map = L.map(mapElement.value, { zoomControl: true });
+  map = L.map(mapElement.value, { zoomControl: false });
+  map.attributionControl.setPrefix(wayfarerAttributionPrefix);
   L.tileLayer(props.state.map.tileUrlTemplate, {
     attribution: props.state.map.tileAttribution,
     maxZoom: 19
   }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+  if (props.state.viewerMode !== 'embed') {
+    mapTools = createMapToolsControl();
+    mapTools.addTo(map);
+  }
   layerGroup = L.layerGroup().addTo(map);
 
   renderLayers();
@@ -54,6 +63,12 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  measureTool?.cancel();
+  measureTool = null;
+  if (mapTools && map) {
+    map.removeControl(mapTools);
+  }
+  mapTools = null;
   map?.remove();
   map = null;
   layerGroup = null;
@@ -93,7 +108,9 @@ function renderLayers(): void {
     if (!region?.center) return;
     const selected = isSelected('region', region.id);
     const marker = L.marker(toLatLng(region.center), { icon: regionMarkerIcon(region.name, selected) })
-      .bindPopup(popupHtml(region.name, 'Region center', notesPreview(region.notes), 'region', region.id))
+      .bindPopup(popupHtml(region.name, 'Region center', notesPreview(region.notes), 'region', region.id, [
+        { label: 'Center', value: coordinateLabel(region.center) }
+      ]))
       .on('click', () => emit('select', { type: 'region', id: region.id }));
     addFeature('region', region.id, marker);
   });
@@ -103,7 +120,7 @@ function renderLayers(): void {
       const place = props.state.placesById[placeId];
       if (!place?.location) return;
       const marker = L.marker(toLatLng(place.location), { icon: placeMarkerIcon(place, isSelected('place', place.id), visitSummaryForPlace(props.state, place)) })
-        .bindPopup(popupHtml(place.name, 'Place', notesPreview(place.notes), 'place', place.id))
+        .bindPopup(popupHtml(place.name, 'Place', notesPreview(place.notes), 'place', place.id, placePopupRows(place.id)))
         .on('click', () => emit('select', { type: 'place', id: place.id }));
       addFeature('place', place.id, marker);
     });
@@ -119,7 +136,9 @@ function renderLayers(): void {
           opacity: 0.9,
           weight: isSelected('area', area.id) ? 4 : 2
         }
-      }).bindPopup(popupHtml(area.name, 'Area', notesPreview(area.notes), 'area', area.id))
+      }).bindPopup(popupHtml(area.name, 'Area', notesPreview(area.notes), 'area', area.id, [
+        { label: 'Region', value: props.state.regionsById[area.regionId]?.name ?? 'Unknown region' }
+      ]))
         .on('click', () => emit('select', { type: 'area', id: area.id }));
       addFeature('area', area.id, polygon);
     });
@@ -133,7 +152,7 @@ function renderLayers(): void {
       opacity: 0.86,
       weight: isSelected('segment', summary.segment.id) ? 5 : 3,
       dashArray: summary.segment.route ? undefined : '6 6'
-    }).bindPopup(popupHtml(segmentTitle(summary), 'Segment', notesPreview(summary.segment.notes), 'segment', summary.segment.id))
+    }).bindPopup(popupHtml(segmentTitle(summary), 'Segment', notesPreview(summary.segment.notes), 'segment', summary.segment.id, segmentPopupRows(summary)))
       .on('click', () => emit('select', { type: 'segment', id: summary.segment.id }));
     addFeature('segment', summary.segment.id, polyline);
   });
@@ -201,6 +220,217 @@ function updateBrowserMapQuery(): void {
   params.delete('lng');
   params.set('zoom', String(map.getZoom()));
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+}
+
+function placePopupRows(placeId: Guid): PopupRow[] {
+  const place = props.state.placesById[placeId];
+  if (!place) return [];
+  const rows: PopupRow[] = [
+    { label: 'Region', value: props.state.regionsById[place.regionId]?.name ?? 'Unknown region' },
+    { label: 'Coordinates', value: coordinateLabel(place.location) }
+  ];
+  if (place.address) {
+    rows.push({ label: 'Address', value: place.address });
+  }
+
+  const visitSummary = visitSummaryForPlace(props.state, place);
+  if (visitSummary?.isVisited) {
+    rows.push({ label: 'Visits', value: visitSummary.visitCount === 1 ? 'Visited once' : `Visited ${visitSummary.visitCount} times` });
+  }
+
+  return rows;
+}
+
+function segmentPopupRows(summary: SegmentSummary): PopupRow[] {
+  return [
+    { label: 'Mode', value: summary.segment.mode || 'Segment' },
+    { label: 'Distance', value: distanceLabel(summary.segment.estimatedDistanceKm) },
+    { label: 'Duration', value: durationLabel(summary.segment.estimatedDurationMinutes) }
+  ];
+}
+
+function createMapToolsControl(): L.Control {
+  const control = new L.Control({ position: 'topright' });
+  control.onAdd = mapInstance => {
+    const container = L.DomUtil.create('div', 'leaflet-bar trip-viewer-map-tools');
+    L.DomEvent.disableClickPropagation(container);
+    L.DomEvent.disableScrollPropagation(container);
+
+    const zoomText = L.DomUtil.create('span', 'trip-viewer-map-tools__zoom', container);
+    const updateZoom = () => { zoomText.textContent = `Zoom: ${mapInstance.getZoom()}`; };
+    updateZoom();
+    mapInstance.on('zoomend', updateZoom);
+
+    const measureButton = mapToolButton(container, 'Measure distance', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/rulers.svg');
+    const copyButton = mapToolButton(container, 'Copy map link', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/link-45deg.svg');
+
+    L.DomEvent.on(measureButton, 'click', event => {
+      L.DomEvent.stop(event);
+      if (measureTool) {
+        measureTool.cancel();
+        measureTool = null;
+        measureButton.classList.remove('active');
+        return;
+      }
+
+      measureButton.classList.add('active');
+      measureTool = createMeasureTool(mapInstance, () => {
+        measureTool = null;
+        measureButton.classList.remove('active');
+      });
+    });
+
+    L.DomEvent.on(copyButton, 'click', event => {
+      L.DomEvent.stop(event);
+      void copyCurrentMapLink(mapInstance, copyButton);
+    });
+
+    const originalOnRemove = control.onRemove;
+    control.onRemove = removedMap => {
+      removedMap.off('zoomend', updateZoom);
+      originalOnRemove?.call(control, removedMap);
+    };
+
+    return container;
+  };
+
+  return control;
+}
+
+function mapToolButton(container: HTMLElement, label: string, iconUrl: string): HTMLButtonElement {
+  const button = L.DomUtil.create('button', 'trip-viewer-map-tools__button', container) as HTMLButtonElement;
+  button.type = 'button';
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.innerHTML = `<img src="${iconUrl}" alt="" width="18" height="18">`;
+  return button;
+}
+
+async function copyCurrentMapLink(mapInstance: L.Map, button: HTMLButtonElement): Promise<void> {
+  const center = mapInstance.getCenter();
+  const url = new URL(window.location.href);
+  url.searchParams.set('lat', center.lat.toFixed(6));
+  url.searchParams.set('lon', center.lng.toFixed(6));
+  url.searchParams.delete('lng');
+  url.searchParams.set('zoom', String(mapInstance.getZoom()));
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url.toString());
+    } else {
+      copyTextFallback(url.toString());
+    }
+    showCopied(button);
+  } catch {
+    copyTextFallback(url.toString());
+    showCopied(button);
+  }
+}
+
+function copyTextFallback(text: string): void {
+  const input = document.createElement('input');
+  input.value = text;
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand('copy');
+  input.remove();
+}
+
+function showCopied(button: HTMLButtonElement): void {
+  const previousLabel = button.getAttribute('aria-label') ?? 'Copy map link';
+  const previousTitle = button.title;
+  const previousHtml = button.innerHTML;
+  button.setAttribute('aria-label', 'Map link copied');
+  button.title = 'Map link copied';
+  button.innerHTML = '<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/check.svg" alt="" width="18" height="18">';
+  window.setTimeout(() => {
+    button.setAttribute('aria-label', previousLabel);
+    button.title = previousTitle;
+    button.innerHTML = previousHtml;
+  }, 1400);
+}
+
+interface MeasureTool {
+  cancel: () => void;
+}
+
+function createMeasureTool(mapInstance: L.Map, onCancel: () => void): MeasureTool {
+  const points: L.LatLng[] = [];
+  const pointMarkers: L.CircleMarker[] = [];
+  const labelMarkers: L.Marker[] = [];
+  let line: L.Polyline | null = null;
+  const help = L.control({ position: 'bottomleft' });
+
+  const reset = () => {
+    pointMarkers.splice(0).forEach(marker => marker.remove());
+    labelMarkers.splice(0).forEach(marker => marker.remove());
+    line?.remove();
+    line = null;
+  };
+
+  const cancel = () => {
+    reset();
+    help.remove();
+    mapInstance.off('click', onMapClick);
+    window.removeEventListener('keydown', onKey);
+    mapInstance.getContainer().style.cursor = '';
+    onCancel();
+  };
+
+  const onMapClick = (event: L.LeafletMouseEvent) => {
+    points.push(event.latlng);
+    pointMarkers.push(L.circleMarker(event.latlng, {
+      radius: 4,
+      color: '#0d6efd',
+      fillColor: '#0d6efd',
+      fillOpacity: 0.9
+    }).addTo(mapInstance));
+
+    if (!line) {
+      line = L.polyline(points, { color: '#0d6efd', dashArray: '5 5', weight: 3 }).addTo(mapInstance);
+    } else {
+      line.setLatLngs(points);
+    }
+
+    if (points.length > 1) {
+      const km = distanceKilometers(points);
+      labelMarkers.push(L.marker(event.latlng, {
+        icon: L.divIcon({
+          className: 'trip-viewer-map-distance-label',
+          html: `<span>${km.toFixed(2)} km</span>`,
+          iconSize: [76, 26],
+          iconAnchor: [38, 13]
+        })
+      }).addTo(mapInstance));
+    }
+  };
+
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      cancel();
+    }
+  };
+
+  help.onAdd = () => {
+    const container = L.DomUtil.create('div', 'leaflet-bar trip-viewer-map-measure-help');
+    container.textContent = 'Click points to measure. Esc cancels.';
+    return container;
+  };
+  help.addTo(mapInstance);
+  mapInstance.getContainer().style.cursor = 'crosshair';
+  mapInstance.on('click', onMapClick);
+  window.addEventListener('keydown', onKey);
+
+  return { cancel };
+}
+
+function distanceKilometers(points: L.LatLng[]): number {
+  return points.reduce((total, point, index) => {
+    if (index === 0) return total;
+    return total + points[index - 1].distanceTo(point) / 1000;
+  }, 0);
 }
 
 function isSelected(type: EntityType, id: Guid): boolean {

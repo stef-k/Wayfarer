@@ -341,6 +341,7 @@ function signalLayoutAfterTransition(): void {
           <SearchPanel
             :state="state"
             @select="selection => selectEntity(selection, 'desktop')"
+            @clear="restoreFullTripView"
           />
           <TripSidebar
             :state="state"

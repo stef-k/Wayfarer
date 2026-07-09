@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [selection: ViewerSelection];
+  clear: [];
 }>();
 
 const query = ref('');
@@ -22,6 +23,7 @@ function selectResult(result: SearchResult): void {
 
 function clearSearch(): void {
   query.value = '';
+  emit('clear');
 }
 </script>
 

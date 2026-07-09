@@ -277,6 +277,61 @@ body {
   white-space: normal;
 }
 
+.trip-viewer-map-tools {
+  align-items: center;
+  background: color-mix(in srgb, var(--trip-viewer-surface) 96%, transparent);
+  border-color: var(--trip-viewer-border);
+  color: var(--trip-viewer-text);
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+}
+
+.trip-viewer-map-tools__zoom {
+  border-right: 1px solid var(--trip-viewer-border);
+  color: var(--trip-viewer-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.trip-viewer-map-tools__button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--trip-viewer-border);
+  color: var(--trip-viewer-text);
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.trip-viewer-map-tools__button:last-child {
+  border-right: 0;
+}
+
+.trip-viewer-map-tools__button:hover,
+.trip-viewer-map-tools__button.active {
+  background: color-mix(in srgb, var(--trip-viewer-accent) 14%, transparent);
+}
+
+.trip-viewer-map-measure-help,
+.trip-viewer-map-distance-label span {
+  background: color-mix(in srgb, var(--trip-viewer-surface) 96%, transparent);
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 6px;
+  color: var(--trip-viewer-text);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 5px 7px;
+  white-space: nowrap;
+}
+
 .trip-viewer-map-marker {
   background: transparent;
   border: 0;
@@ -321,6 +376,28 @@ body {
 .trip-viewer-popup span,
 .trip-viewer-popup p {
   color: #475569;
+  margin: 0;
+}
+
+.trip-viewer-popup dl {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+
+.trip-viewer-popup dl div {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.trip-viewer-popup dt {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.trip-viewer-popup dd {
+  color: #1f2937;
   margin: 0;
 }
 

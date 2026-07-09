@@ -93,6 +93,11 @@ test('syncs mocked map marker and popup selection to the detail surface', async 
 
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
   await expect(page.getByLabel('Selection details').getByText('Dock coffee and breakfast.')).toBeVisible();
+  await expect(page.locator('.leaflet-popup').getByText('Region')).toBeVisible();
+  await expect(page.locator('.leaflet-popup').getByText('Harbor', { exact: true })).toBeVisible();
+  await expect(page.locator('.leaflet-popup').getByText('Coordinates')).toBeVisible();
+  await expect(page.locator('.leaflet-popup').getByText('Address')).toBeVisible();
+  await expect(page.locator('.leaflet-popup').getByText('1 Dock Street')).toBeVisible();
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
 
@@ -101,6 +106,57 @@ test('syncs mocked map marker and popup selection to the detail surface', async 
   await page.getByRole('button', { name: 'View details' }).click();
 
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+});
+
+test('uses Wayfarer marker icons, attribution, and read-only map tools', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          (window as unknown as { __copiedMapLink?: string }).__copiedMapLink = value;
+        }
+      }
+    });
+  });
+  await loadMockedViewer(page);
+
+  await expect(page.locator('.trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/eat\.png$/);
+  await expect(page.locator('.trip-viewer-map-marker__image[alt="Lookout"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-green\/camera\.png$/);
+  await expect(page.getByRole('link', { name: 'Wayfarer' })).toBeVisible();
+  await expect(page.getByText('Test tiles')).toBeVisible();
+  await expect(page.getByText(/Zoom: \d+/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Copy map link' }).click();
+  const copied = await page.waitForFunction(() => (window as unknown as { __copiedMapLink?: string }).__copiedMapLink).then(handle => handle.jsonValue() as Promise<string>);
+  const copiedUrl = new URL(copied);
+  expect(copiedUrl.searchParams.get('lat')).toMatch(/^-?\d+\.\d{6}$/);
+  expect(copiedUrl.searchParams.get('lon')).toMatch(/^-?\d+\.\d{6}$/);
+  expect(copiedUrl.searchParams.get('zoom')).toMatch(/^\d+$/);
+
+  await page.getByRole('button', { name: 'Measure distance' }).click();
+  const mapBox = await page.getByLabel('Trip map').boundingBox();
+  expect(mapBox).not.toBeNull();
+  await page.mouse.click(mapBox!.x + mapBox!.width * 0.45, mapBox!.y + mapBox!.height * 0.45);
+  await page.mouse.click(mapBox!.x + mapBox!.width * 0.55, mapBox!.y + mapBox!.height * 0.55);
+  await expect(page.locator('.trip-viewer-map-distance-label')).toContainText(/km/);
+});
+
+test('clearing search restores full trip hierarchy, selection, and map state', async ({ page }) => {
+  await loadMockedViewer(page);
+
+  await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('dock coffee');
+  await page.getByRole('button', { name: /place Harbor Cafe/ }).click();
+  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
+  await expect(page.locator('.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Clear' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveClass(/trip-viewer-list-item--selected/);
+  await expect(page.getByRole('button', { name: /Harbor Cafe/ })).toBeVisible();
+  await expect(page.locator('.trip-viewer-map-marker--selected')).toHaveCount(0);
 });
 
 test('hides visit badges and counts when #335 progress flags deny display', async ({ page }) => {
@@ -329,6 +385,8 @@ test('renders embed as a screenshot-safe map-only preview with public open actio
   await expect(page.getByRole('link', { name: 'Clone' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Wayfarer KML' })).toHaveCount(0);
   await expect(page.getByLabel('Trip map')).toHaveCSS('min-height', '450px');
+  await expect(page.getByRole('button', { name: 'Measure distance' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Copy map link' })).toHaveCount(0);
 });
 
 test('fetches the shell-emitted embed state endpoint with lng compatibility params intact', async ({ page }) => {

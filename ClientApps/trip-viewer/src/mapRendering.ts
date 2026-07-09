@@ -43,15 +43,27 @@ export function markerIconUrl(iconName: string | null | undefined, markerColor: 
   return `${iconBasePath}/${safePathSegment(markerColor, 'bg-blue')}/${safePathSegment(iconName, 'marker')}.png`;
 }
 
-export function popupHtml(title: string, type: string, preview: string, entityType: string, entityId: string): string {
+export function popupHtml(title: string, type: string, preview: string, entityType: string, entityId: string, rows: PopupRow[] = []): string {
   const body = preview ? `<p>${escapeHtml(preview)}</p>` : '';
+  const facts = rows.length
+    ? `<dl>${rows.map(row => `<div><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`).join('')}</dl>`
+    : '';
   return `<div class="trip-viewer-popup">
     <strong>${escapeHtml(title)}</strong>
     <span>${escapeHtml(type)}</span>
+    ${facts}
     ${body}
     <button type="button" class="trip-viewer-popup__button" data-trip-viewer-select="${escapeHtml(entityType)}:${escapeHtml(entityId)}">View details</button>
   </div>`;
 }
+
+export interface PopupRow {
+  label: string;
+  value: string;
+}
+
+export const wayfarerAttributionPrefix =
+  '&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>';
 
 function appMarkerIcon(options: { alt: string; className: string; extraHtml?: string; src: string; style?: string }): L.DivIcon {
   const style = options.style ? ` style="${escapeHtml(options.style)}"` : '';
