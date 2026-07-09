@@ -87,106 +87,57 @@ test('represents allowed non-get actions as deferred preview actions', async ({ 
 });
 
 test('syncs mocked map marker and popup selection to the detail surface', async ({ page }) => {
-  await loadMockedViewer(page);
-
-  await page.getByAltText(/Harbor Cafe/).click();
-
-  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
-  await expect(page.getByLabel('Selection details').getByText('Dock coffee and breakfast.')).toBeVisible();
-  await expect(page.locator('.leaflet-popup').getByText('Region')).toBeVisible();
-  await expect(page.locator('.leaflet-popup').getByText('Harbor', { exact: true })).toBeVisible();
-  await expect(page.locator('.leaflet-popup').getByText('Coordinates')).toBeVisible();
-  await expect(page.locator('.leaflet-popup').getByText('Address')).toBeVisible();
-  await expect(page.locator('.leaflet-popup').getByText('1 Dock Street')).toBeVisible();
-  await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
-
-  await page.getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
-  await page.getByAltText(/Harbor Cafe/).click();
-  await page.getByRole('button', { name: 'View details' }).click();
-
+  await loadMockedViewer(page); await page.getByAltText(/Harbor Cafe/).click();
+  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible(); await expect(page.getByLabel('Selection details').getByText('Dock coffee and breakfast.')).toBeVisible();
+  const popupText = await page.locator('.leaflet-popup').innerText();
+  expect(popupText).toContain('Region'); expect(popupText).toContain('Harbor'); expect(popupText).toContain('Coordinates'); expect(popupText).toContain('Address'); expect(popupText).toContain('1 Dock Street');
+  await page.getByRole('button', { name: 'Back' }).click(); await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toHaveClass(/trip-viewer-list-item--selected/);
+  await page.getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click(); await page.getByAltText(/Harbor Cafe/).click(); await page.getByRole('button', { name: 'View details' }).click();
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
 });
 
 test('uses Wayfarer marker icons, attribution, and read-only map tools', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        writeText: async (value: string) => {
-          (window as unknown as { __copiedMapLink?: string }).__copiedMapLink = value;
-        }
-      }
-    });
-  });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value: string) => { (window as unknown as { __copiedMapLink?: string }).__copiedMapLink = value; } } }));
   await loadMockedViewer(page);
-
-  await expect(page.locator('.trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/eat\.png$/);
-  await expect(page.locator('.trip-viewer-map-marker__image[alt="Lookout"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-green\/camera\.png$/);
-  await expect(page.getByRole('link', { name: 'Wayfarer', exact: true })).toBeVisible();
-  await expect(page.getByText('Test tiles')).toBeVisible();
-  await expect(page.getByText(/Zoom: \d+/)).toBeVisible();
+  await expect(page.locator('.trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/eat\.png$/); await expect(page.locator('.trip-viewer-map-marker__image[alt="Lookout"]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-green\/camera\.png$/);
+  await expect(page.getByRole('link', { name: 'Wayfarer', exact: true })).toBeVisible(); await expect(page.getByText('Test tiles')).toBeVisible(); await expect(page.getByText(/Zoom: \d+/)).toBeVisible();
 
   await page.getByRole('button', { name: 'Copy map link' }).click();
-  const copied = await page.waitForFunction(() => (window as unknown as { __copiedMapLink?: string }).__copiedMapLink).then(handle => handle.jsonValue() as Promise<string>);
-  const copiedUrl = new URL(copied);
-  expect(copiedUrl.searchParams.get('lat')).toMatch(/^-?\d+\.\d{6}$/);
-  expect(copiedUrl.searchParams.get('lon')).toMatch(/^-?\d+\.\d{6}$/);
-  expect(copiedUrl.searchParams.get('zoom')).toMatch(/^\d+$/);
+  const copied = await page.waitForFunction(() => (window as unknown as { __copiedMapLink?: string }).__copiedMapLink).then(handle => handle.jsonValue() as Promise<string>); const copiedUrl = new URL(copied);
+  expect(copiedUrl.searchParams.get('lat')).toMatch(/^-?\d+\.\d{6}$/); expect(copiedUrl.searchParams.get('lon')).toMatch(/^-?\d+\.\d{6}$/); expect(copiedUrl.searchParams.get('zoom')).toMatch(/^\d+$/);
 
   await page.getByRole('button', { name: 'Measure distance' }).click();
-  const mapBox = await page.getByLabel('Trip map').boundingBox();
-  expect(mapBox).not.toBeNull();
-  await page.mouse.click(mapBox!.x + mapBox!.width * 0.25, mapBox!.y + mapBox!.height * 0.24);
-  await page.mouse.click(mapBox!.x + mapBox!.width * 0.75, mapBox!.y + mapBox!.height * 0.3);
+  const mapBox = await page.getByLabel('Trip map').boundingBox(); expect(mapBox).not.toBeNull();
+  await page.mouse.click(mapBox!.x + mapBox!.width * 0.25, mapBox!.y + mapBox!.height * 0.24); await page.mouse.click(mapBox!.x + mapBox!.width * 0.75, mapBox!.y + mapBox!.height * 0.3);
   await expect(page.locator('.trip-viewer-map-distance-label')).toContainText(/km/);
 });
 
 test('clearing search restores full trip hierarchy, selection, and map state', async ({ page }) => {
   await loadMockedViewer(page);
-
-  await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('dock coffee');
-  await page.getByRole('button', { name: /place Harbor Cafe/ }).click();
-  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
-  await expect(page.locator('.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Back' }).click();
-  await page.getByRole('button', { name: 'Clear' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveClass(/trip-viewer-list-item--selected/);
-  await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
-  await expect(page.locator('.trip-viewer-map-marker--selected')).toHaveCount(0);
+  await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('dock coffee'); await page.getByRole('button', { name: /place Harbor Cafe/ }).click();
+  await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible(); await expect(page.locator('.trip-viewer-map-marker--selected .trip-viewer-map-marker__image[alt^="Harbor Cafe"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click(); await page.getByRole('button', { name: 'Clear' }).click();
+  await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible(); await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveClass(/trip-viewer-list-item--selected/);
+  await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible(); await expect(page.locator('.trip-viewer-map-marker--selected')).toHaveCount(0);
 });
 
 test('hides visit badges and counts when #335 progress flags deny display', async ({ page }) => {
-  const state = mockViewerState({ canDisplayProgress: false, canDisplayCounts: false, canReadVisitCounts: false });
-  await loadMockedViewer(page, state);
-
-  await expect(page.getByAltText('Harbor Cafe')).toBeVisible();
-  await expect(page.getByAltText(/visited 2 time/)).toHaveCount(0);
-
+  const state = mockViewerState({ canDisplayProgress: false, canDisplayCounts: false, canReadVisitCounts: false }); await loadMockedViewer(page, state);
+  await expect(page.getByAltText('Harbor Cafe')).toBeVisible(); await expect(page.getByAltText(/visited 2 time/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' }).click();
-
-  await expect(page.getByLabel('Selection details').getByText('Visits')).toHaveCount(0);
-  await expect(page.getByLabel('Selection details').getByText('Progress')).toHaveCount(0);
+  await expect(page.getByLabel('Selection details').getByText('Visits')).toHaveCount(0); await expect(page.getByLabel('Selection details').getByText('Progress')).toHaveCount(0);
 });
 
 test('renders progress counts, filters, and private history only from #335 progress permissions', async ({ page }) => {
   await loadMockedViewer(page, mockViewerState({ canDisplayHistory: true, canReadVisitHistory: true }));
 
   const progress = page.getByLabel('Visit progress');
-  await expect(progress.getByText('1 / 2 places')).toBeVisible();
-  await expect(progress.getByText('50% visited')).toBeVisible();
-  await expect(progress.getByRole('button', { name: 'Visited', exact: true })).toBeVisible();
+  await expect(progress.getByText('1 / 2 places')).toBeVisible(); await expect(progress.getByText('50% visited')).toBeVisible(); await expect(progress.getByRole('button', { name: 'Visited', exact: true })).toBeVisible();
   const regionProgress = progress.locator('.trip-viewer-progress__region');
-  await expect(regionProgress.getByText('Harbor Cafe')).toBeVisible();
-  await expect(progress.getByLabel('Visit history', { exact: true }).getByText('Harbor Cafe')).toBeVisible();
-  await expect(progress.getByText('30 min')).toBeVisible();
+  await expect(regionProgress.getByText('Harbor Cafe')).toBeVisible(); await expect(progress.getByLabel('Visit history', { exact: true }).getByText('Harbor Cafe')).toBeVisible(); await expect(progress.getByText('30 min')).toBeVisible();
 
   await progress.getByRole('button', { name: 'Not visited', exact: true }).click();
-  await expect(regionProgress.getByText('Lookout')).toBeVisible();
-  await expect(regionProgress.getByText('Harbor Cafe')).toHaveCount(0);
+  await expect(regionProgress.getByText('Lookout')).toBeVisible(); await expect(regionProgress.getByText('Harbor Cafe')).toHaveCount(0);
 });
 
 test('searches returned DTO text, notes, tags, addresses, and shows no-results state', async ({ page }) => {
