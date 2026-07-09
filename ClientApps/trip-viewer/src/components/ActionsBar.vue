@@ -86,7 +86,8 @@ function toggleMenu(): void {
 function closeMenu(): void {
   if (!menuOpen.value) return;
   menuOpen.value = false;
-  void nextTick(() => trigger.value?.focus());
+  // Defer beyond the originating pointer click so outside-click dismissal cannot steal focus back.
+  void nextTick(() => window.setTimeout(() => trigger.value?.focus(), 0));
 }
 
 function focusMenuItem(direction: 'first' | 'last' | 'next' | 'previous'): void {

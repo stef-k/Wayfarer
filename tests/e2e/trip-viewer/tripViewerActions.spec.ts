@@ -81,6 +81,10 @@ test('supports menu keyboard navigation, Escape focus return, and mobile full-tr
   await expect(page.getByRole('menuitem', { name: 'Print' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.getByRole('heading', { name: 'Mocked Desktop Trip' }).click();
+  await expect(page.getByRole('menu', { name: 'More trip actions' })).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'More actions' })).toHaveCount(0);
