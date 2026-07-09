@@ -381,6 +381,7 @@ function signalLayoutAfterTransition(): void {
         :layout-signal="layoutSignal"
         :full-trip-view-signal="fullTripViewSignal"
         @select="selection => selectEntity(selection, 'map')"
+        @restore-full-trip="restoreFullTripView"
       />
       <MobileDrawer
         v-if="!isEmbed"

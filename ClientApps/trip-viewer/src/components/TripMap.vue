@@ -18,6 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [selection: ViewerSelection];
+  'restore-full-trip': [];
 }>();
 
 const mapElement = ref<HTMLDivElement | null>(null);
@@ -85,7 +86,7 @@ watch(() => props.layoutSignal, () => {
 });
 
 watch(() => props.fullTripViewSignal, () => {
-  applyInitialView();
+  applyMapView('reset');
   invalidateAfterLayout();
 });
 
@@ -111,7 +112,7 @@ function renderLayers(): void {
       .bindPopup(popupHtml(region.name, 'Region center', notesPreview(region.notes), 'region', region.id, [
         { label: 'Center', value: coordinateLabel(region.center) }
       ]))
-      .on('click', () => emit('select', { type: 'region', id: region.id }));
+      .on('click', event => selectFeature(event, { type: 'region', id: region.id }));
     addFeature('region', region.id, marker);
   });
 
@@ -121,7 +122,7 @@ function renderLayers(): void {
       if (!place?.location) return;
       const marker = L.marker(toLatLng(place.location), { icon: placeMarkerIcon(place, isSelected('place', place.id), visitSummaryForPlace(props.state, place)) })
         .bindPopup(popupHtml(place.name, 'Place', notesPreview(place.notes), 'place', place.id, placePopupRows(place.id)))
-        .on('click', () => emit('select', { type: 'place', id: place.id }));
+        .on('click', event => selectFeature(event, { type: 'place', id: place.id }));
       addFeature('place', place.id, marker);
     });
 
@@ -139,7 +140,7 @@ function renderLayers(): void {
       }).bindPopup(popupHtml(area.name, 'Area', notesPreview(area.notes), 'area', area.id, [
         { label: 'Region', value: props.state.regionsById[area.regionId]?.name ?? 'Unknown region' }
       ]))
-        .on('click', () => emit('select', { type: 'area', id: area.id }));
+        .on('click', event => selectFeature(event, { type: 'area', id: area.id }));
       addFeature('area', area.id, polygon);
     });
   });
@@ -153,7 +154,7 @@ function renderLayers(): void {
       weight: isSelected('segment', summary.segment.id) ? 5 : 3,
       dashArray: summary.segment.route ? undefined : '6 6'
     }).bindPopup(popupHtml(segmentTitle(summary), 'Segment', notesPreview(summary.segment.notes), 'segment', summary.segment.id, segmentPopupRows(summary)))
-      .on('click', () => emit('select', { type: 'segment', id: summary.segment.id }));
+      .on('click', event => selectFeature(event, { type: 'segment', id: summary.segment.id }));
     addFeature('segment', summary.segment.id, polyline);
   });
 }
@@ -164,11 +165,56 @@ function addFeature(type: EntityType, id: Guid, layer: L.Layer): void {
 }
 
 function applyInitialView(): void {
+  applyMapView('initial');
+}
+
+// Resolves initial query precedence separately from deliberate full-trip restoration.
+function applyMapView(intent: 'initial' | 'reset'): void {
   if (!map) return;
+  const resolved = resolveMapView(intent);
+  if (resolved.kind === 'fit' && fitAllFeatures()) return;
+  map.setView([resolved.latitude, resolved.longitude], resolved.zoom);
+}
+
+function resolveMapView(intent: 'initial' | 'reset'): { kind: 'view'; latitude: number; longitude: number; zoom: number } | { kind: 'fit'; latitude: number; longitude: number; zoom: number } {
   const initial = props.state.map.initialView;
-  const shouldFitContent = initial.source !== 'query' && initial.source !== 'trip';
-  if (shouldFitContent && fitAllFeatures()) return;
-  map.setView([initial.latitude, initial.longitude], initial.zoom);
+  if (intent === 'initial') {
+    return initial.source === 'query' || initial.source === 'trip'
+      ? { kind: 'view', ...initial }
+      : { kind: 'fit', ...initial };
+  }
+
+  const { center, zoom } = props.state.trip;
+  if (center && isValidMapView(center.latitude, center.longitude, zoom)) {
+    return { kind: 'view', latitude: center.latitude, longitude: center.longitude, zoom };
+  }
+
+  // Reset must never reuse query coordinates; feature bounds are preferred before this safe fallback.
+  return { kind: 'fit', latitude: 20, longitude: 0, zoom: 2 };
+}
+
+function isValidMapView(latitude: number, longitude: number, zoom: number | null): zoom is number {
+  return Number.isFinite(latitude)
+    && latitude >= -90
+    && latitude <= 90
+    && Number.isFinite(longitude)
+    && longitude >= -180
+    && longitude <= 180
+    && zoom !== null
+    && Number.isFinite(zoom)
+    && zoom >= 0
+    && zoom <= 19;
+}
+
+function selectFeature(event: L.LeafletMouseEvent, nextSelection: ViewerSelection): void {
+  if (measureTool?.consumeFeatureClick(event.latlng)) {
+    event.originalEvent?.preventDefault();
+    L.DomEvent.stopPropagation(event.originalEvent);
+    map?.closePopup();
+    return;
+  }
+
+  emit('select', nextSelection);
 }
 
 function fitAllFeatures(): boolean {
@@ -262,6 +308,7 @@ function createMapToolsControl(): L.Control {
     mapInstance.on('zoomend', updateZoom);
 
     const measureButton = mapToolButton(container, 'Measure distance', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/rulers.svg');
+    const resetButton = mapToolButton(container, 'Recenter full trip', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/arrow-counterclockwise.svg');
     const copyButton = mapToolButton(container, 'Copy map link', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/link-45deg.svg');
 
     L.DomEvent.on(measureButton, 'click', event => {
@@ -278,6 +325,11 @@ function createMapToolsControl(): L.Control {
         measureTool = null;
         measureButton.classList.remove('active');
       });
+    });
+
+    L.DomEvent.on(resetButton, 'click', event => {
+      L.DomEvent.stop(event);
+      emit('restore-full-trip');
     });
 
     L.DomEvent.on(copyButton, 'click', event => {
@@ -354,6 +406,7 @@ function showCopied(button: HTMLButtonElement): void {
 
 interface MeasureTool {
   cancel: () => void;
+  consumeFeatureClick: (point: L.LatLng) => boolean;
 }
 
 function createMeasureTool(mapInstance: L.Map, onCancel: () => void): MeasureTool {
@@ -379,9 +432,9 @@ function createMeasureTool(mapInstance: L.Map, onCancel: () => void): MeasureToo
     onCancel();
   };
 
-  const onMapClick = (event: L.LeafletMouseEvent) => {
-    points.push(event.latlng);
-    pointMarkers.push(L.circleMarker(event.latlng, {
+  const addPoint = (point: L.LatLng) => {
+    points.push(point);
+    pointMarkers.push(L.circleMarker(point, {
       radius: 4,
       color: '#0d6efd',
       fillColor: '#0d6efd',
@@ -396,7 +449,7 @@ function createMeasureTool(mapInstance: L.Map, onCancel: () => void): MeasureToo
 
     if (points.length > 1) {
       const km = distanceKilometers(points);
-      labelMarkers.push(L.marker(event.latlng, {
+      labelMarkers.push(L.marker(point, {
         icon: L.divIcon({
           className: 'trip-viewer-map-distance-label',
           html: `<span>${km.toFixed(2)} km</span>`,
@@ -406,6 +459,8 @@ function createMeasureTool(mapInstance: L.Map, onCancel: () => void): MeasureToo
       }).addTo(mapInstance));
     }
   };
+
+  const onMapClick = (event: L.LeafletMouseEvent) => addPoint(event.latlng);
 
   const onKey = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
@@ -423,7 +478,10 @@ function createMeasureTool(mapInstance: L.Map, onCancel: () => void): MeasureToo
   mapInstance.on('click', onMapClick);
   window.addEventListener('keydown', onKey);
 
-  return { cancel };
+  return { cancel, consumeFeatureClick: point => {
+    addPoint(point);
+    return true;
+  } };
 }
 
 function distanceKilometers(points: L.LatLng[]): number {
