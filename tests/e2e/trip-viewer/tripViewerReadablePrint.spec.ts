@@ -52,6 +52,20 @@ test('closes to the originating readable trigger without changing navigation sta
   expect(new URL(page.url()).pathname).toBe('/__trip-viewer-test.html');
 });
 
+test('renders private and public readable documents from display-safe fields only', async ({ page }) => {
+  const state = mockViewerState({ viewerMode: 'private' }) as any;
+  state.trip.privateUrl = '/User/Trip/View/private-trip';
+  state.trip.coverImage = { displayUrl: '/Public/Trips/trip-1/CoverImage', rawUrl: 'https://private.example.test/cover.jpg', copyUrl: null };
+  await loadMockedViewer(page, { state, configMode: 'private' });
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
+
+  const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
+  await expect(readable.getByRole('img', { name: 'Cover for Mocked Desktop Trip' })).toHaveAttribute('src', '/Public/Trips/trip-1/CoverImage');
+  await expect(readable.getByText('private-trip')).toHaveCount(0);
+  await expect(readable.getByText('private.example.test')).toHaveCount(0);
+  await expect(readable.getByText(/Export PDF|Copy map snapshot URL|viewerMode/)).toHaveCount(0);
+});
+
 test('uses only eligible snapshot actions and preserves the DTO fallback otherwise', async ({ page }) => {
   const ineligible = mockViewerState({ mapSnapshotUrl: '/Public/Trips/trip-1/MapSnapshot' }) as any;
   ineligible.actions.copyMapSnapshotUrl.method = 'POST';
