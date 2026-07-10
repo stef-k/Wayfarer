@@ -109,7 +109,7 @@ test('keeps readable controls scoped and embed action aliases map-only', async (
   await loadMockedViewer(page, mockActionState('public-owner'));
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
   const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
-  await expect(readable.getByRole('button')).toHaveText(['Close', 'Print', 'Back to top']);
+  await expect(readable.getByRole('button', { includeHidden: true })).toHaveText(['Close', 'Print', 'Back to top']);
   await readable.getByRole('button', { name: 'Print' }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed?: boolean }).printed === true)).toBe(true);
 

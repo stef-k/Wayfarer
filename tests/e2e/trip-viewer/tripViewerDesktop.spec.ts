@@ -36,12 +36,13 @@ test('opens readable document mode from #335 readable action and preserves image
   const document = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(document.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
   await expect(document.getByRole('img', { name: 'Trip map snapshot' })).toHaveAttribute('src', '/Public/Trips/trip-1/MapSnapshot');
-  await expect(document.locator('.trip-viewer-readable__region > header').getByRole('heading', { name: 'Harbor', exact: true })).toBeVisible();
+  await expect(document.getByRole('heading', { name: 'Regions', level: 2 })).toBeVisible();
+  await expect(document.getByRole('heading', { name: 'Harbor', level: 3, exact: true })).toBeVisible();
   await expect(document.getByRole('heading', { name: 'Harbor Cafe', exact: true })).toBeVisible();
   await expect(document.getByRole('heading', { name: 'Waterfront Zone', exact: true })).toBeVisible();
   await expect(document.getByText('Media note', { exact: true })).toBeVisible();
   await expect(document.locator('.trip-viewer-notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
-  await expect(document.getByRole('button', { name: 'Back to top' })).toBeVisible();
+  await expect(document.getByRole('button', { name: 'Back to top', includeHidden: true })).toBeHidden();
 });
 
 test('shows a DTO-backed readable map fallback when no map snapshot URL is returned', async ({ page }) => {
@@ -50,7 +51,7 @@ test('shows a DTO-backed readable map fallback when no map snapshot URL is retur
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
 
   const mapPreview = page.getByRole('dialog', { name: 'Readable trip itinerary' }).getByLabel('Readable map preview');
-  await expect(mapPreview.getByRole('heading', { name: 'Map preview' })).toBeVisible();
+  await expect(mapPreview.getByRole('heading', { name: 'Map' })).toBeVisible();
   await expect(mapPreview.getByText('Map preview unavailable')).toBeVisible();
   await expect(mapPreview.getByText('Showing read-only map context from returned trip state.')).toBeVisible();
   await expect(mapPreview.getByText('Places')).toBeVisible();

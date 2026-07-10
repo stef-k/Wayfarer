@@ -29,6 +29,7 @@ const isCompactViewport = ref(false);
 const layoutSignal = ref(0);
 const fullTripViewSignal = ref(0);
 const readableOpen = ref(false);
+const readableTrigger = ref<HTMLElement | null>(null);
 const searchQuery = ref('');
 const desktopPanelOpen = ref(true);
 const desktopSurfaceMode = ref<'contents' | 'detail'>('contents');
@@ -202,7 +203,13 @@ function openReadable(): void {
     return;
   }
 
+  readableTrigger.value = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   readableOpen.value = true;
+}
+
+function closeReadable(): void {
+  readableOpen.value = false;
+  void nextTick(() => readableTrigger.value?.focus());
 }
 
 function printReadable(): void {
@@ -414,7 +421,7 @@ function signalLayoutAfterTransition(): void {
         :state="state"
         :groups="regionGroups"
         :segments="segments"
-        @close="readableOpen = false"
+        @close="closeReadable"
         @print="printReadable"
       />
       <a

@@ -162,7 +162,7 @@
   border-bottom: 1px solid var(--trip-viewer-border);
   display: flex;
   gap: 8px;
-  justify-content: flex-end;
+  justify-content: space-between;
   min-height: 56px;
   padding: 8px 16px;
 }
@@ -174,7 +174,7 @@
   margin: 0 auto;
   max-width: 920px;
   overflow: auto;
-  padding: 24px 18px 40px;
+  padding: 24px 18px 100px;
 }
 
 .trip-viewer-readable__header {
@@ -182,7 +182,6 @@
   gap: 6px;
 }
 
-.trip-viewer-readable__header span,
 .trip-viewer-readable__header p,
 .trip-viewer-readable__region small {
   color: var(--trip-viewer-muted);
@@ -200,6 +199,11 @@
 
 .trip-viewer-readable h3 {
   font-size: 1.04rem;
+  margin: 0;
+}
+
+.trip-viewer-readable h4 {
+  font-size: 0.94rem;
   margin: 0;
 }
 
@@ -226,7 +230,7 @@
 
 .trip-viewer-readable__snapshot {
   aspect-ratio: 16 / 9;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .trip-viewer-readable__map-fallback {
@@ -263,7 +267,8 @@
 }
 
 .trip-viewer-readable__region,
-.trip-viewer-readable__item {
+.trip-viewer-readable__item,
+.trip-viewer-readable__children {
   display: grid;
   gap: 10px;
 }
@@ -274,10 +279,32 @@
 }
 
 .trip-viewer-readable__top {
-  justify-self: start;
+  bottom: 24px;
+  position: fixed;
+  right: 24px;
+  z-index: 1;
+}
+
+.trip-viewer-readable__top:focus-visible,
+.trip-viewer-readable__header h1:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--trip-viewer-accent) 58%, transparent);
+  outline-offset: 3px;
+}
+
+.trip-viewer-readable .trip-viewer-notes__content,
+.trip-viewer-readable a {
+  overflow-wrap: anywhere;
+}
+
+.trip-viewer-readable .trip-viewer-notes img {
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 @media print {
+  @page { margin: 12mm; }
+
   body.trip-viewer-body--drawer-open {
     overflow: visible;
   }
@@ -297,6 +324,7 @@
   .trip-viewer-detail,
   .trip-viewer-mobile-drawer,
   .trip-viewer-readable__toolbar,
+  .trip-viewer-readable__top,
   .trip-viewer-embed-open {
     display: none !important;
   }
@@ -315,8 +343,53 @@
     padding: 0;
   }
 
-  .trip-viewer-readable__region {
-    break-inside: avoid;
+  .trip-viewer-readable,
+  .trip-viewer-readable__document {
+    background: #fff;
+    color: #111;
+    font-size: 11pt;
+  }
+
+  .trip-viewer-readable a {
+    color: #111;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
+  }
+
+  .trip-viewer-readable a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+  }
+
+  .trip-viewer-readable__cover,
+  .trip-viewer-readable__snapshot,
+  .trip-viewer-readable .trip-viewer-notes img {
+    height: auto;
+    max-height: 18cm;
+    max-width: 100%;
+    object-fit: contain;
+  }
+
+  .trip-viewer-readable h2,
+  .trip-viewer-readable h3,
+  .trip-viewer-readable h4 {
+    break-after: avoid;
+  }
+
+  .trip-viewer-readable__regions,
+  .trip-viewer-readable__segments {
+    break-before: page;
+  }
+}
+
+@media (max-width: 1023px) {
+  .trip-viewer-readable__toolbar {
+    flex-wrap: wrap;
+  }
+
+  .trip-viewer-readable__top {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: calc(16px + env(safe-area-inset-right, 0px));
   }
 }
 /* Keeps #347's grouped action parity isolated from the core viewer layout styles. */

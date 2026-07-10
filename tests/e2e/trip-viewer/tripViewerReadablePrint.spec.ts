@@ -15,12 +15,46 @@ test('renders the readable document in its required order without viewer chrome'
   await expect(readable.getByRole('heading', { name: 'Segments', level: 2 })).toBeVisible();
   await expect(readable.getByText('public viewer')).toHaveCount(0);
   await expect(readable.getByRole('navigation')).toHaveCount(0);
-  await expect(readable.getByRole('button')).toHaveText(['Close', 'Print', 'Back to top']);
+  await expect(readable.getByRole('button', { includeHidden: true })).toHaveText(['Close', 'Print', 'Back to top']);
+});
+
+test('omits unavailable sections while preserving safe links and proxied image-only notes', async ({ page }) => {
+  const state = mockViewerState() as any;
+  state.trip.notes = {
+    displayHtml: '<p><a href="https://example.test/guide" rel="noopener noreferrer" target="_blank">Guide</a></p>',
+    plainText: 'Guide',
+    hasRenderableContent: true,
+    hasTextContent: true,
+    hasMediaContent: false
+  };
+  state.tagsBySlug = {};
+  state.tagOrder = [];
+  state.trip.coverImage = null;
+  state.trip.updatedAt = 'not-a-date';
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
+
+  const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
+  await expect(readable.getByRole('heading', { name: 'Tags', level: 2 })).toHaveCount(0);
+  await expect(readable.getByText(/^Updated /)).toHaveCount(0);
+  await expect(readable.getByRole('link', { name: 'Guide' })).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(readable.locator('.trip-viewer-notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
+  await expect(readable.getByText('No notes.')).toHaveCount(0);
+});
+
+test('closes to the originating readable trigger without changing navigation state', async ({ page }) => {
+  await loadMockedViewer(page);
+  const trigger = page.getByRole('button', { name: 'Readable itinerary' });
+  await trigger.click();
+  await page.getByRole('dialog', { name: 'Readable trip itinerary' }).getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('dialog', { name: 'Readable trip itinerary' })).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(new URL(page.url()).pathname).toBe('/__trip-viewer-test.html');
 });
 
 test('uses only eligible snapshot actions and preserves the DTO fallback otherwise', async ({ page }) => {
   const ineligible = mockViewerState({ mapSnapshotUrl: '/Public/Trips/trip-1/MapSnapshot' }) as any;
-  ineligible.actions.copyMapSnapshotUrl.method = null;
+  ineligible.actions.copyMapSnapshotUrl.method = 'POST';
   await loadMockedViewer(page, ineligible);
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
 
@@ -77,5 +111,5 @@ test('keeps readable document controls out of embed and avoids mobile overlap', 
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
   const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(readable).toBeVisible();
-  await expect(page.locator('.trip-viewer-mobile-drawer')).toBeHidden();
+  await expect(readable.locator('.trip-viewer-mobile-drawer')).toHaveCount(0);
 });

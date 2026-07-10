@@ -17,11 +17,13 @@ const emit = defineEmits<{
 }>();
 
 const documentElement = ref<HTMLElement | null>(null);
+const titleElement = ref<HTMLHeadingElement | null>(null);
+const showBackToTop = ref(false);
 const tags = computed(() => orderedTags(props.state));
 // Uses only a server-returned public-safe snapshot action; readable mode never derives image URLs client-side.
 const mapSnapshotUrl = computed(() => {
   const action = props.state.actions.copyMapSnapshotUrl;
-  return action.allowed && action.url && action.method === 'GET' && !action.requiresAuthentication
+  return action.allowed && action.url && (action.method == null || action.method.toUpperCase() === 'GET') && !action.requiresAuthentication
     ? action.url
     : null;
 });
@@ -42,8 +44,16 @@ const mapPreview = computed(() => {
   };
 });
 
+const hasMapPreview = computed(() => Boolean(mapSnapshotUrl.value) || mapPreview.value.hasFeatures);
+const hasUpdatedDate = computed(() => !Number.isNaN(Date.parse(props.state.trip.updatedAt)));
+
+function onDocumentScroll(): void {
+  showBackToTop.value = (documentElement.value?.scrollTop ?? 0) > 300;
+}
+
 function backToTop(): void {
   documentElement.value?.scrollTo({ top: 0, behavior: 'smooth' });
+  titleElement.value?.focus({ preventScroll: true });
 }
 </script>
 
@@ -55,21 +65,17 @@ function backToTop(): void {
       <button v-if="state.actions.print.allowed" type="button" @click="emit('print')">Print</button>
     </header>
 
-    <article ref="documentElement" class="trip-viewer-readable__document">
+    <article ref="documentElement" class="trip-viewer-readable__document" @scroll="onDocumentScroll">
       <header class="trip-viewer-readable__header">
-        <span>{{ state.viewerMode }} viewer</span>
-        <h1>{{ state.trip.name }}</h1>
+        <h1 ref="titleElement" tabindex="-1">{{ state.trip.name }}</h1>
         <p v-if="state.trip.ownerDisplayName">By {{ state.trip.ownerDisplayName }}</p>
-        <p>Updated {{ new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(state.trip.updatedAt)) }}</p>
-        <ul v-if="tags.length" class="trip-viewer-tags">
-          <li v-for="tag in tags" :key="tag.slug">{{ tag.name }}</li>
-        </ul>
+        <p v-if="hasUpdatedDate">Updated {{ new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(state.trip.updatedAt)) }}</p>
       </header>
 
-      <img v-if="state.trip.coverImage?.displayUrl" class="trip-viewer-readable__cover" :src="state.trip.coverImage.displayUrl" alt="" loading="lazy">
+      <img v-if="state.trip.coverImage?.displayUrl" class="trip-viewer-readable__cover" :src="state.trip.coverImage.displayUrl" :alt="`Cover for ${state.trip.name}`" loading="lazy">
 
-      <section class="trip-viewer-readable__map" aria-label="Readable map preview">
-        <h2>Map preview</h2>
+      <section v-if="hasMapPreview" class="trip-viewer-readable__map" aria-label="Readable map preview">
+        <h2>Map</h2>
         <img
           v-if="mapSnapshotUrl"
           class="trip-viewer-readable__snapshot"
@@ -109,41 +115,59 @@ function backToTop(): void {
         </div>
       </section>
 
-      <section>
+      <section v-if="tags.length">
+        <h2>Tags</h2>
+        <ul class="trip-viewer-tags">
+          <li v-for="tag in tags" :key="tag.slug">{{ tag.name }}</li>
+        </ul>
+      </section>
+
+      <section v-if="state.trip.notes.hasRenderableContent">
         <h2>Trip notes</h2>
         <NotesDisplay :notes="state.trip.notes" />
       </section>
 
-      <section v-for="group in groups" :key="group.region.id" class="trip-viewer-readable__region">
-        <header>
-          <h2>{{ group.region.name }}</h2>
-          <small>{{ group.places.length }} places · {{ group.areas.length }} areas</small>
-        </header>
+      <section v-if="groups.length" class="trip-viewer-readable__regions">
+        <h2>Regions</h2>
+        <section v-for="group in groups" :key="group.region.id" class="trip-viewer-readable__region">
+          <h3>{{ group.region.name }}</h3>
         <img v-if="group.region.coverImage?.displayUrl" class="trip-viewer-readable__cover" :src="group.region.coverImage.displayUrl" alt="" loading="lazy">
-        <NotesDisplay :notes="group.region.notes" />
+          <NotesDisplay v-if="group.region.notes.hasRenderableContent" :notes="group.region.notes" />
 
-        <section v-for="place in group.places" :key="place.id" class="trip-viewer-readable__item">
-          <h3>{{ place.name }}</h3>
-          <p v-if="place.address">{{ place.address }}</p>
-          <NotesDisplay :notes="place.notes" />
-        </section>
+          <section v-if="group.places.length" class="trip-viewer-readable__children">
+            <h4>Places</h4>
+            <section v-for="place in group.places" :key="place.id" class="trip-viewer-readable__item">
+              <h4>{{ place.name }}</h4>
+              <p v-if="place.address">{{ place.address }}</p>
+              <NotesDisplay v-if="place.notes.hasRenderableContent" :notes="place.notes" />
+            </section>
+          </section>
 
-        <section v-for="area in group.areas" :key="area.id" class="trip-viewer-readable__item">
-          <h3>{{ area.name }}</h3>
-          <NotesDisplay :notes="area.notes" />
+          <section v-if="group.areas.length" class="trip-viewer-readable__children">
+            <h4>Areas</h4>
+            <section v-for="area in group.areas" :key="area.id" class="trip-viewer-readable__item">
+              <h4>{{ area.name }}</h4>
+              <NotesDisplay v-if="area.notes.hasRenderableContent" :notes="area.notes" />
+            </section>
+          </section>
         </section>
       </section>
 
-      <section v-if="segments.length" class="trip-viewer-readable__region">
+      <section v-if="segments.length" class="trip-viewer-readable__segments">
         <h2>Segments</h2>
         <section v-for="summary in segments" :key="summary.segment.id" class="trip-viewer-readable__item">
           <h3>{{ segmentTitle(summary) }}</h3>
-          <p>{{ summary.segment.mode || 'Segment' }} · {{ distanceLabel(summary.segment.estimatedDistanceKm) }} · {{ durationLabel(summary.segment.estimatedDurationMinutes) }}</p>
-          <NotesDisplay :notes="summary.segment.notes" />
+          <p v-if="summary.segment.mode || summary.segment.estimatedDistanceKm != null || summary.segment.estimatedDurationMinutes != null">
+            <span v-if="summary.segment.mode">{{ summary.segment.mode }}</span>
+            <span v-if="summary.segment.mode && (summary.segment.estimatedDistanceKm != null || summary.segment.estimatedDurationMinutes != null)"> · </span>
+            <span v-if="summary.segment.estimatedDistanceKm != null">{{ distanceLabel(summary.segment.estimatedDistanceKm) }}</span>
+            <span v-if="summary.segment.estimatedDistanceKm != null && summary.segment.estimatedDurationMinutes != null"> · </span>
+            <span v-if="summary.segment.estimatedDurationMinutes != null">{{ durationLabel(summary.segment.estimatedDurationMinutes) }}</span>
+          </p>
+          <NotesDisplay v-if="summary.segment.notes.hasRenderableContent" :notes="summary.segment.notes" />
         </section>
       </section>
-
-      <button type="button" class="trip-viewer-readable__top" @click="backToTop">Back to top</button>
     </article>
+    <button v-show="showBackToTop" type="button" class="trip-viewer-readable__top" @click="backToTop">Back to top</button>
   </section>
 </template>
