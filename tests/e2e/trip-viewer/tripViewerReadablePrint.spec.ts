@@ -100,7 +100,7 @@ test('keeps Back to top hidden until the readable scroll container passes 300px 
   await expect(readable.getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toBeFocused();
 });
 
-test('prints the readable document while hiding controls and viewer chrome', async ({ page }) => {
+test('prints only the readable document without viewer chrome or fixed controls', async ({ page }) => {
   await loadMockedViewer(page);
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
   await page.emulateMedia({ media: 'print' });
@@ -109,8 +109,22 @@ test('prints the readable document while hiding controls and viewer chrome', asy
   await expect(readable.getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toBeVisible();
   await expect(readable.getByText('Trip overview note.')).toBeVisible();
   await expect(readable.getByRole('button')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-content-surface')).toBeHidden();
+  await expect(page.locator('.trip-viewer-navigation')).toBeHidden();
+  await expect(page.locator('.trip-viewer-search')).toBeHidden();
   await expect(page.locator('.trip-viewer-map-shell')).toBeHidden();
+  await expect(page.locator('.leaflet-control-container')).toBeHidden();
   await expect(page.locator('.trip-viewer-mobile-drawer')).toBeHidden();
+  await expect(page.locator('.trip-viewer-content-surface__actions')).toBeHidden();
+});
+
+test('uses natural print pagination for regions and segments', async ({ page }) => {
+  await loadMockedViewer(page);
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
+  await page.emulateMedia({ media: 'print' });
+
+  await expect.poll(() => page.locator('.trip-viewer-readable__regions').evaluate(element => getComputedStyle(element).breakBefore)).toBe('auto');
+  await expect.poll(() => page.locator('.trip-viewer-readable__segments').evaluate(element => getComputedStyle(element).breakBefore)).toBe('auto');
 });
 
 test('keeps readable document controls out of embed and avoids mobile overlap', async ({ page }) => {

@@ -329,6 +329,11 @@
     display: none !important;
   }
 
+  /* The readable-open state confines print suppression to normal viewer siblings. */
+  .trip-viewer-workspace--readable-open > :not(.trip-viewer-readable) {
+    display: none !important;
+  }
+
   .trip-viewer-readable {
     background: #fff;
     color: #111;
@@ -376,10 +381,6 @@
     break-after: avoid;
   }
 
-  .trip-viewer-readable__regions,
-  .trip-viewer-readable__segments {
-    break-before: page;
-  }
 }
 
 @media (max-width: 1023px) {

@@ -330,7 +330,9 @@ function signalLayoutAfterTransition(): void {
         `trip-viewer-workspace--drawer-${drawerState}`,
         {
           'trip-viewer-workspace--panel-hidden': !desktopPanelOpen,
-          'trip-viewer-workspace--detail-open': desktopSurfaceMode === 'detail'
+          'trip-viewer-workspace--detail-open': desktopSurfaceMode === 'detail',
+          // Allows print styles to target only the readable overlay's sibling viewer surfaces.
+          'trip-viewer-workspace--readable-open': readableOpen
         }
       ]"
     >
