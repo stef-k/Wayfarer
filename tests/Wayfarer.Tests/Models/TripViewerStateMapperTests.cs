@@ -245,6 +245,47 @@ public sealed class TripViewerStateMapperTests : TestBase
         Assert.Equal("bg-blue", state.PlacesById[fixture.Place.Id].MarkerColor);
     }
 
+    [Theory]
+    [InlineData("#00ff00", "#00ff00")]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData("orange", null)]
+    [InlineData("#12345", null)]
+    public void Areas_MapOnlyValidStoredFillHex(string? storedFillHex, string? expectedFillHex)
+    {
+        var fixture = BuildTripFixture(isPublic: true, shareProgress: true);
+        fixture.Area.FillHex = storedFillHex;
+
+        var privateState = TripViewerStateMapper.ToPrivateState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), new QueryCollection());
+        var publicState = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: false, isAuthenticated: false, embed: false, new QueryCollection());
+        var embedState = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: true, isAuthenticated: true, embed: true, new QueryCollection());
+
+        Assert.Equal(expectedFillHex, privateState.AreasById[fixture.Area.Id].FillHex);
+        Assert.Equal(expectedFillHex, publicState.AreasById[fixture.Area.Id].FillHex);
+        Assert.Equal(expectedFillHex, embedState.AreasById[fixture.Area.Id].FillHex);
+    }
+
+    [Fact]
+    public void Segments_MapStoredEstimateValuesAndPreserveMissingValues()
+    {
+        var fixture = BuildTripFixture(isPublic: true, shareProgress: true);
+        fixture.Segment.EstimatedDistanceKm = 3.5;
+        fixture.Segment.EstimatedDuration = TimeSpan.FromMinutes(50);
+
+        var populatedState = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: false, isAuthenticated: false, embed: false, new QueryCollection());
+
+        Assert.Equal(3.5, populatedState.SegmentsById[fixture.Segment.Id].EstimatedDistanceKm);
+        Assert.Equal(50, populatedState.SegmentsById[fixture.Segment.Id].EstimatedDurationMinutes);
+
+        fixture.Segment.EstimatedDistanceKm = null;
+        fixture.Segment.EstimatedDuration = null;
+        var missingState = TripViewerStateMapper.ToPublicState(fixture.Trip, Array.Empty<PlaceVisitEvent>(), isOwner: false, isAuthenticated: false, embed: false, new QueryCollection());
+
+        Assert.Null(missingState.SegmentsById[fixture.Segment.Id].EstimatedDistanceKm);
+        Assert.Null(missingState.SegmentsById[fixture.Segment.Id].EstimatedDurationMinutes);
+    }
+
     private static QueryCollection Query(string? lat = null, string? lon = null, string? lng = null, string? zoom = null)
     {
         var values = new Dictionary<string, StringValues>();
