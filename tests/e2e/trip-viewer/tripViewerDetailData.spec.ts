@@ -44,10 +44,17 @@ test('renders area facts without exposing technical color or geometry values', a
 
   const detail = page.getByLabel('Selection details');
   await expect(detail.locator('.trip-viewer-area-swatch')).toHaveAttribute('aria-hidden', 'true');
+  await expect(detail.getByText('Color', { exact: true })).toHaveCount(0);
   await expect(detail.getByText('#0ea5e9')).toHaveCount(0);
   await expect(detail.getByText('Map boundary')).toBeVisible();
   await expect(detail.getByText('Available on the map.')).toBeVisible();
   await expect(detail.getByRole('button', { name: 'Focus on map' })).toBeVisible();
+  await expect(detail.locator('.trip-viewer-area-swatch')).not.toHaveAttribute('aria-label', /./);
+  await expect(detail.locator('.trip-viewer-area-swatch')).not.toHaveAttribute('title', /./);
+
+  const areaDetailText = await detail.textContent();
+  expect(areaDetailText).not.toMatch(/GeoJSON|WKT|Polygon available|storage[- ]key|opacity|debug/i);
+  expect(areaDetailText).not.toMatch(/-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?/);
 
   state.areasById['area-1'].fillHex = null;
   state.areasById['area-1'].geometry = null;

@@ -83,10 +83,8 @@ const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGe
       </template>
 
       <template v-if="entity.area">
-        <div v-if="areaFillHex">
-          <dt>Color</dt>
-          <dd><span class="trip-viewer-area-swatch" :style="{ backgroundColor: areaFillHex }" aria-hidden="true"></span></dd>
-        </div>
+        <!-- The returned fill is decorative only and must not become an area fact. -->
+        <span v-if="areaFillHex" class="trip-viewer-area-swatch" :style="{ backgroundColor: areaFillHex }" aria-hidden="true"></span>
         <div>
           <dt>Map boundary</dt>
           <dd>{{ areaHasUsableGeometry ? 'Available on the map.' : 'No map boundary is available.' }}</dd>
