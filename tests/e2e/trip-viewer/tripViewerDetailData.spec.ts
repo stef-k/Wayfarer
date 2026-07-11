@@ -37,7 +37,7 @@ test('formats valid segment estimates and keeps absent or invalid estimates out 
   await expect(page.getByText('No matching trip content.')).toBeVisible();
 });
 
-test('renders area facts without exposing technical color or geometry values', async ({ page }) => {
+test('renders a valid area color decoratively without exposing technical values', async ({ page }) => {
   const state = mockViewerState() as any;
   await loadMockedViewer(page, state);
   await page.getByRole('button', { name: /Waterfront Zone/ }).click();
@@ -55,7 +55,30 @@ test('renders area facts without exposing technical color or geometry values', a
   const areaDetailText = await detail.textContent();
   expect(areaDetailText).not.toMatch(/GeoJSON|WKT|Polygon available|storage[- ]key|opacity|debug/i);
   expect(areaDetailText).not.toMatch(/-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?/);
+});
 
+test('omits malformed area colors while retaining approved boundary facts', async ({ page }) => {
+  const state = mockViewerState() as any;
+  state.areasById['area-1'].fillHex = '#12xz';
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+
+  const detail = page.getByLabel('Selection details');
+  await expect(detail.locator('.trip-viewer-area-swatch')).toHaveCount(0);
+  await expect(detail.getByText('Color', { exact: true })).toHaveCount(0);
+  await expect(detail.getByText('#12xz', { exact: true })).toHaveCount(0);
+  await expect(detail.locator('[title*="#12xz" i], [aria-label*="#12xz" i]')).toHaveCount(0);
+  await expect(detail.getByText('Map boundary')).toBeVisible();
+  await expect(detail.getByText('Available on the map.')).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'Focus on map' })).toBeVisible();
+
+  const areaDetailText = await detail.textContent();
+  expect(areaDetailText).not.toMatch(/#12xz|GeoJSON|WKT|Polygon available|storage[- ]key|opacity|debug/i);
+  expect(areaDetailText).not.toMatch(/-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?/);
+});
+
+test('renders absent area color and geometry as unavailable boundary facts', async ({ page }) => {
+  const state = mockViewerState() as any;
   state.areasById['area-1'].fillHex = null;
   state.areasById['area-1'].geometry = null;
   state.areasById['area-1'].notes = { displayHtml: '', plainText: '', hasRenderableContent: false, hasTextContent: false, hasMediaContent: false };
