@@ -1,0 +1,79 @@
+import { expect, test } from '@playwright/test';
+import { loadMockedViewer, mockViewerState } from './tripViewerFixtures';
+
+// Keeps #349 DTO-backed detail formatting separate from layout, map interaction, and print ownership.
+test('formats valid segment estimates and keeps absent or invalid estimates out of search', async ({ page }) => {
+  const state = mockViewerState() as any;
+  await loadMockedViewer(page, state);
+
+  await page.getByRole('button', { name: /Harbor Cafe to Lookout/ }).click();
+  const detail = page.getByLabel('Selection details');
+  await expect(detail.getByText('Distance')).toBeVisible();
+  await expect(detail.getByText('1.2 km')).toBeVisible();
+  await expect(detail.getByText('18 min')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Back' }).click();
+  const search = page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags');
+  await search.fill('1.2 km');
+  await expect(page.getByRole('button', { name: /segment Harbor Cafe to Lookout/ })).toBeVisible();
+
+  state.segmentsById['segment-1'].estimatedDistanceKm = null;
+  state.segmentsById['segment-1'].estimatedDurationMinutes = 0;
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: /Harbor Cafe to Lookout/ }).click();
+  await expect(page.getByLabel('Selection details').getByText('Distance not provided.')).toBeVisible();
+  await expect(page.getByLabel('Selection details').getByText('Duration unavailable.')).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await search.fill('unavailable');
+  await expect(page.getByText('No matching trip content.')).toBeVisible();
+});
+
+test('renders area facts without exposing technical color or geometry values', async ({ page }) => {
+  const state = mockViewerState() as any;
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+
+  const detail = page.getByLabel('Selection details');
+  await expect(detail.locator('.trip-viewer-area-swatch')).toHaveAttribute('aria-hidden', 'true');
+  await expect(detail.getByText('#0ea5e9')).toHaveCount(0);
+  await expect(detail.getByText('Map boundary')).toBeVisible();
+  await expect(detail.getByText('Available on the map.')).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'Focus on map' })).toBeVisible();
+
+  state.areasById['area-1'].fillHex = null;
+  state.areasById['area-1'].geometry = null;
+  state.areasById['area-1'].notes = { displayHtml: '', plainText: '', hasRenderableContent: false, hasTextContent: false, hasMediaContent: false };
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+  const missingDetail = page.getByLabel('Selection details');
+  await expect(missingDetail.locator('.trip-viewer-area-swatch')).toHaveCount(0);
+  await expect(missingDetail.getByText('No map boundary is available.')).toBeVisible();
+  await expect(missingDetail.getByRole('button', { name: 'Focus on map' })).toHaveCount(0);
+  await expect(missingDetail.getByRole('heading', { name: 'Notes' })).toHaveCount(0);
+  await expect(missingDetail.getByText(/Polygon available|Geometry|Fill/)).toHaveCount(0);
+});
+
+test('uses the same segment omission rules in mobile and readable detail surfaces', async ({ page }) => {
+  const state = mockViewerState() as any;
+  state.segmentsById['segment-1'].estimatedDistanceKm = -1;
+  state.segmentsById['segment-1'].estimatedDurationMinutes = null;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
+  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Harbor Cafe to Lookout/ }).click();
+  await expect(page.getByLabel('Selected trip details').getByText('Distance unavailable.')).toBeVisible();
+  await expect(page.getByLabel('Selected trip details').getByText('Duration not provided.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Back from trip details' }).click();
+  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
+  const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
+  await expect(readable.getByText(/-1|unavailable|not provided/)).toHaveCount(0);
+});
+
+test('keeps #349 detail data out of embed map-only output', async ({ page }) => {
+  await loadMockedViewer(page, { state: mockViewerState({ viewerMode: 'embed' }), configMode: 'embed' });
+  await expect(page.getByText(/Map boundary|Distance|Duration|#0ea5e9/)).toHaveCount(0);
+  await expect(page.getByLabel('Trip contents')).toHaveCount(0);
+  await expect(page.getByLabel('Trip viewer drawer')).toHaveCount(0);
+});
