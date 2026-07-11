@@ -1,5 +1,5 @@
 import type { EntityType, Guid, TripViewerState, ViewerNotes, ViewerPlace, ViewerSegment } from './types';
-import { buildRegionGroups, buildSegmentSummaries, distanceLabel, durationLabel, orderedTags, segmentTitle } from './viewModel';
+import { buildRegionGroups, buildSegmentSummaries, distanceDisplay, durationDisplay, orderedTags, segmentModeLabel, segmentTitle } from './viewModel';
 
 export interface SearchResult {
   key: string;
@@ -78,9 +78,9 @@ function buildSearchDocuments(state: TripViewerState): SearchDocument[] {
   buildSegmentSummaries(state).forEach(summary => {
     documents.push(document(`segment:${summary.segment.id}`, 'segment', segmentTitle(summary), segmentContext(summary.segment), { type: 'segment', id: summary.segment.id }, [
       segmentTitle(summary),
-      summary.segment.mode,
-      distanceLabel(summary.segment.estimatedDistanceKm),
-      durationLabel(summary.segment.estimatedDurationMinutes),
+      segmentModeLabel(summary.segment.mode),
+      distanceDisplay(summary.segment.estimatedDistanceKm).compact ?? '',
+      durationDisplay(summary.segment.estimatedDurationMinutes).compact ?? '',
       notesText(summary.segment.notes)
     ]));
   });
@@ -109,9 +109,12 @@ function coordinateSearchLabel(place: ViewerPlace): string {
 
 function segmentContext(segment: ViewerSegment): string {
   const pieces = ['Segment'];
-  if (segment.mode) pieces.push(segment.mode);
-  if (segment.estimatedDistanceKm != null) pieces.push(distanceLabel(segment.estimatedDistanceKm));
-  if (segment.estimatedDurationMinutes != null) pieces.push(durationLabel(segment.estimatedDurationMinutes));
+  const mode = segmentModeLabel(segment.mode);
+  const distance = distanceDisplay(segment.estimatedDistanceKm).compact;
+  const duration = durationDisplay(segment.estimatedDurationMinutes).compact;
+  if (mode) pieces.push(mode);
+  if (distance) pieces.push(distance);
+  if (duration) pieces.push(duration);
   return pieces.join(' · ');
 }
 

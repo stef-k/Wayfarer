@@ -131,8 +131,8 @@ function renderLayers(): void {
       if (!area?.geometry) return;
       const polygon = L.geoJSON(area.geometry, {
         style: {
-          color: isSelected('area', area.id) ? '#0d6efd' : area.fillHex,
-          fillColor: area.fillHex,
+          color: isSelected('area', area.id) ? '#0d6efd' : area.fillHex ?? '#ff6600',
+          fillColor: area.fillHex ?? '#ff6600',
           fillOpacity: isSelected('area', area.id) ? 0.34 : 0.22,
           opacity: 0.9,
           weight: isSelected('area', area.id) ? 4 : 2

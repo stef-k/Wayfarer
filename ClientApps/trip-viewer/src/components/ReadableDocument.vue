@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
 import type { RegionGroup, SegmentSummary } from '../viewModel';
-import { distanceLabel, durationLabel, orderedTags, segmentTitle } from '../viewModel';
+import { distanceDisplay, durationDisplay, orderedTags, segmentModeLabel, segmentTitle } from '../viewModel';
 import type { TripViewerState } from '../types';
 
 const props = defineProps<{
@@ -20,6 +20,11 @@ const documentElement = ref<HTMLElement | null>(null);
 const titleElement = ref<HTMLHeadingElement | null>(null);
 const showBackToTop = ref(false);
 const tags = computed(() => orderedTags(props.state));
+const segmentMetadata = (summary: SegmentSummary): string[] => [
+  segmentModeLabel(summary.segment.mode),
+  distanceDisplay(summary.segment.estimatedDistanceKm).compact,
+  durationDisplay(summary.segment.estimatedDurationMinutes).compact
+].filter((value): value is string => Boolean(value));
 // Uses only a server-returned public-safe snapshot action; readable mode never derives image URLs client-side.
 const mapSnapshotUrl = computed(() => {
   const action = props.state.actions.copyMapSnapshotUrl;
@@ -157,12 +162,8 @@ function backToTop(): void {
         <h2>Segments</h2>
         <section v-for="summary in segments" :key="summary.segment.id" class="trip-viewer-readable__item">
           <h3>{{ segmentTitle(summary) }}</h3>
-          <p v-if="summary.segment.mode || summary.segment.estimatedDistanceKm != null || summary.segment.estimatedDurationMinutes != null">
-            <span v-if="summary.segment.mode">{{ summary.segment.mode }}</span>
-            <span v-if="summary.segment.mode && (summary.segment.estimatedDistanceKm != null || summary.segment.estimatedDurationMinutes != null)"> · </span>
-            <span v-if="summary.segment.estimatedDistanceKm != null">{{ distanceLabel(summary.segment.estimatedDistanceKm) }}</span>
-            <span v-if="summary.segment.estimatedDistanceKm != null && summary.segment.estimatedDurationMinutes != null"> · </span>
-            <span v-if="summary.segment.estimatedDurationMinutes != null">{{ durationLabel(summary.segment.estimatedDurationMinutes) }}</span>
+          <p v-if="segmentMetadata(summary).length">
+            {{ segmentMetadata(summary).join(' · ') }}
           </p>
           <NotesDisplay v-if="summary.segment.notes.hasRenderableContent" :notes="summary.segment.notes" />
         </section>

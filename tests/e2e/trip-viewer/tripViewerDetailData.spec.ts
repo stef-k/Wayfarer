@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { loadMockedViewer, mockViewerState } from './tripViewerFixtures';
+import { distanceDisplay, durationDisplay } from '../../../ClientApps/trip-viewer/src/viewModel';
+
+test('formats nullable and corrupt segment estimates as #349 presentation states', () => {
+  expect(distanceDisplay(10)).toEqual({ detail: '10 km', compact: '10 km' });
+  expect(durationDisplay(61)).toEqual({ detail: '1 hr 1 min', compact: '1 hr 1 min' });
+  expect(distanceDisplay(null)).toEqual({ detail: 'Distance not provided.', compact: null });
+  expect(durationDisplay(0)).toEqual({ detail: 'Duration unavailable.', compact: null });
+  expect(distanceDisplay(Number.NaN)).toEqual({ detail: 'Distance unavailable.', compact: null });
+});
 
 // Keeps #349 DTO-backed detail formatting separate from layout, map interaction, and print ownership.
 test('formats valid segment estimates and keeps absent or invalid estimates out of search', async ({ page }) => {
@@ -68,7 +77,7 @@ test('uses the same segment omission rules in mobile and readable detail surface
   await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
   const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
-  await expect(readable.getByText(/-1|unavailable|not provided/)).toHaveCount(0);
+  await expect(readable.locator('.trip-viewer-readable__segments').getByText(/-1|unavailable|not provided/)).toHaveCount(0);
 });
 
 test('keeps #349 detail data out of embed map-only output', async ({ page }) => {

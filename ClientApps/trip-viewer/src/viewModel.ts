@@ -141,6 +141,52 @@ export function durationLabel(value: number | null): string {
   return minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
 }
 
+export interface SegmentEstimateDisplay {
+  detail: string;
+  compact: string | null;
+}
+
+// Formats only server-returned estimates; it never derives facts from map geometry or endpoints.
+export function distanceDisplay(value: number | null): SegmentEstimateDisplay {
+  if (value == null) return { detail: 'Distance not provided.', compact: null };
+  if (!Number.isFinite(value) || value <= 0) return { detail: 'Distance unavailable.', compact: null };
+
+  return {
+    detail: new Intl.NumberFormat(undefined, { style: 'unit', unit: 'kilometer', unitDisplay: 'short', minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(value),
+    compact: new Intl.NumberFormat(undefined, { style: 'unit', unit: 'kilometer', unitDisplay: 'short', minimumFractionDigits: 0, maximumFractionDigits: 1 }).format(value)
+  };
+}
+
+// Formats only server-returned estimate minutes for the viewer's neutral display surfaces.
+export function durationDisplay(value: number | null): SegmentEstimateDisplay {
+  if (value == null) return { detail: 'Duration not provided.', compact: null };
+  if (!Number.isFinite(value) || value <= 0) return { detail: 'Duration unavailable.', compact: null };
+
+  const roundedMinutes = Math.round(value);
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  const compact = hours === 0 ? `${roundedMinutes} min` : minutes > 0 ? `${hours} hr ${minutes} min` : `${hours} hr`;
+  return { detail: compact, compact };
+}
+
+// Uses returned display text only and deliberately avoids a client-owned transport taxonomy.
+export function segmentModeLabel(mode: string): string | null {
+  const trimmed = mode.trim();
+  return trimmed ? `${trimmed.charAt(0).toLocaleUpperCase()}${trimmed.slice(1)}` : null;
+}
+
+// Validates the returned decorative color before it reaches any presentation surface.
+export function validAreaFillHex(fillHex: string | null): string | null {
+  return fillHex && /^#[0-9a-f]{6}$/i.test(fillHex) ? fillHex : null;
+}
+
+// Matches the existing map-focus capability without calculating an area or exposing its geometry.
+export function hasUsableAreaGeometry(geometry: ViewerArea['geometry']): boolean {
+  return geometry?.type === 'Polygon'
+    && geometry.coordinates.length > 0
+    && geometry.coordinates.every(ring => ring.length >= 4 && ring.every(point => Number.isFinite(point[0]) && Number.isFinite(point[1])));
+}
+
 function orderedChildren<T>(ids: Guid[] | undefined, byId: Record<Guid, T>): T[] {
   return (ids ?? []).map(id => byId[id]).filter(isDefined);
 }

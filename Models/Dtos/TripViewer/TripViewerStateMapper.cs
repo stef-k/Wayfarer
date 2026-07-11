@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
@@ -16,6 +17,7 @@ public static class TripViewerStateMapper
     private const string PublicMode = "public";
     private const string EmbedMode = "embed";
     private static readonly GeoJsonWriter GeoJsonWriter = new();
+    private static readonly Regex FillHexRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
     private static readonly HashSet<string> ViewerIconNames = new(StringComparer.Ordinal)
     {
         "anchor", "atm", "barbecue", "beach", "bike", "boat", "camera", "camping", "car", "charging-point",
@@ -152,9 +154,15 @@ public static class TripViewerStateMapper
             regionId,
             area.Name,
             TripViewerNotesFormatter.Format(area.Notes),
-            string.IsNullOrWhiteSpace(area.FillHex) ? "#ff6600" : area.FillHex,
+            NormalizeFillHex(area.FillHex),
             ToGeoJson(area.Geometry),
             area.DisplayOrder ?? 0);
+
+    /// <summary>Returns only persisted six-digit colors that are safe decorative viewer facts.</summary>
+    private static string? NormalizeFillHex(string? fillHex) =>
+        !string.IsNullOrWhiteSpace(fillHex) && FillHexRegex.IsMatch(fillHex.Trim())
+            ? fillHex.Trim()
+            : null;
 
     private static TripViewerSegmentDto ToSegment(Guid tripId, Segment segment, IReadOnlyDictionary<Guid, Place> placesById)
     {

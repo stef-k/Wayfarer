@@ -107,7 +107,7 @@ function readArea(source: Record<string, unknown>): ViewerArea {
     regionId: stringValue(source, 'regionId'),
     name: stringValue(source, 'name'),
     notes: readNotes(requiredObject(source, 'notes')),
-    fillHex: stringValue(source, 'fillHex'),
+    fillHex: nullableStringValue(source, 'fillHex'),
     geometry: readGeometry(source, 'geometry', 'Polygon'),
     displayOrder: numberValue(source, 'displayOrder')
   };

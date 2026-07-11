@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
 import ActionsBar from './ActionsBar.vue';
 import ProgressPanel from './ProgressPanel.vue';
-import { coordinateLabel, distanceLabel, durationLabel, orderedTags, visitSummaryForPlace } from '../viewModel';
+import { coordinateLabel, distanceDisplay, durationDisplay, hasUsableAreaGeometry, orderedTags, segmentModeLabel, validAreaFillHex, visitSummaryForPlace } from '../viewModel';
 import type { RegionGroup, SelectedEntity } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
@@ -21,6 +21,8 @@ const emit = defineEmits<{
 
 const tripTags = computed(() => orderedTags(props.state));
 const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryForPlace(props.state, props.entity.place) : null);
+const areaFillHex = computed(() => props.entity.area ? validAreaFillHex(props.entity.area.fillHex) : null);
+const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGeometry(props.entity.area.geometry) : false);
 </script>
 
 <template>
@@ -81,39 +83,39 @@ const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryFor
       </template>
 
       <template v-if="entity.area">
-        <div>
-          <dt>Fill</dt>
-          <dd><span class="trip-viewer-area-swatch" :style="{ backgroundColor: entity.area.fillHex }"></span>{{ entity.area.fillHex }}</dd>
+        <div v-if="areaFillHex">
+          <dt>Color</dt>
+          <dd><span class="trip-viewer-area-swatch" :style="{ backgroundColor: areaFillHex }" aria-hidden="true"></span></dd>
         </div>
         <div>
-          <dt>Geometry</dt>
-          <dd>{{ entity.area.geometry ? 'Polygon available' : 'Not set' }}</dd>
+          <dt>Map boundary</dt>
+          <dd>{{ areaHasUsableGeometry ? 'Available on the map.' : 'No map boundary is available.' }}</dd>
         </div>
       </template>
 
       <template v-if="entity.segment">
         <div>
           <dt>Mode</dt>
-          <dd>{{ entity.segment.segment.mode || 'Not set' }}</dd>
+          <dd>{{ segmentModeLabel(entity.segment.segment.mode) ?? 'Mode not provided.' }}</dd>
         </div>
         <div>
           <dt>Distance</dt>
-          <dd>{{ distanceLabel(entity.segment.segment.estimatedDistanceKm) }}</dd>
+          <dd>{{ distanceDisplay(entity.segment.segment.estimatedDistanceKm).detail }}</dd>
         </div>
         <div>
           <dt>Duration</dt>
-          <dd>{{ durationLabel(entity.segment.segment.estimatedDurationMinutes) }}</dd>
+          <dd>{{ durationDisplay(entity.segment.segment.estimatedDurationMinutes).detail }}</dd>
         </div>
       </template>
     </dl>
 
     <ProgressPanel v-if="entity.type === 'trip'" :state="state" :groups="groups" />
 
-    <button v-if="entity.type !== 'trip'" type="button" class="trip-viewer-focus-button" @click="emit('focus', { type: entity.type, id: entity.id })">
+    <button v-if="entity.type !== 'trip' && (entity.type !== 'area' || areaHasUsableGeometry)" type="button" class="trip-viewer-focus-button" @click="emit('focus', { type: entity.type, id: entity.id })">
       Focus on map
     </button>
 
-    <section class="trip-viewer-detail__notes">
+    <section v-if="entity.notes.hasRenderableContent" class="trip-viewer-detail__notes">
       <h3>Notes</h3>
       <NotesDisplay :notes="entity.notes" />
     </section>

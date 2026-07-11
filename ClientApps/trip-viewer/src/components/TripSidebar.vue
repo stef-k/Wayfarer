@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { RegionGroup, SegmentSummary } from '../viewModel';
-import { isSameSelection, notesPreview, orderedTags, segmentTitle } from '../viewModel';
+import { isSameSelection, notesPreview, orderedTags, segmentModeLabel, segmentTitle, validAreaFillHex } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
 const props = defineProps<{
@@ -18,6 +18,7 @@ const emit = defineEmits<{
 const select = (selection: ViewerSelection): void => emit('select', selection);
 const selected = (selection: ViewerSelection): boolean => isSameSelection(props.selection, selection);
 const tripTags = computed(() => orderedTags(props.state));
+const areaFillHex = (fillHex: string | null): string | null => validAreaFillHex(fillHex);
 </script>
 
 <template>
@@ -67,7 +68,7 @@ const tripTags = computed(() => orderedTags(props.state));
         :class="{ 'trip-viewer-list-item--selected': selected({ type: 'area', id: area.id }) }"
         @click="select({ type: 'area', id: area.id })"
       >
-        <span class="trip-viewer-area-swatch" :style="{ backgroundColor: area.fillHex }" aria-hidden="true"></span>
+        <span v-if="areaFillHex(area.fillHex)" class="trip-viewer-area-swatch" :style="{ backgroundColor: areaFillHex(area.fillHex) }" aria-hidden="true"></span>
         <strong>{{ area.name }}</strong>
         <small>{{ notesPreview(area.notes) || 'Area' }}</small>
       </button>
@@ -83,7 +84,7 @@ const tripTags = computed(() => orderedTags(props.state));
         :class="{ 'trip-viewer-list-item--selected': selected({ type: 'segment', id: summary.segment.id }) }"
         @click="select({ type: 'segment', id: summary.segment.id })"
       >
-        <span>{{ summary.segment.mode || 'Segment' }}</span>
+        <span>{{ segmentModeLabel(summary.segment.mode) ?? 'Segment' }}</span>
         <strong>{{ segmentTitle(summary) }}</strong>
         <small>{{ notesPreview(summary.segment.notes) || 'Route segment' }}</small>
       </button>

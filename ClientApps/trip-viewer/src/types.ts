@@ -93,7 +93,7 @@ export interface ViewerArea {
   regionId: Guid;
   name: string;
   notes: ViewerNotes;
-  fillHex: string;
+  fillHex: string | null;
   geometry: GeoJsonPolygon | null;
   displayOrder: number;
 }

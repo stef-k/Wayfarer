@@ -112,14 +112,14 @@ public sealed record TripViewerPlaceDto(
     int DisplayOrder,
     TripViewerPlaceVisitSummaryDto VisitSummary);
 
-/// <summary>Area DTO with GeoJSON geometry.</summary>
+/// <summary>Area DTO with optional decorative color and GeoJSON geometry.</summary>
 public sealed record TripViewerAreaDto(
     Guid Id,
     Guid TripId,
     Guid RegionId,
     string Name,
     TripViewerNotesDto Notes,
-    string FillHex,
+    string? FillHex,
     JsonElement? Geometry,
     int DisplayOrder);
 

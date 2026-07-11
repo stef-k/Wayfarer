@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using Moq;
+using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.TripViewer;
@@ -76,6 +77,46 @@ public sealed class TripViewerStateControllerTests : TestBase
         Assert.False(state.Actions.Edit.Allowed);
         Assert.True(state.Actions.OpenCanonical.Allowed);
         Assert.Null(state.Trip.PrivateUrl);
+    }
+
+    [Fact]
+    public async Task ViewNextState_PreservesPublicDetailFactsWhileEmbedKeepsOwnerDataRedacted()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var trip = TestDataFixtures.CreateTrip(owner, "Public", isPublic: true);
+        var region = TestDataFixtures.CreateRegion(trip, "Region", displayOrder: 1);
+        var area = new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = region.Id,
+            Region = region,
+            Name = "Area",
+            FillHex = "#00ff00",
+            DisplayOrder = 1,
+            Geometry = new Polygon(new LinearRing(new[]
+            {
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 0)
+            })) { SRID = 4326 }
+        };
+        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = owner.Id, EstimatedDistanceKm = 3.5, EstimatedDuration = TimeSpan.FromMinutes(50), DisplayOrder = 1 };
+        region.Areas = new List<Area> { area };
+        trip.Regions = new List<Region> { region };
+        trip.Segments = new List<Segment> { segment };
+        db.Users.Add(owner);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var publicState = StateFrom(await controller.ViewNextState(trip.Id));
+        var embedState = StateFrom(await controller.ViewNextState(trip.Id, embed: true));
+
+        Assert.Equal("#00ff00", publicState.AreasById[area.Id].FillHex);
+        Assert.Equal(3.5, publicState.SegmentsById[segment.Id].EstimatedDistanceKm);
+        Assert.Equal(50, publicState.SegmentsById[segment.Id].EstimatedDurationMinutes);
+        Assert.Equal("#00ff00", embedState.AreasById[area.Id].FillHex);
+        Assert.False(embedState.Actions.Edit.Allowed);
+        Assert.Null(embedState.Trip.PrivateUrl);
     }
 
     [Fact]
