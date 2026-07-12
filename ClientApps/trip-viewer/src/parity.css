@@ -303,6 +303,10 @@
 }
 
 @media print {
+  .trip-viewer-sidebar__notes-back {
+    display: none !important;
+  }
+
   @page { margin: 12mm; }
 
   body.trip-viewer-body--drawer-open {

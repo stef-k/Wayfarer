@@ -28,6 +28,7 @@ test('opens readable document mode from #335 readable action and preserves image
 
   const document = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(document.getByRole('heading', { name: 'Mocked Desktop Trip' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to trip notes' })).toHaveCount(0);
   await expect(document.getByRole('img', { name: 'Trip map snapshot' })).toHaveAttribute('src', '/Public/Trips/trip-1/MapSnapshot');
   await expect(document.getByRole('heading', { name: 'Regions', level: 2 })).toBeVisible();
   await expect(document.getByRole('heading', { name: 'Harbor', level: 3, exact: true })).toBeVisible();
@@ -168,6 +169,9 @@ test('mounts exactly one responsive command and hierarchy composition at each br
     await expect(page.locator('.trip-viewer-actions')).toHaveCount(1);
     await expect(page.locator('.trip-viewer-sidebar__overview')).toHaveCount(1);
     await expect(page.locator('.trip-viewer-sidebar')).toHaveCount(1);
+    if (viewport.compact) {
+      await expect(page.locator('.trip-viewer-sidebar__notes-viewport')).toHaveCSS('max-height', '224px');
+    }
   }
 });
 
@@ -185,8 +189,10 @@ test('renders the scrollable trip overview once with ordered tags and display-sa
   const overview = content.locator('.trip-viewer-sidebar__overview');
   await expect(overview).toHaveCount(1);
   await expect(overview.locator('.trip-viewer-tags li')).toHaveText(['Marina', 'Harbor']);
+  await expect(overview.getByRole('heading', { name: 'Trip notes', level: 2 })).toHaveCount(1);
   await expect(overview.getByText('Trip overview note.', { exact: true })).toHaveCount(1);
   await expect(content.getByText('Trip overview note.', { exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Back to trip notes' })).toHaveCount(0);
 
   state.trip.notes = {
     displayHtml: '<p><img src="/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Ftrip.jpg" loading="lazy"></p>',
@@ -231,6 +237,11 @@ test('bounds overflowing trip notes and returns only their viewport to its focus
 
   await expect.poll(() => notesViewport.evaluate(element => element.scrollTop)).toBe(0);
   await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('trip-viewer-trip-notes-heading');
+
+  await notesViewport.evaluate(element => { element.scrollTop = 200; element.dispatchEvent(new Event('scroll')); });
+  await expect(back).toBeVisible();
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
+  await expect(page.getByRole('button', { name: 'Back to trip notes' })).toHaveCount(0);
 });
 
 test('uses only the returned cover display URL and silently removes failed covers', async ({ page }) => {

@@ -227,6 +227,47 @@ body {
   gap: 10px;
 }
 
+/* Bounds only #351's optional trip overview notes; hierarchy scrolling remains unchanged. */
+.trip-viewer-sidebar__notes {
+  display: grid;
+  gap: 6px;
+}
+
+.trip-viewer-sidebar__notes h2 {
+  margin: 0;
+}
+
+.trip-viewer-sidebar__notes-viewport {
+  max-block-size: 18rem;
+  overflow-y: hidden;
+}
+
+.trip-viewer-sidebar__notes-viewport--overflowing {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.trip-viewer-sidebar__notes-back {
+  align-items: center;
+  background: var(--trip-viewer-surface-strong);
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 999px;
+  color: var(--trip-viewer-text);
+  display: inline-flex;
+  font: inherit;
+  height: 2rem;
+  justify-content: center;
+  justify-self: start;
+  padding: 0;
+  width: 2rem;
+}
+
+.trip-viewer-sidebar__notes-back:hover,
+.trip-viewer-sidebar__notes-back:focus-visible {
+  border-color: var(--trip-viewer-accent);
+  color: var(--trip-viewer-accent);
+}
+
 .trip-viewer-map-shell {
   min-height: 0;
   min-width: 0;

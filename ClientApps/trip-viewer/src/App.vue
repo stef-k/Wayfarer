@@ -27,6 +27,8 @@ const detail = ref(props.configError ?? '');
 const drawerState = ref<DrawerState>('peek');
 const detailReturnTarget = ref<'peek' | 'hierarchy'>('peek');
 const isCompactViewport = ref(false);
+// Defers responsive surfaces until the client has measured the actual viewport.
+const viewportReady = ref(false);
 const layoutSignal = ref(0);
 const fullTripViewSignal = ref(0);
 const readableOpen = ref(false);
@@ -66,6 +68,7 @@ const embedOpenAction = computed(() => {
 onMounted(() => {
   startAvailableHeightTracking();
   updateViewportMode();
+  viewportReady.value = true;
   window.addEventListener('resize', updateViewportMode);
   window.addEventListener('orientationchange', updateViewportMode);
 
@@ -346,7 +349,7 @@ function signalLayoutAfterTransition(): void {
         }
       ]"
     >
-      <aside v-if="!isEmbed && desktopPanelOpen" class="trip-viewer-content-surface" aria-label="Trip content">
+      <aside v-if="!isEmbed && viewportReady && !isCompactViewport && desktopPanelOpen" class="trip-viewer-content-surface" aria-label="Trip content">
         <header class="trip-viewer-command-header">
           <template v-if="!showDesktopDetail">
             <!-- Only the server-returned display URL is eligible for sidebar identity. -->
@@ -387,6 +390,7 @@ function signalLayoutAfterTransition(): void {
             :groups="regionGroups"
             :segments="segments"
             :selection="selection"
+            :notes-back-enabled="!readableOpen"
             @select="selection => selectEntity(selection, 'desktop')"
           />
         </div>
@@ -400,7 +404,7 @@ function signalLayoutAfterTransition(): void {
         </div>
       </aside>
       <button
-        v-if="!isEmbed && !desktopPanelOpen"
+        v-if="!isEmbed && viewportReady && !isCompactViewport && !desktopPanelOpen"
         type="button"
         class="trip-viewer-panel-toggle"
         @click="showDesktopContents"
@@ -417,7 +421,7 @@ function signalLayoutAfterTransition(): void {
         @restore-full-trip="restoreFullTripView"
       />
       <MobileDrawer
-        v-if="!isEmbed"
+        v-if="!isEmbed && viewportReady && isCompactViewport"
         :state="state"
         :groups="regionGroups"
         :segments="segments"
@@ -425,6 +429,7 @@ function signalLayoutAfterTransition(): void {
         :entity="selected"
         :drawer-state="drawerState"
         :return-target="detailReturnTarget"
+        :notes-back-enabled="!readableOpen"
         @update:drawer-state="updateDrawerState"
         @select="selectEntity"
         @focus="selection => selectEntity(selection, 'drawer')"

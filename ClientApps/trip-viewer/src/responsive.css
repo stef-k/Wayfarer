@@ -7,12 +7,6 @@ body.trip-viewer-body--drawer-open {
   display: none;
 }
 
-@media (min-width: 1024px) {
-  .trip-viewer-workspace > .trip-viewer-mobile-drawer {
-    display: none;
-  }
-}
-
 @media (max-width: 1023px) {
   .trip-viewer-preview {
     min-height: var(--trip-viewer-available-height, 100dvh);
@@ -25,14 +19,6 @@ body.trip-viewer-body--drawer-open {
     min-height: var(--trip-viewer-available-height, 100dvh);
     overflow: hidden;
     position: relative;
-  }
-
-  .trip-viewer-workspace > .trip-viewer-navigation,
-  .trip-viewer-workspace > .trip-viewer-content-surface,
-  .trip-viewer-workspace > .trip-viewer-panel-toggle,
-  .trip-viewer-workspace > .trip-viewer-sidebar,
-  .trip-viewer-workspace > .trip-viewer-detail {
-    display: none;
   }
 
   .trip-viewer-map-shell {
@@ -231,6 +217,11 @@ body.trip-viewer-body--drawer-open {
     max-height: min(34dvh, 22rem);
     overflow: auto;
     overscroll-behavior: contain;
+  }
+
+  /* Compact Trip overview notes retain the same isolated #351 scroll contract. */
+  .trip-viewer-mobile-drawer__panel .trip-viewer-sidebar__notes-viewport {
+    max-block-size: 14rem;
   }
 }
 

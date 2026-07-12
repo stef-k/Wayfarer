@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { RegionGroup, SegmentSummary } from '../viewModel';
 import { isSameSelection, notesPreview, orderedTags, segmentModeLabel, segmentTitle, validAreaFillHex } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
@@ -10,6 +10,7 @@ const props = defineProps<{
   groups: RegionGroup[];
   segments: SegmentSummary[];
   selection: ViewerSelection;
+  notesBackEnabled: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +21,49 @@ const select = (selection: ViewerSelection): void => emit('select', selection);
 const selected = (selection: ViewerSelection): boolean => isSameSelection(props.selection, selection);
 const areaFillHex = (fillHex: string | null): string | null => validAreaFillHex(fillHex);
 const tags = computed(() => orderedTags(props.state));
+const notesViewport = ref<HTMLElement | null>(null);
+const tripNotesHeading = ref<HTMLElement | null>(null);
+const notesOverflowing = ref(false);
+const showBackToNotes = ref(false);
+let notesResizeObserver: ResizeObserver | null = null;
+
+function updateNotesOverflow(): void {
+  const viewport = notesViewport.value;
+  if (!viewport) {
+    notesOverflowing.value = false;
+    showBackToNotes.value = false;
+    return;
+  }
+
+  notesOverflowing.value = viewport.scrollHeight > viewport.clientHeight + 1;
+  showBackToNotes.value = notesOverflowing.value && viewport.scrollTop > 160;
+}
+
+function handleNotesScroll(): void {
+  updateNotesOverflow();
+}
+
+function returnToTripNotes(): void {
+  notesViewport.value?.scrollTo({ top: 0, behavior: 'auto' });
+  updateNotesOverflow();
+  tripNotesHeading.value?.focus();
+}
+
+function scheduleNotesOverflowUpdate(): void {
+  void nextTick(updateNotesOverflow);
+}
+
+onMounted(() => {
+  scheduleNotesOverflowUpdate();
+  if ('ResizeObserver' in window && notesViewport.value) {
+    notesResizeObserver = new ResizeObserver(scheduleNotesOverflowUpdate);
+    notesResizeObserver.observe(notesViewport.value);
+  }
+});
+
+onBeforeUnmount(() => notesResizeObserver?.disconnect());
+
+watch(() => props.state.trip.notes, scheduleNotesOverflowUpdate, { deep: true });
 </script>
 
 <template>
@@ -29,7 +73,28 @@ const tags = computed(() => orderedTags(props.state));
       <ul v-if="tags.length" class="trip-viewer-tags" aria-label="Trip tags">
         <li v-for="tag in tags" :key="tag.id">{{ tag.name }}</li>
       </ul>
-      <NotesDisplay v-if="state.trip.notes.hasRenderableContent" :notes="state.trip.notes" />
+      <section v-if="state.trip.notes.hasRenderableContent" class="trip-viewer-sidebar__notes">
+        <h2 id="trip-viewer-trip-notes-heading" ref="tripNotesHeading" tabindex="-1">Trip notes</h2>
+        <div
+          ref="notesViewport"
+          class="trip-viewer-sidebar__notes-viewport"
+          :class="{ 'trip-viewer-sidebar__notes-viewport--overflowing': notesOverflowing }"
+          @scroll="handleNotesScroll"
+          @load.capture="scheduleNotesOverflowUpdate"
+        >
+          <NotesDisplay :notes="state.trip.notes" />
+        </div>
+        <button
+          v-if="notesBackEnabled && showBackToNotes"
+          type="button"
+          class="trip-viewer-sidebar__notes-back"
+          aria-label="Back to trip notes"
+          title="Back to trip notes"
+          @click="returnToTripNotes"
+        >
+          <span aria-hidden="true">↑</span>
+        </button>
+      </section>
     </section>
 
     <section v-for="group in groups" :key="group.region.id" class="trip-viewer-sidebar__group">

@@ -18,6 +18,7 @@ const props = defineProps<{
   entity: SelectedEntity;
   drawerState: DrawerState;
   returnTarget: 'peek' | 'hierarchy';
+  notesBackEnabled: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -145,6 +146,7 @@ function handleKeydown(event: KeyboardEvent): void {
           :groups="groups"
           :segments="segments"
           :selection="selection"
+          :notes-back-enabled="notesBackEnabled"
           @select="selectFromHierarchy"
         />
       </div>
