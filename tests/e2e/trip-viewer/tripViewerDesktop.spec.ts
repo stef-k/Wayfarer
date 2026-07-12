@@ -145,6 +145,32 @@ test('uses one sticky desktop command surface and one hierarchy collection', asy
   await expect.poll(() => content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top)).toBe(headerTop);
 });
 
+test('mounts exactly one responsive command and hierarchy composition at each breakpoint', async ({ page }) => {
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 820, compact: false },
+    { name: 'tablet', width: 800, height: 1024, compact: true },
+    { name: 'mobile', width: 390, height: 844, compact: true }
+  ]) {
+    await page.setViewportSize(viewport);
+    await loadMockedViewer(page);
+
+    if (viewport.compact) {
+      await page.getByRole('button', { name: 'Browse trip contents' }).click();
+      await expect(page.locator('.trip-viewer-content-surface')).toHaveCount(0);
+      await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(1);
+    } else {
+      await expect(page.locator('.trip-viewer-content-surface')).toHaveCount(1);
+      await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(0);
+    }
+
+    await expect(page.locator('.trip-viewer-command-header')).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toHaveCount(1);
+    await expect(page.locator('.trip-viewer-actions')).toHaveCount(1);
+    await expect(page.locator('.trip-viewer-sidebar__overview')).toHaveCount(1);
+    await expect(page.locator('.trip-viewer-sidebar')).toHaveCount(1);
+  }
+});
+
 test('renders the scrollable trip overview once with ordered tags and display-safe notes', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 });
   const state = mockViewerState() as any;
@@ -178,6 +204,33 @@ test('renders the scrollable trip overview once with ordered tags and display-sa
   await loadMockedViewer(page, state);
   await expect(overview.locator('.trip-viewer-tags')).toHaveCount(0);
   await expect(overview.locator('.trip-viewer-notes')).toHaveCount(0);
+});
+
+test('bounds overflowing trip notes and returns only their viewport to its focused heading', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  const state = mockViewerState() as any;
+  state.trip.notes = {
+    displayHtml: `<p>${'Long trip note. '.repeat(1400)}</p>`,
+    plainText: 'Long trip note.',
+    hasRenderableContent: true,
+    hasTextContent: true,
+    hasMediaContent: false
+  };
+  await loadMockedViewer(page, state);
+
+  const overview = page.locator('.trip-viewer-sidebar__overview');
+  const notesViewport = overview.locator('.trip-viewer-sidebar__notes-viewport');
+  await expect(notesViewport).toHaveClass(/trip-viewer-sidebar__notes-viewport--overflowing/);
+  await expect(notesViewport).toHaveCSS('max-height', '288px');
+  await expect(page.getByRole('button', { name: 'Back to trip notes' })).toHaveCount(0);
+
+  await notesViewport.evaluate(element => { element.scrollTop = 200; element.dispatchEvent(new Event('scroll')); });
+  const back = page.getByRole('button', { name: 'Back to trip notes' });
+  await expect(back).toBeVisible();
+  await back.click();
+
+  await expect.poll(() => notesViewport.evaluate(element => element.scrollTop)).toBe(0);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('trip-viewer-trip-notes-heading');
 });
 
 test('uses only the returned cover display URL and silently removes failed covers', async ({ page }) => {
