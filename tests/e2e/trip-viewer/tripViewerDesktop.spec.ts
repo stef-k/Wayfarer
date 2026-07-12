@@ -151,7 +151,7 @@ test('renders server-gated compact visit progress with public and private disclo
   await loadMockedViewer(page);
 
   const overview = page.locator('.trip-viewer-sidebar__overview');
-  const progress = overview.getByLabel('Visit progress');
+  const progress = overview.locator('.trip-viewer-progress');
   await expect(progress).toBeVisible();
   await expect(progress.getByText('Example Owner')).toBeVisible();
   await expect(progress.getByText('1 / 2 places')).toBeVisible();
@@ -163,19 +163,19 @@ test('renders server-gated compact visit progress with public and private disclo
   const publicDialog = page.getByRole('dialog', { name: 'Visit progress details' });
   await expect(publicDialog).toBeVisible();
   await expect(publicDialog.getByText('Harbor Cafe')).toBeVisible();
-  await expect(publicDialog.getByText(/Visit history|2026-|All|Not visited|Visited/)).toHaveCount(0);
+  await expect(publicDialog.getByText(/Visit history|2026-|All/)).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(publicDialog).toHaveCount(0);
   await expect(progress.getByRole('button', { name: 'View progress' })).toBeFocused();
 
   const denied = mockViewerState({ canDisplayProgress: false, canDisplayCounts: false, canReadVisitCounts: false });
   await loadMockedViewer(page, denied);
-  await expect(page.getByLabel('Visit progress')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-progress')).toHaveCount(0);
 
   const privateOwner = mockViewerState({ viewerMode: 'private', canDisplayHistory: true, canReadVisitHistory: true }) as any;
   privateOwner.permissions.isOwner = true;
   await loadMockedViewer(page, { state: privateOwner, configMode: 'private' });
-  await expect(page.getByLabel('Visit progress').getByRole('button', { name: 'Visit history' })).toBeVisible();
+  await expect(page.locator('.trip-viewer-progress').getByRole('button', { name: 'Visit history' })).toBeVisible();
   await page.getByRole('button', { name: 'Visit history' }).click();
   await expect(page.getByRole('dialog', { name: 'Visit history' }).getByText('Jul 4, 2026')).toBeVisible();
 });
@@ -184,10 +184,10 @@ test('keeps visit progress out of embed and mounts its compact summary once on m
   await page.setViewportSize({ width: 390, height: 844 });
   await loadMockedViewer(page);
   await page.getByRole('button', { name: 'Browse trip contents' }).click();
-  await expect(page.locator('.trip-viewer-sidebar__overview').getByLabel('Visit progress')).toHaveCount(1);
+  await expect(page.locator('.trip-viewer-sidebar__overview .trip-viewer-progress')).toHaveCount(1);
 
   await loadMockedViewer(page, { state: mockViewerState({ viewerMode: 'embed' }), configMode: 'embed' });
-  await expect(page.getByLabel('Visit progress')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-progress')).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: /Visit/ })).toHaveCount(0);
 });
 

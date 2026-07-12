@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
-import { coordinateLabel, distanceDisplay, durationDisplay, hasUsableAreaGeometry, segmentModeLabel, validAreaFillHex, visitSummaryForPlace } from '../viewModel';
+import { coordinateLabel, distanceDisplay, durationDisplay, hasUsableAreaGeometry, segmentModeLabel, validAreaFillHex } from '../viewModel';
 import type { SelectedEntity } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
@@ -14,9 +14,20 @@ const emit = defineEmits<{
   focus: [selection: ViewerSelection];
 }>();
 
-const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryForPlace(props.state, props.entity.place) : null);
 const areaFillHex = computed(() => props.entity.area ? validAreaFillHex(props.entity.area.fillHex) : null);
 const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGeometry(props.entity.area.geometry) : false);
+// Place location remains display-safe: invalid or absent coordinates are omitted rather than presented as a placeholder.
+const placeLocation = computed(() => {
+  const place = props.entity.place;
+  if (!place) return null;
+
+  const address = place.address.trim();
+  const coordinate = place.location;
+  const coordinates = coordinate && Number.isFinite(coordinate.latitude) && Number.isFinite(coordinate.longitude)
+    ? coordinateLabel(coordinate)
+    : null;
+  return address || coordinates ? { address: address || null, coordinates } : null;
+});
 </script>
 
 <template>
@@ -36,17 +47,10 @@ const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGe
       </template>
 
       <template v-if="entity.place">
-        <div>
-          <dt>Address</dt>
-          <dd>{{ entity.place.address || 'Not set' }}</dd>
-        </div>
-        <div>
-          <dt>Coordinates</dt>
-          <dd>{{ coordinateLabel(entity.place.location) }}</dd>
-        </div>
-        <div v-if="selectedVisitSummary">
-          <dt>Visits</dt>
-          <dd>{{ selectedVisitSummary.isVisited ? selectedVisitSummary.visitCount : 0 }}</dd>
+        <!-- Location is intentionally one compact presentation block, not a second facts hierarchy. -->
+        <div v-if="placeLocation" class="trip-viewer-detail__location">
+          <span v-if="placeLocation.address">{{ placeLocation.address }}</span>
+          <small v-if="placeLocation.coordinates">{{ placeLocation.coordinates }}</small>
         </div>
       </template>
 

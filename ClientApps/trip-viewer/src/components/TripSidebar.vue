@@ -4,6 +4,7 @@ import type { RegionGroup, SegmentSummary } from '../viewModel';
 import { isSameSelection, notesPreview, orderedTags, segmentModeLabel, segmentTitle, validAreaFillHex } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 import NotesDisplay from './NotesDisplay.vue';
+import ProgressPanel from './ProgressPanel.vue';
 
 const props = defineProps<{
   state: TripViewerState;
@@ -21,6 +22,10 @@ const select = (selection: ViewerSelection): void => emit('select', selection);
 const selected = (selection: ViewerSelection): boolean => isSameSelection(props.selection, selection);
 const areaFillHex = (fillHex: string | null): string | null => validAreaFillHex(fillHex);
 const tags = computed(() => orderedTags(props.state));
+const canShowProgress = computed(() =>
+  props.state.visitProgress.canDisplayProgress
+    && props.state.visitProgress.canDisplayCounts
+    && props.state.permissions.canReadVisitCounts);
 const notesViewport = ref<HTMLElement | null>(null);
 const tripNotesHeading = ref<HTMLElement | null>(null);
 const notesOverflowing = ref(false);
@@ -69,7 +74,7 @@ watch(() => props.state.trip.notes, scheduleNotesOverflowUpdate, { deep: true })
 <template>
   <aside class="trip-viewer-sidebar" aria-label="Trip contents">
     <!-- This is display-safe trip information, not a second identity or hierarchy surface. -->
-    <section v-if="tags.length || state.trip.notes.hasRenderableContent" class="trip-viewer-sidebar__overview">
+    <section v-if="tags.length || state.trip.notes.hasRenderableContent || canShowProgress" class="trip-viewer-sidebar__overview">
       <ul v-if="tags.length" class="trip-viewer-tags" aria-label="Trip tags">
         <li v-for="tag in tags" :key="tag.id">{{ tag.name }}</li>
       </ul>
@@ -95,6 +100,7 @@ watch(() => props.state.trip.notes, scheduleNotesOverflowUpdate, { deep: true })
           <span aria-hidden="true">↑</span>
         </button>
       </section>
+      <ProgressPanel v-if="canShowProgress" :state="state" :groups="groups" />
     </section>
 
     <section v-for="group in groups" :key="group.region.id" class="trip-viewer-sidebar__group">

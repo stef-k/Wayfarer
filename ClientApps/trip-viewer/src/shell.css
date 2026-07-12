@@ -48,8 +48,7 @@
   margin: 0;
 }
 
-.trip-viewer-command-header__identity h1,
-.trip-viewer-command-header__detail-context strong {
+.trip-viewer-command-header__identity h1 {
   font-size: 1.1rem;
   line-height: 1.2;
   margin: 0;

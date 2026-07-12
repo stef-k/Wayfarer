@@ -136,8 +136,14 @@ function handleKeydown(event: KeyboardEvent): void {
       </button>
 
       <div class="trip-viewer-mobile-drawer__title">
-        <span>{{ entity.eyebrow }}</span>
-        <strong>{{ entity.title }}</strong>
+        <!-- Detail identity belongs to TripDetail; drawer chrome provides only the return breadcrumb. -->
+        <template v-if="drawerState === 'detail'">
+          <span>Trip: {{ state.trip.name }}</span>
+        </template>
+        <template v-else>
+          <span>{{ entity.eyebrow }}</span>
+          <strong>{{ entity.title }}</strong>
+        </template>
       </div>
 
       <button

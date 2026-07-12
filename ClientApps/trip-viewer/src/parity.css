@@ -74,7 +74,7 @@
 
 .trip-viewer-progress {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   padding: 10px;
   border: 1px solid var(--trip-viewer-border);
   border-radius: 6px;
@@ -103,7 +103,7 @@
   background: var(--trip-viewer-surface-strong);
   border: 1px solid var(--trip-viewer-border);
   border-radius: 999px;
-  height: 12px;
+  height: 6px;
   overflow: hidden;
 }
 
@@ -113,10 +113,36 @@
   height: 100%;
 }
 
-.trip-viewer-progress__filters {
+.trip-viewer-progress__disclosure,
+.trip-viewer-progress__dialog header button {
+  justify-self: start;
+}
+
+.trip-viewer-progress__dialog {
+  background: var(--trip-viewer-surface);
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 8px;
+  color: var(--trip-viewer-text);
+  max-height: min(75vh, 640px);
+  max-width: min(92vw, 460px);
+  overflow: auto;
+  padding: 16px;
+}
+
+.trip-viewer-progress__dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.trip-viewer-progress__dialog header {
+  align-items: center;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.trip-viewer-progress__dialog h2 {
+  font-size: 1rem;
+  margin: 0;
 }
 
 .trip-viewer-progress__region,

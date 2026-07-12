@@ -432,7 +432,6 @@ function signalLayoutAfterTransition(): void {
           <div v-else class="trip-viewer-command-header__detail-context">
             <button type="button" @click="returnToDesktopContents">Back to content</button>
             <span>Trip: {{ state.trip.name }}</span>
-            <strong>{{ selected.eyebrow }}: {{ selected.title }}</strong>
           </div>
           <button type="button" class="trip-viewer-command-header__hide" @click="hideDesktopPanel">Hide trip contents</button>
         </header>

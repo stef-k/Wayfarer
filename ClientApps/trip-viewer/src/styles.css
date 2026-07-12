@@ -480,6 +480,19 @@ body {
   background: var(--trip-viewer-card);
 }
 
+.trip-viewer-detail__location {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 6px;
+  background: var(--trip-viewer-card);
+}
+
+.trip-viewer-detail__location small {
+  color: var(--trip-viewer-muted);
+}
+
 .trip-viewer-facts dt {
   color: var(--trip-viewer-muted);
   font-size: 0.76rem;
