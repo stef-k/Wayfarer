@@ -79,7 +79,7 @@ test('copies only server URLs with Clipboard success, fallback success, and visi
   await expect(page.getByRole('textbox', { name: 'Copy Copy map snapshot URL manually' })).toHaveValue('/Public/Trips/trip-1/MapSnapshot');
 });
 
-test('supports menu keyboard navigation, Escape focus return, and mobile full-trip placement', async ({ page }) => {
+test('supports menu keyboard navigation, Escape focus return, and mobile command-surface reuse', async ({ page }) => {
   await loadMockedViewer(page, mockActionState('public-owner'));
   const trigger = page.getByRole('button', { name: 'More actions' });
   await trigger.focus();
@@ -97,9 +97,10 @@ test('supports menu keyboard navigation, Escape focus return, and mobile full-tr
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'More actions' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Browse trip contents' }).click();
-  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
-  await expect(page.getByLabel('Selected trip details').getByRole('button', { name: 'Readable itinerary' })).toBeVisible();
-  await expect(page.getByLabel('Selected trip details').getByRole('button', { name: 'More actions' })).toBeVisible();
+  const hierarchy = page.getByLabel('Trip hierarchy');
+  await expect(hierarchy.getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toBeVisible();
+  await expect(hierarchy.getByRole('button', { name: 'Readable itinerary' })).toBeVisible();
+  await expect(hierarchy.getByRole('button', { name: 'More actions' })).toBeVisible();
 });
 
 test('keeps readable controls scoped and embed action aliases map-only', async ({ page }) => {

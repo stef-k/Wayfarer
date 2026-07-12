@@ -10,7 +10,7 @@ test('uses query coordinates only at initial load and restores the saved DTO tri
   await loadMockedViewer(page, { state, pageUrl: '/__trip-viewer-test.html?lat=1&lon=2&zoom=3' });
 
   await expectMapQuery(page, '1.000000', '2.000000', '3');
-  await page.getByRole('button', { name: 'Full trip', exact: true }).click();
+  await page.getByRole('button', { name: 'Recenter full trip' }).click();
   await expectMapQuery(page, '40.710000', '-74.010000', '11');
 });
 
@@ -23,7 +23,7 @@ test('search clear invokes the saved-trip reset and falls back from bounds to a 
 
   clearRenderedMapContent(state);
   await loadMockedViewer(page, { state, pageUrl: '/__trip-viewer-test.html?lat=1&lon=2&zoom=3' });
-  await page.getByRole('button', { name: 'Full trip', exact: true }).click();
+  await page.getByRole('button', { name: 'Recenter full trip' }).click();
   await expectMapQuery(page, '20.000000', '0.000000', '2');
 });
 

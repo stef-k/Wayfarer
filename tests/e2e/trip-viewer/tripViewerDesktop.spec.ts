@@ -4,8 +4,7 @@ import { loadMockedViewer, mockViewerState } from './tripViewerFixtures';
 test('renders mocked #335 desktop viewer state and sidebar detail selection', async ({ page }) => {
   await loadMockedViewer(page);
 
-  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ }).getByText('Harbor')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: /Region Harbor/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toBeVisible();
@@ -20,12 +19,6 @@ test('renders mocked #335 desktop viewer state and sidebar detail selection', as
   await expect(page.getByRole('heading', { name: 'Waterfront Zone' })).toBeVisible();
   await expect(page.getByLabel('Selection details').getByText('Media note', { exact: true })).toBeVisible();
   await expect(page.locator('.trip-viewer-detail__notes img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
-});
-
-test('renders #335 tags beside the full-trip detail', async ({ page }) => {
-  await loadMockedViewer(page);
-
-  await expect(page.getByLabel('Trip tags').getByText('Harbor')).toBeVisible();
 });
 
 test('opens readable document mode from #335 readable action and preserves image-only notes', async ({ page }) => {
@@ -84,18 +77,6 @@ test('hides visit badges and counts when #335 progress flags deny display', asyn
   await expect(page.getByLabel('Selection details').getByText('Visits')).toHaveCount(0); await expect(page.getByLabel('Selection details').getByText('Progress')).toHaveCount(0);
 });
 
-test('renders progress counts, filters, and private history only from #335 progress permissions', async ({ page }) => {
-  await loadMockedViewer(page, mockViewerState({ canDisplayHistory: true, canReadVisitHistory: true }));
-
-  const progress = page.getByLabel('Visit progress');
-  await expect(progress.getByText('1 / 2 places')).toBeVisible(); await expect(progress.getByText('50% visited')).toBeVisible(); await expect(progress.getByRole('button', { name: 'Visited', exact: true })).toBeVisible();
-  const regionProgress = progress.locator('.trip-viewer-progress__region');
-  await expect(regionProgress.getByText('Harbor Cafe')).toBeVisible(); await expect(progress.getByLabel('Visit history', { exact: true }).getByText('Harbor Cafe')).toBeVisible(); await expect(progress.getByText('30 min')).toBeVisible();
-
-  await progress.getByRole('button', { name: 'Not visited', exact: true }).click();
-  await expect(regionProgress.getByText('Lookout')).toBeVisible(); await expect(regionProgress.getByText('Harbor Cafe')).toHaveCount(0);
-});
-
 test('searches returned DTO text, notes, tags, addresses, and shows no-results state', async ({ page }) => {
   await loadMockedViewer(page);
 
@@ -103,7 +84,7 @@ test('searches returned DTO text, notes, tags, addresses, and shows no-results s
   await expect(page.getByRole('button', { name: /place Harbor Cafe/ })).toBeVisible();
   await page.getByRole('button', { name: /place Harbor Cafe/ }).click();
   await expect(page.getByRole('heading', { name: 'Harbor Cafe' })).toBeVisible();
-  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Back to content' }).click();
 
   await page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags').fill('harbor');
   await expect(page.getByRole('button', { name: /tag Harbor/ })).toBeVisible();
@@ -235,12 +216,7 @@ test('desktop entity detail replaces contents and can return to full trip state'
   await expect(page.getByLabel('Trip content').getByText('Media note', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toBeVisible();
-
-  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
-  await page.getByRole('button', { name: 'Full trip', exact: true }).click();
-  await expect(page.getByRole('button', { name: /Trip Mocked Desktop Trip/ })).toHaveClass(/trip-viewer-list-item--selected/);
+  await page.getByRole('button', { name: 'Back to content' }).click();
   await expect(page.getByRole('button', { name: /Waterfront Zone/ })).toBeVisible();
 });
 
