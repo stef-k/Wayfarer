@@ -22,10 +22,10 @@ const canShowHistory = computed(() =>
     && props.state.visitProgress.canDisplayHistory
     && props.state.permissions.canReadVisitHistory);
 
-const summaryLabel = computed(() => {
-  if (props.state.permissions.isOwner) return 'Your visit progress';
-  return props.state.trip.ownerDisplayName ? `${props.state.trip.ownerDisplayName} · Visit progress` : 'Visit progress';
-});
+const ownerVisitLabel = computed(() =>
+  !props.state.permissions.isOwner && props.state.trip.ownerDisplayName
+    ? `${props.state.trip.ownerDisplayName} visited`
+    : null);
 
 const regionBreakdown = computed(() => props.groups.map(group => {
   const places = group.places.map(place => {
@@ -67,19 +67,21 @@ function formatDuration(minutes: number | null): string {
 
 <template>
   <section v-if="canShowCounts" class="trip-viewer-progress" aria-label="Visit progress">
-    <header>
-      <span>{{ summaryLabel }}</span>
+    <!-- This compact summary deliberately uses only server-returned display-safe fields. -->
+    <header class="trip-viewer-progress__summary">
+      <small v-if="ownerVisitLabel">{{ ownerVisitLabel }}</small>
       <strong>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places</strong>
-      <small>{{ state.visitProgress.percentVisited }}% visited</small>
+      <div>
+        <button ref="disclosureTrigger" type="button" class="trip-viewer-progress__disclosure" @click="openDisclosure">
+          Details
+        </button>
+        <span class="trip-viewer-progress__percentage">{{ state.visitProgress.percentVisited }}%</span>
+      </div>
     </header>
 
     <div class="trip-viewer-progress__bar" role="progressbar" :aria-valuenow="state.visitProgress.percentVisited" aria-valuemin="0" aria-valuemax="100">
       <span :style="{ width: `${Math.max(0, Math.min(100, state.visitProgress.percentVisited))}%` }"></span>
     </div>
-
-    <button ref="disclosureTrigger" type="button" class="trip-viewer-progress__disclosure" @click="openDisclosure">
-      {{ canShowHistory ? 'Visit history' : 'View progress' }}
-    </button>
 
     <!-- Native modal behavior keeps the map and sidebar out of the active interaction layer while details are open. -->
     <dialog
@@ -92,25 +94,32 @@ function formatDuration(minutes: number | null): string {
         <h2>{{ canShowHistory ? 'Visit history' : 'Visit progress details' }}</h2>
         <button type="button" aria-label="Close visit progress" @click="closeDisclosure">Close</button>
       </header>
-      <section v-for="group in regionBreakdown" :key="group.region.id" class="trip-viewer-progress__region">
-        <h3>{{ group.region.name }}</h3>
-        <small>{{ group.visited }} / {{ group.total }} visited</small>
-        <ul>
-          <li v-for="entry in group.places" :key="entry.place.id">
-            <span>{{ entry.place.name }}</span>
-            <small>{{ entry.summary.isVisited ? `${entry.summary.visitCount} visit(s)` : 'Not visited' }}</small>
-          </li>
-        </ul>
+      <!-- Public disclosures intentionally contain aggregate counts only. -->
+      <section v-if="!canShowHistory" class="trip-viewer-progress__counts" aria-label="Visit progress counts">
+        <strong>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited</strong>
+        <small>{{ state.visitProgress.percentVisited }}% complete</small>
       </section>
-      <section v-if="canShowHistory && state.visitProgress.historyRows.length" class="trip-viewer-progress__history" aria-label="Visit history entries">
-        <h3>Visit history</h3>
-        <ul>
-          <li v-for="row in state.visitProgress.historyRows" :key="row.visitId">
-            <span>{{ state.placesById[row.placeId]?.name ?? 'Unknown place' }}</span>
-            <small>{{ formatDate(row.startedAt) }} · {{ formatDuration(row.durationMinutes) }}</small>
-          </li>
-        </ul>
-      </section>
+      <template v-else>
+        <section v-for="group in regionBreakdown" :key="group.region.id" class="trip-viewer-progress__region">
+          <h3>{{ group.region.name }}</h3>
+          <small>{{ group.visited }} / {{ group.total }} visited</small>
+          <ul>
+            <li v-for="entry in group.places" :key="entry.place.id">
+              <span>{{ entry.place.name }}</span>
+              <small>{{ entry.summary.isVisited ? `${entry.summary.visitCount} visit(s)` : 'Not visited' }}</small>
+            </li>
+          </ul>
+        </section>
+        <section v-if="state.visitProgress.historyRows.length" class="trip-viewer-progress__history" aria-label="Visit history entries">
+          <h3>Visit history</h3>
+          <ul>
+            <li v-for="row in state.visitProgress.historyRows" :key="row.visitId">
+              <span>{{ state.placesById[row.placeId]?.name ?? 'Unknown place' }}</span>
+              <small>{{ formatDate(row.startedAt) }} · {{ formatDuration(row.durationMinutes) }}</small>
+            </li>
+          </ul>
+        </section>
+      </template>
     </dialog>
   </section>
 </template>

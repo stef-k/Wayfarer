@@ -81,21 +81,26 @@
   background: var(--trip-viewer-card);
 }
 
-.trip-viewer-progress header {
+.trip-viewer-progress__summary {
+  align-items: center;
   display: grid;
-  gap: 2px;
+  gap: 2px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.trip-viewer-progress header span {
+.trip-viewer-progress__summary small {
   color: var(--trip-viewer-muted);
   font-size: 0.76rem;
-  font-weight: 700;
-  text-transform: uppercase;
+  grid-column: 1 / -1;
 }
 
-.trip-viewer-progress header small,
+.trip-viewer-progress__summary > strong {
+  font-size: 0.88rem;
+}
+
 .trip-viewer-progress__region small,
-.trip-viewer-progress__history small {
+.trip-viewer-progress__history small,
+.trip-viewer-progress__counts small {
   color: var(--trip-viewer-muted);
 }
 
@@ -116,6 +121,31 @@
 .trip-viewer-progress__disclosure,
 .trip-viewer-progress__dialog header button {
   justify-self: start;
+}
+
+.trip-viewer-progress__summary > div {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.trip-viewer-progress__disclosure {
+  background: transparent;
+  border: 0;
+  color: var(--trip-viewer-muted);
+  cursor: pointer;
+  font-size: 0.76rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.trip-viewer-progress__percentage {
+  background: var(--trip-viewer-accent);
+  border-radius: 999px;
+  color: var(--trip-viewer-surface);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 5px;
 }
 
 .trip-viewer-progress__dialog {
@@ -146,7 +176,8 @@
 }
 
 .trip-viewer-progress__region,
-.trip-viewer-progress__history {
+.trip-viewer-progress__history,
+.trip-viewer-progress__counts {
   display: grid;
   gap: 5px;
 }

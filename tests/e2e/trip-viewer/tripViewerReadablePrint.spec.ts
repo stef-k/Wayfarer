@@ -137,7 +137,6 @@ test('keeps readable document controls out of embed and avoids mobile overlap', 
   await page.setViewportSize({ width: 390, height: 844 });
   await loadMockedViewer(page);
   await page.getByRole('button', { name: 'Browse trip contents' }).click();
-  await page.getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
   const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(readable).toBeVisible();

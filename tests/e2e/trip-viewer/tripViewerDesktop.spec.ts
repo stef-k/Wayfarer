@@ -146,27 +146,28 @@ test('uses one sticky desktop command surface and one hierarchy collection', asy
   await expect.poll(() => content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top)).toBe(headerTop);
 });
 
-test('renders server-gated compact visit progress with public and private disclosures', async ({ page }) => {
+test('renders legacy-complete compact visit progress with server-gated public and private details', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 });
   await loadMockedViewer(page);
 
   const overview = page.locator('.trip-viewer-sidebar__overview');
   const progress = overview.locator('.trip-viewer-progress');
   await expect(progress).toBeVisible();
-  await expect(progress.getByText('Example Owner')).toBeVisible();
-  await expect(progress.getByText('1 / 2 places')).toBeVisible();
-  await expect(progress.getByText('50% visited')).toBeVisible();
+  await expect(progress.getByText('Example Owner visited')).toBeVisible();
+  await expect(progress.getByText('1 / 2 places', { exact: true })).toBeVisible();
+  await expect(progress.getByText('50%', { exact: true })).toBeVisible();
   await expect(progress.locator('[role="progressbar"]')).toHaveAttribute('aria-valuenow', '50');
-  await expect(progress.getByRole('button', { name: 'View progress' })).toBeVisible();
+  await expect(progress.locator('.trip-viewer-progress__bar')).toHaveCSS('height', '6px');
+  await expect(progress.getByRole('button', { name: 'Details' })).toBeVisible();
 
-  await progress.getByRole('button', { name: 'View progress' }).click();
+  await progress.getByRole('button', { name: 'Details' }).click();
   const publicDialog = page.getByRole('dialog', { name: 'Visit progress details' });
   await expect(publicDialog).toBeVisible();
-  await expect(publicDialog.getByText('Harbor Cafe')).toBeVisible();
-  await expect(publicDialog.getByText(/Visit history|2026-|All/)).toHaveCount(0);
+  await expect(publicDialog.getByLabel('Visit progress counts')).toContainText('1 / 2 places visited');
+  await expect(publicDialog.getByText(/Harbor Cafe|Lookout|Visit history|2026-|Show All|Visited|Not visited/)).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(publicDialog).toHaveCount(0);
-  await expect(progress.getByRole('button', { name: 'View progress' })).toBeFocused();
+  await expect(progress.getByRole('button', { name: 'Details' })).toBeFocused();
 
   const denied = mockViewerState({ canDisplayProgress: false, canDisplayCounts: false, canReadVisitCounts: false });
   await loadMockedViewer(page, denied);
@@ -175,8 +176,8 @@ test('renders server-gated compact visit progress with public and private disclo
   const privateOwner = mockViewerState({ viewerMode: 'private', canDisplayHistory: true, canReadVisitHistory: true }) as any;
   privateOwner.permissions.isOwner = true;
   await loadMockedViewer(page, { state: privateOwner, configMode: 'private' });
-  await expect(page.locator('.trip-viewer-progress').getByRole('button', { name: 'Visit history' })).toBeVisible();
-  await page.getByRole('button', { name: 'Visit history' }).click();
+  await expect(page.locator('.trip-viewer-progress').getByRole('button', { name: 'Details' })).toBeVisible();
+  await page.getByRole('button', { name: 'Details' }).click();
   await expect(page.getByRole('dialog', { name: 'Visit history' }).getByText('Jul 4, 2026')).toBeVisible();
 });
 

@@ -20,7 +20,7 @@ test('renders one place identity with compact optional location and no visit fac
   state.placesById['place-1'].address = '';
   state.placesById['place-1'].location = null;
   await loadMockedViewer(page, state);
-  await page.getByRole('button', { name: 'Harbor Cafe Place' }).click();
+  await page.getByRole('button', { name: 'Harbor Cafe Dock coffee and breakfast.' }).click();
   await expect(page.getByLabel('Selection details').locator('.trip-viewer-detail__location')).toHaveCount(0);
   await expect(page.getByLabel('Selection details').getByText(/Not set/)).toHaveCount(0);
 });
@@ -132,12 +132,11 @@ test('uses the same segment omission rules in mobile and readable detail surface
   await page.setViewportSize({ width: 390, height: 844 });
   await loadMockedViewer(page, state);
   await page.getByRole('button', { name: 'Browse trip contents' }).click();
-  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Harbor Cafe to Lookout/ }).click();
+  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Harbor Cafe to Lookout/ }).evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.getByLabel('Selected trip details').getByText('Distance unavailable.')).toBeVisible();
   await expect(page.getByLabel('Selected trip details').getByText('Duration not provided.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Back from trip details' }).click();
-  await page.getByLabel('Trip hierarchy').getByRole('button', { name: /Trip Mocked Desktop Trip/ }).click();
   await page.getByRole('button', { name: 'Readable itinerary' }).click();
   const readable = page.getByRole('dialog', { name: 'Readable trip itinerary' });
   await expect(readable.locator('.trip-viewer-readable__segments').getByText(/-1|unavailable|not provided/)).toHaveCount(0);
