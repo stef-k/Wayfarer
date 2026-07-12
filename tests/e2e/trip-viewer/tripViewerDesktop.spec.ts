@@ -143,6 +143,63 @@ test('uses one desktop content surface plus map with contained viewport and side
   await expect(contentSurface).toBeVisible();
 });
 
+test('uses one sticky desktop command surface and one hierarchy collection', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page);
+
+  const content = page.getByLabel('Trip content');
+  await expect(content.getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toHaveCount(1);
+  await expect(content.locator('.trip-viewer-command-header')).toHaveCount(1);
+  await expect(content.locator('.trip-viewer-command-header .trip-viewer-search')).toHaveCount(1);
+  await expect(content.locator('.trip-viewer-command-header .trip-viewer-actions')).toHaveCount(1);
+  await expect(content.locator('.trip-viewer-hierarchy-body .trip-viewer-sidebar')).toHaveCount(1);
+  await expect(content.locator('.trip-viewer-sidebar__trip')).toHaveCount(0);
+  await expect(content.locator('.trip-viewer-detail')).toHaveCount(0);
+  await expect(content.getByRole('button', { name: 'Full trip', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recenter full trip' })).toHaveCount(1);
+
+  const headerTop = await content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top);
+  await content.locator('.trip-viewer-hierarchy-body').evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top)).toBe(headerTop);
+});
+
+test('uses only the returned cover display URL and silently removes failed covers', async ({ page }) => {
+  const presentCover = mockViewerState() as any;
+  presentCover.trip.coverImage = { displayUrl: '/cover-present', rawUrl: 'https://private.example.test/raw-cover', copyUrl: null };
+  await page.route('**/cover-present', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64') }));
+  await loadMockedViewer(page, presentCover);
+
+  const cover = page.getByRole('img', { name: 'Cover for Mocked Desktop Trip' });
+  await expect(cover).toHaveAttribute('src', '/cover-present');
+  await expect(cover).toHaveAttribute('loading', 'eager');
+  await expect(page.locator('text=https://private.example.test/raw-cover')).toHaveCount(0);
+
+  const failedCover = mockViewerState() as any;
+  failedCover.trip.coverImage = { displayUrl: '/cover-404', rawUrl: 'https://private.example.test/raw-cover', copyUrl: null };
+  await page.route('**/cover-404', route => route.fulfill({ status: 404 }));
+  await loadMockedViewer(page, failedCover);
+  await expect(cover).toHaveCount(0);
+
+  const withoutCover = mockViewerState() as any;
+  withoutCover.trip.coverImage = null;
+  await loadMockedViewer(page, withoutCover);
+  await expect(page.getByRole('img', { name: 'Cover for Mocked Desktop Trip' })).toHaveCount(0);
+});
+
+test('returns from desktop detail without resetting the current map view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page, {
+    state: mockViewerState({ initialView: { latitude: 1, longitude: 2, zoom: 3, source: 'query', canonicalQuery: 'lat=1&lon=2&zoom=3' } }),
+    pageUrl: '/__trip-viewer-test.html?lat=1&lon=2&zoom=3'
+  });
+
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+  const beforeBack = new URL(page.url()).search;
+  await page.getByRole('button', { name: 'Back to content' }).click();
+  expect(new URL(page.url()).search).toBe(beforeBack);
+  await expect(page.getByLabel('Trip content').getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toBeVisible();
+});
+
 test('contains desktop preview below authenticated MVC chrome after shell shifts', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 820 });
   await loadMockedViewer(page, {

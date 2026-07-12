@@ -191,6 +191,27 @@ body.trip-viewer-body--drawer-open {
     touch-action: pan-y;
   }
 
+  .trip-viewer-mobile-drawer__panel--hierarchy {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .trip-viewer-command-header--drawer {
+    background: var(--trip-viewer-surface);
+    border-bottom: 1px solid var(--trip-viewer-border);
+    padding: 10px;
+  }
+
+  .trip-viewer-mobile-drawer__panel-body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 0 10px calc(12px + env(safe-area-inset-bottom, 0px));
+    touch-action: pan-y;
+  }
+
   .trip-viewer-mobile-drawer__panel .trip-viewer-sidebar,
   .trip-viewer-mobile-drawer__panel .trip-viewer-navigation,
   .trip-viewer-mobile-drawer__panel .trip-viewer-detail {

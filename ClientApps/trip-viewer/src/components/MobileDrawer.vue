@@ -4,6 +4,7 @@ import type { RegionGroup, SegmentSummary, SelectedEntity } from '../viewModel';
 import { notesPreview } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 import SearchPanel from './SearchPanel.vue';
+import ActionsBar from './ActionsBar.vue';
 import TripDetail from './TripDetail.vue';
 import TripSidebar from './TripSidebar.vue';
 
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 const drawerElement = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
 const searchQuery = ref('');
+const coverVisible = ref(true);
 const isExpanded = computed(() => props.drawerState === 'hierarchy' || props.drawerState === 'detail');
 const selectedSummary = computed(() => notesPreview(props.entity.notes, 86));
 
@@ -111,30 +113,47 @@ function handleKeydown(event: KeyboardEvent): void {
       </div>
     </section>
 
-    <section v-else-if="drawerState === 'hierarchy'" class="trip-viewer-mobile-drawer__panel" aria-label="Trip hierarchy">
-      <SearchPanel
-        v-model="searchQuery"
-        :state="state"
-        @select="selectFromHierarchy"
-        @clear="emit('clear')"
-      />
-      <TripSidebar
-        :state="state"
-        :groups="groups"
-        :segments="segments"
-        :selection="selection"
-        @select="selectFromHierarchy"
-      />
+    <section v-else-if="drawerState === 'hierarchy'" class="trip-viewer-mobile-drawer__panel trip-viewer-mobile-drawer__panel--hierarchy" aria-label="Trip hierarchy">
+      <header class="trip-viewer-command-header trip-viewer-command-header--drawer">
+        <!-- Mobile reuses the same returned-only cover and ActionsBar contract as desktop. -->
+        <img
+          v-if="coverVisible && state.trip.coverImage?.displayUrl"
+          class="trip-viewer-command-header__cover"
+          :src="state.trip.coverImage.displayUrl"
+          :alt="`Cover for ${state.trip.name}`"
+          loading="eager"
+          @error="coverVisible = false"
+        >
+        <div class="trip-viewer-command-header__identity">
+          <h1>{{ state.trip.name }}</h1>
+          <p>
+            <template v-if="state.trip.ownerDisplayName">{{ state.trip.ownerDisplayName }} · </template>
+            {{ state.regionOrder.length }} regions · {{ Object.keys(state.placesById).length }} places · {{ state.segmentOrder.length }} segments
+          </p>
+        </div>
+        <SearchPanel
+          v-model="searchQuery"
+          :state="state"
+          @select="selectFromHierarchy"
+          @clear="emit('clear')"
+        />
+        <ActionsBar :actions="state.actions" :embed="false" @readable="emit('readable')" @print="emit('print')" />
+      </header>
+      <div class="trip-viewer-mobile-drawer__panel-body">
+        <TripSidebar
+          :groups="groups"
+          :segments="segments"
+          :selection="selection"
+          @select="selectFromHierarchy"
+        />
+      </div>
     </section>
 
     <section v-else class="trip-viewer-mobile-drawer__panel" aria-label="Selected trip details">
       <TripDetail
         :state="state"
         :entity="entity"
-        :groups="groups"
         @focus="emit('focus', $event)"
-        @readable="emit('readable')"
-        @print="emit('print')"
       />
     </section>
   </aside>

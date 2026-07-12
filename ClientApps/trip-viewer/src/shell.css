@@ -27,44 +27,47 @@
   padding: 0;
 }
 
-.trip-viewer-content-surface__toolbar {
-  align-items: center;
+.trip-viewer-command-header {
   border-bottom: 1px solid var(--trip-viewer-border);
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 58px;
   padding: 10px 12px;
 }
 
-.trip-viewer-content-surface__toolbar > div:first-child {
+.trip-viewer-command-header__identity,
+.trip-viewer-command-header__detail-context {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
-.trip-viewer-content-surface__toolbar span {
+.trip-viewer-command-header__identity p,
+.trip-viewer-command-header__detail-context span {
   color: var(--trip-viewer-muted);
   font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
+  margin: 0;
 }
 
-.trip-viewer-content-surface__toolbar strong {
+.trip-viewer-command-header__identity h1,
+.trip-viewer-command-header__detail-context strong {
+  font-size: 1.1rem;
+  line-height: 1.2;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.trip-viewer-content-surface__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-end;
+.trip-viewer-command-header__cover {
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 6px;
+  object-fit: cover;
+  width: 100%;
 }
 
-.trip-viewer-content-surface__actions button,
+.trip-viewer-command-header__detail-context button,
+.trip-viewer-command-header__hide,
 .trip-viewer-panel-toggle {
   background: var(--trip-viewer-surface-strong);
   border: 1px solid var(--trip-viewer-border);
@@ -76,13 +79,15 @@
   padding: 5px 9px;
 }
 
-.trip-viewer-content-surface__actions button:hover,
+.trip-viewer-command-header__detail-context button:hover,
+.trip-viewer-command-header__hide:hover,
 .trip-viewer-panel-toggle:hover {
   border-color: var(--trip-viewer-accent);
   color: var(--trip-viewer-accent);
 }
 
-.trip-viewer-content-surface__scroll {
+.trip-viewer-hierarchy-body,
+.trip-viewer-detail-body {
   display: grid;
   gap: 10px;
   min-height: 0;
@@ -98,7 +103,7 @@
   z-index: 700;
 }
 
-.trip-viewer-content-surface__scroll .trip-viewer-detail {
+.trip-viewer-detail-body .trip-viewer-detail {
   border: 0;
   border-radius: 0;
   box-shadow: none;

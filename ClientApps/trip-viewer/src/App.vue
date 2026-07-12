@@ -6,6 +6,7 @@ import { normalizeViewerState } from './state';
 import { buildRegionGroups, buildSegmentSummaries, selectedEntity, tripSelection } from './viewModel';
 import MobileDrawer from './components/MobileDrawer.vue';
 import type { DrawerState } from './components/MobileDrawer.vue';
+import ActionsBar from './components/ActionsBar.vue';
 import ReadableDocument from './components/ReadableDocument.vue';
 import SearchPanel from './components/SearchPanel.vue';
 import TripMap from './components/TripMap.vue';
@@ -41,9 +42,9 @@ const isEmbed = computed(() => props.config?.viewerMode === 'embed' || state.val
 const regionGroups = computed(() => state.value ? buildRegionGroups(state.value) : []);
 const segments = computed(() => state.value ? buildSegmentSummaries(state.value) : []);
 const selected = computed(() => state.value && selection.value ? selectedEntity(state.value, selection.value) : null);
-const tripSummary = computed(() => state.value ? selectedEntity(state.value, tripSelection(state.value)) : null);
 const expandedMobileDrawer = computed(() => isCompactViewport.value && (drawerState.value === 'hierarchy' || drawerState.value === 'detail'));
 const showDesktopDetail = computed(() => !isCompactViewport.value && desktopSurfaceMode.value === 'detail');
+const desktopCoverVisible = ref(true);
 
 // Permits only server-authorized GET (or #335-compatible omitted-method) navigation actions.
 function isNavigationAction(action: ViewerAction): boolean {
@@ -136,6 +137,7 @@ async function loadViewerState(): Promise<void> {
     desktopPanelOpen.value = true;
     desktopSurfaceMode.value = selection.value.type === 'trip' ? 'contents' : 'detail';
     searchQuery.value = '';
+    desktopCoverVisible.value = true;
     status.value = 'loaded';
     signalLayoutAfterTransition();
   } catch (error) {
@@ -167,6 +169,14 @@ function showDesktopContents(): void {
   desktopPanelOpen.value = true;
   desktopSurfaceMode.value = 'contents';
   signalLayoutAfterTransition();
+}
+
+// Returns to hierarchy without invoking the #346 saved-trip map reset path.
+function returnToDesktopContents(): void {
+  if (!state.value) return;
+
+  selection.value = tripSelection(state.value);
+  showDesktopContents();
 }
 
 function hideDesktopPanel(): void {
@@ -337,36 +347,42 @@ function signalLayoutAfterTransition(): void {
       ]"
     >
       <aside v-if="!isEmbed && desktopPanelOpen" class="trip-viewer-content-surface" aria-label="Trip content">
-        <header class="trip-viewer-content-surface__toolbar">
-          <div>
-            <span>{{ showDesktopDetail ? selected.eyebrow : 'Trip contents' }}</span>
-            <strong>{{ showDesktopDetail ? selected.title : state.trip.name }}</strong>
+        <header class="trip-viewer-command-header">
+          <template v-if="!showDesktopDetail">
+            <!-- Only the server-returned display URL is eligible for sidebar identity. -->
+            <img
+              v-if="desktopCoverVisible && state.trip.coverImage?.displayUrl"
+              class="trip-viewer-command-header__cover"
+              :src="state.trip.coverImage.displayUrl"
+              :alt="`Cover for ${state.trip.name}`"
+              loading="eager"
+              @error="desktopCoverVisible = false"
+            >
+            <div class="trip-viewer-command-header__identity">
+              <h1>{{ state.trip.name }}</h1>
+              <p>
+                <template v-if="state.trip.ownerDisplayName">{{ state.trip.ownerDisplayName }} · </template>
+                {{ state.regionOrder.length }} regions · {{ Object.keys(state.placesById).length }} places · {{ state.segmentOrder.length }} segments
+              </p>
+            </div>
+            <SearchPanel
+              v-model="searchQuery"
+              :state="state"
+              @select="selection => selectEntity(selection, 'desktop')"
+              @clear="restoreFullTripView"
+            />
+            <ActionsBar :actions="state.actions" :embed="false" @readable="openReadable" @print="printReadable" />
+          </template>
+          <div v-else class="trip-viewer-command-header__detail-context">
+            <button type="button" @click="returnToDesktopContents">Back to content</button>
+            <span>Trip: {{ state.trip.name }}</span>
+            <strong>{{ selected.eyebrow }}: {{ selected.title }}</strong>
           </div>
-          <div class="trip-viewer-content-surface__actions">
-            <button v-if="showDesktopDetail" type="button" @click="showDesktopContents">Back</button>
-            <button type="button" @click="restoreFullTripView">Full trip</button>
-            <button type="button" @click="hideDesktopPanel">Hide</button>
-          </div>
+          <button type="button" class="trip-viewer-command-header__hide" @click="hideDesktopPanel">Hide trip contents</button>
         </header>
 
-        <div v-if="!showDesktopDetail" class="trip-viewer-content-surface__scroll">
-          <TripDetail
-            v-if="tripSummary"
-            :state="state"
-            :entity="tripSummary"
-            :groups="regionGroups"
-            @focus="selection => selectEntity(selection, 'desktop')"
-            @readable="openReadable"
-            @print="printReadable"
-          />
-          <SearchPanel
-            v-model="searchQuery"
-            :state="state"
-            @select="selection => selectEntity(selection, 'desktop')"
-            @clear="restoreFullTripView"
-          />
+        <div v-if="!showDesktopDetail" class="trip-viewer-hierarchy-body">
           <TripSidebar
-            :state="state"
             :groups="regionGroups"
             :segments="segments"
             :selection="selection"
@@ -374,14 +390,11 @@ function signalLayoutAfterTransition(): void {
           />
         </div>
 
-        <div v-else class="trip-viewer-content-surface__scroll">
+        <div v-else class="trip-viewer-detail-body">
           <TripDetail
             :state="state"
             :entity="selected"
-            :groups="regionGroups"
             @focus="selection => selectEntity(selection, 'desktop')"
-            @readable="openReadable"
-            @print="printReadable"
           />
         </div>
       </aside>

@@ -1,25 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import NotesDisplay from './NotesDisplay.vue';
-import ActionsBar from './ActionsBar.vue';
-import ProgressPanel from './ProgressPanel.vue';
-import { coordinateLabel, distanceDisplay, durationDisplay, hasUsableAreaGeometry, orderedTags, segmentModeLabel, validAreaFillHex, visitSummaryForPlace } from '../viewModel';
-import type { RegionGroup, SelectedEntity } from '../viewModel';
+import { coordinateLabel, distanceDisplay, durationDisplay, hasUsableAreaGeometry, segmentModeLabel, validAreaFillHex, visitSummaryForPlace } from '../viewModel';
+import type { SelectedEntity } from '../viewModel';
 import type { TripViewerState, ViewerSelection } from '../types';
 
 const props = defineProps<{
   entity: SelectedEntity;
   state: TripViewerState;
-  groups: RegionGroup[];
 }>();
 
 const emit = defineEmits<{
   focus: [selection: ViewerSelection];
-  readable: [];
-  print: [];
 }>();
 
-const tripTags = computed(() => orderedTags(props.state));
 const selectedVisitSummary = computed(() => props.entity.place ? visitSummaryForPlace(props.state, props.entity.place) : null);
 const areaFillHex = computed(() => props.entity.area ? validAreaFillHex(props.entity.area.fillHex) : null);
 const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGeometry(props.entity.area.geometry) : false);
@@ -33,33 +27,7 @@ const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGe
       <small v-if="entity.region && entity.type !== 'region'">In {{ entity.region.name }}</small>
     </header>
 
-    <ActionsBar
-      v-if="entity.type === 'trip'"
-      :actions="state.actions"
-      :embed="state.viewerMode === 'embed'"
-      @readable="emit('readable')"
-      @print="emit('print')"
-    />
-
-    <ul v-if="entity.type === 'trip' && tripTags.length" class="trip-viewer-tags" aria-label="Trip tags">
-      <li v-for="tag in tripTags" :key="tag.slug">{{ tag.name }}</li>
-    </ul>
-
-    <img v-if="entity.type === 'trip' && state.trip.coverImage?.displayUrl" class="trip-viewer-cover" :src="state.trip.coverImage.displayUrl" alt="" loading="lazy">
-    <img v-if="entity.region?.coverImage?.displayUrl && entity.type === 'region'" class="trip-viewer-cover" :src="entity.region.coverImage.displayUrl" alt="" loading="lazy">
-
     <dl class="trip-viewer-facts">
-      <template v-if="entity.type === 'trip'">
-        <div>
-          <dt>Mode</dt>
-          <dd>{{ state.viewerMode }}</dd>
-        </div>
-        <div v-if="state.trip.ownerDisplayName">
-          <dt>Owner</dt>
-          <dd>{{ state.trip.ownerDisplayName }}</dd>
-        </div>
-      </template>
-
       <template v-if="entity.region">
         <div v-if="entity.type === 'region'">
           <dt>Center</dt>
@@ -106,8 +74,6 @@ const areaHasUsableGeometry = computed(() => props.entity.area ? hasUsableAreaGe
         </div>
       </template>
     </dl>
-
-    <ProgressPanel v-if="entity.type === 'trip'" :state="state" :groups="groups" />
 
     <button v-if="entity.type !== 'trip' && (entity.type !== 'area' || areaHasUsableGeometry)" type="button" class="trip-viewer-focus-button" @click="emit('focus', { type: entity.type, id: entity.id })">
       Focus on map
