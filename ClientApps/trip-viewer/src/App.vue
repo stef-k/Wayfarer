@@ -383,6 +383,7 @@ function signalLayoutAfterTransition(): void {
 
         <div v-if="!showDesktopDetail" class="trip-viewer-hierarchy-body">
           <TripSidebar
+            :state="state"
             :groups="regionGroups"
             :segments="segments"
             :selection="selection"

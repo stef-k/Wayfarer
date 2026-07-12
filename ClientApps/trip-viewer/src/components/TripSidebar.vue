@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { RegionGroup, SegmentSummary } from '../viewModel';
-import { isSameSelection, notesPreview, segmentModeLabel, segmentTitle, validAreaFillHex } from '../viewModel';
-import type { ViewerSelection } from '../types';
+import { isSameSelection, notesPreview, orderedTags, segmentModeLabel, segmentTitle, validAreaFillHex } from '../viewModel';
+import type { TripViewerState, ViewerSelection } from '../types';
+import NotesDisplay from './NotesDisplay.vue';
 
 const props = defineProps<{
+  state: TripViewerState;
   groups: RegionGroup[];
   segments: SegmentSummary[];
   selection: ViewerSelection;
@@ -16,10 +19,19 @@ const emit = defineEmits<{
 const select = (selection: ViewerSelection): void => emit('select', selection);
 const selected = (selection: ViewerSelection): boolean => isSameSelection(props.selection, selection);
 const areaFillHex = (fillHex: string | null): string | null => validAreaFillHex(fillHex);
+const tags = computed(() => orderedTags(props.state));
 </script>
 
 <template>
   <aside class="trip-viewer-sidebar" aria-label="Trip contents">
+    <!-- This is display-safe trip information, not a second identity or hierarchy surface. -->
+    <section v-if="tags.length || state.trip.notes.hasRenderableContent" class="trip-viewer-sidebar__overview">
+      <ul v-if="tags.length" class="trip-viewer-tags" aria-label="Trip tags">
+        <li v-for="tag in tags" :key="tag.id">{{ tag.name }}</li>
+      </ul>
+      <NotesDisplay v-if="state.trip.notes.hasRenderableContent" :notes="state.trip.notes" />
+    </section>
+
     <section v-for="group in groups" :key="group.region.id" class="trip-viewer-sidebar__group">
       <button
         type="button"

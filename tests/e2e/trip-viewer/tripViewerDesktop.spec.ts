@@ -134,6 +134,7 @@ test('uses one sticky desktop command surface and one hierarchy collection', asy
   await expect(content.locator('.trip-viewer-command-header .trip-viewer-search')).toHaveCount(1);
   await expect(content.locator('.trip-viewer-command-header .trip-viewer-actions')).toHaveCount(1);
   await expect(content.locator('.trip-viewer-hierarchy-body .trip-viewer-sidebar')).toHaveCount(1);
+  await expect(content.locator('.trip-viewer-sidebar__overview')).toHaveCount(1);
   await expect(content.locator('.trip-viewer-sidebar__trip')).toHaveCount(0);
   await expect(content.locator('.trip-viewer-detail')).toHaveCount(0);
   await expect(content.getByRole('button', { name: 'Full trip', exact: true })).toHaveCount(0);
@@ -142,6 +143,41 @@ test('uses one sticky desktop command surface and one hierarchy collection', asy
   const headerTop = await content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top);
   await content.locator('.trip-viewer-hierarchy-body').evaluate(element => { element.scrollTop = element.scrollHeight; });
   await expect.poll(() => content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top)).toBe(headerTop);
+});
+
+test('renders the scrollable trip overview once with ordered tags and display-safe notes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  const state = mockViewerState() as any;
+  state.tagOrder = ['marina', 'missing', 'harbor'];
+  state.tagsBySlug = {
+    harbor: { id: 'tag-1', name: 'Harbor', slug: 'harbor' },
+    marina: { id: 'tag-2', name: 'Marina', slug: 'marina' }
+  };
+  await loadMockedViewer(page, state);
+
+  const content = page.getByLabel('Trip content');
+  const overview = content.locator('.trip-viewer-sidebar__overview');
+  await expect(overview).toHaveCount(1);
+  await expect(overview.locator('.trip-viewer-tags li')).toHaveText(['Marina', 'Harbor']);
+  await expect(overview.getByText('Trip overview note.', { exact: true })).toHaveCount(1);
+  await expect(content.getByText('Trip overview note.', { exact: true })).toHaveCount(1);
+
+  state.trip.notes = {
+    displayHtml: '<p><img src="/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Ftrip.jpg" loading="lazy"></p>',
+    plainText: '',
+    hasRenderableContent: true,
+    hasTextContent: false,
+    hasMediaContent: true
+  };
+  await loadMockedViewer(page, state);
+  await expect(overview.locator('.trip-viewer-notes img')).toHaveCount(1);
+  await expect(overview.getByText('Media note', { exact: true })).toHaveCount(1);
+
+  state.trip.notes = { displayHtml: '', plainText: '', hasRenderableContent: false, hasTextContent: false, hasMediaContent: false };
+  state.tagOrder = ['missing'];
+  await loadMockedViewer(page, state);
+  await expect(overview.locator('.trip-viewer-tags')).toHaveCount(0);
+  await expect(overview.locator('.trip-viewer-notes')).toHaveCount(0);
 });
 
 test('uses only the returned cover display URL and silently removes failed covers', async ({ page }) => {
@@ -230,6 +266,8 @@ test('uses a mobile map-first drawer with hierarchy, detail, collapse, and escap
 
   await page.getByRole('button', { name: 'Browse trip contents' }).click();
   await expect(page.locator('.trip-viewer-mobile-drawer--hierarchy')).toBeVisible();
+  await expect(page.getByLabel('Trip hierarchy').locator('.trip-viewer-sidebar__overview')).toHaveCount(1);
+  await expect(page.getByLabel('Trip hierarchy').getByText('Trip overview note.', { exact: true })).toHaveCount(1);
   await expect(page.getByLabel('Trip hierarchy').getByRole('button', { name: 'Harbor Cafe 1 Dock Street' })).toBeVisible();
 
   await page.getByLabel('Trip hierarchy').getByRole('button', { name: 'Harbor Cafe 1 Dock Street' }).click();

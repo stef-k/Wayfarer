@@ -141,6 +141,7 @@ function handleKeydown(event: KeyboardEvent): void {
       </header>
       <div class="trip-viewer-mobile-drawer__panel-body">
         <TripSidebar
+          :state="state"
           :groups="groups"
           :segments="segments"
           :selection="selection"

@@ -221,6 +221,12 @@ body {
   gap: 6px;
 }
 
+/* Keeps optional trip information distinct from, but inside, the one hierarchy scroll body. */
+.trip-viewer-sidebar__overview {
+  display: grid;
+  gap: 10px;
+}
+
 .trip-viewer-map-shell {
   min-height: 0;
   min-width: 0;
