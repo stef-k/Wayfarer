@@ -36,6 +36,11 @@ const readableTrigger = ref<HTMLElement | null>(null);
 const searchQuery = ref('');
 const desktopPanelOpen = ref(true);
 const desktopSurfaceMode = ref<'contents' | 'detail'>('contents');
+const desktopContentsBody = ref<HTMLElement | null>(null);
+const mobileDrawer = ref<InstanceType<typeof MobileDrawer> | null>(null);
+const desktopContentsScrollTop = ref<number | null>(null);
+const desktopContentsOverflowing = ref(false);
+const showDesktopContentsBack = ref(false);
 let availableHeightFrame = 0;
 let appResizeObserver: ResizeObserver | null = null;
 let documentMutationObserver: MutationObserver | null = null;
@@ -150,6 +155,10 @@ async function loadViewerState(): Promise<void> {
 }
 
 function selectEntity(nextSelection: ViewerSelection, source: 'map' | 'desktop' | 'drawer' | 'hierarchy' = 'desktop'): void {
+  if (nextSelection.type !== 'trip') {
+    captureActiveContentsScroll();
+  }
+
   selection.value = nextSelection;
   if (!isCompactViewport.value) {
     desktopPanelOpen.value = true;
@@ -180,6 +189,7 @@ function returnToDesktopContents(): void {
 
   selection.value = tripSelection(state.value);
   showDesktopContents();
+  restoreDesktopContentsScroll();
 }
 
 function hideDesktopPanel(): void {
@@ -240,6 +250,49 @@ function updateDrawerState(nextState: DrawerState): void {
   if (nextState === 'hierarchy') {
     detailReturnTarget.value = 'hierarchy';
   }
+}
+
+// Keeps the active hierarchy reading position when an entity replaces that body with detail.
+function captureActiveContentsScroll(): void {
+  if (isCompactViewport.value) {
+    mobileDrawer.value?.captureContentsScroll();
+    return;
+  }
+
+  if (desktopSurfaceMode.value === 'contents' && desktopContentsBody.value) {
+    desktopContentsScrollTop.value = desktopContentsBody.value.scrollTop;
+  }
+}
+
+function updateDesktopContentsScrollState(): void {
+  const body = desktopContentsBody.value;
+  if (!body) {
+    desktopContentsOverflowing.value = false;
+    showDesktopContentsBack.value = false;
+    return;
+  }
+
+  desktopContentsOverflowing.value = body.scrollHeight > body.clientHeight + 1;
+  showDesktopContentsBack.value = desktopContentsOverflowing.value && body.scrollTop > 160;
+}
+
+function returnToDesktopContentsTop(): void {
+  desktopContentsBody.value?.scrollTo({ top: 0, behavior: 'smooth' });
+  void nextTick(() => document.querySelector<HTMLElement>('.trip-viewer-command-header__identity h1')?.focus());
+}
+
+function restoreDesktopContentsScroll(): void {
+  const scrollTop = desktopContentsScrollTop.value;
+  if (scrollTop == null) return;
+
+  void nextTick(() => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        desktopContentsBody.value?.scrollTo({ top: scrollTop });
+        updateDesktopContentsScrollState();
+      });
+    });
+  });
 }
 
 function updateViewportMode(): void {
@@ -362,7 +415,7 @@ function signalLayoutAfterTransition(): void {
               @error="desktopCoverVisible = false"
             >
             <div class="trip-viewer-command-header__identity">
-              <h1>{{ state.trip.name }}</h1>
+              <h1 tabindex="-1">{{ state.trip.name }}</h1>
               <p>
                 <template v-if="state.trip.ownerDisplayName">{{ state.trip.ownerDisplayName }} · </template>
                 {{ state.regionOrder.length }} regions · {{ Object.keys(state.placesById).length }} places · {{ state.segmentOrder.length }} segments
@@ -384,7 +437,22 @@ function signalLayoutAfterTransition(): void {
           <button type="button" class="trip-viewer-command-header__hide" @click="hideDesktopPanel">Hide trip contents</button>
         </header>
 
-        <div v-if="!showDesktopDetail" class="trip-viewer-hierarchy-body">
+        <div
+          v-if="!showDesktopDetail"
+          ref="desktopContentsBody"
+          class="trip-viewer-hierarchy-body"
+          @scroll="updateDesktopContentsScrollState"
+        >
+          <button
+            v-if="!readableOpen && desktopContentsOverflowing && showDesktopContentsBack"
+            type="button"
+            class="trip-viewer-contents-back"
+            aria-label="Back to trip contents"
+            title="Back to trip contents"
+            @click="returnToDesktopContentsTop"
+          >
+            <span aria-hidden="true">↑</span>
+          </button>
           <TripSidebar
             :state="state"
             :groups="regionGroups"
@@ -422,6 +490,7 @@ function signalLayoutAfterTransition(): void {
       />
       <MobileDrawer
         v-if="!isEmbed && viewportReady && isCompactViewport"
+        ref="mobileDrawer"
         :state="state"
         :groups="regionGroups"
         :segments="segments"
@@ -429,6 +498,7 @@ function signalLayoutAfterTransition(): void {
         :entity="selected"
         :drawer-state="drawerState"
         :return-target="detailReturnTarget"
+        v-model:search-query="searchQuery"
         :notes-back-enabled="!readableOpen"
         @update:drawer-state="updateDrawerState"
         @select="selectEntity"

@@ -19,6 +19,7 @@ const props = defineProps<{
   drawerState: DrawerState;
   returnTarget: 'peek' | 'hierarchy';
   notesBackEnabled: boolean;
+  searchQuery: string;
 }>();
 
 const emit = defineEmits<{
@@ -28,12 +29,16 @@ const emit = defineEmits<{
   clear: [];
   readable: [];
   print: [];
+  'update:searchQuery': [query: string];
 }>();
 
 const drawerElement = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLButtonElement | null>(null);
-const searchQuery = ref('');
+const contentsBody = ref<HTMLElement | null>(null);
 const coverVisible = ref(true);
+const contentsScrollTop = ref<number | null>(null);
+const contentsOverflowing = ref(false);
+const showContentsBack = ref(false);
 const isExpanded = computed(() => props.drawerState === 'hierarchy' || props.drawerState === 'detail');
 const selectedSummary = computed(() => notesPreview(props.entity.notes, 86));
 
@@ -52,12 +57,57 @@ function toggleCollapsed(): void {
 }
 
 function selectFromHierarchy(selection: ViewerSelection): void {
+  captureContentsScroll();
   emit('select', selection, 'hierarchy');
 }
 
 function closeSubview(): void {
-  setDrawerState(props.drawerState === 'detail' ? props.returnTarget : 'peek');
+  const target = props.drawerState === 'detail' ? props.returnTarget : 'peek';
+  setDrawerState(target);
+  if (target === 'hierarchy') {
+    restoreContentsScroll();
+  }
 }
+
+// Exposed to App so map-originated detail selection preserves the visible compact hierarchy too.
+function captureContentsScroll(): void {
+  if (props.drawerState === 'hierarchy' && contentsBody.value) {
+    contentsScrollTop.value = contentsBody.value.scrollTop;
+  }
+}
+
+function updateContentsScrollState(): void {
+  const body = contentsBody.value;
+  if (!body) {
+    contentsOverflowing.value = false;
+    showContentsBack.value = false;
+    return;
+  }
+
+  contentsOverflowing.value = body.scrollHeight > body.clientHeight + 1;
+  showContentsBack.value = contentsOverflowing.value && body.scrollTop > 160;
+}
+
+function returnToContentsTop(): void {
+  contentsBody.value?.scrollTo({ top: 0, behavior: 'smooth' });
+  void nextTick(() => drawerElement.value?.querySelector<HTMLElement>('.trip-viewer-command-header__identity h1')?.focus());
+}
+
+function restoreContentsScroll(): void {
+  const scrollTop = contentsScrollTop.value;
+  if (scrollTop == null) return;
+
+  void nextTick(() => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        contentsBody.value?.scrollTo({ top: scrollTop });
+        updateContentsScrollState();
+      });
+    });
+  });
+}
+
+defineExpose({ captureContentsScroll });
 
 function handleKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || !isExpanded.value) return;
@@ -126,21 +176,36 @@ function handleKeydown(event: KeyboardEvent): void {
           @error="coverVisible = false"
         >
         <div class="trip-viewer-command-header__identity">
-          <h1>{{ state.trip.name }}</h1>
+          <h1 tabindex="-1">{{ state.trip.name }}</h1>
           <p>
             <template v-if="state.trip.ownerDisplayName">{{ state.trip.ownerDisplayName }} · </template>
             {{ state.regionOrder.length }} regions · {{ Object.keys(state.placesById).length }} places · {{ state.segmentOrder.length }} segments
           </p>
         </div>
         <SearchPanel
-          v-model="searchQuery"
+          :model-value="searchQuery"
           :state="state"
+          @update:model-value="emit('update:searchQuery', $event)"
           @select="selectFromHierarchy"
           @clear="emit('clear')"
         />
         <ActionsBar :actions="state.actions" :embed="false" @readable="emit('readable')" @print="emit('print')" />
       </header>
-      <div class="trip-viewer-mobile-drawer__panel-body">
+      <div
+        ref="contentsBody"
+        class="trip-viewer-mobile-drawer__panel-body"
+        @scroll="updateContentsScrollState"
+      >
+        <button
+          v-if="notesBackEnabled && contentsOverflowing && showContentsBack"
+          type="button"
+          class="trip-viewer-contents-back"
+          aria-label="Back to trip contents"
+          title="Back to trip contents"
+          @click="returnToContentsTop"
+        >
+          <span aria-hidden="true">↑</span>
+        </button>
         <TripSidebar
           :state="state"
           :groups="groups"

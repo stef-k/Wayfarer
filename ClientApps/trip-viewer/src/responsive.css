@@ -191,6 +191,8 @@ body.trip-viewer-body--drawer-open {
   }
 
   .trip-viewer-mobile-drawer__panel-body {
+    display: grid;
+    gap: 8px;
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;

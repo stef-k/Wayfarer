@@ -96,6 +96,28 @@
   padding: 12px;
 }
 
+/* Distinct from the nested trip-notes reset: this targets the entire contents body. */
+.trip-viewer-contents-back {
+  align-self: start;
+  background: var(--trip-viewer-surface);
+  border: 1px solid var(--trip-viewer-border);
+  border-radius: 999px;
+  color: var(--trip-viewer-text);
+  cursor: pointer;
+  height: 32px;
+  justify-self: end;
+  position: sticky;
+  right: 0;
+  top: 0;
+  width: 32px;
+  z-index: 3;
+}
+
+.trip-viewer-contents-back:hover {
+  border-color: var(--trip-viewer-accent);
+  color: var(--trip-viewer-accent);
+}
+
 .trip-viewer-panel-toggle {
   left: 12px;
   position: absolute;

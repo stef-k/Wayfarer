@@ -116,6 +116,8 @@ test('prints only the readable document without viewer chrome or fixed controls'
   await expect(page.locator('.leaflet-control-container')).toBeHidden();
   await expect(page.locator('.trip-viewer-mobile-drawer')).toBeHidden();
   await expect(page.locator('.trip-viewer-content-surface__actions')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Back to trip contents' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Back to trip notes' })).toHaveCount(0);
 });
 
 test('uses natural print pagination for regions and segments', async ({ page }) => {

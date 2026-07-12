@@ -244,6 +244,90 @@ test('bounds overflowing trip notes and returns only their viewport to its focus
   await expect(page.getByRole('button', { name: 'Back to trip notes' })).toHaveCount(0);
 });
 
+test('shares the search query across responsive surfaces without retaining duplicate sidebar DOM', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page);
+
+  const search = page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags');
+  await search.fill('Colombo');
+  await page.setViewportSize({ width: 800, height: 1024 });
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
+  await expect(search).toHaveValue('Colombo');
+  await expect(page.locator('.trip-viewer-content-surface')).toHaveCount(0);
+  await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(1);
+
+  await search.fill('Harbor');
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await expect(search).toHaveValue('Harbor');
+  await expect(page.locator('.trip-viewer-content-surface')).toHaveCount(1);
+  await expect(page.locator('.trip-viewer-mobile-drawer')).toHaveCount(0);
+});
+
+test('returns outer contents to its sticky trip heading without affecting long trip notes', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  const state = mockViewerState() as any;
+  state.trip.notes = {
+    displayHtml: `<p>${'Long trip note. '.repeat(1400)}</p>`,
+    plainText: 'Long trip note.',
+    hasRenderableContent: true,
+    hasTextContent: true,
+    hasMediaContent: false
+  };
+  await loadMockedViewer(page, state);
+
+  const outer = page.locator('.trip-viewer-hierarchy-body');
+  const notes = page.locator('.trip-viewer-sidebar__notes-viewport');
+  await expect(page.getByRole('button', { name: 'Back to trip contents' })).toHaveCount(0);
+  await outer.evaluate(element => { element.scrollTop = 200; element.dispatchEvent(new Event('scroll')); });
+  await expect(page.getByRole('button', { name: 'Back to trip contents' })).toBeVisible();
+
+  await notes.evaluate(element => { element.scrollTop = 200; element.dispatchEvent(new Event('scroll')); });
+  const outerBack = page.getByRole('button', { name: 'Back to trip contents' });
+  const notesBack = page.getByRole('button', { name: 'Back to trip notes' });
+  await expect(notesBack).toBeVisible();
+  const [outerBox, notesBox] = await Promise.all([outerBack.boundingBox(), notesBack.boundingBox()]);
+  expect(outerBox && notesBox && (outerBox.y + outerBox.height <= notesBox.y || notesBox.y + notesBox.height <= outerBox.y)).toBe(true);
+
+  await outerBack.click();
+  await expect.poll(() => outer.evaluate(element => element.scrollTop)).toBe(0);
+  await expect(page.getByLabel('Trip content').getByRole('heading', { name: 'Mocked Desktop Trip', level: 1 })).toBeFocused();
+
+  await outer.evaluate(element => { element.scrollTop = 200; element.dispatchEvent(new Event('scroll')); });
+  await page.getByRole('button', { name: 'Readable itinerary' }).click();
+  await expect(page.getByRole('button', { name: 'Back to trip contents' })).toHaveCount(0);
+});
+
+test('restores desktop and compact contents scroll after detail Back without resetting query or map state', async ({ page }) => {
+  const viewer = {
+    state: mockViewerState({ initialView: { latitude: 1, longitude: 2, zoom: 3, source: 'query', canonicalQuery: 'lat=1&lon=2&zoom=3' } }),
+    pageUrl: '/__trip-viewer-test.html?lat=1&lon=2&zoom=3'
+  };
+
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page, viewer);
+  const desktopBody = page.locator('.trip-viewer-hierarchy-body');
+  const desktopSearch = page.getByLabel('Search viewer content').getByPlaceholder('Search places, notes, tags');
+  await desktopSearch.fill('Harbor');
+  await desktopBody.evaluate(element => { element.scrollTop = 180; });
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+  const desktopQuery = new URL(page.url()).search;
+  await page.getByRole('button', { name: 'Back to content' }).click();
+  await expect.poll(() => desktopBody.evaluate(element => element.scrollTop)).toBeGreaterThanOrEqual(170);
+  await expect(desktopSearch).toHaveValue('Harbor');
+  expect(new URL(page.url()).search).toBe(desktopQuery);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
+  const compactBody = page.locator('.trip-viewer-mobile-drawer__panel-body');
+  await compactBody.evaluate(element => { element.scrollTop = 180; });
+  await page.getByRole('button', { name: /Waterfront Zone/ }).click();
+  const compactQuery = new URL(page.url()).search;
+  await page.getByRole('button', { name: 'Back from trip details' }).click();
+  await expect.poll(() => compactBody.evaluate(element => element.scrollTop)).toBeGreaterThanOrEqual(170);
+  await expect(desktopSearch).toHaveValue('Harbor');
+  expect(new URL(page.url()).search).toBe(compactQuery);
+});
+
 test('uses only the returned cover display URL and silently removes failed covers', async ({ page }) => {
   const presentCover = mockViewerState() as any;
   presentCover.trip.coverImage = { displayUrl: '/cover-present', rawUrl: 'https://private.example.test/raw-cover', copyUrl: null };
