@@ -2,6 +2,39 @@ import { expect, test } from '@playwright/test';
 import { loadMockedViewer, mockViewerState } from './tripViewerFixtures';
 import { distanceDisplay, durationDisplay } from '../../../ClientApps/trip-viewer/src/viewModel';
 
+// Covers #351's legacy-informed place-detail composition independently from map and hierarchy ownership.
+test('renders one place identity with compact optional location and no visit fact', async ({ page }) => {
+  const state = mockViewerState() as any;
+  await loadMockedViewer(page, state);
+
+  await page.getByRole('button', { name: 'Harbor Cafe 1 Dock Street' }).click();
+  const detail = page.getByLabel('Selection details');
+  const context = page.locator('.trip-viewer-command-header__detail-context');
+  await expect(detail.getByRole('heading', { name: 'Harbor Cafe' })).toHaveCount(1);
+  await expect(context.getByText(/Harbor Cafe|Place:/)).toHaveCount(0);
+  await expect(detail.locator('.trip-viewer-detail__location')).toHaveText('1 Dock Street40.70100, -74.00200');
+  await expect(detail.getByText('Address', { exact: true })).toHaveCount(0);
+  await expect(detail.getByText('Coordinates', { exact: true })).toHaveCount(0);
+  await expect(detail.getByText('Visits', { exact: true })).toHaveCount(0);
+
+  state.placesById['place-1'].address = '';
+  state.placesById['place-1'].location = null;
+  await loadMockedViewer(page, state);
+  await page.getByRole('button', { name: 'Harbor Cafe Place' }).click();
+  await expect(page.getByLabel('Selection details').locator('.trip-viewer-detail__location')).toHaveCount(0);
+  await expect(page.getByLabel('Selection details').getByText(/Not set/)).toHaveCount(0);
+});
+
+test('keeps the selected place identity solely in detail on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page);
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
+  await page.getByLabel('Trip hierarchy').getByRole('button', { name: 'Harbor Cafe 1 Dock Street' }).click();
+
+  await expect(page.getByLabel('Selected trip details').getByRole('heading', { name: 'Harbor Cafe' })).toHaveCount(1);
+  await expect(page.locator('.trip-viewer-mobile-drawer__title').getByText(/Harbor Cafe|Place/)).toHaveCount(0);
+});
+
 test('formats nullable and corrupt segment estimates as #349 presentation states', () => {
   expect(distanceDisplay(10)).toEqual({ detail: '10 km', compact: '10 km' });
   expect(durationDisplay(61)).toEqual({ detail: '1 hr 1 min', compact: '1 hr 1 min' });

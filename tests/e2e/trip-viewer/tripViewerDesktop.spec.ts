@@ -146,6 +146,51 @@ test('uses one sticky desktop command surface and one hierarchy collection', asy
   await expect.poll(() => content.locator('.trip-viewer-command-header').evaluate(element => element.getBoundingClientRect().top)).toBe(headerTop);
 });
 
+test('renders server-gated compact visit progress with public and private disclosures', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await loadMockedViewer(page);
+
+  const overview = page.locator('.trip-viewer-sidebar__overview');
+  const progress = overview.getByLabel('Visit progress');
+  await expect(progress).toBeVisible();
+  await expect(progress.getByText('Example Owner')).toBeVisible();
+  await expect(progress.getByText('1 / 2 places')).toBeVisible();
+  await expect(progress.getByText('50% visited')).toBeVisible();
+  await expect(progress.locator('[role="progressbar"]')).toHaveAttribute('aria-valuenow', '50');
+  await expect(progress.getByRole('button', { name: 'View progress' })).toBeVisible();
+
+  await progress.getByRole('button', { name: 'View progress' }).click();
+  const publicDialog = page.getByRole('dialog', { name: 'Visit progress details' });
+  await expect(publicDialog).toBeVisible();
+  await expect(publicDialog.getByText('Harbor Cafe')).toBeVisible();
+  await expect(publicDialog.getByText(/Visit history|2026-|All|Not visited|Visited/)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(publicDialog).toHaveCount(0);
+  await expect(progress.getByRole('button', { name: 'View progress' })).toBeFocused();
+
+  const denied = mockViewerState({ canDisplayProgress: false, canDisplayCounts: false, canReadVisitCounts: false });
+  await loadMockedViewer(page, denied);
+  await expect(page.getByLabel('Visit progress')).toHaveCount(0);
+
+  const privateOwner = mockViewerState({ viewerMode: 'private', canDisplayHistory: true, canReadVisitHistory: true }) as any;
+  privateOwner.permissions.isOwner = true;
+  await loadMockedViewer(page, { state: privateOwner, configMode: 'private' });
+  await expect(page.getByLabel('Visit progress').getByRole('button', { name: 'Visit history' })).toBeVisible();
+  await page.getByRole('button', { name: 'Visit history' }).click();
+  await expect(page.getByRole('dialog', { name: 'Visit history' }).getByText('Jul 4, 2026')).toBeVisible();
+});
+
+test('keeps visit progress out of embed and mounts its compact summary once on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadMockedViewer(page);
+  await page.getByRole('button', { name: 'Browse trip contents' }).click();
+  await expect(page.locator('.trip-viewer-sidebar__overview').getByLabel('Visit progress')).toHaveCount(1);
+
+  await loadMockedViewer(page, { state: mockViewerState({ viewerMode: 'embed' }), configMode: 'embed' });
+  await expect(page.getByLabel('Visit progress')).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: /Visit/ })).toHaveCount(0);
+});
+
 test('mounts exactly one responsive command and hierarchy composition at each breakpoint', async ({ page }) => {
   for (const viewport of [
     { name: 'desktop', width: 1280, height: 820, compact: false },
