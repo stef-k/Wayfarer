@@ -108,6 +108,17 @@ public sealed class PostgresFactAttribute : FactAttribute
     }
 }
 
+/// <summary>Skips PostgreSQL theory cases when their deliberately opt-in connection is not configured.</summary>
+public sealed class PostgresTheoryAttribute : TheoryAttribute
+{
+    /// <summary>Creates a theory with an explicit local PostgreSQL prerequisite.</summary>
+    public PostgresTheoryAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WAYFARER_TEST_POSTGRES_CONNECTION")))
+            Skip = "Set WAYFARER_TEST_POSTGRES_CONNECTION to the dedicated wayfarer_import_tests database to run relational import tests.";
+    }
+}
+
 /// <summary>Serializes tests that migrate and clean the shared dedicated import test database.</summary>
 [CollectionDefinition(Name)]
 public sealed class PostgresImportTestCollection : ICollectionFixture<PostgresImportTestFixture>
