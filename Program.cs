@@ -600,7 +600,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton<ITripMapThumbnailGenerator, TripMapThumbnailGenerator>();
 
     // Trip import service
-    builder.Services.AddScoped<ITripImportTagReconciler, TripImportTagReconciler>(); builder.Services.AddScoped<ITripImportService, TripImportService>();
+    builder.Services.AddScoped<ITripImportTagReconciler, TripImportTagReconciler>();
+    builder.Services.AddScoped<ITripImportService, TripImportService>();
 
     // Groups and invitations
     builder.Services.AddScoped<IGroupService, GroupService>();
