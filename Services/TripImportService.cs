@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 
@@ -9,11 +10,23 @@ public class TripImportService : ITripImportService
 {
     readonly ApplicationDbContext _dbContext;
     readonly ILogger<TripImportService> _log;
+    readonly ITripImportTagReconciler _tagReconciler;
 
-    public TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
+    /// <summary>Creates an importer for focused tests without changing production DI composition.</summary>
+    internal TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
+        : this(dbContext, log, new TripImportTagReconciler(dbContext, NullLogger<TripImportTagReconciler>.Instance))
+    {
+    }
+
+    /// <summary>Creates an importer with the shared tag persistence boundary.</summary>
+    public TripImportService(
+        ApplicationDbContext dbContext,
+        ILogger<TripImportService> log,
+        ITripImportTagReconciler tagReconciler)
     {
         _dbContext = dbContext;
         _log = log;
+        _tagReconciler = tagReconciler;
     }
 
     public async Task<Guid> ImportWayfarerKmlAsync(
@@ -32,11 +45,14 @@ public class TripImportService : ITripImportService
         parsed = isWayfarer
             ? WayfarerKmlParser.Parse(mem)
             : GoogleMyMapsKmlParser.Parse(mem, userId);
+        var importedTagTokens = parsed.Tags.Select(tag => tag.Slug).ToList();
+        parsed.Tags.Clear(); // Parser tags are transport values, never persistence entities.
 
         /* 2- decide target trip ----------------------------------------- */
         var dbTrip = await _dbContext.Trips
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
+            .Include(t => t.Tags)
             .FirstOrDefaultAsync(t => t.Id == parsed.Id);
 
         bool owned = dbTrip?.UserId == userId;
@@ -47,7 +63,12 @@ public class TripImportService : ITripImportService
             throw new TripDuplicateException(dbTrip!.Id);
         }
 
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync()
+            : null;
+
         Trip target;
+        var addTargetAfterReconciliation = false;
 
         switch (mode)
         {
@@ -60,7 +81,7 @@ public class TripImportService : ITripImportService
             case TripImportMode.CreateNew:
                 parsed.Id = Guid.NewGuid();
                 target = CreateNewShell(parsed, userId);
-                _dbContext.Trips.Add(target);
+                addTargetAfterReconciliation = true;
                 target.Name = $"{target.Name} (Imported)"; 
                 break;
 
@@ -71,7 +92,7 @@ public class TripImportService : ITripImportService
                     : CreateNewShell(parsed, userId);       // clone
                 if (!owned)
                 {
-                    _dbContext.Trips.Add(target);
+                    addTargetAfterReconciliation = true;
                     target.Name = $"{target.Name} (Imported)";   // ★ tag once
                 }
                 break;
@@ -85,6 +106,15 @@ public class TripImportService : ITripImportService
         target.CenterLon = parsed.CenterLon;
         target.Zoom = parsed.Zoom;
         target.UpdatedAt = DateTime.UtcNow;
+
+        var reconciledTags = await _tagReconciler.ReconcileAsync(importedTagTokens);
+        if (addTargetAfterReconciliation)
+            _dbContext.Trips.Add(target);
+        target.Tags.Clear();
+        foreach (var tag in reconciledTags)
+        {
+            target.Tags.Add(tag);
+        }
 
         /* 4 sync regions  segments ----------------------------------- */
         SyncCollection(parsed.Regions ?? Enumerable.Empty<Region>(), target.Regions ?? new List<Region>(), (p, d) => p.Id == d.Id);
@@ -131,6 +161,10 @@ public class TripImportService : ITripImportService
         }
 
         await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync();
+        }
         return target.Id;
     }
 

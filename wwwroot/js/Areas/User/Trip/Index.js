@@ -5,6 +5,7 @@ import {
     initWikipediaPopovers,
 } from '../../../util/wikipedia-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
+import { submitTripImport } from './tripImportClient.js';
 
 (() => {
     /* ------------------------------------------------ Pagination state */
@@ -332,39 +333,18 @@ import { createTileLayer } from '../../../retryTileLayer.js';
         });
     });
     const upload = async (file, mode = 'Auto') => {
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('mode', mode);
-
-        const resp = await fetch('/User/Trip/Import', {method: 'POST', body: fd});
-
-        /* 1 ── success: server replied 302 Location → browser-side redirect */
-        if (resp.redirected) {
-            dupModal?.hide();
-            window.location.href = resp.url;
-            return;
-        }
-
-        /* 2 ── try to read JSON only when response is JSON ---------------- */
-        let payload = null;
-        const isJson = resp.headers
-            .get('Content-Type')
-            ?.startsWith('application/json');
-
-        if (isJson) {
-            try {
-                payload = await resp.json();
-            } catch (e) { /* silence parse errors */
-            }
-        }
-
-        if (payload?.status === 'duplicate') {
-            pendingFile = file;
-            dupModal?.show();
-        } else {
-            const msg = payload?.message || await resp.text();      // fallback
-            wayfarer.showAlert('danger', msg || 'Import failed.');
-        }
+        await submitTripImport(file, mode, {
+            fetchImpl: fetch,
+            onRedirect: url => {
+                dupModal?.hide();
+                window.location.href = url;
+            },
+            onDuplicate: () => {
+                pendingFile = file;
+                dupModal?.show();
+            },
+            showError: message => wayfarer.showAlert('danger', message)
+        });
     };
 
     document.getElementById('btnUpdate')?.addEventListener('click', () => {

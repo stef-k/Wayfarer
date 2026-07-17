@@ -26,8 +26,10 @@ public class TripImportControllerTests : TestBase
 
         var result = await controller.Import(null!);
 
-        var bad = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("File missing", bad.Value);
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(400, json.StatusCode);
+        Assert.Equal("application/json", json.ContentType);
+        Assert.Equal("invalid_file", json.Value?.GetType().GetProperty("code")?.GetValue(json.Value));
     }
 
     [Theory]
@@ -67,6 +69,44 @@ public class TripImportControllerTests : TestBase
         var tripId = json.Value?.GetType().GetProperty("tripId")?.GetValue(json.Value) as Guid?;
         Assert.Equal("duplicate", status);
         Assert.Equal(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), tripId);
+    }
+
+    [Theory]
+    [InlineData(typeof(TripImportValidationException), 422, "validation_failed")]
+    [InlineData(typeof(FormatException), 400, "invalid_kml")]
+    public async Task Import_ReturnsSafeJson_ForExpectedFailures(Type exceptionType, int expectedStatus, string expectedCode)
+    {
+        var importSvc = new Mock<ITripImportService>();
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+            .ThrowsAsync((Exception)Activator.CreateInstance(exceptionType, "sensitive detail")!);
+        var controller = BuildController(importSvc.Object);
+        ConfigureControllerWithUser(controller, "u1");
+
+        var result = await controller.Import(CreateFormFile("bad"));
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(expectedStatus, json.StatusCode);
+        Assert.Equal("application/json", json.ContentType);
+        Assert.Equal("error", json.Value?.GetType().GetProperty("status")?.GetValue(json.Value));
+        Assert.Equal(expectedCode, json.Value?.GetType().GetProperty("code")?.GetValue(json.Value));
+        Assert.DoesNotContain("sensitive", json.Value?.GetType().GetProperty("message")?.GetValue(json.Value)?.ToString());
+    }
+
+    [Fact]
+    public async Task Import_ReturnsGenericSafeJson_ForUnexpectedFailures()
+    {
+        var importSvc = new Mock<ITripImportService>();
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+            .ThrowsAsync(new Exception("postgres connection details"));
+        var controller = BuildController(importSvc.Object);
+        ConfigureControllerWithUser(controller, "u1");
+
+        var result = await controller.Import(CreateFormFile("bad"));
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(500, json.StatusCode);
+        Assert.Equal("import_failed", json.Value?.GetType().GetProperty("code")?.GetValue(json.Value));
+        Assert.DoesNotContain("postgres", json.Value?.GetType().GetProperty("message")?.GetValue(json.Value)?.ToString());
     }
 
     private static FormFile CreateFormFile(string content)

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host localhost --port 5173",
     "build": "vite build",
+    "test:trip-import-client": "node --test tests/client/tripImportClient.test.mjs",
     "test:e2e:trip-editor": "playwright test --config=playwright.config.ts",
     "smoke:trip-editor:assets": "node tools/trip-editor-asset-smoke.mjs --mode=all",
     "smoke:trip-editor:assets:dev": "node tools/trip-editor-asset-smoke.mjs --mode=development",

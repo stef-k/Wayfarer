@@ -27,6 +27,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.NetTopologySuite" Version="10.0.0" />
+    <!-- PostgreSQL-only import reconciliation fixture. -->
+    <PackageReference Include="Npgsql" Version="10.0.0" />
     <!-- Mocking framework -->
     <PackageReference Include="Moq" Version="4.20.72" />
     <!-- Fluent assertions for readable test assertions -->

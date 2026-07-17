@@ -1,5 +1,8 @@
 namespace Wayfarer.Services;
 
+/// <summary>Indicates an import input that cannot be safely persisted.</summary>
+public sealed class TripImportValidationException(string message) : Exception(message);
+
 public enum TripImportMode
 {
     Auto,       // default: upsert if owned, else copy (status-quo)
