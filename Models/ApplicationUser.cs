@@ -74,6 +74,14 @@ namespace Wayfarer.Models
                 return TimelineTitle.Trim();
             }
 
+            return ResolveDefaultTimelineTitle();
+        }
+
+        /// <summary>
+        /// Resolves the built-in timeline heading used when no custom title is set.
+        /// </summary>
+        public string ResolveDefaultTimelineTitle()
+        {
             string displayName = !string.IsNullOrWhiteSpace(DisplayName)
                 ? DisplayName
                 : UserName ?? string.Empty;

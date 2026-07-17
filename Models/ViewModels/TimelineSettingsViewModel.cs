@@ -6,6 +6,11 @@
 
         public bool IsTimelinePublic { get; set; }
 
+        /// <summary>
+        /// Gets the visible fallback title shown when the optional title is cleared.
+        /// </summary>
+        public string DefaultTimelineTitle { get; set; } = string.Empty;
+
         [System.ComponentModel.DataAnnotations.StringLength(80, ErrorMessage = "Timeline title must be 80 characters or fewer.")]
         public string? TimelineTitle
         {
@@ -24,6 +29,7 @@
         public static TimelineSettingsViewModel FromUser(ApplicationUser user) => new()
         {
             IsTimelinePublic = user.IsTimelinePublic,
+            DefaultTimelineTitle = user.ResolveDefaultTimelineTitle(),
             TimelineTitle = user.TimelineTitle,
             PublicTimelineTimeThreshold = user.PublicTimelineTimeThreshold
         };

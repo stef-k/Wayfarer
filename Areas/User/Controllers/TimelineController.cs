@@ -69,6 +69,16 @@ namespace Wayfarer.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateSettings(TimelineSettingsViewModel model)
         {
+            ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
+
+            if (currentUser == null)
+            {
+                SetAlert("User not found.", "danger");
+                return RedirectToAction("Index", "Home");
+            }
+
+            model.DefaultTimelineTitle = currentUser.ResolveDefaultTimelineTitle();
+
             if (model.TimelineTitle?.Length > 80) ModelState.AddModelError(nameof(model.TimelineTitle), "Timeline title must be 80 characters or fewer.");
 
             if (model.PublicTimelineTimeThreshold != "custom")
@@ -80,14 +90,6 @@ namespace Wayfarer.Controllers
             if (!ValidateModelState())
             {
                 return View("Settings", model);
-            }
-
-            ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
-
-            if (currentUser == null)
-            {
-                SetAlert("User not found.", "danger");
-                return RedirectToAction("Index", "Home");
             }
 
             try

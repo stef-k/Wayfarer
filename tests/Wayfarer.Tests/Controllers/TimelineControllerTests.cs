@@ -156,6 +156,23 @@ public class TimelineControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Settings_ShowsTheResolvedDefaultTimelineTitle()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.Settings();
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TimelineSettingsViewModel>(view.Model);
+        Assert.Equal("Timeline of Alice", model.DefaultTimelineTitle);
+    }
+
+    [Fact]
     public async Task UpdateSettings_ReturnsView_WhenCustomThresholdInvalid()
     {
         var db = CreateDbContext();
