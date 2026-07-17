@@ -23,6 +23,106 @@ namespace Wayfarer.Tests.Controllers;
 public class TimelineControllerTests : TestBase
 {
     [Fact]
+    public async Task Index_UsesFallbackTimelineTitle_WhenNoCustomTitleExists()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.Index();
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal("Timeline of Alice", controller.ViewData["TimelineTitle"]);
+    }
+
+    [Fact]
+    public void ResolveTimelineTitle_UsesUsername_WhenDisplayNameIsEmpty()
+    {
+        var user = TestDataFixtures.CreateUser(username: "alice", displayName: string.Empty);
+
+        Assert.Equal("Timeline of alice", user.ResolveTimelineTitle());
+    }
+
+    [Fact]
+    public async Task UpdateSettings_SavesTrimmedTimelineTitle_ForCurrentUserOnly()
+    {
+        var db = CreateDbContext();
+        var currentUser = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        var otherUser = TestDataFixtures.CreateUser(id: "u2", username: "bob");
+        otherUser.TimelineTitle = "Bob's timeline";
+        db.Users.AddRange(currentUser, otherUser);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(currentUser));
+        ConfigureControllerWithUser(controller, currentUser.Id);
+
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            TimelineTitle = "  Alice's adventures  ",
+            PublicTimelineTimeThreshold = "now"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Alice's adventures", currentUser.TimelineTitle);
+        Assert.Equal("Bob's timeline", otherUser.TimelineTitle);
+    }
+
+    [Fact]
+    public async Task UpdateSettings_ClearsWhitespaceOnlyTimelineTitle()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
+        user.TimelineTitle = "Old title";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            TimelineTitle = new string(' ', 81),
+            PublicTimelineTimeThreshold = "now"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Null(user.TimelineTitle);
+        Assert.Equal("Timeline of Alice", user.ResolveTimelineTitle());
+    }
+
+    [Fact]
+    public async Task UpdateSettings_AcceptsEightyCharacterTimelineTitle_AndRejectsLongerValue()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+        var acceptedTitle = new string('a', 80);
+
+        var acceptedResult = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            TimelineTitle = acceptedTitle,
+            PublicTimelineTimeThreshold = "now"
+        });
+
+        Assert.IsType<RedirectToActionResult>(acceptedResult);
+        Assert.Equal(acceptedTitle, user.TimelineTitle);
+
+        var rejectedResult = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            TimelineTitle = new string('b', 81),
+            PublicTimelineTimeThreshold = "now"
+        });
+
+        Assert.IsType<ViewResult>(rejectedResult);
+        Assert.Equal(acceptedTitle, user.TimelineTitle);
+        Assert.True(controller.ModelState.ContainsKey(nameof(TimelineSettingsViewModel.TimelineTitle)));
+    }
+
+    [Fact]
     public async Task Settings_RedirectsHome_WhenUserMissing()
     {
         var db = CreateDbContext();

@@ -54,6 +54,24 @@ public class UsersTimelineControllerTests : TestBase
         var view = Assert.IsType<ViewResult>(result);
         Assert.Equal("Timeline", view.ViewName);
         Assert.Equal("alice", controller.ViewData["Username"]);
+        Assert.Equal("Timeline of Alice", controller.ViewData["TimelineTitle"]);
+    }
+
+    [Fact]
+    public async Task Index_UsesCustomTimelineTitle_ForPublicTimeline()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
+        user.IsTimelinePublic = true;
+        user.TimelineTitle = "Alice's public map";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Index("alice");
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal("Alice's public map", controller.ViewData["TimelineTitle"]);
     }
 
     [Fact]
@@ -72,6 +90,38 @@ public class UsersTimelineControllerTests : TestBase
         Assert.Equal("Embed", view.ViewName);
         var isEmbed = controller.ViewBag.IsEmbed;
         Assert.True(isEmbed == null || (bool)isEmbed);
+        Assert.Equal("Timeline of Alice", controller.ViewData["TimelineTitle"]);
+    }
+
+    [Fact]
+    public async Task Embed_ReturnsNotFound_WhenUserIsMissingOrTimelineIsNotPublic()
+    {
+        var db = CreateDbContext();
+        var privateUser = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        privateUser.TimelineTitle = "Private title";
+        db.Users.Add(privateUser);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        Assert.IsType<NotFoundObjectResult>(await controller.Embed("alice"));
+        Assert.IsType<NotFoundObjectResult>(await controller.Embed("missing"));
+    }
+
+    [Fact]
+    public async Task Embed_UsesCustomTimelineTitle_ForPublicTimeline()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
+        user.IsTimelinePublic = true;
+        user.TimelineTitle = "Alice's embedded map";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.Embed("alice");
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal("Alice's embedded map", controller.ViewData["TimelineTitle"]);
     }
 
     [Fact]

@@ -6,7 +6,7 @@
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     var username = ViewData["Username"];
-    var displayName = ViewData["DisplayName"];
+    var timelineTitle = ViewData["TimelineTitle"];
     var timelineLive = ViewData["TimelineLive"];
 }
 
@@ -14,7 +14,7 @@
     
     <div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 px-3">
         <h1 class="fs-3 py-1">
-            @(displayName != null ? $"Timeline of {displayName}" : $"Timeline of {username}")
+            @timelineTitle
         </h1>
 
         <!-- This span gets populated dynamically -->
