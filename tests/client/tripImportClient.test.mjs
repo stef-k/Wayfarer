@@ -17,6 +17,19 @@ const createHandlers = (fetchImpl) => {
 
 const sampleFile = new Blob(['kml'], { type: 'application/vnd.google-earth.kml+xml' });
 
+test('invokes browser fetch with the global receiver', async () => {
+    let receiver;
+    const { handlers, result } = createHandlers(function () {
+        receiver = this;
+        return Promise.resolve({ redirected: true, url: '/User/Trip/Edit/test-trip' });
+    });
+
+    await submitTripImport(sampleFile, 'Auto', handlers);
+
+    assert.equal(receiver, globalThis);
+    assert.deepEqual(result.redirects, ['/User/Trip/Edit/test-trip']);
+});
+
 test('uses the fixed message when fetch rejects', async () => {
     const { handlers, result } = createHandlers(async () => { throw new Error('network detail'); });
 

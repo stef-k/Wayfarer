@@ -14,7 +14,7 @@ export const submitTripImport = async (file, mode, handlers) => {
     formData.append('mode', mode);
 
     try {
-        const response = await handlers.fetchImpl('/User/Trip/Import', { method: 'POST', body: formData });
+        const response = await handlers.fetchImpl.call(globalThis, '/User/Trip/Import', { method: 'POST', body: formData });
         if (response.redirected) {
             handlers.onRedirect(response.url);
             return;
