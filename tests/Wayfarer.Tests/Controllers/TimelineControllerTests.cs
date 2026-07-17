@@ -41,7 +41,7 @@ public class TimelineControllerTests : TestBase
     [Fact]
     public void ResolveTimelineTitle_UsesUsername_WhenDisplayNameIsEmpty()
     {
-        var user = TestDataFixtures.CreateUser(username: "alice", displayName: string.Empty);
+        var user = TestDataFixtures.CreateUser(username: "alice", displayName: " ");
 
         Assert.Equal("Timeline of alice", user.ResolveTimelineTitle());
     }

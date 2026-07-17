@@ -74,7 +74,7 @@ namespace Wayfarer.Models
                 return TimelineTitle;
             }
 
-            string displayName = !string.IsNullOrEmpty(DisplayName)
+            string displayName = !string.IsNullOrWhiteSpace(DisplayName)
                 ? DisplayName
                 : UserName ?? string.Empty;
             return $"Timeline of {displayName}";
