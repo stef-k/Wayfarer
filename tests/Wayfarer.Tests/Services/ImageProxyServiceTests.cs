@@ -14,11 +14,38 @@ namespace Wayfarer.Tests.Services;
 /// Tests for <see cref="ImageProxyService"/>: SSRF check, fetch+cache pipeline,
 /// upstream failures, already-cached entries, and oversized images.
 /// </summary>
+[Collection(ImageProxyStaticStateTestCollection.Name)]
 public partial class ImageProxyServiceTests : TestBase
 {
     public ImageProxyServiceTests()
     {
         ImageProxyService.ResetStaticStateForTesting();
+    }
+
+    /// <summary>Guards the non-parallel boundary required by shared image proxy static state.</summary>
+    [Fact]
+    public void StaticStateUsers_ShareTheNonParallelImageProxyCollection()
+    {
+        var staticStateUsers = new[]
+        {
+            typeof(ImageProxyServiceTests),
+            typeof(Wayfarer.Tests.Controllers.TripViewerControllerTests),
+            typeof(Wayfarer.Tests.Controllers.PublicTripImagesTests)
+        };
+
+        Assert.All(staticStateUsers, type =>
+        {
+            var attribute = Assert.Single(
+                type.CustomAttributes,
+                attribute => attribute.AttributeType == typeof(CollectionAttribute));
+            Assert.Equal(ImageProxyStaticStateTestCollection.Name, attribute.ConstructorArguments.Single().Value);
+        });
+
+        var definition = typeof(ImageProxyStaticStateTestCollection)
+            .GetCustomAttributes(typeof(CollectionDefinitionAttribute), inherit: false)
+            .Cast<CollectionDefinitionAttribute>()
+            .Single();
+        Assert.True(definition.DisableParallelization);
     }
 
     [Fact]
