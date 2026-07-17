@@ -10,11 +10,11 @@ public class TripImportService : ITripImportService
 {
     readonly ApplicationDbContext _dbContext;
     readonly ILogger<TripImportService> _log;
-    readonly ITripTagService _tripTagService;
+    readonly ITripImportTagReconciler _tagReconciler;
 
     /// <summary>Creates an importer for direct callers that do not use dependency injection.</summary>
     public TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
-        : this(dbContext, log, new TripTagService(dbContext, NullLogger<TripTagService>.Instance))
+        : this(dbContext, log, new TripImportTagReconciler(dbContext, NullLogger<TripImportTagReconciler>.Instance))
     {
     }
 
@@ -22,11 +22,11 @@ public class TripImportService : ITripImportService
     public TripImportService(
         ApplicationDbContext dbContext,
         ILogger<TripImportService> log,
-        ITripTagService tripTagService)
+        ITripImportTagReconciler tagReconciler)
     {
         _dbContext = dbContext;
         _log = log;
-        _tripTagService = tripTagService;
+        _tagReconciler = tagReconciler;
     }
 
     public async Task<Guid> ImportWayfarerKmlAsync(
@@ -106,7 +106,7 @@ public class TripImportService : ITripImportService
         target.Zoom = parsed.Zoom;
         target.UpdatedAt = DateTime.UtcNow;
 
-        var reconciledTags = await _tripTagService.ReconcileImportedTagsAsync(importedTagTokens);
+        var reconciledTags = await _tagReconciler.ReconcileAsync(importedTagTokens);
         target.Tags.Clear();
         foreach (var tag in reconciledTags)
         {

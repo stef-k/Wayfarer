@@ -332,14 +332,9 @@ import { createTileLayer } from '../../../retryTileLayer.js';
         });
     });
     const upload = async (file, mode = 'Auto') => {
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('mode', mode);
-        const genericImportFailure = 'Import failed. Please try again.';
-
+        const fd = new FormData(); fd.append('file', file); fd.append('mode', mode); const genericImportFailure = 'Import failed. Please try again.';
         try {
             const resp = await fetch('/User/Trip/Import', {method: 'POST', body: fd});
-
             /* 1 ── success: server replied 302 Location → browser-side redirect */
             if (resp.redirected) {
                 dupModal?.hide();
@@ -347,20 +342,17 @@ import { createTileLayer } from '../../../retryTileLayer.js';
                 return;
             }
 
-            let payload;
-            try {
+            let payload; try {
                 payload = await resp.json();
             } catch {
                 wayfarer.showAlert('danger', genericImportFailure);
                 return;
             }
-
             if (payload?.status === 'duplicate') {
                 pendingFile = file;
                 dupModal?.show();
                 return;
             }
-
             const message = payload?.status === 'error' && typeof payload.message === 'string'
                 ? payload.message
                 : genericImportFailure;

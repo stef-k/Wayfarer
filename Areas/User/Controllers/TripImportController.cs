@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Xml;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Models;
@@ -49,6 +50,11 @@ public class TripImportController : BaseController
         catch (FormatException ex)
         {
             _logger.LogWarning(ex, "Trip import KML parsing failed for user {UserId}", userId);
+            return ImportError(StatusCodes.Status400BadRequest, "invalid_kml", "The selected file is not a valid KML import.");
+        }
+        catch (XmlException ex)
+        {
+            _logger.LogWarning(ex, "Trip import XML parsing failed for user {UserId}", userId);
             return ImportError(StatusCodes.Status400BadRequest, "invalid_kml", "The selected file is not a valid KML import.");
         }
         catch (InvalidOperationException ex)

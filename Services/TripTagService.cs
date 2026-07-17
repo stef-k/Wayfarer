@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using Unidecode.NET;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
@@ -138,45 +137,6 @@ public sealed class TripTagService(ApplicationDbContext dbContext, ILogger<TripT
 
         var tags = await GetTagsForTripAsync(tripId, userId, cancellationToken);
         return new TripTagReplacementResult(tags, deletedSlugs);
-    }
-
-    /// <summary>Resolves the slug-only tag values written by the Wayfarer KML exporter.</summary>
-    public async Task<IReadOnlyList<Tag>> ReconcileImportedTagsAsync(IEnumerable<string> tokens, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(tokens);
-        var canonicalSlugs = new List<string>();
-
-        foreach (var token in tokens)
-        {
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                continue;
-            }
-
-            if (!TryGetImportSlug(token, out var slug))
-            {
-                _logger.LogWarning("KML import tag token cannot be represented safely: {TagToken}", token);
-                throw new TripImportValidationException("The import contains an invalid tag.");
-            }
-
-            if (!canonicalSlugs.Contains(slug, StringComparer.Ordinal))
-            {
-                canonicalSlugs.Add(slug);
-            }
-        }
-
-        if (canonicalSlugs.Count > MaxTagsPerTrip)
-        {
-            throw new TripImportValidationException("The import contains too many tags.");
-        }
-
-        var resolved = new List<Tag>(canonicalSlugs.Count);
-        foreach (var slug in canonicalSlugs)
-        {
-            resolved.Add(await ResolveImportedTagAsync(slug, cancellationToken));
-        }
-
-        return resolved;
     }
 
     public async Task<bool> DetachTagAsync(Guid tripId, string slug, string userId, CancellationToken cancellationToken = default)
@@ -336,25 +296,6 @@ WHERE NOT EXISTS (
         && name.Length <= 64
         && NameRegex.IsMatch(name);
 
-    /// <summary>Derives an import identity without the random fallback used by tag editing.</summary>
-    public static bool TryGetImportSlug(string token, out string slug)
-    {
-        slug = string.Empty;
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return false;
-        }
-
-        var candidate = ToSlugWithoutFallback(token.Trim().Normalize(NormalizationForm.FormC));
-        if (string.IsNullOrEmpty(candidate) || candidate.Length > 200 || !IsValidTagName(candidate))
-        {
-            return false;
-        }
-
-        slug = candidate;
-        return true;
-    }
-
     private static void ValidateTagName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -430,52 +371,6 @@ WHERE NOT EXISTS (
         }
     }
 
-    private async Task<Tag> ResolveImportedTagAsync(string slug, CancellationToken cancellationToken)
-    {
-        var bySlug = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
-        if (bySlug is not null)
-        {
-            return bySlug;
-        }
-
-        // KML carries no display name, so use its canonical slug without title casing.
-        var byName = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Name == slug, cancellationToken);
-        if (byName is not null)
-        {
-            _logger.LogWarning("KML import tag identity conflicts for {TagSlug}: name belongs to {TagId}", slug, byName.Id);
-            throw new TripImportValidationException("The import contains an invalid tag.");
-        }
-
-        var candidate = new Tag { Name = slug, Slug = slug };
-        _dbContext.Tags.Add(candidate);
-        if (!_dbContext.Database.IsRelational())
-        {
-            // The normal unit-test provider cannot model database unique races or transactions.
-            return candidate;
-        }
-
-        try
-        {
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            return candidate;
-        }
-        catch (DbUpdateException ex) when (IsRecognizedTagUniqueConflict(ex))
-        {
-            _dbContext.Entry(candidate).State = EntityState.Detached;
-            _logger.LogInformation(ex, "Recognized concurrent KML import tag create for {TagSlug}", slug);
-
-            var winnerBySlug = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Slug == slug, cancellationToken);
-            var winnerByName = await _dbContext.Tags.FirstOrDefaultAsync(t => t.Name == slug, cancellationToken);
-            if (winnerBySlug is not null && winnerByName is not null && winnerBySlug.Id == winnerByName.Id)
-            {
-                return winnerBySlug;
-            }
-
-            _logger.LogWarning("KML import tag conflict has no single winner for {TagSlug}; slug={SlugTagId}, name={NameTagId}", slug, winnerBySlug?.Id, winnerByName?.Id);
-            throw new TripImportValidationException("The import contains an invalid tag.");
-        }
-    }
-
     private async Task RemoveUnusedTagsAsync(IReadOnlyList<string> slugs, CancellationToken cancellationToken)
     {
         if (slugs.Count == 0)
@@ -506,19 +401,7 @@ WHERE NOT EXISTS (
             return string.Empty;
         }
 
-        var slug = ToSlugWithoutFallback(trimmed);
-        if (!string.IsNullOrEmpty(slug))
-        {
-            return slug;
-        }
-
-        var randomSuffix = Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
-        return $"tag-{randomSuffix}";
-    }
-
-    private static string ToSlugWithoutFallback(string name)
-    {
-        var normalized = name.Normalize(NormalizationForm.FormD);
+        var normalized = trimmed.Normalize(NormalizationForm.FormD);
         var ascii = normalized.Unidecode();
 
         var sb = new StringBuilder();
@@ -542,15 +425,15 @@ WHERE NOT EXISTS (
             }
         }
 
-        return sb.ToString().Trim('-');
-    }
-
-    private static bool IsRecognizedTagUniqueConflict(DbUpdateException exception) =>
-        exception.GetBaseException() is PostgresException
+        var slug = sb.ToString().Trim('-');
+        if (!string.IsNullOrEmpty(slug))
         {
-            SqlState: PostgresErrorCodes.UniqueViolation,
-            ConstraintName: "IX_Tags_Slug" or "IX_Tags_Name"
-        };
+            return slug;
+        }
+
+        var randomSuffix = Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
+        return $"tag-{randomSuffix}";
+    }
 
     private readonly ApplicationDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     private readonly ILogger<TripTagService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
