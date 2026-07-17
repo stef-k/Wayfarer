@@ -46,12 +46,23 @@ public static class PublicTimelineEligibilityResolver
     {
         ArgumentNullException.ThrowIfNull(user);
 
-        string? threshold = user.PublicTimelineTimeThreshold;
+        return Resolve(user.IsTimelinePublic, user.PublicTimelineTimeThreshold);
+    }
+
+    /// <summary>
+    /// Resolves the stored public-timeline fields without requiring a tracked user entity.
+    /// </summary>
+    /// <param name="isTimelinePublic">Whether the persisted timeline is marked public.</param>
+    /// <param name="threshold">The raw persisted threshold.</param>
+    /// <returns>The threshold validity, delay, live state, and effective public eligibility.</returns>
+    public static PublicTimelineEligibility Resolve(bool isTimelinePublic, string? threshold)
+    {
+
         if (threshold == "now")
         {
             return new PublicTimelineEligibility(
                 IsThresholdValid: true,
-                IsEffectivelyPublic: user.IsTimelinePublic,
+                IsEffectivelyPublic: isTimelinePublic,
                 IsLive: true,
                 Delay: TimeSpan.Zero);
         }
@@ -60,7 +71,7 @@ public static class PublicTimelineEligibilityResolver
         {
             return new PublicTimelineEligibility(
                 IsThresholdValid: true,
-                IsEffectivelyPublic: user.IsTimelinePublic,
+                IsEffectivelyPublic: isTimelinePublic,
                 IsLive: false,
                 Delay: TimespanHelper.ParseTimeThreshold(threshold));
         }

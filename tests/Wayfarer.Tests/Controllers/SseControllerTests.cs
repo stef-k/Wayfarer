@@ -34,11 +34,17 @@ public class SseControllerTests
         ApplicationDbContext db,
         IGroupTimelineService timelineService,
         ClaimsPrincipal? user = null,
-        SseService? sse = null)
+        SseService? sse = null,
+        IServiceScopeFactory? scopeFactory = null)
     {
         var service = sse ?? new SseService();
         var options = new MobileSseOptions();
-        var controller = new SseController(service, db, timelineService, options);
+        var controller = new SseController(
+            service,
+            db,
+            timelineService,
+            options,
+            scopeFactory ?? new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>());
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         if (user != null)
@@ -94,10 +100,11 @@ public class SseControllerTests
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("1d")]
-    [InlineData("stale")]
-    public async Task Stream_LocationUpdateRejectsNonLiveOrInvalidPublicTimeline(string? threshold)
+    [InlineData(false, "now")]
+    [InlineData(true, null)]
+    [InlineData(true, "1d")]
+    [InlineData(true, "stale")]
+    public async Task Stream_LocationUpdateRejectsNonLiveOrInvalidPublicTimeline(bool isPublic, string? threshold)
     {
         using var db = CreateDb();
         var user = new ApplicationUser
@@ -105,7 +112,7 @@ public class SseControllerTests
             Id = "user-1",
             UserName = "alice",
             DisplayName = "Alice",
-            IsTimelinePublic = true,
+            IsTimelinePublic = isPublic,
             PublicTimelineTimeThreshold = threshold
         };
         db.Users.Add(user);
@@ -117,10 +124,26 @@ public class SseControllerTests
         Assert.Equal(StatusCodes.Status404NotFound, controller.HttpContext.Response.StatusCode);
     }
 
-    [Fact]
-    public async Task Stream_LocationUpdateWithholdsLaterEvent_WhenLiveEligibilityIsRevoked()
+    [Theory]
+    [InlineData(false, "now")]
+    [InlineData(true, "1d")]
+    [InlineData(true, null)]
+    [InlineData(true, "")]
+    [InlineData(true, "stale")]
+    [InlineData(true, "1z")]
+    public async Task Stream_LocationUpdateWithholdsLaterEvent_WhenLiveEligibilityIsPersistentlyRevokedInAnotherContext(bool isPublic, string? threshold)
     {
-        using var db = CreateDb();
+        var databaseName = Guid.NewGuid().ToString();
+        using var services = new ServiceCollection()
+            .AddEntityFrameworkInMemoryDatabase()
+            .AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName))
+            .BuildServiceProvider();
+        var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .UseInternalServiceProvider(services)
+            .Options;
+        using var subscriptionDb = new ApplicationDbContext(dbOptions, services);
+        using var settingsDb = new ApplicationDbContext(dbOptions, services);
         var user = new ApplicationUser
         {
             Id = "user-1",
@@ -129,15 +152,24 @@ public class SseControllerTests
             IsTimelinePublic = true,
             PublicTimelineTimeThreshold = "now"
         };
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
+        subscriptionDb.Users.Add(user);
+        await subscriptionDb.SaveChangesAsync();
         var sse = new SseService();
-        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), sse: sse);
+        var controller = CreateController(
+            subscriptionDb,
+            Mock.Of<IGroupTimelineService>(),
+            sse: sse,
+            scopeFactory: services.GetRequiredService<IServiceScopeFactory>());
         using var cts = new CancellationTokenSource();
         var streamTask = controller.Stream("location-update", "alice", cts.Token);
         await Task.Delay(25);
-        user.IsTimelinePublic = false;
-        await db.SaveChangesAsync();
+        var persistedUser = await settingsDb.Users.SingleAsync(candidate => candidate.Id == user.Id);
+        persistedUser.IsTimelinePublic = isPublic;
+        persistedUser.PublicTimelineTimeThreshold = threshold;
+        await settingsDb.SaveChangesAsync();
+
+        Assert.True(user.IsTimelinePublic);
+        Assert.Equal("now", user.PublicTimelineTimeThreshold);
 
         await sse.BroadcastAsync("location-update-alice", "{\"location\":true}");
         cts.Cancel();

@@ -115,6 +115,7 @@ namespace Wayfarer.Controllers
 
             try
             {
+                await using IAsyncDisposable deliveryLease = await PublicTimelineDeliveryLock.AcquireAsync(currentUser.UserName!, HttpContext.RequestAborted);
                 currentUser.IsTimelinePublic = model.IsTimelinePublic;
                 currentUser.TimelineTitle = model.TimelineTitle;
 

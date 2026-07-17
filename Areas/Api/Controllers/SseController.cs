@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
 using Wayfarer.Models.Options;
 using Wayfarer.Parsers;
@@ -20,17 +21,20 @@ public class SseController : Controller
     private readonly ApplicationDbContext _db;
     private readonly IGroupTimelineService _timelineService;
     private readonly MobileSseOptions _options;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public SseController(
         SseService sse,
         ApplicationDbContext db,
         IGroupTimelineService timelineService,
-        MobileSseOptions options)
+        MobileSseOptions options,
+        IServiceScopeFactory scopeFactory)
     {
         _sse = sse;
         _db = db;
         _timelineService = timelineService;
         _options = options;
+        _scopeFactory = scopeFactory;
     }
 
     /// <summary>
@@ -42,8 +46,12 @@ public class SseController : Controller
     {
         if (type == "location-update")
         {
-            ApplicationUser? user = await _db.Users.FirstOrDefaultAsync(user => user.UserName == id, ct);
-            if (user == null || PublicTimelineEligibilityResolver.Resolve(user) is not { IsEffectivelyPublic: true, IsLive: true })
+            var user = await _db.Users
+                .AsNoTracking()
+                .Where(user => user.UserName == id)
+                .Select(user => new { user.IsTimelinePublic, user.PublicTimelineTimeThreshold })
+                .FirstOrDefaultAsync(ct);
+            if (user is null || PublicTimelineEligibilityResolver.Resolve(user.IsTimelinePublic, user.PublicTimelineTimeThreshold) is not { IsEffectivelyPublic: true, IsLive: true })
             {
                 Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
@@ -53,17 +61,41 @@ public class SseController : Controller
                 $"{type}-{id}",
                 Response,
                 ct,
-                canReceive: async cancellationToken =>
-                {
-                    ApplicationUser? currentUser = await _db.Users.FirstOrDefaultAsync(candidate => candidate.UserName == id, cancellationToken);
-                    return currentUser is not null
-                        && PublicTimelineEligibilityResolver.Resolve(currentUser) is { IsEffectivelyPublic: true, IsLive: true };
-                });
+                deliveryLease: cancellationToken => AcquirePublicLocationDeliveryLeaseAsync(id, cancellationToken));
             return;
         }
 
         var channel = $"{type}-{id}";
         await _sse.SubscribeAsync(channel, Response, ct);
+    }
+
+    /// <summary>
+    /// Acquires the per-timeline lease only while fresh persisted state permits public live delivery.
+    /// </summary>
+    private async Task<IAsyncDisposable?> AcquirePublicLocationDeliveryLeaseAsync(string username, CancellationToken cancellationToken)
+    {
+        IAsyncDisposable deliveryLease = await PublicTimelineDeliveryLock.AcquireAsync(username, cancellationToken);
+        try
+        {
+            await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+            var user = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Users
+                .AsNoTracking()
+                .Where(candidate => candidate.UserName == username)
+                .Select(candidate => new { candidate.IsTimelinePublic, candidate.PublicTimelineTimeThreshold })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (user is null || PublicTimelineEligibilityResolver.Resolve(user.IsTimelinePublic, user.PublicTimelineTimeThreshold) is not { IsEffectivelyPublic: true, IsLive: true })
+            {
+                await deliveryLease.DisposeAsync();
+                return null;
+            }
+
+            return deliveryLease;
+        }
+        catch
+        {
+            await deliveryLease.DisposeAsync();
+            throw;
+        }
     }
 
     /// <summary>
