@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Public.Controllers
 {
@@ -36,13 +37,13 @@ namespace Wayfarer.Areas.Public.Controllers
 
             ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
 
-            if (user == null || !user.IsTimelinePublic)
+            if (user == null || !PublicTimelineEligibilityResolver.Resolve(user).IsEffectivelyPublic)
             {
                 return NotFound("User not found or timeline is not public.");
             }
 
             ViewData["Username"] = user.UserName;
-            ViewData["TimelineLive"] = user.PublicTimelineTimeThreshold == "now";
+            ViewData["TimelineLive"] = PublicTimelineEligibilityResolver.Resolve(user).IsLive;
             ViewData["TimelineTitle"] = user.ResolveTimelineTitle();
             if (!string.IsNullOrEmpty(user.DisplayName))
             {
@@ -74,13 +75,13 @@ namespace Wayfarer.Areas.Public.Controllers
 
             ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
 
-            if (user == null || !user.IsTimelinePublic)
+            if (user == null || !PublicTimelineEligibilityResolver.Resolve(user).IsEffectivelyPublic)
             {
                 return NotFound("User not found or timeline is not public.");
             }
 
             ViewData["Username"] = user.UserName;
-            ViewData["TimelineLive"] = user.PublicTimelineTimeThreshold == "now";
+            ViewData["TimelineLive"] = PublicTimelineEligibilityResolver.Resolve(user).IsLive;
             ViewData["TimelineTitle"] = user.ResolveTimelineTitle();
             if (!string.IsNullOrEmpty(user.DisplayName))
             {
@@ -109,15 +110,13 @@ namespace Wayfarer.Areas.Public.Controllers
         {
             // keep the checks both in view controller and here
             ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == request.Username);
-            if (user == null || !user.IsTimelinePublic)
+            var eligibility = user is null ? null : PublicTimelineEligibilityResolver.Resolve(user);
+            if (user == null || eligibility is null || !eligibility.IsEffectivelyPublic)
             {
                 return NotFound("User not found or timeline is not public.");
             }
 
-            string? threshold = user.PublicTimelineTimeThreshold;
-            threshold ??= "now";
-            TimeSpan timeSpan = Util.TimespanHelper.ParseTimeThreshold(threshold);
-            DateTime cutOffTime = DateTime.UtcNow.Subtract(timeSpan);
+            DateTime cutOffTime = DateTime.UtcNow.Subtract(eligibility.Delay!.Value);
 
             // get the latest location
             var latestLocation = await _dbContext.Locations
@@ -141,7 +140,7 @@ namespace Wayfarer.Areas.Public.Controllers
                 var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync();
 
                 // check against "now" threshold
-                if (threshold != "now")
+                if (!eligibility.IsLive)
                 {
                     locationDtos = locationDtos.Where(l => l.LocalTimestamp <= cutOffTime).ToList();
                 }
@@ -227,7 +226,7 @@ namespace Wayfarer.Areas.Public.Controllers
 
             ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
 
-            if (user == null || !user.IsTimelinePublic)
+            if (user == null || !PublicTimelineEligibilityResolver.Resolve(user).IsEffectivelyPublic)
             {
                 return NotFound("User not found or timeline is not public.");
             }

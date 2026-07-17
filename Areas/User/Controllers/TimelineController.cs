@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Util;
 
 namespace Wayfarer.Controllers
@@ -87,6 +88,29 @@ namespace Wayfarer.Controllers
                 ModelState.Remove("CustomThreshold");  // Skip validation for CustomThreshold
             }
 
+            bool isPrivateToPublic = !currentUser.IsTimelinePublic && model.IsTimelinePublic;
+            string? submittedThreshold = model.PublicTimelineTimeThreshold;
+            if (isPrivateToPublic && string.IsNullOrWhiteSpace(submittedThreshold))
+            {
+                submittedThreshold = "1d";
+                model.PublicTimelineTimeThreshold = submittedThreshold;
+            }
+
+            if (submittedThreshold == "custom" && !TimespanHelper.IsValidThreshold(model.CustomThreshold))
+            {
+                ModelState.AddModelError(nameof(model.CustomThreshold), "Invalid time threshold format. Use values like 1d, 2.5w, 0.1h, etc.");
+            }
+            else if (!IsSubmittedThresholdValid(submittedThreshold, model.CustomThreshold, model.IsTimelinePublic))
+            {
+                ModelState.AddModelError(nameof(model.PublicTimelineTimeThreshold), "Select a valid time threshold.");
+            }
+
+            bool wouldPersistLive = model.IsTimelinePublic && submittedThreshold == "now";
+            if (wouldPersistLive && !model.ConfirmLivePublicTimeline)
+            {
+                ModelState.AddModelError(nameof(model.ConfirmLivePublicTimeline), "Confirm live public sharing before saving.");
+            }
+
             if (!ValidateModelState())
             {
                 return View("Settings", model);
@@ -94,7 +118,8 @@ namespace Wayfarer.Controllers
 
             try
             {
-                currentUser.IsTimelinePublic = model.IsTimelinePublic; currentUser.TimelineTitle = model.TimelineTitle;
+                currentUser.IsTimelinePublic = model.IsTimelinePublic;
+                currentUser.TimelineTitle = model.TimelineTitle;
 
                 // If the value is "custom", use the custom input
                 if (model.PublicTimelineTimeThreshold == "custom" && !string.IsNullOrEmpty(model.CustomThreshold))
@@ -108,7 +133,7 @@ namespace Wayfarer.Controllers
                 }
                 else
                 {
-                    currentUser.PublicTimelineTimeThreshold = model.PublicTimelineTimeThreshold;
+                    currentUser.PublicTimelineTimeThreshold = submittedThreshold;
                 }
 
                 _dbContext.Users.Update(currentUser);
@@ -123,6 +148,20 @@ namespace Wayfarer.Controllers
                 HandleError(ex);
                 return View("Settings", model);
             }
+        }
+
+        /// <summary>
+        /// Validates a submitted settings threshold without accepting stale or unknown option values.
+        /// </summary>
+        private static bool IsSubmittedThresholdValid(string? threshold, string customThreshold, bool isTimelinePublic)
+        {
+            if (threshold == "custom")
+            {
+                return TimespanHelper.IsValidThreshold(customThreshold);
+            }
+
+            return (!isTimelinePublic && string.IsNullOrWhiteSpace(threshold))
+                || threshold is "now" or "1h" or "1d" or "1w" or "1m" or "1y";
         }
 
         /// <summary>

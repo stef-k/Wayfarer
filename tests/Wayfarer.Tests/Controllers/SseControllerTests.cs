@@ -33,9 +33,10 @@ public class SseControllerTests
     private static SseController CreateController(
         ApplicationDbContext db,
         IGroupTimelineService timelineService,
-        ClaimsPrincipal? user = null)
+        ClaimsPrincipal? user = null,
+        SseService? sse = null)
     {
-        var service = new SseService();
+        var service = sse ?? new SseService();
         var options = new MobileSseOptions();
         var controller = new SseController(service, db, timelineService, options);
         var context = new DefaultHttpContext();
@@ -90,6 +91,59 @@ public class SseControllerTests
 
         Assert.Equal("text/event-stream", controller.HttpContext.Response.Headers["Content-Type"].ToString());
         Assert.True(cts.IsCancellationRequested);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("1d")]
+    [InlineData("stale")]
+    public async Task Stream_LocationUpdateRejectsNonLiveOrInvalidPublicTimeline(string? threshold)
+    {
+        using var db = CreateDb();
+        var user = new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "alice",
+            DisplayName = "Alice",
+            IsTimelinePublic = true,
+            PublicTimelineTimeThreshold = threshold
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
+
+        await controller.Stream("location-update", "alice", CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status404NotFound, controller.HttpContext.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Stream_LocationUpdateWithholdsLaterEvent_WhenLiveEligibilityIsRevoked()
+    {
+        using var db = CreateDb();
+        var user = new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "alice",
+            DisplayName = "Alice",
+            IsTimelinePublic = true,
+            PublicTimelineTimeThreshold = "now"
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var sse = new SseService();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), sse: sse);
+        using var cts = new CancellationTokenSource();
+        var streamTask = controller.Stream("location-update", "alice", cts.Token);
+        await Task.Delay(25);
+        user.IsTimelinePublic = false;
+        await db.SaveChangesAsync();
+
+        await sse.BroadcastAsync("location-update-alice", "{\"location\":true}");
+        cts.Cancel();
+        await streamTask;
+
+        Assert.Empty(((MemoryStream)controller.HttpContext.Response.Body).ToArray());
     }
 
     [Fact]

@@ -24,14 +24,41 @@
         public string CustomThreshold { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets the explicit acknowledgement required for live public sharing.
+        /// </summary>
+        public bool ConfirmLivePublicTimeline { get; set; }
+
+        /// <summary>
+        /// Gets the owner-facing status derived from the persisted public eligibility state.
+        /// </summary>
+        public string PublicTimelineStatus { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets whether a stored public threshold is inconsistent and needs replacement.
+        /// </summary>
+        public bool HasInvalidPublicTimelineThreshold { get; set; }
+
+        /// <summary>
         /// Creates settings for the authenticated timeline owner.
         /// </summary>
-        public static TimelineSettingsViewModel FromUser(ApplicationUser user) => new()
+        public static TimelineSettingsViewModel FromUser(ApplicationUser user)
         {
-            IsTimelinePublic = user.IsTimelinePublic,
-            DefaultTimelineTitle = user.ResolveDefaultTimelineTitle(),
-            TimelineTitle = user.TimelineTitle,
-            PublicTimelineTimeThreshold = user.PublicTimelineTimeThreshold
-        };
+            var eligibility = Wayfarer.Services.PublicTimelineEligibilityResolver.Resolve(user);
+            return new()
+            {
+                IsTimelinePublic = user.IsTimelinePublic,
+                DefaultTimelineTitle = user.ResolveDefaultTimelineTitle(),
+                TimelineTitle = user.TimelineTitle,
+                PublicTimelineTimeThreshold = eligibility.IsThresholdValid ? user.PublicTimelineTimeThreshold : string.Empty,
+                PublicTimelineStatus = eligibility.IsEffectivelyPublic
+                    ? eligibility.IsLive
+                        ? "Public timeline: live"
+                        : $"Public timeline: delayed by {eligibility.Delay}"
+                    : user.IsTimelinePublic
+                        ? "Public timeline unavailable until a valid threshold is selected and saved."
+                        : "Timeline is not publicly available.",
+                HasInvalidPublicTimelineThreshold = user.IsTimelinePublic && !eligibility.IsThresholdValid
+            };
+        }
     }
 }

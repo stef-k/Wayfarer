@@ -197,6 +197,108 @@ public class TimelineControllerTests : TestBase
     }
 
     [Fact]
+    public async Task UpdateSettings_PersistsOneDayDelay_ForPrivateToPublicBlankSubmission()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel { IsTimelinePublic = true });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(user.IsTimelinePublic);
+        Assert.Equal("1d", user.PublicTimelineTimeThreshold);
+    }
+
+    [Fact]
+    public async Task UpdateSettings_RejectsLivePublicSubmission_WithoutAcknowledgement()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        user.PublicTimelineTimeThreshold = "1d";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            IsTimelinePublic = true,
+            PublicTimelineTimeThreshold = "now",
+            ConfirmLivePublicTimeline = false
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(user.IsTimelinePublic);
+        Assert.Equal("1d", user.PublicTimelineTimeThreshold);
+        Assert.True(controller.ModelState.ContainsKey(nameof(TimelineSettingsViewModel.ConfirmLivePublicTimeline)));
+    }
+
+    [Fact]
+    public async Task UpdateSettings_PersistsLivePublicSubmission_WithAcknowledgement()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            IsTimelinePublic = true,
+            PublicTimelineTimeThreshold = "now",
+            ConfirmLivePublicTimeline = true
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.True(user.IsTimelinePublic);
+        Assert.Equal("now", user.PublicTimelineTimeThreshold);
+    }
+
+    [Fact]
+    public async Task UpdateSettings_DoesNotRepairExistingPublicInvalidThreshold_WhenBlankPosted()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "stale";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel { IsTimelinePublic = true });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.True(user.IsTimelinePublic);
+        Assert.Equal("stale", user.PublicTimelineTimeThreshold);
+    }
+
+    [Fact]
+    public async Task Settings_ShowsRemediation_ForExistingPublicInvalidThreshold()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "stale";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, BuildUserManager(user));
+        ConfigureControllerWithUser(controller, user.Id);
+
+        var result = await controller.Settings();
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<TimelineSettingsViewModel>(view.Model);
+        Assert.True(model.HasInvalidPublicTimelineThreshold);
+        Assert.Equal("Public timeline unavailable until a valid threshold is selected and saved.", model.PublicTimelineStatus);
+    }
+
+    [Fact]
     public async Task GetChronologicalData_ReturnsUnauthorized_WhenUserMissing()
     {
         var db = CreateDbContext();

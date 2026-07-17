@@ -40,6 +40,28 @@ public class SseController : Controller
     [HttpGet("stream/{type}/{id}")]
     public async Task Stream(string type, string id, CancellationToken ct)
     {
+        if (type == "location-update")
+        {
+            ApplicationUser? user = await _db.Users.FirstOrDefaultAsync(user => user.UserName == id, ct);
+            if (user == null || PublicTimelineEligibilityResolver.Resolve(user) is not { IsEffectivelyPublic: true, IsLive: true })
+            {
+                Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            await _sse.SubscribeAsync(
+                $"{type}-{id}",
+                Response,
+                ct,
+                canReceive: async cancellationToken =>
+                {
+                    ApplicationUser? currentUser = await _db.Users.FirstOrDefaultAsync(candidate => candidate.UserName == id, cancellationToken);
+                    return currentUser is not null
+                        && PublicTimelineEligibilityResolver.Resolve(currentUser) is { IsEffectivelyPublic: true, IsLive: true };
+                });
+            return;
+        }
+
         var channel = $"{type}-{id}";
         await _sse.SubscribeAsync(channel, Response, ct);
     }
