@@ -66,7 +66,10 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         await using var verification = fixture.CreateContext();
         Assert.Empty(await verification.Trips.Where(trip => trip.UserId == user.Id).ToListAsync());
         Assert.Empty(await verification.Tags.Where(tag => tag.Slug.StartsWith("fixture-new-")).ToListAsync());
-        Assert.Equal(0, await verification.Set<Dictionary<string, object>>("TripTags").CountAsync());
+        Assert.Empty(await verification.Trips
+            .Where(trip => trip.UserId == user.Id)
+            .SelectMany(trip => trip.Tags)
+            .ToListAsync());
     }
 
     [PostgresFact]
@@ -106,11 +109,92 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         Assert.Equal(2, await verification.Tags.CountAsync(tag => tag.Id == bySlug.Id || tag.Id == byName.Id));
     }
 
+    [PostgresFact]
+    public async Task RelationalSmoke_ExercisesImportModesRollbackAndPrivateSuggestions()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var existingTag = new Tag { Id = Guid.NewGuid(), Name = "Fixture Stored Casing", Slug = $"fixture-stored-{Guid.NewGuid():N}" };
+        var existingTrip = CreateTrip(user.Id, false, existingTag);
+        fixture.RegisterTag(existingTag);
+        fixture.RegisterTrip(existingTrip.Id);
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.AddRange(existingTag, existingTrip);
+            await seed.SaveChangesAsync();
+        }
+
+        var importedSlug = $"fixture-imported-{Guid.NewGuid():N}";
+        await using (var duplicateContext = fixture.CreateContext())
+        {
+            var service = new TripImportService(duplicateContext, NullLogger<TripImportService>.Instance, CreateReconciler(duplicateContext));
+            await Assert.ThrowsAsync<TripDuplicateException>(() => service.ImportWayfarerKmlAsync(ToStream(CreateKml(existingTrip.Id, existingTag.Slug)), user.Id, TripImportMode.Auto));
+        }
+
+        Guid cloneId;
+        await using (var cloneContext = fixture.CreateContext())
+        {
+            var service = new TripImportService(cloneContext, NullLogger<TripImportService>.Instance, CreateReconciler(cloneContext));
+            cloneId = await service.ImportWayfarerKmlAsync(
+                ToStream(CreateKml(existingTrip.Id, $" {existingTag.Slug}, {importedSlug}, {existingTag.Slug.ToUpperInvariant()}, ,  ")),
+                user.Id,
+                TripImportMode.CreateNew);
+            fixture.RegisterTrip(cloneId);
+
+            var clone = await cloneContext.Trips.Include(trip => trip.Tags).SingleAsync(trip => trip.Id == cloneId);
+            Assert.Equal(new[] { "Fixture Stored Casing", importedSlug }, clone.Tags.Select(tag => tag.Name).OrderBy(name => name));
+            foreach (var tag in clone.Tags) fixture.RegisterTag(tag);
+        }
+
+        await using (var upsertContext = fixture.CreateContext())
+        {
+            var service = new TripImportService(upsertContext, NullLogger<TripImportService>.Instance, CreateReconciler(upsertContext));
+            var upsertSlug = $"fixture-upsert-{Guid.NewGuid():N}";
+            await service.ImportWayfarerKmlAsync(ToStream(CreateKml(existingTrip.Id, upsertSlug)), user.Id, TripImportMode.Upsert);
+            var upserted = await upsertContext.Trips.Include(trip => trip.Tags).SingleAsync(trip => trip.Id == existingTrip.Id);
+            Assert.Equal(new[] { upsertSlug }, upserted.Tags.Select(tag => tag.Slug));
+            fixture.RegisterTag(upserted.Tags.Single());
+        }
+
+        await using (var failureContext = fixture.CreateContext())
+        {
+            var service = new TripImportService(failureContext, NullLogger<TripImportService>.Instance, CreateReconciler(failureContext));
+            await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
+                ToStream(CreateKml(Guid.NewGuid(), $"fixture-rollback-{Guid.NewGuid():N}, ---")), user.Id, TripImportMode.CreateNew));
+        }
+
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(2, await verification.Trips.CountAsync(trip => trip.UserId == user.Id));
+        Assert.Empty(await verification.Tags.Where(tag => tag.Slug.StartsWith("fixture-rollback-")).ToListAsync());
+
+        var privateTag = new Tag { Id = Guid.NewGuid(), Name = "Fixture Private Only", Slug = $"fixture-private-{Guid.NewGuid():N}" };
+        var privateTrip = CreateTrip(user.Id, false, privateTag);
+        fixture.RegisterTag(privateTag);
+        fixture.RegisterTrip(privateTrip.Id);
+        verification.AddRange(privateTag, privateTrip);
+        await verification.SaveChangesAsync();
+
+        var tagService = new TripTagService(verification, NullLogger<TripTagService>.Instance);
+        Assert.DoesNotContain(await tagService.GetSuggestionsAsync("Fixture Private"), tag => tag.Slug == privateTag.Slug);
+        Assert.DoesNotContain(await tagService.GetPopularAsync(), tag => tag.Slug == privateTag.Slug);
+    }
+
     private static TripImportTagReconciler CreateReconciler(ApplicationDbContext context) => new(context, NullLogger<TripImportTagReconciler>.Instance);
 
     private static MemoryStream ToStream(string kml) => new(Encoding.UTF8.GetBytes(kml));
 
     private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData><Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData></Document></kml>";
+
+    private static Trip CreateTrip(string userId, bool isPublic, params Tag[] tags) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        Name = "Import fixture trip",
+        IsPublic = isPublic,
+        UpdatedAt = DateTime.UtcNow,
+        Tags = tags.ToList(),
+        Regions = [new Region { Id = Guid.NewGuid(), UserId = userId, Name = "Unassigned Places", Places = [] }]
+    };
 
     /// <summary>Pauses both tag insert commands so the race reaches PostgreSQL deterministically.</summary>
     private sealed class TagInsertBarrier : DbCommandInterceptor

@@ -68,6 +68,7 @@ public class TripImportService : ITripImportService
             : null;
 
         Trip target;
+        var addTargetAfterReconciliation = false;
 
         switch (mode)
         {
@@ -80,7 +81,7 @@ public class TripImportService : ITripImportService
             case TripImportMode.CreateNew:
                 parsed.Id = Guid.NewGuid();
                 target = CreateNewShell(parsed, userId);
-                _dbContext.Trips.Add(target);
+                addTargetAfterReconciliation = true;
                 target.Name = $"{target.Name} (Imported)"; 
                 break;
 
@@ -91,7 +92,7 @@ public class TripImportService : ITripImportService
                     : CreateNewShell(parsed, userId);       // clone
                 if (!owned)
                 {
-                    _dbContext.Trips.Add(target);
+                    addTargetAfterReconciliation = true;
                     target.Name = $"{target.Name} (Imported)";   // ★ tag once
                 }
                 break;
@@ -107,6 +108,8 @@ public class TripImportService : ITripImportService
         target.UpdatedAt = DateTime.UtcNow;
 
         var reconciledTags = await _tagReconciler.ReconcileAsync(importedTagTokens);
+        if (addTargetAfterReconciliation)
+            _dbContext.Trips.Add(target);
         target.Tags.Clear();
         foreach (var tag in reconciledTags)
         {
