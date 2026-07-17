@@ -12,8 +12,8 @@ public class TripImportService : ITripImportService
     readonly ILogger<TripImportService> _log;
     readonly ITripImportTagReconciler _tagReconciler;
 
-    /// <summary>Creates an importer for direct callers that do not use dependency injection.</summary>
-    public TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
+    /// <summary>Creates an importer for focused tests without changing production DI composition.</summary>
+    internal TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
         : this(dbContext, log, new TripImportTagReconciler(dbContext, NullLogger<TripImportTagReconciler>.Instance))
     {
     }

@@ -94,7 +94,8 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
         }
     }
 
-    private static bool IsRecognizedTagUniqueConflict(DbUpdateException exception) =>
+    /// <summary>Limits retry handling to the two enforced global tag identity constraints.</summary>
+    internal static bool IsRecognizedTagUniqueConflict(DbUpdateException exception) =>
         exception.GetBaseException() is PostgresException
         {
             SqlState: PostgresErrorCodes.UniqueViolation,

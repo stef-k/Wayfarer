@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -20,6 +21,8 @@ public sealed class TripImportPostgresRecoveryTests(PostgresImportTestFixture fi
     public async Task ImportWayfarerKmlAsync_RecognizedConflictRequeriesBothKeysAndAttachesWinner(ConflictKey conflictKey)
     {
         fixture.RequireAvailable();
+        using var logs = new TestLogProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
         var user = await fixture.CreateUserAsync();
         var slug = $"fixture-recovery-{Guid.NewGuid():N}";
         var winner = conflictKey == ConflictKey.Slug
@@ -44,7 +47,7 @@ public sealed class TripImportPostgresRecoveryTests(PostgresImportTestFixture fi
             });
 
         await using var context = fixture.CreateContext(interceptor);
-        var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
+        var service = new TripImportService(context, loggerFactory.CreateLogger<TripImportService>(), CreateReconciler(context, loggerFactory));
 
         var tripId = await service.ImportWayfarerKmlAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), user.Id, TripImportMode.CreateNew);
         fixture.RegisterTrip(tripId);
@@ -54,6 +57,9 @@ public sealed class TripImportPostgresRecoveryTests(PostgresImportTestFixture fi
         var trip = await verification.Trips.Include(candidate => candidate.Tags).SingleAsync(candidate => candidate.Id == tripId);
         Assert.Equal(winner.Id, Assert.Single(trip.Tags).Id);
         Assert.Equal(slug, Assert.Single(trip.Tags).Name);
+        Assert.Contains(logs.Entries, entry => entry.Level == LogLevel.Information
+            && entry.Category == typeof(TripImportTagReconciler).FullName
+            && entry.Message.Contains("Recognized concurrent KML import tag create", StringComparison.Ordinal));
     }
 
     [PostgresFact]
@@ -95,7 +101,8 @@ public sealed class TripImportPostgresRecoveryTests(PostgresImportTestFixture fi
         Assert.Empty(await verification.Tags.Where(tag => tag.Slug == slug && tag.Id != bySlug.Id).ToListAsync());
     }
 
-    private static TripImportTagReconciler CreateReconciler(ApplicationDbContext context) => new(context, NullLogger<TripImportTagReconciler>.Instance);
+    private static TripImportTagReconciler CreateReconciler(ApplicationDbContext context, ILoggerFactory? loggerFactory = null) =>
+        new(context, loggerFactory?.CreateLogger<TripImportTagReconciler>() ?? NullLogger<TripImportTagReconciler>.Instance);
 
     private static MemoryStream ToStream(string kml) => new(Encoding.UTF8.GetBytes(kml));
 
