@@ -63,12 +63,12 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
     private async Task<Tag> ResolveAsync(string slug, CancellationToken cancellationToken)
     {
         var bySlug = await dbContext.Tags.FirstOrDefaultAsync(tag => tag.Slug == slug, cancellationToken);
-        if (bySlug is not null) return bySlug;
-
         var byName = await dbContext.Tags.FirstOrDefaultAsync(tag => tag.Name == slug, cancellationToken);
-        if (byName is not null)
+        if (bySlug is not null && (byName is null || bySlug.Id == byName.Id)) return bySlug;
+
+        if (bySlug is not null || byName is not null)
         {
-            logger.LogWarning("KML tag identity conflicts for {TagSlug}: name belongs to {TagId}", slug, byName.Id);
+            logger.LogWarning("KML tag identity conflicts for {TagSlug}: slug={SlugTagId}, name={NameTagId}", slug, bySlug?.Id, byName?.Id);
             throw new TripImportValidationException("The import contains an invalid tag.");
         }
 

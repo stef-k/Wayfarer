@@ -5,6 +5,7 @@ import {
     initWikipediaPopovers,
 } from '../../../util/wikipedia-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
+import { submitTripImport } from './tripImportClient.js';
 
 (() => {
     /* ------------------------------------------------ Pagination state */
@@ -332,35 +333,18 @@ import { createTileLayer } from '../../../retryTileLayer.js';
         });
     });
     const upload = async (file, mode = 'Auto') => {
-        const fd = new FormData(); fd.append('file', file); fd.append('mode', mode); const genericImportFailure = 'Import failed. Please try again.';
-        try {
-            const resp = await fetch('/User/Trip/Import', {method: 'POST', body: fd});
-            /* 1 ── success: server replied 302 Location → browser-side redirect */
-            if (resp.redirected) {
+        await submitTripImport(file, mode, {
+            fetchImpl: fetch,
+            onRedirect: url => {
                 dupModal?.hide();
-                window.location.href = resp.url;
-                return;
-            }
-
-            let payload; try {
-                payload = await resp.json();
-            } catch {
-                wayfarer.showAlert('danger', genericImportFailure);
-                return;
-            }
-            if (payload?.status === 'duplicate') {
+                window.location.href = url;
+            },
+            onDuplicate: () => {
                 pendingFile = file;
                 dupModal?.show();
-                return;
-            }
-            const message = payload?.status === 'error' && typeof payload.message === 'string'
-                ? payload.message
-                : genericImportFailure;
-            wayfarer.showAlert('danger', message);
-        } catch (err) {
-            console.error('[Trip] Import request failed:', err);
-            wayfarer.showAlert('danger', genericImportFailure);
-        }
+            },
+            showError: message => wayfarer.showAlert('danger', message)
+        });
     };
 
     document.getElementById('btnUpdate')?.addEventListener('click', () => {
