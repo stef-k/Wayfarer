@@ -73,22 +73,30 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
     }
 
     [PostgresFact]
-    public async Task ReconcileAsync_ConcurrentSameTagAttachesOneGlobalWinner()
+    public async Task ImportWayfarerKmlAsync_ConcurrentSameTagAttachesOneGlobalWinner()
     {
         fixture.RequireAvailable();
         var slug = $"fixture-race-{Guid.NewGuid():N}";
+        var firstUser = await fixture.CreateUserAsync();
+        var secondUser = await fixture.CreateUserAsync();
         var barrier = new TagInsertBarrier();
         await using var first = fixture.CreateContext(barrier);
         await using var second = fixture.CreateContext(barrier);
-        var firstTask = CreateReconciler(first).ReconcileAsync([slug]);
-        var secondTask = CreateReconciler(second).ReconcileAsync([slug]);
+        var firstTask = new TripImportService(first, NullLogger<TripImportService>.Instance, CreateReconciler(first))
+            .ImportWayfarerKmlAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), firstUser.Id, TripImportMode.CreateNew);
+        var secondTask = new TripImportService(second, NullLogger<TripImportService>.Instance, CreateReconciler(second))
+            .ImportWayfarerKmlAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), secondUser.Id, TripImportMode.CreateNew);
 
-        var results = await Task.WhenAll(firstTask, secondTask);
-        fixture.RegisterTag(Assert.Single(results[0]));
+        var tripIds = await Task.WhenAll(firstTask, secondTask);
+        fixture.RegisterTrip(tripIds[0]);
+        fixture.RegisterTrip(tripIds[1]);
 
-        Assert.Equal(results[0].Single().Id, results[1].Single().Id);
         await using var verification = fixture.CreateContext();
-        Assert.Equal(1, await verification.Tags.CountAsync(tag => tag.Slug == slug));
+        var trips = await verification.Trips.Include(trip => trip.Tags).Where(trip => tripIds.Contains(trip.Id)).ToListAsync();
+        Assert.Equal(2, trips.Count);
+        var winner = Assert.Single(await verification.Tags.Where(tag => tag.Slug == slug).ToListAsync());
+        fixture.RegisterTag(winner);
+        Assert.All(trips, trip => Assert.Equal(winner.Id, Assert.Single(trip.Tags).Id));
     }
 
     [PostgresFact]
