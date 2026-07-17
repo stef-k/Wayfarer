@@ -22,6 +22,7 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>
 /// Public trip viewer behaviors: index search/pagination, view gating, preview, thumbnail proxy.
 /// </summary>
+[Collection(ImageProxyStaticStateTestCollection.Name)]
 public class TripViewerControllerTests : TestBase
 {
     [Fact]

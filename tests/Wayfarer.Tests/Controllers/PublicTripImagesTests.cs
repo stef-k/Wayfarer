@@ -16,6 +16,7 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>
 /// Tests for direct-serve public trip image endpoints (CoverImage and MapSnapshot).
 /// </summary>
+[Collection(ImageProxyStaticStateTestCollection.Name)]
 public class PublicTripImagesTests : TestBase
 {
     [Fact]
