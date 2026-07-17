@@ -69,9 +69,9 @@ namespace Wayfarer.Models
         /// </summary>
         public string ResolveTimelineTitle()
         {
-            if (!string.IsNullOrEmpty(TimelineTitle))
+            if (!string.IsNullOrWhiteSpace(TimelineTitle))
             {
-                return TimelineTitle;
+                return TimelineTitle.Trim();
             }
 
             string displayName = !string.IsNullOrWhiteSpace(DisplayName)

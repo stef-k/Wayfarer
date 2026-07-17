@@ -47,6 +47,24 @@ public class TimelineControllerTests : TestBase
     }
 
     [Fact]
+    public void ResolveTimelineTitle_UsesFallback_WhenCustomTitleIsWhitespace()
+    {
+        var user = TestDataFixtures.CreateUser(username: "alice", displayName: "Alice");
+        user.TimelineTitle = " \t ";
+
+        Assert.Equal("Timeline of Alice", user.ResolveTimelineTitle());
+    }
+
+    [Fact]
+    public void ResolveTimelineTitle_ReturnsTrimmedCustomTitle()
+    {
+        var user = TestDataFixtures.CreateUser(username: "alice", displayName: "Alice");
+        user.TimelineTitle = "  Alice's adventures  ";
+
+        Assert.Equal("Alice's adventures", user.ResolveTimelineTitle());
+    }
+
+    [Fact]
     public async Task UpdateSettings_SavesTrimmedTimelineTitle_ForCurrentUserOnly()
     {
         var db = CreateDbContext();
