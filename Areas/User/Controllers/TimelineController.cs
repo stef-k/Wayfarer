@@ -88,24 +88,21 @@ namespace Wayfarer.Controllers
                 ModelState.Remove("CustomThreshold");  // Skip validation for CustomThreshold
             }
 
-            bool isPrivateToPublic = !currentUser.IsTimelinePublic && model.IsTimelinePublic;
-            string? submittedThreshold = model.PublicTimelineTimeThreshold;
-            if (isPrivateToPublic && string.IsNullOrWhiteSpace(submittedThreshold))
+            var submission = PublicTimelineEligibilityResolver.ResolveSettingsSubmission(
+                currentUser.IsTimelinePublic,
+                model.IsTimelinePublic,
+                model.PublicTimelineTimeThreshold,
+                model.CustomThreshold);
+            model.PublicTimelineTimeThreshold = submission.IsCustom ? "custom" : submission.ThresholdToPersist;
+
+            if (!submission.IsValid)
             {
-                submittedThreshold = "1d";
-                model.PublicTimelineTimeThreshold = submittedThreshold;
+                ModelState.AddModelError(
+                    submission.IsCustom ? nameof(model.CustomThreshold) : nameof(model.PublicTimelineTimeThreshold),
+                    submission.IsCustom ? "Invalid time threshold format. Use values like 1d, 2.5w, 0.1h, etc." : "Select a valid time threshold.");
             }
 
-            if (submittedThreshold == "custom" && !TimespanHelper.IsValidThreshold(model.CustomThreshold))
-            {
-                ModelState.AddModelError(nameof(model.CustomThreshold), "Invalid time threshold format. Use values like 1d, 2.5w, 0.1h, etc.");
-            }
-            else if (!IsSubmittedThresholdValid(submittedThreshold, model.CustomThreshold, model.IsTimelinePublic))
-            {
-                ModelState.AddModelError(nameof(model.PublicTimelineTimeThreshold), "Select a valid time threshold.");
-            }
-
-            bool wouldPersistLive = model.IsTimelinePublic && submittedThreshold == "now";
+            bool wouldPersistLive = model.IsTimelinePublic && submission.ThresholdToPersist == "now";
             if (wouldPersistLive && !model.ConfirmLivePublicTimeline)
             {
                 ModelState.AddModelError(nameof(model.ConfirmLivePublicTimeline), "Confirm live public sharing before saving.");
@@ -121,20 +118,7 @@ namespace Wayfarer.Controllers
                 currentUser.IsTimelinePublic = model.IsTimelinePublic;
                 currentUser.TimelineTitle = model.TimelineTitle;
 
-                // If the value is "custom", use the custom input
-                if (model.PublicTimelineTimeThreshold == "custom" && !string.IsNullOrEmpty(model.CustomThreshold))
-                {
-                    if (!TimespanHelper.IsValidThreshold(model.CustomThreshold))
-                    {
-                        ModelState.AddModelError("CustomThreshold", "Invalid time threshold format. Use values like 1d, 2.5w, 0.1h, etc.");
-                        return View("Settings", model);
-                    }
-                    currentUser.PublicTimelineTimeThreshold = model.CustomThreshold; // Save custom input
-                }
-                else
-                {
-                    currentUser.PublicTimelineTimeThreshold = submittedThreshold;
-                }
+                currentUser.PublicTimelineTimeThreshold = submission.ThresholdToPersist;
 
                 _dbContext.Users.Update(currentUser);
                 await _dbContext.SaveChangesAsync();
@@ -148,20 +132,6 @@ namespace Wayfarer.Controllers
                 HandleError(ex);
                 return View("Settings", model);
             }
-        }
-
-        /// <summary>
-        /// Validates a submitted settings threshold without accepting stale or unknown option values.
-        /// </summary>
-        private static bool IsSubmittedThresholdValid(string? threshold, string customThreshold, bool isTimelinePublic)
-        {
-            if (threshold == "custom")
-            {
-                return TimespanHelper.IsValidThreshold(customThreshold);
-            }
-
-            return (!isTimelinePublic && string.IsNullOrWhiteSpace(threshold))
-                || threshold is "now" or "1h" or "1d" or "1w" or "1m" or "1y";
         }
 
         /// <summary>
