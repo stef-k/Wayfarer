@@ -35,7 +35,7 @@ public class WayfarerKmlParser
         var tagsCsv = ReadString(tripDoc, "Tags");
         if (!string.IsNullOrWhiteSpace(tagsCsv))
         {
-            trip.Tags = tagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            trip.Tags = tagsCsv.Split(',', StringSplitOptions.None)
                 .Select(slug => new Tag { Slug = slug, Name = slug })
                 .ToList();
         }

@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 
@@ -9,11 +10,23 @@ public class TripImportService : ITripImportService
 {
     readonly ApplicationDbContext _dbContext;
     readonly ILogger<TripImportService> _log;
+    readonly ITripTagService _tripTagService;
 
+    /// <summary>Creates an importer for direct callers that do not use dependency injection.</summary>
     public TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
+        : this(dbContext, log, new TripTagService(dbContext, NullLogger<TripTagService>.Instance))
+    {
+    }
+
+    /// <summary>Creates an importer with the shared tag persistence boundary.</summary>
+    public TripImportService(
+        ApplicationDbContext dbContext,
+        ILogger<TripImportService> log,
+        ITripTagService tripTagService)
     {
         _dbContext = dbContext;
         _log = log;
+        _tripTagService = tripTagService;
     }
 
     public async Task<Guid> ImportWayfarerKmlAsync(
@@ -32,11 +45,14 @@ public class TripImportService : ITripImportService
         parsed = isWayfarer
             ? WayfarerKmlParser.Parse(mem)
             : GoogleMyMapsKmlParser.Parse(mem, userId);
+        var importedTagTokens = parsed.Tags.Select(tag => tag.Slug).ToList();
+        parsed.Tags.Clear(); // Parser tags are transport values, never persistence entities.
 
         /* 2- decide target trip ----------------------------------------- */
         var dbTrip = await _dbContext.Trips
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
+            .Include(t => t.Tags)
             .FirstOrDefaultAsync(t => t.Id == parsed.Id);
 
         bool owned = dbTrip?.UserId == userId;
@@ -46,6 +62,10 @@ public class TripImportService : ITripImportService
             // Let the controller ask the user what to do
             throw new TripDuplicateException(dbTrip!.Id);
         }
+
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync()
+            : null;
 
         Trip target;
 
@@ -85,6 +105,13 @@ public class TripImportService : ITripImportService
         target.CenterLon = parsed.CenterLon;
         target.Zoom = parsed.Zoom;
         target.UpdatedAt = DateTime.UtcNow;
+
+        var reconciledTags = await _tripTagService.ReconcileImportedTagsAsync(importedTagTokens);
+        target.Tags.Clear();
+        foreach (var tag in reconciledTags)
+        {
+            target.Tags.Add(tag);
+        }
 
         /* 4 sync regions  segments ----------------------------------- */
         SyncCollection(parsed.Regions ?? Enumerable.Empty<Region>(), target.Regions ?? new List<Region>(), (p, d) => p.Id == d.Id);
@@ -131,6 +158,10 @@ public class TripImportService : ITripImportService
         }
 
         await _dbContext.SaveChangesAsync();
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync();
+        }
         return target.Id;
     }
 

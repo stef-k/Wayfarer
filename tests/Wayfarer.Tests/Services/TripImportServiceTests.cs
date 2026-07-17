@@ -25,10 +25,13 @@ public class TripImportServiceTests : TestBase
         string? notes = null,
         double centerLat = 40.7128,
         double centerLon = -74.0060,
-        int zoom = 10)
+        int zoom = 10,
+        string? tagsCsv = null)
     {
         var notesXml = notes != null ? $@"
       <Data name=""NotesHtml""><value>{notes}</value></Data>" : "";
+        var tagsXml = tagsCsv != null ? $@"
+      <Data name=""Tags""><value>{tagsCsv}</value></Data>" : "";
 
         return $@"<?xml version=""1.0"" encoding=""UTF-8""?>
 <kml xmlns=""http://www.opengis.net/kml/2.2"">
@@ -38,7 +41,7 @@ public class TripImportServiceTests : TestBase
       <Data name=""TripId""><value>{tripId}</value></Data>
       <Data name=""CenterLat""><value>{centerLat}</value></Data>
       <Data name=""CenterLon""><value>{centerLon}</value></Data>
-      <Data name=""Zoom""><value>{zoom}</value></Data>{notesXml}
+      <Data name=""Zoom""><value>{zoom}</value></Data>{notesXml}{tagsXml}
     </ExtendedData>
   </Document>
 </kml>";
@@ -122,6 +125,101 @@ public class TripImportServiceTests : TestBase
     private static MemoryStream ToStream(string content)
     {
         return new MemoryStream(Encoding.UTF8.GetBytes(content));
+    }
+
+    #endregion
+
+    #region Import Tag Reconciliation Tests
+
+    [Fact]
+    public async Task ImportWayfarerKmlAsync_ReusesStoredGlobalTagCasing_AndCreatesDistinctMissingTags()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var existing = new Tag { Id = Guid.NewGuid(), Name = "Hike", Slug = "hike" };
+        db.AddRange(user, existing);
+        await db.SaveChangesAsync();
+        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+
+        var tripId = await service.ImportWayfarerKmlAsync(
+            ToStream(CreateWayfarerKml(Guid.NewGuid(), tagsCsv: " hike ,HIKE,trail, TRAIL, ,  ")),
+            user.Id,
+            TripImportMode.CreateNew);
+
+        var trip = await db.Trips.Include(t => t.Tags).SingleAsync(t => t.Id == tripId);
+        Assert.Equal(new[] { "Hike", "trail" }, trip.Tags.OrderBy(t => t.Slug).Select(t => t.Name));
+        Assert.Equal(2, await db.Tags.CountAsync());
+    }
+
+    [Fact]
+    public async Task ImportWayfarerKmlAsync_RejectsNonemptyUnrepresentableTagWithoutPersistingTrip()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+
+        await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
+            ToStream(CreateWayfarerKml(Guid.NewGuid(), tagsCsv: "---")), user.Id, TripImportMode.CreateNew));
+
+        Assert.Empty(db.Trips);
+        Assert.Empty(db.Tags);
+    }
+
+    [Theory]
+    [InlineData(TripImportMode.Auto)]
+    [InlineData(TripImportMode.CreateNew)]
+    public async Task ImportWayfarerKmlAsync_CloneModesApplyReconciledTags(TripImportMode mode)
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+
+        var tripId = await service.ImportWayfarerKmlAsync(
+            ToStream(CreateWayfarerKml(Guid.NewGuid(), tagsCsv: "coast")), user.Id, mode);
+
+        var trip = await db.Trips.Include(t => t.Tags).SingleAsync(t => t.Id == tripId);
+        Assert.Single(trip.Tags);
+        Assert.Equal("coast", trip.Tags.Single().Slug);
+    }
+
+    [Fact]
+    public async Task ImportWayfarerKmlAsync_UpsertSynchronizesImportedTags()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var stale = new Tag { Id = Guid.NewGuid(), Name = "stale", Slug = "stale" };
+        var trip = new Trip
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Name = "Existing",
+            Tags = new List<Tag> { stale },
+            Regions = new List<Region>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
+                    Name = "Unassigned Places",
+                    DisplayOrder = 0,
+                    Places = new List<Place>()
+                }
+            }
+        };
+        trip.Regions.Single().TripId = trip.Id;
+        db.AddRange(user, stale, trip);
+        await db.SaveChangesAsync();
+        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+
+        await service.ImportWayfarerKmlAsync(
+            ToStream(CreateWayfarerKml(trip.Id, tagsCsv: "fresh")), user.Id, TripImportMode.Upsert);
+
+        var updated = await db.Trips.Include(t => t.Tags).SingleAsync(t => t.Id == trip.Id);
+        Assert.Equal(new[] { "fresh" }, updated.Tags.Select(t => t.Slug));
     }
 
     #endregion

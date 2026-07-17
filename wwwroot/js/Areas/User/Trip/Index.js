@@ -335,35 +335,39 @@ import { createTileLayer } from '../../../retryTileLayer.js';
         const fd = new FormData();
         fd.append('file', file);
         fd.append('mode', mode);
+        const genericImportFailure = 'Import failed. Please try again.';
 
-        const resp = await fetch('/User/Trip/Import', {method: 'POST', body: fd});
+        try {
+            const resp = await fetch('/User/Trip/Import', {method: 'POST', body: fd});
 
-        /* 1 ── success: server replied 302 Location → browser-side redirect */
-        if (resp.redirected) {
-            dupModal?.hide();
-            window.location.href = resp.url;
-            return;
-        }
+            /* 1 ── success: server replied 302 Location → browser-side redirect */
+            if (resp.redirected) {
+                dupModal?.hide();
+                window.location.href = resp.url;
+                return;
+            }
 
-        /* 2 ── try to read JSON only when response is JSON ---------------- */
-        let payload = null;
-        const isJson = resp.headers
-            .get('Content-Type')
-            ?.startsWith('application/json');
-
-        if (isJson) {
+            let payload;
             try {
                 payload = await resp.json();
-            } catch (e) { /* silence parse errors */
+            } catch {
+                wayfarer.showAlert('danger', genericImportFailure);
+                return;
             }
-        }
 
-        if (payload?.status === 'duplicate') {
-            pendingFile = file;
-            dupModal?.show();
-        } else {
-            const msg = payload?.message || await resp.text();      // fallback
-            wayfarer.showAlert('danger', msg || 'Import failed.');
+            if (payload?.status === 'duplicate') {
+                pendingFile = file;
+                dupModal?.show();
+                return;
+            }
+
+            const message = payload?.status === 'error' && typeof payload.message === 'string'
+                ? payload.message
+                : genericImportFailure;
+            wayfarer.showAlert('danger', message);
+        } catch (err) {
+            console.error('[Trip] Import request failed:', err);
+            wayfarer.showAlert('danger', genericImportFailure);
         }
     };
 

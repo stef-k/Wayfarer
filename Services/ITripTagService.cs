@@ -14,6 +14,9 @@ public interface ITripTagService
 
     Task<TripTagReplacementResult> ReplaceTagsAsync(Guid tripId, IReadOnlyList<string> names, string userId, CancellationToken cancellationToken = default);
 
+    /// <summary>Resolves KML transport values to tracked global tags without tag-editing fallbacks.</summary>
+    Task<IReadOnlyList<Tag>> ReconcileImportedTagsAsync(IEnumerable<string> tokens, CancellationToken cancellationToken = default);
+
     Task<bool> DetachTagAsync(Guid tripId, string slug, string userId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TagSuggestionDto>> GetSuggestionsAsync(string? query, int limit = 10, CancellationToken cancellationToken = default);
