@@ -1057,6 +1057,9 @@ public partial class TileCacheServiceTests : TestBase
             gate.Release();
             await firstPurge;
         }
+
+        // After completion, the LRU purge finally block should release the shared guard.
+        await service1.PurgeLRUCacheAsync();
     }
 
     [Fact]
