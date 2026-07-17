@@ -15,6 +15,11 @@ namespace Wayfarer.Models
         // Is user's timeline public? defaults to false
         public bool IsTimelinePublic { get; set; }
 
+        /// <summary>
+        /// Optional, user-defined visible heading for timeline maps.
+        /// </summary>
+        public string? TimelineTitle { get; set; }
+
         // Safety mechanism to provide a threshold up to when
         // the timeline will be shared in relation to current date and time
         // Implementation specifics:
@@ -58,6 +63,30 @@ namespace Wayfarer.Models
         /// Group invitations received by this user.
         /// </summary>
         public ICollection<GroupInvitation> GroupInvitationsReceived { get; set; } = new List<GroupInvitation>();
+
+        /// <summary>
+        /// Resolves the visible timeline heading without changing the browser page title.
+        /// </summary>
+        public string ResolveTimelineTitle()
+        {
+            if (!string.IsNullOrWhiteSpace(TimelineTitle))
+            {
+                return TimelineTitle.Trim();
+            }
+
+            return ResolveDefaultTimelineTitle();
+        }
+
+        /// <summary>
+        /// Resolves the built-in timeline heading used when no custom title is set.
+        /// </summary>
+        public string ResolveDefaultTimelineTitle()
+        {
+            string displayName = !string.IsNullOrWhiteSpace(DisplayName)
+                ? DisplayName
+                : UserName ?? string.Empty;
+            return $"Timeline of {displayName}";
+        }
     }
 
 }

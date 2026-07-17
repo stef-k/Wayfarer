@@ -24,6 +24,15 @@
                     <form method="post" asp-action="UpdateSettings" asp-controller="Timeline" asp-area="User">
                         @Html.AntiForgeryToken()
 
+                        <!-- Optional visible map heading. -->
+                        <div class="mb-3">
+                            <label asp-for="TimelineTitle" class="form-label">Timeline Title</label>
+                            <input asp-for="TimelineTitle" class="form-control" maxlength="80" />
+                            <div class="form-text">Maximum 80 characters.</div>
+                            <div class="form-text">Optional. Leave blank to restore the default: <strong>@Model.DefaultTimelineTitle</strong>.</div>
+                            <span asp-validation-for="TimelineTitle" class="text-danger"></span>
+                        </div>
+
                         <!-- Public Timeline Toggle -->
                         <div class="form-check form-switch mb-4">
                             <input type="checkbox" class="form-check-input" id="IsTimelinePublic" asp-for="IsTimelinePublic" role="switch" />

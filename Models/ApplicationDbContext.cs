@@ -109,9 +109,8 @@ namespace Wayfarer.Models
                 .OnDelete(DeleteBehavior.Cascade);
 
             // IsTimelinePublic defaults to false!
-            builder.Entity<ApplicationUser>()
-                .Property(u => u.IsTimelinePublic)
-                .HasDefaultValue(false); // Specify the default value here
+            builder.Entity<ApplicationUser>().Property(u => u.IsTimelinePublic).HasDefaultValue(false); // Specify the default value here
+            builder.Entity<ApplicationUser>().Property(u => u.TimelineTitle).HasMaxLength(80);
 
             // Tile Cache Metadata
             // EF to use the RowVersion in order to handle race conditions in code

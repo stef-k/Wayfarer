@@ -3,9 +3,13 @@
     ViewData["LoadLeaflet"] = true;
     ViewData["LoadTomSelect"] = true;
     var username = ViewData["Username"];
+    var timelineTitle = ViewData["TimelineTitle"];
 }
 
-<span id="timeline-summary" class="small font-monospace text-muted"></span>
+<div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 my-0">
+    <h1 class="fs-3 my-0">@timelineTitle</h1>
+    <span id="timeline-summary" class="small font-monospace text-muted"></span>
+</div>
 <div id="username" data-username="@username" hidden></div>
 <!-- Map container -->
 <div id="mapContainer" style="height: calc(100vh - 140px);"></div>

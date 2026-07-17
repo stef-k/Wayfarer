@@ -41,6 +41,7 @@ namespace Wayfarer.Controllers
             }
 
             ViewData["Username"] = currentUser.UserName ?? string.Empty;
+            ViewData["TimelineTitle"] = currentUser.ResolveTimelineTitle();
             
             SetPageTitle("Private Timeline");
             return View();
@@ -57,11 +58,7 @@ namespace Wayfarer.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            TimelineSettingsViewModel model = new TimelineSettingsViewModel
-            {
-                IsTimelinePublic = currentUser.IsTimelinePublic,
-                PublicTimelineTimeThreshold = currentUser.PublicTimelineTimeThreshold
-            };
+            TimelineSettingsViewModel model = TimelineSettingsViewModel.FromUser(currentUser);
 
             SetPageTitle("Timeline Settings");
             return View(model);
@@ -72,6 +69,18 @@ namespace Wayfarer.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateSettings(TimelineSettingsViewModel model)
         {
+            ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
+
+            if (currentUser == null)
+            {
+                SetAlert("User not found.", "danger");
+                return RedirectToAction("Index", "Home");
+            }
+
+            model.DefaultTimelineTitle = currentUser.ResolveDefaultTimelineTitle();
+
+            if (model.TimelineTitle?.Length > 80) ModelState.AddModelError(nameof(model.TimelineTitle), "Timeline title must be 80 characters or fewer.");
+
             if (model.PublicTimelineTimeThreshold != "custom")
             {
                 model.CustomThreshold = string.Empty;  // Optionally clear the value
@@ -83,17 +92,9 @@ namespace Wayfarer.Controllers
                 return View("Settings", model);
             }
 
-            ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
-
-            if (currentUser == null)
-            {
-                SetAlert("User not found.", "danger");
-                return RedirectToAction("Index", "Home");
-            }
-
             try
             {
-                currentUser.IsTimelinePublic = model.IsTimelinePublic;
+                currentUser.IsTimelinePublic = model.IsTimelinePublic; currentUser.TimelineTitle = model.TimelineTitle;
 
                 // If the value is "custom", use the custom input
                 if (model.PublicTimelineTimeThreshold == "custom" && !string.IsNullOrEmpty(model.CustomThreshold))

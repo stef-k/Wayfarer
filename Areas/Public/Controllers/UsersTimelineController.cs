@@ -43,6 +43,7 @@ namespace Wayfarer.Areas.Public.Controllers
 
             ViewData["Username"] = user.UserName;
             ViewData["TimelineLive"] = user.PublicTimelineTimeThreshold == "now";
+            ViewData["TimelineTitle"] = user.ResolveTimelineTitle();
             if (!string.IsNullOrEmpty(user.DisplayName))
             {
                 ViewData["DisplayName"] = user.DisplayName;
@@ -80,6 +81,7 @@ namespace Wayfarer.Areas.Public.Controllers
 
             ViewData["Username"] = user.UserName;
             ViewData["TimelineLive"] = user.PublicTimelineTimeThreshold == "now";
+            ViewData["TimelineTitle"] = user.ResolveTimelineTitle();
             if (!string.IsNullOrEmpty(user.DisplayName))
             {
                 ViewData["DisplayName"] = user.DisplayName;
