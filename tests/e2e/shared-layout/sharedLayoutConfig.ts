@@ -9,7 +9,7 @@ type SharedLayoutE2EConfig = {
 const configKeys = ['WAYFARER_E2E_USERNAME', 'WAYFARER_E2E_PASSWORD'] as const;
 type ConfigKey = (typeof configKeys)[number];
 
-// Reads the same ignored local runbook used by Trip Editor coverage without exposing credentials.
+// Reads ignored local credentials only for the authenticated checks and never prints them.
 export function loadSharedLayoutConfig(): SharedLayoutE2EConfig {
   const localConfig = readLocalManualVerification();
   const values = Object.fromEntries(configKeys.map(key => [key, process.env[key] || localConfig[key] || ''])) as Record<ConfigKey, string>;

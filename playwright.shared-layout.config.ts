@@ -14,5 +14,13 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },
+  webServer: {
+    command: 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\start-shared-layout-e2e-host.ps1',
+    url: `${baseURL}/Home/Privacy`,
+    ignoreHTTPSErrors: true,
+    reuseExistingServer: false,
+    timeout: 180_000
+  },
+  globalTeardown: './tests/e2e/shared-layout/sharedLayoutGlobalTeardown.ts',
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }]
 });

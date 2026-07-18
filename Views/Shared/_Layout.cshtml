@@ -35,8 +35,11 @@
         <link rel="stylesheet" href="~/icons/wayfarer-map-icons/dist/wayfarer-map-icons.css"
             asp-append-version="true" />
         @Html.FrontendGlobalStyles()
-        @* The standard shell owns header/content/footer geometry and footer link states. *@
-        <link rel="stylesheet" href="~/css/shared-layout.css" asp-append-version="true" />
+        @if (!embed)
+        {
+            @* The standard shell owns header/content/footer geometry and footer link states. *@
+            <link rel="stylesheet" href="~/css/shared-layout.css" asp-append-version="true" />
+        }
         <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
         @if (ViewData["LoadLeaflet"] as bool? == true)
         {

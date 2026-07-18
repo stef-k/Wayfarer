@@ -1,15 +1,19 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
-const config = loadSharedLayoutConfig();
 const footerLinks = '.site-footer__link';
+const viewports = {
+  desktop: { width: 1440, height: 900 },
+  tablet: { width: 768, height: 1024 },
+  mobile: { width: 375, height: 667 }
+};
 
 test.describe('shared standard-layout footer', () => {
-  for (const [name, viewport] of Object.entries({ desktop: { width: 1440, height: 900 }, tablet: { width: 768, height: 1024 }, mobile: { width: 375, height: 667 } })) {
+  for (const [name, viewport] of Object.entries(viewports)) {
     test(`keeps the short public page contained at ${name}`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await page.goto('/Home/Privacy');
-      await expectStandardFooter(page);
+      await expectShortStandardFooter(page);
       await expect(page.locator(footerLinks)).toHaveCount(4);
       await expectMatchingColors(page, 'light');
     });
@@ -42,24 +46,38 @@ test.describe('shared standard-layout footer', () => {
     expect(footerDocumentBottom).toBeCloseTo(documentHeight, 0);
   });
 
-  test('keeps the authenticated trip shell compact without restoring the viewer footer calculation', async ({ page }) => {
-    await signIn(page);
-    await page.goto('/User/Trip');
-    await expectStandardFooter(page);
-    expect((await page.locator('.site-footer').boundingBox())!.height).toBeLessThan(100);
+  for (const [name, viewport] of Object.entries(viewports)) {
+    test(`keeps the authenticated trip shell and legacy viewer contained at ${name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await signIn(page);
+      await page.goto('/User/Trip');
+      await expectCompactFooter(page);
 
-    const viewerLink = page.locator('a[href^="/User/Trip/View/"]').first();
-    await expect(viewerLink).toBeVisible();
-    await viewerLink.click();
+      const viewerLink = page.locator('a[href^="/User/Trip/View/"]').first();
+      await expect(viewerLink).toBeVisible();
+      const viewerHref = await viewerLink.getAttribute('href');
+      expect(viewerHref, 'The authenticated trip index should expose a real legacy viewer route.').toBeTruthy();
+
+      await page.goto(viewerHref!);
+      await expectLegacyViewerContained(page);
+    });
+  }
+
+  test('keeps the discovered public viewer embed free of the standard footer stylesheet', async ({ page }) => {
+    await page.goto('/Public/Trips');
+    const publicViewerHref = await page.locator('a[href^="/Public/Trips/"]').evaluateAll(links =>
+      links.map(link => link.getAttribute('href')).find(href => /^\/Public\/Trips\/[0-9a-f-]+$/i.test(href ?? '')));
+    expect(publicViewerHref, 'The public index should provide a real public viewer route.').toBeTruthy();
+
+    await page.goto(`${publicViewerHref}?embed=true`);
     await expect(page.locator('#trip-view')).toBeVisible();
-    await expect(page.locator('.site-footer')).toBeVisible();
-    const viewerBox = await page.locator('#trip-view').boundingBox();
-    const viewerFooterBox = await page.locator('.site-footer').boundingBox();
-    expect(viewerBox!.y + viewerBox!.height).toBeCloseTo(viewerFooterBox!.y, 0);
+    await expect(page.locator('.site-footer')).toHaveCount(0);
+    await expect(page.locator('link[href*="/css/shared-layout.css"]')).toHaveCount(0);
   });
 });
 
 async function signIn(page: Page): Promise<void> {
+  const config = loadSharedLayoutConfig();
   await page.goto('/Identity/Account/Login?ReturnUrl=%2FUser%2FTrip');
   await page.getByLabel('Username').fill(config.username);
   await page.getByLabel('Password').fill(config.password);
@@ -69,13 +87,34 @@ async function signIn(page: Page): Promise<void> {
   ]);
 }
 
-async function expectStandardFooter(page: Page): Promise<void> {
+async function expectShortStandardFooter(page: Page): Promise<void> {
   const footer = page.locator('.site-footer');
   await expect(footer).toBeVisible();
   expect(await footer.evaluate(element => getComputedStyle(element).position)).not.toBe('fixed');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => innerWidth));
-  const footerBox = await footer.boundingBox();
-  expect(footerBox!.y + footerBox!.height).toBeGreaterThanOrEqual((await page.evaluate(() => innerHeight)) - 1);
+  const geometry = await footer.evaluate(element => ({
+    documentHeight: document.documentElement.scrollHeight,
+    footerBottom: element.getBoundingClientRect().bottom,
+    viewportHeight: innerHeight
+  }));
+  expect(Math.abs(geometry.documentHeight - geometry.viewportHeight), 'The privacy page must remain a short document.').toBeLessThanOrEqual(1);
+  expect(Math.abs(geometry.footerBottom - geometry.viewportHeight), 'The short-page footer must meet the viewport bottom.').toBeLessThanOrEqual(1);
+}
+
+async function expectCompactFooter(page: Page): Promise<void> {
+  const footer = page.locator('.site-footer');
+  await expect(footer).toBeVisible();
+  expect((await footer.boundingBox())!.height).toBeLessThan(100);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => innerWidth));
+}
+
+async function expectLegacyViewerContained(page: Page): Promise<void> {
+  await expect(page.locator('#trip-view')).toBeVisible();
+  await expectCompactFooter(page);
+  const viewerBox = await page.locator('#trip-view').boundingBox();
+  const footerBox = await page.locator('.site-footer').boundingBox();
+  expect(viewerBox!.y + viewerBox!.height).toBeCloseTo(footerBox!.y, 0);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(await page.evaluate(() => innerHeight) + 1);
 }
 
 async function expectMatchingColors(page: Page, theme: string): Promise<void> {
