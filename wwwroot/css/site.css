@@ -12,34 +12,6 @@ html {
     box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
-html {
-    position: relative;
-    min-height: 100%;
-}
-html, body {
-    height: 100%; /* Ensure the page takes full height */
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-}
-body {
-    margin-bottom: 60px;
-    flex: 1;
-}
-footer {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    bottom: 0;
-    width: 100%;
-    height: 60px;
-    text-align: center;
-    margin-top: auto;
-    border-top: 1px solid rgba(33, 37, 41, 0.10);
-}
-
 /* Back to top button */
 .back-to-top-btn {
     position: fixed;
@@ -130,13 +102,6 @@ footer {
 [data-bs-theme="dark"] .navbar-dark .navbar-nav .nav-link.active:hover,
 .navbar-light .navbar-nav .nav-link.active:hover {
     color: #0056b3; /* Same as hover color for active link */
-}
-[data-bs-theme="dark"] footer > * {
-    color: #c9d1d9!important;
-}
-
-[data-bs-theme="dark"] footer  {
-    border-top: 1px solid rgba(248, 249, 250, 0.25) !important;
 }
 /* Theme Toggle Button in Dark and Light Modes */
 #themeToggle {
@@ -1339,11 +1304,6 @@ thead th {
     display:flex; align-items:center; justify-content:center;
     border-radius:.25rem;
     z-index:1060;
-}
-
-/* #trip-view already sits between navbar (≈56 px) and footer (60 px)   */
-#trip-view {                       /* 56 + 60  ≅  116 → round to 120   */
-    height: calc(100vh - 120px);   /* reaches footer, no bottom gap     */
 }
 
 /* floating MAP-LEGEND handle (only visible when sidebar is collapsed) */
