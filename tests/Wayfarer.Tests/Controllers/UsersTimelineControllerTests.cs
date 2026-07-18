@@ -45,6 +45,7 @@ public class UsersTimelineControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
         user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "1d";
         db.Users.Add(user);
         await db.SaveChangesAsync();
         var controller = BuildController(db);
@@ -63,6 +64,7 @@ public class UsersTimelineControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
         user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "1d";
         user.TimelineTitle = "Alice's public map";
         db.Users.Add(user);
         await db.SaveChangesAsync();
@@ -80,6 +82,7 @@ public class UsersTimelineControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
         user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "1d";
         db.Users.Add(user);
         await db.SaveChangesAsync();
         var controller = BuildController(db);
@@ -113,6 +116,7 @@ public class UsersTimelineControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice", displayName: "Alice");
         user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "1d";
         user.TimelineTitle = "Alice's embedded map";
         db.Users.Add(user);
         await db.SaveChangesAsync();
@@ -155,6 +159,7 @@ public class UsersTimelineControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
         user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "1d";
         db.Users.Add(user);
         await db.SaveChangesAsync();
         var statsService = new StubStatsService();
@@ -190,6 +195,74 @@ public class UsersTimelineControllerTests : TestBase
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("bad")]
+    [InlineData("1z")]
+    public async Task PublicRoutes_FailClosed_ForInvalidStoredThreshold(string? threshold)
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = threshold;
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        Assert.IsType<NotFoundObjectResult>(await controller.Index("alice"));
+        Assert.IsType<NotFoundObjectResult>(await controller.Embed("alice"));
+        Assert.IsType<NotFoundObjectResult>(await controller.GetPublicStats("alice"));
+        Assert.IsType<NotFoundObjectResult>(await controller.GetPublicTimeline(CreateRequest("alice")));
+    }
+
+    [Theory]
+    [InlineData("1d", false)]
+    [InlineData("1.5w", false)]
+    [InlineData("now", true)]
+    public async Task PublicShells_ExposeValidatedLiveState(string threshold, bool isLive)
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = threshold;
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        Assert.IsType<ViewResult>(await controller.Index("alice"));
+        Assert.Equal(isLive, controller.ViewData["TimelineLive"]);
+        Assert.IsType<ViewResult>(await controller.Embed("alice"));
+        Assert.Equal(isLive, controller.ViewData["TimelineLive"]);
+    }
+
+    [Fact]
+    public async Task GetPublicTimeline_ReturnsDataEnvelope_ForValidatedCustomThreshold()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "1.5w";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.GetPublicTimeline(CreateRequest("alice"));
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    private static LocationFilterRequest CreateRequest(string username) => new()
+    {
+        Username = username,
+        MinLatitude = -1,
+        MinLongitude = -1,
+        MaxLatitude = 1,
+        MaxLongitude = 1,
+        ZoomLevel = 5
+    };
 
     private static UsersTimelineController BuildController(ApplicationDbContext db)
     {

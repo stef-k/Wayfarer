@@ -24,6 +24,15 @@
                     <form method="post" asp-action="UpdateSettings" asp-controller="Timeline" asp-area="User">
                         @Html.AntiForgeryToken()
 
+                        <!-- Effective public availability is calculated from persisted visibility and threshold state. -->
+                        <div class="alert @(Model.HasInvalidPublicTimelineThreshold ? "alert-warning" : "alert-info")" role="status">
+                            @Model.PublicTimelineStatus
+                            @if (Model.HasInvalidPublicTimelineThreshold)
+                            {
+                                <div>Select a valid threshold and save to make the timeline publicly available.</div>
+                            }
+                        </div>
+
                         <!-- Optional visible map heading. -->
                         <div class="mb-3">
                             <label asp-for="TimelineTitle" class="form-label">Timeline Title</label>
@@ -57,6 +66,14 @@
                             </select>
                             @Html.ValidationMessageFor(m => m.PublicTimelineTimeThreshold, "", new { @class = "text-danger" })
                             <div class="form-text">Time threshold up to what point in time relative to current date time you want to show publicly if you set your timeline public.</div>
+                            <div id="DelayedSharingHint" class="form-text" hidden>Sharing will be delayed one day when you save.</div>
+                        </div>
+
+                        <!-- Live sharing requires an explicit acknowledgement on the submitted form. -->
+                        <div id="LiveConfirmation" class="form-check mb-3" hidden>
+                            <input asp-for="ConfirmLivePublicTimeline" class="form-check-input" />
+                            <label asp-for="ConfirmLivePublicTimeline" class="form-check-label">I confirm that my current location will be publicly available live.</label>
+                            <span asp-validation-for="ConfirmLivePublicTimeline" class="text-danger"></span>
                         </div>
 
                         <!-- Custom Time Input (Hidden by default) -->
@@ -92,6 +109,10 @@
             const thresholdDropdown = document.getElementById('TimeThresholdDropdown');
             const customTimeInput = document.getElementById('CustomTimeInput');
             const customThresholdField = document.getElementById('CustomThreshold');
+            const publicToggle = document.getElementById('IsTimelinePublic');
+            const liveConfirmation = document.getElementById('LiveConfirmation');
+            const liveConfirmationField = document.getElementById('ConfirmLivePublicTimeline');
+            const delayedSharingHint = document.getElementById('DelayedSharingHint');
 
             const savedValue = '@Model.PublicTimelineTimeThreshold';
             const options = Array.from(thresholdDropdown.options).map(option => option.value);
@@ -104,27 +125,40 @@
                 thresholdDropdown.value = savedValue;
                 customTimeInput.style.display = 'none';
             }
+
+            const updateThresholdControls = () => {
+                const isNow = thresholdDropdown.value === 'now';
+                liveConfirmation.hidden = !isNow;
+                if (!isNow) {
+                    liveConfirmationField.checked = false;
+                }
+                delayedSharingHint.hidden = !(publicToggle.checked && thresholdDropdown.value === '1d');
+            };
+
+            thresholdDropdown.addEventListener('change', function () {
+                if (this.value === 'custom') {
+                    customTimeInput.style.display = 'block';
+                } else {
+                    customTimeInput.style.display = 'none';
+                    customThresholdField.value = '';
+                }
+                updateThresholdControls();
+            });
+
+            publicToggle.addEventListener('change', function () {
+                if (this.checked && !thresholdDropdown.value) {
+                    thresholdDropdown.value = '1d';
+                }
+                updateThresholdControls();
+            });
+
+            updateThresholdControls();
+
+            document.querySelector('form').addEventListener('submit', function () {
+                if (thresholdDropdown.value !== 'custom') {
+                    customThresholdField.value = '';
+                }
+            });
         };
-
-        document.getElementById('TimeThresholdDropdown').addEventListener('change', function () {
-            const customTimeInput = document.getElementById('CustomTimeInput');
-            const customThresholdField = document.getElementById('CustomThreshold');
-
-            if (this.value === 'custom') {
-                customTimeInput.style.display = 'block';
-            } else {
-                customTimeInput.style.display = 'none';
-                customThresholdField.value = ''; // Clear the custom input field
-            }
-        });
-
-        document.querySelector('form').addEventListener('submit', function (event) {
-            const thresholdDropdown = document.getElementById('TimeThresholdDropdown');
-            const customThresholdField = document.getElementById('CustomThreshold');
-
-            if (thresholdDropdown.value !== 'custom') {
-                customThresholdField.value = ''; // Clear custom value if not selected
-            }
-        });
     </script>
 }

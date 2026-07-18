@@ -783,71 +783,8 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Map static assets (e.g., CSS, JS) to routes
     app.MapStaticAssets();
 
-    // /api/* specific error handling responses
-    app.Use(async (context, next) =>
-    {
-        var isApi = context.Request.Path.StartsWithSegments("/api");
-
-        try
-        {
-            await next();
-
-            if (isApi && !context.Response.HasStarted)
-            {
-                var statusCode = context.Response.StatusCode;
-
-                if (statusCode == 401 || statusCode == 403 || statusCode == 404)
-                {
-                    context.Response.Clear();
-                    context.Response.ContentType = "application/json";
-
-                    var result = new
-                    {
-                        status = statusCode,
-                        error = statusCode switch
-                        {
-                            401 => "Unauthorized",
-                            403 => "Forbidden",
-                            404 => "Not Found",
-                            _ => "Error"
-                        },
-                        message = statusCode switch
-                        {
-                            401 => "Authentication is required to access this endpoint.",
-                            403 => "You do not have permission to access this resource.",
-                            404 => "The requested API endpoint does not exist.",
-                            _ => "An error occurred."
-                        }
-                    };
-
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(result));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            if (isApi && !context.Response.HasStarted)
-            {
-                context.Response.Clear();
-                context.Response.StatusCode = 500;
-                context.Response.ContentType = "application/json";
-
-                var error = new
-                {
-                    status = 500,
-                    error = "Internal Server Error",
-                    message = "An unexpected error occurred.",
-                    details = ex.Message
-                };
-
-                await context.Response.WriteAsync(JsonSerializer.Serialize(error));
-            }
-            else
-            {
-                throw;
-            }
-        }
-    });
+    // /api/* specific error handling responses.
+    app.UseMiddleware<ApiErrorResponseMiddleware>();
 
     app.MapControllerRoute(
             "default",

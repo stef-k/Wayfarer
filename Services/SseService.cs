@@ -24,11 +24,12 @@ public class SseService
         HttpResponse response,
         CancellationToken token,
         bool enableHeartbeat = false,
-        TimeSpan? heartbeatInterval = null)
+        TimeSpan? heartbeatInterval = null,
+        Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease = null)
     {
         response.Headers.Append("Content-Type", "text/event-stream");
         response.Headers.Append("Cache-Control", "no-cache");
-        var client = new ClientConnection(response, HeartbeatPayload);
+        var client = new ClientConnection(response, HeartbeatPayload, deliveryLease);
 
         var subscribers = _channels.GetOrAdd(channel, _ => new List<ClientConnection>());
         lock (subscribers)
@@ -80,7 +81,7 @@ public class SseService
 
         foreach (var client in snapshot)
         {
-            var success = await client.SendAsync(bytes);
+            var success = await client.SendIfEligibleAsync(bytes);
             if (!success)
             {
                 lock (subscribers)
@@ -98,13 +99,15 @@ public class SseService
         private readonly HttpResponse _response;
         private readonly byte[] _heartbeatPayload;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
+        private readonly Func<CancellationToken, Task<IAsyncDisposable?>>? _deliveryLease;
         private Timer? _heartbeatTimer;
         private bool _disposed;
 
-        public ClientConnection(HttpResponse response, byte[] heartbeatPayload)
+        public ClientConnection(HttpResponse response, byte[] heartbeatPayload, Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease)
         {
             _response = response;
             _heartbeatPayload = heartbeatPayload;
+            _deliveryLease = deliveryLease;
         }
 
         public void StartHeartbeat(TimeSpan interval)
@@ -137,6 +140,32 @@ public class SseService
             finally
             {
                 _sendLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Sends an event only while its subscription remains eligible and its optional delivery lease is held.
+        /// </summary>
+        public async Task<bool> SendIfEligibleAsync(byte[] payload)
+        {
+            IAsyncDisposable? deliveryLease = _deliveryLease is null
+                ? null
+                : await _deliveryLease(CancellationToken.None);
+            if (_deliveryLease is not null && deliveryLease is null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return await SendAsync(payload);
+            }
+            finally
+            {
+                if (deliveryLease is not null)
+                {
+                    await deliveryLease.DisposeAsync();
+                }
             }
         }
 
