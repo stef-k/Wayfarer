@@ -32,21 +32,25 @@ body {
     align-items: center;
     border-top: 1px solid rgba(33, 37, 41, 0.10);
     display: flex;
+    font-size: 0.875rem;
     justify-content: center;
-    min-height: 3.5rem;
-    padding: 0.75rem 0;
+    line-height: 1.25;
+    min-height: 0;
+    padding: 0.5rem 0;
     text-align: center;
 }
 
-.site-footer__link {
+/* Override the legacy Razor-isolated anchor rule for every footer link state. */
+.site-footer .site-footer__link,
+.site-footer .site-footer__link:visited {
     color: #0077cc;
 }
 
-.site-footer__link:hover {
+.site-footer .site-footer__link:hover {
     color: #005fa3;
 }
 
-.site-footer__link:focus-visible {
+.site-footer .site-footer__link:focus-visible {
     color: #005fa3;
     outline: 2px solid currentColor;
     outline-offset: 2px;
@@ -57,12 +61,17 @@ body {
     color: #c9d1d9;
 }
 
-[data-bs-theme="dark"] .site-footer__link {
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link,
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link:visited,
+.site-footer[data-bs-theme="dark"] .site-footer__link,
+.site-footer[data-bs-theme="dark"] .site-footer__link:visited {
     color: #6ea8fe;
 }
 
-[data-bs-theme="dark"] .site-footer__link:hover,
-[data-bs-theme="dark"] .site-footer__link:focus-visible {
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link:hover,
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link:focus-visible,
+.site-footer[data-bs-theme="dark"] .site-footer__link:hover,
+.site-footer[data-bs-theme="dark"] .site-footer__link:focus-visible {
     color: #9ec5fe;
 }
 
@@ -74,8 +83,7 @@ body {
 
 @media (max-width: 575.98px) {
     .site-footer {
-        min-height: 3rem;
-        padding: 0.625rem 0;
+        padding: 0.5rem 0.75rem;
     }
 
     .site-footer .container {
