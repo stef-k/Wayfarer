@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <WayfarerVersion>1.5.0</WayfarerVersion>
+    <WayfarerVersion>1.5.1</WayfarerVersion>
     <Version>$(WayfarerVersion)</Version>
     <PackageVersion>$(WayfarerVersion)</PackageVersion>
     <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>

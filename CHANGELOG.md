@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.5.1] - 2026-07-18
+
+### Fixed
+- Reflected the previously accepted live-sharing confirmation in timeline settings so unrelated changes, such as the timeline title, can be saved normally (#377)
+
 ## [1.5.0] - 2026-07-18
 
 ### Added
