@@ -5,7 +5,7 @@
     ViewData["Title"] = $"Members - {group.Name}";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <h2>@ViewData["Title"]</h2>
   <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Back</a>
   </div>
@@ -13,6 +13,7 @@
 <div class="row">
   <div class="col-md-7">
     <h4>Roster</h4>
+    <div class="table-responsive">
     <table id="rosterTable" class="table table-striped">
       <thead>
       <tr>
@@ -52,6 +53,7 @@
       }
       </tbody>
     </table>
+    </div>
   </div>
 
   <div class="col-md-5">
@@ -88,6 +90,7 @@
     </form>
 
     <h4 class="mt-4">Pending Invites</h4>
+    <div class="table-responsive">
     <table id="invitesTable" class="table">
       <thead>
       <tr>
@@ -126,6 +129,7 @@
       }
       </tbody>
     </table>
+    </div>
   </div>
 </div>
 

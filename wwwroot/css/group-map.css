@@ -1,0 +1,70 @@
+/* Keep group map controls and the fixed member panel within phone viewports. */
+.group-map-sidebar {
+    width: 460px;
+}
+
+.group-map-members-toggle,
+.group-map-members-close {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .group-map-header,
+    .group-map-date-controls,
+    .group-map-view-controls {
+        flex-wrap: wrap;
+    }
+
+    .group-map-date-controls {
+        margin-inline: 0 !important;
+    }
+
+    .group-map-view-controls {
+        margin-left: 0 !important;
+    }
+
+    .group-map-sidebar {
+        position: absolute;
+        z-index: 1100;
+        inset: 0 auto 0 0;
+        width: min(22rem, calc(100% - 2rem));
+        max-height: none;
+        padding: 0.75rem;
+        background: var(--bs-body-bg);
+        border-right: 1px solid var(--bs-border-color) !important;
+        border-bottom: 0;
+        box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 20%);
+        transform: translateX(-105%);
+        transition: transform 0.2s ease;
+    }
+
+    .group-map-view.group-map-members-open .group-map-sidebar {
+        transform: translateX(0);
+    }
+
+    .group-map-members-toggle {
+        display: inline-flex;
+        position: absolute;
+        z-index: 1101;
+        top: 0.75rem;
+        left: 2.9375rem;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .group-map-members-open .group-map-members-toggle {
+        display: none;
+    }
+
+    .group-map-members-close {
+        display: inline-flex;
+    }
+
+    .group-map-sidebar-heading {
+        margin-bottom: 0.75rem;
+    }
+
+    .group-map-canvas {
+        min-width: 0;
+    }
+}

@@ -3,7 +3,7 @@
     ViewData["BodyClass"] = "container";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h2>@ViewData["Title"]</h2>
     <a class="btn btn-primary" asp-area="User" asp-controller="Groups" asp-action="Create">New Group</a>
 </div>
@@ -14,6 +14,7 @@
     Members can see each other's locations on the group map.
 </div>
 
+<div class="table-responsive">
 <table class="table table-striped">
     <thead>
     <tr>
@@ -62,6 +63,7 @@
     }
     </tbody>
 </table>
+</div>
 
 @section Scripts {
     @Html.FrontendViewScripts()
