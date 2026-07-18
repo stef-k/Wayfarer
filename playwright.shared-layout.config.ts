@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const baseURL = process.env.WAYFARER_E2E_BASE_URL ?? 'https://localhost:7150';
+const baseURL = 'https://localhost:7150';
 
 export default defineConfig({
   testDir: './tests/e2e/shared-layout',
@@ -16,7 +16,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\start-shared-layout-e2e-host.ps1',
-    url: `${baseURL}/Home/Privacy`,
+    url: 'https://localhost:7150/Home/Privacy',
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
     timeout: 180_000

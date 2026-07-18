@@ -104,8 +104,14 @@ async function expectShortStandardFooter(page: Page): Promise<void> {
 async function expectCompactFooter(page: Page): Promise<void> {
   const footer = page.locator('.site-footer');
   await expect(footer).toBeVisible();
-  expect((await footer.boundingBox())!.height).toBeLessThan(100);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => innerWidth));
+  expect(await footer.evaluate(element => getComputedStyle(element).position)).not.toBe('fixed');
+  const geometry = await footer.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    return { height: bounds.height, left: bounds.left, right: bounds.right, viewportWidth: innerWidth };
+  });
+  expect(geometry.height).toBeLessThan(100);
+  expect(geometry.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
 }
 
 async function expectLegacyViewerContained(page: Page): Promise<void> {
