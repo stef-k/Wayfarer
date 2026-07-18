@@ -35,6 +35,11 @@
         <link rel="stylesheet" href="~/icons/wayfarer-map-icons/dist/wayfarer-map-icons.css"
             asp-append-version="true" />
         @Html.FrontendGlobalStyles()
+        @if (!embed)
+        {
+            @* The standard shell owns header/content/footer geometry and footer link states. *@
+            <link rel="stylesheet" href="~/css/shared-layout.css" asp-append-version="true" />
+        }
         <link rel="stylesheet" href="~/Wayfarer.styles.css" asp-append-version="true" />
         @if (ViewData["LoadLeaflet"] as bool? == true)
         {
@@ -54,7 +59,7 @@
         @RenderSection("Styles", required: false)
     </head>
 
-    <body data-bs-theme="light" class="@(embed ? "embed-mode" : "")">
+    <body data-bs-theme="light" class="site-shell @(embed ? "embed-mode" : "")">
         @if (!embed)
         {
             <header>
@@ -93,7 +98,7 @@
                 </nav>
             </header>
         }
-        <div class="@(ViewData["BodyClass"] as string ?? "container")">
+        <div class="site-content @(ViewData["BodyClass"] as string ?? "container")">
             @if (TempData["AlertMessage"] != null)
             {
                 <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
@@ -134,17 +139,17 @@
                 <i class="bi bi-arrow-up"></i>
             </button>
 
-            <footer data-bs-theme="light">
+            <footer class="site-footer" data-bs-theme="light">
                 <div class="container">
                     &copy; @DateTime.UtcNow.Year - @AppVersionDisplay.FooterText(AppVersionProvider) by <a href="https://stefk.me"
-                        class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
                         target="_blank" title="Hi, I am Stef check out my blog!">Stef</a> -
                     <a href="/docs/" target="_blank"
-                        class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Docs</a> -
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Docs</a> -
                     <a href="https://stef-k.github.io/WayfarerMobile/" target="_blank"
-                        class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Mobile</a> -
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Mobile</a> -
                     <a asp-area="" asp-controller="Home" asp-action="Privacy"
-                        class="link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a>
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a>
                 </div>
             </footer>
 

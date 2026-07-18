@@ -1,0 +1,92 @@
+/* Standard-layout shell and footer contract; embed pages retain their dedicated viewport rules. */
+html,
+body {
+    min-height: 100%;
+}
+
+.site-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+.site-shell > header,
+.site-footer {
+    flex: 0 0 auto;
+}
+
+.site-content {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.site-content > main {
+    flex: 1 0 auto;
+    min-height: 0;
+}
+
+.site-footer {
+    align-items: center;
+    border-top: 1px solid rgba(33, 37, 41, 0.10);
+    display: flex;
+    font-size: 0.875rem;
+    justify-content: center;
+    line-height: 1.25;
+    min-height: 0;
+    padding: 0.5rem 0;
+    text-align: center;
+}
+
+/* Override the legacy Razor-isolated anchor rule for every footer link state. */
+.site-footer .site-footer__link,
+.site-footer .site-footer__link:visited {
+    color: #0077cc;
+}
+
+.site-footer .site-footer__link:hover {
+    color: #005fa3;
+}
+
+.site-footer .site-footer__link:focus-visible {
+    color: #005fa3;
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+[data-bs-theme="dark"] .site-footer {
+    border-top-color: rgba(248, 249, 250, 0.25);
+    color: #c9d1d9;
+}
+
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link,
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link:visited,
+.site-footer[data-bs-theme="dark"] .site-footer__link,
+.site-footer[data-bs-theme="dark"] .site-footer__link:visited {
+    color: #6ea8fe;
+}
+
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link:hover,
+.site-shell[data-bs-theme="dark"] .site-footer .site-footer__link:focus-visible,
+.site-footer[data-bs-theme="dark"] .site-footer__link:hover,
+.site-footer[data-bs-theme="dark"] .site-footer__link:focus-visible {
+    color: #9ec5fe;
+}
+
+/* The standard shell supplies the available height instead of assuming a footer size. */
+.site-content #trip-view {
+    height: 100%;
+    min-height: 0;
+}
+
+@media (max-width: 575.98px) {
+    .site-footer {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .site-footer .container {
+        overflow-wrap: anywhere;
+    }
+}
