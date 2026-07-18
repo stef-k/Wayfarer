@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Changed
+- Updated Vite to 7.3.6 and transitive esbuild to 0.28.1 to resolve Windows development-server security advisories (#360)
+
 ## [1.4.1] - 2026-05-21
 
 ### Changed
