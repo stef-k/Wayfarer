@@ -212,6 +212,17 @@ html {
     overflow-y: auto;
 }
 
+/* Keep long API values and literal examples local to the API Token page. */
+.api-token-page .api-token-value {
+    overflow-wrap: anywhere;
+}
+
+.api-token-page .api-token-example,
+.api-token-page code[style*="white-space: pre"] {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
 thead th {
     position: sticky;
     top: 0;
