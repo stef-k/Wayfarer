@@ -1,9 +1,18 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.5.0] - 2026-07-18
+
+### Added
+- Added an optional custom timeline heading in user settings, with a clear fallback to the existing display-name heading (#356)
 
 ### Changed
+- Standardized the shared footer's responsive layout and link styling across standard pages (#365)
+- Improved phone containment for account settings, API tokens, location imports, and user/manager group tables and maps (#370, #371, #372)
 - Updated Vite to 7.3.6 and transitive esbuild to 0.28.1 to resolve Windows development-server security advisories (#360)
+
+### Fixed
+- Reconciled global tags safely during trip imports and replaced raw import-error output with safe user-facing feedback (#354)
+- Made public timeline sharing fail closed for invalid thresholds and stopped active SSE streams after eligibility is revoked (#363)
 
 ## [1.4.1] - 2026-05-21
 
