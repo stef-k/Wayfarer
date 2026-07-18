@@ -2,7 +2,7 @@
 @{
     ViewData["BodyClass"] = "container-fluid";
 }
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h2>@ViewData["Title"]</h2>
     <a asp-controller="LocationImport" asp-action="Upload" class="btn btn-primary">
         <i class="bi bi-upload"></i> Upload New File
@@ -15,7 +15,9 @@
     Large files are processed in the background - you can leave this page and check back later.
 </div>
 
-<table class="table table-striped table-responsive" id="locationImport" data-user-id="@ViewData["UserId"]">
+<!-- Keep the dense import-history table inside its own horizontal scroll surface on phones. -->
+<div class="table-responsive">
+<table class="table table-striped" id="locationImport" data-user-id="@ViewData["UserId"]">
     <thead>
         <tr>
             <th>File Name</th>
@@ -138,6 +140,7 @@
     }
     </tbody>
 </table>
+</div>
 
 @if (!Model.Any())
 {
