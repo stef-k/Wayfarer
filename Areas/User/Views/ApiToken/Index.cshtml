@@ -134,15 +134,15 @@
 
 @if (!string.IsNullOrEmpty(newToken))
 {
-    <div class="container">
+    <div class="container api-token-page">
         <div class="row">
-            <div class="col-md-10 offset-1">
+            <div class="col-12 col-md-10 offset-md-1">
                 <div class="alert alert-warning alert-dismissible fade show" role="alert">
                     <h4 class="alert-heading"><i class="bi bi-exclamation-triangle-fill me-2"></i>Important: Copy Your New Token Now!</h4>
                     <p>Your new API token for <strong>@newTokenName</strong> has been created. <strong>This is the only time it will be displayed.</strong></p>
                     <hr>
-                    <div class="d-flex align-items-center gap-2 mb-3">
-                        <code id="new-token-display" class="border p-3 rounded bg-body-tertiary user-select-all flex-grow-1" style="font-size: 1.1em;">@newToken</code>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                        <code id="new-token-display" class="api-token-value border p-3 rounded bg-body-tertiary user-select-all flex-grow-1" style="font-size: 1.1em;">@newToken</code>
                         <button type="button" class="btn btn-primary" onclick="copyNewToken()">
                             <i class="bi bi-clipboard"></i> Copy
                         </button>
@@ -166,9 +166,9 @@
     </script>
 }
 
-<div class="container">
+<div class="container api-token-page">
     <div class="row">
-        <div class="col-md-10 offset-1">
+        <div class="col-12 col-md-10 offset-md-1">
             <!-- Token List Section -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header text-bg-primary mb-3">
@@ -201,12 +201,12 @@
                                                     <div id="qr-mobile-config" class="my-5 d-inline-block p-3 bg-white rounded"></div>
                                                     <div class="small text-muted">
                                                         <p><strong>Server:</strong> <code
-                                                                class="border p-2 rounded bg-body-tertiary user-select-all">@serverBaseUrl</code>
+                                                                class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@serverBaseUrl</code>
                                                         </p>
-                                                        <p class="d-flex align-items-center justify-content-between">
-                                                            <span>
+                                                        <p class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                                            <span class="text-break">
                                                                 <strong>Token:</strong> <code id="wayfarer-token"
-                                                                    class="border p-2 rounded bg-body-tertiary user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code>
+                                                                    class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code>
                                                                 @if (token.IsHashedToken)
                                                                 {
                                                                     <small class="text-warning ms-2" title="Token is securely hashed. Regenerate to get a new token."><i class="bi bi-shield-lock"></i></small>
@@ -258,7 +258,7 @@
                                             <h6 class="card-title">📡 Simple HTTP GET/POST Endpoint</h6>
                                             <p class="mb-2"><strong>URL:</strong></p>
                                             <code
-                                                class="border p-2 rounded bg-body-tertiary d-block mb-3 user-select-all">@fullurl</code>
+                                                class="api-token-value border p-2 rounded bg-body-tertiary d-block mb-3 user-select-all">@fullurl</code>
 
                                             <p class="mb-2"><strong>Required Parameters:</strong></p>
                                             <ul class="mb-2">
@@ -319,7 +319,7 @@
                                                 <li>Use the following JSON Template:</li>
                                             </ol>
 
-                                            <pre class="bg-dark text-light p-3 rounded mb-0">
+                                            <pre class="api-token-example bg-dark text-light p-3 rounded mb-0">
 {
   "latitude": %LAT,
   "longitude": %LON,
@@ -355,12 +355,12 @@
                     <div class="card-body">
                         @foreach (var token in thirdPartyTokens)
                         {
-                            <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                                 <div>
                                     <p class="mb-1"><strong>Service:</strong> @token.Name</p>
                                     <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
                                     <p class="mb-0"><strong>Token:</strong> <code
-                                            class="border p-2 rounded bg-body-tertiary user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code></p>
+                                            class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code></p>
                                 </div>
                                 <div class="text-end">
                                     <!-- NO REGENERATE BUTTON - only delete -->
@@ -465,9 +465,9 @@
     </div>
 </div>
 
-<div class="container">
+<div class="container api-token-page">
     <div class="row">
-        <div class="col-md-10 offset-1">
+        <div class="col-12 col-md-10 offset-md-1">
             <div class="card shadow-sm mt-5">
                 <div class="card-header text-bg-secondary">
                     <h3>Mobile API JSON Examples</h3>
@@ -539,9 +539,9 @@
         </div>
     </div>
 </div>
-<div class="container">
+<div class="container api-token-page">
     <div class="row">
-        <div class="col-md-10 offset-1">
+        <div class="col-12 col-md-10 offset-md-1">
             <div class="card shadow-sm mt-5">
                 <div class="card-header text-bg-secondary">
                     <h3>Trip API JSON Examples</h3>
@@ -611,7 +611,6 @@
             </div>
         </div>
     </div>
-</div>
 <!-- JavaScript for QR Code Generation and Token Regeneration -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
