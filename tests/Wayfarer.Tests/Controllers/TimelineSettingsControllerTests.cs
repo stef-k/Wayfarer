@@ -71,6 +71,32 @@ public class TimelineSettingsControllerTests : TestBase
         Assert.Equal("Public timeline unavailable until a valid threshold is selected and saved.", model.PublicTimelineStatus);
     }
 
+    /// <summary>
+    /// Verifies that an already-public live timeline reflects its previously accepted acknowledgement.
+    /// </summary>
+    [Fact]
+    public async Task Settings_ChecksLiveConfirmation_ForExistingPublicLiveTimeline()
+    {
+        var (db, user) = await CreateUserAsync("now", isPublic: true);
+        var result = await BuildController(db, user).Settings();
+        var model = Assert.IsType<TimelineSettingsViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.True(model.ConfirmLivePublicTimeline);
+    }
+
+    /// <summary>
+    /// Verifies that a stored live threshold alone does not imply acknowledgement unless sharing is public and live.
+    /// </summary>
+    [Theory]
+    [InlineData("now", false)]
+    [InlineData("1d", true)]
+    public async Task Settings_DoesNotCheckLiveConfirmation_WhenTimelineIsNotPublicAndLive(string threshold, bool isPublic)
+    {
+        var (db, user) = await CreateUserAsync(threshold, isPublic);
+        var result = await BuildController(db, user).Settings();
+        var model = Assert.IsType<TimelineSettingsViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.False(model.ConfirmLivePublicTimeline);
+    }
+
     private async Task<(ApplicationDbContext Db, ApplicationUser User)> CreateUserAsync(string? threshold = null, bool isPublic = false)
     {
         var db = CreateDbContext();

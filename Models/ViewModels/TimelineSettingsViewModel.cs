@@ -50,6 +50,7 @@
                 DefaultTimelineTitle = user.ResolveDefaultTimelineTitle(),
                 TimelineTitle = user.TimelineTitle,
                 PublicTimelineTimeThreshold = eligibility.IsThresholdValid ? user.PublicTimelineTimeThreshold : string.Empty,
+                ConfirmLivePublicTimeline = eligibility.IsEffectivelyPublic && eligibility.IsLive,
                 PublicTimelineStatus = eligibility.IsEffectivelyPublic
                     ? eligibility.IsLive
                         ? "Public timeline: live"
