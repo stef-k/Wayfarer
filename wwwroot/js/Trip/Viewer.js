@@ -232,8 +232,7 @@ const init = () => {
      */
     const applyCentreOffset = (dir, animate = false, baseW = null) => {
         if (isPrint || sidebarOverlaysMap()) return;
-        const w  = baseW ?? legendW();             // fall back to live width
-        const dx = (w / 2) * dir;
+        const dx = ((baseW ?? legendW()) / 2) * dir;
         if (dx) map.panBy([-dx, 0], { animate, duration: 0.4 });
     };
 
@@ -524,8 +523,7 @@ const init = () => {
             if (!pl) return;
 
             const b = pl.getBounds();                 // route bounds
-            const padX = collapsed || sidebarOverlaysMap() ? 60 // hidden or overlay legend
-                : legendW() / 2 + 60; // space for legend + bonus
+            const padX = collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60;
             map.flyToBounds(b, {
                 animate: true, duration: 1.2, padding: [padX, 60]                    // neat margin
             });
