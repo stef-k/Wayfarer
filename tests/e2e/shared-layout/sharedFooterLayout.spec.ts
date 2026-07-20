@@ -63,11 +63,19 @@ test.describe('shared standard-layout footer', () => {
     });
   }
 
+  for (const [name, viewport] of Object.entries(viewports)) {
+    test(`keeps the public legacy viewer map and sidebar contained at ${name}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const publicViewerHref = await discoverPublicViewer(page);
+
+      await page.goto(publicViewerHref);
+      await expectLegacyViewerContained(page);
+      await expectPublicViewerGeometry(page, viewport.width);
+    });
+  }
+
   test('keeps the discovered public viewer embed free of the standard footer stylesheet', async ({ page }) => {
-    await page.goto('/Public/Trips');
-    const publicViewerHref = await page.locator('a[href^="/Public/Trips/"]').evaluateAll(links =>
-      links.map(link => link.getAttribute('href')).find(href => /^\/Public\/Trips\/[0-9a-f-]+$/i.test(href ?? '')));
-    expect(publicViewerHref, 'The public index should provide a real public viewer route.').toBeTruthy();
+    const publicViewerHref = await discoverPublicViewer(page);
 
     await page.goto(`${publicViewerHref}?embed=true`);
     await expect(page.locator('#trip-view')).toBeVisible();
@@ -121,6 +129,39 @@ async function expectLegacyViewerContained(page: Page): Promise<void> {
   const footerBox = await page.locator('.site-footer').boundingBox();
   expect(viewerBox!.y + viewerBox!.height).toBeCloseTo(footerBox!.y, 0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(await page.evaluate(() => innerHeight) + 1);
+}
+
+/** Finds a real canonical public viewer route from the public trip index. */
+async function discoverPublicViewer(page: Page): Promise<string> {
+  await page.goto('/Public/Trips');
+  const publicViewerHref = await page.locator('a[href^="/Public/Trips/"]').evaluateAll(links =>
+    links.map(link => link.getAttribute('href')).find(href => /^\/Public\/Trips\/[0-9a-f-]+$/i.test(href ?? '')));
+  expect(publicViewerHref, 'The public index should provide a real public viewer route.').toBeTruthy();
+  return publicViewerHref!;
+}
+
+/** Verifies the rendered map and sidebar geometry without depending on map tile availability. */
+async function expectPublicViewerGeometry(page: Page, viewportWidth: number): Promise<void> {
+  const geometry = await page.evaluate(() => {
+    const map = document.querySelector<HTMLElement>('#mapContainer')!;
+    const sidebar = document.querySelector<HTMLElement>('#sidebar-primary')!;
+    const mapBounds = map.getBoundingClientRect();
+    const sidebarBounds = sidebar.getBoundingClientRect();
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      mapHeight: mapBounds.height,
+      sidebarLeft: sidebarBounds.left,
+      sidebarRight: sidebarBounds.right,
+      sidebarWidth: sidebarBounds.width
+    };
+  });
+
+  expect(geometry.mapHeight, 'The canonical public map must have rendered height.').toBeGreaterThan(100);
+  expect(geometry.documentWidth, 'The canonical viewer must not widen the document.').toBeLessThanOrEqual(viewportWidth + 1);
+  expect(geometry.sidebarLeft).toBeGreaterThanOrEqual(0);
+  expect(geometry.sidebarRight).toBeLessThanOrEqual(viewportWidth + 1);
+  if (viewportWidth < 576) expect(geometry.sidebarWidth).toBeLessThan(500);
+  else expect(geometry.sidebarWidth).toBeCloseTo(500, 0);
 }
 
 async function expectMatchingColors(page: Page, theme: string): Promise<void> {
