@@ -74,6 +74,37 @@ test.describe('shared standard-layout footer', () => {
     });
   }
 
+  test('keeps stored trip coordinates centered through a mobile sidebar visibility cycle', async ({ page }) => {
+    await page.setViewportSize(viewports.mobile);
+    const publicViewerHref = await discoverPublicViewer(page);
+    await page.goto(publicViewerHref);
+
+    const tripView = await page.locator('#trip-view').evaluate(element => ({
+      lat: Number((element as HTMLElement).dataset.tripLat),
+      lon: Number((element as HTMLElement).dataset.tripLon),
+      zoom: Number((element as HTMLElement).dataset.tripZoom)
+    }));
+    await page.goto(`${publicViewerHref}?lat=${tripView.lat}&lon=${tripView.lon}&zoom=${tripView.zoom}`);
+
+    const initialCenter = await waitForMapLocationToSettle(page);
+    expectMapCenter(initialCenter, tripView);
+
+    await page.locator('#btn-collapse-sidebar').click();
+    await expect(page.locator('#sidebar-primary')).toHaveAttribute('data-collapsed', 'true');
+    const firstCollapsedCenter = await waitForMapLocationToSettle(page);
+    expectMapCenter(firstCollapsedCenter, tripView);
+
+    await page.locator('#btn-show-sidebar').click();
+    await expect(page.locator('#sidebar-primary')).toHaveAttribute('data-collapsed', 'false');
+    const shownCenter = await waitForMapLocationToSettle(page);
+    expectMapCenter(shownCenter, tripView);
+
+    await page.locator('#btn-collapse-sidebar').click();
+    await expect(page.locator('#sidebar-primary')).toHaveAttribute('data-collapsed', 'true');
+    const cycleCenter = await waitForMapLocationToSettle(page);
+    expectMapCenter(cycleCenter, tripView);
+  });
+
   test('keeps the discovered public viewer embed free of the standard footer stylesheet', async ({ page }) => {
     const publicViewerHref = await discoverPublicViewer(page);
 
@@ -162,6 +193,36 @@ async function expectPublicViewerGeometry(page: Page, viewportWidth: number): Pr
   expect(geometry.sidebarRight).toBeLessThanOrEqual(viewportWidth + 1);
   if (viewportWidth < 576) expect(geometry.sidebarWidth).toBeLessThan(500);
   else expect(geometry.sidebarWidth).toBeCloseTo(500, 0);
+}
+
+/** Waits until the permalink remains stable beyond the sidebar and map animation window. */
+async function waitForMapLocationToSettle(page: Page): Promise<{ lat: number; lon: number }> {
+  return page.evaluate(() => new Promise<{ lat: number; lon: number }>((resolve, reject) => {
+    const startedAt = performance.now();
+    let lastUrl = location.href;
+    let lastChangeAt = startedAt;
+    const timer = window.setInterval(() => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        lastChangeAt = performance.now();
+      }
+
+      if (performance.now() - lastChangeAt >= 1_100) {
+        window.clearInterval(timer);
+        const params = new URL(location.href).searchParams;
+        resolve({ lat: Number(params.get('lat')), lon: Number(params.get('lon')) });
+      } else if (performance.now() - startedAt >= 6_000) {
+        window.clearInterval(timer);
+        reject(new Error('Map permalink did not settle after movement.'));
+      }
+    }, 50);
+  }));
+}
+
+/** Compares the permalink center with the server-owned trip center. */
+function expectMapCenter(actual: { lat: number; lon: number }, expected: { lat: number; lon: number }): void {
+  expect(actual.lat).toBeCloseTo(expected.lat, 4);
+  expect(actual.lon).toBeCloseTo(expected.lon, 4);
 }
 
 async function expectMatchingColors(page: Page, theme: string): Promise<void> {
