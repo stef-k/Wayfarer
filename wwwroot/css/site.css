@@ -1369,6 +1369,29 @@ thead th {
     pointer-events:auto;
 }
 
+/* Phone-only panel containment; tablet and desktop retain the 500px sidebar. */
+@media (max-width: 575.98px) {
+    #sidebar-primary,
+    #sidebar-secondary {
+        --viewer-phone-inline-start: max(0.5rem, env(safe-area-inset-left));
+        --viewer-phone-inline-end: max(0.5rem, env(safe-area-inset-right));
+        left: var(--viewer-phone-inline-start);
+        width: min(
+            var(--legend-w),
+            calc(100vw - var(--viewer-phone-inline-start) - var(--viewer-phone-inline-end))
+        ) !important;
+    }
+
+    #sidebar-primary[data-collapsed="true"],
+    #sidebar-secondary {
+        transform: translateX(calc(-100% - var(--viewer-phone-inline-start)));
+    }
+
+    #sidebar-secondary.open {
+        transform: translateX(0);
+    }
+}
+
 /* Trip-Viewer meta panel */
 .trip-meta,
 .trip-notes{

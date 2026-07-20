@@ -221,6 +221,8 @@ const init = () => {
     /* helper that returns the legend’s current width */
     const legend = $('#sidebar-primary');
     const legendW = () => legend.offsetWidth || 0;
+    // Phone panels overlay the map instead of reserving a visible map column.
+    const sidebarOverlaysMap = () => window.matchMedia('(max-width: 575.98px)').matches;
 
     /**
      * Shift the map horizontally by ±½ legend width.
@@ -229,9 +231,8 @@ const init = () => {
      * @param {number|null} [baseW=null]   width to use instead of live offsetWidth
      */
     const applyCentreOffset = (dir, animate = false, baseW = null) => {
-        if (isPrint) return;
-        const w  = baseW ?? legendW();             // fall back to live width
-        const dx = (w / 2) * dir;
+        if (isPrint || sidebarOverlaysMap()) return;
+        const dx = ((baseW ?? legendW()) / 2) * dir;
         if (dx) map.panBy([-dx, 0], { animate, duration: 0.4 });
     };
 
@@ -522,8 +523,7 @@ const init = () => {
             if (!pl) return;
 
             const b = pl.getBounds();                 // route bounds
-            const padX = collapsed ? 60                 // legend hidden
-                : legendW() / 2 + 60; // space for legend + bonus
+            const padX = collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60;
             map.flyToBounds(b, {
                 animate: true, duration: 1.2, padding: [padX, 60]                    // neat margin
             });
