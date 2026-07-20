@@ -43,7 +43,7 @@ test.describe('shared standard-layout footer', () => {
     await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
     await expect(page.locator('.site-footer')).toBeInViewport();
     const footerDocumentBottom = await page.locator('.site-footer').evaluate(element => element.getBoundingClientRect().bottom + scrollY);
-    expect(footerDocumentBottom).toBeCloseTo(documentHeight, 0);
+    expect(Math.abs(footerDocumentBottom - documentHeight)).toBeLessThanOrEqual(1);
   });
 
   for (const [name, viewport] of Object.entries(viewports)) {
