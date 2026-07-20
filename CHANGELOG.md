@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.5.2] - 2026-07-20
+
+### Fixed
+- Restored the public Trip Viewer map across phone, tablet, and desktop layouts, contained the phone sidebar within the viewport, and kept the trip area centered through sidebar collapse and expansion (#379)
+
 ## [1.5.1] - 2026-07-18
 
 ### Fixed
