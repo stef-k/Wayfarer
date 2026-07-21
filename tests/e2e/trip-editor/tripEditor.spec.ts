@@ -95,7 +95,7 @@ test.describe.serial('Trip Editor dev verification', () => {
 
     try {
       const editableRegion = page.locator('.trip-editor-region-card--normal').first();
-      const regionHeading = (await editableRegion.getByRole('heading').innerText()).trim();
+      const regionHeading = (await editableRegion.getAttribute('data-region-name'))!;
       await regionEditButton(editableRegion).click();
       await expect(page.getByRole('heading', { name: new RegExp(`Edit Region - ${escapeRegex(regionHeading)}`) })).toBeVisible();
       await page.getByRole('button', { name: 'Expand Editor' }).click();
@@ -125,7 +125,7 @@ test.describe.serial('Trip Editor dev verification', () => {
       await expect(editableRegion).toContainText(placeName);
       await expectReverseGeocodeWarningIfPresent(page);
 
-      await editableRegion.getByText(placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
+      await editableRegion.locator('.trip-editor-place-row').filter({ hasText: placeName }).getByRole('button', { name: 'Edit', exact: true }).click();
       await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(placeName)}`) })).toBeVisible();
       await expectUsableDockedPlaceEditor(page);
       await capture(page, testInfo, 'place-docked-layout');

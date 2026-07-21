@@ -98,7 +98,7 @@ public sealed class TripEditorPlaceMutationReader
             .AsNoTracking()
             .Where(p => p.RegionId == regionId)
             .OrderBy(p => p.DisplayOrder)
-            .ThenBy(p => p.Name)
+            .ThenBy(p => p.Id)
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);
 
@@ -135,7 +135,7 @@ public sealed class TripEditorPlaceMutationReader
             .Include(r => r.Places)
             .Where(r => r.TripId == tripId && r.UserId == userId)
             .OrderBy(r => r.DisplayOrder)
-            .ThenBy(r => r.Name)
+            .ThenBy(r => r.Id)
             .ToListAsync(cancellationToken);
         var places = regions.SelectMany(r => r.Places.Select(p => (Region: r, Place: p))).ToList();
         var summaries = await LoadVisitSummariesAsync(places.Select(p => p.Place).ToList(), userId, cancellationToken);

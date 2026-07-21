@@ -28,6 +28,8 @@
 
     // Place visit counts for public progress display
     var placeVisitCounts = ViewBag.PlaceVisitCounts as Dictionary<Guid, int> ?? new Dictionary<Guid, int>();
+    // Canonical presentation order shared by the normal and readable hierarchies.
+    var itineraryRegions = ItineraryPresentation.OrderRegions(Model.Regions);
 }
 
 <!-- wrapper that stretches between navbar & footer -->
@@ -342,15 +344,17 @@
         <!-- regions accordion -->
         <div id="regions-accordion" class="accordion accordion-flush ">
             @{
-                var unassignedRegion = @Model.Regions?.Where(r => r.Name == "Unassigned Places").FirstOrDefault();
+                var unassignedRegion = itineraryRegions.FirstOrDefault(ItineraryPresentation.IsShadowRegion);
                 if (unassignedRegion?.Places?.Any() == true)
                 {
-                    @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", unassignedRegion)
+                    var shadowViewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["RegionOrdinal"] = 0 };
+                    @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", unassignedRegion, shadowViewData)
                 }
             }
-            @foreach (var r in (Model.Regions ?? Enumerable.Empty<Region>()).Where(r => r.Name != "Unassigned Places").OrderBy(r => r.DisplayOrder))
+            @foreach (var r in itineraryRegions.Where(region => !ItineraryPresentation.IsShadowRegion(region)))
             {
-                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r)
+                var regionViewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["RegionOrdinal"] = ItineraryPresentation.RegionOrdinal(r, itineraryRegions) };
+                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r, regionViewData)
             }
         </div>
 
@@ -476,14 +480,14 @@
                 <!-- Regions -->
                 <div class="regions-readable">
                     <h6 class="text-muted mb-3">Regions & Places</h6>
-                    @foreach (var region in (Model.Regions ?? Enumerable.Empty<Region>()).OrderBy(r => r.DisplayOrder))
+                    @foreach (var region in itineraryRegions)
                     {
                         @if (region.Name == "Unassigned Places" && (region.Places == null || !region.Places.Any()))
                         {
                             continue;
                         }
                         <div class="region-readable mb-4 pb-3 border-bottom">
-                            <h5 class="mb-2">@region.Name</h5>
+                            <h5 class="mb-2 itinerary-region-label">@ItineraryPresentation.Label(ItineraryPresentation.RegionOrdinal(region, itineraryRegions), region.Name)</h5>
 
                             @if (!string.IsNullOrWhiteSpace(region.CoverImageUrl))
                             {
@@ -502,8 +506,10 @@
                             @if (region.Places?.Count > 0)
                             {
                                 <div class="places-list">
-                                    @foreach (var place in region.Places.OrderBy(p => p.DisplayOrder))
+                                    @{ var readablePlaces = ItineraryPresentation.OrderPlaces(region.Places); }
+                                    @for (var placeIndex = 0; placeIndex < readablePlaces.Count; placeIndex++)
                                     {
+                                        var place = readablePlaces[placeIndex];
                                         var iconName = string.IsNullOrWhiteSpace(place.IconName) ? "marker" : place.IconName.Trim();
                                         var bgClass = string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor.Trim();
 
@@ -511,7 +517,7 @@
                                             <div class="d-flex align-items-start">
                                                 @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml", (iconName, bgClass))
                                                 <div class="flex-grow-1">
-                                                    <strong>@place.Name</strong>
+                                                    <strong class="itinerary-place-label">@ItineraryPresentation.Label(placeIndex + 1, place.Name)</strong>
                                                     @if (!string.IsNullOrWhiteSpace(place.Notes))
                                                     {
                                                         <div class="small text-muted mt-1">

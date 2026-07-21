@@ -141,7 +141,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await focus.click();
     await expect(toolbar.locator('.trip-editor-toolbar__status')).toContainText('Focused region');
 
-    await region.getByText(fixture.placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
+    await region.locator('.trip-editor-place-row').filter({ hasText: fixture.placeName }).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(focus).toBeDisabled();
 
     await region.getByRole('button', { name: 'Add Place' }).click();
@@ -166,7 +166,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     const before = await readMapView(page);
 
     const region = regionCard(page, fixture.regionName);
-    await region.getByText(fixture.placeName).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
+    await region.locator('.trip-editor-place-row').filter({ hasText: fixture.placeName }).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeEnabled();
     await toolbar.getByRole('button', { name: 'Focus Active Entity' }).click();
 

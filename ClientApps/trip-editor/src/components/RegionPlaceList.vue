@@ -42,12 +42,28 @@ const emit = defineEmits<{
 const regionList = ref<HTMLElement | null>(null);
 const collapsedRegionIds = ref<Set<Guid>>(new Set());
 const searchCollapsedSnapshot = ref<Set<Guid> | null>(null);
+const optimisticRegionIds = ref<Guid[] | null>(null);
+const optimisticPlaceIdsByRegionId = ref<Record<Guid, Guid[]>>({});
 const placeSortables = new Map<string, { destroy: () => void }>();
 const areaSortables = new Map<string, { destroy: () => void }>();
 let sortable: { destroy: () => void } | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
 let placeReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 let areaReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
+
+watch(
+  () => props.state.regionOrder.join('|'),
+  () => {
+    optimisticRegionIds.value = null;
+  }
+);
+
+watch(
+  () => Object.entries(props.state.placeOrderByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|'),
+  () => {
+    optimisticPlaceIdsByRegionId.value = {};
+  }
+);
 
 watch(
   () => `${props.searchActive}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
@@ -123,6 +139,7 @@ function attachRegionSortable(): void {
       reorderSnapshotIds = null;
       const ids = Array.from(regionList.value.querySelectorAll<HTMLElement>('[data-region-id][data-reorderable="true"]')).map(element => element.dataset.regionId!);
       if (ids.join('|') !== previousIds.join('|')) {
+        optimisticRegionIds.value = ids;
         emit('regionReorder', ids, previousIds);
       }
     }
@@ -149,6 +166,7 @@ function attachPlaceSortables(): void {
         placeReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-place-id]')).map(row => row.dataset.placeId!);
         if (ids.join('|') !== previousIds.join('|')) {
+          optimisticPlaceIdsByRegionId.value = { ...optimisticPlaceIdsByRegionId.value, [regionId]: ids };
           emit('placeReorder', regionId, ids, previousIds);
         }
       }
@@ -194,7 +212,26 @@ function destroyAreaSortables(): void {
 }
 
 function normalRegionIds(): Guid[] {
-  return props.regions.filter(region => !region.isShadow).map(region => region.id);
+  return props.state.regionOrder.filter(id => !props.state.regionsById[id]?.isShadow);
+}
+
+/// Resolves a visible region label from the complete authoritative or transient normal-region order.
+function regionLabel(region: EditorRegion): string {
+  if (region.isShadow) {
+    return `0-${region.name}`;
+  }
+
+  const ids = optimisticRegionIds.value
+    ?? props.state.regionOrder.filter(id => !props.state.regionsById[id]?.isShadow);
+  return `${ids.indexOf(region.id) + 1}-${region.name}`;
+}
+
+/// Resolves a place label from its complete authoritative or transient parent-region order.
+function placeLabel(place: EditorPlace): string {
+  const ids = optimisticPlaceIdsByRegionId.value[place.regionId]
+    ?? props.state.placeOrderByRegionId[place.regionId]
+    ?? [];
+  return `${ids.indexOf(place.id) + 1}-${place.name}`;
 }
 
 function orderedPlaces(regionId: Guid): EditorPlace[] {
@@ -269,6 +306,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
         'trip-editor-region-card--shadow': region.isShadow
       }"
       :data-region-id="region.id"
+      :data-region-name="region.name"
       :data-reorderable="!region.isShadow"
     >
       <header class="trip-editor-region-card__header">
@@ -283,7 +321,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
           <span aria-hidden="true">::</span>
         </button>
         <div>
-          <h3>{{ region.name }}</h3>
+          <h3 class="itinerary-region-label">{{ regionLabel(region) }}</h3>
         </div>
         <div class="trip-editor-region-card__actions">
           <button
@@ -308,6 +346,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
             class="trip-editor-place-row"
             :class="{ 'trip-editor-place-row--active': props.activePlaceId === place.id }"
             :data-place-id="place.id"
+            :data-place-name="place.name"
             tabindex="0"
             @click="emit('selectPlace', place)"
             @keydown.enter.prevent="emit('selectPlace', place)"
@@ -327,7 +366,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               <span v-if="place.visitSummary.isVisited" class="trip-editor-place-row__visit-badge">{{ place.visitSummary.visitCount === 1 ? '✓' : place.visitSummary.visitCount }}</span>
             </span>
             <span class="trip-editor-place-row__content">
-              <span class="trip-editor-place-row__name">{{ place.name }}</span>
+              <span class="trip-editor-place-row__name itinerary-place-label">{{ placeLabel(place) }}</span>
               <small v-if="place.visitSummary.isVisited">{{ placeMarkerLabel(place) }}</small>
             </span>
             <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">Edit</button>

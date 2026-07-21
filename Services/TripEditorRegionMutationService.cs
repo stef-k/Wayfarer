@@ -261,7 +261,7 @@ public sealed class TripEditorRegionMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.Forbidden("The shadow region cannot be reordered.");
         }
 
-        var normalRegions = trip.Regions.Where(r => !IsShadowRegion(r)).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Name).ToList();
+        var normalRegions = trip.Regions.Where(r => !IsShadowRegion(r)).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToList();
         var normalIds = normalRegions.Select(r => r.Id).ToList();
         if (orderRequest.RegionIds.Count != normalIds.Count
             || orderRequest.RegionIds.Distinct().Count() != orderRequest.RegionIds.Count
@@ -313,7 +313,7 @@ public sealed class TripEditorRegionMutationService
             .AsNoTracking()
             .Where(r => r.TripId == tripId && r.UserId == userId)
             .OrderBy(r => r.DisplayOrder)
-            .ThenBy(r => r.Name)
+            .ThenBy(r => r.Id)
             .Select(r => r.Id)
             .ToListAsync(cancellationToken);
 
@@ -360,7 +360,7 @@ public sealed class TripEditorRegionMutationService
             .Include(r => r.Places)
             .Where(r => r.TripId == tripId && r.UserId == userId)
             .OrderBy(r => r.DisplayOrder)
-            .ThenBy(r => r.Name)
+            .ThenBy(r => r.Id)
             .ToListAsync(cancellationToken);
         var places = regions.SelectMany(r => r.Places.Select(p => (Region: r, Place: p))).ToList();
         var placeIds = places.Select(p => p.Place.Id).ToArray();
@@ -381,7 +381,7 @@ public sealed class TripEditorRegionMutationService
         var regions = await _dbContext.Regions
             .Where(r => r.TripId == tripId && r.UserId == userId)
             .OrderBy(r => r.DisplayOrder)
-            .ThenBy(r => r.Name)
+            .ThenBy(r => r.Id)
             .ToListAsync(cancellationToken);
         var shadow = regions.FirstOrDefault(IsShadowRegion);
         if (shadow != null)

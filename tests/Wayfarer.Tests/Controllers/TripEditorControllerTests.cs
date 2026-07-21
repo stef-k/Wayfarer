@@ -132,24 +132,24 @@ public sealed class TripEditorControllerTests : TestBase
             Name = "Alphabetically Last",
             DisplayOrder = 7
         };
-        laterRegion.Places.Add(new Place
+        var laterPlace = new Place
         {
             Id = Guid.Parse("00000000-0000-0000-0000-000000000022"),
             RegionId = laterRegion.Id,
             UserId = "owner-user",
             Name = "Alphabetically First",
             DisplayOrder = 4
-        });
-        laterRegion.Places.Add(new Place
+        };
+        var earlierPlace = new Place
         {
             Id = Guid.Parse("00000000-0000-0000-0000-000000000021"),
             RegionId = laterRegion.Id,
             UserId = "owner-user",
             Name = "Alphabetically Last",
             DisplayOrder = 4
-        });
-        trip.Regions.Add(laterRegion);
-        trip.Regions.Add(earlierRegion);
+        };
+        db.Regions.AddRange(laterRegion, earlierRegion);
+        db.Places.AddRange(laterPlace, earlierPlace);
         db.SaveChanges();
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");

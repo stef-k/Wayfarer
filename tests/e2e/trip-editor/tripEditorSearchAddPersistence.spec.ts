@@ -259,5 +259,5 @@ function placeByName(state: EditorState, name: string): any | null {
 }
 
 function placeRowByName(page: Page, regionId: string, name: string): Locator {
-  return page.locator(`[data-place-list-region-id="${regionId}"] [data-place-id]`).filter({ has: page.getByText(name, { exact: true }) });
+  return page.locator(`[data-place-list-region-id="${regionId}"] [data-place-id]`).filter({ hasText: name });
 }

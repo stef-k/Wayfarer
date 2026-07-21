@@ -9,6 +9,7 @@ import {
   signIn,
   uniqueName
 } from './tripEditorTestUtils';
+import { expectViewerItineraryParity } from './tripViewerItineraryAssertions';
 
 type EditorState = Record<string, any>;
 
@@ -30,8 +31,22 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         expect(regionByName(state, firstName)).toBeTruthy();
         expect(regionByName(state, secondName)).toBeTruthy();
       });
+      const firstOrdinal = itineraryOrdinal(await regionLabel(page, firstName).innerText());
+      const secondOrdinal = itineraryOrdinal(await regionLabel(page, secondName).innerText());
 
-      await dragRegion(page, secondName, firstName);
+      let releaseRegionOrder!: () => void;
+      const regionOrderRelease = new Promise<void>(resolve => { releaseRegionOrder = resolve; });
+      await page.route(/\/editor\/regions\/order$/, async route => {
+        const response = await route.fetch();
+        await regionOrderRelease;
+        await route.fulfill({ response });
+      }, { times: 1 });
+      await regionCard(page, secondName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, firstName));
+      await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
+      await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
+      await expect(page.locator('.trip-editor-save-state').filter({ hasText: 'Saving order...' }).first()).toBeVisible();
+      releaseRegionOrder();
+      await expectSaved(page);
       await expectRegionOrder(page, [secondName, firstName]);
       await page.reload();
       await expectMountedWorkspace(page);
@@ -40,6 +55,27 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         const ids = state.regionOrder;
         expect(ids.indexOf(regionByName(state, secondName).id)).toBeLessThan(ids.indexOf(regionByName(state, firstName).id));
       });
+
+      let releaseFailedRegionOrder!: () => void;
+      const failedRegionOrderRelease = new Promise<void>(resolve => { releaseFailedRegionOrder = resolve; });
+      await page.route(/\/editor\/regions\/order$/, async route => {
+        await failedRegionOrderRelease;
+        await route.fulfill({ status: 500, body: 'forced reorder failure' });
+      }, { times: 1 });
+      await regionCard(page, firstName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, secondName));
+      await expect(regionLabel(page, firstName)).toHaveText(`${firstOrdinal}-${firstName}`);
+      releaseFailedRegionOrder();
+      await expect(page.locator('.trip-editor-form-error')).toBeVisible();
+      await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
+      await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
+
+      let noOpRequests = 0;
+      page.on('request', request => {
+        if (/\/editor\/regions\/order$/.test(new URL(request.url()).pathname)) noOpRequests += 1;
+      });
+      await regionCard(page, secondName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, secondName));
+      await page.waitForTimeout(250);
+      expect(noOpRequests, 'A no-op region drop must not issue an order request.').toBe(0);
 
       await deleteRegion(page, secondName);
       await deleteRegion(page, firstName);
@@ -68,16 +104,33 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       await createPlace(page, regionName, secondPlace, '37.9841', '23.7280');
       await expect(placeRowByName(page, region.id, firstPlace)).toBeVisible();
       await expect(placeRowByName(page, region.id, secondPlace)).toBeVisible();
+      await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
+      await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
 
       await movePlace(page, region.id, firstPlace, shadow.id);
       await expect(placeRowByName(page, shadow.id, firstPlace)).toBeVisible();
+      await expect(regionLabel(page, shadow.name)).toHaveText('0-Unassigned Places');
       await expect(placeRowByName(page, region.id, firstPlace)).toHaveCount(0);
+      await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`1-${secondPlace}`);
       await expectState(page, state => {
         expect(placeByName(state, firstPlace).regionId).toBe(shadow.id);
       });
 
       await movePlace(page, shadow.id, firstPlace, region.id);
-      await orderPlacesViaEndpoint(page, region.id, [firstPlace, secondPlace]);
+      await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`1-${secondPlace}`);
+      await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`2-${firstPlace}`);
+      let releasePlaceOrder!: () => void;
+      const placeOrderRelease = new Promise<void>(resolve => { releasePlaceOrder = resolve; });
+      await page.route(new RegExp(`/editor/regions/${region.id}/places/order$`), async route => {
+        const response = await route.fetch();
+        await placeOrderRelease;
+        await route.fulfill({ response });
+      }, { times: 1 });
+      await placeRowByName(page, region.id, firstPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, region.id, secondPlace));
+      await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
+      await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
+      releasePlaceOrder();
+      await expectSaved(page);
       await page.reload();
       await expectMountedWorkspace(page);
       const reloadedRegion = await requireRegion(page, regionName);
@@ -87,7 +140,10 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         expect(order.indexOf(placeByName(state, firstPlace).id)).toBeLessThan(order.indexOf(placeByName(state, secondPlace).id));
       });
 
+      await expectViewerItineraryParity(page, regionName, firstPlace, secondPlace);
+
       await deletePlace(page, reloadedRegion.id, secondPlace);
+      await expect(placeLabel(page, reloadedRegion.id, firstPlace)).toHaveText(`1-${firstPlace}`);
       await deletePlace(page, reloadedRegion.id, firstPlace);
       await expectState(page, state => {
         expect(placeByName(state, firstPlace)).toBeNull();
@@ -340,17 +396,32 @@ async function dragRegion(page: Page, fromName: string, toName: string): Promise
   await expectSaved(page);
 }
 
+/** Locates the visible derived region label while retaining raw-name lookup. */
+function regionLabel(page: Page, name: string): Locator {
+  return regionCard(page, name).locator('.itinerary-region-label, h3').first();
+}
+
+/** Locates the visible derived place label under its authoritative parent region. */
+function placeLabel(page: Page, regionId: string, name: string): Locator {
+  return placeRowByName(page, regionId, name).locator('.trip-editor-place-row__name');
+}
+
+/** Reads the numeric prefix from a rendered itinerary label. */
+function itineraryOrdinal(label: string): number {
+  return Number(label.slice(0, label.indexOf('-')));
+}
+
 async function expectRegionOrder(page: Page, adjacentNames: [string, string]): Promise<void> {
   await expect.poll(async () => {
-    const names = await page.locator('.trip-editor-region-card--normal h3').allInnerTexts();
-    return adjacentInOrder(names.map(name => name.trim()), adjacentNames);
+    const names = await page.locator('.trip-editor-region-card--normal').evaluateAll(cards => cards.map(card => (card as HTMLElement).dataset.regionName));
+    return adjacentInOrder(names, adjacentNames);
   }).toBeTruthy();
 }
 
 async function expectPlaceOrder(page: Page, regionId: string, adjacentNames: [string, string]): Promise<void> {
   await expect.poll(async () => {
-    const names = await page.locator(`[data-place-list-region-id="${regionId}"] [data-place-id] .trip-editor-place-row__name`).allInnerTexts();
-    return adjacentInOrder(names.map(name => name.trim()), adjacentNames);
+    const names = await page.locator(`[data-place-list-region-id="${regionId}"] [data-place-id]`).evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.placeName));
+    return adjacentInOrder(names, adjacentNames);
   }).toBeTruthy();
 }
 
@@ -485,7 +556,7 @@ function areaByName(state: EditorState, name: string): any | null {
 }
 
 function placeRowByName(page: Page, regionId: string, name: string): Locator {
-  return page.locator(`[data-region-id="${regionId}"] [data-place-id]`).filter({ has: page.getByText(name, { exact: true }) });
+  return page.locator(`[data-region-id="${regionId}"] [data-place-id]`).filter({ hasText: name });
 }
 
 function areaRowByName(page: Page, regionId: string, name: string): Locator {

@@ -65,7 +65,7 @@ public sealed class TripEditorPlaceRouteEffects
         var places = await _dbContext.Places
             .Where(p => p.RegionId == regionId)
             .OrderBy(p => p.DisplayOrder)
-            .ThenBy(p => p.Name)
+            .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
         for (var i = 0; i < places.Count; i++)
         {

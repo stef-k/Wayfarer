@@ -67,7 +67,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await closeDraftWithDiscard(page);
     await search.fill('');
 
-    await placeRegion.getByText(fixture.place.name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
+    await placeRegion.locator('.trip-editor-place-row').filter({ hasText: fixture.place.name }).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(fixture.place.name)}`) })).toBeVisible();
     await expect(page.locator('#trip-editor-place-form').getByLabel('Name')).toHaveValue(fixture.place.name);
     await search.fill(uniqueName('no matching place draft query'));
