@@ -112,6 +112,59 @@ public sealed class TripEditorControllerTests : TestBase
     }
 
     [Fact]
+    public async Task GetEditorStateBreaksEqualDisplayOrderByAscendingEntityId()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var laterRegion = new Region
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000012"),
+            TripId = trip.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically First",
+            DisplayOrder = 7
+        };
+        var earlierRegion = new Region
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000011"),
+            TripId = trip.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically Last",
+            DisplayOrder = 7
+        };
+        laterRegion.Places.Add(new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000022"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically First",
+            DisplayOrder = 4
+        });
+        laterRegion.Places.Add(new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000021"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically Last",
+            DisplayOrder = 4
+        });
+        trip.Regions.Add(laterRegion);
+        trip.Regions.Add(earlierRegion);
+        db.SaveChanges();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        var state = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value);
+        var regionOrder = state.RegionOrder.ToList();
+        Assert.True(regionOrder.IndexOf(earlierRegion.Id) < regionOrder.IndexOf(laterRegion.Id));
+        Assert.Equal(
+            [Guid.Parse("00000000-0000-0000-0000-000000000021"), Guid.Parse("00000000-0000-0000-0000-000000000022")],
+            state.PlaceOrderByRegionId[laterRegion.Id]);
+    }
+
+    [Fact]
     public async Task GetEditorStateForPrivateTripReturnsNullPublicUrls()
     {
         using var db = CreateDbContext();
