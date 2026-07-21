@@ -13,6 +13,7 @@ using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using PublicTripViewerController = Wayfarer.Areas.Public.Controllers.TripViewerController;
 using Xunit;
 
@@ -112,7 +113,7 @@ public sealed class TripEditorControllerTests : TestBase
     }
 
     [Fact]
-    public async Task GetEditorStateBreaksEqualDisplayOrderByAscendingEntityId()
+    public async Task GetEditorStateBreaksEqualDisplayOrderByIdAndMatchesViewerPresentationOrder()
     {
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
@@ -159,9 +160,13 @@ public sealed class TripEditorControllerTests : TestBase
         var state = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value);
         var regionOrder = state.RegionOrder.ToList();
         Assert.True(regionOrder.IndexOf(earlierRegion.Id) < regionOrder.IndexOf(laterRegion.Id));
+        Assert.Equal(regionOrder, ItineraryPresentation.OrderRegions(trip.Regions).Select(region => region.Id));
         Assert.Equal(
             [Guid.Parse("00000000-0000-0000-0000-000000000021"), Guid.Parse("00000000-0000-0000-0000-000000000022")],
             state.PlaceOrderByRegionId[laterRegion.Id]);
+        Assert.Equal(
+            state.PlaceOrderByRegionId[laterRegion.Id],
+            ItineraryPresentation.OrderPlaces(laterRegion.Places).Select(place => place.Id));
     }
 
     [Fact]

@@ -140,6 +140,27 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         expect(order.indexOf(placeByName(state, firstPlace).id)).toBeLessThan(order.indexOf(placeByName(state, secondPlace).id));
       });
 
+      let releaseFailedPlaceOrder!: () => void;
+      const failedPlaceOrderRelease = new Promise<void>(resolve => { releaseFailedPlaceOrder = resolve; });
+      await page.route(new RegExp(`/editor/regions/${reloadedRegion.id}/places/order$`), async route => {
+        await failedPlaceOrderRelease;
+        await route.fulfill({ status: 500, body: 'forced place reorder failure' });
+      }, { times: 1 });
+      await placeRowByName(page, reloadedRegion.id, secondPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, reloadedRegion.id, firstPlace));
+      await expect(placeLabel(page, reloadedRegion.id, secondPlace)).toHaveText(`1-${secondPlace}`);
+      releaseFailedPlaceOrder();
+      await expect(page.locator('.trip-editor-form-error')).toBeVisible();
+      await expect(placeLabel(page, reloadedRegion.id, firstPlace)).toHaveText(`1-${firstPlace}`);
+      await expect(placeLabel(page, reloadedRegion.id, secondPlace)).toHaveText(`2-${secondPlace}`);
+
+      let noOpRequests = 0;
+      page.on('request', request => {
+        if (new RegExp(`/editor/regions/${reloadedRegion.id}/places/order$`).test(new URL(request.url()).pathname)) noOpRequests += 1;
+      });
+      await placeRowByName(page, reloadedRegion.id, firstPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, reloadedRegion.id, firstPlace));
+      await page.waitForTimeout(250);
+      expect(noOpRequests, 'A no-op place drop must not issue an order request.').toBe(0);
+
       await expectViewerItineraryParity(page, regionName, firstPlace, secondPlace);
 
       await deletePlace(page, reloadedRegion.id, secondPlace);
