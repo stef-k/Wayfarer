@@ -28,7 +28,6 @@
 
     // Place visit counts for public progress display
     var placeVisitCounts = ViewBag.PlaceVisitCounts as Dictionary<Guid, int> ?? new Dictionary<Guid, int>();
-    // Canonical presentation order shared by the normal and readable hierarchies.
     var itineraryRegions = ItineraryPresentation.OrderRegions(Model.Regions);
 }
 
@@ -347,14 +346,12 @@
                 var unassignedRegion = itineraryRegions.FirstOrDefault(ItineraryPresentation.IsShadowRegion);
                 if (unassignedRegion?.Places?.Any() == true)
                 {
-                    var shadowViewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["RegionOrdinal"] = 0 };
-                    @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", unassignedRegion, shadowViewData)
+                    @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", unassignedRegion, new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["RegionOrdinal"] = 0 })
                 }
             }
             @foreach (var r in itineraryRegions.Where(region => !ItineraryPresentation.IsShadowRegion(region)))
             {
-                var regionViewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["RegionOrdinal"] = ItineraryPresentation.RegionOrdinal(r, itineraryRegions) };
-                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r, regionViewData)
+                @await Html.PartialAsync("~/Views/Trip/Partials/_RegionReadonly.cshtml", r, new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["RegionOrdinal"] = ItineraryPresentation.RegionOrdinal(r, itineraryRegions) })
             }
         </div>
 
@@ -477,7 +474,6 @@
                     </div>
                 }
 
-                <!-- Regions -->
                 <div class="regions-readable">
                     <h6 class="text-muted mb-3">Regions & Places</h6>
                     @foreach (var region in itineraryRegions)
@@ -506,10 +502,8 @@
                             @if (region.Places?.Count > 0)
                             {
                                 <div class="places-list">
-                                    @{ var readablePlaces = ItineraryPresentation.OrderPlaces(region.Places); }
-                                    @for (var placeIndex = 0; placeIndex < readablePlaces.Count; placeIndex++)
+                                    @foreach (var (place, placeIndex) in ItineraryPresentation.OrderPlaces(region.Places).Select((place, index) => (place, index)))
                                     {
-                                        var place = readablePlaces[placeIndex];
                                         var iconName = string.IsNullOrWhiteSpace(place.IconName) ? "marker" : place.IconName.Trim();
                                         var bgClass = string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor.Trim();
 
