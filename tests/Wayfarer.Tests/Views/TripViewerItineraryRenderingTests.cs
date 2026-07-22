@@ -36,12 +36,12 @@ public sealed class TripViewerItineraryRenderingTests
         var normalLabels = Labels(document.QuerySelectorAll("#regions-accordion .itinerary-region-label, #regions-accordion .itinerary-place-label"));
         var readableLabels = Labels(document.QuerySelectorAll("#readable-modal-body .itinerary-region-label, #readable-modal-body .itinerary-place-label"));
         Assert.Equal(
-            ["1-Earlier region", "1-Earlier equal", "2-Later equal", "3-Ordered gap", "4-Earlier null", "5-Later null", "2-Later region"],
+            ["0-Unassigned Places", "1-Shadow child", "1-Zulu region", "1-Zulu equal", "2-Alpha equal", "3-Ordered gap", "4-Zulu null", "5-Alpha null", "2-Alpha region"],
             normalLabels);
         Assert.Equal(normalLabels, readableLabels);
-        Assert.Equal(["Earlier region", "Later region"], document.QuerySelectorAll("#regions-accordion .accordion-item").Select(element => element.GetAttribute("data-region-name")));
+        Assert.Equal(["Unassigned Places", "Zulu region", "Alpha region"], document.QuerySelectorAll("#regions-accordion .accordion-item").Select(element => element.GetAttribute("data-region-name")));
         Assert.Equal(
-            ["Earlier equal", "Later equal", "Ordered gap", "Earlier null", "Later null"],
+            ["Shadow child", "Zulu equal", "Alpha equal", "Ordered gap", "Zulu null", "Alpha null"],
             document.QuerySelectorAll("#regions-accordion .place-list-item").Select(element => element.GetAttribute("data-place-name")));
         Assert.All(document.QuerySelectorAll("#readable-modal-body .places-list"), list => Assert.Equal("DIV", list.TagName));
     }
@@ -107,15 +107,19 @@ public sealed class TripViewerItineraryRenderingTests
     private static Trip CollisionTrip()
     {
         var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Collision trip", UpdatedAt = DateTime.UtcNow };
-        var laterRegion = Region("00000000-0000-0000-0000-000000000012", "Later region", 7, trip);
-        var earlierRegion = Region("00000000-0000-0000-0000-000000000011", "Earlier region", 7, trip);
-        earlierRegion.Places.Add(Place("00000000-0000-0000-0000-000000000025", "Later null", null, earlierRegion));
-        earlierRegion.Places.Add(Place("00000000-0000-0000-0000-000000000023", "Ordered gap", 20, earlierRegion));
-        earlierRegion.Places.Add(Place("00000000-0000-0000-0000-000000000022", "Later equal", 9, earlierRegion));
-        earlierRegion.Places.Add(Place("00000000-0000-0000-0000-000000000024", "Earlier null", null, earlierRegion));
-        earlierRegion.Places.Add(Place("00000000-0000-0000-0000-000000000021", "Earlier equal", 9, earlierRegion));
-        trip.Regions.Add(laterRegion);
-        trip.Regions.Add(earlierRegion);
+        var shadowRegion = Region("00000000-0000-0000-0000-000000000010", "Unassigned Places", 0, trip);
+        var alphaRegion = Region("00000000-0000-0000-0000-000000000012", "Alpha region", 7, trip);
+        var zuluRegion = Region("00000000-0000-0000-0000-000000000011", "Zulu region", 7, trip);
+        shadowRegion.Places.Add(Place("00000000-0000-0000-0000-000000000030", "Shadow child", 1, shadowRegion));
+        // Names intentionally reverse ID order so alphabetical tie-breakers cannot satisfy the expected labels.
+        zuluRegion.Places.Add(Place("00000000-0000-0000-0000-000000000025", "Alpha null", null, zuluRegion));
+        zuluRegion.Places.Add(Place("00000000-0000-0000-0000-000000000023", "Ordered gap", 20, zuluRegion));
+        zuluRegion.Places.Add(Place("00000000-0000-0000-0000-000000000022", "Alpha equal", 9, zuluRegion));
+        zuluRegion.Places.Add(Place("00000000-0000-0000-0000-000000000024", "Zulu null", null, zuluRegion));
+        zuluRegion.Places.Add(Place("00000000-0000-0000-0000-000000000021", "Zulu equal", 9, zuluRegion));
+        trip.Regions.Add(alphaRegion);
+        trip.Regions.Add(shadowRegion);
+        trip.Regions.Add(zuluRegion);
         return trip;
     }
 
