@@ -28,15 +28,18 @@ public sealed class ItineraryPresentationTests
     }
 
     [Fact]
-    public void OrderPlacesUsesDisplayOrderThenIdWhileCallersRestartOrdinalsPerRegion()
+    public void OrderPlacesUsesExplicitNullLastDisplayOrderThenIdWhileCallersRestartOrdinalsPerRegion()
     {
+        var gap = Place("00000000-0000-0000-0000-000000000023", "Galle", 20);
         var laterId = Place("00000000-0000-0000-0000-000000000022", "Colombo", 9);
         var earlierId = Place("00000000-0000-0000-0000-000000000021", "Kandy", 9);
+        var laterNullId = Place("00000000-0000-0000-0000-000000000025", "Jaffna", null);
+        var earlierNullId = Place("00000000-0000-0000-0000-000000000024", "Negombo", null);
 
-        var firstRegion = ItineraryPresentation.OrderPlaces([laterId, earlierId]);
+        var firstRegion = ItineraryPresentation.OrderPlaces([laterNullId, gap, laterId, earlierNullId, earlierId]);
         var secondRegion = ItineraryPresentation.OrderPlaces([Place("00000000-0000-0000-0000-000000000030", "Galle", 20)]);
 
-        Assert.Equal([earlierId.Id, laterId.Id], firstRegion.Select(place => place.Id));
+        Assert.Equal([earlierId.Id, laterId.Id, gap.Id, earlierNullId.Id, laterNullId.Id], firstRegion.Select(place => place.Id));
         Assert.Equal("1-Kandy", ItineraryPresentation.Label(1, firstRegion[0].Name));
         Assert.Equal("2-Colombo", ItineraryPresentation.Label(2, firstRegion[1].Name));
         Assert.Equal("1-Galle", ItineraryPresentation.Label(1, secondRegion[0].Name));
@@ -46,6 +49,6 @@ public sealed class ItineraryPresentationTests
     private static Region Region(string id, string name, int displayOrder) =>
         new() { Id = Guid.Parse(id), Name = name, DisplayOrder = displayOrder };
 
-    private static Place Place(string id, string name, int displayOrder) =>
+    private static Place Place(string id, string name, int? displayOrder) =>
         new() { Id = Guid.Parse(id), Name = name, DisplayOrder = displayOrder };
 }

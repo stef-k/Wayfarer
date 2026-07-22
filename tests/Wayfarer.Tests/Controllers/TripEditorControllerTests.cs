@@ -113,7 +113,7 @@ public sealed class TripEditorControllerTests : TestBase
     }
 
     [Fact]
-    public async Task GetEditorStateBreaksEqualDisplayOrderByIdAndMatchesViewerPresentationOrder()
+    public async Task GetEditorStateUsesTheSameNullLastPlaceOrderAsViewerAndMutationReader()
     {
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
@@ -149,8 +149,32 @@ public sealed class TripEditorControllerTests : TestBase
             Name = "Alphabetically Last",
             DisplayOrder = 4
         };
+        var gapPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000023"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Order gap",
+            DisplayOrder = 20
+        };
+        var laterNullPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000025"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Later null",
+            DisplayOrder = null
+        };
+        var earlierNullPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000024"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Earlier null",
+            DisplayOrder = null
+        };
         db.Regions.AddRange(laterRegion, earlierRegion);
-        db.Places.AddRange(laterPlace, earlierPlace);
+        db.Places.AddRange(laterPlace, earlierPlace, gapPlace, laterNullPlace, earlierNullPlace);
         db.SaveChanges();
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
@@ -161,12 +185,11 @@ public sealed class TripEditorControllerTests : TestBase
         var regionOrder = state.RegionOrder.ToList();
         Assert.True(regionOrder.IndexOf(earlierRegion.Id) < regionOrder.IndexOf(laterRegion.Id));
         Assert.Equal(regionOrder, ItineraryPresentation.OrderRegions(trip.Regions).Select(region => region.Id));
-        Assert.Equal(
-            [Guid.Parse("00000000-0000-0000-0000-000000000021"), Guid.Parse("00000000-0000-0000-0000-000000000022")],
-            state.PlaceOrderByRegionId[laterRegion.Id]);
-        Assert.Equal(
-            state.PlaceOrderByRegionId[laterRegion.Id],
-            ItineraryPresentation.OrderPlaces(laterRegion.Places).Select(place => place.Id));
+        var expectedPlaceOrder = new[] { earlierPlace.Id, laterPlace.Id, gapPlace.Id, earlierNullPlace.Id, laterNullPlace.Id };
+        var mutationReaderOrder = await new TripEditorPlaceMutationReader(db).LoadPlaceOrderAsync(laterRegion.Id, CancellationToken.None);
+        Assert.Equal(expectedPlaceOrder, state.PlaceOrderByRegionId[laterRegion.Id]);
+        Assert.Equal(expectedPlaceOrder, ItineraryPresentation.OrderPlaces(laterRegion.Places).Select(place => place.Id));
+        Assert.Equal(expectedPlaceOrder, mutationReaderOrder);
     }
 
     [Fact]

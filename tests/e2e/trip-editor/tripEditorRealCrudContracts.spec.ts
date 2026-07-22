@@ -36,17 +36,32 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
 
       let releaseRegionOrder!: () => void;
       const regionOrderRelease = new Promise<void>(resolve => { releaseRegionOrder = resolve; });
-      await page.route(/\/editor\/regions\/order$/, async route => {
+      const regionOrderRequests: string[][] = [];
+      const regionOrderPath = /\/editor\/regions\/order$/;
+      await page.route(regionOrderPath, async route => {
+        regionOrderRequests.push((await route.request().postDataJSON()).regionIds);
+        if (regionOrderRequests.length > 1) {
+          await route.abort();
+          return;
+        }
         const response = await route.fetch();
         await regionOrderRelease;
         await route.fulfill({ response });
-      }, { times: 1 });
+      });
       await regionCard(page, secondName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, firstName));
       await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
       await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
       await expect(page.locator('.trip-editor-save-state').filter({ hasText: 'Saving order...' }).first()).toBeVisible();
+      const blockedRegionHandle = regionCard(page, firstName).getByRole('button', { name: 'Drag to reorder region' });
+      await expect(blockedRegionHandle).toBeDisabled();
+      await dragByMouse(page, blockedRegionHandle, regionCard(page, secondName));
+      expect(regionOrderRequests, 'Only the first region order request may be emitted while ordering is pending.').toHaveLength(1);
+      await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
+      await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
       releaseRegionOrder();
       await expectSaved(page);
+      await expect(blockedRegionHandle).toBeEnabled();
+      await page.unroute(regionOrderPath);
       await expectRegionOrder(page, [secondName, firstName]);
       await page.reload();
       await expectMountedWorkspace(page);
@@ -70,12 +85,14 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
 
       let noOpRequests = 0;
-      page.on('request', request => {
-        if (/\/editor\/regions\/order$/.test(new URL(request.url()).pathname)) noOpRequests += 1;
+      await page.route(regionOrderPath, async route => {
+        noOpRequests += 1;
+        await route.abort();
       });
       await regionCard(page, secondName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, secondName));
-      await page.waitForTimeout(250);
+      await settleCompletedDrag(page);
       expect(noOpRequests, 'A no-op region drop must not issue an order request.').toBe(0);
+      await page.unroute(regionOrderPath);
 
       await deleteRegion(page, secondName);
       await deleteRegion(page, firstName);
@@ -121,16 +138,34 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`2-${firstPlace}`);
       let releasePlaceOrder!: () => void;
       const placeOrderRelease = new Promise<void>(resolve => { releasePlaceOrder = resolve; });
-      await page.route(new RegExp(`/editor/regions/${region.id}/places/order$`), async route => {
+      const placeOrderPath = new RegExp(`/editor/regions/${region.id}/places/order$`);
+      const placeOrderRequests: string[][] = [];
+      await page.route(placeOrderPath, async route => {
+        placeOrderRequests.push((await route.request().postDataJSON()).placeIds);
+        if (placeOrderRequests.length > 1) {
+          await route.abort();
+          return;
+        }
         const response = await route.fetch();
         await placeOrderRelease;
         await route.fulfill({ response });
-      }, { times: 1 });
+      });
       await placeRowByName(page, region.id, firstPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, region.id, secondPlace));
+      await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
+      await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
+      const blockedPlaceHandle = placeRowByName(page, region.id, secondPlace).getByRole('button', { name: 'Drag to reorder place' });
+      const blockedRegionHandle = regionCard(page, regionName).getByRole('button', { name: 'Drag to reorder region' });
+      await expect(blockedPlaceHandle).toBeDisabled();
+      await expect(blockedRegionHandle).toBeDisabled();
+      await dragByMouse(page, blockedPlaceHandle, placeRowByName(page, region.id, firstPlace));
+      expect(placeOrderRequests, 'Only the first place order request may be emitted while ordering is pending.').toHaveLength(1);
       await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
       await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
       releasePlaceOrder();
       await expectSaved(page);
+      await expect(blockedPlaceHandle).toBeEnabled();
+      await expect(blockedRegionHandle).toBeEnabled();
+      await page.unroute(placeOrderPath);
       await page.reload();
       await expectMountedWorkspace(page);
       const reloadedRegion = await requireRegion(page, regionName);
@@ -154,12 +189,15 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       await expect(placeLabel(page, reloadedRegion.id, secondPlace)).toHaveText(`2-${secondPlace}`);
 
       let noOpRequests = 0;
-      page.on('request', request => {
-        if (new RegExp(`/editor/regions/${reloadedRegion.id}/places/order$`).test(new URL(request.url()).pathname)) noOpRequests += 1;
+      const noOpPlaceOrderPath = new RegExp(`/editor/regions/${reloadedRegion.id}/places/order$`);
+      await page.route(noOpPlaceOrderPath, async route => {
+        noOpRequests += 1;
+        await route.abort();
       });
       await placeRowByName(page, reloadedRegion.id, firstPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, reloadedRegion.id, firstPlace));
-      await page.waitForTimeout(250);
+      await settleCompletedDrag(page);
       expect(noOpRequests, 'A no-op place drop must not issue an order request.').toBe(0);
+      await page.unroute(noOpPlaceOrderPath);
 
       await expectViewerItineraryParity(page, regionName, firstPlace, secondPlace);
 
@@ -578,6 +616,24 @@ function areaByName(state: EditorState, name: string): any | null {
 
 function placeRowByName(page: Page, regionId: string, name: string): Locator {
   return page.locator(`[data-region-id="${regionId}"] [data-place-id]`).filter({ hasText: name });
+}
+
+/** Attempts a pointer drag without Playwright's enabled-control precondition. */
+async function dragByMouse(page: Page, source: Locator, target: Locator): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  expect(sourceBox, 'Drag source must have a rendered box.').not.toBeNull();
+  expect(targetBox, 'Drag target must have a rendered box.').not.toBeNull();
+  await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 8 });
+  await page.mouse.up();
+}
+
+/** Waits for the completed drag event and its queued browser work without a timing window. */
+async function settleCompletedDrag(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 }
 
 function areaRowByName(page: Page, regionId: string, name: string): Locator {
