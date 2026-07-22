@@ -591,7 +591,7 @@
                     <div id="visitHistoryRegions">
                         @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Region>())
                         {
-                            var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Place>();
+                            var regionPlaces = ItineraryPresentation.OrderPlaces(region.Places);
                             var regionVisitedCount = regionPlaces.Count(p => visitsByPlace.ContainsKey(p.Id));
                             var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
 
@@ -723,7 +723,7 @@
                     <h6 class="text-muted mb-3">Progress by Region</h6>
                     @foreach (var region in Model.Regions?.OrderBy(r => r.DisplayOrder) ?? Enumerable.Empty<Region>())
                     {
-                        var regionPlaces = region.Places?.OrderBy(p => p.DisplayOrder).ToList() ?? new List<Place>();
+                        var regionPlaces = ItineraryPresentation.OrderPlaces(region.Places);
                         var regionVisitedCount = regionPlaces.Count(p => placeVisitCounts.ContainsKey(p.Id));
                         var regionPercent = regionPlaces.Count > 0 ? (int)Math.Round((double)regionVisitedCount / regionPlaces.Count * 100) : 0;
 

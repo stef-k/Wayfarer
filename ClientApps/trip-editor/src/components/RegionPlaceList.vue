@@ -50,6 +50,16 @@ let sortable: { destroy: () => void } | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
 let placeReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 let areaReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
+let reorderEmissionLocked = false;
+
+watch(
+  () => props.isOrdering,
+  value => {
+    if (!value) {
+      reorderEmissionLocked = false;
+    }
+  }
+);
 
 watch(
   () => props.state.regionOrder.join('|'),
@@ -128,7 +138,7 @@ function attachRegionSortable(): void {
     draggable: '.trip-editor-region-card--normal',
     handle: '.trip-editor-drag-handle',
     onStart: () => {
-      if (props.isOrdering) {
+      if (reorderLocked()) {
         reorderSnapshotIds = null;
         return;
       }
@@ -136,7 +146,7 @@ function attachRegionSortable(): void {
       reorderSnapshotIds = normalRegionIds();
     },
     onEnd: () => {
-      if (props.isOrdering || !regionList.value) {
+      if (reorderLocked() || !regionList.value) {
         reorderSnapshotIds = null;
         return;
       }
@@ -145,6 +155,7 @@ function attachRegionSortable(): void {
       reorderSnapshotIds = null;
       const ids = Array.from(regionList.value.querySelectorAll<HTMLElement>('[data-region-id][data-reorderable="true"]')).map(element => element.dataset.regionId!);
       if (ids.join('|') !== previousIds.join('|')) {
+        reorderEmissionLocked = true;
         optimisticRegionIds.value = ids;
         emit('regionReorder', ids, previousIds);
       }
@@ -165,7 +176,7 @@ function attachPlaceSortables(): void {
       draggable: '.trip-editor-place-row',
       handle: '.trip-editor-place-drag-handle',
       onStart: () => {
-        if (props.isOrdering) {
+        if (reorderLocked()) {
           placeReorderSnapshot = null;
           return;
         }
@@ -173,7 +184,7 @@ function attachPlaceSortables(): void {
         placeReorderSnapshot = { regionId, ids: [...(props.state.placeOrderByRegionId[regionId] ?? [])] };
       },
       onEnd: () => {
-        if (props.isOrdering) {
+        if (reorderLocked()) {
           placeReorderSnapshot = null;
           return;
         }
@@ -182,6 +193,7 @@ function attachPlaceSortables(): void {
         placeReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-place-id]')).map(row => row.dataset.placeId!);
         if (ids.join('|') !== previousIds.join('|')) {
+          reorderEmissionLocked = true;
           optimisticPlaceIdsByRegionId.value = { ...optimisticPlaceIdsByRegionId.value, [regionId]: ids };
           emit('placeReorder', regionId, ids, previousIds);
         }
@@ -208,7 +220,7 @@ function attachAreaSortables(): void {
       draggable: '.trip-editor-area-row',
       handle: '.trip-editor-area-drag-handle',
       onStart: () => {
-        if (props.isOrdering) {
+        if (reorderLocked()) {
           areaReorderSnapshot = null;
           return;
         }
@@ -216,7 +228,7 @@ function attachAreaSortables(): void {
         areaReorderSnapshot = { regionId, ids: [...(props.state.areaOrderByRegionId[regionId] ?? [])] };
       },
       onEnd: () => {
-        if (props.isOrdering) {
+        if (reorderLocked()) {
           areaReorderSnapshot = null;
           return;
         }
@@ -225,6 +237,7 @@ function attachAreaSortables(): void {
         areaReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-area-id]')).map(row => row.dataset.areaId!);
         if (ids.join('|') !== previousIds.join('|')) {
+          reorderEmissionLocked = true;
           emit('areaReorder', regionId, ids, previousIds);
         }
       }
@@ -239,6 +252,11 @@ function destroyAreaSortables(): void {
 
 function normalRegionIds(): Guid[] {
   return props.state.regionOrder.filter(id => !props.state.regionsById[id]?.isShadow);
+}
+
+/// Blocks same-turn callbacks before the parent ordering prop has rendered.
+function reorderLocked(): boolean {
+  return props.isOrdering || reorderEmissionLocked;
 }
 
 /// Resolves a visible region label from the complete authoritative or transient normal-region order.

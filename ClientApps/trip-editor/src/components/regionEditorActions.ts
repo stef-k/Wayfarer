@@ -110,6 +110,11 @@ export function useRegionEditorActions(context: any) {
   };
 
   const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
+    if (context.isOrdering.value) {
+      await context.restoreRegionOrder(previousIds);
+      return;
+    }
+
     if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering?'))) {
       await context.restoreRegionOrder(previousIds);
       return;
@@ -117,6 +122,11 @@ export function useRegionEditorActions(context: any) {
 
     if (context.isDirty.value) {
       context.clearAllDraftsAndBaselines();
+    }
+
+    if (context.isOrdering.value) {
+      await context.restoreRegionOrder(previousIds);
+      return;
     }
 
     context.isOrdering.value = true;

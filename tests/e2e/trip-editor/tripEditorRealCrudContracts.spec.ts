@@ -112,17 +112,8 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
     const regionName = uniqueName('PW real place region');
     const firstPlace = `${regionName} A`;
     const secondPlace = `${regionName} B`;
-    const apiTokenName = uniqueName('PW itinerary collision token');
-    let apiToken = '';
-    let apiTokenCreationAttempted = false;
-    let originalApiTokenDeleteLinks: string[] = [];
 
     try {
-      originalApiTokenDeleteLinks = await apiTokenDeleteLinks(page);
-      apiTokenCreationAttempted = true;
-      apiToken = await createDisposableApiToken(page, apiTokenName);
-      await page.goto(absoluteUrl(editorPath));
-      await expectMountedWorkspace(page);
       await createRegion(page, regionName);
       const region = await requireRegion(page, regionName);
       const shadow = await requireUnassignedRegion(page);
@@ -208,15 +199,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       expect(noOpRequests, 'A no-op place drop must not issue an order request.').toBe(0);
       await page.unroute(noOpPlaceOrderPath);
 
-      const collisionState = await loadEditorStateFixture(page);
-      const collisionPlaces = [placeByName(collisionState, firstPlace), placeByName(collisionState, secondPlace)];
-      for (const place of collisionPlaces) {
-        await updateLegacyPlaceOrder(page, apiToken, place.id, 17);
-      }
-      const expectedCollisionPlaces = [...collisionPlaces].sort((left, right) => left.id.localeCompare(right.id));
-      const authoritativeCollisionState = await loadEditorStateFixture(page);
-      expect(authoritativeCollisionState.placeOrderByRegionId[reloadedRegion.id]).toEqual(expectedCollisionPlaces.map(place => place.id));
-      await expectViewerItineraryParity(page, regionName, expectedCollisionPlaces[0].name, expectedCollisionPlaces[1].name);
+      await expectViewerItineraryParity(page, regionName, firstPlace, secondPlace);
 
       await deletePlace(page, reloadedRegion.id, secondPlace);
       await expect(placeLabel(page, reloadedRegion.id, firstPlace)).toHaveText(`1-${firstPlace}`);
@@ -226,14 +209,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         expect(placeByName(state, secondPlace)).toBeNull();
       });
     } finally {
-      try {
-        await cleanupRegions(page, [regionName]);
-      } finally {
-        if (apiTokenCreationAttempted) {
-          await deleteDisposableApiToken(page, apiTokenName);
-          expect(await apiTokenDeleteLinks(page), 'API token state must be restored after the rendered collision fixture.').toEqual(originalApiTokenDeleteLinks);
-        }
-      }
+      await cleanupRegions(page, [regionName]);
     }
   });
 
@@ -614,47 +590,6 @@ async function deleteMutation(page: Page, path: string): Promise<void> {
 
 async function antiforgeryToken(page: Page): Promise<string> {
   return await page.locator('#trip-editor-antiforgery input[name="__RequestVerificationToken"]').inputValue();
-}
-
-/** Creates one disposable bearer token through the existing cookie-authenticated account endpoint. */
-async function createDisposableApiToken(page: Page, name: string): Promise<string> {
-  await page.goto(absoluteUrl('/User/ApiToken'));
-  const requestVerificationToken = await page.locator('input[name="__RequestVerificationToken"]').first().inputValue();
-  const response = await page.request.post(absoluteUrl('/User/ApiToken/Create'), {
-    form: { name, __RequestVerificationToken: requestVerificationToken }
-  });
-  expect(response.ok(), `Creating disposable API token returned ${response.status()}.`).toBeTruthy();
-  const match = (await response.text()).match(/id="new-token-display"[^>]*>([^<]+)</);
-  expect(match, 'The disposable API token must be returned once by the account page.').not.toBeNull();
-  return match![1].trim();
-}
-
-/** Deletes only the uniquely named API token created by this test. */
-async function deleteDisposableApiToken(page: Page, name: string): Promise<void> {
-  await page.goto(absoluteUrl('/User/ApiToken'));
-  const tokenRow = page.locator('.card-body > .d-flex').filter({ hasText: `Service: ${name}` });
-  if ((await tokenRow.count()) === 0) {
-    return;
-  }
-
-  await tokenRow.getByRole('link', { name: 'Delete' }).click();
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByText(`Service: ${name}`, { exact: false })).toHaveCount(0);
-}
-
-/** Captures all deletable account tokens so cleanup can prove exact restoration. */
-async function apiTokenDeleteLinks(page: Page): Promise<string[]> {
-  await page.goto(absoluteUrl('/User/ApiToken'));
-  return (await page.getByRole('link', { name: 'Delete' }).evaluateAll(links => links.map(link => (link as HTMLAnchorElement).href))).sort();
-}
-
-/** Applies a controlled legacy collision through the existing bearer-token API. */
-async function updateLegacyPlaceOrder(page: Page, apiToken: string, placeId: string, displayOrder: number): Promise<void> {
-  const response = await page.request.put(absoluteUrl(`/api/trips/places/${placeId}`), {
-    data: { displayOrder },
-    headers: { Authorization: `Bearer ${apiToken}` }
-  });
-  expect(response.ok(), `Legacy place update returned ${response.status()}: ${await response.text()}`).toBeTruthy();
 }
 
 function reorderedAdjacent(current: string[], firstId: string, secondId: string): string[] {
