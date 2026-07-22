@@ -70,8 +70,9 @@ public sealed class TripViewerItineraryRenderingTests
         var routeData = new RouteData();
         routeData.Routers.Add(new RouteCollection());
         var actionContext = new ActionContext(httpContext, routeData, new ActionDescriptor());
+        // Render the target view and its partials without _ViewStart so the test does not depend on built frontend assets.
         var viewResult = services.GetRequiredService<ICompositeViewEngine>()
-            .GetView(null, "/Views/Trip/Viewer.cshtml", isMainPage: true);
+            .GetView(null, "/Views/Trip/Viewer.cshtml", isMainPage: false);
         Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
         var view = Assert.IsAssignableFrom<IView>(viewResult.View);
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
