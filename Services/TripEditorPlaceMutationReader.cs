@@ -97,7 +97,8 @@ public sealed class TripEditorPlaceMutationReader
         await _dbContext.Places
             .AsNoTracking()
             .Where(p => p.RegionId == regionId)
-            .OrderBy(p => p.DisplayOrder)
+            .OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1)
+            .ThenBy(p => p.DisplayOrder)
             .ThenBy(p => p.Id)
             .Select(p => p.Id)
             .ToListAsync(cancellationToken);

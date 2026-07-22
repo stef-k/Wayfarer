@@ -66,7 +66,7 @@ watch(
 );
 
 watch(
-  () => `${props.searchActive}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
+  () => `${props.searchActive}|${props.isOrdering}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
   async () => {
     await nextTick();
     attachSortables();
@@ -119,7 +119,7 @@ function attachSortables(): void {
 function attachRegionSortable(): void {
   sortable?.destroy();
   sortable = null;
-  if (props.searchActive || !regionList.value || !window.Sortable) {
+  if (props.searchActive || props.isOrdering || !regionList.value || !window.Sortable) {
     return;
   }
 
@@ -128,10 +128,16 @@ function attachRegionSortable(): void {
     draggable: '.trip-editor-region-card--normal',
     handle: '.trip-editor-drag-handle',
     onStart: () => {
+      if (props.isOrdering) {
+        reorderSnapshotIds = null;
+        return;
+      }
+
       reorderSnapshotIds = normalRegionIds();
     },
     onEnd: () => {
-      if (!regionList.value) {
+      if (props.isOrdering || !regionList.value) {
+        reorderSnapshotIds = null;
         return;
       }
 
@@ -148,7 +154,7 @@ function attachRegionSortable(): void {
 
 function attachPlaceSortables(): void {
   destroyPlaceSortables();
-  if (props.searchActive || !window.Sortable) {
+  if (props.searchActive || props.isOrdering || !window.Sortable) {
     return;
   }
 
@@ -159,9 +165,19 @@ function attachPlaceSortables(): void {
       draggable: '.trip-editor-place-row',
       handle: '.trip-editor-place-drag-handle',
       onStart: () => {
+        if (props.isOrdering) {
+          placeReorderSnapshot = null;
+          return;
+        }
+
         placeReorderSnapshot = { regionId, ids: [...(props.state.placeOrderByRegionId[regionId] ?? [])] };
       },
       onEnd: () => {
+        if (props.isOrdering) {
+          placeReorderSnapshot = null;
+          return;
+        }
+
         const previousIds = placeReorderSnapshot?.ids ?? [...(props.state.placeOrderByRegionId[regionId] ?? [])];
         placeReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-place-id]')).map(row => row.dataset.placeId!);
@@ -181,7 +197,7 @@ function destroyPlaceSortables(): void {
 
 function attachAreaSortables(): void {
   destroyAreaSortables();
-  if (props.searchActive || !window.Sortable) {
+  if (props.searchActive || props.isOrdering || !window.Sortable) {
     return;
   }
 
@@ -192,9 +208,19 @@ function attachAreaSortables(): void {
       draggable: '.trip-editor-area-row',
       handle: '.trip-editor-area-drag-handle',
       onStart: () => {
+        if (props.isOrdering) {
+          areaReorderSnapshot = null;
+          return;
+        }
+
         areaReorderSnapshot = { regionId, ids: [...(props.state.areaOrderByRegionId[regionId] ?? [])] };
       },
       onEnd: () => {
+        if (props.isOrdering) {
+          areaReorderSnapshot = null;
+          return;
+        }
+
         const previousIds = areaReorderSnapshot?.ids ?? [...(props.state.areaOrderByRegionId[regionId] ?? [])];
         areaReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-area-id]')).map(row => row.dataset.areaId!);
@@ -316,7 +342,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
           class="trip-editor-icon-button trip-editor-drag-handle"
           title="Drag to reorder region"
           aria-label="Drag to reorder region"
-          :disabled="props.searchActive"
+          :disabled="props.searchActive || props.isOrdering"
         >
           <span aria-hidden="true">::</span>
         </button>
@@ -357,7 +383,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               class="trip-editor-icon-button trip-editor-place-drag-handle"
               title="Drag to reorder place"
               aria-label="Drag to reorder place"
-              :disabled="props.searchActive"
+              :disabled="props.searchActive || props.isOrdering"
             >
               <span aria-hidden="true">::</span>
             </button>

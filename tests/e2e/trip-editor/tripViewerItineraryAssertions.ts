@@ -10,9 +10,16 @@ export async function expectViewerItineraryParity(page: Page, regionName: string
   await expect(normalRegion.locator('.itinerary-region-label')).toContainText(regionName);
   await expect(normalRegion.locator('[data-place-name]').nth(0)).toHaveAttribute('data-place-name', firstPlace);
   await expect(normalRegion.locator('[data-place-name]').nth(1)).toHaveAttribute('data-place-name', secondPlace);
+  await expect(normalRegion.locator('.itinerary-place-label').nth(0)).toHaveText(`1-${firstPlace}`);
+  await expect(normalRegion.locator('.itinerary-place-label').nth(1)).toHaveText(`2-${secondPlace}`);
   const normalLabels = await page.locator('#regions-accordion .itinerary-region-label, #regions-accordion .itinerary-place-label').allInnerTexts();
   const readableLabels = await page.locator('#readable-modal-body .itinerary-region-label, #readable-modal-body .itinerary-place-label').allInnerTexts();
   expect(readableLabels).toEqual(normalLabels);
+  const readableRegion = page.locator('#readable-modal-body .region-readable').filter({
+    has: page.locator('.itinerary-region-label').filter({ hasText: regionName })
+  });
+  await expect(readableRegion.locator('.itinerary-place-label').nth(0)).toHaveText(`1-${firstPlace}`);
+  await expect(readableRegion.locator('.itinerary-place-label').nth(1)).toHaveText(`2-${secondPlace}`);
 
   await page.locator('#btn-expand-readable').click();
   await expect(page.locator('#readableViewModal')).toBeVisible();

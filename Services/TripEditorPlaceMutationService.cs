@@ -259,7 +259,12 @@ public sealed class TripEditorPlaceMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.ValidationFailed(errors);
         }
 
-        var currentIds = region.Places.OrderBy(p => p.DisplayOrder).ThenBy(p => p.Id).Select(p => p.Id).ToList();
+        var currentIds = region.Places
+            .OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1)
+            .ThenBy(p => p.DisplayOrder)
+            .ThenBy(p => p.Id)
+            .Select(p => p.Id)
+            .ToList();
         if (orderRequest.PlaceIds.Count != currentIds.Count
             || orderRequest.PlaceIds.Distinct().Count() != orderRequest.PlaceIds.Count
             || orderRequest.PlaceIds.Any(id => !currentIds.Contains(id)))

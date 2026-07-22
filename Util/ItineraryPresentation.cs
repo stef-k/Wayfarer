@@ -13,9 +13,13 @@ public static class ItineraryPresentation
     public static IReadOnlyList<Region> OrderRegions(IEnumerable<Region>? regions) =>
         (regions ?? []).OrderBy(region => region.DisplayOrder).ThenBy(region => region.Id).ToList();
 
-    /// <summary>Orders complete sibling places by persisted order and stable identifier.</summary>
+    /// <summary>Orders complete sibling places by non-null persisted order, then stable identifier, with null orders last.</summary>
     public static IReadOnlyList<Place> OrderPlaces(IEnumerable<Place>? places) =>
-        (places ?? []).OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id).ToList();
+        (places ?? [])
+            .OrderBy(place => place.DisplayOrder.HasValue ? 0 : 1)
+            .ThenBy(place => place.DisplayOrder)
+            .ThenBy(place => place.Id)
+            .ToList();
 
     /// <summary>Resolves the displayed region ordinal without letting the shadow region consume a normal number.</summary>
     public static int RegionOrdinal(Region region, IReadOnlyList<Region> orderedRegions) =>
