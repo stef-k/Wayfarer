@@ -26,30 +26,42 @@ public sealed class TripViewerItineraryRenderingTests
     [Fact]
     public async Task ViewerRendersEqualAndNullableOrdersIdenticallyAcrossNormalAndReadableMarkup()
     {
-        using var host = BuildRazorHost();
-        using var scope = host.Services.CreateScope();
-        var trip = CollisionTrip();
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-itinerary-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        // Supply the production-only layout dependency without requiring frontend assets to be built by the test job.
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = CollisionTrip();
 
-        var html = await RenderViewerAsync(scope.ServiceProvider, trip);
-        var document = await new HtmlParser().ParseDocumentAsync(html);
+            var html = await RenderViewerAsync(scope.ServiceProvider, trip);
+            var document = await new HtmlParser().ParseDocumentAsync(html);
 
-        var normalLabels = Labels(document.QuerySelectorAll("#regions-accordion .itinerary-region-label, #regions-accordion .itinerary-place-label"));
-        var readableLabels = Labels(document.QuerySelectorAll("#readable-modal-body .itinerary-region-label, #readable-modal-body .itinerary-place-label"));
-        Assert.Equal(
-            ["0-Unassigned Places", "1-Shadow child", "1-Zulu region", "1-Zulu equal", "2-Alpha equal", "3-Ordered gap", "4-Zulu null", "5-Alpha null", "2-Alpha region"],
-            normalLabels);
-        Assert.Equal(normalLabels, readableLabels);
-        Assert.Equal(["Unassigned Places", "Zulu region", "Alpha region"], document.QuerySelectorAll("#regions-accordion .accordion-item").Select(element => element.GetAttribute("data-region-name")));
-        Assert.Equal(
-            ["Shadow child", "Zulu equal", "Alpha equal", "Ordered gap", "Zulu null", "Alpha null"],
-            document.QuerySelectorAll("#regions-accordion .place-list-item").Select(element => element.GetAttribute("data-place-name")));
-        Assert.All(document.QuerySelectorAll("#readable-modal-body .places-list"), list => Assert.Equal("DIV", list.TagName));
+            var normalLabels = Labels(document.QuerySelectorAll("#regions-accordion .itinerary-region-label, #regions-accordion .itinerary-place-label"));
+            var readableLabels = Labels(document.QuerySelectorAll("#readable-modal-body .itinerary-region-label, #readable-modal-body .itinerary-place-label"));
+            Assert.Equal(
+                ["0-Unassigned Places", "1-Shadow child", "1-Zulu region", "1-Zulu equal", "2-Alpha equal", "3-Ordered gap", "4-Zulu null", "5-Alpha null", "2-Alpha region"],
+                normalLabels);
+            Assert.Equal(normalLabels, readableLabels);
+            Assert.Equal(["Unassigned Places", "Zulu region", "Alpha region"], document.QuerySelectorAll("#regions-accordion .accordion-item").Select(element => element.GetAttribute("data-region-name")));
+            Assert.Equal(
+                ["Shadow child", "Zulu equal", "Alpha equal", "Ordered gap", "Zulu null", "Alpha null"],
+                document.QuerySelectorAll("#regions-accordion .place-list-item").Select(element => element.GetAttribute("data-place-name")));
+            Assert.All(document.QuerySelectorAll("#readable-modal-body .places-list"), list => Assert.Equal("DIV", list.TagName));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
     }
 
-    private static IHost BuildRazorHost() =>
+    private static IHost BuildRazorHost(string webRoot) =>
         Host.CreateDefaultBuilder()
             .ConfigureWebHostDefaults(webHost => webHost
                 .UseContentRoot(Directory.GetCurrentDirectory())
+                .UseWebRoot(webRoot)
                 .UseSetting(WebHostDefaults.ApplicationKey, typeof(Trip).Assembly.GetName().Name)
                 .ConfigureServices(services =>
                 {
@@ -70,9 +82,8 @@ public sealed class TripViewerItineraryRenderingTests
         var routeData = new RouteData();
         routeData.Routers.Add(new RouteCollection());
         var actionContext = new ActionContext(httpContext, routeData, new ActionDescriptor());
-        // Render the target view and its partials without _ViewStart so the test does not depend on built frontend assets.
         var viewResult = services.GetRequiredService<ICompositeViewEngine>()
-            .GetView(null, "/Views/Trip/Viewer.cshtml", isMainPage: false);
+            .GetView(null, "/Views/Trip/Viewer.cshtml", isMainPage: true);
         Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
         var view = Assert.IsAssignableFrom<IView>(viewResult.View);
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
