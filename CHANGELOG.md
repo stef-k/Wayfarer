@@ -2,8 +2,9 @@
 
 ## [1.6.0] - 2026-07-22
 
-### Changed
-- TODO: Add release notes before publishing.
+### Added
+- Added deterministic route numbering for regions and places in the Trip Editor, normal trip viewer, readable view, and readable browser print output. Reordering updates and saves the numbering automatically, while raw names remain unchanged.
+- The visible Unassigned Places region is fixed at `0`, and place numbering restarts from `1` within every region.
 
 ## [1.5.2] - 2026-07-20
 
