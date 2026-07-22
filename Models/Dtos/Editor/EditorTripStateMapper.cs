@@ -24,7 +24,7 @@ public static class EditorTripStateMapper
     {
         ArgumentNullException.ThrowIfNull(trip);
 
-        var regions = trip.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Name).ToList();
+        var regions = trip.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToList();
         var places = regions.SelectMany(r => r.Places.Select(p => (Region: r, Place: p))).ToList();
         var areas = regions.SelectMany(r => r.Areas.Select(a => (Region: r, Area: a))).ToList();
         var segments = trip.Segments.OrderBy(s => s.DisplayOrder).ThenBy(s => s.Id).ToList();
@@ -37,7 +37,12 @@ public static class EditorTripStateMapper
             RegionsById = regions.ToDictionary(r => r.Id, ToRegion),
             RegionOrder = regions.Select(r => r.Id).ToList(),
             PlacesById = places.ToDictionary(p => p.Place.Id, p => ToPlace(trip.Id, p.Region.Id, p.Place, visitSummaries[p.Place.Id])),
-            PlaceOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Places.OrderBy(p => p.DisplayOrder).ThenBy(p => p.Name).Select(p => p.Id).ToList()),
+            PlaceOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Places
+                .OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1)
+                .ThenBy(p => p.DisplayOrder)
+                .ThenBy(p => p.Id)
+                .Select(p => p.Id)
+                .ToList()),
             AreasById = areas.ToDictionary(a => a.Area.Id, a => ToArea(trip.Id, a.Region.Id, a.Area)),
             AreaOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).Select(a => a.Id).ToList()),
             SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s)),

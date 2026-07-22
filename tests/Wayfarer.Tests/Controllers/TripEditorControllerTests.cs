@@ -13,6 +13,7 @@ using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using PublicTripViewerController = Wayfarer.Areas.Public.Controllers.TripViewerController;
 using Xunit;
 
@@ -109,6 +110,86 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.True(state.Permissions.CanEditTrip);
         Assert.True(state.Permissions.CanToggleShareProgress);
         Assert.All(state.Permissions.GetType().GetProperties(), property => Assert.True((bool)property.GetValue(state.Permissions)!));
+    }
+
+    [Fact]
+    public async Task GetEditorStateUsesTheSameNullLastPlaceOrderAsViewerAndMutationReader()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var laterRegion = new Region
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000012"),
+            TripId = trip.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically First",
+            DisplayOrder = 7
+        };
+        var earlierRegion = new Region
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000011"),
+            TripId = trip.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically Last",
+            DisplayOrder = 7
+        };
+        var laterPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000022"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically First",
+            DisplayOrder = 4
+        };
+        var earlierPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000021"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Alphabetically Last",
+            DisplayOrder = 4
+        };
+        var gapPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000023"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Order gap",
+            DisplayOrder = 20
+        };
+        var laterNullPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000025"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Later null",
+            DisplayOrder = null
+        };
+        var earlierNullPlace = new Place
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000024"),
+            RegionId = laterRegion.Id,
+            UserId = "owner-user",
+            Name = "Earlier null",
+            DisplayOrder = null
+        };
+        db.Regions.AddRange(laterRegion, earlierRegion);
+        db.Places.AddRange(laterPlace, earlierPlace, gapPlace, laterNullPlace, earlierNullPlace);
+        db.SaveChanges();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.GetEditorState(trip.Id, CancellationToken.None);
+
+        var state = Assert.IsType<EditorTripStateDto>(Assert.IsType<OkObjectResult>(result).Value);
+        var regionOrder = state.RegionOrder.ToList();
+        Assert.True(regionOrder.IndexOf(earlierRegion.Id) < regionOrder.IndexOf(laterRegion.Id));
+        Assert.Equal(regionOrder, ItineraryPresentation.OrderRegions(trip.Regions).Select(region => region.Id));
+        var expectedPlaceOrder = new[] { earlierPlace.Id, laterPlace.Id, gapPlace.Id, earlierNullPlace.Id, laterNullPlace.Id };
+        var mutationReaderOrder = await new TripEditorPlaceMutationReader(db).LoadPlaceOrderAsync(laterRegion.Id, CancellationToken.None);
+        Assert.Equal(expectedPlaceOrder, state.PlaceOrderByRegionId[laterRegion.Id]);
+        Assert.Equal(expectedPlaceOrder, ItineraryPresentation.OrderPlaces(laterRegion.Places).Select(place => place.Id));
+        Assert.Equal(expectedPlaceOrder, mutationReaderOrder);
     }
 
     [Fact]

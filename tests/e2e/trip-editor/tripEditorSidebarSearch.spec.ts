@@ -24,6 +24,14 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
+    const fixtureRegion = Object.values(state.regionsById).find(region => region.name === fixture.region.name)!;
+    const placeRegionEntity = Object.values(state.regionsById).find(region => region.name === fixture.place.regionName)!;
+    const fixturePlace = Object.values(state.placesById).find(place => place.name === fixture.place.name)!;
+    const regionOrdinal = state.regionOrder.filter(id => !state.regionsById[id]?.isShadow).indexOf(fixtureRegion.id) + 1;
+    const placeOrdinal = state.placeOrderByRegionId[placeRegionEntity.id].indexOf(fixturePlace.id) + 1;
+    await expect(regionCard(page, fixture.region.name).getByRole('heading')).toHaveText(`${regionOrdinal}-${fixture.region.name}`);
+    await expect(regionCard(page, fixture.place.regionName).getByText(`${placeOrdinal}-${fixture.place.name}`, { exact: true })).toBeVisible();
+
     const requests = collectForbiddenSidebarSearchRequests(page);
     const search = page.getByLabel('Sidebar search');
     await expect(search).toBeVisible();
@@ -42,6 +50,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await search.fill(fixture.place.name);
     await expect(placeRegion).toBeVisible();
     await expect(placeRegion).toContainText(fixture.place.name);
+    await expect(placeRegion.getByText(`${placeOrdinal}-${fixture.place.name}`, { exact: true })).toBeVisible();
     await expectNoSearchAddUi(page);
     expect(requests(), 'Sidebar search should not call Nominatim, geosearch, search-add, or search endpoints.').toEqual([]);
 
@@ -58,8 +67,9 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await closeDraftWithDiscard(page);
     await search.fill('');
 
-    await placeRegion.getByText(fixture.place.name).locator('xpath=ancestor::li[contains(@class, "trip-editor-place-row")]').getByRole('button', { name: 'Edit', exact: true }).click();
+    await placeRegion.locator('.trip-editor-place-row').filter({ hasText: fixture.place.name }).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.getByRole('heading', { name: new RegExp(`Edit Place - ${escapeRegex(fixture.place.name)}`) })).toBeVisible();
+    await expect(page.locator('#trip-editor-place-form').getByLabel('Name')).toHaveValue(fixture.place.name);
     await search.fill(uniqueName('no matching place draft query'));
     await expect(placeRegion).toBeVisible();
     await expect(placeRegion).toContainText(fixture.place.name);
@@ -132,7 +142,15 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await page.getByLabel('Sidebar search').fill(fixture!.childName);
     const shadowCard = regionCard(page, fixture!.regionName);
     await expect(shadowCard).toBeVisible();
-    await expect(shadowCard.getByText(fixture!.childName, { exact: true })).toBeVisible();
+    await expect(shadowCard.getByRole('heading')).toHaveText('0-Unassigned Places');
+    if (fixture!.childKind === 'place') {
+      const shadow = Object.values(state.regionsById).find(region => region.name === fixture!.regionName)!;
+      const placeId = Object.values(state.placesById).find(place => place.name === fixture!.childName)!.id;
+      const ordinal = state.placeOrderByRegionId[shadow.id].indexOf(placeId) + 1;
+      await expect(shadowCard.getByText(`${ordinal}-${fixture!.childName}`, { exact: true })).toBeVisible();
+    } else {
+      await expect(shadowCard.getByText(fixture!.childName, { exact: true })).toBeVisible();
+    }
     await expect(shadowCard.getByRole('button', { name: 'Add Place' })).toHaveCount(0);
     await expect(shadowCard.getByRole('button', { name: /add area/i })).toHaveCount(0);
     await expect(regionEditButton(shadowCard)).toHaveCount(0);

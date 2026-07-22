@@ -22,6 +22,8 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     if (!fixture) {
       return;
     }
+    const placeOrdinal = initial.placeOrderByRegionId[fixture.place.regionId].indexOf(fixture.place.id) + 1;
+    const canonicalLabel = `${placeOrdinal}-${fixture.place.name}`;
 
     await editPlace(page, fixture.place.id);
     const form = page.locator('#trip-editor-place-form');
@@ -37,14 +39,15 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await expectFailedStatus(page);
     await expect(form.getByLabel('Name')).toHaveValue(draftName);
     await expect(form.getByLabel('Address')).toHaveValue('PW failed place save address');
-    await expect(placeRow(page, fixture.place.id).locator('.trip-editor-place-row__name')).toHaveText(fixture.place.name);
+    await expect(placeRow(page, fixture.place.id)).toHaveAttribute('data-place-name', fixture.place.name);
+    await expect(placeRow(page, fixture.place.id).locator('.trip-editor-place-row__name')).toHaveText(canonicalLabel);
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
 
     await staleSave.unroute();
     await activeEditorCancelButton(page).click();
     await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(form).toHaveCount(0);
-    await expect(placeRow(page, fixture.place.id).locator('.trip-editor-place-row__name')).toHaveText(fixture.place.name);
+    await expect(placeRow(page, fixture.place.id).locator('.trip-editor-place-row__name')).toHaveText(canonicalLabel);
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
   });
 

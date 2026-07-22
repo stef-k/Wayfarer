@@ -42,15 +42,41 @@ const emit = defineEmits<{
 const regionList = ref<HTMLElement | null>(null);
 const collapsedRegionIds = ref<Set<Guid>>(new Set());
 const searchCollapsedSnapshot = ref<Set<Guid> | null>(null);
+const optimisticRegionIds = ref<Guid[] | null>(null);
+const optimisticPlaceIdsByRegionId = ref<Record<Guid, Guid[]>>({});
 const placeSortables = new Map<string, { destroy: () => void }>();
 const areaSortables = new Map<string, { destroy: () => void }>();
 let sortable: { destroy: () => void } | null = null;
 let reorderSnapshotIds: Guid[] | null = null;
 let placeReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 let areaReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
+let reorderEmissionLocked = false;
 
 watch(
-  () => `${props.searchActive}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
+  () => props.isOrdering,
+  value => {
+    if (!value) {
+      reorderEmissionLocked = false;
+    }
+  }
+);
+
+watch(
+  () => props.state.regionOrder.join('|'),
+  () => {
+    optimisticRegionIds.value = null;
+  }
+);
+
+watch(
+  () => Object.entries(props.state.placeOrderByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|'),
+  () => {
+    optimisticPlaceIdsByRegionId.value = {};
+  }
+);
+
+watch(
+  () => `${props.searchActive}|${props.isOrdering}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
   async () => {
     await nextTick();
     attachSortables();
@@ -103,7 +129,7 @@ function attachSortables(): void {
 function attachRegionSortable(): void {
   sortable?.destroy();
   sortable = null;
-  if (props.searchActive || !regionList.value || !window.Sortable) {
+  if (props.searchActive || props.isOrdering || !regionList.value || !window.Sortable) {
     return;
   }
 
@@ -112,10 +138,16 @@ function attachRegionSortable(): void {
     draggable: '.trip-editor-region-card--normal',
     handle: '.trip-editor-drag-handle',
     onStart: () => {
+      if (reorderLocked()) {
+        reorderSnapshotIds = null;
+        return;
+      }
+
       reorderSnapshotIds = normalRegionIds();
     },
     onEnd: () => {
-      if (!regionList.value) {
+      if (reorderLocked() || !regionList.value) {
+        reorderSnapshotIds = null;
         return;
       }
 
@@ -123,6 +155,8 @@ function attachRegionSortable(): void {
       reorderSnapshotIds = null;
       const ids = Array.from(regionList.value.querySelectorAll<HTMLElement>('[data-region-id][data-reorderable="true"]')).map(element => element.dataset.regionId!);
       if (ids.join('|') !== previousIds.join('|')) {
+        reorderEmissionLocked = true;
+        optimisticRegionIds.value = ids;
         emit('regionReorder', ids, previousIds);
       }
     }
@@ -131,7 +165,7 @@ function attachRegionSortable(): void {
 
 function attachPlaceSortables(): void {
   destroyPlaceSortables();
-  if (props.searchActive || !window.Sortable) {
+  if (props.searchActive || props.isOrdering || !window.Sortable) {
     return;
   }
 
@@ -142,13 +176,25 @@ function attachPlaceSortables(): void {
       draggable: '.trip-editor-place-row',
       handle: '.trip-editor-place-drag-handle',
       onStart: () => {
+        if (reorderLocked()) {
+          placeReorderSnapshot = null;
+          return;
+        }
+
         placeReorderSnapshot = { regionId, ids: [...(props.state.placeOrderByRegionId[regionId] ?? [])] };
       },
       onEnd: () => {
+        if (reorderLocked()) {
+          placeReorderSnapshot = null;
+          return;
+        }
+
         const previousIds = placeReorderSnapshot?.ids ?? [...(props.state.placeOrderByRegionId[regionId] ?? [])];
         placeReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-place-id]')).map(row => row.dataset.placeId!);
         if (ids.join('|') !== previousIds.join('|')) {
+          reorderEmissionLocked = true;
+          optimisticPlaceIdsByRegionId.value = { ...optimisticPlaceIdsByRegionId.value, [regionId]: ids };
           emit('placeReorder', regionId, ids, previousIds);
         }
       }
@@ -163,7 +209,7 @@ function destroyPlaceSortables(): void {
 
 function attachAreaSortables(): void {
   destroyAreaSortables();
-  if (props.searchActive || !window.Sortable) {
+  if (props.searchActive || props.isOrdering || !window.Sortable) {
     return;
   }
 
@@ -174,13 +220,24 @@ function attachAreaSortables(): void {
       draggable: '.trip-editor-area-row',
       handle: '.trip-editor-area-drag-handle',
       onStart: () => {
+        if (reorderLocked()) {
+          areaReorderSnapshot = null;
+          return;
+        }
+
         areaReorderSnapshot = { regionId, ids: [...(props.state.areaOrderByRegionId[regionId] ?? [])] };
       },
       onEnd: () => {
+        if (reorderLocked()) {
+          areaReorderSnapshot = null;
+          return;
+        }
+
         const previousIds = areaReorderSnapshot?.ids ?? [...(props.state.areaOrderByRegionId[regionId] ?? [])];
         areaReorderSnapshot = null;
         const ids = Array.from(element.querySelectorAll<HTMLElement>('[data-area-id]')).map(row => row.dataset.areaId!);
         if (ids.join('|') !== previousIds.join('|')) {
+          reorderEmissionLocked = true;
           emit('areaReorder', regionId, ids, previousIds);
         }
       }
@@ -194,7 +251,31 @@ function destroyAreaSortables(): void {
 }
 
 function normalRegionIds(): Guid[] {
-  return props.regions.filter(region => !region.isShadow).map(region => region.id);
+  return props.state.regionOrder.filter(id => !props.state.regionsById[id]?.isShadow);
+}
+
+/// Blocks same-turn callbacks before the parent ordering prop has rendered.
+function reorderLocked(): boolean {
+  return props.isOrdering || reorderEmissionLocked;
+}
+
+/// Resolves a visible region label from the complete authoritative or transient normal-region order.
+function regionLabel(region: EditorRegion): string {
+  if (region.isShadow) {
+    return `0-${region.name}`;
+  }
+
+  const ids = optimisticRegionIds.value
+    ?? props.state.regionOrder.filter(id => !props.state.regionsById[id]?.isShadow);
+  return `${ids.indexOf(region.id) + 1}-${region.name}`;
+}
+
+/// Resolves a place label from its complete authoritative or transient parent-region order.
+function placeLabel(place: EditorPlace): string {
+  const ids = optimisticPlaceIdsByRegionId.value[place.regionId]
+    ?? props.state.placeOrderByRegionId[place.regionId]
+    ?? [];
+  return `${ids.indexOf(place.id) + 1}-${place.name}`;
 }
 
 function orderedPlaces(regionId: Guid): EditorPlace[] {
@@ -269,6 +350,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
         'trip-editor-region-card--shadow': region.isShadow
       }"
       :data-region-id="region.id"
+      :data-region-name="region.name"
       :data-reorderable="!region.isShadow"
     >
       <header class="trip-editor-region-card__header">
@@ -278,12 +360,12 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
           class="trip-editor-icon-button trip-editor-drag-handle"
           title="Drag to reorder region"
           aria-label="Drag to reorder region"
-          :disabled="props.searchActive"
+          :disabled="props.searchActive || props.isOrdering"
         >
           <span aria-hidden="true">::</span>
         </button>
         <div>
-          <h3>{{ region.name }}</h3>
+          <h3 class="itinerary-region-label">{{ regionLabel(region) }}</h3>
         </div>
         <div class="trip-editor-region-card__actions">
           <button
@@ -308,6 +390,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
             class="trip-editor-place-row"
             :class="{ 'trip-editor-place-row--active': props.activePlaceId === place.id }"
             :data-place-id="place.id"
+            :data-place-name="place.name"
             tabindex="0"
             @click="emit('selectPlace', place)"
             @keydown.enter.prevent="emit('selectPlace', place)"
@@ -318,7 +401,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               class="trip-editor-icon-button trip-editor-place-drag-handle"
               title="Drag to reorder place"
               aria-label="Drag to reorder place"
-              :disabled="props.searchActive"
+              :disabled="props.searchActive || props.isOrdering"
             >
               <span aria-hidden="true">::</span>
             </button>
@@ -327,7 +410,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               <span v-if="place.visitSummary.isVisited" class="trip-editor-place-row__visit-badge">{{ place.visitSummary.visitCount === 1 ? '✓' : place.visitSummary.visitCount }}</span>
             </span>
             <span class="trip-editor-place-row__content">
-              <span class="trip-editor-place-row__name">{{ place.name }}</span>
+              <span class="trip-editor-place-row__name itinerary-place-label">{{ placeLabel(place) }}</span>
               <small v-if="place.visitSummary.isVisited">{{ placeMarkerLabel(place) }}</small>
             </span>
             <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">Edit</button>

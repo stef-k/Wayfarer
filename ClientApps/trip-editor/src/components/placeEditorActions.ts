@@ -165,6 +165,11 @@ export function usePlaceEditorActions(context: any) {
   };
 
   const reorderPlaces = async (regionId: Guid, ids: Guid[], previousIds: Guid[]): Promise<void> => {
+    if (context.isOrdering.value) {
+      await context.restoreRegionOrder(previousIds);
+      return;
+    }
+
     if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering places?'))) {
       await context.restoreRegionOrder(previousIds);
       return;
@@ -172,6 +177,11 @@ export function usePlaceEditorActions(context: any) {
 
     if (context.isDirty.value) {
       context.clearAllDraftsAndBaselines();
+    }
+
+    if (context.isOrdering.value) {
+      await context.restoreRegionOrder(previousIds);
+      return;
     }
 
     context.isOrdering.value = true;
