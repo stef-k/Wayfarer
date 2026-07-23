@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.Services;
 
 public partial class TileCacheService
 {
@@ -50,10 +51,12 @@ public partial class TileCacheService
         var activeSeries = _refreshSeries.GetOrAdd(tileKey, series);
         if (!ReferenceEquals(activeSeries, series))
         {
+            TileCacheDiagnostics.StaleRefreshCoalesced(_logger, "coalesced", zoom);
             _logger.LogDebug("Refresh already active for stale tile {TileKey}", tileKey);
             return;
         }
 
+        TileCacheDiagnostics.StaleRefreshScheduled(_logger, "scheduled", zoom);
         _ = Task.Run(() => RunBackgroundRefreshSeriesAsync(series), CancellationToken.None);
     }
 
@@ -78,9 +81,9 @@ public partial class TileCacheService
                         return;
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    _logger.LogWarning(ex, "Background refresh attempt {Attempt} failed for tile {TileKey}",
+                    _logger.LogWarning("Background refresh attempt {Attempt} failed for tile {TileKey}",
                         series.Attempts, series.TileKey);
                 }
 
@@ -96,11 +99,17 @@ public partial class TileCacheService
                 }
 
                 var delay = _refreshRetryDelayProvider(series.Attempts);
-                await Task.Delay(delay > remaining ? remaining : delay, series.CancellationToken).ConfigureAwait(false);
+                var selectedDelay = delay > remaining ? remaining : delay;
+                TileCacheDiagnostics.RetryDelaySelected(
+                    _logger,
+                    selectedDelay.TotalMilliseconds,
+                    "stale-refresh");
+                await Task.Delay(selectedDelay, series.CancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
+            TileCacheDiagnostics.Cancellation(_logger, "stale-refresh");
             _logger.LogDebug("Background refresh cancelled for tile {TileKey}", series.TileKey);
         }
         finally
@@ -131,7 +140,7 @@ public partial class TileCacheService
         var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         return await tileCacheService.RevalidateTileAsync(series.TileUrl, series.TileFilePath,
             series.TileKey, series.Zoom, series.X, series.Y, series.ETag,
-            series.LastModified, series.ClientIp, series.CancellationToken);
+            series.LastModified, series.ClientIp, series.Attempts, series.CancellationToken);
     }
 
     /// <summary>

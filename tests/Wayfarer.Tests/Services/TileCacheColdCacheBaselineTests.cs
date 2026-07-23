@@ -24,6 +24,7 @@ public sealed class TileCacheColdCacheBaselineTests
     /// <summary>Creates the fixture with an output sink for the numeric baseline report.</summary>
     public TileCacheColdCacheBaselineTests(ITestOutputHelper output) => _output = output;
 
+    /// <summary>Records the nominal current-policy burst, replenishment gaps, and local rejections.</summary>
     [Fact]
     public async Task ColdViewport_LargerThanBurst_RecordsCurrentBurstAndGapBaseline()
     {
@@ -58,6 +59,7 @@ public sealed class TileCacheColdCacheBaselineTests
             outcome => Assert.Equal(TilesController.BudgetRetryAfterSeconds, outcome.RetryAfterSeconds));
     }
 
+    /// <summary>Runs one isolated controller request and captures its local status and Retry-After.</summary>
     private static async Task<LocalTileOutcome> RequestTileAsync(TileCacheTestHarness harness, int tileX)
     {
         using var scope = harness.CreateScope();
@@ -86,6 +88,7 @@ public sealed class TileCacheColdCacheBaselineTests
         return new LocalTileOutcome(tileX, statusCode, retryAfter);
     }
 
+    /// <summary>Derives a stable numerical report from fake-upstream starts and local controller outcomes.</summary>
     private static ColdCacheBaselineReport BuildReport(
         IReadOnlyCollection<RecordedTileRequest> requests,
         IReadOnlyCollection<LocalTileOutcome> outcomes)
@@ -137,7 +140,7 @@ public sealed class TileCacheColdCacheBaselineTests
         private readonly int _burstCapacity;
         private readonly TimeSpan _replenishmentInterval;
         private readonly TimeSpan _acquireTimeout;
-        private readonly AsyncLocal<TimeSpan> _currentRequestStart = new();
+        private readonly ConcurrentQueue<TimeSpan> _acceptedRequestStarts = new();
         private int _requestSequence;
 
         public ControlledCurrentBudget(
@@ -159,18 +162,26 @@ public sealed class TileCacheColdCacheBaselineTests
                 ? TimeSpan.Zero
                 : _replenishmentInterval * (sequence - _burstCapacity);
             var acquired = wait <= _acquireTimeout;
-            _currentRequestStart.Value = acquired ? wait : _acquireTimeout;
+            if (acquired)
+            {
+                _acceptedRequestStarts.Enqueue(wait);
+            }
             return Task.FromResult(new OutboundBudgetAcquisition(
                 acquired,
                 acquired ? wait : _acquireTimeout));
         }
 
         /// <summary>Gets the logical upstream start assigned to the current asynchronous request.</summary>
-        public TimeSpan GetCurrentRequestStart() => _currentRequestStart.Value;
+        public TimeSpan GetCurrentRequestStart() =>
+            _acceptedRequestStarts.TryDequeue(out var start)
+                ? start
+                : throw new InvalidOperationException("No controlled acquisition was assigned to this request.");
     }
 
+    /// <summary>Captures the local controller result for one unique visible tile.</summary>
     private sealed record LocalTileOutcome(int TileX, int StatusCode, int? RetryAfterSeconds);
 
+    /// <summary>Contains all numeric evidence required to reproduce the controlled baseline.</summary>
     private sealed record ColdCacheBaselineReport(
         int UniqueTiles,
         int BurstCapacity,

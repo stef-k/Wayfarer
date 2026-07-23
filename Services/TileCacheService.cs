@@ -76,6 +76,13 @@ public partial class TileCacheService
     private static long _currentCacheSize = 0;
 
     /// <summary>
+    /// Delay seam for the current fixed cold-miss retry policy.
+    /// Production retains the existing 500 ms delay; tests may complete it without wall-clock waiting.
+    /// </summary>
+    private static Func<TimeSpan, CancellationToken, Task> _coldMissRetryDelay =
+        static (delay, cancellationToken) => Task.Delay(delay, cancellationToken);
+
+    /// <summary>
     /// Guards against concurrent eviction runs. Only one eviction can proceed at a time;
     /// concurrent callers skip eviction (the in-progress run will free enough space).
     /// Uses <see cref="Interlocked.CompareExchange(ref int, int, int)"/> for lock-free coalescing.
@@ -123,194 +130,6 @@ public partial class TileCacheService
     };
 
     /// <summary>
-    /// Token-bucket rate limiter for outbound requests to upstream tile providers (e.g., OSM).
-    /// Prevents cache-miss cascading from overwhelming the upstream server and risking a block
-    /// under OSM's fair use policy. Replenishes at a sustained rate of 2 tokens/sec with a
-    /// burst capacity of 10 queued requests. OSM's "maximum of 2 download threads" connection
-    /// policy is enforced at the transport layer via <c>SocketsHttpHandler.MaxConnectionsPerServer</c>
-    /// in Program.cs, not by this budget. The budget controls throughput (sustained request rate),
-    /// while MaxConnectionsPerServer controls concurrency (simultaneous TCP connections).
-    /// Thread-safe: uses <see cref="SemaphoreSlim"/> for token management and
-    /// <see cref="PeriodicTimer"/> for replenishment.
-    /// </summary>
-    internal static class OutboundBudget
-    {
-        /// <summary>
-        /// Maximum burst capacity — how many outbound requests can proceed without waiting
-        /// for replenishment. Set to 12 to allow initial map loads to proceed quickly on
-        /// a cold cache. OSM's 2-connection limit is enforced at the transport layer via
-        /// <c>SocketsHttpHandler.MaxConnectionsPerServer = 2</c> in Program.cs.
-        /// </summary>
-        internal const int BurstCapacity = 12;
-
-        /// <summary>
-        /// Replenishment interval — one token is released every this many milliseconds.
-        /// 500ms = 2 tokens/sec sustained rate, complying with OSM's fair use policy.
-        /// </summary>
-        internal const int ReplenishIntervalMs = 500;
-
-        /// <summary>
-        /// Maximum time to wait for a token before giving up. Callers that time out
-        /// serve stale cache or return 503 (graceful degradation).
-        /// Reduced from 10s to 3s to prevent thread pool starvation under sustained
-        /// cold-cache load, then raised to 3.5s to allow one extra token per wave
-        /// during cold-cache bootstrap without exceeding thread pool pressure.
-        /// </summary>
-        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(3.5);
-
-        /// <summary>
-        /// Semaphore representing available outbound tokens. Initialized to <see cref="BurstCapacity"/>.
-        /// Each <see cref="AcquireAsync"/> call consumes one token; the replenishment task restores them.
-        /// </summary>
-        private static readonly SemaphoreSlim _tokens = new(BurstCapacity, BurstCapacity);
-
-        /// <summary>
-        /// Cancellation source for stopping the replenishment task during shutdown or testing.
-        /// Not disposed on stop — the replenisher task may still hold a reference to its token.
-        /// Old instances are abandoned for GC to avoid ObjectDisposedException races.
-        /// </summary>
-        private static volatile CancellationTokenSource _replenisherCts = new();
-
-        /// <summary>
-        /// Ensures the replenishment task is started exactly once, even under concurrent access.
-        /// Declared volatile so replacement in <see cref="StopReplenisher"/> is visible across threads.
-        /// </summary>
-        private static volatile Lazy<Task> _replenisher = new(
-            () => StartReplenisher(_replenisherCts.Token),
-            LazyThreadSafetyMode.ExecutionAndPublication);
-
-        /// <summary>
-        /// Attempts to acquire a token for an outbound request. Returns true if a token was
-        /// obtained within the timeout, false if the budget is exhausted.
-        /// Automatically starts the replenishment background task on first call.
-        /// </summary>
-        /// <param name="cancellationToken">Cancellation token for the calling request.</param>
-        /// <returns>True if a token was acquired and the outbound request may proceed.</returns>
-        internal static async Task<bool> AcquireAsync(CancellationToken cancellationToken = default)
-        {
-            // Ensure the replenishment task is running (no-op after first call).
-            _ = _replenisher.Value;
-            return await _tokens.WaitAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Starts a long-running background task that releases one semaphore token every
-        /// <see cref="ReplenishIntervalMs"/> milliseconds, maintaining the sustained outbound rate.
-        /// Uses <see cref="PeriodicTimer"/> for efficient, non-blocking scheduling.
-        /// Stops cleanly when the <paramref name="ct"/> is cancelled (e.g., during app shutdown).
-        /// </summary>
-        /// <param name="ct">Cancellation token that stops the replenisher loop.</param>
-        private static Task StartReplenisher(CancellationToken ct)
-        {
-            return Task.Run(async () =>
-            {
-                using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(ReplenishIntervalMs));
-                try
-                {
-                    while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
-                    {
-                        // Release a token if below capacity. The catch handles the harmless race
-                        // where CurrentCount changes between the check and the Release.
-                        if (_tokens.CurrentCount < BurstCapacity)
-                        {
-                            try
-                            {
-                                _tokens.Release();
-                            }
-                            catch (SemaphoreFullException)
-                            {
-                                // Harmless race: another thread released between our check and Release().
-                            }
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected during shutdown or test reset — exit cleanly.
-                }
-            }, CancellationToken.None);
-        }
-
-        /// <summary>
-        /// Cancels the current replenishment task and prepares a fresh Lazy so a new replenisher
-        /// starts on the next <see cref="AcquireAsync"/> call. Cancels the old CTS first to stop
-        /// the running replenisher before creating replacements — this eliminates the brief window
-        /// where two replenishers could overlap and double-release tokens.
-        /// Uses <see cref="_stopLock"/> to prevent concurrent calls from interleaving the
-        /// cancel-then-replace sequence and orphaning a replenisher.
-        /// Does NOT dispose the old CTS — the replenisher task may still reference its token;
-        /// abandoned CTS instances are GC'd.
-        /// </summary>
-        private static readonly object _stopLock = new();
-
-        private static void StopReplenisher()
-        {
-            lock (_stopLock)
-            {
-                var oldCts = _replenisherCts;
-                oldCts.Cancel();
-                var newCts = new CancellationTokenSource();
-                _replenisherCts = newCts;
-                _replenisher = new Lazy<Task>(
-                    () => StartReplenisher(newCts.Token),
-                    LazyThreadSafetyMode.ExecutionAndPublication);
-            }
-        }
-
-        /// <summary>
-        /// Stops the replenishment task for clean application shutdown. Does not drain or refill
-        /// tokens — simply cancels the background task. Called from
-        /// <c>IHostApplicationLifetime.ApplicationStopping</c>.
-        /// </summary>
-        internal static void Stop()
-        {
-            _replenisherCts.Cancel();
-        }
-
-        /// <summary>
-        /// Resets the outbound budget for testing. Stops the replenisher, drains and refills
-        /// the semaphore to burst capacity, then prepares a fresh replenisher for the next acquire.
-        /// Must only be called when no concurrent <see cref="AcquireAsync"/> calls are in flight
-        /// (i.e., between tests in a single-threaded setup phase).
-        /// </summary>
-        internal static void ResetForTesting()
-        {
-            StopReplenisher();
-            // Drain all tokens.
-            while (_tokens.CurrentCount > 0)
-            {
-                _tokens.Wait(0);
-            }
-            // Refill to burst capacity.
-            try
-            {
-                _tokens.Release(BurstCapacity);
-            }
-            catch (SemaphoreFullException)
-            {
-                // Already at capacity after drain — safe to ignore.
-            }
-        }
-
-        /// <summary>
-        /// Drains all outbound budget tokens and stops replenishment for testing.
-        /// After this call, the next <see cref="AcquireAsync"/> will return false (budget exhausted).
-        /// Also pre-cancels the fresh CTS so the replenisher exits immediately when
-        /// <see cref="AcquireAsync"/> lazily starts it — prevents token refill during the test.
-        /// </summary>
-        internal static void DrainForTesting()
-        {
-            StopReplenisher();
-            while (_tokens.CurrentCount > 0)
-            {
-                _tokens.Wait(0);
-            }
-            // Pre-cancel the fresh CTS so the replenisher cannot refill tokens.
-            _replenisherCts.Cancel();
-        }
-    }
-
-    /// <summary>
     /// Stops the outbound budget replenishment task for clean application shutdown.
     /// Call from <c>IHostApplicationLifetime.ApplicationStopping</c> or equivalent.
     /// </summary>
@@ -352,6 +171,7 @@ public partial class TileCacheService
         _refreshSeries.Clear();
         _sidecarCache.Clear();
         SetRefreshRetryDelayForTesting(null);
+        SetColdMissRetryDelayForTesting(null);
         SetTileFileReplacerForTesting(null);
         Interlocked.Exchange(ref _currentCacheSize, 0);
         Interlocked.Exchange(ref _evictionInProgress, 0);
@@ -485,7 +305,8 @@ public partial class TileCacheService
     /// </summary>
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
-        string? clientIp = null, bool allowHttpContext = true, CancellationToken cancellationToken = default)
+        string? clientIp = null, bool allowHttpContext = true, int attemptNumber = 1,
+        CancellationToken cancellationToken = default)
     {
         // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
         // then record the hit only after the global budget is acquired. This prevents
@@ -515,9 +336,9 @@ public partial class TileCacheService
                 if (resolvedIpForBudget != null && RateLimitHelper.WouldExceedRateLimit(
                         TilesController.OutboundBudgetCache, resolvedIpForBudget, perIpLimit))
                 {
+                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "client");
                     _logger.LogWarning(
-                        "Per-IP outbound budget exceeded for {ClientIp} — throttling upstream request for {TileUrl}",
-                        resolvedIpForBudget, TileProviderCatalog.RedactApiKey(tileUrl));
+                        "Per-client outbound tile allowance exceeded; upstream request rejected.");
                     return null;
                 }
             }
@@ -527,12 +348,22 @@ public partial class TileCacheService
         // so callers can gracefully degrade (serve stale cache or return 503).
         // skipBudget is true on retries — the budget was already acquired on the first attempt,
         // so retries should not consume additional tokens.
-        if (!skipBudget && !await OutboundBudget.AcquireAsync(cancellationToken).ConfigureAwait(false))
+        if (!skipBudget)
         {
-            _logger.LogWarning(
-                "Outbound request budget exhausted — throttling upstream request for {TileUrl}",
-                TileProviderCatalog.RedactApiKey(tileUrl));
-            return null;
+            var acquisition = await OutboundBudget.AcquireDetailedAsync(cancellationToken).ConfigureAwait(false);
+            TileCacheDiagnostics.BudgetWait(
+                _logger,
+                acquisition.Acquired ? "acquired" : "rejected",
+                acquisition.WaitDuration.TotalMilliseconds);
+            if (!acquisition.Acquired)
+            {
+                TileCacheDiagnostics.GlobalBudgetRejected(
+                    _logger,
+                    "global",
+                    acquisition.WaitDuration.TotalMilliseconds);
+                _logger.LogWarning("Global outbound tile budget exhausted; upstream request rejected.");
+                return null;
+            }
         }
 
         // Both budgets passed — record the per-IP hit now that an upstream fetch will proceed.
@@ -545,6 +376,7 @@ public partial class TileCacheService
         const int maxRedirects = 3;
         var initialUri = new Uri(tileUrl);
         var currentUri = initialUri;
+        var requestKind = configureRequest == null ? "unconditional" : "conditional";
 
         for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++)
         {
@@ -562,14 +394,35 @@ public partial class TileCacheService
             // Let the caller add conditional headers (If-None-Match, If-Modified-Since, etc.)
             configureRequest?.Invoke(request);
 
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            TileCacheDiagnostics.UpstreamAttempt(_logger, requestKind, attemptNumber);
+            HttpResponseMessage response;
+            try
+            {
+                response = await _httpClient.SendAsync(request, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                TileCacheDiagnostics.Cancellation(_logger, "upstream");
+                throw;
+            }
+            catch (Exception)
+            {
+                TileCacheDiagnostics.UpstreamFailure(_logger, "transport");
+                throw;
+            }
+
+            TileCacheDiagnostics.UpstreamStatus(
+                _logger,
+                requestKind,
+                attemptNumber,
+                (int)response.StatusCode);
 
             if (IsRedirectStatus(response.StatusCode))
             {
                 var location = response.Headers.Location;
                 if (location == null)
                 {
-                    _logger.LogWarning("Tile response redirected without a Location header: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+                    _logger.LogWarning("Tile response redirected without a Location header.");
                     response.Dispose();
                     return null;
                 }
@@ -585,7 +438,7 @@ public partial class TileCacheService
 
                 if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogWarning("Rejected tile redirect to non-HTTPS URL: {RedirectUrl}", TileProviderCatalog.RedactApiKey(nextUri.ToString()));
+                    _logger.LogWarning("Rejected tile redirect to a non-HTTPS URL.");
                     response.Dispose();
                     return null;
                 }
@@ -598,7 +451,7 @@ public partial class TileCacheService
             return response;
         }
 
-        _logger.LogWarning("Rejected tile redirect chain exceeding {MaxRedirects} for {TileUrl}", maxRedirects, TileProviderCatalog.RedactApiKey(tileUrl));
+        _logger.LogWarning("Rejected tile redirect chain exceeding {MaxRedirects}.", maxRedirects);
         return null;
     }
 
@@ -609,9 +462,10 @@ public partial class TileCacheService
     /// <param name="tileUrl">The upstream tile URL.</param>
     /// <param name="skipBudget">If true, skips outbound budget acquisition (used on retries).</param>
     private Task<HttpResponseMessage?> SendTileRequestAsync(string tileUrl, bool skipBudget = false,
-        string? clientIp = null, CancellationToken cancellationToken = default)
+        string? clientIp = null, int attemptNumber = 1, CancellationToken cancellationToken = default)
     {
-        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget, clientIp: clientIp, cancellationToken: cancellationToken);
+        return SendTileRequestCoreAsync(tileUrl, skipBudget: skipBudget, clientIp: clientIp,
+            attemptNumber: attemptNumber, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -620,7 +474,7 @@ public partial class TileCacheService
     /// </summary>
     private Task<HttpResponseMessage?> SendConditionalTileRequestAsync(string tileUrl, string? etag,
         DateTime? lastModified, string? clientIp = null, bool allowHttpContext = true,
-        CancellationToken cancellationToken = default)
+        int attemptNumber = 1, CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
         {
@@ -637,7 +491,8 @@ public partial class TileCacheService
             {
                 request.Headers.IfModifiedSince = new DateTimeOffset(lastModified.Value, TimeSpan.Zero);
             }
-        }, clientIp: clientIp, allowHttpContext: allowHttpContext, cancellationToken: cancellationToken);
+        }, clientIp: clientIp, allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
+            cancellationToken: cancellationToken);
     }
 
     private static bool IsRedirectStatus(HttpStatusCode statusCode)
@@ -797,16 +652,20 @@ public partial class TileCacheService
 
             while (retryCount > 0)
             {
+                var attemptNumber = 4 - retryCount;
                 // On retries, skip budget acquisition — the token was already consumed
                 // on the first attempt. This prevents HTTP 5xx retries from exhausting
                 // the entire burst budget under upstream failures.
-                using var response = await SendTileRequestAsync(tileUrl, skipBudget: budgetAcquired, cancellationToken: cancellationToken);
+                using var response = await SendTileRequestAsync(
+                    tileUrl,
+                    skipBudget: budgetAcquired,
+                    attemptNumber: attemptNumber,
+                    cancellationToken: cancellationToken);
                 if (response == null)
                 {
                     // Budget exhaustion means the system is at capacity — retrying is futile
                     // and would only add latency (up to AcquireTimeout per attempt).
-                    _logger.LogWarning("Outbound budget exhausted, aborting fetch for: {TileUrl}",
-                        TileProviderCatalog.RedactApiKey(tileUrl));
+                    _logger.LogWarning("Outbound tile budget rejected cache fill.");
                     break;
                 }
                 budgetAcquired = true;
@@ -820,12 +679,14 @@ public partial class TileCacheService
                     lastModifiedUpstream = response.Content.Headers.LastModified?.UtcDateTime;
                     expiresAtUtc = ParseCacheExpiry(response);
 
+                    var cacheWriteOutcome = "preserved-existing";
                     await _cacheLock.WaitAsync();
                     try
                     {
                         if (!File.Exists(tileFilePath)) // Prevent overwriting existing files
                         {
                             await File.WriteAllBytesAsync(tileFilePath, tileData);
+                            cacheWriteOutcome = "stored";
                         }
 
                         // For zoom < DbMetadataZoomThreshold, write sidecar in the same lock acquisition as the tile file.
@@ -842,6 +703,7 @@ public partial class TileCacheService
                     }
                     catch (IOException ioEx)
                     {
+                        TileCacheDiagnostics.CacheWriteOutcome(_logger, "failed", zoom);
                         _logger.LogError(ioEx, "Failed to write tile data to file: {TileFilePath}", tileFilePath);
                         return true;
                     }
@@ -850,24 +712,27 @@ public partial class TileCacheService
                         _cacheLock.Release();
                     }
 
+                    TileCacheDiagnostics.CacheWriteOutcome(_logger, cacheWriteOutcome, zoom);
                     _logger.LogInformation("Tile cached at: {TileFilePath}", tileFilePath);
                     break;
                 }
 
-                _logger.LogWarning("Attempt failed with status code {StatusCode} for URL: {TileUrl}",
-                    response.StatusCode, TileProviderCatalog.RedactApiKey(tileUrl));
+                _logger.LogWarning("Tile upstream attempt failed with status code {StatusCode}.",
+                    response.StatusCode);
                 retryCount--;
                 if (retryCount == 0)
                 {
                     // Returns true (not budget-exhausted) so the controller sends 404 rather than 503.
                     // Upstream HTTP failures (500/502/504) are non-retryable at the client level —
                     // retrying would not help if OSM is down and would only pile up stale requests.
-                    _logger.LogError("Failed to download tile after multiple attempts: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+                    _logger.LogError("Failed to download tile after multiple attempts.");
                     return true;
                 }
 
                 // Optional: Delay between retries to avoid rate limiting
-                await Task.Delay(500, cancellationToken); // 500ms delay between retries
+                var retryDelay = TimeSpan.FromMilliseconds(500);
+                TileCacheDiagnostics.RetryDelaySelected(_logger, retryDelay.TotalMilliseconds, "cold-miss");
+                await _coldMissRetryDelay(retryDelay, cancellationToken);
             }
 
             // Budget was never acquired — signal throttling to caller.
@@ -1011,12 +876,25 @@ public partial class TileCacheService
 
             return true;
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            _logger.LogError(ex, "Error caching tile from {TileUrl}.", TileProviderCatalog.RedactApiKey(tileUrl));
+            // The transport emits the stable cancellation event; preserve the existing local outcome in Phase 1.
+            return true;
+        }
+        catch (Exception)
+        {
+            _logger.LogError("Error caching tile without recording provider exception details.");
             return true;
         }
     }
+
+    /// <summary>
+    /// Overrides only the wait mechanism for the existing fixed cold-miss retry delay in tests.
+    /// </summary>
+    internal static void SetColdMissRetryDelayForTesting(
+        Func<TimeSpan, CancellationToken, Task>? delayProvider) =>
+        _coldMissRetryDelay = delayProvider ??
+            ((delay, cancellationToken) => Task.Delay(delay, cancellationToken));
 
     /// <summary>
     /// Retrieves a tile from the cache. If the tile exists on disk, checks whether it is
@@ -1186,6 +1064,7 @@ public partial class TileCacheService
                             await TouchLastAccessedFromHotHitAsync(zoomLvl, xVal, yVal);
                         }
 
+                        TileCacheDiagnostics.FreshCacheHit(_logger, "fresh", zoomLvl);
                         return TileRetrievalResult.Success(cachedTileData);
                     }
 
@@ -1228,6 +1107,7 @@ public partial class TileCacheService
                         await TouchLastAccessedFromHotHitAsync(zoomLvl, xVal, yVal);
                     }
 
+                    TileCacheDiagnostics.StaleCacheHit(_logger, "stale", zoomLvl);
                     return TileRetrievalResult.Success(staleTileData);
                 }
             }
@@ -1239,7 +1119,8 @@ public partial class TileCacheService
                 return TileRetrievalResult.NotFound();
             }
 
-            _logger.LogDebug("Tile not in cache. Fetching from: {TileUrl}", TileProviderCatalog.RedactApiKey(tileUrl));
+            TileCacheDiagnostics.ColdCacheMiss(_logger, "miss", zoomLvl);
+            _logger.LogDebug("Tile not in cache; starting controlled upstream fetch.");
             var cached = await CacheTileAsync(tileUrl, zoomLevel, xCoordinate, yCoordinate, cancellationToken);
 
             // After fetching, read the file. No lock needed for reads (see fast-path comment above).
@@ -1262,9 +1143,14 @@ public partial class TileCacheService
             // File doesn't exist after CacheTileAsync — distinguish budget exhaustion from other failures.
             return cached ? TileRetrievalResult.NotFound() : TileRetrievalResult.Throttled();
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            _logger.LogError(ex, "Error retrieving tile from cache.");
+            TileCacheDiagnostics.Cancellation(_logger, "retrieval");
+            return TileRetrievalResult.NotFound();
+        }
+        catch (Exception)
+        {
+            _logger.LogError("Error retrieving tile from cache.");
             return TileRetrievalResult.NotFound();
         }
     }
@@ -1281,14 +1167,14 @@ public partial class TileCacheService
     /// </summary>
     private async Task<byte[]?> RevalidateTileAsync(string tileUrl, string tileFilePath, string tileKey,
         int zoom, int x, int y, string? etag, DateTime? lastModified,
-        string? clientIp = null, CancellationToken cancellationToken = default)
+        string? clientIp = null, int attemptNumber = 1, CancellationToken cancellationToken = default)
     {
         using var response = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, clientIp,
-            allowHttpContext: false, cancellationToken: cancellationToken);
+            allowHttpContext: false, attemptNumber: attemptNumber, cancellationToken: cancellationToken);
         if (response == null)
         {
-            _logger.LogWarning("Conditional tile request rejected for {TileUrl}",
-                TileProviderCatalog.RedactApiKey(tileUrl));
+            TileCacheDiagnostics.StaleRefreshRejected(_logger, "rejected", zoom);
+            _logger.LogWarning("Conditional tile request rejected before upstream transport.");
             return null;
         }
 
@@ -1305,8 +1191,6 @@ public partial class TileCacheService
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await UpdateTileExpiryScopedAsync(dbContext, zoom, x, y, newEtag, lastModified, newExpiry);
             }
-
-            _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", tileKey);
 
             byte[]? data = null;
             if (zoom < DbMetadataZoomThreshold)
@@ -1350,6 +1234,12 @@ public partial class TileCacheService
                 }
             }
 
+            TileCacheDiagnostics.ConditionalResponseOutcome(
+                _logger,
+                "not-modified",
+                (int)response.StatusCode);
+            TileCacheDiagnostics.CacheWriteOutcome(_logger, "revalidated", zoom);
+            _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", tileKey);
             return data;
         }
 
@@ -1397,12 +1287,20 @@ public partial class TileCacheService
                     newLastModified, newExpiry);
             }
 
+            TileCacheDiagnostics.ConditionalResponseOutcome(
+                _logger,
+                "replaced",
+                (int)response.StatusCode);
+            TileCacheDiagnostics.CacheWriteOutcome(_logger, "replaced", zoom);
             _logger.LogDebug("Tile {TileKey} re-validated (200 OK, replaced)", tileKey);
             return tileData;
         }
 
-        _logger.LogWarning("Conditional request returned {StatusCode} for {TileUrl}",
-            response.StatusCode, TileProviderCatalog.RedactApiKey(tileUrl));
+        TileCacheDiagnostics.ConditionalResponseOutcome(
+            _logger,
+            "rejected-status",
+            (int)response.StatusCode);
+        _logger.LogWarning("Conditional request returned {StatusCode}.", response.StatusCode);
         return null;
     }
 

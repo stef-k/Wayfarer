@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Areas.Public.Controllers;
@@ -16,6 +17,7 @@ namespace Wayfarer.Tests.Services;
 [Collection("OutboundBudget")]
 public sealed class TileCacheDiagnosticsAndPolicyTests
 {
+    /// <summary>Proves a fresh local tile emits a stable hit event and performs no upstream work.</summary>
     [Fact]
     public async Task FreshCacheHit_EmitsStableDiagnostic_WithoutUpstreamRequest()
     {
@@ -35,6 +37,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         Assert.Equal("fresh", diagnostic.Fields["CacheOutcome"]);
     }
 
+    /// <summary>Proves stale bytes return immediately while refresh scheduling is observable and coalesced.</summary>
     [Fact]
     public async Task StaleCacheHit_ReturnsBeforeRefreshAndReportsScheduledThenCoalesced()
     {
@@ -62,6 +65,14 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         var tileUrl = CanonicalTileUrl(5, 3, 4);
         Assert.True(await service.CacheTileAsync(tileUrl, "5", "3", "4"));
+        await File.WriteAllTextAsync(
+            Path.Combine(harness.CacheDirectory, "5_3_4.png.meta"),
+            JsonSerializer.Serialize(new TileSidecarMetadata
+            {
+                ETag = "\"stale-v1\"",
+                ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-1)
+            }));
+        TileCacheService.ResetStaticStateForTesting();
 
         var first = await service.RetrieveTileAsync("5", "3", "4", tileUrl);
         await refreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -69,7 +80,8 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
 
         Assert.NotNull(first.TileData);
         Assert.NotNull(second.TileData);
-        AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.StaleCacheHit);
+        Assert.Contains(harness.Logs.Entries,
+            entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.StaleCacheHit);
         AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.StaleRefreshScheduled);
         AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.StaleRefreshCoalesced);
 
@@ -79,6 +91,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
             TimeSpan.FromSeconds(2)));
     }
 
+    /// <summary>Proves one canonical OSM request emits neither cache busting nor speculative prefetch traffic.</summary>
     [Fact]
     public async Task CanonicalOsmRequest_EmitsNoCacheBustingOrPrefetchTraffic()
     {
@@ -101,11 +114,14 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.CacheWriteOutcome);
     }
 
+    /// <summary>Proves provider credentials are absent from messages, structured fields, and exceptions.</summary>
     [Fact]
     public async Task ProviderSecret_DoesNotAppearInDiagnosticOutput()
     {
         const string secret = "phase1-super-secret";
-        using var harness = new TileCacheTestHarness();
+        var upstream = new RecordingTileHandler((_, _) =>
+            throw new HttpRequestException($"Fake provider failure contained {secret}."));
+        using var harness = new TileCacheTestHarness(upstream);
         using var scope = harness.CreateScope();
         SetHttpContext(scope);
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
@@ -116,7 +132,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
             "8",
             $"https://tiles.example.test/5/7/8.png?apiKey={secret}");
 
-        Assert.NotNull(result.TileData);
+        Assert.Null(result.TileData);
         Assert.NotEmpty(harness.Logs.Entries);
         Assert.DoesNotContain(harness.Logs.Entries, entry =>
             ContainsSecret(entry.Message, secret) ||
@@ -124,6 +140,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
             ContainsSecret(entry.Exception?.ToString(), secret));
     }
 
+    /// <summary>Proves global rejection includes a stable scope and deterministic budget-wait duration.</summary>
     [Fact]
     public async Task GlobalBudgetRejection_HasStableScopeAndWaitFields()
     {
@@ -145,6 +162,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         Assert.Empty(harness.Upstream.Requests);
     }
 
+    /// <summary>Proves the per-client allowance is distinguishable from the global outbound budget.</summary>
     [Fact]
     public async Task PerClientBudgetRejection_IsDistinctFromGlobalRejection()
     {
@@ -175,6 +193,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         Assert.Single(harness.Upstream.Requests);
     }
 
+    /// <summary>Proves transport cancellation has its own event and is not classified as upstream failure.</summary>
     [Fact]
     public async Task Cancellation_IsNotReportedAsUpstreamFailure()
     {
@@ -194,6 +213,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
             entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.UpstreamFailure);
     }
 
+    /// <summary>Proves current attempt numbering and fixed retry delay are observable without changing policy.</summary>
     [Fact]
     public async Task CurrentRetryDelay_IsReportedWithoutChangingRetryPolicy()
     {
@@ -209,6 +229,11 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
 
         Assert.Null(result.TileData);
         Assert.Equal(3, harness.Upstream.Requests.Count);
+        var attempts = harness.Logs.Entries
+            .Where(entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.UpstreamAttempt)
+            .Select(entry => Convert.ToInt32(entry.Fields["AttemptNumber"]))
+            .ToArray();
+        Assert.Equal([1, 2, 3], attempts);
         var delays = harness.Logs.Entries
             .Where(entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.RetryDelaySelected)
             .ToArray();
@@ -217,20 +242,24 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
             Assert.Equal(500d, Convert.ToDouble(delay.Fields["RetryDelayMilliseconds"])));
     }
 
+    /// <summary>Assigns the same-origin request context used by one scoped service.</summary>
     private static void SetHttpContext(IServiceScope scope)
     {
         scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext =
             TileCacheTestHarness.CreateHttpContext();
     }
 
+    /// <summary>Returns the only diagnostic with the requested stable identifier.</summary>
     private static TestLogProvider.TestLogEntry AssertDiagnostic(
         TestLogProvider logs,
         TileCacheDiagnosticEventIds eventId) =>
-        Assert.Single(logs.Entries.Where(entry => entry.EventId.Id == (int)eventId));
+        Assert.Single(logs.Entries, entry => entry.EventId.Id == (int)eventId);
 
+    /// <summary>Builds one canonical OSM Standard tile URL for the intercepting fake provider.</summary>
     private static string CanonicalTileUrl(int zoom, int x, int y) =>
         $"https://tile.openstreetmap.org/{zoom}/{x}/{y}.png";
 
+    /// <summary>Builds a deterministic cacheable PNG response.</summary>
     private static HttpResponseMessage PngResponse(TimeSpan maxAge)
     {
         var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -241,6 +270,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         return response;
     }
 
+    /// <summary>Checks diagnostic text for a forbidden provider secret using ordinal comparison.</summary>
     private static bool ContainsSecret(string? value, string secret) =>
         value?.Contains(secret, StringComparison.Ordinal) == true;
 }
