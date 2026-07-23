@@ -221,6 +221,27 @@ public sealed class TileCacheCancellationAndPrivacyTests
         Assert.Equal(expectedScope, diagnostic.Fields["BudgetScope"]);
     }
 
+    /// <summary>Proves the outbound-client gate retains the controller's 503 response and retry header.</summary>
+    [Fact]
+    public async Task OutboundClientThrottle_Retains503AndReportsBoundedScope()
+    {
+        using var harness = new TileCacheTestHarness();
+        harness.Settings.TileOutboundBudgetPerIpPerMinute = 1;
+        using var scope = harness.CreateScope();
+        var context = TileCacheTestHarness.CreateHttpContext();
+        var controller = CreateController(scope, context);
+
+        Assert.IsType<FileContentResult>(await controller.GetTile(5, 27, 1));
+        var rejected = Assert.IsType<ObjectResult>(await controller.GetTile(5, 28, 1));
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, rejected.StatusCode);
+        Assert.Equal(
+            TilesController.BudgetRetryAfterSeconds.ToString(),
+            context.Response.Headers.RetryAfter);
+        var diagnostic = AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.ClientBudgetRejected);
+        Assert.Equal("outbound-client", diagnostic.Fields["BudgetScope"]);
+    }
+
     /// <summary>Proves a literal-IP cross-host redirect is rejected without recording supplied data.</summary>
     [Fact]
     public async Task CrossHostRedirect_DoesNotRecordLiteralIpOrSecretUri()
