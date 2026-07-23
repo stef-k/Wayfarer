@@ -16,19 +16,10 @@ public partial class TileCacheService
     private const int RefreshSeriesMaxAttempts = 3;
 
     /// <summary>
-    /// Maximum wall-clock lifetime for one stale-tile refresh series.
+    /// Maximum wall-clock lifetime for one stale-tile refresh series under the interim profile.
     /// </summary>
-    private static readonly TimeSpan RefreshSeriesMaxDuration = TimeSpan.FromMinutes(2);
-
-    /// <summary>
-    /// Initial delay before retrying a failed stale-tile refresh attempt.
-    /// </summary>
-    private static readonly TimeSpan RefreshRetryInitialDelay = TimeSpan.FromSeconds(5);
-
-    /// <summary>
-    /// Maximum delay before retrying a failed stale-tile refresh attempt.
-    /// </summary>
-    private static readonly TimeSpan RefreshRetryMaxDelay = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan RefreshSeriesMaxDuration =
+        TileProviderRetryPolicy.MaxInteractiveDuration;
 
     /// <summary>
     /// Test-overridable delay provider for bounded refresh retry backoff.
@@ -132,16 +123,10 @@ public partial class TileCacheService
     }
 
     /// <summary>
-    /// Calculates exponential refresh retry delay with jitter to avoid synchronized retries.
+    /// Uses the shared interim exponential retry delay with injectable jitter.
     /// </summary>
-    private static TimeSpan CalculateRefreshRetryDelay(int failedAttempts)
-    {
-        var exponent = Math.Max(0, failedAttempts - 1);
-        var delayMs = RefreshRetryInitialDelay.TotalMilliseconds * Math.Pow(2, exponent);
-        delayMs = Math.Min(delayMs, RefreshRetryMaxDelay.TotalMilliseconds);
-        delayMs *= 0.75 + Random.Shared.NextDouble() * 0.5;
-        return TimeSpan.FromMilliseconds(delayMs);
-    }
+    private static TimeSpan CalculateRefreshRetryDelay(int failedAttempts) =>
+        TileProviderRetryPolicy.GetFallbackDelay(failedAttempts);
 
     /// <summary>
     /// Runs a background refresh attempt through a newly-created DI scope.

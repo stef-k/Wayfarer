@@ -200,6 +200,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         var upstream = new RecordingTileHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
         using var harness = new TileCacheTestHarness(upstream);
+        TileProviderRetryPolicy.SetDeterminismForTesting(jitter: _ => 0d);
         TileCacheService.SetColdMissRetryDelayForTesting((_, _) => Task.CompletedTask);
         using var scope = harness.CreateScope();
         SetHttpContext(scope);
@@ -218,8 +219,11 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
             .Where(entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.RetryDelaySelected)
             .ToArray();
         Assert.Equal(2, delays.Length);
-        Assert.All(delays, delay =>
-            Assert.Equal(500d, Convert.ToDouble(delay.Fields["RetryDelayMilliseconds"])));
+        Assert.Equal(
+            [500d, 1000d],
+            delays.Select(delay =>
+                Convert.ToDouble(delay.Fields["RetryDelayMilliseconds"])).ToArray());
+        Assert.All(delays, delay => Assert.Equal("fallback", delay.Fields["RetryKind"]));
     }
 
     /// <summary>Assigns the same-origin request context used by one scoped service.</summary>
