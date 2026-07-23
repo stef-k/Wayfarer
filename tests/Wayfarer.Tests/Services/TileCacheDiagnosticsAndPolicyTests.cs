@@ -187,7 +187,7 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         }
 
         var diagnostic = AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.ClientBudgetRejected);
-        Assert.Equal("client", diagnostic.Fields["BudgetScope"]);
+        Assert.Equal("outbound-client", diagnostic.Fields["BudgetScope"]);
         Assert.DoesNotContain(harness.Logs.Entries,
             entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.GlobalBudgetRejected);
         Assert.Single(harness.Upstream.Requests);
