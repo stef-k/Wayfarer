@@ -46,6 +46,7 @@ public sealed class TileCacheColdCacheBaselineTests
         Assert.Equal(24, report.UniqueTiles);
         Assert.Equal(12, report.BurstCapacity);
         Assert.Equal(2d, report.SustainedAcquisitionsPerSecond);
+        Assert.Equal("none (unbounded waiters)", report.QueueCapacity);
         Assert.Equal(100d, report.FakeUpstreamLatencyMilliseconds);
         Assert.Equal(19, report.AcceptedRequests);
         Assert.Equal(5, report.RejectedRequests);
@@ -112,6 +113,7 @@ public sealed class TileCacheColdCacheBaselineTests
             BurstCapacity: TileCacheService.OutboundBudget.BurstCapacity,
             SustainedAcquisitionsPerSecond:
                 1000d / TileCacheService.OutboundBudget.ReplenishIntervalMs,
+            QueueCapacity: "none (unbounded waiters)",
             FakeUpstreamLatencyMilliseconds: FakeUpstreamLatency.TotalMilliseconds,
             AcceptedRequests: requests.Count,
             RejectedRequests: outcomes.Count(outcome => outcome.StatusCode == 503),
@@ -186,6 +188,7 @@ public sealed class TileCacheColdCacheBaselineTests
         int UniqueTiles,
         int BurstCapacity,
         double SustainedAcquisitionsPerSecond,
+        string QueueCapacity,
         double FakeUpstreamLatencyMilliseconds,
         int AcceptedRequests,
         int RejectedRequests,
