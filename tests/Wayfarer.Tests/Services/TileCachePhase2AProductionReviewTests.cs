@@ -236,6 +236,62 @@ public sealed partial class TileCacheRetryStatusTests
         Assert.True(TileProviderRetryPolicy.GetRemainingProviderDelay(extendedKey) > TimeSpan.Zero);
     }
 
+    /// <summary>Proves each live provider gate retains exactly one bounded cleanup record.</summary>
+    [Fact]
+    public async Task ProviderGateCleanup_KeepsOneQueueRecordPerDictionaryEntry()
+    {
+        TileCacheService.ResetStaticStateForTesting();
+        try
+        {
+            var now = new DateTimeOffset(2026, 7, 23, 12, 0, 0, TimeSpan.Zero);
+            TileProviderRetryPolicy.SetDeterminismForTesting(() => now, _ => 0d);
+            var activeKeys = Enumerable.Range(0, 15)
+                .Select(index => AddProviderGate(
+                    $"https://active.example.test:{4400 + index}/tile.png",
+                    3600))
+                .ToArray();
+            var extendedKey = AddProviderGate("https://extended.example.test/tile.png", 60);
+            var expiredKey = AddProviderGate("https://expired.example.test/tile.png", 1);
+
+            Assert.Equal(17, GetProviderGateCount());
+            Assert.DoesNotContain(expiredKey, GetProviderGateCleanupKeys().Take(16));
+            now = now.AddSeconds(2);
+
+            for (var cycle = 0; cycle < 4; cycle++)
+            {
+                Assert.Equal(
+                    TimeSpan.Zero,
+                    TileProviderRetryPolicy.GetRemainingProviderDelay(expiredKey));
+                Assert.Equal(GetProviderGateCount(), GetProviderGateCleanupKeys().Count);
+
+                AddProviderGate("https://expired.example.test/tile.png", 1);
+                Assert.Equal(GetProviderGateCount(), GetProviderGateCleanupKeys().Count);
+                now = now.AddSeconds(2);
+            }
+
+            await Task.WhenAll(Enumerable.Range(0, 32).Select(index => Task.Run(() =>
+            {
+                if (index == 0)
+                {
+                    AddProviderGate("https://extended.example.test/tile.png", 120);
+                }
+                else
+                {
+                    TileProviderRetryPolicy.GetRemainingProviderDelay(activeKeys[0]);
+                }
+            })));
+
+            Assert.Equal(16, GetProviderGateCount());
+            Assert.Equal(GetProviderGateCount(), GetProviderGateCleanupKeys().Count);
+            Assert.True(TileProviderRetryPolicy.GetRemainingProviderDelay(activeKeys[0]) > TimeSpan.Zero);
+            Assert.True(TileProviderRetryPolicy.GetRemainingProviderDelay(extendedKey) > TimeSpan.Zero);
+        }
+        finally
+        {
+            TileCacheService.ResetStaticStateForTesting();
+        }
+    }
+
     /// <summary>Proves provider templates cannot retain URI username or password data.</summary>
     [Fact]
     public void ProviderTemplateValidation_RejectsUserInformation()
@@ -306,6 +362,15 @@ public sealed partial class TileCacheRetryStatusTests
             "_providerNotBefore",
             BindingFlags.NonPublic | BindingFlags.Static);
         return Assert.IsAssignableFrom<IDictionary>(field?.GetValue(null)).Count;
+    }
+
+    /// <summary>Reads the bounded cleanup records for exact ownership verification.</summary>
+    private static IReadOnlyList<string> GetProviderGateCleanupKeys()
+    {
+        var field = typeof(TileProviderRetryPolicy).GetField(
+            "_providerGateCleanupQueue",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        return Assert.IsAssignableFrom<IEnumerable<string>>(field?.GetValue(null)).ToArray();
     }
 
     /// <summary>Checks every captured diagnostic surface for one supplied credential.</summary>
