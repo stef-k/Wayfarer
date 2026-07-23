@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
 
@@ -155,6 +156,49 @@ public sealed partial class TileCacheRetryStatusTests
         Assert.DoesNotContain(secondCredential, first, StringComparison.Ordinal);
     }
 
+    /// <summary>Proves equivalent credential forms share one gate without entering diagnostics.</summary>
+    [Fact]
+    public async Task ProviderGateDiagnostics_ExcludeCredentialsAcrossEquivalentUrls()
+    {
+        const string firstCredential = "diagnostic-alice";
+        const string secondCredential = "diagnostic-s3cret";
+        var upstream = new RecordingTileHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter =
+                new RetryConditionHeaderValue(TimeSpan.FromSeconds(120));
+            return Task.FromResult(response);
+        });
+        using var harness = new TileCacheTestHarness(upstream);
+        using var firstScope = harness.CreateScope();
+        firstScope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext =
+            TileCacheTestHarness.CreateHttpContext();
+        var firstService = firstScope.ServiceProvider.GetRequiredService<TileCacheService>();
+
+        var first = await firstService.RetrieveTileAsync(
+            "5",
+            "26",
+            "1",
+            $"https://{firstCredential}:{secondCredential}@tiles.example.test/5/26/1.png");
+        using var secondScope = harness.CreateScope();
+        secondScope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext =
+            TileCacheTestHarness.CreateHttpContext();
+        var secondService = secondScope.ServiceProvider.GetRequiredService<TileCacheService>();
+        var second = await secondService.RetrieveTileAsync(
+            "5",
+            "27",
+            "1",
+            "https://other:credential@tiles.example.test:443/5/27/1.png");
+
+        Assert.Equal(TileRetrievalStatus.TransientFailure, first.Status);
+        Assert.Equal(TileRetrievalStatus.TransientFailure, second.Status);
+        Assert.Single(harness.Upstream.Requests);
+        Assert.DoesNotContain(harness.Logs.Entries,
+            entry => ContainsDiagnosticValue(entry, firstCredential));
+        Assert.DoesNotContain(harness.Logs.Entries,
+            entry => ContainsDiagnosticValue(entry, secondCredential));
+    }
+
     /// <summary>Proves bounded normal gate operations eventually remove only expired providers.</summary>
     [Fact]
     public async Task ProviderGateCleanup_RemovesExpiredEntriesAndPreservesExtensions()
@@ -263,4 +307,13 @@ public sealed partial class TileCacheRetryStatusTests
             BindingFlags.NonPublic | BindingFlags.Static);
         return Assert.IsAssignableFrom<IDictionary>(field?.GetValue(null)).Count;
     }
+
+    /// <summary>Checks every captured diagnostic surface for one supplied credential.</summary>
+    private static bool ContainsDiagnosticValue(
+        TestLogProvider.TestLogEntry entry,
+        string value) =>
+        entry.Message.Contains(value, StringComparison.Ordinal) ||
+        entry.Fields.Values.Any(field =>
+            field?.ToString()?.Contains(value, StringComparison.Ordinal) == true) ||
+        entry.Exception?.ToString().Contains(value, StringComparison.Ordinal) == true;
 }
