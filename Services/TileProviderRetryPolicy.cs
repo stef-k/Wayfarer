@@ -42,8 +42,8 @@ internal static class TileProviderRetryPolicy
 
     /// <summary>
     /// Returns the remaining provider gate delay and performs one bounded opportunistic cleanup pass.
-    /// Each pass inspects at most eight queued provider entries; active entries return to the queue,
-    /// so normal gate traffic eventually visits abandoned expired providers without an unbounded scan.
+    /// Bounded cleanup exclusively removes expired entries; an expired read returns zero while
+    /// preserving its dictionary and queue pair until that cleanup inspects it.
     /// </summary>
     internal static TimeSpan GetRemainingProviderDelay(string providerKey)
     {
@@ -59,8 +59,6 @@ internal static class TileProviderRetryPolicy
             return remaining;
         }
 
-        _providerNotBefore.TryRemove(
-            new KeyValuePair<string, DateTimeOffset>(providerKey, notBefore));
         return TimeSpan.Zero;
     }
 
@@ -197,9 +195,9 @@ internal static class TileProviderRetryPolicy
 
     /// <summary>
     /// Inspects a fixed maximum of queued gates during normal reads and extensions.
-    /// Compare-by-value removal cannot delete a concurrently extended future gate. One queue entry
-    /// is retained per live provider, keeping memory proportional to realistic administrator-driven
-    /// provider changes while expired abandoned providers are removed over bounded later passes.
+    /// This is the exclusive expiry-removal path. Compare-by-value removal cannot delete a
+    /// concurrently extended future gate, and each retained dictionary entry reuses its one
+    /// cleanup record until a bounded later pass removes the pair.
     /// </summary>
     private static void CleanupExpiredProviderGates()
     {
