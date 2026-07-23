@@ -68,9 +68,9 @@ public partial class TileCacheService
 
                 try
                 {
-                    var refreshed = await RevalidateTileInFreshScopeAsync(series);
-
-                    if (refreshed != null)
+                    var outcome = await RevalidateTileInFreshScopeAsync(series);
+                    if (outcome is StaleRefreshOutcome.Completed or StaleRefreshOutcome.Terminal ||
+                        series.ContactState.IsExhausted)
                     {
                         return;
                     }
@@ -132,13 +132,11 @@ public partial class TileCacheService
     /// Runs a background refresh attempt through a newly-created DI scope.
     /// The scheduled series carries only immutable primitive values from the request.
     /// </summary>
-    private async Task<byte[]?> RevalidateTileInFreshScopeAsync(TileRefreshSeries series)
+    private async Task<StaleRefreshOutcome> RevalidateTileInFreshScopeAsync(TileRefreshSeries series)
     {
         using var scope = _serviceScopeFactory.CreateScope();
         var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
-        return await tileCacheService.RevalidateTileAsync(series.TileUrl, series.TileFilePath,
-            series.TileKey, series.Zoom, series.X, series.Y, series.ETag,
-            series.LastModified, series.ClientIp, series.Attempts, series.CancellationToken);
+        return await tileCacheService.RevalidateTileAsync(series);
     }
 
     /// <summary>
@@ -276,6 +274,12 @@ public partial class TileCacheService
         public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
+
+        /// <summary>Gets shared actual-contact state for all redirects and retries in this series.</summary>
+        public TileContactState ContactState { get; } = new();
+
+        /// <summary>Gets or sets whether the initiating client's outbound allowance was recorded.</summary>
+        public bool ClientAllowanceCharged { get; set; }
 
         /// <summary>Gets or sets the bounded stage owned by the outer cancellation boundary.</summary>
         public string CancellationStage { get; set; } = "stale-refresh-attempt";

@@ -129,6 +129,7 @@ internal enum TileRequestRejection
     ClientBudget,
     GlobalBudget,
     ProviderDeferred,
+    ContactLimit,
     InvalidProviderResponse
 }
 
@@ -146,4 +147,40 @@ internal sealed record TileRequestSendResult(
 
     internal static TileRequestSendResult ProviderDeferred(TimeSpan retryAfter) =>
         new(null, TileRequestRejection.ProviderDeferred, retryAfter);
+}
+
+/// <summary>Tracks actual provider contacts across every retry and redirect in one tile operation.</summary>
+internal sealed class TileContactState
+{
+    private int _contacts;
+
+    /// <summary>Indicates whether the interim operation-wide contact ceiling is exhausted.</summary>
+    internal bool IsExhausted => Volatile.Read(ref _contacts) >= TileProviderRetryPolicy.MaxAttempts;
+
+    /// <summary>Atomically reserves one actual provider contact without allowing a fourth.</summary>
+    internal bool TryReserveContact()
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _contacts);
+            if (current >= TileProviderRetryPolicy.MaxAttempts)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _contacts, current + 1, current) == current)
+            {
+                return true;
+            }
+        }
+    }
+}
+
+/// <summary>Classifies one stale revalidation attempt without conflating it with cold-cache retrieval.</summary>
+internal enum StaleRefreshOutcome
+{
+    Completed,
+    Terminal,
+    Transient,
+    PreTransportRejected
 }

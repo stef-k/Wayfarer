@@ -19,22 +19,35 @@ internal static class TileProviderRetryPolicy
     internal static readonly TimeSpan InvalidDelayHold = TimeSpan.FromSeconds(30);
 
     private static readonly ConcurrentDictionary<string, DateTimeOffset> _providerNotBefore = new();
+    private static readonly ConcurrentQueue<string> _providerGateCleanupQueue = new();
+    private const int ProviderGateCleanupInspectionLimit = 8;
     private static Func<DateTimeOffset> _utcNow = static () => DateTimeOffset.UtcNow;
     private static Func<int, double> _jitter = static _ => (Random.Shared.NextDouble() * 2d) - 1d;
 
     /// <summary>Gets the current UTC instant through the deterministic policy clock.</summary>
     internal static DateTimeOffset UtcNow => _utcNow();
 
-    /// <summary>Returns a non-secret provider fingerprint based only on URI authority.</summary>
+    /// <summary>
+    /// Returns a non-secret provider fingerprint from normalized scheme, IDN host, and effective port.
+    /// User information, path, query, fragment, API-key values, and client identity are excluded.
+    /// </summary>
     internal static string GetProviderKey(string tileUrl)
     {
-        var authority = new Uri(tileUrl).GetLeftPart(UriPartial.Authority).ToUpperInvariant();
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(authority)));
+        var uri = new Uri(tileUrl);
+        var identity = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{uri.Scheme.ToLowerInvariant()}|{uri.IdnHost.TrimEnd('.').ToLowerInvariant()}|{uri.Port}");
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
     }
 
-    /// <summary>Returns the remaining provider gate delay, removing expired state.</summary>
+    /// <summary>
+    /// Returns the remaining provider gate delay and performs one bounded opportunistic cleanup pass.
+    /// Each pass inspects at most eight queued provider entries; active entries return to the queue,
+    /// so normal gate traffic eventually visits abandoned expired providers without an unbounded scan.
+    /// </summary>
     internal static TimeSpan GetRemainingProviderDelay(string providerKey)
     {
+        CleanupExpiredProviderGates();
         if (!_providerNotBefore.TryGetValue(providerKey, out var notBefore))
         {
             return TimeSpan.Zero;
@@ -110,6 +123,10 @@ internal static class TileProviderRetryPolicy
     internal static void ResetForTesting()
     {
         _providerNotBefore.Clear();
+        while (_providerGateCleanupQueue.TryDequeue(out _))
+        {
+        }
+
         _utcNow = static () => DateTimeOffset.UtcNow;
         _jitter = static _ => (Random.Shared.NextDouble() * 2d) - 1d;
     }
@@ -154,11 +171,64 @@ internal static class TileProviderRetryPolicy
     }
 
     /// <summary>Extends provider state atomically and never shortens a provider-directed delay.</summary>
-    private static void ExtendProviderGate(string providerKey, DateTimeOffset candidate) =>
-        _providerNotBefore.AddOrUpdate(
-            providerKey,
-            candidate,
-            (_, current) => current >= candidate ? current : candidate);
+    private static void ExtendProviderGate(string providerKey, DateTimeOffset candidate)
+    {
+        CleanupExpiredProviderGates();
+        while (true)
+        {
+            if (_providerNotBefore.TryGetValue(providerKey, out var current))
+            {
+                if (current >= candidate ||
+                    _providerNotBefore.TryUpdate(providerKey, candidate, current))
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            if (_providerNotBefore.TryAdd(providerKey, candidate))
+            {
+                _providerGateCleanupQueue.Enqueue(providerKey);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Inspects a fixed maximum of queued gates during normal reads and extensions.
+    /// Compare-by-value removal cannot delete a concurrently extended future gate. One queue entry
+    /// is retained per live provider, keeping memory proportional to realistic administrator-driven
+    /// provider changes while expired abandoned providers are removed over bounded later passes.
+    /// </summary>
+    private static void CleanupExpiredProviderGates()
+    {
+        var entriesToInspect = Math.Min(
+            ProviderGateCleanupInspectionLimit,
+            _providerGateCleanupQueue.Count);
+        var now = UtcNow;
+        for (var index = 0; index < entriesToInspect; index++)
+        {
+            if (!_providerGateCleanupQueue.TryDequeue(out var providerKey))
+            {
+                return;
+            }
+
+            if (!_providerNotBefore.TryGetValue(providerKey, out var notBefore))
+            {
+                continue;
+            }
+
+            if (notBefore <= now &&
+                _providerNotBefore.TryRemove(
+                    new KeyValuePair<string, DateTimeOffset>(providerKey, notBefore)))
+            {
+                continue;
+            }
+
+            _providerGateCleanupQueue.Enqueue(providerKey);
+        }
+    }
 
     /// <summary>Safely adds a known bounded interval to the current instant.</summary>
     private static DateTimeOffset SafeAdd(DateTimeOffset instant, TimeSpan delay) =>

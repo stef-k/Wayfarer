@@ -197,13 +197,13 @@ public sealed partial class TileCacheRetryStatusTests
     public void ProviderTemplateValidation_RejectsUserInformation()
     {
         var valid = TileProviderCatalog.TryValidateTemplate(
-            "https://user:password@tiles.example.test/{z}/{x}/{y}.png",
+            "https://alice-review:s3cret-review@tiles.example.test/{z}/{x}/{y}.png",
             out var error);
 
         Assert.False(valid);
         Assert.False(string.IsNullOrWhiteSpace(error));
-        Assert.DoesNotContain("user", error, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("password", error, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("alice-review", error, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("s3cret-review", error, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Creates an owned same-host redirect response.</summary>

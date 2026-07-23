@@ -308,6 +308,7 @@ public partial class TileCacheService
         Action<HttpRequestMessage>? configureRequest = null, bool chargeClientAllowance = true,
         string? clientIp = null, bool allowHttpContext = true, int attemptNumber = 1,
         bool deferCancellationDiagnostic = false, DateTimeOffset? interactiveDeadline = null,
+        TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
@@ -352,9 +353,15 @@ public partial class TileCacheService
         var currentUri = initialUri;
         var providerKey = TileProviderRetryPolicy.GetProviderKey(tileUrl);
         var requestKind = configureRequest == null ? "unconditional" : "conditional";
+        contactState ??= new TileContactState();
 
         for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++)
         {
+            if (contactState.IsExhausted)
+            {
+                return TileRequestSendResult.Rejected(TileRequestRejection.ContactLimit);
+            }
+
             var providerDelay = TileProviderRetryPolicy.GetRemainingProviderDelay(providerKey);
             if (providerDelay > TimeSpan.Zero)
             {
@@ -429,13 +436,6 @@ public partial class TileCacheService
                 return TileRequestSendResult.Rejected(TileRequestRejection.GlobalBudget);
             }
 
-            // Charge the initiating client's allowance once, immediately before its first contact.
-            if (resolvedIpForBudget != null)
-            {
-                RateLimitHelper.RecordRateLimitHit(TilesController.OutboundBudgetCache, resolvedIpForBudget);
-                resolvedIpForBudget = null;
-            }
-
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
 
             // OSM requires a Referer header. Derive it from the incoming HTTP request
@@ -449,6 +449,20 @@ public partial class TileCacheService
 
             // Let the caller add conditional headers (If-None-Match, If-Modified-Since, etc.)
             configureRequest?.Invoke(request);
+
+            // Reserve immediately before transport so retries and redirects share one hard ceiling.
+            if (!contactState.TryReserveContact())
+            {
+                return TileRequestSendResult.Rejected(TileRequestRejection.ContactLimit);
+            }
+
+            // Charge once only after this series has admitted its first actual provider contact.
+            if (resolvedIpForBudget != null)
+            {
+                RateLimitHelper.RecordRateLimitHit(TilesController.OutboundBudgetCache, resolvedIpForBudget);
+                resolvedIpForBudget = null;
+                onClientAllowanceCharged?.Invoke();
+            }
 
             TileCacheDiagnostics.UpstreamAttempt(_logger, requestKind, attemptNumber);
             HttpResponseMessage response;
@@ -532,12 +546,14 @@ public partial class TileCacheService
         string? clientIp = null,
         int attemptNumber = 1,
         DateTimeOffset? interactiveDeadline = null,
+        TileContactState? contactState = null,
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, chargeClientAllowance: chargeClientAllowance,
             clientIp: clientIp, attemptNumber: attemptNumber,
             interactiveDeadline: interactiveDeadline,
+            contactState: contactState,
             callerCancellationToken: callerCancellationToken,
             cancellationToken: cancellationToken);
     }
@@ -548,7 +564,9 @@ public partial class TileCacheService
     /// </summary>
     private Task<TileRequestSendResult> SendConditionalTileRequestAsync(string tileUrl, string? etag,
         DateTime? lastModified, string? clientIp = null, bool allowHttpContext = true,
-        int attemptNumber = 1, CancellationToken cancellationToken = default)
+        bool chargeClientAllowance = true, int attemptNumber = 1,
+        TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
+        CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
         {
@@ -565,9 +583,11 @@ public partial class TileCacheService
             {
                 request.Headers.IfModifiedSince = new DateTimeOffset(lastModified.Value, TimeSpan.Zero);
             }
-        }, chargeClientAllowance: attemptNumber == 1, clientIp: clientIp,
+        }, chargeClientAllowance: chargeClientAllowance, clientIp: clientIp,
             allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
             deferCancellationDiagnostic: true,
+            contactState: contactState,
+            onClientAllowanceCharged: onClientAllowanceCharged,
             callerCancellationToken: cancellationToken,
             cancellationToken: cancellationToken);
     }
@@ -1199,29 +1219,38 @@ public partial class TileCacheService
     /// Re-validates an expired cached tile by sending a conditional HTTP request.
     /// On 304 Not Modified: updates metadata expiry and serves cached file.
     /// On 200 OK: replaces file on disk and updates all metadata.
-    /// On failure: returns null (caller will serve stale cached tile).
+    /// Returns a typed refresh outcome while callers continue serving stale cached bytes.
     /// Called from the bounded <see cref="_refreshSeries"/> coordinator to ensure at most
     /// one active refresh series exists per expired tile.
     /// Uses its own DB scope because the coalescing pattern means the originating request's
     /// scoped DbContext may be disposed while other callers are still awaiting the result.
     /// </summary>
-    private async Task<byte[]?> RevalidateTileAsync(string tileUrl, string tileFilePath, string tileKey,
-        int zoom, int x, int y, string? etag, DateTime? lastModified,
-        string? clientIp = null, int attemptNumber = 1, CancellationToken cancellationToken = default)
+    private async Task<StaleRefreshOutcome> RevalidateTileAsync(TileRefreshSeries series)
     {
-        var sendResult = await SendConditionalTileRequestAsync(tileUrl, etag, lastModified, clientIp,
-            allowHttpContext: false, attemptNumber: attemptNumber, cancellationToken: cancellationToken);
+        var sendResult = await SendConditionalTileRequestAsync(
+            series.TileUrl,
+            series.ETag,
+            series.LastModified,
+            series.ClientIp,
+            allowHttpContext: false,
+            chargeClientAllowance: !series.ClientAllowanceCharged,
+            attemptNumber: series.Attempts,
+            contactState: series.ContactState,
+            onClientAllowanceCharged: () => series.ClientAllowanceCharged = true,
+            cancellationToken: series.CancellationToken);
         if (sendResult.Response == null)
         {
-            TileCacheDiagnostics.StaleRefreshRejected(_logger, "rejected", zoom);
+            TileCacheDiagnostics.StaleRefreshRejected(_logger, "rejected", series.Zoom);
             _logger.LogWarning("Conditional tile request rejected before upstream transport.");
-            return null;
+            return sendResult.Rejection == TileRequestRejection.ContactLimit
+                ? StaleRefreshOutcome.Transient
+                : StaleRefreshOutcome.PreTransportRejected;
         }
 
         using var response = sendResult.Response;
         if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
         {
-            var providerKey = TileProviderRetryPolicy.GetProviderKey(tileUrl);
+            var providerKey = TileProviderRetryPolicy.GetProviderKey(series.TileUrl);
             var providerDelay = TileProviderRetryPolicy.ApplyRetryAfter(providerKey, response);
             if (providerDelay.Kind != ProviderDelayKind.Missing)
             {
@@ -1238,34 +1267,41 @@ public partial class TileCacheService
         {
             // 304: tile hasn't changed. Update expiry from response headers.
             var newExpiry = ParseCacheExpiry(response);
-            var newEtag = response.Headers.ETag?.Tag ?? etag;
+            var newEtag = response.Headers.ETag?.Tag ?? series.ETag;
 
-            if (zoom >= DbMetadataZoomThreshold)
+            if (series.Zoom >= DbMetadataZoomThreshold)
             {
                 // Use own scope to avoid disposed DbContext from the originating request.
                 using var scope = _serviceScopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                await UpdateTileExpiryScopedAsync(dbContext, zoom, x, y, newEtag, lastModified, newExpiry);
+                await UpdateTileExpiryScopedAsync(
+                    dbContext,
+                    series.Zoom,
+                    series.X,
+                    series.Y,
+                    newEtag,
+                    series.LastModified,
+                    newExpiry);
             }
 
             byte[]? data = null;
-            if (zoom < DbMetadataZoomThreshold)
+            if (series.Zoom < DbMetadataZoomThreshold)
             {
                 // Sidecar write + file read under the same lock to prevent a concurrent
                 // purge from deleting the sidecar between write and read (TOCTOU).
                 await _cacheLock.WaitAsync();
                 try
                 {
-                    WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
+                    WriteSidecarMetadata(series.TileFilePath, new TileSidecarMetadata
                     {
                         ETag = newEtag,
-                        LastModifiedUpstream = lastModified,
+                        LastModifiedUpstream = series.LastModified,
                         ExpiresAtUtc = newExpiry
                     });
 
-                    if (File.Exists(tileFilePath))
+                    if (File.Exists(series.TileFilePath))
                     {
-                        data = await File.ReadAllBytesAsync(tileFilePath);
+                        data = await File.ReadAllBytesAsync(series.TileFilePath);
                     }
                 }
                 finally
@@ -1279,9 +1315,9 @@ public partial class TileCacheService
                 // (consistent with other read paths in RetrieveTileAsync).
                 try
                 {
-                    if (File.Exists(tileFilePath))
+                    if (File.Exists(series.TileFilePath))
                     {
-                        data = await File.ReadAllBytesAsync(tileFilePath);
+                        data = await File.ReadAllBytesAsync(series.TileFilePath);
                     }
                 }
                 catch (IOException)
@@ -1294,29 +1330,29 @@ public partial class TileCacheService
                 _logger,
                 "not-modified",
                 (int)response.StatusCode);
-            TileCacheDiagnostics.CacheWriteOutcome(_logger, "revalidated", zoom);
-            _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", tileKey);
-            return data;
+            TileCacheDiagnostics.CacheWriteOutcome(_logger, "revalidated", series.Zoom);
+            _logger.LogDebug("Tile {TileKey} re-validated (304 Not Modified)", series.TileKey);
+            return StaleRefreshOutcome.Completed;
         }
 
         if (response.IsSuccessStatusCode)
         {
             // 200: tile has changed. Replace file and update metadata.
-            var tileData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            var tileData = await response.Content.ReadAsByteArrayAsync(series.CancellationToken);
             var newEtag = response.Headers.ETag?.Tag;
             var newLastModified = response.Content.Headers.LastModified?.UtcDateTime;
             var newExpiry = ParseCacheExpiry(response);
-            var tempFilePath = CreateTempTilePath(tileFilePath);
+            var tempFilePath = CreateTempTilePath(series.TileFilePath);
 
             await _cacheLock.WaitAsync();
             try
             {
-                await File.WriteAllBytesAsync(tempFilePath, tileData, cancellationToken);
-                ReplaceTileFileAtomically(tempFilePath, tileFilePath);
+                await File.WriteAllBytesAsync(tempFilePath, tileData, series.CancellationToken);
+                ReplaceTileFileAtomically(tempFilePath, series.TileFilePath);
 
-                if (zoom < DbMetadataZoomThreshold)
+                if (series.Zoom < DbMetadataZoomThreshold)
                 {
-                    WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
+                    WriteSidecarMetadata(series.TileFilePath, new TileSidecarMetadata
                     {
                         ETag = newEtag,
                         LastModifiedUpstream = newLastModified,
@@ -1334,30 +1370,40 @@ public partial class TileCacheService
                 _cacheLock.Release();
             }
 
-            if (zoom >= DbMetadataZoomThreshold)
+            if (series.Zoom >= DbMetadataZoomThreshold)
             {
                 // Use own scope to avoid disposed DbContext from the originating request.
                 using var scope = _serviceScopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                await UpdateTileAfterRevalidationScopedAsync(dbContext, zoom, x, y, tileData.Length, newEtag,
-                    newLastModified, newExpiry);
+                await UpdateTileAfterRevalidationScopedAsync(
+                    dbContext,
+                    series.Zoom,
+                    series.X,
+                    series.Y,
+                    tileData.Length,
+                    newEtag,
+                    newLastModified,
+                    newExpiry);
             }
 
             TileCacheDiagnostics.ConditionalResponseOutcome(
                 _logger,
                 "replaced",
                 (int)response.StatusCode);
-            TileCacheDiagnostics.CacheWriteOutcome(_logger, "replaced", zoom);
-            _logger.LogDebug("Tile {TileKey} re-validated (200 OK, replaced)", tileKey);
-            return tileData;
+            TileCacheDiagnostics.CacheWriteOutcome(_logger, "replaced", series.Zoom);
+            _logger.LogDebug("Tile {TileKey} re-validated (200 OK, replaced)", series.TileKey);
+            return StaleRefreshOutcome.Completed;
         }
 
+        var outcome = IsPermanentUpstreamClientFailure(response.StatusCode)
+            ? StaleRefreshOutcome.Terminal
+            : StaleRefreshOutcome.Transient;
         TileCacheDiagnostics.ConditionalResponseOutcome(
             _logger,
-            "rejected-status",
+            outcome == StaleRefreshOutcome.Terminal ? "terminal-status" : "transient-status",
             (int)response.StatusCode);
         _logger.LogWarning("Conditional request returned {StatusCode}.", response.StatusCode);
-        return null;
+        return outcome;
     }
 
     // ── DB metadata helpers (zoom >= 9) ─────────────────────────────────
