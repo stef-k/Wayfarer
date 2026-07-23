@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -12,23 +15,25 @@ using Xunit.Abstractions;
 namespace Wayfarer.Tests.Services;
 
 /// <summary>
-/// Characterizes the current cold-cache burst and timeout behavior without defining its permanent contract.
+/// Records a nominal analytical model and a broad production-budget characterization without defining a contract.
 /// </summary>
 [Collection("OutboundBudget")]
 public sealed class TileCacheColdCacheBaselineTests
 {
     private const int UniqueTileCount = 24;
-    private static readonly TimeSpan FakeUpstreamLatency = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan ModeledUpstreamLatency = TimeSpan.FromMilliseconds(100);
     private readonly ITestOutputHelper _output;
 
     /// <summary>Creates the fixture with an output sink for the numeric baseline report.</summary>
     public TileCacheColdCacheBaselineTests(ITestOutputHelper output) => _output = output;
 
-    /// <summary>Records the nominal current-policy burst, replenishment gaps, and local rejections.</summary>
+    /// <summary>
+    /// Analytically models the current constants; 100 ms latency and the exact 19/5 boundary are modeled inputs.
+    /// </summary>
     [Fact]
-    public async Task ColdViewport_LargerThanBurst_RecordsCurrentBurstAndGapBaseline()
+    public async Task NominalAnalyticalColdViewport_ModelsCurrentConstants()
     {
-        var budget = new ControlledCurrentBudget(
+        var budget = new AnalyticalCurrentBudgetModel(
             TileCacheService.OutboundBudget.BurstCapacity,
             TimeSpan.FromMilliseconds(TileCacheService.OutboundBudget.ReplenishIntervalMs),
             TileCacheService.OutboundBudget.AcquireTimeout);
@@ -46,8 +51,8 @@ public sealed class TileCacheColdCacheBaselineTests
         Assert.Equal(24, report.UniqueTiles);
         Assert.Equal(12, report.BurstCapacity);
         Assert.Equal(2d, report.SustainedAcquisitionsPerSecond);
-        Assert.Equal("none (unbounded waiters)", report.QueueCapacity);
-        Assert.Equal(100d, report.FakeUpstreamLatencyMilliseconds);
+        Assert.Equal("unbounded waiter set", report.QueueCapacity);
+        Assert.Equal(100d, report.ModeledUpstreamLatencyMilliseconds);
         Assert.Equal(19, report.AcceptedRequests);
         Assert.Equal(5, report.RejectedRequests);
         Assert.Equal(19, report.StatusDistribution[200]);
@@ -58,6 +63,44 @@ public sealed class TileCacheColdCacheBaselineTests
         Assert.Equal(500d, report.LongestPeriodWithoutProgressMilliseconds);
         Assert.All(outcomes.Where(outcome => outcome.StatusCode == 503),
             outcome => Assert.Equal(TilesController.BudgetRetryAfterSeconds, outcome.RetryAfterSeconds));
+    }
+
+    /// <summary>
+    /// Broadly characterizes real production-budget progress with actual fake latency and no public network.
+    /// </summary>
+    [Fact]
+    public async Task RealOutboundBudget_SpreadsStartsAndContinuesAfterInitialBurst()
+    {
+        const int productionPathTileCount = 16;
+        var stopwatch = Stopwatch.StartNew();
+        var upstream = new RecordingTileHandler(
+            async (_, cancellationToken) =>
+            {
+                await Task.Delay(ModeledUpstreamLatency, cancellationToken);
+                return PngResponse();
+            },
+            () => stopwatch.Elapsed);
+        using var harness = new TileCacheTestHarness(upstream);
+
+        var outcomes = await Task.WhenAll(
+            Enumerable.Range(0, productionPathTileCount)
+                .Select(tileX => RequestTileAsync(harness, tileX)));
+        var starts = upstream.Requests
+            .Select(request => request.StartTime)
+            .OrderBy(start => start)
+            .ToArray();
+        var initialBurstStarts = starts.Take(TileCacheService.OutboundBudget.BurstCapacity).ToArray();
+        var laterStarts = starts.Skip(TileCacheService.OutboundBudget.BurstCapacity).ToArray();
+
+        Assert.Equal(productionPathTileCount, outcomes.Length);
+        Assert.Equal(TileCacheService.OutboundBudget.BurstCapacity, initialBurstStarts.Length);
+        Assert.True(initialBurstStarts.Max() < TimeSpan.FromSeconds(1));
+        Assert.NotEmpty(laterStarts);
+        Assert.True(laterStarts.Max() - laterStarts.Min() >= TimeSpan.FromMilliseconds(500));
+        Assert.Contains(outcomes, outcome => outcome.StatusCode == StatusCodes.Status200OK);
+        Assert.True(
+            laterStarts.Any(start => start >= TimeSpan.FromMilliseconds(250)) ||
+            outcomes.Any(outcome => outcome.StatusCode == StatusCodes.Status503ServiceUnavailable));
     }
 
     /// <summary>Runs one isolated controller request and captures its local status and Retry-After.</summary>
@@ -95,13 +138,13 @@ public sealed class TileCacheColdCacheBaselineTests
         IReadOnlyCollection<LocalTileOutcome> outcomes)
     {
         var successfulCompletions = requests
-            .Select(request => request.StartTime + FakeUpstreamLatency)
+            .Select(request => request.StartTime + ModeledUpstreamLatency)
             .OrderBy(completion => completion)
             .ToArray();
         var distinctCompletions = successfulCompletions.Distinct().ToArray();
         var progressGaps = distinctCompletions
             .Zip(distinctCompletions.Skip(1), (first, second) => second - first)
-            .Where(gap => gap > FakeUpstreamLatency)
+            .Where(gap => gap > ModeledUpstreamLatency)
             .ToArray();
         var rejectedCompletion = TileCacheService.OutboundBudget.AcquireTimeout;
         var lastCompletion = successfulCompletions
@@ -113,8 +156,8 @@ public sealed class TileCacheColdCacheBaselineTests
             BurstCapacity: TileCacheService.OutboundBudget.BurstCapacity,
             SustainedAcquisitionsPerSecond:
                 1000d / TileCacheService.OutboundBudget.ReplenishIntervalMs,
-            QueueCapacity: "none (unbounded waiters)",
-            FakeUpstreamLatencyMilliseconds: FakeUpstreamLatency.TotalMilliseconds,
+            QueueCapacity: "unbounded waiter set",
+            ModeledUpstreamLatencyMilliseconds: ModeledUpstreamLatency.TotalMilliseconds,
             AcceptedRequests: requests.Count,
             RejectedRequests: outcomes.Count(outcome => outcome.StatusCode == 503),
             StatusDistribution: outcomes
@@ -137,7 +180,7 @@ public sealed class TileCacheColdCacheBaselineTests
     /// <summary>
     /// Deterministically reproduces the current burst, replenishment, and acquisition-timeout constants.
     /// </summary>
-    private sealed class ControlledCurrentBudget
+    private sealed class AnalyticalCurrentBudgetModel
     {
         private readonly int _burstCapacity;
         private readonly TimeSpan _replenishmentInterval;
@@ -145,7 +188,7 @@ public sealed class TileCacheColdCacheBaselineTests
         private readonly ConcurrentQueue<TimeSpan> _acceptedRequestStarts = new();
         private int _requestSequence;
 
-        public ControlledCurrentBudget(
+        public AnalyticalCurrentBudgetModel(
             int burstCapacity,
             TimeSpan replenishmentInterval,
             TimeSpan acquireTimeout)
@@ -180,6 +223,18 @@ public sealed class TileCacheColdCacheBaselineTests
                 : throw new InvalidOperationException("No controlled acquisition was assigned to this request.");
     }
 
+    /// <summary>Builds one cacheable fake PNG response for the production-path characterization.</summary>
+    private static HttpResponseMessage PngResponse()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent([1, 2, 3, 4])
+        };
+        response.Headers.CacheControl =
+            new System.Net.Http.Headers.CacheControlHeaderValue { MaxAge = TimeSpan.FromHours(1) };
+        return response;
+    }
+
     /// <summary>Captures the local controller result for one unique visible tile.</summary>
     private sealed record LocalTileOutcome(int TileX, int StatusCode, int? RetryAfterSeconds);
 
@@ -189,7 +244,7 @@ public sealed class TileCacheColdCacheBaselineTests
         int BurstCapacity,
         double SustainedAcquisitionsPerSecond,
         string QueueCapacity,
-        double FakeUpstreamLatencyMilliseconds,
+        double ModeledUpstreamLatencyMilliseconds,
         int AcceptedRequests,
         int RejectedRequests,
         IReadOnlyDictionary<int, int> StatusDistribution,

@@ -248,6 +248,50 @@ public sealed class TileCacheCancellationAndPrivacyTests
             Contains(entry, suppliedIp) || Contains(entry, suppliedSecret));
     }
 
+    /// <summary>Proves harness disposal cancels and awaits background refresh before deleting cache data.</summary>
+    [Fact]
+    public async Task HarnessDisposal_AwaitsTrackedStaleRefresh()
+    {
+        var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refreshCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var upstream = new RecordingTileHandler(async (request, token) =>
+        {
+            if (request.Headers.IfNoneMatch.Count == 0)
+            {
+                return ExpiredPngResponse();
+            }
+
+            refreshStarted.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            }
+            catch (OperationCanceledException)
+            {
+                refreshCancelled.TrySetResult();
+                throw;
+            }
+
+            throw new InvalidOperationException("The refresh must be cancelled during cleanup.");
+        });
+        var harness = new TileCacheTestHarness(upstream);
+        using (var scope = harness.CreateScope())
+        {
+            SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext());
+            var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+            await SeedExpiredTileAsync(service, harness.CacheDirectory, 5, 18, 28);
+            await service.RetrieveTileAsync("5", "18", "28", CanonicalTileUrl(5, 18, 28));
+            await refreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        await harness.DisposeAsync();
+
+        await refreshCancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
+            "5_18_28", TimeSpan.FromMilliseconds(100)));
+        Assert.False(Directory.Exists(harness.CacheDirectory));
+    }
+
     /// <summary>Seeds one expired low-zoom tile through the normal cache-write path.</summary>
     private static async Task SeedExpiredTileAsync(
         TileCacheService service,

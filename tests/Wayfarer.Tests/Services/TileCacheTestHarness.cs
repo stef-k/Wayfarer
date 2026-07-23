@@ -16,10 +16,12 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// Builds isolated tile-cache scopes around a recording in-memory upstream provider.
 /// </summary>
-internal sealed class TileCacheTestHarness : IDisposable
+internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
 {
+    private static readonly TimeSpan RefreshCleanupTimeout = TimeSpan.FromSeconds(2);
     private readonly ServiceProvider _rootProvider;
     private readonly TestTileSettingsService _settingsService;
+    private int _disposed;
 
     /// <summary>Gets the isolated cache directory owned by this harness.</summary>
     public string CacheDirectory { get; } =
@@ -86,11 +88,27 @@ internal sealed class TileCacheTestHarness : IDisposable
         return context;
     }
 
-    /// <summary>Disposes service scopes and removes only this harness's GUID-named temporary cache.</summary>
-    public void Dispose()
+    /// <summary>Cancels tracked refreshes before synchronously completing bounded test cleanup.</summary>
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+    /// <summary>Awaits tracked refresh completion before disposing services and deleting temporary data.</summary>
+    public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        var refreshesStopped =
+            await TileCacheService.CancelAndWaitForRefreshesForTestingAsync(RefreshCleanupTimeout);
+        if (!refreshesStopped)
+        {
+            Interlocked.Exchange(ref _disposed, 0);
+            throw new TimeoutException("Tracked stale-tile refresh work exceeded the test cleanup timeout.");
+        }
+
         TileCacheService.ResetStaticStateForTesting();
-        _rootProvider.Dispose();
+        await _rootProvider.DisposeAsync();
 
         if (Directory.Exists(CacheDirectory))
         {

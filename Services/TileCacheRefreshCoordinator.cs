@@ -57,7 +57,9 @@ public partial class TileCacheService
         }
 
         TileCacheDiagnostics.StaleRefreshScheduled(_logger, "scheduled", zoom);
-        _ = Task.Run(() => RunBackgroundRefreshSeriesAsync(series), CancellationToken.None);
+        series.SetCompletion(Task.Run(
+            () => RunBackgroundRefreshSeriesAsync(series),
+            CancellationToken.None));
     }
 
     /// <summary>
@@ -233,6 +235,29 @@ public partial class TileCacheService
         }
     }
 
+    /// <summary>Cancels and boundedly awaits all refresh work tracked by the test process.</summary>
+    internal static async Task<bool> CancelAndWaitForRefreshesForTestingAsync(TimeSpan timeout)
+    {
+        var activeSeries = _refreshSeries.Values.ToArray();
+        foreach (var series in activeSeries)
+        {
+            series.CancelForTesting();
+        }
+
+        try
+        {
+            await Task.WhenAll(activeSeries.Select(series => series.Completion))
+                .WaitAsync(timeout)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+
+        return activeSeries.All(series => !_refreshSeries.ContainsKey(series.TileKey));
+    }
+
     /// <summary>
     /// Overrides refresh retry delay calculation for deterministic tests.
     /// </summary>
@@ -272,6 +297,9 @@ public partial class TileCacheService
 
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 
+        /// <summary>Gets the scheduled series task so test cleanup can await its completion.</summary>
+        public Task Completion { get; private set; } = Task.CompletedTask;
+
         public TileRefreshSeries(string tileKey, string tileUrl, string tileFilePath,
             int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp)
         {
@@ -287,5 +315,8 @@ public partial class TileCacheService
         }
 
         public void CancelForTesting() => _cancellationTokenSource.Cancel();
+
+        /// <summary>Records the single scheduled task for this series.</summary>
+        public void SetCompletion(Task completion) => Completion = completion;
     }
 }
