@@ -17,8 +17,14 @@ public sealed class TestLogProvider : ILoggerProvider
     /// <inheritdoc />
     public void Dispose() { }
 
-    /// <summary>Represents one captured server log entry.</summary>
-    public sealed record TestLogEntry(LogLevel Level, string Category, string Message, Exception? Exception);
+    /// <summary>Represents one captured server log entry, including its stable identifier and structured fields.</summary>
+    public sealed record TestLogEntry(
+        LogLevel Level,
+        string Category,
+        EventId EventId,
+        IReadOnlyDictionary<string, object?> Fields,
+        string Message,
+        Exception? Exception);
 
     /// <summary>Writes entries to the owning provider without filtering them out.</summary>
     private sealed class TestLogger(string categoryName, ConcurrentQueue<TestLogEntry> entries) : ILogger
@@ -31,7 +37,21 @@ public sealed class TestLogProvider : ILoggerProvider
 
         /// <inheritdoc />
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) =>
-            entries.Enqueue(new TestLogEntry(logLevel, categoryName, formatter(state, exception), exception));
+            Func<TState, Exception?, string> formatter)
+        {
+            var fields = state is IEnumerable<KeyValuePair<string, object?>> structuredState
+                ? structuredState
+                    .Where(field => field.Key != "{OriginalFormat}")
+                    .ToDictionary(field => field.Key, field => field.Value)
+                : new Dictionary<string, object?>();
+
+            entries.Enqueue(new TestLogEntry(
+                logLevel,
+                categoryName,
+                eventId,
+                fields,
+                formatter(state, exception),
+                exception));
+        }
     }
 }
