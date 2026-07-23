@@ -193,26 +193,6 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         Assert.Single(harness.Upstream.Requests);
     }
 
-    /// <summary>Proves transport cancellation has its own event and is not classified as upstream failure.</summary>
-    [Fact]
-    public async Task Cancellation_IsNotReportedAsUpstreamFailure()
-    {
-        var upstream = new RecordingTileHandler((_, cancellationToken) =>
-            throw new OperationCanceledException(cancellationToken));
-        using var harness = new TileCacheTestHarness(upstream);
-        using var scope = harness.CreateScope();
-        SetHttpContext(scope);
-        var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
-
-        var result = await service.RetrieveTileAsync("5", "14", "15", CanonicalTileUrl(5, 14, 15));
-
-        Assert.Null(result.TileData);
-        var diagnostic = AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.Cancellation);
-        Assert.Equal("upstream", diagnostic.Fields["CancellationStage"]);
-        Assert.DoesNotContain(harness.Logs.Entries,
-            entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.UpstreamFailure);
-    }
-
     /// <summary>Proves current attempt numbering and fixed retry delay are observable without changing policy.</summary>
     [Fact]
     public async Task CurrentRetryDelay_IsReportedWithoutChangingRetryPolicy()

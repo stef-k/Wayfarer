@@ -125,7 +125,7 @@ public class TilesController : Controller
                 // Authenticated user with a valid user ID — rate limit by userId.
                 if (RateLimitHelper.IsRateLimitExceeded(AuthRateLimitCache, userId, settings.TileRateLimitAuthenticatedPerMinute))
                 {
-                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "client");
+                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "request-authenticated");
                     _logger.LogWarning("Tile request rate limit exceeded for an authenticated client.");
                     return StatusCode(429, "Too many requests. Please try again later.");
                 }
@@ -143,7 +143,7 @@ public class TilesController : Controller
                 var clientIp = GetClientIpAddress();
                 if (RateLimitHelper.IsRateLimitExceeded(RateLimitCache, clientIp, settings.TileRateLimitPerMinute))
                 {
-                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "client");
+                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "request-anonymous");
                     _logger.LogWarning("Tile request rate limit exceeded for an anonymous client.");
                     return StatusCode(429, "Too many requests. Please try again later.");
                 }

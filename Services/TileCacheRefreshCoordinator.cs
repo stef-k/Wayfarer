@@ -71,6 +71,7 @@ public partial class TileCacheService
                    DateTime.UtcNow - series.StartedAtUtc < RefreshSeriesMaxDuration)
             {
                 series.Attempts++;
+                series.CancellationStage = "stale-refresh-attempt";
 
                 try
                 {
@@ -80,6 +81,11 @@ public partial class TileCacheService
                     {
                         return;
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    // The outer boundary owns cancellation classification and deterministic state removal.
+                    throw;
                 }
                 catch (Exception)
                 {
@@ -104,13 +110,18 @@ public partial class TileCacheService
                     _logger,
                     selectedDelay.TotalMilliseconds,
                     "stale-refresh");
+                series.CancellationStage = "stale-refresh-delay";
                 await Task.Delay(selectedDelay, series.CancellationToken).ConfigureAwait(false);
             }
         }
+        catch (OperationCanceledException) when (series.CancellationToken.IsCancellationRequested)
+        {
+            TileCacheDiagnostics.Cancellation(_logger, series.CancellationStage);
+            _logger.LogDebug("Background refresh cancelled for tile {TileKey}", series.TileKey);
+        }
         catch (OperationCanceledException)
         {
-            TileCacheDiagnostics.Cancellation(_logger, "stale-refresh");
-            _logger.LogDebug("Background refresh cancelled for tile {TileKey}", series.TileKey);
+            // The transport already emitted a privacy-safe upstream-failure diagnostic.
         }
         finally
         {
@@ -255,6 +266,9 @@ public partial class TileCacheService
         public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
+
+        /// <summary>Gets or sets the bounded stage owned by the outer cancellation boundary.</summary>
+        public string CancellationStage { get; set; } = "stale-refresh-attempt";
 
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 

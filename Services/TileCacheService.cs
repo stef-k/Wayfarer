@@ -306,7 +306,7 @@ public partial class TileCacheService
     private async Task<HttpResponseMessage?> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null, bool skipBudget = false,
         string? clientIp = null, bool allowHttpContext = true, int attemptNumber = 1,
-        CancellationToken cancellationToken = default)
+        bool deferCancellationDiagnostic = false, CancellationToken cancellationToken = default)
     {
         // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
         // then record the hit only after the global budget is acquired. This prevents
@@ -336,7 +336,7 @@ public partial class TileCacheService
                 if (resolvedIpForBudget != null && RateLimitHelper.WouldExceedRateLimit(
                         TilesController.OutboundBudgetCache, resolvedIpForBudget, perIpLimit))
                 {
-                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "client");
+                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "outbound-client");
                     _logger.LogWarning(
                         "Per-client outbound tile allowance exceeded; upstream request rejected.");
                     return null;
@@ -350,7 +350,21 @@ public partial class TileCacheService
         // so retries should not consume additional tokens.
         if (!skipBudget)
         {
-            var acquisition = await OutboundBudget.AcquireDetailedAsync(cancellationToken).ConfigureAwait(false);
+            OutboundBudgetAcquisition acquisition;
+            try
+            {
+                acquisition = await OutboundBudget.AcquireDetailedAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (!deferCancellationDiagnostic)
+                {
+                    TileCacheDiagnostics.Cancellation(_logger, "global-budget-wait");
+                }
+
+                throw;
+            }
+
             TileCacheDiagnostics.BudgetWait(
                 _logger,
                 acquisition.Acquired ? "acquired" : "rejected",
@@ -400,9 +414,18 @@ public partial class TileCacheService
             {
                 response = await _httpClient.SendAsync(request, cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (!deferCancellationDiagnostic)
+                {
+                    TileCacheDiagnostics.Cancellation(_logger, "upstream-transport");
+                }
+
+                throw;
+            }
             catch (OperationCanceledException)
             {
-                TileCacheDiagnostics.Cancellation(_logger, "upstream");
+                TileCacheDiagnostics.UpstreamFailure(_logger, "transport");
                 throw;
             }
             catch (Exception)
@@ -431,7 +454,7 @@ public partial class TileCacheService
 
                 if (!string.Equals(nextUri.Host, initialUri.Host, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogWarning("Rejected tile redirect to a different host: {RedirectHost}", nextUri.Host);
+                    _logger.LogWarning("Rejected tile redirect to a different host.");
                     response.Dispose();
                     return null;
                 }
@@ -492,7 +515,7 @@ public partial class TileCacheService
                 request.Headers.IfModifiedSince = new DateTimeOffset(lastModified.Value, TimeSpan.Zero);
             }
         }, clientIp: clientIp, allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
-            cancellationToken: cancellationToken);
+            deferCancellationDiagnostic: true, cancellationToken: cancellationToken);
     }
 
     private static bool IsRedirectStatus(HttpStatusCode statusCode)
@@ -732,7 +755,15 @@ public partial class TileCacheService
                 // Optional: Delay between retries to avoid rate limiting
                 var retryDelay = TimeSpan.FromMilliseconds(500);
                 TileCacheDiagnostics.RetryDelaySelected(_logger, retryDelay.TotalMilliseconds, "cold-miss");
-                await _coldMissRetryDelay(retryDelay, cancellationToken);
+                try
+                {
+                    await _coldMissRetryDelay(retryDelay, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    TileCacheDiagnostics.Cancellation(_logger, "cold-miss-retry-delay");
+                    throw;
+                }
             }
 
             // Budget was never acquired — signal throttling to caller.
