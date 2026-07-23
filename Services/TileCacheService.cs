@@ -1284,11 +1284,9 @@ public partial class TileCacheService
                     newExpiry);
             }
 
-            byte[]? data = null;
             if (series.Zoom < DbMetadataZoomThreshold)
             {
-                // Sidecar write + file read under the same lock to prevent a concurrent
-                // purge from deleting the sidecar between write and read (TOCTOU).
+                // Keep the low-zoom sidecar update serialized with other cache file operations.
                 await _cacheLock.WaitAsync();
                 try
                 {
@@ -1298,31 +1296,10 @@ public partial class TileCacheService
                         LastModifiedUpstream = series.LastModified,
                         ExpiresAtUtc = newExpiry
                     });
-
-                    if (File.Exists(series.TileFilePath))
-                    {
-                        data = await File.ReadAllBytesAsync(series.TileFilePath);
-                    }
                 }
                 finally
                 {
                     _cacheLock.Release();
-                }
-            }
-            else
-            {
-                // zoom >= 9: no sidecar write needed — lock-free read
-                // (consistent with other read paths in RetrieveTileAsync).
-                try
-                {
-                    if (File.Exists(series.TileFilePath))
-                    {
-                        data = await File.ReadAllBytesAsync(series.TileFilePath);
-                    }
-                }
-                catch (IOException)
-                {
-                    // File deleted by concurrent eviction/purge — treat as cache miss.
                 }
             }
 
