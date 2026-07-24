@@ -1,6 +1,7 @@
 @using System.Linq
 @using Wayfarer.Util
 @using Wayfarer.Models
+@inject Wayfarer.Parsers.IApplicationSettingsService ApplicationSettingsService
 @model Wayfarer.Models.Trip
 @{
     ViewData["LoadLeaflet"] = true;
@@ -17,6 +18,7 @@
     var progressPercent = totalPlaces > 0 ? (int)Math.Round((double)visitedPlaces / totalPlaces * 100) : 0;
     var shareProgressEnabled = ViewBag.ShareProgressEnabled as bool? ?? false;
     var showProgress = owner || (shareProgressEnabled && visitedPlaces > 0);
+    var mapAttribution = TileProviderAttribution.Resolve(ApplicationSettingsService.GetSettings());
 
     // Get visit events and group by place (only available to owner)
     var rawVisitEvents = ViewBag.VisitEvents;
@@ -419,6 +421,13 @@
                              class="img-fluid w-100 rounded"
                              alt="Map of @Model.Name"
                              style="max-height: 400px; object-fit: cover;"/>
+                        @if (!string.IsNullOrWhiteSpace(mapAttribution))
+                        {
+                            @* The shared server resolver owns provider selection and final sanitization. *@
+                            <div class="map-snapshot-attribution small text-muted mt-1">
+                                @Html.Raw(mapAttribution)
+                            </div>
+                        }
                     </div>
                 }
 
@@ -443,6 +452,13 @@
                              class="img-fluid w-100 rounded"
                              alt="Map of @Model.Name"
                              style="max-height: 300px; object-fit: cover;"/>
+                        @if (!string.IsNullOrWhiteSpace(mapAttribution))
+                        {
+                            @* The shared server resolver owns provider selection and final sanitization. *@
+                            <div class="map-snapshot-attribution small text-muted mt-1">
+                                @Html.Raw(mapAttribution)
+                            </div>
+                        }
                     </div>
                 }
 

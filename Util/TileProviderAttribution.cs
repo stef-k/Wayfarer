@@ -61,7 +61,12 @@ public static partial class TileProviderAttribution
         {
             if (child is IText text)
             {
-                NormalizeTextNode(text, document);
+                NormalizeUnlinkedTextNode(text, document);
+            }
+            else if (child is IElement element &&
+                     element.LocalName.Equals("a", StringComparison.OrdinalIgnoreCase))
+            {
+                NormalizeAnchor(element, document);
             }
             else
             {
@@ -71,22 +76,59 @@ public static partial class TileProviderAttribution
     }
 
     /// <summary>
-    /// Canonicalizes OpenStreetMap text within an existing link or wraps unlinked visible text.
+    /// Canonicalizes an OpenStreetMap-only link or separates OSM text from a mixed provider link.
     /// </summary>
-    private static void NormalizeTextNode(IText text, IDocument document)
+    private static void NormalizeAnchor(IElement anchor, IDocument document)
     {
-        if (!OpenStreetMapText().IsMatch(text.Data))
+        if (!OpenStreetMapText().IsMatch(anchor.TextContent))
         {
             return;
         }
 
-        var containingAnchor = FindContainingAnchor(text);
-        if (containingAnchor != null)
+        var visibleText = anchor.TextContent.Trim();
+        if (string.IsNullOrEmpty(OpenStreetMapText().Replace(visibleText, string.Empty)))
         {
-            text.Data = OpenStreetMapText().Replace(text.Data, "OpenStreetMap");
-            containingAnchor.SetAttribute("href", OpenStreetMapCopyrightUrl);
-            containingAnchor.RemoveAttribute("target");
-            containingAnchor.RemoveAttribute("rel");
+            NormalizeOsmText(anchor);
+            anchor.SetAttribute("href", OpenStreetMapCopyrightUrl);
+            anchor.RemoveAttribute("target");
+            anchor.RemoveAttribute("rel");
+            return;
+        }
+
+        var parent = anchor.Parent;
+        if (parent == null)
+        {
+            return;
+        }
+
+        foreach (var segment in SplitAttributionNodes(anchor.ChildNodes.ToArray(), document))
+        {
+            var link = segment.IsOpenStreetMap
+                ? document.CreateElement("a")
+                : CloneElementShallow(anchor, document);
+            if (segment.IsOpenStreetMap)
+            {
+                link.SetAttribute("href", OpenStreetMapCopyrightUrl);
+            }
+
+            foreach (var segmentNode in segment.Nodes)
+            {
+                link.AppendChild(segmentNode);
+            }
+
+            parent.InsertBefore(link, anchor);
+        }
+
+        parent.RemoveChild(anchor);
+    }
+
+    /// <summary>
+    /// Wraps unlinked visible OpenStreetMap text in the canonical copyright link.
+    /// </summary>
+    private static void NormalizeUnlinkedTextNode(IText text, IDocument document)
+    {
+        if (!OpenStreetMapText().IsMatch(text.Data))
+        {
             return;
         }
 
@@ -120,23 +162,115 @@ public static partial class TileProviderAttribution
     }
 
     /// <summary>
-    /// Finds the nearest containing anchor for a visible text node.
+    /// Splits sanitized anchor descendants into provider and canonical OSM segments.
     /// </summary>
-    private static IElement? FindContainingAnchor(INode node)
+    private static List<AttributionSegment> SplitAttributionNodes(
+        IEnumerable<INode> nodes,
+        IDocument document)
     {
-        var current = node.Parent;
-        while (current != null)
+        var segments = new List<AttributionSegment>();
+        foreach (var node in nodes)
         {
-            if (current is IElement element &&
-                element.LocalName.Equals("a", StringComparison.OrdinalIgnoreCase))
+            if (node is IText text)
             {
-                return element;
-            }
+                var position = 0;
+                foreach (Match match in OpenStreetMapText().Matches(text.Data))
+                {
+                    if (match.Index > position)
+                    {
+                        AddSegment(
+                            segments,
+                            false,
+                            document.CreateTextNode(text.Data[position..match.Index]));
+                    }
 
-            current = current.Parent;
+                    AddSegment(segments, true, document.CreateTextNode("OpenStreetMap"));
+                    position = match.Index + match.Length;
+                }
+
+                if (position < text.Data.Length)
+                {
+                    AddSegment(segments, false, document.CreateTextNode(text.Data[position..]));
+                }
+            }
+            else if (node is IElement element)
+            {
+                var childSegments = SplitAttributionNodes(element.ChildNodes.ToArray(), document);
+                if (childSegments.Count == 0)
+                {
+                    AddSegment(segments, false, CloneElementShallow(element, document));
+                }
+                else
+                {
+                    foreach (var childSegment in childSegments)
+                    {
+                        var elementClone = CloneElementShallow(element, document);
+                        foreach (var childNode in childSegment.Nodes)
+                        {
+                            elementClone.AppendChild(childNode);
+                        }
+
+                        AddSegment(segments, childSegment.IsOpenStreetMap, elementClone);
+                    }
+                }
+            }
+            else
+            {
+                AddSegment(segments, false, node.Clone(true));
+            }
         }
 
-        return null;
+        return segments;
+    }
+
+    /// <summary>
+    /// Coalesces adjacent nodes that retain the same attribution destination.
+    /// </summary>
+    private static void AddSegment(
+        ICollection<AttributionSegment> segments,
+        bool isOpenStreetMap,
+        INode node)
+    {
+        var last = segments.LastOrDefault();
+        if (last != null && last.IsOpenStreetMap == isOpenStreetMap)
+        {
+            last.Nodes.Add(node);
+            return;
+        }
+
+        segments.Add(new AttributionSegment(isOpenStreetMap, [node]));
+    }
+
+    /// <summary>
+    /// Copies a sanitized element and its allowed attributes without copying descendants.
+    /// </summary>
+    private static IElement CloneElementShallow(IElement source, IDocument document)
+    {
+        var clone = document.CreateElement(source.LocalName);
+        foreach (var attribute in source.Attributes)
+        {
+            clone.SetAttribute(attribute.Name, attribute.Value);
+        }
+
+        return clone;
+    }
+
+    /// <summary>
+    /// Normalizes visible OpenStreetMap casing inside an OSM-only anchor.
+    /// </summary>
+    private static void NormalizeOsmText(INode node)
+    {
+        foreach (var child in node.ChildNodes)
+        {
+            if (child is IText text)
+            {
+                text.Data = OpenStreetMapText().Replace(text.Data, "OpenStreetMap");
+            }
+            else
+            {
+                NormalizeOsmText(child);
+            }
+        }
     }
 
     /// <summary>
@@ -155,4 +289,9 @@ public static partial class TileProviderAttribution
 
     [GeneratedRegex("OpenStreetMap", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OpenStreetMapText();
+
+    /// <summary>
+    /// Represents one contiguous portion of a mixed attribution anchor.
+    /// </summary>
+    private sealed record AttributionSegment(bool IsOpenStreetMap, List<INode> Nodes);
 }
