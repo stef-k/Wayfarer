@@ -151,7 +151,8 @@ public class TileProviderAttributionTests
     {
         var result = TileProviderAttribution.Resolve(Settings(
             TileProviderCatalog.CustomProviderKey,
-            "<a href=\"https://example.com/terms\">Example Maps using OpenStreetMap data</a>"));
+            "<a href=\"https://example.com/terms\" target=\"_blank\" title=\"Provider terms\" class=\"provider\">"
+            + "Example Maps using OpenStreetMap data</a>"));
         var document = new HtmlParser().ParseDocument($"<body>{result}</body>");
         var links = document.Body!.QuerySelectorAll("a");
 
@@ -163,7 +164,27 @@ public class TileProviderAttributionTests
         Assert.Equal("OpenStreetMap", links[1].TextContent);
         Assert.Equal("https://example.com/terms", links[2].GetAttribute("href"));
         Assert.Equal(" data", links[2].TextContent);
+        Assert.All([links[0], links[2]], link =>
+        {
+            Assert.Equal("_blank", link.GetAttribute("target"));
+            Assert.Equal("noopener noreferrer", link.GetAttribute("rel"));
+            Assert.Equal("Provider terms", link.GetAttribute("title"));
+            Assert.Equal("provider", link.GetAttribute("class"));
+        });
         Assert.Empty(document.Body.QuerySelectorAll("a a"));
+    }
+
+    [Fact]
+    public void Resolve_CanonicalizesAnchorRepresentingOnlyOsmAttribution()
+    {
+        var result = TileProviderAttribution.Resolve(Settings(
+            TileProviderCatalog.CustomProviderKey,
+            "<a href=\"https://example.com/wrong\">© OpenStreetMap contributors</a>"));
+        var document = new HtmlParser().ParseDocument($"<body>{result}</body>");
+        var link = Assert.Single(document.Body!.QuerySelectorAll("a"));
+
+        Assert.Equal("© OpenStreetMap contributors", link.TextContent);
+        Assert.Equal(OsmCopyrightUrl, link.GetAttribute("href"));
     }
 
     [Fact]

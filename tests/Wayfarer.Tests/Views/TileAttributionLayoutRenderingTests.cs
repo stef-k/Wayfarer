@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AngleSharp.Html.Parser;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Playwright;
 using MvcFrontendKit.Extensions;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
@@ -98,10 +100,12 @@ public sealed class TileAttributionLayoutRenderingTests
                 await RenderViewerAsync(scope.ServiceProvider),
                 TileProviderAttribution.OpenStreetMapCopyrightUrl,
                 "OpenStreetMap");
+            var osmPrintHtml = await RenderPrintAsync(scope.ServiceProvider);
             AssertSnapshotAttribution(
-                await RenderPrintAsync(scope.ServiceProvider),
+                osmPrintHtml,
                 TileProviderAttribution.OpenStreetMapCopyrightUrl,
                 "OpenStreetMap");
+            await AssertActualPdfArtifactAsync(osmPrintHtml);
 
             settingsService.Settings = new ApplicationSettings
             {
@@ -117,6 +121,21 @@ public sealed class TileAttributionLayoutRenderingTests
                 await RenderPrintAsync(scope.ServiceProvider),
                 "https://tiles.example.com/terms",
                 "Example Maps");
+
+            settingsService.Settings = new ApplicationSettings
+            {
+                TileProviderKey = TileProviderCatalog.CustomProviderKey,
+                TileProviderAttribution =
+                    "<a href=\"https://tiles.example.com/terms\">Example Maps using OpenStreetMap data</a>"
+            };
+            AssertSnapshotAttributionLinks(
+                await RenderViewerAsync(scope.ServiceProvider),
+                "https://tiles.example.com/terms",
+                TileProviderAttribution.OpenStreetMapCopyrightUrl);
+            AssertSnapshotAttributionLinks(
+                await RenderPrintAsync(scope.ServiceProvider),
+                "https://tiles.example.com/terms",
+                TileProviderAttribution.OpenStreetMapCopyrightUrl);
 
             settingsService.Settings = new ApplicationSettings
             {
@@ -203,6 +222,18 @@ public sealed class TileAttributionLayoutRenderingTests
             .GetView(null, "/Views/Trip/Print.cshtml", isMainPage: true);
         Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
         var view = Assert.IsAssignableFrom<IView>(viewResult.View);
+        const string mapFixture = """
+            <svg xmlns="http://www.w3.org/2000/svg" width="800" height="450">
+              <rect width="800" height="450" fill="#dbeff5"/>
+              <path d="M0 90 L800 350 M80 450 L420 0 M0 310 L800 120"
+                    stroke="#ffffff" stroke-width="28" fill="none"/>
+              <path d="M90 360 C250 80 520 390 710 100"
+                    stroke="#2878b5" stroke-width="10" fill="none"/>
+              <circle cx="90" cy="360" r="16" fill="#d33"/>
+              <circle cx="710" cy="100" r="16" fill="#d33"/>
+              <text x="24" y="40" font-family="Arial" font-size="24">Local map snapshot fixture</text>
+            </svg>
+            """;
         var model = new TripPrintViewModel
         {
             Trip = new Trip
@@ -215,7 +246,9 @@ public sealed class TileAttributionLayoutRenderingTests
             },
             Snap = new Dictionary<string, string>
             {
-                ["trip"] = "data:image/png;base64,iVBORw0KGgo="
+                // The local fixture proves map-image output without requesting provider tiles.
+                ["trip"] = "data:image/svg+xml;base64," + Convert.ToBase64String(
+                    Encoding.UTF8.GetBytes(mapFixture))
             }
         };
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
@@ -257,6 +290,76 @@ public sealed class TileAttributionLayoutRenderingTests
     {
         var document = new HtmlParser().ParseDocument(html);
         Assert.Empty(document.QuerySelectorAll(".map-snapshot-attribution"));
+    }
+
+    /// <summary>
+    /// Verifies every snapshot caption preserves both provider and OSM destinations.
+    /// </summary>
+    private static void AssertSnapshotAttributionLinks(
+        string html,
+        string providerHref,
+        string osmHref)
+    {
+        var document = new HtmlParser().ParseDocument(html);
+        var captions = document.QuerySelectorAll(".map-snapshot-attribution");
+        Assert.NotEmpty(captions);
+        Assert.All(captions, caption =>
+        {
+            var hrefs = caption.QuerySelectorAll("a")
+                .Select(link => link.GetAttribute("href"))
+                .ToArray();
+            Assert.Contains(providerHref, hrefs);
+            Assert.Contains(osmHref, hrefs);
+        });
+    }
+
+    /// <summary>
+    /// Generates the production print HTML as a real Chromium PDF and verifies its linked caption.
+    /// </summary>
+    private static async Task AssertActualPdfArtifactAsync(string html)
+    {
+        var configuredArtifactDirectory =
+            Environment.GetEnvironmentVariable("WAYFARER_TEST_ARTIFACT_DIRECTORY");
+        var artifactDirectory = configuredArtifactDirectory ??
+            Path.Combine(Path.GetTempPath(), $"wayfarer-attribution-pdf-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(artifactDirectory);
+        var pdfPath = Path.Combine(artifactDirectory, "phase2b-map-attribution.pdf");
+        var screenshotPath = Path.Combine(artifactDirectory, "phase2b-map-attribution-print.png");
+        try
+        {
+            using var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+            await using var browser = await playwright.Chromium.LaunchAsync(
+                new BrowserTypeLaunchOptions { Headless = true });
+            var page = await browser.NewPageAsync();
+            await page.SetContentAsync(
+                html,
+                new PageSetContentOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+
+            var caption = page.Locator(".map-snapshot-attribution").First;
+            Assert.True(await caption.IsVisibleAsync());
+            Assert.Equal(
+                TileProviderAttribution.OpenStreetMapCopyrightUrl,
+                await caption.Locator("a").GetAttributeAsync("href"));
+            await page.ScreenshotAsync(new PageScreenshotOptions
+            {
+                Path = screenshotPath,
+                FullPage = true
+            });
+            await page.PdfAsync(new PagePdfOptions { Path = pdfPath, PrintBackground = true });
+
+            var pdfBytes = await File.ReadAllBytesAsync(pdfPath);
+            Assert.StartsWith("%PDF", Encoding.ASCII.GetString(pdfBytes, 0, 4));
+            Assert.Contains(
+                TileProviderAttribution.OpenStreetMapCopyrightUrl,
+                Encoding.Latin1.GetString(pdfBytes));
+        }
+        finally
+        {
+            if (configuredArtifactDirectory == null)
+            {
+                Directory.Delete(artifactDirectory, recursive: true);
+            }
+        }
     }
 
     /// <summary>

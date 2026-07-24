@@ -86,7 +86,8 @@ public static partial class TileProviderAttribution
         }
 
         var visibleText = anchor.TextContent.Trim();
-        if (string.IsNullOrEmpty(OpenStreetMapText().Replace(visibleText, string.Empty)))
+        if (OpenStreetMapOnlyRemainder().IsMatch(
+                OpenStreetMapText().Replace(visibleText, string.Empty)))
         {
             NormalizeOsmText(anchor);
             anchor.SetAttribute("href", OpenStreetMapCopyrightUrl);
@@ -289,6 +290,11 @@ public static partial class TileProviderAttribution
 
     [GeneratedRegex("OpenStreetMap", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex OpenStreetMapText();
+
+    [GeneratedRegex(
+        @"^\s*(?:©\s*)?(?:contributors?)?\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex OpenStreetMapOnlyRemainder();
 
     /// <summary>
     /// Represents one contiguous portion of a mixed attribution anchor.

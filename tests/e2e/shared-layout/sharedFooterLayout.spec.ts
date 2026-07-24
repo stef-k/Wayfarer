@@ -119,6 +119,8 @@ test.describe('shared standard-layout footer', () => {
     // Intercept the local tile proxy so this proof cannot generate public-provider traffic.
     await page.route(/\/Public\/tiles\/\d+\/\d+\/\d+\.png/i, route =>
       route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng }));
+    await page.route(/\/thumbs\/trips\/[^?]+/i, route =>
+      route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng }));
 
     await signIn(page);
     await page.goto('/User/Trip');
@@ -142,6 +144,14 @@ test.describe('shared standard-layout footer', () => {
     await page.goto(publicViewerHref);
     await expectResolvedMapAttribution(page);
     await expectLinkedViewerEmergencyFallback(page);
+    await page.locator('#btn-expand-readable').click();
+    await expect(page.locator('#readableViewModal')).toBeVisible();
+    const readableAttribution = page.locator(
+      '#readable-modal-body .map-snapshot-attribution');
+    await expect(readableAttribution).toBeVisible();
+    await expect(readableAttribution.getByRole(
+      'link', { name: 'OpenStreetMap', exact: true }))
+      .toHaveAttribute('href', 'https://www.openstreetmap.org/copyright');
     await page.screenshot({
       fullPage: true,
       path: testInfo.outputPath('screenshots', 'viewer-provider-attribution.png')
