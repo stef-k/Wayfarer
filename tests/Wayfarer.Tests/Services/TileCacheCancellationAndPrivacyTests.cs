@@ -74,7 +74,7 @@ public sealed class TileCacheCancellationAndPrivacyTests
         TileCacheService.OutboundBudget.SetAcquireOverrideForTesting(token =>
         {
             cancellation.Cancel();
-            return Task.FromCanceled<OutboundBudgetAcquisition>(token);
+            return WaitForSharedCancellationAsync<OutboundBudgetAcquisition>(token);
         });
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
@@ -100,7 +100,7 @@ public sealed class TileCacheCancellationAndPrivacyTests
         TileCacheService.SetColdMissRetryDelayForTesting((_, token) =>
         {
             cancellation.Cancel();
-            return Task.FromCanceled(token);
+            return Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
@@ -113,6 +113,13 @@ public sealed class TileCacheCancellationAndPrivacyTests
         AssertCancellation(harness.Logs, "cold-miss-retry-delay");
         AssertNoUpstreamFailure(harness.Logs);
         Assert.Single(harness.Upstream.Requests);
+    }
+
+    /// <summary>Waits until the scheduler-owned token reflects the last waiter's cancellation.</summary>
+    private static async Task<T> WaitForSharedCancellationAsync<T>(CancellationToken token)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        throw new InvalidOperationException("The shared cancellation wait unexpectedly completed.");
     }
 
     /// <summary>Proves stale-refresh delay cancellation is stage-specific and removes series state.</summary>
