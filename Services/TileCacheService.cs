@@ -666,7 +666,7 @@ public partial class TileCacheService
     /// </summary>
     private TileSidecarMetadata? ReadSidecarMetadata(string tileFilePath)
     {
-        var tileKey = Path.GetFileNameWithoutExtension(tileFilePath);
+        var tileKey = tileFilePath;
 
         // 1. Check in-memory cache first (fast path)
         if (_sidecarCache.TryGetValue(tileKey, out var cached))
@@ -715,7 +715,7 @@ public partial class TileCacheService
             File.Move(tmpPath, sidecarPath, overwrite: true);
 
             // Update in-memory cache
-            var tileKey = Path.GetFileNameWithoutExtension(tileFilePath);
+            var tileKey = tileFilePath;
             _sidecarCache[tileKey] = metadata;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
