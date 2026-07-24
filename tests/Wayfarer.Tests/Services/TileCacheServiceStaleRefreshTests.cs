@@ -38,7 +38,7 @@ public partial class TileCacheServiceTests
         Assert.NotNull(result.TileData);
         Assert.True(handler.Referrers.Count >= 2);
         Assert.NotNull(handler.Referrers[0]);
-        Assert.Null(handler.Referrers[^1]);
+        Assert.Equal(new Uri("https://myapp.example.com/"), handler.Referrers[^1]);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public partial class TileCacheServiceTests
 
         Assert.NotNull(result.TileData);
         Assert.Equal(1, handler.ConditionalCallCount);
-        Assert.Null(handler.Referrers.Last());
+        Assert.Equal(new Uri("https://myapp.example.com/"), handler.Referrers.Last());
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public partial class TileCacheServiceTests
         var service = CreateService(db, dir.Path, handler, dbName: dbName, hotCache: hotCache);
 
         await service.CacheTileAsync("http://tiles/9/14/15.png", "9", "14", "15");
-        var tilePath = Path.Combine(dir.Path, "9_14_15.png");
+        var tilePath = service.GetTileFilePathForTesting("9", "14", "15");
         var originalBytes = await File.ReadAllBytesAsync(tilePath);
         ExpireDbTile(db, hotCache, 9, 14, 15);
 
@@ -151,7 +151,7 @@ public partial class TileCacheServiceTests
         TileCacheService.SetTileFileReplacerForTesting((_, _) => throw new IOException("replacement failed"));
 
         await service.CacheTileAsync("http://tiles/9/6/7.png", "9", "6", "7");
-        var tilePath = Path.Combine(dir.Path, "9_6_7.png");
+        var tilePath = service.GetTileFilePathForTesting("9", "6", "7");
         var originalBytes = await File.ReadAllBytesAsync(tilePath);
         ExpireDbTile(db, hotCache, 9, 6, 7);
 
@@ -233,7 +233,7 @@ public partial class TileCacheServiceTests
     {
         var context = new DefaultHttpContext();
         context.Request.Scheme = "https";
-        context.Request.Host = new HostString("wayfarer.test");
+        context.Request.Host = new HostString("myapp.example.com");
         return context;
     }
 

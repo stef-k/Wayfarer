@@ -278,9 +278,11 @@ If configuring manually, add these lines to `/etc/systemd/system/wayfarer.servic
 ```ini
 Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD"
 Environment=Application__ContactEmail=admin@your-domain.example
+Environment=AllowedHosts=wayfarer.example.com
 ```
 
 The `Application__ContactEmail` is included in the User-Agent header sent to tile providers (e.g. OpenStreetMap) for policy compliance.
+`AllowedHosts` authorizes the public Wayfarer hostname used for the origin-only provider Referer. Do not use wildcards: wildcard configuration deliberately omits the Referer and may recreate provider 403 responses. The installer preserves a valid existing hostname before considering `CERTBOT_DOMAIN`; otherwise it prompts or warns without guessing.
 
 Then reload: `sudo systemctl daemon-reload && sudo systemctl restart wayfarer`
 
@@ -293,7 +295,7 @@ All files use **placeholders** that must be customized for your deployment:
 | File | What to Customize |
 |------|-------------------|
 | `deploy.sh` | `APP_DIR`, `DEPLOY_DIR`, `APP_USER`, `SERVICE_NAME` |
-| `wayfarer.service` | `User`, `WorkingDirectory`, port in `--urls`, **connection string**, `Application__ContactEmail` |
+| `wayfarer.service` | `User`, `WorkingDirectory`, port in `--urls`, **connection string**, `Application__ContactEmail`, `AllowedHosts` |
 | `nginx-ratelimit.conf` | Domain name, SSL paths, Kestrel port, log paths |
 | `fail2ban-wayfarer-jail.conf` | `logpath` (must match your actual log location) |
 

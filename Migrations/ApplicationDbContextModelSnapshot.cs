@@ -1205,6 +1205,10 @@ namespace Wayfarer.Migrations
                     b.Property<DateTime?>("LastModifiedUpstream")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ProviderIdentity")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -1237,6 +1241,10 @@ namespace Wayfarer.Migrations
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("TileLocation"), "GIST");
 
                     b.HasIndex("Zoom", "X", "Y")
+                        .IsUnique()
+                        .HasFilter("\"ProviderIdentity\" IS NULL");
+
+                    b.HasIndex("ProviderIdentity", "Zoom", "X", "Y")
                         .IsUnique();
 
                     b.ToTable("TileCacheMetadata");

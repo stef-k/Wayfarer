@@ -63,6 +63,11 @@ Environment=HOME=/home/wayfarer
 # a monitored email address so tile providers can contact you about usage issues.
 # Environment=Application__ContactEmail=admin@your-domain.example
 
+# PUBLIC WAYFARER HOSTNAME
+# Required to send a trustworthy origin-only Referer to tile providers.
+# Use the public hostname only, without a scheme, port, path, or wildcard.
+# Environment=AllowedHosts=wayfarer.example.com
+
 # DATABASE CONNECTION STRING
 # This overrides the placeholder in appsettings.json - REQUIRED for production!
 # The install.sh script will set this automatically, or configure it manually:

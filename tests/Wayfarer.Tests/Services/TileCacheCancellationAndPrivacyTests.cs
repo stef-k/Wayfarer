@@ -26,19 +26,28 @@ public sealed class TileCacheCancellationAndPrivacyTests
     public async Task CallerCancelledTransport_EmitsCancellationOnly()
     {
         using var cancellation = new CancellationTokenSource();
-        var upstream = new RecordingTileHandler((_, token) =>
+        var transportStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var upstream = new RecordingTileHandler(async (_, token) =>
         {
-            cancellation.Cancel();
-            throw new OperationCanceledException(token);
+            transportStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            throw new InvalidOperationException("The controlled transport unexpectedly completed.");
         });
         using var harness = new TileCacheTestHarness(upstream);
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
+        // Cancel only after transport starts, then drain the scheduler-owned runner before reading logs.
+        var retrieval = service.RetrieveTileAsync(
+            "5", "18", "19", CanonicalTileUrl(5, 18, 19), cancellation.Token);
+        await transportStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.RetrieveTileAsync(
-                "5", "18", "19", CanonicalTileUrl(5, 18, 19), cancellation.Token));
+            retrieval);
+        await TileWorkScheduler.StopAndDrainAsync();
 
         AssertCancellation(harness.Logs, "upstream-transport");
         AssertNoUpstreamFailure(harness.Logs);
@@ -74,7 +83,7 @@ public sealed class TileCacheCancellationAndPrivacyTests
         TileCacheService.OutboundBudget.SetAcquireOverrideForTesting(token =>
         {
             cancellation.Cancel();
-            return Task.FromCanceled<OutboundBudgetAcquisition>(token);
+            return WaitForSharedCancellationAsync<OutboundBudgetAcquisition>(token);
         });
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
@@ -94,25 +103,40 @@ public sealed class TileCacheCancellationAndPrivacyTests
     public async Task ColdMissRetryDelayCancellation_StopsFurtherAttempts()
     {
         using var cancellation = new CancellationTokenSource();
+        var retryDelayStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var upstream = new RecordingTileHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
         using var harness = new TileCacheTestHarness(upstream);
-        TileCacheService.SetColdMissRetryDelayForTesting((_, token) =>
+        TileCacheService.SetColdMissRetryDelayForTesting(async (_, token) =>
         {
-            cancellation.Cancel();
-            return Task.FromCanceled(token);
+            retryDelayStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
+        // Enter the retry delay before cancelling, then drain its shared runner before reading logs.
+        var retrieval = service.RetrieveTileAsync(
+            "5", "18", "22", CanonicalTileUrl(5, 18, 22), cancellation.Token);
+        await retryDelayStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.RetrieveTileAsync(
-                "5", "18", "22", CanonicalTileUrl(5, 18, 22), cancellation.Token));
+            retrieval);
+        await TileWorkScheduler.StopAndDrainAsync();
 
         AssertCancellation(harness.Logs, "cold-miss-retry-delay");
         AssertNoUpstreamFailure(harness.Logs);
         Assert.Single(harness.Upstream.Requests);
+    }
+
+    /// <summary>Waits until the scheduler-owned token reflects the last waiter's cancellation.</summary>
+    private static async Task<T> WaitForSharedCancellationAsync<T>(CancellationToken token)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        throw new InvalidOperationException("The shared cancellation wait unexpectedly completed.");
     }
 
     /// <summary>Proves stale-refresh delay cancellation is stage-specific and removes series state.</summary>
@@ -323,8 +347,10 @@ public sealed class TileCacheCancellationAndPrivacyTests
     {
         Assert.True(await service.CacheTileAsync(CanonicalTileUrl(zoom, x, y),
             zoom.ToString(), x.ToString(), y.ToString()));
+        var tilePath = service.GetTileFilePathForTesting(
+            zoom.ToString(), x.ToString(), y.ToString());
         await File.WriteAllTextAsync(
-            Path.Combine(cacheDirectory, $"{zoom}_{x}_{y}.png.meta"),
+            tilePath + ".meta",
             JsonSerializer.Serialize(new TileSidecarMetadata
             {
                 ETag = "\"phase1-stale\"",

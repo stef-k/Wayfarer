@@ -245,6 +245,8 @@ public sealed partial class TileCacheRetryStatusTests
     public async Task ProviderWaitCancellation_StopsBeforeSecondAttempt()
     {
         using var cancellation = new CancellationTokenSource();
+        var providerWaitStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var upstream = new RecordingTileHandler((_, _) =>
         {
             var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
@@ -252,16 +254,22 @@ public sealed partial class TileCacheRetryStatusTests
             return Task.FromResult(response);
         });
         using var harness = new TileCacheTestHarness(upstream);
-        TileCacheService.SetColdMissRetryDelayForTesting((_, token) =>
+        TileCacheService.SetColdMissRetryDelayForTesting(async (_, token) =>
         {
-            cancellation.Cancel();
-            return Task.FromCanceled(token);
+            providerWaitStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
         using var scope = harness.CreateScope();
         var controller = CreateController(scope, cancellation.Token);
 
+        // Enter the provider gate before cancelling, then drain its shared runner before reading logs.
+        var retrieval = controller.GetTile(5, 13, 1);
+        await providerWaitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => controller.GetTile(5, 13, 1));
+            () => retrieval);
+        await TileWorkScheduler.StopAndDrainAsync();
 
         Assert.Single(harness.Upstream.Requests);
         Assert.Single(harness.Logs.Entries, entry =>
@@ -335,7 +343,8 @@ public sealed partial class TileCacheRetryStatusTests
         Assert.IsType<FileContentResult>(await secondController.GetTile(5, 16, 1));
 
         Assert.Equal(2, harness.Upstream.Requests.Count);
-        Assert.True(File.Exists(Path.Combine(harness.CacheDirectory, "5_16_1.png")));
+        Assert.Single(Directory.EnumerateFiles(
+            harness.CacheDirectory, "5_16_1.png", SearchOption.AllDirectories));
     }
 
     /// <summary>Proves local request-rate rejection retains 429 with bounded retry guidance.</summary>

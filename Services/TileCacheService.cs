@@ -130,10 +130,10 @@ public partial class TileCacheService
     };
 
     /// <summary>
-    /// Stops the outbound budget replenishment task for clean application shutdown.
+    /// Stops admission and boundedly drains all tile work for clean application shutdown.
     /// Call from <c>IHostApplicationLifetime.ApplicationStopping</c> or equivalent.
     /// </summary>
-    public static void StopOutboundBudget() => OutboundBudget.Stop();
+    public static void StopOutboundBudget() => StopAndDrainTileWork();
 
     /// <summary>
     /// Exposes the outbound budget burst capacity for client-side configuration.
@@ -169,10 +169,12 @@ public partial class TileCacheService
         }
 
         _refreshSeries.Clear();
+        TileWorkScheduler.ResetForTesting();
         _sidecarCache.Clear();
         SetRefreshRetryDelayForTesting(null);
         SetColdMissRetryDelayForTesting(null);
         SetTileFileReplacerForTesting(null);
+        ResetRefreshCoordinatorForTesting();
         Interlocked.Exchange(ref _currentCacheSize, 0);
         Interlocked.Exchange(ref _evictionInProgress, 0);
         Interlocked.Exchange(ref _purgeInProgress, 0);
@@ -307,8 +309,10 @@ public partial class TileCacheService
     private async Task<TileRequestSendResult> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null, bool chargeClientAllowance = true,
         string? clientIp = null, bool allowHttpContext = true, int attemptNumber = 1,
+        string? publicOrigin = null,
         bool deferCancellationDiagnostic = false, DateTimeOffset? interactiveDeadline = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
+        TileWorkPriority priority = TileWorkPriority.Foreground,
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
@@ -406,11 +410,22 @@ public partial class TileCacheService
                 }
             }
 
+            // Background maintenance has one non-waiting transport slot and cannot displace a miss.
+            using var backgroundContact = priority == TileWorkPriority.Background
+                ? OutboundBudget.TryAcquireBackgroundContact()
+                : null;
+            if (priority == TileWorkPriority.Background && backgroundContact == null)
+            {
+                return TileRequestSendResult.Rejected(TileRequestRejection.GlobalBudget);
+            }
+
             // Every actual provider contact, including redirects and retries, consumes global capacity.
             OutboundBudgetAcquisition acquisition;
             try
             {
-                acquisition = await OutboundBudget.AcquireDetailedAsync(cancellationToken).ConfigureAwait(false);
+                acquisition = await OutboundBudget
+                    .AcquireDetailedAsync(cancellationToken, priority)
+                    .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (callerCancellationToken.IsCancellationRequested)
             {
@@ -438,13 +453,16 @@ public partial class TileCacheService
 
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
 
-            // OSM requires a Referer header. Derive it from the incoming HTTP request
-            // so it automatically matches the public URL (works behind reverse proxies,
-            // Cloudflare Tunnel, etc. when forwarded headers are configured).
-            var ctx = allowHttpContext ? _httpContextAccessor.HttpContext : null;
-            if (ctx != null)
+            // Shared work carries only an immutable sanitized deployment origin.
+            var requestOrigin = publicOrigin;
+            if (requestOrigin == null && allowHttpContext)
             {
-                request.Headers.Referrer = new Uri($"{ctx.Request.Scheme}://{ctx.Request.Host}");
+                requestOrigin = ResolvePublicRequestOrigin(_httpContextAccessor.HttpContext);
+            }
+
+            if (requestOrigin != null)
+            {
+                request.Headers.Referrer = new Uri(requestOrigin, UriKind.Absolute);
             }
 
             // Let the caller add conditional headers (If-None-Match, If-Modified-Since, etc.)
@@ -544,14 +562,17 @@ public partial class TileCacheService
         string tileUrl,
         bool chargeClientAllowance = true,
         string? clientIp = null,
+        bool allowHttpContext = true,
         int attemptNumber = 1,
+        string? publicOrigin = null,
         DateTimeOffset? interactiveDeadline = null,
         TileContactState? contactState = null,
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, chargeClientAllowance: chargeClientAllowance,
-            clientIp: clientIp, attemptNumber: attemptNumber,
+            clientIp: clientIp, allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
+            publicOrigin: publicOrigin,
             interactiveDeadline: interactiveDeadline,
             contactState: contactState,
             callerCancellationToken: callerCancellationToken,
@@ -565,6 +586,7 @@ public partial class TileCacheService
     private Task<TileRequestSendResult> SendConditionalTileRequestAsync(string tileUrl, string? etag,
         DateTime? lastModified, string? clientIp = null, bool allowHttpContext = true,
         bool chargeClientAllowance = true, int attemptNumber = 1,
+        string? publicOrigin = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
         CancellationToken cancellationToken = default)
     {
@@ -585,9 +607,11 @@ public partial class TileCacheService
             }
         }, chargeClientAllowance: chargeClientAllowance, clientIp: clientIp,
             allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
+            publicOrigin: publicOrigin,
             deferCancellationDiagnostic: true,
             contactState: contactState,
             onClientAllowanceCharged: onClientAllowanceCharged,
+            priority: TileWorkPriority.Background,
             callerCancellationToken: cancellationToken,
             cancellationToken: cancellationToken);
     }
@@ -651,7 +675,7 @@ public partial class TileCacheService
     /// </summary>
     private TileSidecarMetadata? ReadSidecarMetadata(string tileFilePath)
     {
-        var tileKey = Path.GetFileNameWithoutExtension(tileFilePath);
+        var tileKey = tileFilePath;
 
         // 1. Check in-memory cache first (fast path)
         if (_sidecarCache.TryGetValue(tileKey, out var cached))
@@ -700,7 +724,7 @@ public partial class TileCacheService
             File.Move(tmpPath, sidecarPath, overwrite: true);
 
             // Update in-memory cache
-            var tileKey = Path.GetFileNameWithoutExtension(tileFilePath);
+            var tileKey = tileFilePath;
             _sidecarCache[tileKey] = metadata;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -730,8 +754,11 @@ public partial class TileCacheService
     public async Task<bool> CacheTileAsync(string tileUrl, string zoomLevel, string xCoordinate, string yCoordinate,
         CancellationToken cancellationToken = default)
     {
+        var provider = GetActiveProviderIdentity();
+        var tileFilePath = GetProviderTilePath(provider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
         var result = await CacheTileWithRetryAsync(
-            tileUrl, zoomLevel, xCoordinate, yCoordinate, cancellationToken);
+            tileUrl, zoomLevel, xCoordinate, yCoordinate, provider.Fingerprint, tileFilePath,
+            clientIp: null, allowHttpContext: true, publicOrigin: null, cancellationToken);
         return result.Status != TileCacheFillStatus.BudgetRejected;
     }
 
@@ -741,6 +768,11 @@ public partial class TileCacheService
         string zoomLevel,
         string xCoordinate,
         string yCoordinate,
+        string providerIdentity,
+        string tileFilePath,
+        string? clientIp,
+        bool allowHttpContext,
+        string? publicOrigin,
         CancellationToken cancellationToken)
     {
         try
@@ -749,10 +781,8 @@ public partial class TileCacheService
             int zoom = int.Parse(zoomLevel);
             int x = int.Parse(xCoordinate);
             int y = int.Parse(yCoordinate);
-            var tileFileName = $"{zoom}_{x}_{y}.png";
-            var tileFilePath = Path.Combine(_cacheDirectory, tileFileName);
-
-            var download = await DownloadTileWithRetryAsync(tileUrl, cancellationToken);
+            var download = await DownloadTileWithRetryAsync(
+                tileUrl, clientIp, allowHttpContext, publicOrigin, cancellationToken);
             if (download.Status != TileCacheFillStatus.Cached)
             {
                 return new TileCacheFillResult(download.Status, download.RetryAfter);
@@ -766,6 +796,7 @@ public partial class TileCacheService
             await _cacheLock.WaitAsync(cancellationToken);
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(tileFilePath)!);
                 if (!File.Exists(tileFilePath))
                 {
                     await File.WriteAllBytesAsync(tileFilePath, tileData, cancellationToken);
@@ -776,6 +807,7 @@ public partial class TileCacheService
                 {
                     WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
                     {
+                        ProviderIdentity = providerIdentity,
                         ETag = etag,
                         LastModifiedUpstream = lastModifiedUpstream,
                         ExpiresAtUtc = expiresAtUtc
@@ -802,7 +834,8 @@ public partial class TileCacheService
             if (zoom >= DbMetadataZoomThreshold)
             {
                 var existingMetadata = await _dbContext.TileCacheMetadata
-                    .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
+                    .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
+                                              t.Zoom == zoom && t.X == x && t.Y == y);
                 if (existingMetadata == null)
                 {
                     // If adding a new tile would exceed the cache limit, evict tiles.
@@ -831,6 +864,7 @@ public partial class TileCacheService
                         TileLocation = new Point(x, y),
                         Size = tileData.Length,
                         TileFilePath = tileFilePath,
+                        ProviderIdentity = providerIdentity,
                         LastAccessed = DateTime.UtcNow,
                         ETag = etag,
                         LastModifiedUpstream = lastModifiedUpstream,
@@ -843,7 +877,7 @@ public partial class TileCacheService
                         _dbContext.TileCacheMetadata.Add(tileMetadata);
                         await _dbContext.SaveChangesAsync();
                         Interlocked.Add(ref _currentCacheSize, tileData.Length);
-                        TrySetHotMetadataEntry(zoom, x, y, tileMetadata);
+                        TrySetHotMetadataEntry(providerIdentity, zoom, x, y, tileMetadata);
                         _logger.LogInformation("Tile metadata stored in database.");
                     }
                     catch (DbUpdateException)
@@ -856,10 +890,12 @@ public partial class TileCacheService
                             zoom, x, y);
 
                         var persistedMetadata = await _dbContext.TileCacheMetadata
-                            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y, cancellationToken);
+                            .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
+                                                      t.Zoom == zoom && t.X == x && t.Y == y,
+                                cancellationToken);
                         if (persistedMetadata != null)
                         {
-                            TrySetHotMetadataEntry(zoom, x, y, persistedMetadata);
+                            TrySetHotMetadataEntry(providerIdentity, zoom, x, y, persistedMetadata);
                         }
                     }
                 }
@@ -922,7 +958,7 @@ public partial class TileCacheService
 
                     // Adjust the in-memory cache size using the previously saved value.
                     Interlocked.Add(ref _currentCacheSize, tileData.Length - oldSize);
-                    TrySetHotMetadataEntry(zoom, x, y, existingMetadata);
+                    TrySetHotMetadataEntry(providerIdentity, zoom, x, y, existingMetadata);
                 }
             }
 
@@ -954,7 +990,8 @@ public partial class TileCacheService
     /// Returns a <see cref="TileRetrievalResult"/> distinguishing success, not-found, and throttled states.
     /// </summary>
     public async Task<TileRetrievalResult> RetrieveTileAsync(string zoomLevel, string xCoordinate, string yCoordinate,
-        string? tileUrl = null, CancellationToken cancellationToken = default)
+        string? tileUrl = null, CancellationToken cancellationToken = default,
+        string? providerIdentity = null, bool canAdoptLegacyOsm = false)
     {
         try
         {
@@ -964,6 +1001,8 @@ public partial class TileCacheService
             // outbound budget check works for revalidation requests.
             var httpContext = _httpContextAccessor.HttpContext;
             var clientIp = httpContext != null ? RateLimitHelper.GetClientIpAddress(httpContext) : null;
+            var publicOrigin = ResolvePublicRequestOrigin(httpContext);
+            var schedulerClientKey = ResolveSchedulerClientKey(httpContext, clientIp);
 
             if (!int.TryParse(zoomLevel, out var zoomLvl) ||
                 !int.TryParse(xCoordinate, out var xVal) ||
@@ -974,9 +1013,19 @@ public partial class TileCacheService
                 return TileRetrievalResult.NotFound();
             }
 
-            var tileKey = $"{zoomLevel}_{xCoordinate}_{yCoordinate}";
-            var tileFileName = $"{tileKey}.png";
-            var tileFilePath = Path.Combine(_cacheDirectory, tileFileName);
+            var activeProvider = providerIdentity == null
+                ? GetActiveProviderIdentity()
+                : new TileProviderCacheIdentity(providerIdentity, canAdoptLegacyOsm);
+            var coordinateKey = $"{zoomLevel}_{xCoordinate}_{yCoordinate}";
+            var tileKey = $"{activeProvider.Fingerprint}:{coordinateKey}";
+            var scopedTilePath = GetProviderTilePath(
+                activeProvider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
+            var legacyTilePath = Path.Combine(_cacheDirectory, $"{coordinateKey}.png");
+            var tileFilePath = File.Exists(scopedTilePath)
+                ? scopedTilePath
+                : activeProvider.CanAdoptLegacyOsm && File.Exists(legacyTilePath)
+                    ? legacyTilePath
+                    : scopedTilePath;
 
             // 1. Check the file system first.
             if (File.Exists(tileFilePath))
@@ -991,7 +1040,9 @@ public partial class TileCacheService
 
                 if (zoomLvl >= DbMetadataZoomThreshold)
                 {
-                    if (TryGetHotMetadataEntry(zoomLvl, xVal, yVal, out var hotMetadata) && hotMetadata != null)
+                    if (TryGetHotMetadataEntry(
+                            activeProvider.Fingerprint, zoomLvl, xVal, yVal, out var hotMetadata) &&
+                        hotMetadata != null)
                     {
                         etag = hotMetadata.ETag;
                         lastModified = hotMetadata.LastModifiedUpstream;
@@ -999,7 +1050,10 @@ public partial class TileCacheService
                         if (hotMetadata.ExpiresAtUtc == null)
                         {
                             // Null expiry is legacy metadata; seed and continue via the authoritative DB path.
-                            var seededMetadata = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
+                            var seededMetadata = await LoadAndTouchMetadataAsync(
+                                activeProvider.Fingerprint,
+                                activeProvider.CanAdoptLegacyOsm,
+                                zoomLvl, xVal, yVal);
                             if (seededMetadata != null)
                             {
                                 if (seededMetadata.ExpiresAtUtc == null)
@@ -1010,7 +1064,8 @@ public partial class TileCacheService
                                 isExpired = seededMetadata.ExpiresAtUtc <= DateTime.UtcNow;
                                 etag = seededMetadata.ETag;
                                 lastModified = seededMetadata.LastModifiedUpstream;
-                                TrySetHotMetadataEntry(zoomLvl, xVal, yVal, seededMetadata);
+                                TrySetHotMetadataEntry(
+                                    activeProvider.Fingerprint, zoomLvl, xVal, yVal, seededMetadata);
                             }
                             else
                             {
@@ -1026,19 +1081,24 @@ public partial class TileCacheService
                     else
                     {
                         // Hot-cache miss: fall back to the authoritative DB path and seed the hot cache lazily.
-                        var meta = await LoadAndTouchMetadataAsync(zoomLvl, xVal, yVal);
+                        var meta = await LoadAndTouchMetadataAsync(
+                            activeProvider.Fingerprint,
+                            activeProvider.CanAdoptLegacyOsm,
+                            zoomLvl, xVal, yVal);
                         if (meta != null)
                         {
                             if (meta.ExpiresAtUtc == null)
                             {
                                 await SeedLegacyTileExpiryAsync(meta);
-                                TrySetHotMetadataEntry(zoomLvl, xVal, yVal, meta);
+                                TrySetHotMetadataEntry(
+                                    activeProvider.Fingerprint, zoomLvl, xVal, yVal, meta);
                                 isExpired = false;
                             }
                             else
                             {
                                 isExpired = meta.ExpiresAtUtc <= DateTime.UtcNow;
-                                TrySetHotMetadataEntry(zoomLvl, xVal, yVal, meta);
+                                TrySetHotMetadataEntry(
+                                    activeProvider.Fingerprint, zoomLvl, xVal, yVal, meta);
                             }
 
                             etag = meta.ETag;
@@ -1057,11 +1117,20 @@ public partial class TileCacheService
                     var sidecar = ReadSidecarMetadata(tileFilePath);
                     if (sidecar != null)
                     {
+                        if (activeProvider.CanAdoptLegacyOsm &&
+                            tileFilePath == legacyTilePath &&
+                            sidecar.ProviderIdentity == null)
+                        {
+                            sidecar.ProviderIdentity = activeProvider.Fingerprint;
+                            WriteSidecarMetadata(tileFilePath, sidecar);
+                        }
+
                         if (sidecar.ExpiresAtUtc == null)
                         {
                             // Legacy tile (pre-migration): seed 7-day expiry via sidecar.
                             var seeded = new TileSidecarMetadata
                             {
+                                ProviderIdentity = activeProvider.Fingerprint,
                                 ETag = sidecar.ETag,
                                 LastModifiedUpstream = sidecar.LastModifiedUpstream,
                                 ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry)
@@ -1083,6 +1152,7 @@ public partial class TileCacheService
                         // Seed a sidecar with 7-day expiry so next access hits the fast path.
                         WriteSidecarMetadata(tileFilePath, new TileSidecarMetadata
                         {
+                            ProviderIdentity = activeProvider.Fingerprint,
                             ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry)
                         });
                         isExpired = false;
@@ -1112,7 +1182,8 @@ public partial class TileCacheService
                     {
                         if (servedByFreshHotMetadata)
                         {
-                            await TouchLastAccessedFromHotHitAsync(zoomLvl, xVal, yVal);
+                            await TouchLastAccessedFromHotHitAsync(
+                                activeProvider.Fingerprint, zoomLvl, xVal, yVal);
                         }
 
                         TileCacheDiagnostics.FreshCacheHit(_logger, "fresh", zoomLvl);
@@ -1121,7 +1192,7 @@ public partial class TileCacheService
 
                     if (servedByFreshHotMetadata)
                     {
-                        TryRemoveHotMetadataEntry(zoomLvl, xVal, yVal);
+                        TryRemoveHotMetadataEntry(activeProvider.Fingerprint, zoomLvl, xVal, yVal);
                     }
                 }
 
@@ -1130,8 +1201,9 @@ public partial class TileCacheService
                 // while a complete cached file exists locally.
                 if (!string.IsNullOrEmpty(tileUrl))
                 {
-                    ScheduleBackgroundRefresh(tileUrl, tileFilePath, tileKey, zoomLvl, xVal, yVal,
-                        etag, lastModified, clientIp);
+                    ScheduleBackgroundRefresh(
+                        tileUrl, tileFilePath, tileKey, activeProvider.Fingerprint, zoomLvl, xVal, yVal,
+                        etag, lastModified, clientIp, publicOrigin);
                 }
 
                 // Graceful degradation: serve stale cached tile even when budget is exhausted
@@ -1155,7 +1227,8 @@ public partial class TileCacheService
                 {
                     if (zoomLvl >= DbMetadataZoomThreshold)
                     {
-                        await TouchLastAccessedFromHotHitAsync(zoomLvl, xVal, yVal);
+                        await TouchLastAccessedFromHotHitAsync(
+                            activeProvider.Fingerprint, zoomLvl, xVal, yVal);
                     }
 
                     TileCacheDiagnostics.StaleCacheHit(_logger, "stale", zoomLvl);
@@ -1172,35 +1245,21 @@ public partial class TileCacheService
 
             TileCacheDiagnostics.ColdCacheMiss(_logger, "miss", zoomLvl);
             _logger.LogDebug("Tile not in cache; starting controlled upstream fetch.");
-            var fillResult = await CacheTileWithRetryAsync(
-                tileUrl, zoomLevel, xCoordinate, yCoordinate, cancellationToken);
-
-            // After fetching, read the file. No lock needed for reads (see fast-path comment above).
-            byte[]? fetchedTileData = null;
             try
             {
-                if (File.Exists(tileFilePath))
-                {
-                    fetchedTileData = await File.ReadAllBytesAsync(tileFilePath);
-                }
+                return await TileWorkScheduler.ExecuteForegroundAsync(
+                    tileKey,
+                    schedulerClientKey,
+                    sharedCancellation => RetrieveColdTileInFreshScopeAsync(
+                        tileUrl, zoomLevel, xCoordinate, yCoordinate,
+                        activeProvider.Fingerprint, scopedTilePath, clientIp, publicOrigin,
+                        sharedCancellation),
+                    cancellationToken);
             }
-            catch (IOException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // File deleted by concurrent eviction/purge — treat as cache miss.
+                throw;
             }
-
-            if (fetchedTileData != null)
-                return TileRetrievalResult.Success(fetchedTileData);
-
-            return fillResult.Status switch
-            {
-                TileCacheFillStatus.NotFound => TileRetrievalResult.NotFound(),
-                TileCacheFillStatus.PermanentFailure => TileRetrievalResult.PermanentFailure(),
-                TileCacheFillStatus.BudgetRejected => TileRetrievalResult.Throttled(
-                    TilesController.BudgetRetryAfterSeconds),
-                _ => TileRetrievalResult.TransientFailure(
-                    TileProviderRetryPolicy.GetBoundedRetryAfterSeconds(fillResult.RetryAfter))
-            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1235,6 +1294,7 @@ public partial class TileCacheService
             allowHttpContext: false,
             chargeClientAllowance: !series.ClientAllowanceCharged,
             attemptNumber: series.Attempts,
+            publicOrigin: series.PublicOrigin,
             contactState: series.ContactState,
             onClientAllowanceCharged: () => series.ClientAllowanceCharged = true,
             cancellationToken: series.CancellationToken);
@@ -1276,6 +1336,7 @@ public partial class TileCacheService
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await UpdateTileExpiryScopedAsync(
                     dbContext,
+                    series.ProviderIdentity,
                     series.Zoom,
                     series.X,
                     series.Y,
@@ -1292,6 +1353,7 @@ public partial class TileCacheService
                 {
                     WriteSidecarMetadata(series.TileFilePath, new TileSidecarMetadata
                     {
+                        ProviderIdentity = series.ProviderIdentity,
                         ETag = newEtag,
                         LastModifiedUpstream = series.LastModified,
                         ExpiresAtUtc = newExpiry
@@ -1331,6 +1393,7 @@ public partial class TileCacheService
                 {
                     WriteSidecarMetadata(series.TileFilePath, new TileSidecarMetadata
                     {
+                        ProviderIdentity = series.ProviderIdentity,
                         ETag = newEtag,
                         LastModifiedUpstream = newLastModified,
                         ExpiresAtUtc = newExpiry
@@ -1354,6 +1417,7 @@ public partial class TileCacheService
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await UpdateTileAfterRevalidationScopedAsync(
                     dbContext,
+                    series.ProviderIdentity,
                     series.Zoom,
                     series.X,
                     series.Y,
@@ -1381,117 +1445,6 @@ public partial class TileCacheService
             (int)response.StatusCode);
         _logger.LogWarning("Conditional request returned {StatusCode}.", response.StatusCode);
         return outcome;
-    }
-
-    // ── DB metadata helpers (zoom >= 9) ─────────────────────────────────
-
-    /// <summary>
-    /// Seeds a default 7-day expiry on a legacy tile that has no ExpiresAtUtc.
-    /// Prevents re-downloading all existing cached tiles on first access after deployment.
-    /// The tile will be properly re-validated (with conditional headers) when this expiry passes.
-    /// </summary>
-    private async Task SeedLegacyTileExpiryAsync(TileCacheMetadata meta)
-    {
-        meta.ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry);
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-            TrySetHotMetadataEntry(meta.Zoom, meta.X, meta.Y, meta);
-            _logger.LogDebug("Seeded 7-day expiry for legacy tile z={Zoom} x={X} y={Y}", meta.Zoom, meta.X, meta.Y);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Another instance seeded concurrently; safe to ignore.
-            _logger.LogDebug("Legacy expiry seed skipped due to concurrency (non-critical)");
-        }
-    }
-
-    /// <summary>
-    /// Loads tile metadata from the database and conditionally updates LastAccessed
-    /// if it is older than <see cref="LastAccessedThrottleInterval"/>.
-    /// Combines what were previously two DB round-trips into one.
-    /// </summary>
-    private async Task<TileCacheMetadata?> LoadAndTouchMetadataAsync(int zoom, int x, int y)
-    {
-        var meta = await _dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
-
-        if (meta == null) return null;
-
-        // Throttle LastAccessed updates: only write if older than threshold.
-        // Reduces DB writes by ~99% for popular tiles.
-        if (meta.LastAccessed < DateTime.UtcNow - LastAccessedThrottleInterval)
-        {
-            meta.LastAccessed = DateTime.UtcNow;
-            try
-            {
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // Another instance updated concurrently; safe to ignore for LastAccessed.
-                _logger.LogDebug("LastAccessed update skipped due to concurrency (non-critical)");
-            }
-        }
-
-        return meta;
-    }
-
-    /// <summary>
-    /// Updates only the cache expiry metadata after a 304 Not Modified response.
-    /// Uses the provided scoped DbContext (safe for use from coalesced tasks).
-    /// </summary>
-    private async Task UpdateTileExpiryScopedAsync(ApplicationDbContext dbContext, int zoom, int x, int y,
-        string? etag, DateTime? lastModified, DateTime newExpiry)
-    {
-        var meta = await dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
-        if (meta == null) return;
-
-        meta.ETag = etag;
-        meta.LastModifiedUpstream = lastModified;
-        meta.ExpiresAtUtc = newExpiry;
-        meta.LastAccessed = DateTime.UtcNow;
-
-        try
-        {
-            await dbContext.SaveChangesAsync();
-            TrySetHotMetadataEntry(zoom, x, y, meta);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            _logger.LogDebug("Expiry update skipped due to concurrency (non-critical)");
-        }
-    }
-
-    /// <summary>
-    /// Updates tile metadata after a 200 OK re-validation response (tile content changed).
-    /// Uses the provided scoped DbContext (safe for use from coalesced tasks).
-    /// </summary>
-    private async Task UpdateTileAfterRevalidationScopedAsync(ApplicationDbContext dbContext, int zoom, int x, int y,
-        int newSize, string? etag, DateTime? lastModified, DateTime newExpiry)
-    {
-        var meta = await dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
-        if (meta == null) return;
-
-        var oldSize = meta.Size;
-        meta.Size = newSize;
-        meta.ETag = etag;
-        meta.LastModifiedUpstream = lastModified;
-        meta.ExpiresAtUtc = newExpiry;
-        meta.LastAccessed = DateTime.UtcNow;
-
-        try
-        {
-            await dbContext.SaveChangesAsync();
-            Interlocked.Add(ref _currentCacheSize, newSize - oldSize);
-            TrySetHotMetadataEntry(zoom, x, y, meta);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            _logger.LogDebug("Re-validation metadata update skipped due to concurrency (non-critical)");
-        }
     }
 
     // ── Eviction ────────────────────────────────────────────────────────
@@ -1562,7 +1515,7 @@ public partial class TileCacheService
             {
                 try
                 {
-                    TryRemoveHotMetadataEntry(tile.Zoom, tile.X, tile.Y);
+                    TryRemoveHotMetadataEntryFromPath(tile.FilePath);
                     if (File.Exists(tile.FilePath))
                     {
                         File.Delete(tile.FilePath);
@@ -2083,9 +2036,13 @@ public partial class TileCacheService
     /// <summary>
     /// Updates LastAccessed at most once per throttle window for fresh hot-cache hits.
     /// </summary>
-    private async Task TouchLastAccessedFromHotHitAsync(int zoom, int x, int y)
+    private async Task TouchLastAccessedFromHotHitAsync(
+        string providerIdentity,
+        int zoom,
+        int x,
+        int y)
     {
-        if (!_tileMetadataHotCache.TryBeginLastAccessedPersist(zoom, x, y))
+        if (!_tileMetadataHotCache.TryBeginLastAccessedPersist(providerIdentity, zoom, x, y))
         {
             return;
         }
@@ -2093,27 +2050,28 @@ public partial class TileCacheService
         try
         {
             var meta = await _dbContext.TileCacheMetadata
-                .FirstOrDefaultAsync(t => t.Zoom == zoom && t.X == x && t.Y == y);
+                .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
+                                          t.Zoom == zoom && t.X == x && t.Y == y);
             if (meta == null)
             {
-                _tileMetadataHotCache.AbortLastAccessedPersist(zoom, x, y);
-                TryRemoveHotMetadataEntry(zoom, x, y);
+                _tileMetadataHotCache.AbortLastAccessedPersist(providerIdentity, zoom, x, y);
+                TryRemoveHotMetadataEntry(providerIdentity, zoom, x, y);
                 return;
             }
 
             meta.LastAccessed = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
-            _tileMetadataHotCache.CompleteLastAccessedPersist(zoom, x, y);
+            _tileMetadataHotCache.CompleteLastAccessedPersist(providerIdentity, zoom, x, y);
         }
         catch (DbUpdateConcurrencyException)
         {
-            _tileMetadataHotCache.AbortLastAccessedPersist(zoom, x, y);
+            _tileMetadataHotCache.AbortLastAccessedPersist(providerIdentity, zoom, x, y);
             _logger.LogDebug(
                 "LastAccessed update skipped due to concurrency after hot-cache hit (non-critical)");
         }
         catch
         {
-            _tileMetadataHotCache.AbortLastAccessedPersist(zoom, x, y);
+            _tileMetadataHotCache.AbortLastAccessedPersist(providerIdentity, zoom, x, y);
             throw;
         }
     }
@@ -2121,11 +2079,17 @@ public partial class TileCacheService
     /// <summary>
     /// Best-effort hot metadata lookup that degrades to the DB path on cache failures.
     /// </summary>
-    private bool TryGetHotMetadataEntry(int zoom, int x, int y, out HotTileMetadataCacheEntry? metadata)
+    private bool TryGetHotMetadataEntry(
+        string providerIdentity,
+        int zoom,
+        int x,
+        int y,
+        out HotTileMetadataCacheEntry? metadata)
     {
         try
         {
-            return _tileMetadataHotCache.TryGet(GetTileMetadataHotCacheSizeMb(), zoom, x, y, out metadata);
+            return _tileMetadataHotCache.TryGet(
+                GetTileMetadataHotCacheSizeMb(), providerIdentity, zoom, x, y, out metadata);
         }
         catch (Exception ex)
         {
@@ -2138,9 +2102,14 @@ public partial class TileCacheService
     /// <summary>
     /// Best-effort hot metadata insert/update after durable tile metadata changes succeed.
     /// </summary>
-    private void TrySetHotMetadataEntry(int zoom, int x, int y, TileCacheMetadata metadata)
+    private void TrySetHotMetadataEntry(
+        string providerIdentity,
+        int zoom,
+        int x,
+        int y,
+        TileCacheMetadata metadata)
     {
-        TrySetHotMetadataEntry(zoom, x, y, new HotTileMetadataCacheEntry
+        TrySetHotMetadataEntry(providerIdentity, zoom, x, y, new HotTileMetadataCacheEntry
         {
             ExpiresAtUtc = metadata.ExpiresAtUtc,
             ETag = metadata.ETag,
@@ -2151,12 +2120,18 @@ public partial class TileCacheService
     /// <summary>
     /// Best-effort hot metadata insert/update after durable tile metadata changes succeed.
     /// </summary>
-    private void TrySetHotMetadataEntry(int zoom, int x, int y, HotTileMetadataCacheEntry metadata)
+    private void TrySetHotMetadataEntry(
+        string providerIdentity,
+        int zoom,
+        int x,
+        int y,
+        HotTileMetadataCacheEntry metadata)
     {
         try
         {
-            _tileMetadataHotCache.Set(GetTileMetadataHotCacheSizeMb(), zoom, x, y, metadata);
-            _tileMetadataHotCache.CompleteLastAccessedPersist(zoom, x, y);
+            _tileMetadataHotCache.Set(
+                GetTileMetadataHotCacheSizeMb(), providerIdentity, zoom, x, y, metadata);
+            _tileMetadataHotCache.CompleteLastAccessedPersist(providerIdentity, zoom, x, y);
         }
         catch (Exception ex)
         {
@@ -2167,11 +2142,11 @@ public partial class TileCacheService
     /// <summary>
     /// Best-effort hot metadata invalidation for an explicit tile delete path.
     /// </summary>
-    private void TryRemoveHotMetadataEntry(int zoom, int x, int y)
+    private void TryRemoveHotMetadataEntry(string providerIdentity, int zoom, int x, int y)
     {
         try
         {
-            _tileMetadataHotCache.Remove(zoom, x, y);
+            _tileMetadataHotCache.Remove(providerIdentity, zoom, x, y);
         }
         catch (Exception ex)
         {
@@ -2193,7 +2168,15 @@ public partial class TileCacheService
             return;
         }
 
-        TryRemoveHotMetadataEntry(zoom, x, y);
+        var providerIdentity = Path.GetFileName(Path.GetDirectoryName(tileFilePath));
+        if (providerIdentity?.Length == 64)
+        {
+            TryRemoveHotMetadataEntry(providerIdentity, zoom, x, y);
+        }
+        else
+        {
+            TryClearHotMetadataCache();
+        }
     }
 
     /// <summary>

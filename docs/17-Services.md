@@ -148,7 +148,7 @@ This document covers the key services, file parsers, and background jobs in the 
 - Permanent caching for zoom levels 0–8.
 - Tracks metadata in database for cache management.
 - Sends an honest `User-Agent` header identifying the application (OSM policy compliance) with a configurable contact email (`Application:ContactEmail`).
-- Sets the `Referer` header automatically from the incoming HTTP request, so it matches the public URL even behind reverse proxies or Cloudflare Tunnel.
+- Sets an origin-only `Referer` from the effective incoming request after its public hostname is authorized by `AllowedHosts`, preserving trusted reverse-proxy and Cloudflare Tunnel forwarding without exposing routes or request data.
 - **Key File**: `Services/TileCacheService.cs`
 
 ---

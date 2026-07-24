@@ -36,8 +36,10 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     /// <summary>Gets the mutable settings snapshot supplied to tile services and controllers.</summary>
     public ApplicationSettings Settings => _settingsService.Settings;
 
-    /// <summary>Creates an isolated harness with the supplied fake upstream behavior.</summary>
-    public TileCacheTestHarness(RecordingTileHandler? upstream = null)
+    /// <summary>Creates an isolated harness with the supplied fake upstream behavior and host policy.</summary>
+    public TileCacheTestHarness(
+        RecordingTileHandler? upstream = null,
+        string allowedHosts = "wayfarer.example.com")
     {
         Directory.CreateDirectory(CacheDirectory);
         Upstream = upstream ?? new RecordingTileHandler();
@@ -47,11 +49,13 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["CacheSettings:TileCacheDirectory"] = CacheDirectory,
-                ["Application:ContactEmail"] = "tiles@example.test"
+                ["Application:ContactEmail"] = "tiles@example.test",
+                ["AllowedHosts"] = allowedHosts
             })
             .Build();
 
         var services = new ServiceCollection();
+        var databaseName = $"tile-diagnostics-{Guid.NewGuid():N}";
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<IApplicationSettingsService>(_settingsService);
         services.AddScoped<IHttpContextAccessor, HttpContextAccessor>();
@@ -63,7 +67,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
         });
         services.AddSingleton<TileMetadataHotCache>();
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseInMemoryDatabase($"tile-diagnostics-{Guid.NewGuid():N}"));
+            options.UseInMemoryDatabase(databaseName));
         services.AddScoped<TileCacheService>();
 
         _rootProvider = services.BuildServiceProvider();
@@ -81,8 +85,8 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     {
         var context = new DefaultHttpContext();
         context.Request.Scheme = "https";
-        context.Request.Host = new HostString("wayfarer.example.test");
-        context.Request.Headers.Referer = "https://wayfarer.example.test/trip";
+        context.Request.Host = new HostString("wayfarer.example.com");
+        context.Request.Headers.Referer = "https://wayfarer.example.com/trip";
         context.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.10");
         context.RequestAborted = cancellationToken;
         return context;

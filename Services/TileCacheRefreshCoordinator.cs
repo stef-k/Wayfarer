@@ -4,11 +4,36 @@ using Wayfarer.Services;
 
 public partial class TileCacheService
 {
+    /// <summary>Stops all tile admission and waits only within the application shutdown bound.</summary>
+    private static void StopAndDrainTileWork()
+    {
+        OutboundBudget.Stop();
+        StopAndDrainTileWorkAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+    }
+
+    private static async Task StopAndDrainTileWorkAsync(TimeSpan timeout)
+    {
+        var schedulerDrain = TileWorkScheduler.StopAndDrainAsync();
+        var refreshDrain = StopAndWaitForRefreshesAsync(timeout);
+        try
+        {
+            await Task.WhenAll(schedulerDrain, refreshDrain)
+                .WaitAsync(timeout)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            // Unfinished state remains owned until process exit; shutdown itself stays bounded.
+        }
+    }
+
     /// <summary>
     /// Coalesces bounded background refresh series for expired cached tiles.
-    /// Key: "{z}_{x}_{y}". At most one active series may exist per tile key.
+    /// Key: "{provider fingerprint}:{z}_{x}_{y}". At most one active series may exist per tile key.
     /// </summary>
     private static readonly ConcurrentDictionary<string, TileRefreshSeries> _refreshSeries = new();
+    private static readonly object _refreshAdmissionLock = new();
+    private static bool _refreshStopping;
 
     /// <summary>
     /// Maximum number of upstream attempts in one stale-tile refresh series.
@@ -35,22 +60,46 @@ public partial class TileCacheService
     /// Schedules a bounded background refresh for an expired local tile.
     /// Concurrent stale hits for the same key share the active series.
     /// </summary>
-    private void ScheduleBackgroundRefresh(string tileUrl, string tileFilePath, string tileKey,
-        int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp)
+    private void ScheduleBackgroundRefresh(
+        string tileUrl,
+        string tileFilePath,
+        string tileKey,
+        string providerIdentity,
+        int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp,
+        string? publicOrigin)
     {
-        var series = new TileRefreshSeries(tileKey, tileUrl, tileFilePath, zoom, x, y, etag, lastModified, clientIp);
-        var activeSeries = _refreshSeries.GetOrAdd(tileKey, series);
-        if (!ReferenceEquals(activeSeries, series))
+        TileRefreshSeries series;
+        lock (_refreshAdmissionLock)
         {
-            TileCacheDiagnostics.StaleRefreshCoalesced(_logger, "coalesced", zoom);
-            _logger.LogDebug("Refresh already active for stale tile {TileKey}", tileKey);
-            return;
+            if (_refreshStopping)
+            {
+                TileCacheDiagnostics.StaleRefreshRejected(_logger, "shutdown", zoom);
+                return;
+            }
+
+            if (_refreshSeries.ContainsKey(tileKey))
+            {
+                TileCacheDiagnostics.StaleRefreshCoalesced(_logger, "coalesced", zoom);
+                _logger.LogDebug("Refresh already active for stale tile {TileKey}", tileKey);
+                return;
+            }
+
+            if (_refreshSeries.Count >= TileWorkScheduler.BackgroundQueueCapacity)
+            {
+                TileCacheDiagnostics.StaleRefreshRejected(_logger, "background-queue-full", zoom);
+                return;
+            }
+
+            series = new TileRefreshSeries(
+                tileKey, providerIdentity, tileUrl, tileFilePath,
+                zoom, x, y, etag, lastModified, clientIp, publicOrigin);
+            _refreshSeries[tileKey] = series;
+            series.SetCompletion(Task.Run(
+                () => RunBackgroundRefreshSeriesAsync(series),
+                CancellationToken.None));
         }
 
         TileCacheDiagnostics.StaleRefreshScheduled(_logger, "scheduled", zoom);
-        series.SetCompletion(Task.Run(
-            () => RunBackgroundRefreshSeriesAsync(series),
-            CancellationToken.None));
     }
 
     /// <summary>
@@ -118,7 +167,11 @@ public partial class TileCacheService
         }
         finally
         {
-            _refreshSeries.TryRemove(new KeyValuePair<string, TileRefreshSeries>(series.TileKey, series));
+            lock (_refreshAdmissionLock)
+            {
+                _refreshSeries.TryRemove(
+                    new KeyValuePair<string, TileRefreshSeries>(series.TileKey, series));
+            }
         }
     }
 
@@ -196,7 +249,7 @@ public partial class TileCacheService
         var deadline = DateTime.UtcNow.Add(timeout);
         while (DateTime.UtcNow < deadline)
         {
-            if (!_refreshSeries.ContainsKey(tileKey))
+            if (!ContainsRefreshKey(tileKey))
             {
                 return true;
             }
@@ -204,7 +257,7 @@ public partial class TileCacheService
             await Task.Delay(10);
         }
 
-        return !_refreshSeries.ContainsKey(tileKey);
+        return !ContainsRefreshKey(tileKey);
     }
 
     /// <summary>
@@ -212,16 +265,46 @@ public partial class TileCacheService
     /// </summary>
     internal static void CancelRefreshForTesting(string tileKey)
     {
-        if (_refreshSeries.TryGetValue(tileKey, out var series))
+        var series = _refreshSeries
+            .FirstOrDefault(entry => MatchesRefreshKey(entry.Key, tileKey))
+            .Value;
+        if (series != null)
         {
             series.CancelForTesting();
         }
     }
 
+    /// <summary>Matches current provider-scoped keys and legacy coordinate-only test keys.</summary>
+    private static bool ContainsRefreshKey(string tileKey) =>
+        _refreshSeries.Keys.Any(key => MatchesRefreshKey(key, tileKey));
+
+    private static bool MatchesRefreshKey(string candidate, string requested) =>
+        candidate.Equals(requested, StringComparison.Ordinal) ||
+        candidate.EndsWith($":{requested}", StringComparison.Ordinal);
+
     /// <summary>Cancels and boundedly awaits all refresh work tracked by the test process.</summary>
     internal static async Task<bool> CancelAndWaitForRefreshesForTestingAsync(TimeSpan timeout)
+        => await CancelAndWaitForRefreshesAsync(timeout, stopAdmission: false).ConfigureAwait(false);
+
+    /// <summary>Stops new refresh admission and boundedly drains all accepted refresh series.</summary>
+    internal static async Task<bool> StopAndWaitForRefreshesAsync(TimeSpan timeout)
+        => await CancelAndWaitForRefreshesAsync(timeout, stopAdmission: true).ConfigureAwait(false);
+
+    private static async Task<bool> CancelAndWaitForRefreshesAsync(
+        TimeSpan timeout,
+        bool stopAdmission)
     {
-        var activeSeries = _refreshSeries.Values.ToArray();
+        TileRefreshSeries[] activeSeries;
+        lock (_refreshAdmissionLock)
+        {
+            if (stopAdmission)
+            {
+                _refreshStopping = true;
+            }
+
+            activeSeries = _refreshSeries.Values.ToArray();
+        }
+
         foreach (var series in activeSeries)
         {
             series.CancelForTesting();
@@ -257,12 +340,22 @@ public partial class TileCacheService
         _replaceTileFile = replacer ?? ReplaceTileFileAtomicallyCore;
     }
 
+    /// <summary>Reopens background admission after isolated test cleanup.</summary>
+    private static void ResetRefreshCoordinatorForTesting()
+    {
+        lock (_refreshAdmissionLock)
+        {
+            _refreshStopping = false;
+        }
+    }
+
     /// <summary>
     /// Captures immutable inputs and retry state for one bounded stale-tile refresh series.
     /// </summary>
     private sealed class TileRefreshSeries
     {
         public string TileKey { get; }
+        public string ProviderIdentity { get; }
         public string TileUrl { get; }
         public string TileFilePath { get; }
         public int Zoom { get; }
@@ -271,6 +364,7 @@ public partial class TileCacheService
         public string? ETag { get; }
         public DateTime? LastModified { get; }
         public string? ClientIp { get; }
+        public string? PublicOrigin { get; }
         public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
@@ -289,10 +383,12 @@ public partial class TileCacheService
         /// <summary>Gets the scheduled series task so test cleanup can await its completion.</summary>
         public Task Completion { get; private set; } = Task.CompletedTask;
 
-        public TileRefreshSeries(string tileKey, string tileUrl, string tileFilePath,
-            int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp)
+        public TileRefreshSeries(string tileKey, string providerIdentity, string tileUrl, string tileFilePath,
+            int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp,
+            string? publicOrigin)
         {
             TileKey = tileKey;
+            ProviderIdentity = providerIdentity;
             TileUrl = tileUrl;
             TileFilePath = tileFilePath;
             Zoom = zoom;
@@ -301,6 +397,7 @@ public partial class TileCacheService
             ETag = etag;
             LastModified = lastModified;
             ClientIp = clientIp;
+            PublicOrigin = publicOrigin;
         }
 
         public void CancelForTesting() => _cancellationTokenSource.Cancel();

@@ -21,6 +21,7 @@ namespace Wayfarer.Tests.Services;
 public sealed class TileCacheColdCacheBaselineTests
 {
     private const int UniqueTileCount = 24;
+    private static readonly TimeSpan LegacyAcquireTimeout = TimeSpan.FromSeconds(3.5);
     private static readonly TimeSpan ModeledUpstreamLatency = TimeSpan.FromMilliseconds(100);
     private readonly ITestOutputHelper _output;
 
@@ -28,15 +29,15 @@ public sealed class TileCacheColdCacheBaselineTests
     public TileCacheColdCacheBaselineTests(ITestOutputHelper output) => _output = output;
 
     /// <summary>
-    /// Analytically models the current constants; 100 ms latency and the exact 19/5 boundary are modeled inputs.
+    /// Preserves the pre-Phase-3 3.5-second budget model that produced the exact 19/5 boundary.
     /// </summary>
     [Fact]
-    public async Task NominalAnalyticalColdViewport_ModelsCurrentConstants()
+    public async Task LegacyNominalColdViewport_ModelsPrePhase3BurstGap()
     {
-        var budget = new AnalyticalCurrentBudgetModel(
+        var budget = new LegacyBudgetModel(
             TileCacheService.OutboundBudget.BurstCapacity,
             TimeSpan.FromMilliseconds(TileCacheService.OutboundBudget.ReplenishIntervalMs),
-            TileCacheService.OutboundBudget.AcquireTimeout);
+            LegacyAcquireTimeout);
         var upstream = new RecordingTileHandler(startTimeProvider: budget.GetCurrentRequestStart);
         using var harness = new TileCacheTestHarness(upstream);
         TileCacheService.OutboundBudget.SetAcquireOverrideForTesting(budget.AcquireAsync);
@@ -146,7 +147,7 @@ public sealed class TileCacheColdCacheBaselineTests
             .Zip(distinctCompletions.Skip(1), (first, second) => second - first)
             .Where(gap => gap > ModeledUpstreamLatency)
             .ToArray();
-        var rejectedCompletion = TileCacheService.OutboundBudget.AcquireTimeout;
+        var rejectedCompletion = LegacyAcquireTimeout;
         var lastCompletion = successfulCompletions
             .Append(rejectedCompletion)
             .Max();
@@ -178,9 +179,9 @@ public sealed class TileCacheColdCacheBaselineTests
     }
 
     /// <summary>
-    /// Deterministically reproduces the current burst, replenishment, and acquisition-timeout constants.
+    /// Deterministically reproduces the pre-Phase-3 burst, replenishment, and acquisition timeout.
     /// </summary>
-    private sealed class AnalyticalCurrentBudgetModel
+    private sealed class LegacyBudgetModel
     {
         private readonly int _burstCapacity;
         private readonly TimeSpan _replenishmentInterval;
@@ -188,7 +189,7 @@ public sealed class TileCacheColdCacheBaselineTests
         private readonly ConcurrentQueue<TimeSpan> _acceptedRequestStarts = new();
         private int _requestSequence;
 
-        public AnalyticalCurrentBudgetModel(
+        public LegacyBudgetModel(
             int burstCapacity,
             TimeSpan replenishmentInterval,
             TimeSpan acquireTimeout)

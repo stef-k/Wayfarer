@@ -65,8 +65,9 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         var tileUrl = CanonicalTileUrl(5, 3, 4);
         Assert.True(await service.CacheTileAsync(tileUrl, "5", "3", "4"));
+        var tilePath = service.GetTileFilePathForTesting("5", "3", "4");
         await File.WriteAllTextAsync(
-            Path.Combine(harness.CacheDirectory, "5_3_4.png.meta"),
+            tilePath + ".meta",
             JsonSerializer.Serialize(new TileSidecarMetadata
             {
                 ETag = "\"stale-v1\"",
@@ -158,7 +159,9 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         Assert.True(result.BudgetExhausted);
         var diagnostic = AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.GlobalBudgetRejected);
         Assert.Equal("global", diagnostic.Fields["BudgetScope"]);
-        Assert.Equal(3500d, Convert.ToDouble(diagnostic.Fields["WaitMilliseconds"]));
+        Assert.Equal(
+            TileWorkScheduler.ForegroundQueueWait.TotalMilliseconds,
+            Convert.ToDouble(diagnostic.Fields["WaitMilliseconds"]));
         Assert.Empty(harness.Upstream.Requests);
     }
 

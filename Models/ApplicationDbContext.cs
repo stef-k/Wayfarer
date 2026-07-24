@@ -141,13 +141,15 @@ namespace Wayfarer.Models
                 .HasIndex(t => t.TileLocation)
                 .HasMethod("GIST"); // This creates a spatial index (if you're using PostGIS)
 
-            // Composite unique index on (Zoom, X, Y) for fast tile lookups.
-            // Every tile request queries by these three columns; without this index,
-            // all FirstOrDefaultAsync(t => t.Zoom == z && t.X == x && t.Y == y)
-            // calls result in sequential scans.
+            // Provider-scoped coordinate uniqueness prevents cache bytes crossing providers.
+            builder.Entity<TileCacheMetadata>().HasIndex(t => new { t.ProviderIdentity, t.Zoom, t.X, t.Y })
+                .IsUnique();
+
+            // PostgreSQL treats nulls as distinct, so retain one quarantined legacy row per tile.
             builder.Entity<TileCacheMetadata>()
                 .HasIndex(t => new { t.Zoom, t.X, t.Y })
-                .IsUnique();
+                .IsUnique()
+                .HasFilter("\"ProviderIdentity\" IS NULL");
 
             // Image Cache Metadata
             // EF to use the RowVersion in order to handle race conditions in code

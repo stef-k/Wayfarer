@@ -220,22 +220,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("VisitNotificationCooldownHours", currentSettings.VisitNotificationCooldownHours, updatedSettings.VisitNotificationCooldownHours);
                     Track("VisitedSuggestionMaxRadiusMultiplier", currentSettings.VisitedSuggestionMaxRadiusMultiplier, updatedSettings.VisitedSuggestionMaxRadiusMultiplier);
 
-                    // Treat empty stored values as defaults to avoid purging on upgrade.
-                    var currentProviderKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderKey)
-                        ? ApplicationSettings.DefaultTileProviderKey
-                        : currentSettings.TileProviderKey;
-                    var currentProviderTemplate = string.IsNullOrWhiteSpace(currentSettings.TileProviderUrlTemplate)
-                        ? ApplicationSettings.DefaultTileProviderUrlTemplate
-                        : currentSettings.TileProviderUrlTemplate;
-                    var currentProviderApiKey = string.IsNullOrWhiteSpace(currentSettings.TileProviderApiKey)
-                        ? null
-                        : currentSettings.TileProviderApiKey;
-
-                    var shouldPurgeTileCache =
-                        !string.Equals(currentProviderKey, updatedSettings.TileProviderKey, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(currentProviderTemplate, updatedSettings.TileProviderUrlTemplate, StringComparison.Ordinal) ||
-                        !string.Equals(currentProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal);
-
                     currentSettings.IsRegistrationOpen = updatedSettings.IsRegistrationOpen;
                     currentSettings.LocationTimeThresholdMinutes = updatedSettings.LocationTimeThresholdMinutes;
                     currentSettings.LocationDistanceThresholdMeters = updatedSettings.LocationDistanceThresholdMeters;
@@ -269,11 +253,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.VisitedSuggestionMaxRadiusMultiplier = updatedSettings.VisitedSuggestionMaxRadiusMultiplier;
 
                     await _dbContext.SaveChangesAsync();
-
-                    if (shouldPurgeTileCache)
-                    {
-                        QueueTileCachePurge();
-                    }
 
                     // Audit settings update with changed fields summary
                     if (changes.Count > 0)
@@ -534,38 +513,6 @@ namespace Wayfarer.Areas.Admin.Controllers
         {
             ViewData["TileProviderPresets"] = TileProviderCatalog.Presets;
             ViewData["TileProviderCustomKey"] = TileProviderCatalog.CustomProviderKey;
-        }
-
-        /// <summary>
-        /// Purges the tile cache in the background to avoid blocking the settings update.
-        /// Skips if another purge is already in progress to prevent conflicts.
-        /// </summary>
-        private void QueueTileCachePurge()
-        {
-            if (TileCacheService.IsPurgeInProgress)
-            {
-                _logger.LogWarning("Skipping tile-provider-change purge: another purge is already in progress.");
-                return;
-            }
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var scope = _scopeFactory.CreateScope();
-                    var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
-                    await tileCacheService.PurgeAllCacheAsync();
-                }
-                catch (InvalidOperationException)
-                {
-                    // Another purge started between our check and execution — safe to ignore.
-                    _logger.LogInformation("Tile-provider-change purge skipped: concurrent purge is running.");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to purge tile cache in background.");
-                }
-            });
         }
 
         /// <summary>
