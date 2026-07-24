@@ -338,7 +338,9 @@ const RetryTileLayer = L.TileLayer.extend({
  */
 export const createTileLayer = (opts) => {
     const url = _config.tilesUrl || (window.location.origin + '/Public/tiles/{z}/{x}/{y}.png');
-    const attribution = _config.attribution || '\u00a9 OpenStreetMap contributors';
+    // Preserve an explicitly empty server result; only an absent legacy config uses OSM.
+    const attribution = _config.attribution ??
+        '\u00a9 <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
     return new RetryTileLayer(url, Object.assign({
         maxZoom: 19,
         attribution: attribution,

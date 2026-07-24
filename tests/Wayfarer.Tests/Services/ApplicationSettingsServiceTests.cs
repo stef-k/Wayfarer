@@ -65,6 +65,47 @@ public class ApplicationSettingsServiceTests : TestBase
     }
 
     [Fact]
+    public void GetSettings_UsesSelectedPresetAttributionWhenLegacyValueIsMissing()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            TileProviderKey = "opentopomap",
+            TileProviderAttribution = " "
+        });
+        db.SaveChanges();
+
+        var service = new ApplicationSettingsService(db, new MemoryCache(new MemoryCacheOptions()));
+
+        var settings = service.GetSettings();
+
+        Assert.Contains("OpenTopoMap", settings.TileProviderAttribution);
+        Assert.Contains("SRTM", settings.TileProviderAttribution);
+    }
+
+    [Theory]
+    [InlineData("custom")]
+    [InlineData("legacy-unknown")]
+    public void GetSettings_DoesNotApplyOsmAttributionToMissingUnknownProviderValue(string providerKey)
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            TileProviderKey = providerKey,
+            TileProviderAttribution = " "
+        });
+        db.SaveChanges();
+
+        var service = new ApplicationSettingsService(db, new MemoryCache(new MemoryCacheOptions()));
+
+        var settings = service.GetSettings();
+
+        Assert.True(string.IsNullOrWhiteSpace(settings.TileProviderAttribution));
+    }
+
+    [Fact]
     public void CheckRegistration_RedirectsWhenClosed()
     {
         var db = CreateDbContext();

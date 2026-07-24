@@ -11,6 +11,8 @@ export default defineConfig({
   use: {
     baseURL,
     ignoreHTTPSErrors: true,
+    // The isolated HTTPS host intentionally loads the local HTTP Vite server for Editor coverage.
+    launchOptions: { args: ['--disable-web-security'] },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },

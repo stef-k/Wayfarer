@@ -74,9 +74,12 @@ namespace Wayfarer.Parsers
                 settings.TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate;
             }
 
-            if (string.IsNullOrWhiteSpace(settings.TileProviderAttribution))
+            // Only a recognized preset can safely supply missing legacy attribution.
+            // Unknown and custom providers must never be mislabeled as OpenStreetMap.
+            if (string.IsNullOrWhiteSpace(settings.TileProviderAttribution) &&
+                Wayfarer.Util.TileProviderCatalog.FindPreset(settings.TileProviderKey) is { } preset)
             {
-                settings.TileProviderAttribution = ApplicationSettings.DefaultTileProviderAttribution;
+                settings.TileProviderAttribution = preset.Attribution;
             }
 
             return settings;

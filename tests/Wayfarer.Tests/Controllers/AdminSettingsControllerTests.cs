@@ -134,6 +134,65 @@ public class AdminSettingsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Update_ReappliesSelectedPresetAttribution()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1 });
+        await db.SaveChangesAsync();
+        var (controller, _, _) = BuildController(db);
+        var updatedSettings = new ApplicationSettings
+        {
+            Id = 1,
+            TileProviderKey = ApplicationSettings.DefaultTileProviderKey,
+            TileProviderUrlTemplate = "https://malicious.example/{z}/{x}/{y}.png",
+            TileProviderAttribution = "<script>wrong()</script>Wrong provider"
+        };
+
+        var result = await controller.Update(updatedSettings);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var stored = await db.ApplicationSettings.FindAsync(1);
+        Assert.NotNull(stored);
+        Assert.Equal(ApplicationSettings.DefaultTileProviderUrlTemplate, stored.TileProviderUrlTemplate);
+        Assert.Contains("OpenStreetMap contributors", stored.TileProviderAttribution);
+        Assert.DoesNotContain("Wrong provider", stored.TileProviderAttribution);
+    }
+
+    [Fact]
+    public async Task Update_PreservesAndSanitizesCustomProviderAttribution()
+    {
+        const string customTemplate = "https://tiles.example.com/{z}/{x}/{y}.png";
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            TileProviderKey = "custom",
+            TileProviderUrlTemplate = customTemplate,
+            TileProviderAttribution = "Example Maps"
+        });
+        await db.SaveChangesAsync();
+        var (controller, _, _) = BuildController(db);
+        var updatedSettings = new ApplicationSettings
+        {
+            Id = 1,
+            TileProviderKey = "custom",
+            TileProviderUrlTemplate = customTemplate,
+            TileProviderAttribution =
+                "<script>alert(1)</script>&copy; <a href=\"https://tiles.example.com/terms\" onclick=\"evil()\">Example Maps</a>"
+        };
+
+        var result = await controller.Update(updatedSettings);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        var stored = await db.ApplicationSettings.FindAsync(1);
+        Assert.NotNull(stored);
+        Assert.Contains("https://tiles.example.com/terms", stored.TileProviderAttribution);
+        Assert.Contains("Example Maps", stored.TileProviderAttribution);
+        Assert.DoesNotContain("script", stored.TileProviderAttribution, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onclick", stored.TileProviderAttribution, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Update_DoesNotUpdate_WhenSettingsNotFound()
     {
         var db = CreateDbContext();

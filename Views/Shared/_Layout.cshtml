@@ -1,6 +1,7 @@
 ﻿@using System.Text.Json
 @using Wayfarer.Models
 @using Wayfarer.Services
+@using Wayfarer.Util
 @using Wayfarer.Areas.Public.Controllers
 @inject Wayfarer.Parsers.IApplicationSettingsService ApplicationSettingsService
 @inject IAppVersionProvider AppVersionProvider
@@ -204,7 +205,7 @@
 
         @{
             var tileSettings = ApplicationSettingsService.GetSettings();
-            var tileAttribution = tileSettings?.TileProviderAttribution ?? ApplicationSettings.DefaultTileProviderAttribution;
+            var tileAttribution = TileProviderAttribution.Resolve(tileSettings);
         }
         <script>
             // Expose tile configuration for Leaflet maps that use the tile cache proxy.

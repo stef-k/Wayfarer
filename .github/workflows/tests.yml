@@ -29,7 +29,7 @@ jobs:
         run: dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600
 
       - name: Build and Test
-        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite"
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
         env:
           # Disable frontend bundling in CI - we're testing C# code, not frontend assets
           MvcFrontendKitEnabled: 'false'

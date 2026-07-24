@@ -501,7 +501,7 @@ async function expectAttribution(page: Page): Promise<void> {
   await expect(attribution).toContainText('OpenStreetMap');
   await expect(attribution.getByRole('link', { name: 'Wayfarer' })).toHaveAttribute('title', 'Powered by Wayfarer, made by Stef');
   await expect(attribution.getByRole('link', { name: 'Stef K' })).toHaveAttribute('title', 'Check my blog');
-  await expect(attribution.getByRole('link', { name: 'OpenStreetMap' })).toBeVisible();
+  await expect(attribution.getByRole('link', { name: 'OpenStreetMap', exact: true })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright');
   await expect.poll(async () => {
     const colors = await attribution.evaluate(element => {
       const styles = window.getComputedStyle(element);

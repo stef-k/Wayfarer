@@ -25,6 +25,7 @@ public static class HtmlSanitization
         sanitizer.AllowedAttributes.Clear();
         sanitizer.AllowedAttributes.Add("href");
         sanitizer.AllowedAttributes.Add("target");
+        sanitizer.AllowedAttributes.Add("rel");
         sanitizer.AllowedAttributes.Add("title");
         sanitizer.AllowedAttributes.Add("class");
 

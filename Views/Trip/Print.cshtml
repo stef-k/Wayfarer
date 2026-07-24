@@ -1,12 +1,14 @@
 @using System.Text.Json
 @using System.Text.Json.Serialization
 @using Wayfarer.Util
+@inject Wayfarer.Parsers.IApplicationSettingsService ApplicationSettingsService
 @model Wayfarer.Models.ViewModels.TripPrintViewModel
 @{
     Layout = null;
     var trip   = Model.Trip;
     var img    = Model.Snap;            // id → data-URI
     string Snap(string key) => img.TryGetValue(key, out var v) ? v : string.Empty;
+    var mapAttribution = TileProviderAttribution.Resolve(ApplicationSettingsService.GetSettings());
 
     var orderedRegions = Model.Regions
         .OrderBy(r => r.Name == "Unassigned Places" ? 1 : 0)
@@ -46,6 +48,8 @@
         .avoid-break{ break-inside:avoid; }
 
         .map,.notes img{width:100%;height:auto;object-fit:contain;}
+        .map-snapshot-attribution{font-size:.85rem;margin-top:.2rem;color:rgba(0,0,0,.7);}
+        .map-snapshot-attribution a{color:#004080;text-decoration:underline;}
 
         .toc a{color:#000;text-decoration:none;}
         .toc li{margin:.15rem 0;}
@@ -133,6 +137,11 @@
     @if (!string.IsNullOrWhiteSpace(Snap("trip")))
     {
         <img src="@Snap("trip")" class="map"/>
+        @if (!string.IsNullOrWhiteSpace(mapAttribution))
+        {
+            @* PDF captions retain the sanitized provider link outside the raster snapshot. *@
+            <div class="map-snapshot-attribution">@Html.Raw(mapAttribution)</div>
+        }
     }
 </section>
 
@@ -160,6 +169,10 @@
                     @if (!string.IsNullOrWhiteSpace(Snap($"segment_{s.Id}")))
                     {
                         <img src="@Snap($"segment_{s.Id}")" class="map"/>
+                        @if (!string.IsNullOrWhiteSpace(mapAttribution))
+                        {
+                            <div class="map-snapshot-attribution">@Html.Raw(mapAttribution)</div>
+                        }
                     }
 
                     @if (!string.IsNullOrWhiteSpace(s.Notes))
@@ -182,6 +195,10 @@
         @if (!string.IsNullOrWhiteSpace(Snap($"region_{r.Id}")))
         {
             <img src="@Snap($"region_{r.Id}")" class="map"/>
+            @if (!string.IsNullOrWhiteSpace(mapAttribution))
+            {
+                <div class="map-snapshot-attribution">@Html.Raw(mapAttribution)</div>
+            }
         }
 
         @if (!string.IsNullOrWhiteSpace(r.Notes))
@@ -212,6 +229,10 @@
                 @if (!string.IsNullOrWhiteSpace(Snap($"place_{p.Id}")))
                 {
                     <img src="@Snap($"place_{p.Id}")" class="map"/>
+                    @if (!string.IsNullOrWhiteSpace(mapAttribution))
+                    {
+                        <div class="map-snapshot-attribution">@Html.Raw(mapAttribution)</div>
+                    }
                 }
 
                 @if (!string.IsNullOrWhiteSpace(p.Notes))
