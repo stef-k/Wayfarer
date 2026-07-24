@@ -103,21 +103,29 @@ public sealed class TileCacheCancellationAndPrivacyTests
     public async Task ColdMissRetryDelayCancellation_StopsFurtherAttempts()
     {
         using var cancellation = new CancellationTokenSource();
+        var retryDelayStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var upstream = new RecordingTileHandler((_, _) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
         using var harness = new TileCacheTestHarness(upstream);
-        TileCacheService.SetColdMissRetryDelayForTesting((_, token) =>
+        TileCacheService.SetColdMissRetryDelayForTesting(async (_, token) =>
         {
-            cancellation.Cancel();
-            return Task.Delay(Timeout.InfiniteTimeSpan, token);
+            retryDelayStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
+        // Enter the retry delay before cancelling, then drain its shared runner before reading logs.
+        var retrieval = service.RetrieveTileAsync(
+            "5", "18", "22", CanonicalTileUrl(5, 18, 22), cancellation.Token);
+        await retryDelayStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.RetrieveTileAsync(
-                "5", "18", "22", CanonicalTileUrl(5, 18, 22), cancellation.Token));
+            retrieval);
+        await TileWorkScheduler.StopAndDrainAsync();
 
         AssertCancellation(harness.Logs, "cold-miss-retry-delay");
         AssertNoUpstreamFailure(harness.Logs);
