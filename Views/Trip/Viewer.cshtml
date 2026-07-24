@@ -8,7 +8,6 @@
     Layout = "_Layout";
     bool owner = ViewBag.IsOwner as bool? ?? false;
     bool hideSidebar = ViewContext.HttpContext.Request.Query["print"] == "1";
-    /* full-height flex container instead of .container */
     ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0";
     ViewBag.Title = Model.Name;
 
@@ -406,7 +405,6 @@
             </div>
             <div class="modal-body" id="readable-modal-body" style="max-width: 900px; margin: 0 auto; position: relative;">
 
-                <!-- Cover Image or Map Snapshot -->
                 @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
                 {
                     <div class="mb-3">
@@ -415,19 +413,12 @@
                 }
                 else if (Model.CenterLat.HasValue && Model.CenterLon.HasValue)
                 {
-                    <!-- Map snapshot using thumbnail service -->
                     <div class="mb-3">
                         <img src="/thumbs/trips/@Model.Id-800x450.jpg?v=@Model.UpdatedAt.Ticks"
                              class="img-fluid w-100 rounded"
                              alt="Map of @Model.Name"
                              style="max-height: 400px; object-fit: cover;"/>
-                        @if (!string.IsNullOrWhiteSpace(mapAttribution))
-                        {
-                            @* The shared server resolver owns provider selection and final sanitization. *@
-                            <div class="map-snapshot-attribution small text-muted mt-1">
-                                @Html.Raw(mapAttribution)
-                            </div>
-                        }
+                        @if (!string.IsNullOrWhiteSpace(mapAttribution)) { <div class="map-snapshot-attribution small text-muted mt-1">@Html.Raw(mapAttribution)</div> }
                     </div>
                 }
 
@@ -444,7 +435,6 @@
                     </div>
                 </div>
 
-                <!-- Map Snapshot (if not shown as cover) -->
                 @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl) && Model.CenterLat.HasValue && Model.CenterLon.HasValue)
                 {
                     <div class="mb-3">
@@ -452,13 +442,7 @@
                              class="img-fluid w-100 rounded"
                              alt="Map of @Model.Name"
                              style="max-height: 300px; object-fit: cover;"/>
-                        @if (!string.IsNullOrWhiteSpace(mapAttribution))
-                        {
-                            @* The shared server resolver owns provider selection and final sanitization. *@
-                            <div class="map-snapshot-attribution small text-muted mt-1">
-                                @Html.Raw(mapAttribution)
-                            </div>
-                        }
+                        @if (!string.IsNullOrWhiteSpace(mapAttribution)) { <div class="map-snapshot-attribution small text-muted mt-1">@Html.Raw(mapAttribution)</div> }
                     </div>
                 }
 
