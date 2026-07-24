@@ -39,7 +39,7 @@ public sealed class TileCachePhase3ProductionReviewTests
             upstream,
             "other.example.com;WAYFARER.EXAMPLE.COM.");
         const string privateReferer =
-            "https://wayfarer.example.com:8443/trips/private-user?token=secret";
+            "https://wayfarer.example.com.:8443/trips/private-user?token=secret";
         SeedExpiredLowZoomTile(harness.CacheDirectory, 5, 1, 2, [4, 5, 6]);
 
         Assert.Equal(
@@ -50,7 +50,7 @@ public sealed class TileCachePhase3ProductionReviewTests
                 1,
                 1,
                 referer: privateReferer,
-                requestHost: "Wayfarer.Example.Com.:8443")).StatusCode);
+                requestHost: "wayfarer.example.com.:8443")).StatusCode);
         Assert.Equal(
             StatusCodes.Status200OK,
             (await RequestTileAsync(
@@ -59,7 +59,7 @@ public sealed class TileCachePhase3ProductionReviewTests
                 1,
                 2,
                 referer: privateReferer,
-                requestHost: "Wayfarer.Example.Com.:8443")).StatusCode);
+                requestHost: "wayfarer.example.com.:8443")).StatusCode);
         Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
             "5_1_2", TimeSpan.FromSeconds(2)));
 
@@ -90,6 +90,8 @@ public sealed class TileCachePhase3ProductionReviewTests
     [InlineData("site.test", "site.test")]
     [InlineData("site.invalid", "site.invalid")]
     [InlineData("site.example", "site.example")]
+    [InlineData("hidden.onion", "hidden.onion")]
+    [InlineData("private.alt", "private.alt")]
     public async Task UntrustedRequestHost_IsNotForwardedOrLogged(
         string allowedHosts,
         string requestHost)
@@ -124,7 +126,7 @@ public sealed class TileCachePhase3ProductionReviewTests
     [InlineData("*.example.com")]
     [InlineData("app.localhost")]
     [InlineData("service.internal;host.home.arpa")]
-    [InlineData("site.test;site.invalid;site.example")]
+    [InlineData("site.test;site.invalid;site.example;hidden.onion;private.alt")]
     public void UnsafeAllowedHosts_AreNotTrustworthy(string allowedHosts)
     {
         var configuration = new ConfigurationBuilder()
@@ -135,6 +137,20 @@ public sealed class TileCachePhase3ProductionReviewTests
             .Build();
 
         Assert.False(TileCacheService.HasTrustworthyAllowedHosts(configuration));
+    }
+
+    /// <summary>At least one exact public hostname clears the missing-Referer configuration warning.</summary>
+    [Fact]
+    public void ExactPublicAllowedHosts_AreTrustworthy()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AllowedHosts"] = "*.example.com;WAYFARER.EXAMPLE.COM."
+            })
+            .Build();
+
+        Assert.True(TileCacheService.HasTrustworthyAllowedHosts(configuration));
     }
 
     /// <summary>The installer preserves a valid existing hostname before considering Certbot fallback.</summary>

@@ -108,6 +108,43 @@ prompt_default() {
   fi
 }
 
+# Accepts only semicolon-separated exact public DNS hostnames and writes their normalized form.
+normalize_public_host_configuration() {
+  local configuration="${1:-}"
+  local normalized=""
+  local entry
+  local host
+  local lower
+  local -a entries
+
+  [[ -n "$configuration" ]] || return 1
+  IFS=';' read -ra entries <<< "$configuration"
+  for entry in "${entries[@]}"; do
+    host="${entry#"${entry%%[![:space:]]*}"}"
+    host="${host%"${host##*[![:space:]]}"}"
+    host="${host%.}"
+    lower="${host,,}"
+
+    [[ -n "$host" && "$host" == *.* && "$host" != *"*"* ]] || return 1
+    [[ "$host" =~ ^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || return 1
+    [[ ! "$host" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+    case "$lower" in
+      localhost|*.localhost|*.local|*.internal|*.home.arpa|*.test|*.invalid|*.example|*.onion|*.alt)
+        return 1
+        ;;
+    esac
+
+    normalized="${normalized:+${normalized};}${lower}"
+  done
+
+  printf '%s' "$normalized"
+}
+
+# Returns whether a value can safely authorize one or more exact provider Referer hostnames.
+is_valid_public_host_configuration() {
+  normalize_public_host_configuration "${1:-}" > /dev/null
+}
+
 prompt_password() {
   local var_name="$1"
   local explanation="$2"
@@ -445,7 +482,7 @@ if [[ -f "$SCRIPT_DIR/wayfarer.service" ]]; then
   EXISTING_ALLOWED_HOSTS=""
   if [[ -f "$SERVICE_FILE" ]]; then
     EXISTING_ALLOWED_HOSTS="$(
-      sudo sed -n 's/^Environment=AllowedHosts=//p' "$SERVICE_FILE" | tail -n 1
+      sudo sed -n -E 's/^Environment="?AllowedHosts=([^"]*)"?$/\1/p' "$SERVICE_FILE" | tail -n 1
     )"
   fi
 
@@ -684,29 +721,40 @@ echo "========================================="
 echo ""
 echo "Wayfarer uses AllowedHosts to authorize the origin-only Referer sent to tile providers."
 
-if [[ -z "$ALLOWED_HOSTS" && -n "$CERTBOT_DOMAIN" ]]; then
-  ALLOWED_HOSTS="$CERTBOT_DOMAIN"
-  echo "Using the public domain already supplied for Certbot: $ALLOWED_HOSTS"
-elif [[ -z "$ALLOWED_HOSTS" && -n "${EXISTING_ALLOWED_HOSTS:-}" ]]; then
-  ALLOWED_HOSTS="$EXISTING_ALLOWED_HOSTS"
+if is_valid_public_host_configuration "$ALLOWED_HOSTS"; then
+  ALLOWED_HOSTS="$(normalize_public_host_configuration "$ALLOWED_HOSTS")"
+  echo "Using the explicitly supplied public hostname configuration."
+elif is_valid_public_host_configuration "${EXISTING_ALLOWED_HOSTS:-}"; then
+  ALLOWED_HOSTS="$(normalize_public_host_configuration "$EXISTING_ALLOWED_HOSTS")"
   echo "Preserving the public hostname from the existing service: $ALLOWED_HOSTS"
-elif [[ -z "$ALLOWED_HOSTS" && $NONINTERACTIVE -eq 0 ]]; then
+elif is_valid_public_host_configuration "$CERTBOT_DOMAIN"; then
+  ALLOWED_HOSTS="$(normalize_public_host_configuration "$CERTBOT_DOMAIN")"
+  echo "Using the public domain already supplied for Certbot: $ALLOWED_HOSTS"
+elif [[ $NONINTERACTIVE -eq 0 ]]; then
   read -rp "Public Wayfarer hostname (leave blank to configure manually): " ALLOWED_HOSTS
+  if is_valid_public_host_configuration "$ALLOWED_HOSTS"; then
+    ALLOWED_HOSTS="$(normalize_public_host_configuration "$ALLOWED_HOSTS")"
+  else
+    ALLOWED_HOSTS=""
+    echo "⚠ The supplied hostname was not one or more exact public DNS names."
+  fi
+else
+  ALLOWED_HOSTS=""
 fi
 
 if [[ -n "$ALLOWED_HOSTS" && -f "$SERVICE_FILE" ]]; then
   if grep -q "AllowedHosts" "$SERVICE_FILE"; then
-    sudo sed -i "s|^#*\s*Environment=AllowedHosts=.*|Environment=AllowedHosts=${ALLOWED_HOSTS}|" "$SERVICE_FILE"
+    sudo sed -i -E "s|^#*[[:space:]]*Environment=\"?AllowedHosts=.*|Environment=\"AllowedHosts=${ALLOWED_HOSTS}\"|" "$SERVICE_FILE"
     echo "✓ Updated AllowedHosts in $SERVICE_FILE"
   else
-    sudo sed -i "/^Environment=HOME=/a Environment=AllowedHosts=${ALLOWED_HOSTS}" "$SERVICE_FILE"
+    sudo sed -i "/^Environment=HOME=/a Environment=\"AllowedHosts=${ALLOWED_HOSTS}\"" "$SERVICE_FILE"
     echo "✓ Added AllowedHosts to $SERVICE_FILE"
   fi
   sudo systemctl daemon-reload
 elif [[ -n "$ALLOWED_HOSTS" ]]; then
   echo "⚠ Service file not found at $SERVICE_FILE"
   echo "  Add this line to your systemd service file under [Service]:"
-  echo "  Environment=AllowedHosts=${ALLOWED_HOSTS}"
+  echo "  Environment=\"AllowedHosts=${ALLOWED_HOSTS}\""
 else
   echo "⚠ No public hostname was supplied; existing AllowedHosts configuration was left unchanged."
   echo "  Configure the real public Wayfarer hostname before restart:"

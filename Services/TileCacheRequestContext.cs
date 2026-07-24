@@ -2,10 +2,21 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
 
 public partial class TileCacheService
 {
+    private static readonly string[] _nonPublicHostSuffixes =
+    [
+        ".localhost",
+        ".local",
+        ".internal",
+        ".home.arpa",
+        ".test",
+        ".invalid",
+        ".example",
+        ".onion",
+        ".alt"
+    ];
     private static readonly byte[] _schedulerIdentityKey =
         RandomNumberGenerator.GetBytes(32);
 
@@ -21,11 +32,11 @@ public partial class TileCacheService
 
         try
         {
-            var requestHost = context.Request.Host.Host;
-            if (!IsPublicDnsHost(requestHost) ||
-                !HostString.MatchesAny(
-                    new StringSegment(requestHost),
-                    GetAuthorizedHostPatterns(_configuration)))
+            var requestHost = NormalizePublicDnsHost(context.Request.Host.Host);
+            if (requestHost == null ||
+                !GetAuthorizedHosts(_configuration).Contains(
+                    requestHost,
+                    StringComparer.OrdinalIgnoreCase))
             {
                 return null;
             }
@@ -51,25 +62,41 @@ public partial class TileCacheService
 
     /// <summary>Returns whether configuration can authorize at least one trustworthy provider Referer.</summary>
     internal static bool HasTrustworthyAllowedHosts(IConfiguration configuration) =>
-        GetAuthorizedHostPatterns(configuration).Count > 0;
+        GetAuthorizedHosts(configuration).Length > 0;
 
-    /// <summary>Returns configured host-filter patterns, excluding catch-all and private host values.</summary>
-    private static IList<StringSegment> GetAuthorizedHostPatterns(IConfiguration configuration) =>
+    /// <summary>Returns normalized exact public hostnames, excluding wildcard and special-use values.</summary>
+    private static string[] GetAuthorizedHosts(IConfiguration configuration) =>
         (configuration["AllowedHosts"] ?? string.Empty)
         .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        .Where(pattern =>
-            pattern is not "*" and not "0.0.0.0" and not "[::]" &&
-            IsPublicDnsHost(pattern.StartsWith("*.", StringComparison.Ordinal)
-                ? pattern[2..]
-                : pattern))
-        .Select(pattern => new StringSegment(pattern))
+        .Select(NormalizePublicDnsHost)
+        .Where(host => host != null)
+        .Cast<string>()
+        .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
-    /// <summary>Rejects IP literals, localhost, and other single-label/private DNS names.</summary>
-    private static bool IsPublicDnsHost(string host) =>
-        Uri.CheckHostName(host) == UriHostNameType.Dns &&
-        host.Contains('.', StringComparison.Ordinal) &&
-        !host.EndsWith(".local", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Normalizes one exact public DNS hostname or rejects local and special-use names.</summary>
+    private static string? NormalizePublicDnsHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host) || host.Contains('*', StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var normalized = host.EndsWith(".", StringComparison.Ordinal)
+            ? host[..^1]
+            : host;
+        if (normalized.EndsWith(".", StringComparison.Ordinal) ||
+            Uri.CheckHostName(normalized) != UriHostNameType.Dns ||
+            !normalized.Contains(".", StringComparison.Ordinal) ||
+            normalized.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            _nonPublicHostSuffixes.Any(suffix =>
+                normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        return normalized.ToLowerInvariant();
+    }
 
     /// <summary>Builds a bounded opaque scheduler key using the request-rate identity rule.</summary>
     private static string ResolveSchedulerClientKey(HttpContext? context, string? clientIp)

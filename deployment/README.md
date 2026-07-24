@@ -282,7 +282,7 @@ Environment=AllowedHosts=wayfarer.example.com
 ```
 
 The `Application__ContactEmail` is included in the User-Agent header sent to tile providers (e.g. OpenStreetMap) for policy compliance.
-`AllowedHosts` authorizes the public Wayfarer hostname used for the origin-only provider Referer. Do not use `*`: wildcard configuration deliberately omits the Referer and may recreate provider 403 responses. The installer reuses `CERTBOT_DOMAIN` when available; otherwise it prompts or warns without replacing an existing value.
+`AllowedHosts` authorizes the public Wayfarer hostname used for the origin-only provider Referer. Do not use wildcards: wildcard configuration deliberately omits the Referer and may recreate provider 403 responses. The installer preserves a valid existing hostname before considering `CERTBOT_DOMAIN`; otherwise it prompts or warns without guessing.
 
 Then reload: `sudo systemctl daemon-reload && sudo systemctl restart wayfarer`
 
