@@ -80,6 +80,7 @@ public sealed class TileAttributionLayoutRenderingTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresPlaywright")]
     public async Task SnapshotBackedViewerAndPrintOutputRenderResolvedProviderAttribution()
     {
         var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-attribution-snapshot-{Guid.NewGuid():N}");
