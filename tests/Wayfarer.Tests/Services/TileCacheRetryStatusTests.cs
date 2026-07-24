@@ -266,7 +266,7 @@ public sealed partial class TileCacheRetryStatusTests
         Assert.Single(harness.Upstream.Requests);
         Assert.Single(harness.Logs.Entries, entry =>
             entry.EventId.Id == (int)TileCacheDiagnosticEventIds.Cancellation &&
-            Equals(entry.Fields["CancellationStage"], "provider-not-before-wait"));
+            Equals(entry.Fields["CancellationStage"], "cold-miss-waiter"));
     }
 
     /// <summary>Proves a retry denied global capacity never reaches the provider.</summary>
@@ -335,7 +335,8 @@ public sealed partial class TileCacheRetryStatusTests
         Assert.IsType<FileContentResult>(await secondController.GetTile(5, 16, 1));
 
         Assert.Equal(2, harness.Upstream.Requests.Count);
-        Assert.True(File.Exists(Path.Combine(harness.CacheDirectory, "5_16_1.png")));
+        Assert.Single(Directory.EnumerateFiles(
+            harness.CacheDirectory, "5_16_1.png", SearchOption.AllDirectories));
     }
 
     /// <summary>Proves local request-rate rejection retains 429 with bounded retry guidance.</summary>

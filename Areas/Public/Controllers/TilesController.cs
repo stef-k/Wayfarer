@@ -153,6 +153,8 @@ public class TilesController : Controller
         }
         var preset = TileProviderCatalog.FindPreset(settings.TileProviderKey);
         var template = preset?.UrlTemplate ?? settings.TileProviderUrlTemplate;
+        var providerIdentity = TileProviderCatalog.CreateCacheIdentity(
+            settings.TileProviderKey, template);
         var apiKey = TileProviderCatalog.RequiresApiKey(template) ? settings.TileProviderApiKey : null;
 
         if (!TileProviderCatalog.TryBuildTileUrl(template, apiKey, z, x, y, out var tileUrl, out var error))
@@ -164,7 +166,9 @@ public class TilesController : Controller
         // Call the tile cache service to retrieve the tile.
         // The service will either return the cached tile data, signal budget exhaustion (503),
         // or indicate the tile was not found (404).
-        var result = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted);
+        var result = await _tileCacheService.RetrieveTileAsync(
+            z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted,
+            providerIdentity.Fingerprint, providerIdentity.CanAdoptLegacyOsm);
 
         if (result.Status is TileRetrievalStatus.BudgetRejected or TileRetrievalStatus.TransientFailure)
         {

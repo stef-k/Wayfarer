@@ -26,6 +26,13 @@ namespace Wayfarer.Models
         public required string TileFilePath { get; set; }
 
         /// <summary>
+        /// Non-secret fingerprint of the provider key and normalized URL template.
+        /// Null identifies a quarantined legacy entry awaiting proven OSM adoption or cleanup.
+        /// </summary>
+        [MaxLength(64)]
+        public string? ProviderIdentity { get; set; }
+
+        /// <summary>
         /// ETag value from the upstream tile server's response.
         /// Sent as If-None-Match on re-validation requests after expiry.
         /// </summary>

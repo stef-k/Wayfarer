@@ -15,8 +15,8 @@ public partial class TileCacheService
         /// <summary>Current interval between sustained outbound token replenishments.</summary>
         internal const int ReplenishIntervalMs = 500;
 
-        /// <summary>Current maximum wait before a local scheduler-capacity rejection.</summary>
-        internal static readonly TimeSpan AcquireTimeout = TimeSpan.FromSeconds(3.5);
+        /// <summary>Maximum accepted foreground wait before bounded scheduler rejection.</summary>
+        internal static readonly TimeSpan AcquireTimeout = TileWorkScheduler.ForegroundQueueWait;
 
         /// <summary>Available outbound tokens shared by all scoped tile services.</summary>
         private static readonly SemaphoreSlim _tokens = new(BurstCapacity, BurstCapacity);
@@ -34,6 +34,8 @@ public partial class TileCacheService
 
         /// <summary>Serializes replenisher replacement so two loops cannot overlap.</summary>
         private static readonly object _stopLock = new();
+        private static readonly object _priorityLock = new();
+        private static int _foregroundWaiters;
 
         /// <summary>Attempts to acquire capacity under the current production budget.</summary>
         internal static async Task<bool> AcquireAsync(CancellationToken cancellationToken = default)
@@ -44,7 +46,8 @@ public partial class TileCacheService
 
         /// <summary>Acquires capacity and returns test-observable wait evidence.</summary>
         internal static async Task<OutboundBudgetAcquisition> AcquireDetailedAsync(
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            TileWorkPriority priority = TileWorkPriority.Foreground)
         {
             var acquireOverride = _acquireOverride;
             if (acquireOverride != null)
@@ -54,9 +57,40 @@ public partial class TileCacheService
 
             _ = _replenisher.Value;
             var stopwatch = Stopwatch.StartNew();
-            var acquired = await _tokens.WaitAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
+            if (priority == TileWorkPriority.Background)
+            {
+                bool acquired;
+                lock (_priorityLock)
+                {
+                    acquired = _foregroundWaiters == 0 && _tokens.Wait(0);
+                }
+
+                stopwatch.Stop();
+                return new OutboundBudgetAcquisition(acquired, stopwatch.Elapsed);
+            }
+
+            lock (_priorityLock)
+            {
+                _foregroundWaiters++;
+            }
+
+            bool acquiredForeground;
+            try
+            {
+                acquiredForeground = await _tokens
+                    .WaitAsync(AcquireTimeout, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_priorityLock)
+                {
+                    _foregroundWaiters--;
+                }
+            }
+
             stopwatch.Stop();
-            return new OutboundBudgetAcquisition(acquired, stopwatch.Elapsed);
+            return new OutboundBudgetAcquisition(acquiredForeground, stopwatch.Elapsed);
         }
 
         /// <summary>Releases one token per current replenishment interval up to burst capacity.</summary>
@@ -111,6 +145,7 @@ public partial class TileCacheService
         internal static void ResetForTesting()
         {
             _acquireOverride = null;
+            Volatile.Write(ref _foregroundWaiters, 0);
             StopReplenisher();
             while (_tokens.CurrentCount > 0)
             {

@@ -8,6 +8,9 @@ namespace Wayfarer.Models;
 /// </summary>
 public class TileSidecarMetadata
 {
+    /// <summary>Non-secret provider fingerprint owning the adjacent tile bytes.</summary>
+    public string? ProviderIdentity { get; set; }
+
     /// <summary>
     /// ETag value from the upstream tile server's response.
     /// Sent as If-None-Match on re-validation requests after expiry.

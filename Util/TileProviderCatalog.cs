@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using Wayfarer.Models;
 
 namespace Wayfarer.Util;
@@ -158,6 +160,25 @@ public static class TileProviderCatalog
     }
 
     /// <summary>
+    /// Creates the non-secret persistent identity used to isolate cached and in-flight tile work.
+    /// API-key placeholders remain symbolic and concrete API-key values are never supplied here.
+    /// </summary>
+    public static TileProviderCacheIdentity CreateCacheIdentity(string? providerKey, string template)
+    {
+        var normalizedKey = string.IsNullOrWhiteSpace(providerKey)
+            ? ApplicationSettings.DefaultTileProviderKey
+            : providerKey.Trim().ToLowerInvariant();
+        var normalizedTemplate = NormalizeTemplate(template);
+        var input = $"{normalizedKey}|{normalizedTemplate}";
+        var fingerprint = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(input)));
+        var canonicalOsm =
+            normalizedKey == ApplicationSettings.DefaultTileProviderKey &&
+            normalizedTemplate == NormalizeTemplate(ApplicationSettings.DefaultTileProviderUrlTemplate);
+        return new TileProviderCacheIdentity(fingerprint, canonicalOsm);
+    }
+
+    /// <summary>
     /// Redacts API key values from a tile URL for safe logging.
     /// Replaces common API key query parameter values with [REDACTED].
     /// </summary>
@@ -186,6 +207,29 @@ public static class TileProviderCatalog
                && template.Contains("{y}", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Normalizes a validated template without expanding credential placeholders.</summary>
+    private static string NormalizeTemplate(string template)
+    {
+        var normalizedPlaceholders = template.Trim()
+            .Replace("{S}", "{s}", StringComparison.Ordinal)
+            .Replace("{Z}", "{z}", StringComparison.Ordinal)
+            .Replace("{X}", "{x}", StringComparison.Ordinal)
+            .Replace("{Y}", "{y}", StringComparison.Ordinal)
+            .Replace("{APIKEY}", "{apiKey}", StringComparison.OrdinalIgnoreCase);
+        var sample = normalizedPlaceholders
+            .Replace("{s}", "a", StringComparison.Ordinal)
+            .Replace("{z}", "0", StringComparison.Ordinal)
+            .Replace("{x}", "0", StringComparison.Ordinal)
+            .Replace("{y}", "0", StringComparison.Ordinal)
+            .Replace("{apiKey}", "WAYFARER_API_KEY", StringComparison.Ordinal);
+        var uri = new Uri(sample);
+        var authority = uri.IsDefaultPort
+            ? $"{uri.Scheme.ToLowerInvariant()}://{uri.IdnHost.TrimEnd('.').ToLowerInvariant()}"
+            : $"{uri.Scheme.ToLowerInvariant()}://{uri.IdnHost.TrimEnd('.').ToLowerInvariant()}:{uri.Port}";
+        var normalized = authority + uri.PathAndQuery;
+        return normalized.Replace("WAYFARER_API_KEY", "{apiKey}", StringComparison.Ordinal);
+    }
+
     private static bool TryCreateTemplateUri(string template, out Uri uri, out string error)
     {
         var sample = template
@@ -206,6 +250,15 @@ public static class TileProviderCatalog
     }
 
 }
+
+/// <summary>
+/// Identifies one provider cache namespace without retaining provider credentials or client identity.
+/// </summary>
+/// <param name="Fingerprint">SHA-256 fingerprint safe for paths and shared-work keys.</param>
+/// <param name="CanAdoptLegacyOsm">Whether unscoped legacy cache entries have proven OSM provenance.</param>
+public readonly record struct TileProviderCacheIdentity(
+    string Fingerprint,
+    bool CanAdoptLegacyOsm);
 
 /// <summary>
 /// Represents a preset tile provider definition.

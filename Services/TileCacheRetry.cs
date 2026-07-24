@@ -8,6 +8,8 @@ public partial class TileCacheService
     /// </summary>
     private async Task<TileDownloadResult> DownloadTileWithRetryAsync(
         string tileUrl,
+        string? clientIp,
+        bool allowHttpContext,
         CancellationToken cancellationToken)
     {
         var providerKey = TileProviderRetryPolicy.GetProviderKey(tileUrl);
@@ -34,6 +36,8 @@ public partial class TileCacheService
                 sendResult = await SendTileRequestAsync(
                     tileUrl,
                     chargeClientAllowance: attemptNumber == 1,
+                    clientIp: clientIp,
+                    allowHttpContext: allowHttpContext,
                     attemptNumber: attemptNumber,
                     interactiveDeadline: interactiveDeadline,
                     contactState: contactState,
