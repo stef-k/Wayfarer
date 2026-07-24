@@ -255,7 +255,7 @@ public sealed partial class TileCacheRetryStatusTests
         TileCacheService.SetColdMissRetryDelayForTesting((_, token) =>
         {
             cancellation.Cancel();
-            return Task.FromCanceled(token);
+            return Task.Delay(Timeout.InfiniteTimeSpan, token);
         });
         using var scope = harness.CreateScope();
         var controller = CreateController(scope, cancellation.Token);
