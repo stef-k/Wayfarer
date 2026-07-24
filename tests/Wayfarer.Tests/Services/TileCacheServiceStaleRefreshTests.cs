@@ -38,7 +38,7 @@ public partial class TileCacheServiceTests
         Assert.NotNull(result.TileData);
         Assert.True(handler.Referrers.Count >= 2);
         Assert.NotNull(handler.Referrers[0]);
-        Assert.Equal(new Uri("https://wayfarer.test/"), handler.Referrers[^1]);
+        Assert.Equal(new Uri("https://myapp.example.com/"), handler.Referrers[^1]);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public partial class TileCacheServiceTests
 
         Assert.NotNull(result.TileData);
         Assert.Equal(1, handler.ConditionalCallCount);
-        Assert.Equal(new Uri("https://wayfarer.test/"), handler.Referrers.Last());
+        Assert.Equal(new Uri("https://myapp.example.com/"), handler.Referrers.Last());
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public partial class TileCacheServiceTests
     {
         var context = new DefaultHttpContext();
         context.Request.Scheme = "https";
-        context.Request.Host = new HostString("wayfarer.test");
+        context.Request.Host = new HostString("myapp.example.com");
         return context;
     }
 

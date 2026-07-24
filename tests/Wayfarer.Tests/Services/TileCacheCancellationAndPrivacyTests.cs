@@ -26,19 +26,28 @@ public sealed class TileCacheCancellationAndPrivacyTests
     public async Task CallerCancelledTransport_EmitsCancellationOnly()
     {
         using var cancellation = new CancellationTokenSource();
-        var upstream = new RecordingTileHandler((_, token) =>
+        var transportStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var upstream = new RecordingTileHandler(async (_, token) =>
         {
-            cancellation.Cancel();
-            throw new OperationCanceledException(token);
+            transportStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            throw new InvalidOperationException("The controlled transport unexpectedly completed.");
         });
         using var harness = new TileCacheTestHarness(upstream);
         using var scope = harness.CreateScope();
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
+        // Cancel only after transport starts, then drain the scheduler-owned runner before reading logs.
+        var retrieval = service.RetrieveTileAsync(
+            "5", "18", "19", CanonicalTileUrl(5, 18, 19), cancellation.Token);
+        await transportStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            service.RetrieveTileAsync(
-                "5", "18", "19", CanonicalTileUrl(5, 18, 19), cancellation.Token));
+            retrieval);
+        await TileWorkScheduler.StopAndDrainAsync();
 
         AssertCancellation(harness.Logs, "upstream-transport");
         AssertNoUpstreamFailure(harness.Logs);
