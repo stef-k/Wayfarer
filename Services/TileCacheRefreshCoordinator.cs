@@ -6,7 +6,7 @@ public partial class TileCacheService
 {
     /// <summary>
     /// Coalesces bounded background refresh series for expired cached tiles.
-    /// Key: "{z}_{x}_{y}". At most one active series may exist per tile key.
+    /// Key: "{provider fingerprint}:{z}_{x}_{y}". At most one active series may exist per tile key.
     /// </summary>
     private static readonly ConcurrentDictionary<string, TileRefreshSeries> _refreshSeries = new();
     private static readonly object _refreshAdmissionLock = new();
