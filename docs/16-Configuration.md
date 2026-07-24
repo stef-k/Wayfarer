@@ -23,6 +23,7 @@ Logging
 
 Application
 - `Application:ContactEmail` — contact email included in the User-Agent header sent to tile providers (e.g. OpenStreetMap). OSM's tile usage policy requires an honest User-Agent identifying the application. Set this to a monitored email address. Default: `noreply@wayfarer.app`. In production, configure via systemd environment variable: `Application__ContactEmail=admin@your-domain.example`.
+- `AllowedHosts` — semicolon-separated public hostnames allowed to address Wayfarer and supply its origin-only tile-provider Referer. Production must configure the real public hostname through `AllowedHosts=wayfarer.example.com`; `*`, IP literals, localhost, and private names are not trusted for the provider Referer. Ports received through trusted forwarded headers are preserved after hostname authorization.
 
 CacheSettings
 - `CacheSettings:TileCacheDirectory` — local directory for map tile cache.

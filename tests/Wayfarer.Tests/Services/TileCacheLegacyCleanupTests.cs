@@ -3,7 +3,6 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Xunit;
-using System.Reflection;
 
 namespace Wayfarer.Tests.Services;
 
@@ -99,24 +98,26 @@ public sealed class TileCacheLegacyCleanupTests
             new TileCacheMetadata
             {
                 ProviderIdentity = "scoped",
-                TileFilePath = "unrelated.png",
+                TileFilePath = candidatePaths[1].ToUpperInvariant(),
                 TileLocation = new Point(1, 1)
             },
             new TileCacheMetadata
             {
                 ProviderIdentity = null,
-                TileFilePath = candidatePaths[1],
+                TileFilePath = candidatePaths[2],
                 TileLocation = new Point(2, 2)
+            },
+            new TileCacheMetadata
+            {
+                ProviderIdentity = "scoped",
+                TileFilePath = "unrelated.png",
+                TileLocation = new Point(3, 3)
             }
         }.AsQueryable();
-        var queryFactory = typeof(TileCacheService).GetMethod(
-            "BuildScopedPathProtectionQuery",
-            BindingFlags.NonPublic | BindingFlags.Static);
+        var query = TileCacheService.BuildScopedPathProtectionQuery(metadata, candidatePaths);
 
-        Assert.NotNull(queryFactory);
-        var query = Assert.IsAssignableFrom<IQueryable<string>>(
-            queryFactory.Invoke(null, [metadata, candidatePaths]));
-
-        Assert.Equal([candidatePaths[0]], query.ToArray());
+        Assert.Equal(
+            [candidatePaths[0], candidatePaths[1].ToUpperInvariant()],
+            query.ToArray());
     }
 }

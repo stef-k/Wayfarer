@@ -713,7 +713,8 @@ public partial class TileCacheServiceTests : TestBase
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["CacheSettings:TileCacheDirectory"] = cacheDir,
-                ["Application:ContactEmail"] = contactEmail
+                ["Application:ContactEmail"] = contactEmail,
+                ["AllowedHosts"] = "myapp.example.com"
             }).Build();
         var httpClient = new HttpClient(handler ?? new StubTileHandler());
 

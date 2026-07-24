@@ -162,6 +162,16 @@ if (!app.Environment.IsDevelopment()
                           "environment variable in your systemd service file.");
 }
 
+// A wildcard host filter cannot safely identify this deployment to an upstream tile provider.
+if (!app.Environment.IsDevelopment()
+    && !TileCacheService.HasTrustworthyAllowedHosts(app.Configuration))
+{
+    app.Logger.LogWarning(
+        "AllowedHosts does not contain a specific public Wayfarer hostname. " +
+        "Upstream tile requests will omit Referer until AllowedHosts is configured, which may cause provider blocking. " +
+        "Set AllowedHosts through the AllowedHosts environment variable in the systemd service.");
+}
+
 // Close tile admission, cancel foreground/background work, and boundedly drain on shutdown.
 app.Lifetime.ApplicationStopping.Register(TileCacheService.StopOutboundBudget);
 

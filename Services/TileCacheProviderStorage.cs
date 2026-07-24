@@ -33,11 +33,11 @@ public partial class TileCacheService
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            var scopedPaths = await _dbContext.TileCacheMetadata
-                .Where(tile => tile.ProviderIdentity != null)
-                .Select(tile => tile.TileFilePath)
-                .ToListAsync(cancellationToken);
-            var protectedPaths = scopedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var protectedPaths = (await BuildScopedPathProtectionQuery(
+                    _dbContext.TileCacheMetadata,
+                    paths)
+                .ToListAsync(cancellationToken))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var retiredSize = legacyRows.Sum(tile => (long)tile.Size);
             if (legacyRows.Count > 0)
             {
@@ -72,6 +72,21 @@ public partial class TileCacheService
         {
             _cacheLock.Release();
         }
+    }
+
+    /// <summary>Restricts provider ownership protection to the bounded cleanup candidate paths.</summary>
+    internal static IQueryable<string> BuildScopedPathProtectionQuery(
+        IQueryable<TileCacheMetadata> metadata,
+        string[] candidatePaths)
+    {
+        var normalizedCandidates = candidatePaths
+            .Select(path => path.ToUpperInvariant())
+            .ToArray();
+        return metadata
+            .Where(tile =>
+                tile.ProviderIdentity != null &&
+                normalizedCandidates.Contains(tile.TileFilePath.ToUpper()))
+            .Select(tile => tile.TileFilePath);
     }
 
     /// <summary>Resolves the active non-secret cache identity from authoritative settings.</summary>

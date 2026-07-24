@@ -17,7 +17,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
-/// <summary>Reproduces the six production findings from the issue #385 Phase 3 review.</summary>
+/// <summary>Reproduces production findings from the issue #385 Phase 3 reviews.</summary>
 [Collection("OutboundBudget")]
 public sealed class TileCachePhase3ProductionReviewTests
 {
@@ -36,15 +36,27 @@ public sealed class TileCachePhase3ProductionReviewTests
         });
         await using var harness = new TileCacheTestHarness(upstream);
         const string privateReferer =
-            "https://wayfarer.example.test/trips/private-user?token=secret";
+            "https://wayfarer.example.test:8443/trips/private-user?token=secret";
         SeedExpiredLowZoomTile(harness.CacheDirectory, 5, 1, 2, [4, 5, 6]);
 
         Assert.Equal(
             StatusCodes.Status200OK,
-            (await RequestTileAsync(harness, 5, 1, 1, referer: privateReferer)).StatusCode);
+            (await RequestTileAsync(
+                harness,
+                5,
+                1,
+                1,
+                referer: privateReferer,
+                requestHost: "wayfarer.example.test:8443")).StatusCode);
         Assert.Equal(
             StatusCodes.Status200OK,
-            (await RequestTileAsync(harness, 5, 1, 2, referer: privateReferer)).StatusCode);
+            (await RequestTileAsync(
+                harness,
+                5,
+                1,
+                2,
+                referer: privateReferer,
+                requestHost: "wayfarer.example.test:8443")).StatusCode);
         Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
             "5_1_2", TimeSpan.FromSeconds(2)));
 
@@ -53,7 +65,7 @@ public sealed class TileCachePhase3ProductionReviewTests
         Assert.All(requests, request =>
         {
             var referer = Assert.Single(request.Headers["Referer"]);
-            Assert.Equal("https://wayfarer.example.test/", referer);
+            Assert.Equal("https://wayfarer.example.test:8443/", referer);
             Assert.DoesNotContain("trips", referer, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("private-user", referer, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("token", referer, StringComparison.OrdinalIgnoreCase);
