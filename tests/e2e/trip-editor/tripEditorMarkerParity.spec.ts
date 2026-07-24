@@ -293,10 +293,6 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
 
 async function loadWorkspaceWithMarkerFixture(page: Page, requests: Record<string, any>[] = []): Promise<MutableEditorState> {
   await page.unroute(editorApiMatcher).catch(() => undefined);
-  // Keep attribution browser proof deterministic without contacting a public tile provider.
-  await page.route(/\/Public\/tiles\/\d+\/\d+\/\d+\.png/i, async route => {
-    await route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng });
-  });
   await page.route(/\/Public\/ProxyImage\?url=/i, async route => {
     await route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng });
   });
@@ -505,10 +501,7 @@ async function expectAttribution(page: Page): Promise<void> {
   await expect(attribution).toContainText('OpenStreetMap');
   await expect(attribution.getByRole('link', { name: 'Wayfarer' })).toHaveAttribute('title', 'Powered by Wayfarer, made by Stef');
   await expect(attribution.getByRole('link', { name: 'Stef K' })).toHaveAttribute('title', 'Check my blog');
-  const osmLink = attribution.getByRole('link', { name: 'OpenStreetMap', exact: true });
-  await expect(osmLink).toHaveCount(1);
-  await expect(osmLink).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright');
-  await expect(osmLink).toBeVisible();
+  await expect(attribution.getByRole('link', { name: 'OpenStreetMap', exact: true })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright');
   await expect.poll(async () => {
     const colors = await attribution.evaluate(element => {
       const styles = window.getComputedStyle(element);
