@@ -172,6 +172,13 @@ test.describe('shared standard-layout footer', () => {
 
     await signIn(page);
     await page.goto('/User/Trip');
+    const editorHref = await page.locator('a[href^="/User/Trip/Edit/"]').first().getAttribute('href');
+    expect(editorHref).toBeTruthy();
+    await page.goto(editorHref!);
+    await expect(page.locator('#trip-editor-app .leaflet-container')).toBeVisible();
+    await expectBlankMapAttribution(page);
+
+    await page.goto('/User/Trip');
     const authenticatedHref = await page.locator('a[href^="/User/Trip/View/"]').first().getAttribute('href');
     expect(authenticatedHref).toBeTruthy();
     await page.goto(authenticatedHref!);

@@ -418,7 +418,7 @@
                              class="img-fluid w-100 rounded"
                              alt="Map of @Model.Name"
                              style="max-height: 400px; object-fit: cover;"/>
-                        @if (!string.IsNullOrWhiteSpace(mapAttribution)) { <div class="map-snapshot-attribution small text-muted mt-1">@Html.Raw(mapAttribution)</div> }
+                        @* Render only server-resolved, sanitized provider attribution. *@ @if (!string.IsNullOrWhiteSpace(mapAttribution)) { <div class="map-snapshot-attribution small text-muted mt-1">@Html.Raw(mapAttribution)</div> }
                     </div>
                 }
 
