@@ -175,6 +175,23 @@ public class TileProviderAttributionTests
     }
 
     [Fact]
+    public void Resolve_LinksOsmAcrossDescendantTextNodesWithoutNestingAnchors()
+    {
+        var result = TileProviderAttribution.Resolve(Settings(
+            TileProviderCatalog.CustomProviderKey,
+            "<a href=\"https://example.com/terms\">Example Maps using Open<strong>Street</strong>Map data</a>"));
+        var document = new HtmlParser().ParseDocument($"<body>{result}</body>");
+        var body = document.Body!;
+        var osmLink = Assert.Single(body.QuerySelectorAll($"a[href=\"{OsmCopyrightUrl}\"]"));
+        var providerLinks = body.QuerySelectorAll("a[href=\"https://example.com/terms\"]");
+
+        Assert.Equal("Example Maps using OpenStreetMap data", body.TextContent);
+        Assert.Equal("OpenStreetMap", osmLink.TextContent);
+        Assert.Equal("Example Maps using  data", string.Concat(providerLinks.Select(link => link.TextContent)));
+        Assert.Empty(body.QuerySelectorAll("a a"));
+    }
+
+    [Fact]
     public void Resolve_CanonicalizesAnchorRepresentingOnlyOsmAttribution()
     {
         var result = TileProviderAttribution.Resolve(Settings(
