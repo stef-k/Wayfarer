@@ -12,6 +12,7 @@ using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -65,22 +66,22 @@ public sealed class TileCachePhase3ProductionReviewTests
     public async Task LegacyCleanup_PreservesAdoptedOsmFileAndMetadata()
     {
         await using var harness = new TileCacheTestHarness();
-        var adoptedPath = Path.Combine(harness.CacheDirectory, "5_2_2.png");
-        var legacyPath = Path.Combine(harness.CacheDirectory, "5_3_3.png");
+        var adoptedPath = Path.Combine(harness.CacheDirectory, "9_2_2.png");
+        var legacyPath = Path.Combine(harness.CacheDirectory, "9_3_3.png");
         await File.WriteAllBytesAsync(adoptedPath, [2]);
         await File.WriteAllBytesAsync(legacyPath, [3]);
         using (var seedScope = harness.CreateScope())
         {
             var database = seedScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             database.TileCacheMetadata.AddRange(
-                LegacyMetadata(2, 2, adoptedPath),
-                LegacyMetadata(3, 3, legacyPath));
+                LegacyMetadata(9, 2, 2, adoptedPath),
+                LegacyMetadata(9, 3, 3, legacyPath));
             await database.SaveChangesAsync();
         }
 
         Assert.Equal(
             StatusCodes.Status200OK,
-            (await RequestTileAsync(harness, 5, 2, 2)).StatusCode);
+            (await RequestTileAsync(harness, 9, 2, 2)).StatusCode);
         harness.Settings.TileProviderKey = "custom";
         harness.Settings.TileProviderUrlTemplate =
             "https://tiles.example.test/{z}/{x}/{y}.png";
@@ -116,6 +117,7 @@ public sealed class TileCachePhase3ProductionReviewTests
         var releaseTransport = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var contacts = 0;
+        string? persistedPath = null;
         var upstream = new RecordingTileHandler(async (_, _) =>
         {
             if (Interlocked.Increment(ref contacts) == 1)
@@ -129,9 +131,16 @@ public sealed class TileCachePhase3ProductionReviewTests
 
             // Deliberately ignore transport cancellation to expose replacement overlap.
             await releaseTransport.Task;
+            Directory.CreateDirectory(Path.GetDirectoryName(persistedPath!)!);
+            await File.WriteAllBytesAsync(persistedPath!, [7, 8, 9]);
             return PngResponse([7, 8, 9], TimeSpan.FromHours(1));
         });
         await using var harness = new TileCacheTestHarness(upstream);
+        var provider = TileProviderCatalog.CreateCacheIdentity(
+            harness.Settings.TileProviderKey,
+            harness.Settings.TileProviderUrlTemplate);
+        persistedPath = Path.Combine(
+            harness.CacheDirectory, provider.Fingerprint, "5_4_4.png");
         using var cancellation = new CancellationTokenSource();
         var first = RequestTileAsync(harness, 5, 4, 4, cancellationToken: cancellation.Token);
         await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -318,6 +327,16 @@ public sealed class TileCachePhase3ProductionReviewTests
             TileCacheService.StopOutboundBudget();
             await Task.WhenAll(foregroundCancelled.Task, backgroundCancelled.Task)
                 .WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2));
+            Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
+                "5_8_8", TimeSpan.FromMilliseconds(100)));
+            await foreground;
+            var rejected = await TileWorkScheduler.ExecuteForegroundAsync(
+                "provider:shutdown:new",
+                "client",
+                _ => Task.FromResult(TileRetrievalResult.Success([1])),
+                CancellationToken.None);
+            Assert.Equal(TileRetrievalStatus.BudgetRejected, rejected.Status);
         }
         finally
         {
@@ -325,22 +344,15 @@ public sealed class TileCachePhase3ProductionReviewTests
             await TileCacheService.CancelAndWaitForRefreshesForTestingAsync(
                 TimeSpan.FromSeconds(1));
         }
-
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2));
-        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
-            "5_8_8", TimeSpan.FromMilliseconds(100)));
-        await foreground;
-        var rejected = await TileWorkScheduler.ExecuteForegroundAsync(
-            "provider:shutdown:new",
-            "client",
-            _ => Task.FromResult(TileRetrievalResult.Success([1])),
-            CancellationToken.None);
-        Assert.Equal(TileRetrievalStatus.BudgetRejected, rejected.Status);
     }
 
-    private static TileCacheMetadata LegacyMetadata(int x, int y, string path) => new()
+    private static TileCacheMetadata LegacyMetadata(
+        int zoom,
+        int x,
+        int y,
+        string path) => new()
     {
-        Zoom = 5,
+        Zoom = zoom,
         X = x,
         Y = y,
         TileLocation = new Point(x, y),

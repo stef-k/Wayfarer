@@ -130,10 +130,10 @@ public partial class TileCacheService
     };
 
     /// <summary>
-    /// Stops the outbound budget replenishment task for clean application shutdown.
+    /// Stops admission and boundedly drains all tile work for clean application shutdown.
     /// Call from <c>IHostApplicationLifetime.ApplicationStopping</c> or equivalent.
     /// </summary>
-    public static void StopOutboundBudget() => OutboundBudget.Stop();
+    public static void StopOutboundBudget() => StopAndDrainTileWork();
 
     /// <summary>
     /// Exposes the outbound budget burst capacity for client-side configuration.
@@ -174,6 +174,7 @@ public partial class TileCacheService
         SetRefreshRetryDelayForTesting(null);
         SetColdMissRetryDelayForTesting(null);
         SetTileFileReplacerForTesting(null);
+        ResetRefreshCoordinatorForTesting();
         Interlocked.Exchange(ref _currentCacheSize, 0);
         Interlocked.Exchange(ref _evictionInProgress, 0);
         Interlocked.Exchange(ref _purgeInProgress, 0);
@@ -308,6 +309,7 @@ public partial class TileCacheService
     private async Task<TileRequestSendResult> SendTileRequestCoreAsync(string tileUrl,
         Action<HttpRequestMessage>? configureRequest = null, bool chargeClientAllowance = true,
         string? clientIp = null, bool allowHttpContext = true, int attemptNumber = 1,
+        string? publicOrigin = null,
         bool deferCancellationDiagnostic = false, DateTimeOffset? interactiveDeadline = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
         TileWorkPriority priority = TileWorkPriority.Foreground,
@@ -451,13 +453,16 @@ public partial class TileCacheService
 
             using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
 
-            // OSM requires a Referer header. Derive it from the incoming HTTP request
-            // so it automatically matches the public URL (works behind reverse proxies,
-            // Cloudflare Tunnel, etc. when forwarded headers are configured).
-            var ctx = allowHttpContext ? _httpContextAccessor.HttpContext : null;
-            if (ctx != null)
+            // Shared work carries only an immutable sanitized deployment origin.
+            var requestOrigin = publicOrigin;
+            if (requestOrigin == null && allowHttpContext)
             {
-                request.Headers.Referrer = new Uri($"{ctx.Request.Scheme}://{ctx.Request.Host}");
+                requestOrigin = ResolvePublicRequestOrigin(_httpContextAccessor.HttpContext);
+            }
+
+            if (requestOrigin != null)
+            {
+                request.Headers.Referrer = new Uri(requestOrigin, UriKind.Absolute);
             }
 
             // Let the caller add conditional headers (If-None-Match, If-Modified-Since, etc.)
@@ -559,6 +564,7 @@ public partial class TileCacheService
         string? clientIp = null,
         bool allowHttpContext = true,
         int attemptNumber = 1,
+        string? publicOrigin = null,
         DateTimeOffset? interactiveDeadline = null,
         TileContactState? contactState = null,
         CancellationToken callerCancellationToken = default,
@@ -566,6 +572,7 @@ public partial class TileCacheService
     {
         return SendTileRequestCoreAsync(tileUrl, chargeClientAllowance: chargeClientAllowance,
             clientIp: clientIp, allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
+            publicOrigin: publicOrigin,
             interactiveDeadline: interactiveDeadline,
             contactState: contactState,
             callerCancellationToken: callerCancellationToken,
@@ -579,6 +586,7 @@ public partial class TileCacheService
     private Task<TileRequestSendResult> SendConditionalTileRequestAsync(string tileUrl, string? etag,
         DateTime? lastModified, string? clientIp = null, bool allowHttpContext = true,
         bool chargeClientAllowance = true, int attemptNumber = 1,
+        string? publicOrigin = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
         CancellationToken cancellationToken = default)
     {
@@ -599,6 +607,7 @@ public partial class TileCacheService
             }
         }, chargeClientAllowance: chargeClientAllowance, clientIp: clientIp,
             allowHttpContext: allowHttpContext, attemptNumber: attemptNumber,
+            publicOrigin: publicOrigin,
             deferCancellationDiagnostic: true,
             contactState: contactState,
             onClientAllowanceCharged: onClientAllowanceCharged,
@@ -749,7 +758,7 @@ public partial class TileCacheService
         var tileFilePath = GetProviderTilePath(provider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
         var result = await CacheTileWithRetryAsync(
             tileUrl, zoomLevel, xCoordinate, yCoordinate, provider.Fingerprint, tileFilePath,
-            clientIp: null, allowHttpContext: true, cancellationToken);
+            clientIp: null, allowHttpContext: true, publicOrigin: null, cancellationToken);
         return result.Status != TileCacheFillStatus.BudgetRejected;
     }
 
@@ -763,6 +772,7 @@ public partial class TileCacheService
         string tileFilePath,
         string? clientIp,
         bool allowHttpContext,
+        string? publicOrigin,
         CancellationToken cancellationToken)
     {
         try
@@ -772,7 +782,7 @@ public partial class TileCacheService
             int x = int.Parse(xCoordinate);
             int y = int.Parse(yCoordinate);
             var download = await DownloadTileWithRetryAsync(
-                tileUrl, clientIp, allowHttpContext, cancellationToken);
+                tileUrl, clientIp, allowHttpContext, publicOrigin, cancellationToken);
             if (download.Status != TileCacheFillStatus.Cached)
             {
                 return new TileCacheFillResult(download.Status, download.RetryAfter);
@@ -991,6 +1001,8 @@ public partial class TileCacheService
             // outbound budget check works for revalidation requests.
             var httpContext = _httpContextAccessor.HttpContext;
             var clientIp = httpContext != null ? RateLimitHelper.GetClientIpAddress(httpContext) : null;
+            var publicOrigin = ResolvePublicRequestOrigin(httpContext);
+            var schedulerClientKey = ResolveSchedulerClientKey(httpContext, clientIp);
 
             if (!int.TryParse(zoomLevel, out var zoomLvl) ||
                 !int.TryParse(xCoordinate, out var xVal) ||
@@ -1191,7 +1203,7 @@ public partial class TileCacheService
                 {
                     ScheduleBackgroundRefresh(
                         tileUrl, tileFilePath, tileKey, activeProvider.Fingerprint, zoomLvl, xVal, yVal,
-                        etag, lastModified, clientIp);
+                        etag, lastModified, clientIp, publicOrigin);
                 }
 
                 // Graceful degradation: serve stale cached tile even when budget is exhausted
@@ -1237,10 +1249,11 @@ public partial class TileCacheService
             {
                 return await TileWorkScheduler.ExecuteForegroundAsync(
                     tileKey,
-                    clientIp ?? "client:unknown",
+                    schedulerClientKey,
                     sharedCancellation => RetrieveColdTileInFreshScopeAsync(
                         tileUrl, zoomLevel, xCoordinate, yCoordinate,
-                        activeProvider.Fingerprint, scopedTilePath, clientIp, sharedCancellation),
+                        activeProvider.Fingerprint, scopedTilePath, clientIp, publicOrigin,
+                        sharedCancellation),
                     cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1281,6 +1294,7 @@ public partial class TileCacheService
             allowHttpContext: false,
             chargeClientAllowance: !series.ClientAllowanceCharged,
             attemptNumber: series.Attempts,
+            publicOrigin: series.PublicOrigin,
             contactState: series.ContactState,
             onClientAllowanceCharged: () => series.ClientAllowanceCharged = true,
             cancellationToken: series.CancellationToken);

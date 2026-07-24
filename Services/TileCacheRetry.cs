@@ -10,6 +10,7 @@ public partial class TileCacheService
         string tileUrl,
         string? clientIp,
         bool allowHttpContext,
+        string? publicOrigin,
         CancellationToken cancellationToken)
     {
         var providerKey = TileProviderRetryPolicy.GetProviderKey(tileUrl);
@@ -39,6 +40,7 @@ public partial class TileCacheService
                     clientIp: clientIp,
                     allowHttpContext: allowHttpContext,
                     attemptNumber: attemptNumber,
+                    publicOrigin: publicOrigin,
                     interactiveDeadline: interactiveDeadline,
                     contactState: contactState,
                     callerCancellationToken: cancellationToken,

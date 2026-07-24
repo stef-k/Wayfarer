@@ -162,7 +162,7 @@ if (!app.Environment.IsDevelopment()
                           "environment variable in your systemd service file.");
 }
 
-// Stop the outbound budget replenisher on graceful shutdown to avoid dangling background tasks.
+// Close tile admission, cancel foreground/background work, and boundedly drain on shutdown.
 app.Lifetime.ApplicationStopping.Register(TileCacheService.StopOutboundBudget);
 
 app.Run();

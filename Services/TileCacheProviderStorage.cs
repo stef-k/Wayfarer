@@ -19,42 +19,44 @@ public partial class TileCacheService
             return 0;
         }
 
-        var legacyRows = await _dbContext.TileCacheMetadata
-            .Where(tile => tile.ProviderIdentity == null)
-            .OrderBy(tile => tile.Id)
-            .Take(batchSize)
-            .ToListAsync(cancellationToken);
-        var paths = legacyRows
-            .Select(tile => tile.TileFilePath)
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .ToList();
-        var retiredSize = legacyRows.Sum(tile => (long)tile.Size);
-        if (legacyRows.Count > 0)
-        {
-            _dbContext.TileCacheMetadata.RemoveRange(legacyRows);
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            Interlocked.Add(ref _currentCacheSize, -retiredSize);
-        }
-
-        var remaining = batchSize - legacyRows.Count;
-        if (remaining > 0 && Directory.Exists(_cacheDirectory))
-        {
-            paths.AddRange(Directory
-                .EnumerateFiles(_cacheDirectory, "*.png", SearchOption.TopDirectoryOnly)
-                .Take(remaining));
-        }
-
-        var retired = 0;
         await _cacheLock.WaitAsync(cancellationToken);
         try
         {
-            foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            // Adoption uses the same lock, so every selected row is still proven unscoped.
+            var legacyRows = await _dbContext.TileCacheMetadata
+                .Where(tile => tile.ProviderIdentity == null)
+                .OrderBy(tile => tile.Id)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+            var paths = legacyRows
+                .Select(tile => tile.TileFilePath)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var scopedPaths = await _dbContext.TileCacheMetadata
+                .Where(tile => tile.ProviderIdentity != null)
+                .Select(tile => tile.TileFilePath)
+                .ToListAsync(cancellationToken);
+            var protectedPaths = scopedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var retiredSize = legacyRows.Sum(tile => (long)tile.Size);
+            if (legacyRows.Count > 0)
+            {
+                _dbContext.TileCacheMetadata.RemoveRange(legacyRows);
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                Interlocked.Add(ref _currentCacheSize, -retiredSize);
+            }
+
+            foreach (var path in paths)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (protectedPaths.Contains(path))
+                {
+                    continue;
+                }
+
                 if (File.Exists(path))
                 {
                     File.Delete(path);
-                    retired++;
                 }
 
                 var sidecarPath = GetSidecarPath(path);
@@ -63,13 +65,13 @@ public partial class TileCacheService
                     File.Delete(sidecarPath);
                 }
             }
+
+            return legacyRows.Count;
         }
         finally
         {
             _cacheLock.Release();
         }
-
-        return Math.Max(retired, legacyRows.Count);
     }
 
     /// <summary>Resolves the active non-secret cache identity from authoritative settings.</summary>
@@ -109,6 +111,7 @@ public partial class TileCacheService
         string providerIdentity,
         string tileFilePath,
         string? clientIp,
+        string? publicOrigin,
         CancellationToken cancellationToken)
     {
         using var scope = _serviceScopeFactory.CreateScope();
@@ -116,12 +119,14 @@ public partial class TileCacheService
         if (service != null)
         {
             return await service.RetrieveColdTileCoreAsync(
-                tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, cancellationToken);
+                tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, publicOrigin,
+                cancellationToken);
         }
 
         // Isolated unit constructions may not provide a scope factory; production DI always does.
         return await RetrieveColdTileCoreAsync(
-            tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, cancellationToken);
+            tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, publicOrigin,
+            cancellationToken);
     }
 
     /// <summary>Downloads, persists, and maps one scheduler-owned cold series.</summary>
@@ -133,11 +138,25 @@ public partial class TileCacheService
         string providerIdentity,
         string tileFilePath,
         string? clientIp,
+        string? publicOrigin,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            if (File.Exists(tileFilePath))
+            {
+                return TileRetrievalResult.Success(
+                    await File.ReadAllBytesAsync(tileFilePath, cancellationToken));
+            }
+        }
+        catch (IOException)
+        {
+            // The provider-scoped cache state changed concurrently; continue with owned fetch.
+        }
+
         var fillResult = await CacheTileWithRetryAsync(
             tileUrl, zoom, x, y, providerIdentity, tileFilePath,
-            clientIp, allowHttpContext: false, cancellationToken);
+            clientIp, allowHttpContext: false, publicOrigin, cancellationToken);
         try
         {
             if (File.Exists(tileFilePath))
@@ -194,23 +213,31 @@ public partial class TileCacheService
 
         if (meta == null && canAdoptLegacyOsm)
         {
-            meta = await _dbContext.TileCacheMetadata
-                .FirstOrDefaultAsync(t => t.ProviderIdentity == null &&
-                                          t.Zoom == zoom && t.X == x && t.Y == y);
-            if (meta != null)
+            await _cacheLock.WaitAsync();
+            try
             {
-                meta.ProviderIdentity = providerIdentity;
-                try
+                meta = await _dbContext.TileCacheMetadata
+                    .FirstOrDefaultAsync(t => t.ProviderIdentity == null &&
+                                              t.Zoom == zoom && t.X == x && t.Y == y);
+                if (meta != null)
                 {
-                    await _dbContext.SaveChangesAsync();
+                    meta.ProviderIdentity = providerIdentity;
+                    try
+                    {
+                        await _dbContext.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException)
+                    {
+                        _dbContext.Entry(meta).State = EntityState.Detached;
+                        meta = await _dbContext.TileCacheMetadata
+                            .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
+                                                      t.Zoom == zoom && t.X == x && t.Y == y);
+                    }
                 }
-                catch (DbUpdateException)
-                {
-                    _dbContext.Entry(meta).State = EntityState.Detached;
-                    meta = await _dbContext.TileCacheMetadata
-                        .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
-                                                  t.Zoom == zoom && t.X == x && t.Y == y);
-                }
+            }
+            finally
+            {
+                _cacheLock.Release();
             }
         }
 

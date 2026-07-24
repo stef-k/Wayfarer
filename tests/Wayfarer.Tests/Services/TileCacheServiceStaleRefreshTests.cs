@@ -38,7 +38,7 @@ public partial class TileCacheServiceTests
         Assert.NotNull(result.TileData);
         Assert.True(handler.Referrers.Count >= 2);
         Assert.NotNull(handler.Referrers[0]);
-        Assert.Null(handler.Referrers[^1]);
+        Assert.Equal(new Uri("https://wayfarer.test/"), handler.Referrers[^1]);
     }
 
     [Fact]
@@ -62,7 +62,7 @@ public partial class TileCacheServiceTests
 
         Assert.NotNull(result.TileData);
         Assert.Equal(1, handler.ConditionalCallCount);
-        Assert.Null(handler.Referrers.Last());
+        Assert.Equal(new Uri("https://wayfarer.test/"), handler.Referrers.Last());
     }
 
     [Fact]
