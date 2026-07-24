@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
@@ -34,9 +35,11 @@ public sealed class TileCachePhase3ProductionReviewTests
 
             return Task.FromResult(PngResponse([1, 2, 3], TimeSpan.FromHours(1), "\"origin\""));
         });
-        await using var harness = new TileCacheTestHarness(upstream);
+        await using var harness = new TileCacheTestHarness(
+            upstream,
+            "other.example.com;WAYFARER.EXAMPLE.COM.");
         const string privateReferer =
-            "https://wayfarer.example.test:8443/trips/private-user?token=secret";
+            "https://wayfarer.example.com:8443/trips/private-user?token=secret";
         SeedExpiredLowZoomTile(harness.CacheDirectory, 5, 1, 2, [4, 5, 6]);
 
         Assert.Equal(
@@ -47,7 +50,7 @@ public sealed class TileCachePhase3ProductionReviewTests
                 1,
                 1,
                 referer: privateReferer,
-                requestHost: "wayfarer.example.test:8443")).StatusCode);
+                requestHost: "Wayfarer.Example.Com.:8443")).StatusCode);
         Assert.Equal(
             StatusCodes.Status200OK,
             (await RequestTileAsync(
@@ -56,7 +59,7 @@ public sealed class TileCachePhase3ProductionReviewTests
                 1,
                 2,
                 referer: privateReferer,
-                requestHost: "wayfarer.example.test:8443")).StatusCode);
+                requestHost: "Wayfarer.Example.Com.:8443")).StatusCode);
         Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
             "5_1_2", TimeSpan.FromSeconds(2)));
 
@@ -65,7 +68,7 @@ public sealed class TileCachePhase3ProductionReviewTests
         Assert.All(requests, request =>
         {
             var referer = Assert.Single(request.Headers["Referer"]);
-            Assert.Equal("https://wayfarer.example.test:8443/", referer);
+            Assert.Equal("https://wayfarer.example.com:8443/", referer);
             Assert.DoesNotContain("trips", referer, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("private-user", referer, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("token", referer, StringComparison.OrdinalIgnoreCase);
@@ -75,8 +78,18 @@ public sealed class TileCachePhase3ProductionReviewTests
 
     /// <summary>Wildcard, unmatched, and private request hosts never identify the deployment upstream.</summary>
     [Theory]
-    [InlineData("*", "attacker.example.test")]
-    [InlineData("wayfarer.example.test", "10.0.0.8")]
+    [InlineData("*", "attacker.example.com")]
+    [InlineData("*.example.com", "attacker.example.com")]
+    [InlineData("wayfarer.example.com", "10.0.0.8")]
+    [InlineData("app.localhost", "app.localhost")]
+    [InlineData("child.app.localhost", "child.app.localhost")]
+    [InlineData("site.local", "site.local")]
+    [InlineData("service.internal", "service.internal")]
+    [InlineData("child.service.internal", "child.service.internal")]
+    [InlineData("host.home.arpa", "host.home.arpa")]
+    [InlineData("site.test", "site.test")]
+    [InlineData("site.invalid", "site.invalid")]
+    [InlineData("site.example", "site.example")]
     public async Task UntrustedRequestHost_IsNotForwardedOrLogged(
         string allowedHosts,
         string requestHost)
@@ -101,8 +114,56 @@ public sealed class TileCachePhase3ProductionReviewTests
             entry => entry.Message.Contains(requestHost, StringComparison.OrdinalIgnoreCase) ||
                      entry.Fields.Values.Any(value =>
                          value?.ToString()?.Contains(
-                             requestHost,
-                             StringComparison.OrdinalIgnoreCase) == true));
+                          requestHost,
+                          StringComparison.OrdinalIgnoreCase) == true));
+    }
+
+    /// <summary>Unsafe-only host configuration leaves the production warning enabled.</summary>
+    [Theory]
+    [InlineData("*")]
+    [InlineData("*.example.com")]
+    [InlineData("app.localhost")]
+    [InlineData("service.internal;host.home.arpa")]
+    [InlineData("site.test;site.invalid;site.example")]
+    public void UnsafeAllowedHosts_AreNotTrustworthy(string allowedHosts)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AllowedHosts"] = allowedHosts
+            })
+            .Build();
+
+        Assert.False(TileCacheService.HasTrustworthyAllowedHosts(configuration));
+    }
+
+    /// <summary>The installer preserves a valid existing hostname before considering Certbot fallback.</summary>
+    [Fact]
+    public void InstallerHostnameSelection_ValidatesCandidatesInSafePrecedenceOrder()
+    {
+        var installerPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "deployment",
+            "install.sh"));
+        var installer = File.ReadAllText(installerPath);
+        var explicitSelection = installer.IndexOf(
+            "is_valid_public_host_configuration \"$ALLOWED_HOSTS\"",
+            StringComparison.Ordinal);
+        var existingSelection = installer.IndexOf(
+            "is_valid_public_host_configuration \"${EXISTING_ALLOWED_HOSTS:-}\"",
+            StringComparison.Ordinal);
+        var certbotSelection = installer.IndexOf(
+            "is_valid_public_host_configuration \"$CERTBOT_DOMAIN\"",
+            StringComparison.Ordinal);
+
+        Assert.True(explicitSelection >= 0);
+        Assert.True(existingSelection > explicitSelection);
+        Assert.True(certbotSelection > existingSelection);
     }
 
     /// <summary>Cleanup retires null-provider legacy state without deleting adopted OSM storage.</summary>

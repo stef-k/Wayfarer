@@ -39,7 +39,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     /// <summary>Creates an isolated harness with the supplied fake upstream behavior and host policy.</summary>
     public TileCacheTestHarness(
         RecordingTileHandler? upstream = null,
-        string allowedHosts = "wayfarer.example.test")
+        string allowedHosts = "wayfarer.example.com")
     {
         Directory.CreateDirectory(CacheDirectory);
         Upstream = upstream ?? new RecordingTileHandler();
@@ -85,8 +85,8 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     {
         var context = new DefaultHttpContext();
         context.Request.Scheme = "https";
-        context.Request.Host = new HostString("wayfarer.example.test");
-        context.Request.Headers.Referer = "https://wayfarer.example.test/trip";
+        context.Request.Host = new HostString("wayfarer.example.com");
+        context.Request.Headers.Referer = "https://wayfarer.example.com/trip";
         context.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.10");
         context.RequestAborted = cancellationToken;
         return context;
