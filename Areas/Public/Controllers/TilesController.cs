@@ -127,6 +127,7 @@ public class TilesController : Controller
                 {
                     TileCacheDiagnostics.ClientBudgetRejected(_logger, "request-authenticated");
                     _logger.LogWarning("Tile request rate limit exceeded for an authenticated client.");
+                    Response.Headers["Retry-After"] = BudgetRetryAfterSeconds.ToString();
                     return StatusCode(429, "Too many requests. Please try again later.");
                 }
             }
@@ -145,6 +146,7 @@ public class TilesController : Controller
                 {
                     TileCacheDiagnostics.ClientBudgetRejected(_logger, "request-anonymous");
                     _logger.LogWarning("Tile request rate limit exceeded for an anonymous client.");
+                    Response.Headers["Retry-After"] = BudgetRetryAfterSeconds.ToString();
                     return StatusCode(429, "Too many requests. Please try again later.");
                 }
             }
@@ -164,17 +166,30 @@ public class TilesController : Controller
         // or indicate the tile was not found (404).
         var result = await _tileCacheService.RetrieveTileAsync(z.ToString(), x.ToString(), y.ToString(), tileUrl, HttpContext.RequestAborted);
 
-        if (result.BudgetExhausted)
+        if (result.Status is TileRetrievalStatus.BudgetRejected or TileRetrievalStatus.TransientFailure)
         {
-            _logger.LogWarning("Tile budget exhausted for {Z}/{X}/{Y}", z, x, y);
-            Response.Headers["Retry-After"] = BudgetRetryAfterSeconds.ToString();
+            var retryAfter = result.RetryAfterSeconds ?? BudgetRetryAfterSeconds;
+            _logger.LogWarning("Tile request ended with transient status {TileStatus}.", result.Status);
+            Response.Headers["Retry-After"] = retryAfter.ToString();
             return StatusCode(503, "Tile server busy. Please retry shortly.");
+        }
+
+        if (result.Status == TileRetrievalStatus.NotFound)
+        {
+            _logger.LogDebug("Tile provider confirmed tile absence.");
+            return NotFound("Tile not found.");
+        }
+
+        if (result.Status == TileRetrievalStatus.PermanentFailure)
+        {
+            _logger.LogWarning("Tile provider returned a permanent non-absence response.");
+            return StatusCode(StatusCodes.Status502BadGateway, "Tile provider rejected the request.");
         }
 
         if (result.TileData == null)
         {
-            _logger.LogError("Tile data not found for {Z}/{X}/{Y}", z, x, y);
-            return NotFound("Tile not found.");
+            _logger.LogError("Successful tile retrieval returned no tile data.");
+            return StatusCode(StatusCodes.Status500InternalServerError, "Tile retrieval failed.");
         }
 
         // Set browser cache headers. Tiles are stable and rarely change;

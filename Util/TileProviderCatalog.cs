@@ -94,6 +94,12 @@ public static class TileProviderCatalog
             return false;
         }
 
+        if (!string.IsNullOrEmpty(templateUri.UserInfo))
+        {
+            error = "Tile URL template must not include user information.";
+            return false;
+        }
+
         if (!string.Equals(Path.GetExtension(templateUri.AbsolutePath), ".png", StringComparison.OrdinalIgnoreCase))
         {
             error = "Tile URL template must point to a .png resource.";

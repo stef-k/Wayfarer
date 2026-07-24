@@ -36,10 +36,10 @@ public sealed class TileCacheCancellationAndPrivacyTests
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
-        var result = await service.RetrieveTileAsync(
-            "5", "18", "19", CanonicalTileUrl(5, 18, 19), cancellation.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.RetrieveTileAsync(
+                "5", "18", "19", CanonicalTileUrl(5, 18, 19), cancellation.Token));
 
-        Assert.Null(result.TileData);
         AssertCancellation(harness.Logs, "upstream-transport");
         AssertNoUpstreamFailure(harness.Logs);
         Assert.Single(harness.Upstream.Requests);
@@ -60,8 +60,9 @@ public sealed class TileCacheCancellationAndPrivacyTests
 
         Assert.Null(result.TileData);
         AssertNoCancellation(harness.Logs);
-        AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.UpstreamFailure);
-        Assert.Single(harness.Upstream.Requests);
+        Assert.Equal(3, harness.Logs.Entries.Count(
+            entry => entry.EventId.Id == (int)TileCacheDiagnosticEventIds.UpstreamFailure));
+        Assert.Equal(3, harness.Upstream.Requests.Count);
     }
 
     /// <summary>Proves cancellation while waiting for global capacity has its bounded stage.</summary>
@@ -79,11 +80,10 @@ public sealed class TileCacheCancellationAndPrivacyTests
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
-        var result = await service.RetrieveTileAsync(
-            "5", "18", "21", CanonicalTileUrl(5, 18, 21), cancellation.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.RetrieveTileAsync(
+                "5", "18", "21", CanonicalTileUrl(5, 18, 21), cancellation.Token));
 
-        Assert.Null(result.TileData);
-        Assert.False(result.BudgetExhausted);
         AssertCancellation(harness.Logs, "global-budget-wait");
         AssertNoUpstreamFailure(harness.Logs);
         Assert.Empty(harness.Upstream.Requests);
@@ -106,10 +106,10 @@ public sealed class TileCacheCancellationAndPrivacyTests
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext(cancellation.Token));
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
 
-        var result = await service.RetrieveTileAsync(
-            "5", "18", "22", CanonicalTileUrl(5, 18, 22), cancellation.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.RetrieveTileAsync(
+                "5", "18", "22", CanonicalTileUrl(5, 18, 22), cancellation.Token));
 
-        Assert.Null(result.TileData);
         AssertCancellation(harness.Logs, "cold-miss-retry-delay");
         AssertNoUpstreamFailure(harness.Logs);
         Assert.Single(harness.Upstream.Requests);
@@ -261,7 +261,7 @@ public sealed class TileCacheCancellationAndPrivacyTests
 
         var result = await service.RetrieveTileAsync("5", "18", "27", CanonicalTileUrl(5, 18, 27));
 
-        Assert.True(result.BudgetExhausted);
+        Assert.Equal(TileRetrievalStatus.TransientFailure, result.Status);
         Assert.Contains(harness.Logs.Entries,
             entry => entry.Level == LogLevel.Warning &&
                      entry.Message.Contains("different host", StringComparison.OrdinalIgnoreCase));

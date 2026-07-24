@@ -53,7 +53,13 @@ internal enum TileCacheDiagnosticEventIds
     ConditionalResponseOutcome = 38514,
 
     /// <summary>An upstream operation failed without an HTTP response.</summary>
-    UpstreamFailure = 38515
+    UpstreamFailure = 38515,
+
+    /// <summary>A provider-wide delay gate was established, awaited, or rejected.</summary>
+    ProviderDelay = 38516,
+
+    /// <summary>An upstream outcome was classified for controller-safe handling.</summary>
+    UpstreamClassification = 38517
 }
 
 /// <summary>
@@ -203,4 +209,24 @@ internal static partial class TileCacheDiagnostics
     public static partial void UpstreamFailure(
         ILogger logger,
         string failureStage);
+
+    [LoggerMessage(
+        EventId = (int)TileCacheDiagnosticEventIds.ProviderDelay,
+        EventName = nameof(TileCacheDiagnosticEventIds.ProviderDelay),
+        Level = LogLevel.Warning,
+        Message = "Tile provider delay decision was {ProviderDelayOutcome} with {DelayMilliseconds} ms remaining.")]
+    public static partial void ProviderDelay(
+        ILogger logger,
+        string providerDelayOutcome,
+        double delayMilliseconds);
+
+    [LoggerMessage(
+        EventId = (int)TileCacheDiagnosticEventIds.UpstreamClassification,
+        EventName = nameof(TileCacheDiagnosticEventIds.UpstreamClassification),
+        Level = LogLevel.Debug,
+        Message = "Tile upstream outcome was classified as {UpstreamOutcome} at attempt {AttemptNumber}.")]
+    public static partial void UpstreamClassification(
+        ILogger logger,
+        string upstreamOutcome,
+        int attemptNumber);
 }
