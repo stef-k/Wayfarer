@@ -3,6 +3,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Xunit;
+using System.Reflection;
 
 namespace Wayfarer.Tests.Services;
 
@@ -77,5 +78,45 @@ public sealed class TileCacheLegacyCleanupTests
 
         Assert.Equal(0, retired);
         Assert.True(File.Exists(path));
+    }
+
+    /// <summary>Ownership protection filters scoped metadata by only the selected candidate paths.</summary>
+    [Fact]
+    public void ScopedOwnershipProtection_IsRestrictedToCandidatePaths()
+    {
+        var candidatePaths = Enumerable
+            .Range(0, 50)
+            .Select(index => $"candidate-{index}.png")
+            .ToArray();
+        var metadata = new[]
+        {
+            new TileCacheMetadata
+            {
+                ProviderIdentity = "scoped",
+                TileFilePath = candidatePaths[0],
+                TileLocation = new Point(0, 0)
+            },
+            new TileCacheMetadata
+            {
+                ProviderIdentity = "scoped",
+                TileFilePath = "unrelated.png",
+                TileLocation = new Point(1, 1)
+            },
+            new TileCacheMetadata
+            {
+                ProviderIdentity = null,
+                TileFilePath = candidatePaths[1],
+                TileLocation = new Point(2, 2)
+            }
+        }.AsQueryable();
+        var queryFactory = typeof(TileCacheService).GetMethod(
+            "BuildScopedPathProtectionQuery",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(queryFactory);
+        var query = Assert.IsAssignableFrom<IQueryable<string>>(
+            queryFactory.Invoke(null, [metadata, candidatePaths]));
+
+        Assert.Equal([candidatePaths[0]], query.ToArray());
     }
 }

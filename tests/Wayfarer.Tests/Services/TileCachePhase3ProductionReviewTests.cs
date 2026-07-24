@@ -61,6 +61,38 @@ public sealed class TileCachePhase3ProductionReviewTests
         });
     }
 
+    /// <summary>Wildcard, unmatched, and private request hosts never identify the deployment upstream.</summary>
+    [Theory]
+    [InlineData("*", "attacker.example.test")]
+    [InlineData("wayfarer.example.test", "10.0.0.8")]
+    public async Task UntrustedRequestHost_IsNotForwardedOrLogged(
+        string allowedHosts,
+        string requestHost)
+    {
+        var upstream = new RecordingTileHandler();
+        await using var harness = new TileCacheTestHarness(upstream, allowedHosts);
+
+        Assert.Equal(
+            StatusCodes.Status200OK,
+            (await RequestTileAsync(
+                harness,
+                5,
+                8,
+                8,
+                referer: $"https://{requestHost}/map",
+                requestHost: requestHost)).StatusCode);
+
+        var request = Assert.Single(upstream.Requests);
+        Assert.DoesNotContain("Referer", request.Headers.Keys);
+        Assert.DoesNotContain(
+            harness.Logs.Entries,
+            entry => entry.Message.Contains(requestHost, StringComparison.OrdinalIgnoreCase) ||
+                     entry.Fields.Values.Any(value =>
+                         value?.ToString()?.Contains(
+                             requestHost,
+                             StringComparison.OrdinalIgnoreCase) == true));
+    }
+
     /// <summary>Cleanup retires null-provider legacy state without deleting adopted OSM storage.</summary>
     [Fact]
     public async Task LegacyCleanup_PreservesAdoptedOsmFileAndMetadata()
@@ -392,13 +424,19 @@ public sealed class TileCachePhase3ProductionReviewTests
         int y,
         ClaimsPrincipal? user = null,
         CancellationToken cancellationToken = default,
-        string? referer = null)
+        string? referer = null,
+        string? requestHost = null)
     {
         using var scope = harness.CreateScope();
         var context = TileCacheTestHarness.CreateHttpContext(cancellationToken);
         context.User = user ?? new ClaimsPrincipal(new ClaimsIdentity());
         context.Request.Path = $"/trips/private-user/{zoom}/{x}/{y}";
         context.Request.QueryString = new QueryString("?token=secret");
+        if (requestHost != null)
+        {
+            context.Request.Host = new HostString(requestHost);
+        }
+
         if (referer != null)
         {
             context.Request.Headers.Referer = referer;

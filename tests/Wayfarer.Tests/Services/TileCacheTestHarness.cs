@@ -36,8 +36,10 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     /// <summary>Gets the mutable settings snapshot supplied to tile services and controllers.</summary>
     public ApplicationSettings Settings => _settingsService.Settings;
 
-    /// <summary>Creates an isolated harness with the supplied fake upstream behavior.</summary>
-    public TileCacheTestHarness(RecordingTileHandler? upstream = null)
+    /// <summary>Creates an isolated harness with the supplied fake upstream behavior and host policy.</summary>
+    public TileCacheTestHarness(
+        RecordingTileHandler? upstream = null,
+        string allowedHosts = "wayfarer.example.test")
     {
         Directory.CreateDirectory(CacheDirectory);
         Upstream = upstream ?? new RecordingTileHandler();
@@ -47,7 +49,8 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["CacheSettings:TileCacheDirectory"] = CacheDirectory,
-                ["Application:ContactEmail"] = "tiles@example.test"
+                ["Application:ContactEmail"] = "tiles@example.test",
+                ["AllowedHosts"] = allowedHosts
             })
             .Build();
 
