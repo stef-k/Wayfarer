@@ -85,10 +85,17 @@ public partial class TileCacheService
         var normalized = host.EndsWith(".", StringComparison.Ordinal)
             ? host[..^1]
             : host;
-        if (normalized.EndsWith(".", StringComparison.Ordinal) ||
-            Uri.CheckHostName(normalized) != UriHostNameType.Dns ||
-            !normalized.Contains(".", StringComparison.Ordinal) ||
-            normalized.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+        var labels = normalized.Split('.');
+        if (normalized.Length > 253 ||
+            normalized.EndsWith(".", StringComparison.Ordinal) ||
+            labels.Length < 2 ||
+            labels.Any(label =>
+                label.Length is < 1 or > 63 ||
+                !char.IsAsciiLetterOrDigit(label[0]) ||
+                !char.IsAsciiLetterOrDigit(label[^1]) ||
+                label.Any(character =>
+                    !char.IsAsciiLetterOrDigit(character) && character != '-')) ||
+            !labels[^1].Any(char.IsAsciiLetter) ||
             _nonPublicHostSuffixes.Any(suffix =>
                 normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
         {
