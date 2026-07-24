@@ -408,6 +408,15 @@ public partial class TileCacheService
                 }
             }
 
+            // Background maintenance has one non-waiting transport slot and cannot displace a miss.
+            using var backgroundContact = priority == TileWorkPriority.Background
+                ? OutboundBudget.TryAcquireBackgroundContact()
+                : null;
+            if (priority == TileWorkPriority.Background && backgroundContact == null)
+            {
+                return TileRequestSendResult.Rejected(TileRequestRejection.GlobalBudget);
+            }
+
             // Every actual provider contact, including redirects and retries, consumes global capacity.
             OutboundBudgetAcquisition acquisition;
             try
@@ -1096,6 +1105,14 @@ public partial class TileCacheService
                     var sidecar = ReadSidecarMetadata(tileFilePath);
                     if (sidecar != null)
                     {
+                        if (activeProvider.CanAdoptLegacyOsm &&
+                            tileFilePath == legacyTilePath &&
+                            sidecar.ProviderIdentity == null)
+                        {
+                            sidecar.ProviderIdentity = activeProvider.Fingerprint;
+                            WriteSidecarMetadata(tileFilePath, sidecar);
+                        }
+
                         if (sidecar.ExpiresAtUtc == null)
                         {
                             // Legacy tile (pre-migration): seed 7-day expiry via sidecar.
@@ -1228,7 +1245,6 @@ public partial class TileCacheService
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                TileCacheDiagnostics.Cancellation(_logger, "cold-miss-waiter");
                 throw;
             }
         }
@@ -1243,80 +1259,6 @@ public partial class TileCacheService
                 TileProviderRetryPolicy.GetBoundedRetryAfterSeconds(
                     TileProviderRetryPolicy.FallbackDelayCap));
         }
-    }
-
-    /// <summary>Resolves the active non-secret cache identity from authoritative settings.</summary>
-    private TileProviderCacheIdentity GetActiveProviderIdentity()
-    {
-        var settings = _applicationSettings.GetSettings();
-        var preset = TileProviderCatalog.FindPreset(settings.TileProviderKey);
-        var template = preset?.UrlTemplate ?? settings.TileProviderUrlTemplate;
-        return TileProviderCatalog.CreateCacheIdentity(settings.TileProviderKey, template);
-    }
-
-    /// <summary>Builds a provider-scoped path without exposing provider configuration or credentials.</summary>
-    private string GetProviderTilePath(
-        string providerIdentity,
-        string zoom,
-        string x,
-        string y) =>
-        Path.Combine(_cacheDirectory, providerIdentity, $"{zoom}_{x}_{y}.png");
-
-    /// <summary>
-    /// Executes shared cold work in a fresh scope so the initiating request may cancel independently.
-    /// </summary>
-    private async Task<TileRetrievalResult> RetrieveColdTileInFreshScopeAsync(
-        string tileUrl,
-        string zoom,
-        string x,
-        string y,
-        string providerIdentity,
-        string tileFilePath,
-        string? clientIp,
-        CancellationToken cancellationToken)
-    {
-        using var scope = _serviceScopeFactory.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
-        return await service.RetrieveColdTileCoreAsync(
-            tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, cancellationToken);
-    }
-
-    /// <summary>Downloads, persists, and maps one scheduler-owned cold series.</summary>
-    private async Task<TileRetrievalResult> RetrieveColdTileCoreAsync(
-        string tileUrl,
-        string zoom,
-        string x,
-        string y,
-        string providerIdentity,
-        string tileFilePath,
-        string? clientIp,
-        CancellationToken cancellationToken)
-    {
-        var fillResult = await CacheTileWithRetryAsync(
-            tileUrl, zoom, x, y, providerIdentity, tileFilePath,
-            clientIp, allowHttpContext: false, cancellationToken);
-        try
-        {
-            if (File.Exists(tileFilePath))
-            {
-                return TileRetrievalResult.Success(
-                    await File.ReadAllBytesAsync(tileFilePath, cancellationToken));
-            }
-        }
-        catch (IOException)
-        {
-            // A concurrent bounded cleanup removed the file; return the owned fetch outcome.
-        }
-
-        return fillResult.Status switch
-        {
-            TileCacheFillStatus.NotFound => TileRetrievalResult.NotFound(),
-            TileCacheFillStatus.PermanentFailure => TileRetrievalResult.PermanentFailure(),
-            TileCacheFillStatus.BudgetRejected => TileRetrievalResult.Throttled(
-                TilesController.BudgetRetryAfterSeconds),
-            _ => TileRetrievalResult.TransientFailure(
-                TileProviderRetryPolicy.GetBoundedRetryAfterSeconds(fillResult.RetryAfter))
-        };
     }
 
     /// <summary>
@@ -1489,157 +1431,6 @@ public partial class TileCacheService
             (int)response.StatusCode);
         _logger.LogWarning("Conditional request returned {StatusCode}.", response.StatusCode);
         return outcome;
-    }
-
-    // ── DB metadata helpers (zoom >= 9) ─────────────────────────────────
-
-    /// <summary>
-    /// Seeds a default 7-day expiry on a legacy tile that has no ExpiresAtUtc.
-    /// Prevents re-downloading all existing cached tiles on first access after deployment.
-    /// The tile will be properly re-validated (with conditional headers) when this expiry passes.
-    /// </summary>
-    private async Task SeedLegacyTileExpiryAsync(TileCacheMetadata meta)
-    {
-        meta.ExpiresAtUtc = DateTime.UtcNow.Add(DefaultCacheExpiry);
-        try
-        {
-            await _dbContext.SaveChangesAsync();
-            TrySetHotMetadataEntry(meta.ProviderIdentity!, meta.Zoom, meta.X, meta.Y, meta);
-            _logger.LogDebug("Seeded 7-day expiry for legacy tile z={Zoom} x={X} y={Y}", meta.Zoom, meta.X, meta.Y);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Another instance seeded concurrently; safe to ignore.
-            _logger.LogDebug("Legacy expiry seed skipped due to concurrency (non-critical)");
-        }
-    }
-
-    /// <summary>
-    /// Loads tile metadata from the database and conditionally updates LastAccessed
-    /// if it is older than <see cref="LastAccessedThrottleInterval"/>.
-    /// Combines what were previously two DB round-trips into one.
-    /// </summary>
-    private async Task<TileCacheMetadata?> LoadAndTouchMetadataAsync(
-        string providerIdentity,
-        bool canAdoptLegacyOsm,
-        int zoom,
-        int x,
-        int y)
-    {
-        var meta = await _dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
-                                      t.Zoom == zoom && t.X == x && t.Y == y);
-
-        if (meta == null && canAdoptLegacyOsm)
-        {
-            meta = await _dbContext.TileCacheMetadata
-                .FirstOrDefaultAsync(t => t.ProviderIdentity == null &&
-                                          t.Zoom == zoom && t.X == x && t.Y == y);
-            if (meta != null)
-            {
-                meta.ProviderIdentity = providerIdentity;
-                try
-                {
-                    await _dbContext.SaveChangesAsync();
-                }
-                catch (DbUpdateException)
-                {
-                    _dbContext.Entry(meta).State = EntityState.Detached;
-                    meta = await _dbContext.TileCacheMetadata
-                        .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
-                                                  t.Zoom == zoom && t.X == x && t.Y == y);
-                }
-            }
-        }
-
-        if (meta == null) return null;
-
-        // Throttle LastAccessed updates: only write if older than threshold.
-        // Reduces DB writes by ~99% for popular tiles.
-        if (meta.LastAccessed < DateTime.UtcNow - LastAccessedThrottleInterval)
-        {
-            meta.LastAccessed = DateTime.UtcNow;
-            try
-            {
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // Another instance updated concurrently; safe to ignore for LastAccessed.
-                _logger.LogDebug("LastAccessed update skipped due to concurrency (non-critical)");
-            }
-        }
-
-        return meta;
-    }
-
-    /// <summary>
-    /// Updates only the cache expiry metadata after a 304 Not Modified response.
-    /// Uses the provided scoped DbContext (safe for use from coalesced tasks).
-    /// </summary>
-    private async Task UpdateTileExpiryScopedAsync(
-        ApplicationDbContext dbContext,
-        string providerIdentity,
-        int zoom,
-        int x,
-        int y,
-        string? etag, DateTime? lastModified, DateTime newExpiry)
-    {
-        var meta = await dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
-                                      t.Zoom == zoom && t.X == x && t.Y == y);
-        if (meta == null) return;
-
-        meta.ETag = etag;
-        meta.LastModifiedUpstream = lastModified;
-        meta.ExpiresAtUtc = newExpiry;
-        meta.LastAccessed = DateTime.UtcNow;
-
-        try
-        {
-            await dbContext.SaveChangesAsync();
-            TrySetHotMetadataEntry(providerIdentity, zoom, x, y, meta);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            _logger.LogDebug("Expiry update skipped due to concurrency (non-critical)");
-        }
-    }
-
-    /// <summary>
-    /// Updates tile metadata after a 200 OK re-validation response (tile content changed).
-    /// Uses the provided scoped DbContext (safe for use from coalesced tasks).
-    /// </summary>
-    private async Task UpdateTileAfterRevalidationScopedAsync(
-        ApplicationDbContext dbContext,
-        string providerIdentity,
-        int zoom,
-        int x,
-        int y,
-        int newSize, string? etag, DateTime? lastModified, DateTime newExpiry)
-    {
-        var meta = await dbContext.TileCacheMetadata
-            .FirstOrDefaultAsync(t => t.ProviderIdentity == providerIdentity &&
-                                      t.Zoom == zoom && t.X == x && t.Y == y);
-        if (meta == null) return;
-
-        var oldSize = meta.Size;
-        meta.Size = newSize;
-        meta.ETag = etag;
-        meta.LastModifiedUpstream = lastModified;
-        meta.ExpiresAtUtc = newExpiry;
-        meta.LastAccessed = DateTime.UtcNow;
-
-        try
-        {
-            await dbContext.SaveChangesAsync();
-            Interlocked.Add(ref _currentCacheSize, newSize - oldSize);
-            TrySetHotMetadataEntry(providerIdentity, zoom, x, y, meta);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            _logger.LogDebug("Re-validation metadata update skipped due to concurrency (non-critical)");
-        }
     }
 
     // ── Eviction ────────────────────────────────────────────────────────

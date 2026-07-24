@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Caching.Memory;
+using Wayfarer.Models;
+using Wayfarer.Util;
 
 namespace Wayfarer.Services;
 
@@ -9,7 +11,10 @@ namespace Wayfarer.Services;
 /// </summary>
 public sealed class TileMetadataHotCache : IDisposable
 {
-    private const string CompatibilityProviderIdentity = "legacy-test-provider";
+    private static readonly string CompatibilityProviderIdentity =
+        TileProviderCatalog.CreateCacheIdentity(
+            ApplicationSettings.DefaultTileProviderKey,
+            ApplicationSettings.DefaultTileProviderUrlTemplate).Fingerprint;
     /// <summary>
     /// Fixed pessimistic estimate used to convert the admin-facing MB budget into an approximate entry cap.
     /// Each metadata entry stores ExpiresAtUtc, ETag, and LastModifiedUpstream only.

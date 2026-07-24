@@ -68,6 +68,16 @@ public class RateLimitCleanupJob : IJob
             try
             {
                 await TileCacheService.ReconcileCacheSizeAsync(_serviceScopeFactory);
+                using var scope = _serviceScopeFactory.CreateScope();
+                var tileCacheService = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+                var retiredLegacyEntries =
+                    await tileCacheService.RetireLegacyCacheBatchAsync(cancellationToken);
+                if (retiredLegacyEntries > 0)
+                {
+                    _logger.LogInformation(
+                        "Retired {RetiredCount} quarantined legacy tile entries.",
+                        retiredLegacyEntries);
+                }
             }
             catch (Exception ex)
             {

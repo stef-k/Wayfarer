@@ -266,7 +266,7 @@ public sealed partial class TileCacheRetryStatusTests
         Assert.Single(harness.Upstream.Requests);
         Assert.Single(harness.Logs.Entries, entry =>
             entry.EventId.Id == (int)TileCacheDiagnosticEventIds.Cancellation &&
-            Equals(entry.Fields["CancellationStage"], "cold-miss-waiter"));
+            Equals(entry.Fields["CancellationStage"], "provider-not-before-wait"));
     }
 
     /// <summary>Proves a retry denied global capacity never reaches the provider.</summary>

@@ -10,6 +10,8 @@ namespace Wayfarer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Schema-only migration: legacy rows remain null and are adopted lazily only for
+            // canonical OSM, or retired in bounded normal-maintenance batches for other providers.
             migrationBuilder.DropIndex(
                 name: "IX_TileCacheMetadata_Zoom_X_Y",
                 table: "TileCacheMetadata");

@@ -37,7 +37,7 @@ public partial class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
 
-        var filePath = Path.Combine(dir.Path, "9_1_2.png");
+        var filePath = service.GetTileFilePathForTesting("9", "1", "2");
         Assert.True(File.Exists(filePath));
         var meta = Assert.Single(db.TileCacheMetadata);
         Assert.Equal(9, meta.Zoom);
@@ -74,7 +74,7 @@ public partial class TileCacheServiceTests : TestBase
         var service = CreateService(db, dir.Path, hotCache: hotCache);
         await service.CacheTileAsync("http://tiles/9/5/6.png", "9", "5", "6");
         await service.CacheTileAsync("http://tiles/9/7/8.png", "9", "7", "8");
-        Assert.True(Directory.GetFiles(dir.Path, "*.png").Length >= 2);
+        Assert.True(Directory.GetFiles(dir.Path, "*.png", SearchOption.AllDirectories).Length >= 2);
         Assert.Equal(2, db.TileCacheMetadata.Count());
         Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 5, 6, out _));
 
@@ -336,7 +336,7 @@ public partial class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/5/10/20.png", "5", "10", "20");
 
-        var tileFile = Path.Combine(dir.Path, "5_10_20.png");
+        var tileFile = service.GetTileFilePathForTesting("5", "10", "20");
         var sidecarFile = tileFile + ".meta";
         Assert.True(File.Exists(tileFile));
         Assert.True(File.Exists(sidecarFile));
@@ -419,12 +419,13 @@ public partial class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/9/15/16.png", "9", "15", "16");
         await service.RetrieveTileAsync("9", "15", "16", "http://tiles/9/15/16.png");
-        File.Delete(Path.Combine(dir.Path, "9_15_16.png"));
+        var tilePath = service.GetTileFilePathForTesting("9", "15", "16");
+        File.Delete(tilePath);
 
         var result = await service.RetrieveTileAsync("9", "15", "16", "http://tiles/9/15/16.png");
 
         Assert.NotNull(result.TileData);
-        Assert.True(File.Exists(Path.Combine(dir.Path, "9_15_16.png")));
+        Assert.True(File.Exists(tilePath));
         Assert.True(hotCache.TryGet(ApplicationSettings.DefaultTileMetadataHotCacheSizeMB, 9, 15, 16, out _));
     }
 
@@ -467,7 +468,8 @@ public partial class TileCacheServiceTests : TestBase
 
         // Cache the tile
         await service.CacheTileAsync("http://tiles/9/1/2.png", "9", "1", "2");
-        var originalFile = await File.ReadAllBytesAsync(Path.Combine(dir.Path, "9_1_2.png"));
+        var tilePath = service.GetTileFilePathForTesting("9", "1", "2");
+        var originalFile = await File.ReadAllBytesAsync(tilePath);
 
         // Manually expire the tile
         var meta = db.TileCacheMetadata.Single();
@@ -518,7 +520,8 @@ public partial class TileCacheServiceTests : TestBase
         Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(2)));
 
         Assert.NotNull(bytes);
-        Assert.Equal(new byte[] { 50, 60, 70, 80 }, await File.ReadAllBytesAsync(Path.Combine(dir.Path, "9_1_2.png")));
+        Assert.Equal(new byte[] { 50, 60, 70, 80 },
+            await File.ReadAllBytesAsync(service.GetTileFilePathForTesting("9", "1", "2")));
         Assert.Empty(Directory.GetFiles(dir.Path, "*.tmp"));
         // DB metadata should now have the new etag
         db.Entry(meta).Reload();
@@ -591,7 +594,7 @@ public partial class TileCacheServiceTests : TestBase
 
         // Cache a low-zoom tile (creates sidecar)
         await service.CacheTileAsync("http://tiles/5/1/1.png", "5", "1", "1");
-        var sidecarPath = Path.Combine(dir.Path, "5_1_1.png.meta");
+        var sidecarPath = service.GetTileFilePathForTesting("5", "1", "1") + ".meta";
         Assert.True(File.Exists(sidecarPath));
 
         await service.PurgeAllCacheAsync();
@@ -645,7 +648,7 @@ public partial class TileCacheServiceTests : TestBase
 
         await service.CacheTileAsync("http://tiles/3/1/1.png", "3", "1", "1");
 
-        var sidecarFile = Path.Combine(dir.Path, "3_1_1.png.meta");
+        var sidecarFile = service.GetTileFilePathForTesting("3", "1", "1") + ".meta";
         Assert.True(File.Exists(sidecarFile));
         var json = await File.ReadAllTextAsync(sidecarFile);
         var sidecar = JsonSerializer.Deserialize<TileSidecarMetadata>(json);

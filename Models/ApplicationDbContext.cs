@@ -142,8 +142,7 @@ namespace Wayfarer.Models
                 .HasMethod("GIST"); // This creates a spatial index (if you're using PostGIS)
 
             // Provider-scoped coordinate uniqueness prevents cache bytes crossing providers.
-            builder.Entity<TileCacheMetadata>()
-                .HasIndex(t => new { t.ProviderIdentity, t.Zoom, t.X, t.Y })
+            builder.Entity<TileCacheMetadata>().HasIndex(t => new { t.ProviderIdentity, t.Zoom, t.X, t.Y })
                 .IsUnique();
 
             // PostgreSQL treats nulls as distinct, so retain one quarantined legacy row per tile.

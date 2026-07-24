@@ -36,6 +36,17 @@ public partial class TileCacheService
         private static readonly object _stopLock = new();
         private static readonly object _priorityLock = new();
         private static int _foregroundWaiters;
+        private static int _backgroundContactActive;
+
+        /// <summary>
+        /// Reserves the single background transport slot without waiting or displacing foreground work.
+        /// </summary>
+        internal static IDisposable? TryAcquireBackgroundContact()
+        {
+            return Interlocked.CompareExchange(ref _backgroundContactActive, 1, 0) == 0
+                ? new BackgroundContactLease()
+                : null;
+        }
 
         /// <summary>Attempts to acquire capacity under the current production budget.</summary>
         internal static async Task<bool> AcquireAsync(CancellationToken cancellationToken = default)
@@ -62,7 +73,9 @@ public partial class TileCacheService
                 bool acquired;
                 lock (_priorityLock)
                 {
-                    acquired = _foregroundWaiters == 0 && _tokens.Wait(0);
+                    acquired = _foregroundWaiters == 0 &&
+                               !TileWorkScheduler.HasQueuedForeground &&
+                               _tokens.Wait(0);
                 }
 
                 stopwatch.Stop();
@@ -85,7 +98,10 @@ public partial class TileCacheService
             {
                 lock (_priorityLock)
                 {
-                    _foregroundWaiters--;
+                    if (_foregroundWaiters > 0)
+                    {
+                        _foregroundWaiters--;
+                    }
                 }
             }
 
@@ -145,7 +161,11 @@ public partial class TileCacheService
         internal static void ResetForTesting()
         {
             _acquireOverride = null;
-            Volatile.Write(ref _foregroundWaiters, 0);
+            lock (_priorityLock)
+            {
+                _foregroundWaiters = 0;
+            }
+            Interlocked.Exchange(ref _backgroundContactActive, 0);
             StopReplenisher();
             while (_tokens.CurrentCount > 0)
             {
@@ -178,5 +198,29 @@ public partial class TileCacheService
         internal static void SetAcquireOverrideForTesting(
             Func<CancellationToken, Task<OutboundBudgetAcquisition>>? acquireOverride) =>
             _acquireOverride = acquireOverride;
+
+        /// <summary>Releases one controlled token for deterministic priority tests.</summary>
+        internal static void ReleaseOneForTesting()
+        {
+            if (_tokens.CurrentCount < BurstCapacity)
+            {
+                _tokens.Release();
+            }
+        }
+
+        /// <summary>Releases the single background transport slot exactly once.</summary>
+        private sealed class BackgroundContactLease : IDisposable
+        {
+            private int _disposed;
+
+            /// <inheritdoc />
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) == 0)
+                {
+                    Interlocked.Exchange(ref _backgroundContactActive, 0);
+                }
+            }
+        }
     }
 }

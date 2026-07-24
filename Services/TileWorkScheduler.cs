@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Wayfarer.Areas.Public.Controllers;
 
 namespace Wayfarer.Services;
@@ -29,6 +28,18 @@ internal static class TileWorkScheduler
     private static readonly Dictionary<string, int> _activeByClient = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> _queuedByClient = new(StringComparer.Ordinal);
     private static int _activeForeground;
+
+    /// <summary>Indicates whether accepted visible work is waiting for an execution slot.</summary>
+    internal static bool HasQueuedForeground
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _foregroundQueue.Count > 0;
+            }
+        }
+    }
 
     /// <summary>
     /// Joins or creates one provider-scoped cold flight while retaining caller-owned cancellation.
@@ -74,12 +85,13 @@ internal static class TileWorkScheduler
             }
         }
 
+        var waiter = WaitForFlightAsync(flight, cancellationToken);
         if (startNow)
         {
             _ = RunFlightAsync(flight);
         }
 
-        return WaitForFlightAsync(flight, cancellationToken);
+        return waiter;
     }
 
     /// <summary>Cancels and clears scheduler state between isolated tests.</summary>
@@ -107,24 +119,26 @@ internal static class TileWorkScheduler
         ColdFlight flight,
         CancellationToken cancellationToken)
     {
+        TileRetrievalResult result;
         try
         {
-            var result = await flight.Completion.Task
+            result = await flight.Completion.Task
                 .WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
-            if (cancellationToken.IsCancellationRequested)
-            {
-                ReleaseCancelledWaiter(flight);
-                throw new OperationCanceledException(cancellationToken);
-            }
-
-            return result;
         }
         catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
             ReleaseCancelledWaiter(flight);
             throw new OperationCanceledException(cancellationToken);
         }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            ReleaseCancelledWaiter(flight);
+            throw new OperationCanceledException(cancellationToken);
+        }
+
+        return result;
     }
 
     /// <summary>Removes queued work or cancels transport when its last interested waiter leaves.</summary>
@@ -145,7 +159,7 @@ internal static class TileWorkScheduler
                 return;
             }
 
-            _flights.Remove(flight.WorkKey);
+            RemoveFlight(flight);
             if (flight.QueueNode != null)
             {
                 _foregroundQueue.Remove(flight.QueueNode);
@@ -186,8 +200,8 @@ internal static class TileWorkScheduler
         lock (_sync)
         {
             flight.Completed = true;
-            _flights.Remove(flight.WorkKey);
-            _activeForeground--;
+            RemoveFlight(flight);
+            _activeForeground = Math.Max(0, _activeForeground - 1);
             Decrement(_activeByClient, flight.ClientKey);
         }
 
@@ -222,7 +236,7 @@ internal static class TileWorkScheduler
             _foregroundQueue.Remove(flight.QueueNode);
             flight.QueueNode = null;
             flight.Completed = true;
-            _flights.Remove(flight.WorkKey);
+            RemoveFlight(flight);
             Decrement(_queuedByClient, flight.ClientKey);
             expired = true;
         }
@@ -296,6 +310,15 @@ internal static class TileWorkScheduler
         else
         {
             counts[key] = remaining;
+        }
+    }
+
+    private static void RemoveFlight(ColdFlight flight)
+    {
+        if (_flights.TryGetValue(flight.WorkKey, out var current) &&
+            ReferenceEquals(current, flight))
+        {
+            _flights.Remove(flight.WorkKey);
         }
     }
 

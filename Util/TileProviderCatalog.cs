@@ -102,6 +102,12 @@ public static class TileProviderCatalog
             return false;
         }
 
+        if (ContainsLiteralCredential(trimmed))
+        {
+            error = "Credential query parameters must use the {apiKey} placeholder.";
+            return false;
+        }
+
         if (!string.Equals(Path.GetExtension(templateUri.AbsolutePath), ".png", StringComparison.OrdinalIgnoreCase))
         {
             error = "Tile URL template must point to a .png resource.";
@@ -205,6 +211,30 @@ public static class TileProviderCatalog
         return template.Contains("{z}", StringComparison.OrdinalIgnoreCase)
                && template.Contains("{x}", StringComparison.OrdinalIgnoreCase)
                && template.Contains("{y}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Rejects concrete values for common credential-bearing query parameters.</summary>
+    private static bool ContainsLiteralCredential(string template)
+    {
+        var queryIndex = template.IndexOf('?', StringComparison.Ordinal);
+        if (queryIndex < 0)
+        {
+            return false;
+        }
+
+        string[] credentialNames = ["apikey", "api_key", "key", "token", "access_token"];
+        foreach (var part in template[(queryIndex + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2);
+            if (pair.Length == 2 &&
+                credentialNames.Contains(pair[0], StringComparer.OrdinalIgnoreCase) &&
+                !pair[1].Equals("{apiKey}", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Normalizes a validated template without expanding credential placeholders.</summary>

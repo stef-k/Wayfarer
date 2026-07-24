@@ -52,6 +52,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
             .Build();
 
         var services = new ServiceCollection();
+        var databaseName = $"tile-diagnostics-{Guid.NewGuid():N}";
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<IApplicationSettingsService>(_settingsService);
         services.AddScoped<IHttpContextAccessor, HttpContextAccessor>();
@@ -63,7 +64,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
         });
         services.AddSingleton<TileMetadataHotCache>();
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseInMemoryDatabase($"tile-diagnostics-{Guid.NewGuid():N}"));
+            options.UseInMemoryDatabase(databaseName));
         services.AddScoped<TileCacheService>();
 
         _rootProvider = services.BuildServiceProvider();

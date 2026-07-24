@@ -323,8 +323,10 @@ public sealed class TileCacheCancellationAndPrivacyTests
     {
         Assert.True(await service.CacheTileAsync(CanonicalTileUrl(zoom, x, y),
             zoom.ToString(), x.ToString(), y.ToString()));
+        var tilePath = service.GetTileFilePathForTesting(
+            zoom.ToString(), x.ToString(), y.ToString());
         await File.WriteAllTextAsync(
-            Path.Combine(cacheDirectory, $"{zoom}_{x}_{y}.png.meta"),
+            tilePath + ".meta",
             JsonSerializer.Serialize(new TileSidecarMetadata
             {
                 ETag = "\"phase1-stale\"",

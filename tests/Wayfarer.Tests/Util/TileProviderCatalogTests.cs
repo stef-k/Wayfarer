@@ -115,6 +115,49 @@ public class TileProviderCatalogTests
     }
 
     [Fact]
+    public void TryValidateTemplate_RejectsLiteralCredentialQueryValue()
+    {
+        var ok = TileProviderCatalog.TryValidateTemplate(
+            "https://tiles.example.com/{z}/{x}/{y}.png?token=secret",
+            out var error);
+
+        Assert.False(ok);
+        Assert.Contains("{apiKey}", error);
+    }
+
+    [Fact]
+    public void CreateCacheIdentity_NormalizesProviderAndExcludesApiKeyValue()
+    {
+        var first = TileProviderCatalog.CreateCacheIdentity(
+            " OSM ",
+            "HTTPS://TILE.OPENSTREETMAP.ORG/{Z}/{X}/{Y}.png");
+        var second = TileProviderCatalog.CreateCacheIdentity(
+            "osm",
+            ApplicationSettings.DefaultTileProviderUrlTemplate);
+
+        Assert.Equal(second.Fingerprint, first.Fingerprint);
+        Assert.True(first.CanAdoptLegacyOsm);
+        Assert.DoesNotContain("openstreetmap", first.Fingerprint, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CreateCacheIdentity_SeparatesProviderKeyAndTemplate()
+    {
+        var baseline = TileProviderCatalog.CreateCacheIdentity(
+            "custom",
+            "https://tiles.example.com/first/{z}/{x}/{y}.png?apikey={apiKey}");
+        var differentKey = TileProviderCatalog.CreateCacheIdentity(
+            "other",
+            "https://tiles.example.com/first/{z}/{x}/{y}.png?apikey={apiKey}");
+        var differentTemplate = TileProviderCatalog.CreateCacheIdentity(
+            "custom",
+            "https://tiles.example.com/second/{z}/{x}/{y}.png?apikey={apiKey}");
+
+        Assert.NotEqual(baseline.Fingerprint, differentKey.Fingerprint);
+        Assert.NotEqual(baseline.Fingerprint, differentTemplate.Fingerprint);
+    }
+
+    [Fact]
     public void RedactApiKey_RedactsApiKeyParameter()
     {
         var url = "https://tiles.example.com/1/2/3.png?apikey=secret123";
