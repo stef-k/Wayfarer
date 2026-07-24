@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MvcFrontendKit.Extensions;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Util;
@@ -76,6 +77,61 @@ public sealed class TileAttributionLayoutRenderingTests
         }
     }
 
+    [Fact]
+    public async Task SnapshotBackedViewerAndPrintOutputRenderResolvedProviderAttribution()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-attribution-snapshot-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            var settingsService = new MutableApplicationSettingsService();
+            using var host = BuildRazorHost(webRoot, settingsService);
+            using var scope = host.Services.CreateScope();
+
+            settingsService.Settings = new ApplicationSettings
+            {
+                TileProviderKey = ApplicationSettings.DefaultTileProviderKey,
+                TileProviderAttribution = ApplicationSettings.DefaultTileProviderAttribution
+            };
+            AssertSnapshotAttribution(
+                await RenderViewerAsync(scope.ServiceProvider),
+                TileProviderAttribution.OpenStreetMapCopyrightUrl,
+                "OpenStreetMap");
+            AssertSnapshotAttribution(
+                await RenderPrintAsync(scope.ServiceProvider),
+                TileProviderAttribution.OpenStreetMapCopyrightUrl,
+                "OpenStreetMap");
+
+            settingsService.Settings = new ApplicationSettings
+            {
+                TileProviderKey = TileProviderCatalog.CustomProviderKey,
+                TileProviderAttribution =
+                    "&copy; <a href=\"https://tiles.example.com/terms\">Example Maps</a>"
+            };
+            AssertSnapshotAttribution(
+                await RenderViewerAsync(scope.ServiceProvider),
+                "https://tiles.example.com/terms",
+                "Example Maps");
+            AssertSnapshotAttribution(
+                await RenderPrintAsync(scope.ServiceProvider),
+                "https://tiles.example.com/terms",
+                "Example Maps");
+
+            settingsService.Settings = new ApplicationSettings
+            {
+                TileProviderKey = TileProviderCatalog.CustomProviderKey,
+                TileProviderAttribution = string.Empty
+            };
+            AssertSnapshotAttributionIsEmpty(await RenderViewerAsync(scope.ServiceProvider));
+            AssertSnapshotAttributionIsEmpty(await RenderPrintAsync(scope.ServiceProvider));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
     /// <summary>
     /// Creates an isolated compiled-Razor host without requiring production frontend assets.
     /// </summary>
@@ -116,7 +172,9 @@ public sealed class TileAttributionLayoutRenderingTests
             Id = Guid.NewGuid(),
             UserId = "owner",
             Name = "Attribution fixture",
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            CenterLat = 40,
+            CenterLon = 25
         };
         var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         {
@@ -132,6 +190,73 @@ public sealed class TileAttributionLayoutRenderingTests
         var viewContext = new ViewContext(actionContext, view, viewData, tempData, writer, new HtmlHelperOptions());
         await view.RenderAsync(viewContext);
         return writer.ToString();
+    }
+
+    /// <summary>
+    /// Renders the production PDF template with a real snapshot-backed map slot.
+    /// </summary>
+    private static async Task<string> RenderPrintAsync(IServiceProvider services)
+    {
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        var viewResult = services.GetRequiredService<ICompositeViewEngine>()
+            .GetView(null, "/Views/Trip/Print.cshtml", isMainPage: true);
+        Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
+        var view = Assert.IsAssignableFrom<IView>(viewResult.View);
+        var model = new TripPrintViewModel
+        {
+            Trip = new Trip
+            {
+                Id = Guid.NewGuid(),
+                UserId = "owner",
+                User = new ApplicationUser { DisplayName = "Fixture owner" },
+                Name = "Attribution PDF fixture",
+                UpdatedAt = DateTime.UtcNow
+            },
+            Snap = new Dictionary<string, string>
+            {
+                ["trip"] = "data:image/png;base64,iVBORw0KGgo="
+            }
+        };
+        var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        {
+            Model = model
+        };
+        var tempData = new TempDataDictionary(httpContext, services.GetRequiredService<ITempDataProvider>());
+        await using var writer = new StringWriter();
+        var viewContext = new ViewContext(
+            actionContext,
+            view,
+            viewData,
+            tempData,
+            writer,
+            new HtmlHelperOptions());
+        await view.RenderAsync(viewContext);
+        return writer.ToString();
+    }
+
+    /// <summary>
+    /// Verifies a snapshot caption retains the expected provider link and visible text.
+    /// </summary>
+    private static void AssertSnapshotAttribution(string html, string href, string visibleText)
+    {
+        var document = new HtmlParser().ParseDocument(html);
+        var captions = document.QuerySelectorAll(".map-snapshot-attribution");
+        Assert.NotEmpty(captions);
+        Assert.All(captions, caption =>
+        {
+            Assert.Contains(visibleText, caption.TextContent);
+            Assert.Equal(href, caption.QuerySelector("a")?.GetAttribute("href"));
+        });
+    }
+
+    /// <summary>
+    /// Verifies an explicitly blank provider attribution produces no snapshot caption.
+    /// </summary>
+    private static void AssertSnapshotAttributionIsEmpty(string html)
+    {
+        var document = new HtmlParser().ParseDocument(html);
+        Assert.Empty(document.QuerySelectorAll(".map-snapshot-attribution"));
     }
 
     /// <summary>

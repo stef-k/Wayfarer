@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AngleSharp.Html.Parser;
 using Wayfarer.Models;
 using Wayfarer.Util;
 using Xunit;
@@ -143,6 +144,26 @@ public class TileProviderAttributionTests
         Assert.Contains("href=\"https://example.com/OpenStreetMap\"", result);
         Assert.Contains("title=\"OpenStreetMap mirror\"", result);
         Assert.Equal(0, CountOsmLinks(result));
+    }
+
+    [Fact]
+    public void Resolve_SplitsMixedProviderAnchorWithoutLosingEitherDestination()
+    {
+        var result = TileProviderAttribution.Resolve(Settings(
+            TileProviderCatalog.CustomProviderKey,
+            "<a href=\"https://example.com/terms\">Example Maps using OpenStreetMap data</a>"));
+        var document = new HtmlParser().ParseDocument($"<body>{result}</body>");
+        var links = document.Body!.QuerySelectorAll("a");
+
+        Assert.Equal("Example Maps using OpenStreetMap data", document.Body.TextContent);
+        Assert.Equal(3, links.Length);
+        Assert.Equal("https://example.com/terms", links[0].GetAttribute("href"));
+        Assert.Equal("Example Maps using ", links[0].TextContent);
+        Assert.Equal(OsmCopyrightUrl, links[1].GetAttribute("href"));
+        Assert.Equal("OpenStreetMap", links[1].TextContent);
+        Assert.Equal("https://example.com/terms", links[2].GetAttribute("href"));
+        Assert.Equal(" data", links[2].TextContent);
+        Assert.Empty(document.Body.QuerySelectorAll("a a"));
     }
 
     [Fact]
