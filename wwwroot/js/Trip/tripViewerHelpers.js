@@ -45,7 +45,10 @@ export const initLeaflet = (center = [20, 0], zoom = 3) => {
 
     /* keep a handle to the tile layer so we can attach events */
     const tiles = createTileLayer().addTo(map);
-    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
+    // Match the Trip Editor's accessible attribution-control contract.
+    map.attributionControl.getContainer()?.setAttribute('aria-label', 'Map attribution');
+    map.attributionControl.getContainer()?.setAttribute('title', 'Map attribution');
     L.control.zoom({position: 'bottomright'}).addTo(map);
     addZoomLevelControl(map);                 /* ← your existing util */
 

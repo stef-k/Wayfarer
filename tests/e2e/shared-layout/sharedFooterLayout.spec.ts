@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 const footerLinks = '.site-footer__link';
+const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64');
 const viewports = {
   desktop: { width: 1440, height: 900 },
   tablet: { width: 768, height: 1024 },
@@ -113,6 +114,45 @@ test.describe('shared standard-layout footer', () => {
     await expect(page.locator('.site-footer')).toHaveCount(0);
     await expect(page.locator('link[href*="/css/shared-layout.css"]')).toHaveCount(0);
   });
+
+  test('uses equivalent resolved attribution in Editor and authenticated, public, embed, and print Viewer maps', async ({ page }, testInfo) => {
+    // Intercept the local tile proxy so this proof cannot generate public-provider traffic.
+    await page.route(/\/Public\/tiles\/\d+\/\d+\/\d+\.png/i, route =>
+      route.fulfill({ status: 200, contentType: 'image/png', body: tinyPng }));
+
+    await signIn(page);
+    await page.goto('/User/Trip');
+    const editorHref = await page.locator('a[href^="/User/Trip/Edit/"]').first().getAttribute('href');
+    expect(editorHref).toBeTruthy();
+    await page.goto(editorHref!);
+    await expect(page.locator('#trip-editor-app .leaflet-container')).toBeVisible();
+    await expectResolvedMapAttribution(page);
+    await page.screenshot({
+      fullPage: true,
+      path: testInfo.outputPath('screenshots', 'editor-provider-attribution.png')
+    });
+
+    await page.goto('/User/Trip');
+    const authenticatedHref = await page.locator('a[href^="/User/Trip/View/"]').first().getAttribute('href');
+    expect(authenticatedHref).toBeTruthy();
+    await page.goto(authenticatedHref!);
+    await expectResolvedMapAttribution(page);
+
+    const publicViewerHref = await discoverPublicViewer(page);
+    await page.goto(publicViewerHref);
+    await expectResolvedMapAttribution(page);
+    await expectLinkedViewerEmergencyFallback(page);
+    await page.screenshot({
+      fullPage: true,
+      path: testInfo.outputPath('screenshots', 'viewer-provider-attribution.png')
+    });
+
+    await page.goto(`${publicViewerHref}?embed=true`);
+    await expectResolvedMapAttribution(page);
+
+    await page.goto(`${publicViewerHref}?embed=true&print=1`);
+    await expectResolvedMapAttribution(page);
+  });
 });
 
 async function signIn(page: Page): Promise<void> {
@@ -160,6 +200,47 @@ async function expectLegacyViewerContained(page: Page): Promise<void> {
   const footerBox = await page.locator('.site-footer').boundingBox();
   expect(viewerBox!.y + viewerBox!.height).toBeCloseTo(footerBox!.y, 0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(await page.evaluate(() => innerHeight) + 1);
+}
+
+/** Verifies that Leaflet renders the server-resolved provider HTML without client inference. */
+async function expectResolvedMapAttribution(page: Page): Promise<void> {
+  const attribution = page.locator('.leaflet-control-attribution');
+  await expect(attribution).toHaveAttribute('aria-label', 'Map attribution');
+  await expect(attribution).toHaveAttribute('title', 'Map attribution');
+  const osmLink = attribution.getByRole('link', { name: 'OpenStreetMap', exact: true });
+  await expect(osmLink).toHaveCount(1);
+  await expect(osmLink).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright');
+  await expect(osmLink).toBeVisible();
+
+  const configured = await page.evaluate(() =>
+    (window as typeof window & { wayfarerTileConfig?: { attribution?: string } })
+      .wayfarerTileConfig?.attribution ?? '');
+  expect(configured).toContain('https://www.openstreetmap.org/copyright');
+  const normalizedConfigured = await page.evaluate(html => {
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    return container.innerHTML;
+  }, configured);
+  await expect(attribution).toContainText('OpenStreetMap contributors');
+  expect(await attribution.innerHTML()).toContain(normalizedConfigured);
+}
+
+/** Verifies the Viewer module's emergency fallback without adding its layer to the map. */
+async function expectLinkedViewerEmergencyFallback(page: Page): Promise<void> {
+  const fallback = await page.evaluate(async () => {
+    const target = window as typeof window & { wayfarerTileConfig?: unknown };
+    const configured = target.wayfarerTileConfig;
+    delete target.wayfarerTileConfig;
+    try {
+      const module = await import(`/js/retryTileLayer.js?attribution-fallback=${Date.now()}`);
+      return module.createTileLayer().options.attribution as string;
+    } finally {
+      target.wayfarerTileConfig = configured;
+    }
+  });
+
+  expect(fallback).toContain(
+    '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors');
 }
 
 /** Finds a real canonical public viewer route from the public trip index. */

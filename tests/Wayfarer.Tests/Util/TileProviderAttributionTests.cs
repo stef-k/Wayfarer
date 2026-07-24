@@ -103,6 +103,27 @@ public class TileProviderAttributionTests
     }
 
     [Theory]
+    [InlineData("carto-dark", "CARTO", null)]
+    [InlineData("opentopomap", "SRTM", "OpenTopoMap")]
+    [InlineData("thunderforest-cycle", "Thunderforest", null)]
+    public void Resolve_PreservesEveryPartyInBuiltInPresetAttribution(
+        string providerKey,
+        string expectedParty,
+        string? additionalParty)
+    {
+        var result = TileProviderAttribution.Resolve(Settings(providerKey, " "));
+
+        Assert.Contains("OpenStreetMap", result);
+        Assert.Contains(expectedParty, result);
+        if (additionalParty != null)
+        {
+            Assert.Contains(additionalParty, result);
+        }
+
+        Assert.Equal(1, CountOsmLinks(result));
+    }
+
+    [Theory]
     [InlineData("custom")]
     [InlineData("legacy-unknown")]
     public void Resolve_DoesNotUseOsmFallbackForUnknownOrCustomMissingAttribution(string providerKey)
