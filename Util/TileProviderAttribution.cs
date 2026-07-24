@@ -102,7 +102,13 @@ public static partial class TileProviderAttribution
             return;
         }
 
-        foreach (var segment in SplitAttributionNodes(anchor.ChildNodes.ToArray(), document))
+        var matches = OpenStreetMapText().Matches(anchor.TextContent).Cast<Match>().ToArray();
+        var textPosition = 0;
+        foreach (var segment in SplitAttributionNodes(
+                     anchor.ChildNodes.ToArray(),
+                     document,
+                     matches,
+                     ref textPosition))
         {
             var link = segment.IsOpenStreetMap
                 ? document.CreateElement("a")
@@ -167,36 +173,59 @@ public static partial class TileProviderAttribution
     /// </summary>
     private static List<AttributionSegment> SplitAttributionNodes(
         IEnumerable<INode> nodes,
-        IDocument document)
+        IDocument document,
+        IReadOnlyList<Match> matches,
+        ref int textPosition)
     {
         var segments = new List<AttributionSegment>();
         foreach (var node in nodes)
         {
             if (node is IText text)
             {
+                var nodeStart = textPosition;
+                textPosition += text.Data.Length;
                 var position = 0;
-                foreach (Match match in OpenStreetMapText().Matches(text.Data))
+                while (position < text.Data.Length)
                 {
-                    if (match.Index > position)
+                    var absolutePosition = nodeStart + position;
+                    var match = matches.FirstOrDefault(candidate =>
+                        absolutePosition >= candidate.Index &&
+                        absolutePosition < candidate.Index + candidate.Length);
+                    if (match != null)
                     {
+                        var matchedLength = Math.Min(
+                            text.Data.Length - position,
+                            match.Index + match.Length - absolutePosition);
                         AddSegment(
                             segments,
-                            false,
-                            document.CreateTextNode(text.Data[position..match.Index]));
+                            true,
+                            document.CreateTextNode(
+                                "OpenStreetMap".Substring(
+                                    absolutePosition - match.Index,
+                                    matchedLength)));
+                        position += matchedLength;
+                        continue;
                     }
 
-                    AddSegment(segments, true, document.CreateTextNode("OpenStreetMap"));
-                    position = match.Index + match.Length;
-                }
-
-                if (position < text.Data.Length)
-                {
-                    AddSegment(segments, false, document.CreateTextNode(text.Data[position..]));
+                    var nextMatch = matches.FirstOrDefault(candidate =>
+                        candidate.Index > absolutePosition);
+                    var length = nextMatch == null
+                        ? text.Data.Length - position
+                        : Math.Min(text.Data.Length - position, nextMatch.Index - absolutePosition);
+                    AddSegment(
+                        segments,
+                        false,
+                        document.CreateTextNode(text.Data.Substring(position, length)));
+                    position += length;
                 }
             }
             else if (node is IElement element)
             {
-                var childSegments = SplitAttributionNodes(element.ChildNodes.ToArray(), document);
+                var childSegments = SplitAttributionNodes(
+                    element.ChildNodes.ToArray(),
+                    document,
+                    matches,
+                    ref textPosition);
                 if (childSegments.Count == 0)
                 {
                     AddSegment(segments, false, CloneElementShallow(element, document));
