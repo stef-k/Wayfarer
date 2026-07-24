@@ -137,6 +137,18 @@ public class TileProviderAttributionTests
         Assert.Equal(1, CountOsmLinks(result));
     }
 
+    [Fact]
+    public void Resolve_SecuresAdministratorSuppliedNewTabLinks()
+    {
+        var result = TileProviderAttribution.Resolve(Settings(
+            TileProviderCatalog.CustomProviderKey,
+            "<a href=\"https://example.com\" target=\"_BLANK\" rel=\"opener\">Example Maps</a>"));
+
+        Assert.Contains("target=\"_BLANK\"", result);
+        Assert.Contains("rel=\"noopener noreferrer\"", result);
+        Assert.DoesNotContain("rel=\"opener\"", result);
+    }
+
     private static ApplicationSettings Settings(string providerKey, string attribution) => new()
     {
         TileProviderKey = providerKey,
