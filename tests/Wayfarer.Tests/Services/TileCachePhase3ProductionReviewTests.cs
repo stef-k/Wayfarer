@@ -92,6 +92,9 @@ public sealed class TileCachePhase3ProductionReviewTests
     [InlineData("site.example", "site.example")]
     [InlineData("hidden.onion", "hidden.onion")]
     [InlineData("private.alt", "private.alt")]
+    [InlineData("foo-.example.com", "foo-.example.com")]
+    [InlineData("foo_bar.example.com", "foo_bar.example.com")]
+    [InlineData("999.999.999.999", "999.999.999.999")]
     public async Task UntrustedRequestHost_IsNotForwardedOrLogged(
         string allowedHosts,
         string requestHost)
@@ -127,6 +130,12 @@ public sealed class TileCachePhase3ProductionReviewTests
     [InlineData("app.localhost")]
     [InlineData("service.internal;host.home.arpa")]
     [InlineData("site.test;site.invalid;site.example;hidden.onion;private.alt")]
+    [InlineData("foo-.example.com")]
+    [InlineData("foo_bar.example.com")]
+    [InlineData("999.999.999.999")]
+    [InlineData("-foo.example.org")]
+    [InlineData("foo..example.org")]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.org")]
     public void UnsafeAllowedHosts_AreNotTrustworthy(string allowedHosts)
     {
         var configuration = new ConfigurationBuilder()
@@ -140,13 +149,16 @@ public sealed class TileCachePhase3ProductionReviewTests
     }
 
     /// <summary>At least one exact public hostname clears the missing-Referer configuration warning.</summary>
-    [Fact]
-    public void ExactPublicAllowedHosts_AreTrustworthy()
+    [Theory]
+    [InlineData("wayfarer.example.org")]
+    [InlineData("maps-1.example.org")]
+    [InlineData("*.example.com;WAYFARER.EXAMPLE.ORG.")]
+    public void ExactPublicAllowedHosts_AreTrustworthy(string allowedHosts)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["AllowedHosts"] = "*.example.com;WAYFARER.EXAMPLE.COM."
+                ["AllowedHosts"] = allowedHosts
             })
             .Build();
 
