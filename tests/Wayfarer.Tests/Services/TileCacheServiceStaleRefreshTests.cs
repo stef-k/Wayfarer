@@ -104,17 +104,27 @@ public partial class TileCacheServiceTests
         var service = CreateService(db, dir.Path, handler, httpContextAccessor: accessor, dbName: dbName, hotCache: hotCache);
         TileCacheService.SetRefreshRetryDelayForTesting(_ => TimeSpan.Zero);
 
-        await service.CacheTileAsync("http://tiles/9/2/3.png", "9", "2", "3");
-        ExpireDbTile(db, hotCache, 9, 2, 3);
+        try
+        {
+            await service.CacheTileAsync("http://tiles/9/2/3.png", "9", "2", "3");
+            ExpireDbTile(db, hotCache, 9, 2, 3);
 
-        var result = await service.RetrieveTileAsync("9", "2", "3", "http://tiles/9/2/3.png");
-        await Task.Delay(200);
-        TileCacheService.CancelRefreshForTesting("9_2_3");
-        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_2_3", TimeSpan.FromSeconds(5)));
+            var result = await service.RetrieveTileAsync("9", "2", "3", "http://tiles/9/2/3.png");
+            await Task.Delay(200);
+            TileCacheService.CancelRefreshForTesting("9_2_3");
+            Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_2_3", TimeSpan.FromSeconds(5)));
 
-        Assert.NotNull(result.TileData);
-        Assert.Equal(1, handler.ConditionalCallCount);
-        Assert.Equal(new Uri("https://myapp.example.com/"), handler.Referrers.Last());
+            Assert.NotNull(result.TileData);
+            Assert.Equal(1, handler.ConditionalCallCount);
+            Assert.Equal(new Uri("https://myapp.example.com/"), handler.Referrers.Last());
+        }
+        finally
+        {
+            // Stop background ownership before restoring the shared provider-budget seam.
+            TileCacheService.CancelRefreshForTesting("9_2_3");
+            await TileCacheService.WaitForRefreshIdleForTestingAsync("9_2_3", TimeSpan.FromSeconds(5));
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
     }
 
     [Fact]

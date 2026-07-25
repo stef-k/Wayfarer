@@ -666,12 +666,20 @@ public partial class TileCacheServiceTests : TestBase
         // Drain all tokens and stop replenishment — next AcquireAsync returns false.
         TileCacheService.OutboundBudget.DrainForTesting();
 
-        // CacheTileAsync should return false (budget exhausted) and not write any file or metadata.
-        var result = await service.CacheTileAsync("http://tiles/10/1/1.png", "10", "1", "1");
+        try
+        {
+            // CacheTileAsync should return false (budget exhausted) and not write any file or metadata.
+            var result = await service.CacheTileAsync("http://tiles/10/1/1.png", "10", "1", "1");
 
-        Assert.False(result);
-        Assert.False(File.Exists(Path.Combine(dir.Path, "10_1_1.png")));
-        Assert.Empty(db.TileCacheMetadata.ToList());
+            Assert.False(result);
+            Assert.False(File.Exists(Path.Combine(dir.Path, "10_1_1.png")));
+            Assert.Empty(db.TileCacheMetadata.ToList());
+        }
+        finally
+        {
+            // Restore shared budget state even when an assertion or provider acquisition fails.
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
     }
 
     [Fact]
@@ -683,10 +691,18 @@ public partial class TileCacheServiceTests : TestBase
 
         TileCacheService.OutboundBudget.DrainForTesting();
 
-        var result = await service.RetrieveTileAsync("10", "1", "1", "http://tiles/10/1/1.png");
+        try
+        {
+            var result = await service.RetrieveTileAsync("10", "1", "1", "http://tiles/10/1/1.png");
 
-        Assert.True(result.BudgetExhausted);
-        Assert.Null(result.TileData);
+            Assert.True(result.BudgetExhausted);
+            Assert.Null(result.TileData);
+        }
+        finally
+        {
+            // Restore shared budget state even when an assertion or provider acquisition fails.
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
     }
 
     /// <summary>
