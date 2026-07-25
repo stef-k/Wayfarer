@@ -167,6 +167,58 @@ public sealed class TileProviderPolicyTests
 [Collection("OutboundBudget")]
 public sealed class TileProviderStateAdmissionTests
 {
+    /// <summary>A state referenced before capacity completion cannot be retired or duplicated.</summary>
+    [Fact]
+    public async Task AcquireProviderContactAsync_ReferencedWaiter_RemainsAuthoritativeUnderPressure()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var leases = new List<TileCacheService.OutboundBudget.ProviderContactLease>();
+        TileCacheService.OutboundBudget.SetBeforeProviderCapacityWaitForTesting(
+            async (key, cancellationToken) =>
+            {
+                if (!key.Contains("custom:test-0", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                entered.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            });
+
+        try
+        {
+            var waiting = TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                Profile(0), TileWorkPriority.Foreground, CancellationToken.None);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            for (var index = 1; index < 32; index++)
+            {
+                leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
+                    await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                        Profile(index), TileWorkPriority.Foreground, CancellationToken.None)));
+            }
+
+            Assert.Null(await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                Profile(32), TileWorkPriority.Foreground, CancellationToken.None));
+            Assert.Equal(32, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
+
+            release.TrySetResult();
+            leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
+                await waiting));
+            Assert.Equal(32, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
+        }
+        finally
+        {
+            release.TrySetResult();
+            foreach (var lease in leases)
+            {
+                lease.Dispose();
+            }
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
+    }
+
     /// <summary>A referenced table at capacity rejects a distinct state until one owner releases.</summary>
     [Fact]
     public async Task AcquireProviderContactAsync_AtThirtyTwoReferencedStates_RejectsThenRecovers()

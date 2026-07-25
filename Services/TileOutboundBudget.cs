@@ -41,6 +41,7 @@ public partial class TileCacheService
         private static readonly ConcurrentDictionary<string, ProviderBudgetState> _providerStates = new();
         private static readonly object _providerStateLock = new();
         private const int MaximumRetainedProviderStates = 32;
+        private static Func<string, CancellationToken, Task>? _beforeProviderCapacityWait;
 
         /// <summary>
         /// Reserves the single background transport slot without waiting or displacing foreground work.
@@ -141,6 +142,12 @@ public partial class TileCacheService
             var ownershipTransferred = false;
             try
             {
+                var beforeCapacityWait = _beforeProviderCapacityWait;
+                if (beforeCapacityWait != null)
+                {
+                    await beforeCapacityWait(stateKey, cancellationToken).ConfigureAwait(false);
+                }
+
                 if (!await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false) ||
                     !await state.AcquireConcurrencyAsync(priority, cancellationToken).ConfigureAwait(false))
                 {
@@ -281,6 +288,7 @@ public partial class TileCacheService
         internal static void ResetForTesting()
         {
             _acquireOverride = null;
+            _beforeProviderCapacityWait = null;
             lock (_priorityLock)
             {
                 _foregroundWaiters = 0;
@@ -326,6 +334,11 @@ public partial class TileCacheService
         internal static void SetAcquireOverrideForTesting(
             Func<CancellationToken, Task<OutboundBudgetAcquisition>>? acquireOverride) =>
             _acquireOverride = acquireOverride;
+
+        /// <summary>Gates a referenced state before capacity waits in focused ownership tests.</summary>
+        internal static void SetBeforeProviderCapacityWaitForTesting(
+            Func<string, CancellationToken, Task>? beforeCapacityWait) =>
+            _beforeProviderCapacityWait = beforeCapacityWait;
 
         /// <summary>Releases one controlled token for deterministic priority tests.</summary>
         internal static void ReleaseOneForTesting()
