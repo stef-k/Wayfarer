@@ -167,6 +167,64 @@ public sealed class TileProviderPolicyTests
 [Collection("OutboundBudget")]
 public sealed class TileProviderStateAdmissionTests
 {
+    /// <summary>Shutdown closes provider-state admission before a request can enter the state table.</summary>
+    [Fact]
+    public async Task AcquireProviderContactAsync_PausedBeforeStateLock_IsRejectedAfterStop()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        TileCacheService.OutboundBudget.ProviderContactLease? retainedLease = null;
+        TileCacheService.OutboundBudget.ProviderContactLease? recoveredLease = null;
+        TileCacheService.OutboundBudget.SetBeforeProviderStateLockForTesting(
+            async (key, cancellationToken) =>
+            {
+                if (!key.Contains("custom:test-1", StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                entered.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            });
+
+        try
+        {
+            retainedLease = Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
+                await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    Profile(0), TileWorkPriority.Foreground, CancellationToken.None));
+            var retainedCount = TileCacheService.OutboundBudget.ProviderStateCountForTesting;
+            var replenisherStarts = TileCacheService.OutboundBudget.ProviderReplenisherStartCountForTesting;
+            var pausedAcquisition = TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                Profile(1), TileWorkPriority.Foreground, CancellationToken.None);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            TileCacheService.OutboundBudget.Stop();
+            TileCacheService.OutboundBudget.Stop();
+            release.TrySetResult();
+
+            Assert.Null(await pausedAcquisition);
+            Assert.Equal(retainedCount, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
+            Assert.Equal(
+                replenisherStarts,
+                TileCacheService.OutboundBudget.ProviderReplenisherStartCountForTesting);
+
+            retainedLease.Dispose();
+            retainedLease = null;
+            TileCacheService.OutboundBudget.ResetForTesting();
+            recoveredLease = Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
+                await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    Profile(2), TileWorkPriority.Foreground, CancellationToken.None));
+        }
+        finally
+        {
+            release.TrySetResult();
+            retainedLease?.Dispose();
+            recoveredLease?.Dispose();
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
+    }
+
     /// <summary>A state referenced before capacity completion cannot be retired or duplicated.</summary>
     [Fact]
     public async Task AcquireProviderContactAsync_ReferencedWaiter_RemainsAuthoritativeUnderPressure()

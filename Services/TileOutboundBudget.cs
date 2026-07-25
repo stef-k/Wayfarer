@@ -41,7 +41,9 @@ public partial class TileCacheService
         private static readonly ConcurrentDictionary<string, ProviderBudgetState> _providerStates = new();
         private static readonly object _providerStateLock = new();
         private const int MaximumRetainedProviderStates = 32;
+        private static Func<string, CancellationToken, Task>? _beforeProviderStateLock;
         private static Func<string, CancellationToken, Task>? _beforeProviderCapacityWait;
+        private static int _providerReplenisherStarts;
 
         /// <summary>
         /// Reserves the single background transport slot without waiting or displacing foreground work.
@@ -133,6 +135,12 @@ public partial class TileCacheService
             var stateKey = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"{profile.Identity}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
+            var beforeProviderStateLock = _beforeProviderStateLock;
+            if (beforeProviderStateLock != null)
+            {
+                await beforeProviderStateLock(stateKey, cancellationToken).ConfigureAwait(false);
+            }
+
             var state = AcquireProviderStateReference(stateKey, profile);
             if (state == null)
             {
@@ -288,6 +296,7 @@ public partial class TileCacheService
         internal static void ResetForTesting()
         {
             _acquireOverride = null;
+            _beforeProviderStateLock = null;
             _beforeProviderCapacityWait = null;
             lock (_priorityLock)
             {
@@ -301,6 +310,7 @@ public partial class TileCacheService
                     state.Dispose();
                 }
                 _providerStates.Clear();
+                _providerReplenisherStarts = 0;
             }
             StopReplenisher();
             while (_tokens.CurrentCount > 0)
@@ -334,6 +344,11 @@ public partial class TileCacheService
         internal static void SetAcquireOverrideForTesting(
             Func<CancellationToken, Task<OutboundBudgetAcquisition>>? acquireOverride) =>
             _acquireOverride = acquireOverride;
+
+        /// <summary>Gates acquisition immediately before the provider-state synchronization boundary.</summary>
+        internal static void SetBeforeProviderStateLockForTesting(
+            Func<string, CancellationToken, Task>? beforeProviderStateLock) =>
+            _beforeProviderStateLock = beforeProviderStateLock;
 
         /// <summary>Gates a referenced state before capacity waits in focused ownership tests.</summary>
         internal static void SetBeforeProviderCapacityWaitForTesting(
@@ -376,6 +391,10 @@ public partial class TileCacheService
             }
         }
 
+        /// <summary>Gets provider replenisher starts since the last isolated test reset.</summary>
+        internal static int ProviderReplenisherStartCountForTesting =>
+            Volatile.Read(ref _providerReplenisherStarts);
+
         /// <summary>Releases one application-level provider concurrency slot.</summary>
         internal sealed class ProviderContactLease : IDisposable
         {
@@ -412,6 +431,7 @@ public partial class TileCacheService
                 _tokens = new SemaphoreSlim(profile.BurstCapacity, profile.BurstCapacity);
                 _concurrency = new SemaphoreSlim(profile.MaxConcurrency, profile.MaxConcurrency);
                 var interval = TimeSpan.FromSeconds(1d / profile.SustainedRequestsPerSecond);
+                Interlocked.Increment(ref _providerReplenisherStarts);
                 _replenisher = Task.Run(() => ReplenishAsync(interval, profile.BurstCapacity));
             }
 
