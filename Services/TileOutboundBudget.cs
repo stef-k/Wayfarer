@@ -264,8 +264,18 @@ public partial class TileCacheService
             }
         }
 
-        /// <summary>Stops replenishment during application shutdown.</summary>
-        internal static void Stop() => _replenisherCts.Cancel();
+        /// <summary>Stops global and per-provider replenishment during application shutdown.</summary>
+        internal static void Stop()
+        {
+            _replenisherCts.Cancel();
+            lock (_providerStateLock)
+            {
+                foreach (var state in _providerStates.Values)
+                {
+                    state.Stop();
+                }
+            }
+        }
 
         /// <summary>Restores burst capacity and production acquisition for an isolated test.</summary>
         internal static void ResetForTesting()
@@ -462,9 +472,11 @@ public partial class TileCacheService
 
             public void Dispose()
             {
-                _stop.Cancel();
+                Stop();
                 _stop.Dispose();
             }
+
+            internal void Stop() => _stop.Cancel();
         }
     }
 }
