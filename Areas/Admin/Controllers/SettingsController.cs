@@ -165,6 +165,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 // Validate tile provider settings before model validation.
                 NormalizeTileProviderSettings(currentSettings, updatedSettings);
+                ValidateTileProviderPolicy(updatedSettings);
             }
 
             if (!ValidateModelState())
@@ -205,6 +206,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
                     Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
                     Track("TileOutboundBudgetPerIpPerMinute", currentSettings.TileOutboundBudgetPerIpPerMinute, updatedSettings.TileOutboundBudgetPerIpPerMinute);
+                    Track("TileProviderAdvancedLimitsEnabled", currentSettings.TileProviderAdvancedLimitsEnabled, updatedSettings.TileProviderAdvancedLimitsEnabled);
                     Track("TileMetadataHotCacheSizeMB", currentSettings.TileMetadataHotCacheSizeMB, updatedSettings.TileMetadataHotCacheSizeMB);
                     Track("ProxyImageRateLimitEnabled", currentSettings.ProxyImageRateLimitEnabled, updatedSettings.ProxyImageRateLimitEnabled);
                     Track("ProxyImageRateLimitPerMinute", currentSettings.ProxyImageRateLimitPerMinute, updatedSettings.ProxyImageRateLimitPerMinute);
@@ -237,6 +239,18 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
                     currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;
                     currentSettings.TileOutboundBudgetPerIpPerMinute = updatedSettings.TileOutboundBudgetPerIpPerMinute;
+                    currentSettings.TileProviderAdvancedLimitsEnabled = updatedSettings.TileProviderAdvancedLimitsEnabled;
+                    currentSettings.TileProviderSustainedRequestsPerSecond = updatedSettings.TileProviderSustainedRequestsPerSecond;
+                    currentSettings.TileProviderBurstCapacity = updatedSettings.TileProviderBurstCapacity;
+                    currentSettings.TileProviderMaxConcurrency = updatedSettings.TileProviderMaxConcurrency;
+                    currentSettings.TileProviderMaxAttempts = updatedSettings.TileProviderMaxAttempts;
+                    currentSettings.TileProviderFallbackBaseDelayMs = updatedSettings.TileProviderFallbackBaseDelayMs;
+                    currentSettings.TileProviderFallbackDelayCapSeconds = updatedSettings.TileProviderFallbackDelayCapSeconds;
+                    currentSettings.TileProviderMaxIndividualWaitSeconds = updatedSettings.TileProviderMaxIndividualWaitSeconds;
+                    currentSettings.TileProviderTotalRetryCeilingSeconds = updatedSettings.TileProviderTotalRetryCeilingSeconds;
+                    currentSettings.TileOutboundBudgetHistorical30Acknowledged =
+                        updatedSettings.TileOutboundBudgetPerIpPerMinute == 30 &&
+                        currentSettings.TileOutboundBudgetHistorical30Acknowledged;
                     currentSettings.TileMetadataHotCacheSizeMB = updatedSettings.TileMetadataHotCacheSizeMB;
                     currentSettings.ProxyImageRateLimitEnabled = updatedSettings.ProxyImageRateLimitEnabled;
                     currentSettings.ProxyImageRateLimitPerMinute = updatedSettings.ProxyImageRateLimitPerMinute;
@@ -504,6 +518,59 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 updatedSettings.TileProviderApiKey = null;
             }
+        }
+
+        /// <summary>Applies authoritative custom-provider cross-field validation.</summary>
+        private void ValidateTileProviderPolicy(ApplicationSettings settings)
+        {
+            if (!string.Equals(settings.TileProviderKey, TileProviderCatalog.CustomProviderKey,
+                    StringComparison.OrdinalIgnoreCase) ||
+                !settings.TileProviderAdvancedLimitsEnabled)
+            {
+                return;
+            }
+
+            try
+            {
+                TileProviderPolicyResolver.ValidateCustom(settings);
+            }
+            catch (ArgumentException exception)
+            {
+                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAdvancedLimitsEnabled),
+                    exception.Message);
+            }
+        }
+
+        /// <summary>Explicitly applies the current recommended outbound per-client value only.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UseRecommendedTileOutboundBudget()
+        {
+            var settings = await _dbContext.ApplicationSettings.FindAsync(1);
+            if (settings != null && settings.TileOutboundBudgetPerIpPerMinute == 30)
+            {
+                settings.TileOutboundBudgetPerIpPerMinute =
+                    ApplicationSettings.DefaultTileOutboundBudgetPerIpPerMinute;
+                settings.TileOutboundBudgetHistorical30Acknowledged = false;
+                await _dbContext.SaveChangesAsync();
+                _settingsService.RefreshSettings();
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>Explicitly retains 30 and persists acknowledgement of the historical notice.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AcknowledgeHistoricalTileOutboundBudget()
+        {
+            var settings = await _dbContext.ApplicationSettings.FindAsync(1);
+            if (settings != null && settings.TileOutboundBudgetPerIpPerMinute == 30)
+            {
+                settings.TileOutboundBudgetHistorical30Acknowledged = true;
+                await _dbContext.SaveChangesAsync();
+                _settingsService.RefreshSettings();
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         /// <summary>

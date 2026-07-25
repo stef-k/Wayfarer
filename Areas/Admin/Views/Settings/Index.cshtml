@@ -577,6 +577,36 @@
                                 </small>
                                 <span asp-validation-for="TileProviderApiKey" class="text-danger"></span>
                             </div>
+
+                            <div class="col-12 mb-3 d-none" id="tileProviderAdvancedRow">
+                                <div class="form-check form-switch">
+                                    <input asp-for="TileProviderAdvancedLimitsEnabled" class="form-check-input" />
+                                    <label asp-for="TileProviderAdvancedLimitsEnabled" class="form-check-label">
+                                        Advanced Provider Limits
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Configure these limits only according to your provider agreement. Wayfarer defaults
+                                    are 6 requests/second, burst 20, and concurrency 6; they are not provider-published allowances.
+                                </small>
+                                <span asp-validation-for="TileProviderAdvancedLimitsEnabled" class="text-danger"></span>
+                            </div>
+                            <div class="row d-none" id="tileProviderAdvancedFields">
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderSustainedRequestsPerSecond">Sustained/sec</label><input asp-for="TileProviderSustainedRequestsPerSecond" class="form-control" min="1" max="20" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderBurstCapacity">Burst</label><input asp-for="TileProviderBurstCapacity" class="form-control" min="1" max="50" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderMaxConcurrency">Concurrency</label><input asp-for="TileProviderMaxConcurrency" class="form-control" min="1" max="16" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderMaxAttempts">Attempts</label><input asp-for="TileProviderMaxAttempts" class="form-control" min="1" max="3" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderFallbackBaseDelayMs">Base delay (ms)</label><input asp-for="TileProviderFallbackBaseDelayMs" class="form-control" min="250" max="5000" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderFallbackDelayCapSeconds">Delay cap (sec)</label><input asp-for="TileProviderFallbackDelayCapSeconds" class="form-control" min="1" max="30" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderMaxIndividualWaitSeconds">Max wait (sec)</label><input asp-for="TileProviderMaxIndividualWaitSeconds" class="form-control" min="1" max="120" /></div>
+                                <div class="col-md-3 mb-2"><label asp-for="TileProviderTotalRetryCeilingSeconds">Total ceiling (sec)</label><input asp-for="TileProviderTotalRetryCeilingSeconds" class="form-control" min="5" max="180" /></div>
+                            </div>
+                            <div class="col-12">
+                                <small class="text-muted">
+                                    OSM Standard is best-effort with no SLA and permits no prefetch or offline cache warming.
+                                    Cached tiles and provider migration continue automatically; rate-policy changes never require clearing the cache.
+                                </small>
+                            </div>
                         </div>
 
                         <hr/>
@@ -640,6 +670,26 @@
                                 </small>
                                 <span asp-validation-for="TileOutboundBudgetPerIpPerMinute" class="text-danger"></span>
                             </div>
+                            @if (Model.TileOutboundBudgetPerIpPerMinute == 30 &&
+                                 !Model.TileOutboundBudgetHistorical30Acknowledged)
+                            {
+                                <div class="col-12">
+                                    <div class="alert alert-warning">
+                                        <strong>Historical cache-miss budget:</strong> 30 was Wayfarer's historical default.
+                                        The current recommended value is 80; retaining 30 can slow large cold-cache navigation.
+                                        <div class="mt-2">
+                                            <button type="submit" class="btn btn-sm btn-primary"
+                                                    formaction="@Url.Action("UseRecommendedTileOutboundBudget")">
+                                                Use recommended 80
+                                            </button>
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                                    formaction="@Url.Action("AcknowledgeHistoricalTileOutboundBudget")">
+                                                Keep 30 and acknowledge
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                         </div>
                         <div class="row">
                             <div class="col-md-3 mb-3">

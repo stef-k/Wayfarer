@@ -13,6 +13,7 @@ using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -131,6 +132,64 @@ public class AdminSettingsControllerTests : TestBase
         await controller.Update(new ApplicationSettings { Id = 1, IsRegistrationOpen = true });
 
         settingsMock.Verify(s => s.RefreshSettings(), Times.Once);
+    }
+
+    [Fact]
+    public async Task Historical30Actions_ChangeOnlyBudgetOrAcknowledgement()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            IsRegistrationOpen = true,
+            TileOutboundBudgetPerIpPerMinute = 30
+        });
+        await db.SaveChangesAsync();
+        var (controller, settingsMock, _) = BuildController(db);
+
+        await controller.AcknowledgeHistoricalTileOutboundBudget();
+        var acknowledged = await db.ApplicationSettings.FindAsync(1);
+        Assert.NotNull(acknowledged);
+        Assert.Equal(30, acknowledged.TileOutboundBudgetPerIpPerMinute);
+        Assert.True(acknowledged.TileOutboundBudgetHistorical30Acknowledged);
+        Assert.True(acknowledged.IsRegistrationOpen);
+
+        acknowledged.TileOutboundBudgetHistorical30Acknowledged = false;
+        await db.SaveChangesAsync();
+        await controller.UseRecommendedTileOutboundBudget();
+        var recommended = await db.ApplicationSettings.FindAsync(1);
+        Assert.NotNull(recommended);
+        Assert.Equal(80, recommended.TileOutboundBudgetPerIpPerMinute);
+        Assert.False(recommended.TileOutboundBudgetHistorical30Acknowledged);
+        Assert.True(recommended.IsRegistrationOpen);
+        settingsMock.Verify(service => service.RefreshSettings(), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task Update_RejectsInvalidCustomProviderCrossFieldLimits()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1 });
+        await db.SaveChangesAsync();
+        var (controller, _, _) = BuildController(db);
+
+        var result = await controller.Update(new ApplicationSettings
+        {
+            Id = 1,
+            TileProviderKey = TileProviderCatalog.CustomProviderKey,
+            TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png",
+            TileProviderAttribution = "Example",
+            TileProviderAdvancedLimitsEnabled = true,
+            TileProviderBurstCapacity = 2,
+            TileProviderMaxConcurrency = 6,
+            TileProviderFallbackBaseDelayMs = 5000,
+            TileProviderFallbackDelayCapSeconds = 1,
+            TileProviderMaxIndividualWaitSeconds = 120,
+            TileProviderTotalRetryCeilingSeconds = 5
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
     }
 
     [Fact]

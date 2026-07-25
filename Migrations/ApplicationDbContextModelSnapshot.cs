@@ -68,8 +68,14 @@ namespace Wayfarer.Migrations
                     b.Property<int>("TileMetadataHotCacheSizeMB")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("TileOutboundBudgetHistorical30Acknowledged")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("TileOutboundBudgetPerIpPerMinute")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("TileProviderAdvancedLimitsEnabled")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("TileProviderApiKey")
                         .HasMaxLength(200)
@@ -80,10 +86,34 @@ namespace Wayfarer.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<int>("TileProviderBurstCapacity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TileProviderFallbackBaseDelayMs")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TileProviderFallbackDelayCapSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TileProviderKey")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
+
+                    b.Property<int>("TileProviderMaxAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TileProviderMaxConcurrency")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TileProviderMaxIndividualWaitSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TileProviderSustainedRequestsPerSecond")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TileProviderTotalRetryCeilingSeconds")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TileProviderUrlTemplate")
                         .IsRequired()
