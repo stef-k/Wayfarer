@@ -2,8 +2,16 @@
 
 ## [1.7.0] - 2026-07-25
 
+### Added
+- Added provider-aware tile policies with distinct built-in profiles, bounded custom-provider controls, HTTP/2 preference with HTTP/1.1 fallback, and an explicit Admin notice for deployments retaining the historical 30-per-minute cold-miss allowance (#385, #394).
+
 ### Changed
-- TODO: Add release notes before publishing.
+- Increased Wayfarer's default interactive provider profile to 6 sustained requests per second, burst capacity 20, and concurrency 6 while retaining bounded queues, per-client protection, provider-directed backoff, caching, cancellation, and the prohibition on OSM prefetch or offline downloads (#385, #393, #394).
+- Prioritized visible cold tiles over stale background refresh, coalesced duplicate cold misses, isolated cache and in-flight work by provider identity, and made cold viewports fill progressively instead of entering synchronized 503 retry waves (#385, #393).
+
+### Fixed
+- Corrected upstream retry and status handling so every real contact consumes provider capacity, permanent responses are not retried, transient failures remain transient, and provider `Retry-After` instructions are honored without cancellation or privacy regressions (#385, #391).
+- Unified sanitized provider attribution across the Trip Editor, authenticated/public/embedded Trip Viewer maps, readable snapshots, and PDF output, including the required OpenStreetMap copyright link without mislabeling custom providers (#385, #392).
 
 ## [1.6.0] - 2026-07-22
 
