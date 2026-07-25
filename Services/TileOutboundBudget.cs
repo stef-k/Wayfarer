@@ -121,6 +121,13 @@ public partial class TileCacheService
             TileWorkPriority priority,
             CancellationToken cancellationToken)
         {
+            var acquireOverride = _acquireOverride;
+            if (acquireOverride != null)
+            {
+                var controlled = await acquireOverride(cancellationToken).ConfigureAwait(false);
+                return controlled.Acquired ? ProviderContactLease.Controlled : null;
+            }
+
             var stateKey = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"{profile.Identity}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
@@ -284,7 +291,8 @@ public partial class TileCacheService
         internal sealed class ProviderContactLease : IDisposable
         {
             private ProviderBudgetState? _state;
-            internal ProviderContactLease(ProviderBudgetState state) => _state = state;
+            internal static ProviderContactLease Controlled => new(null);
+            internal ProviderContactLease(ProviderBudgetState? state) => _state = state;
             public void Dispose() => Interlocked.Exchange(ref _state, null)?.ReleaseConcurrency();
         }
 

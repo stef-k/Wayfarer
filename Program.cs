@@ -554,8 +554,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
         {
             var config = sp.GetRequiredService<IConfiguration>();
             client.Timeout = TimeSpan.FromSeconds(10);
-            client.DefaultRequestVersion = HttpVersion.Version20;
-            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+            TileHttpTransportConfiguration.Configure(client);
 
             // OSM requires an honest User-Agent identifying the application.
             // See: https://operations.osmfoundation.org/policies/tiles/
@@ -577,13 +576,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
             client.DefaultRequestHeaders.AcceptLanguage.Add(
                 new System.Net.Http.Headers.StringWithQualityHeaderValue("en", 0.9));
         })
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-        {
-            AllowAutoRedirect = false,
-            // Wayfarer transport safety ceiling only. Provider-profile application
-            // concurrency remains authoritative, including for HTTP/2 multiplexing.
-            MaxConnectionsPerServer = 16
-        });
+        // This is a Wayfarer transport safety ceiling only. Provider-profile application
+        // concurrency remains authoritative, including for HTTP/2 multiplexing.
+        .ConfigurePrimaryHttpMessageHandler(TileHttpTransportConfiguration.CreateHandler);
 
     // Location service, handles location results per zoom and bounds levels
     builder.Services.AddScoped<LocationService>();

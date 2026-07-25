@@ -80,6 +80,20 @@ public sealed class TileProviderPolicyTests
         Assert.False(profile.PrefetchEnabled);
     }
 
+    /// <summary>Proves the transport requests HTTP/2 but permits HTTP/1.1 fallback.</summary>
+    [Fact]
+    public void TileTransport_PrefersHttp2AndPermitsHttp11Fallback()
+    {
+        using var client = new HttpClient();
+        TileHttpTransportConfiguration.Configure(client);
+        using var handler = TileHttpTransportConfiguration.CreateHandler();
+
+        Assert.Equal(HttpVersion.Version20, client.DefaultRequestVersion);
+        Assert.Equal(HttpVersionPolicy.RequestVersionOrLower, client.DefaultVersionPolicy);
+        Assert.False(handler.AllowAutoRedirect);
+        Assert.Equal(16, handler.MaxConnectionsPerServer);
+    }
+
     private static void AssertApprovedDefaults(TileProviderPolicy profile)
     {
         Assert.Equal(6, profile.SustainedRequestsPerSecond);

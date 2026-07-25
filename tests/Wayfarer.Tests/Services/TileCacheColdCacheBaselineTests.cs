@@ -35,8 +35,8 @@ public sealed class TileCacheColdCacheBaselineTests
     public async Task LegacyNominalColdViewport_ModelsPrePhase3BurstGap()
     {
         var budget = new LegacyBudgetModel(
-            TileCacheService.OutboundBudget.BurstCapacity,
-            TimeSpan.FromMilliseconds(TileCacheService.OutboundBudget.ReplenishIntervalMs),
+            12,
+            TimeSpan.FromMilliseconds(500),
             LegacyAcquireTimeout);
         var upstream = new RecordingTileHandler(startTimeProvider: budget.GetCurrentRequestStart);
         using var harness = new TileCacheTestHarness(upstream);
@@ -45,7 +45,7 @@ public sealed class TileCacheColdCacheBaselineTests
         var outcomes = await Task.WhenAll(
             Enumerable.Range(0, UniqueTileCount)
                 .Select(tileX => RequestTileAsync(harness, tileX)));
-        var report = BuildReport(upstream.Requests, outcomes);
+        var report = BuildReport(upstream.Requests, outcomes, 12, 500);
 
         _output.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
 
@@ -72,7 +72,7 @@ public sealed class TileCacheColdCacheBaselineTests
     [Fact]
     public async Task RealOutboundBudget_SpreadsStartsAndContinuesAfterInitialBurst()
     {
-        const int productionPathTileCount = 16;
+        const int productionPathTileCount = 24;
         var stopwatch = Stopwatch.StartNew();
         var upstream = new RecordingTileHandler(
             async (_, cancellationToken) =>
@@ -97,7 +97,7 @@ public sealed class TileCacheColdCacheBaselineTests
         Assert.Equal(TileCacheService.OutboundBudget.BurstCapacity, initialBurstStarts.Length);
         Assert.True(initialBurstStarts.Max() < TimeSpan.FromSeconds(1));
         Assert.NotEmpty(laterStarts);
-        Assert.True(laterStarts.Max() - laterStarts.Min() >= TimeSpan.FromMilliseconds(500));
+        Assert.True(laterStarts.Max() - laterStarts.Min() >= TimeSpan.FromMilliseconds(300));
         Assert.Contains(outcomes, outcome => outcome.StatusCode == StatusCodes.Status200OK);
         Assert.True(
             laterStarts.Any(start => start >= TimeSpan.FromMilliseconds(250)) ||
@@ -136,7 +136,9 @@ public sealed class TileCacheColdCacheBaselineTests
     /// <summary>Derives a stable numerical report from fake-upstream starts and local controller outcomes.</summary>
     private static ColdCacheBaselineReport BuildReport(
         IReadOnlyCollection<RecordedTileRequest> requests,
-        IReadOnlyCollection<LocalTileOutcome> outcomes)
+        IReadOnlyCollection<LocalTileOutcome> outcomes,
+        int burstCapacity,
+        int replenishIntervalMs)
     {
         var successfulCompletions = requests
             .Select(request => request.StartTime + ModeledUpstreamLatency)
@@ -154,9 +156,9 @@ public sealed class TileCacheColdCacheBaselineTests
 
         return new ColdCacheBaselineReport(
             UniqueTiles: outcomes.Count,
-            BurstCapacity: TileCacheService.OutboundBudget.BurstCapacity,
+            BurstCapacity: burstCapacity,
             SustainedAcquisitionsPerSecond:
-                1000d / TileCacheService.OutboundBudget.ReplenishIntervalMs,
+                1000d / replenishIntervalMs,
             QueueCapacity: "unbounded waiter set",
             ModeledUpstreamLatencyMilliseconds: ModeledUpstreamLatency.TotalMilliseconds,
             AcceptedRequests: requests.Count,

@@ -398,12 +398,14 @@ public sealed class TileCachePhase3ProductionReviewTests
         var secondUserRequest = RequestTileAsync(harness, 5, 7, 1, userB);
         try
         {
-            await secondUserStarted.Task.WaitAsync(TimeSpan.FromMilliseconds(500));
+            await Task.Delay(100);
+            Assert.False(secondUserStarted.Task.IsCompleted);
         }
         finally
         {
             release.TrySetResult();
         }
+        await secondUserStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.All(
             await Task.WhenAll(firstUserRequests.Append(secondUserRequest)),

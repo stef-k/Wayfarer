@@ -306,11 +306,11 @@ public sealed class TileCachePhase3Tests
 
         Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
         Assert.Equal(tileCount, starts.Length);
-        Assert.Equal(TileCacheService.OutboundBudget.BurstCapacity, 12);
+        Assert.Equal(20, TileCacheService.OutboundBudget.BurstCapacity);
         Assert.Contains(starts, start => start >= TimeSpan.FromMilliseconds(500));
         Assert.True(stopwatch.Elapsed <= derivedCeiling + TimeSpan.FromSeconds(2));
         _output.WriteLine(
-            "N={0}, B={1}, R=2/s, L={2}ms, queue={3}, ceiling={4:F1}s, actual={5:F3}s",
+            "N={0}, B={1}, R=6/s, L={2}ms, queue={3}, ceiling={4:F1}s, actual={5:F3}s",
             tileCount,
             TileCacheService.OutboundBudget.BurstCapacity,
             latency.TotalMilliseconds,
