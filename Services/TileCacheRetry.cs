@@ -8,6 +8,7 @@ public partial class TileCacheService
     /// </summary>
     private async Task<TileDownloadResult> DownloadTileWithRetryAsync(
         string tileUrl,
+        TileProviderPolicy providerPolicy,
         string? clientIp,
         bool allowHttpContext,
         string? publicOrigin,
@@ -15,17 +16,17 @@ public partial class TileCacheService
     {
         var providerKey = TileProviderRetryPolicy.GetProviderKey(tileUrl);
         var interactiveDeadline = TileProviderRetryPolicy.UtcNow +
-                                  TileProviderRetryPolicy.MaxInteractiveDuration;
+                                  providerPolicy.TotalRetryCeiling;
         var contactState = new TileContactState();
 
         for (var attemptNumber = 1;
-             attemptNumber <= TileProviderRetryPolicy.MaxAttempts;
+             attemptNumber <= providerPolicy.MaxAttempts;
              attemptNumber++)
         {
             var attemptRemaining = interactiveDeadline - TileProviderRetryPolicy.UtcNow;
             if (attemptRemaining <= TimeSpan.Zero)
             {
-                return TileDownloadResult.Transient(TileProviderRetryPolicy.FallbackDelayCap);
+                return TileDownloadResult.Transient(providerPolicy.FallbackDelayCap);
             }
 
             using var attemptCancellation =
@@ -43,6 +44,7 @@ public partial class TileCacheService
                     publicOrigin: publicOrigin,
                     interactiveDeadline: interactiveDeadline,
                     contactState: contactState,
+                    providerPolicy: providerPolicy,
                     callerCancellationToken: cancellationToken,
                     cancellationToken: attemptCancellation.Token);
             }
@@ -57,14 +59,14 @@ public partial class TileCacheService
                 if (contactState.IsExhausted)
                 {
                     return TileDownloadResult.Transient(
-                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
                 }
 
                 if (!await DelayForFallbackRetryAsync(
-                        attemptNumber, interactiveDeadline, cancellationToken))
+                        attemptNumber, interactiveDeadline, providerPolicy, cancellationToken))
                 {
                     return TileDownloadResult.Transient(
-                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
                 }
 
                 continue;
@@ -76,14 +78,14 @@ public partial class TileCacheService
                 if (contactState.IsExhausted)
                 {
                     return TileDownloadResult.Transient(
-                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
                 }
 
                 if (!await DelayForFallbackRetryAsync(
-                        attemptNumber, interactiveDeadline, cancellationToken))
+                        attemptNumber, interactiveDeadline, providerPolicy, cancellationToken))
                 {
                     return TileDownloadResult.Transient(
-                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                        TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
                 }
 
                 continue;
@@ -106,7 +108,7 @@ public partial class TileCacheService
                 TileCacheDiagnostics.UpstreamClassification(
                     _logger, "transient-exhausted", attemptNumber);
                 return TileDownloadResult.Transient(
-                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
             }
 
             if (sendResult.Rejection == TileRequestRejection.InvalidProviderResponse)
@@ -114,7 +116,7 @@ public partial class TileCacheService
                 TileCacheDiagnostics.UpstreamClassification(
                     _logger, "transient-invalid-response", attemptNumber);
                 return TileDownloadResult.Transient(
-                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
             }
 
             using var response = sendResult.Response!;
@@ -153,10 +155,10 @@ public partial class TileCacheService
                     TileCacheDiagnostics.ProviderDelay(
                         _logger, "provider-directed", providerDelay.Delay.TotalMilliseconds);
                     var remaining = interactiveDeadline - TileProviderRetryPolicy.UtcNow;
-                    if (attemptNumber >= TileProviderRetryPolicy.MaxAttempts ||
+                    if (attemptNumber >= providerPolicy.MaxAttempts ||
                         contactState.IsExhausted ||
                         providerDelay.Delay > remaining ||
-                        providerDelay.Delay > TileProviderRetryPolicy.MaxIndividualWait)
+                        providerDelay.Delay > providerPolicy.MaxIndividualWait)
                     {
                         return TileDownloadResult.Transient(providerDelay.Delay);
                     }
@@ -174,12 +176,12 @@ public partial class TileCacheService
                 }
             }
 
-            if (attemptNumber >= TileProviderRetryPolicy.MaxAttempts)
+            if (attemptNumber >= providerPolicy.MaxAttempts)
             {
                 TileCacheDiagnostics.UpstreamClassification(
                     _logger, "transient-exhausted", attemptNumber);
                 return TileDownloadResult.Transient(
-                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
             }
 
             if (contactState.IsExhausted)
@@ -187,32 +189,33 @@ public partial class TileCacheService
                 TileCacheDiagnostics.UpstreamClassification(
                     _logger, "transient-exhausted", attemptNumber);
                 return TileDownloadResult.Transient(
-                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
             }
 
             if (!await DelayForFallbackRetryAsync(
-                    attemptNumber, interactiveDeadline, cancellationToken))
+                    attemptNumber, interactiveDeadline, providerPolicy, cancellationToken))
             {
                 return TileDownloadResult.Transient(
-                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber));
+                    TileProviderRetryPolicy.GetFallbackDelay(attemptNumber, providerPolicy));
             }
         }
 
-        return TileDownloadResult.Transient(TileProviderRetryPolicy.FallbackDelayCap);
+        return TileDownloadResult.Transient(providerPolicy.FallbackDelayCap);
     }
 
     /// <summary>Waits for one bounded fallback retry delay while preserving caller cancellation.</summary>
     private async Task<bool> DelayForFallbackRetryAsync(
         int failedAttempts,
         DateTimeOffset interactiveDeadline,
+        TileProviderPolicy providerPolicy,
         CancellationToken cancellationToken)
     {
-        if (failedAttempts >= TileProviderRetryPolicy.MaxAttempts)
+        if (failedAttempts >= providerPolicy.MaxAttempts)
         {
             return false;
         }
 
-        var retryDelay = TileProviderRetryPolicy.GetFallbackDelay(failedAttempts);
+        var retryDelay = TileProviderRetryPolicy.GetFallbackDelay(failedAttempts, providerPolicy);
         var remaining = interactiveDeadline - TileProviderRetryPolicy.UtcNow;
         if (remaining <= TimeSpan.Zero || retryDelay > remaining)
         {

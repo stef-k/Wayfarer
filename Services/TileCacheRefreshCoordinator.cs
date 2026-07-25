@@ -38,14 +38,6 @@ public partial class TileCacheService
     /// <summary>
     /// Maximum number of upstream attempts in one stale-tile refresh series.
     /// </summary>
-    private const int RefreshSeriesMaxAttempts = 3;
-
-    /// <summary>
-    /// Maximum wall-clock lifetime for one stale-tile refresh series under the interim profile.
-    /// </summary>
-    private static readonly TimeSpan RefreshSeriesMaxDuration =
-        TileProviderRetryPolicy.MaxInteractiveDuration;
-
     /// <summary>
     /// Test-overridable delay provider for bounded refresh retry backoff.
     /// </summary>
@@ -92,7 +84,8 @@ public partial class TileCacheService
 
             series = new TileRefreshSeries(
                 tileKey, providerIdentity, tileUrl, tileFilePath,
-                zoom, x, y, etag, lastModified, clientIp, publicOrigin);
+                zoom, x, y, etag, lastModified, clientIp, publicOrigin,
+                TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger));
             _refreshSeries[tileKey] = series;
             series.SetCompletion(Task.Run(
                 () => RunBackgroundRefreshSeriesAsync(series),
@@ -109,8 +102,8 @@ public partial class TileCacheService
     {
         try
         {
-            while (series.Attempts < RefreshSeriesMaxAttempts &&
-                   DateTime.UtcNow - series.StartedAtUtc < RefreshSeriesMaxDuration)
+            while (series.Attempts < series.ProviderPolicy.MaxAttempts &&
+                   TileProviderRetryPolicy.UtcNow < series.DeadlineUtc)
             {
                 series.Attempts++;
                 series.CancellationStage = "stale-refresh-attempt";
@@ -135,18 +128,20 @@ public partial class TileCacheService
                         series.Attempts, series.TileKey);
                 }
 
-                if (series.Attempts >= RefreshSeriesMaxAttempts)
+                if (series.Attempts >= series.ProviderPolicy.MaxAttempts)
                 {
                     break;
                 }
 
-                var remaining = RefreshSeriesMaxDuration - (DateTime.UtcNow - series.StartedAtUtc);
+                var remaining = series.DeadlineUtc - TileProviderRetryPolicy.UtcNow;
                 if (remaining <= TimeSpan.Zero)
                 {
                     break;
                 }
 
-                var delay = _refreshRetryDelayProvider(series.Attempts);
+                var delay = _refreshRetryDelayProvider == CalculateRefreshRetryDelay
+                    ? TileProviderRetryPolicy.GetFallbackDelay(series.Attempts, series.ProviderPolicy)
+                    : _refreshRetryDelayProvider(series.Attempts);
                 var selectedDelay = delay > remaining ? remaining : delay;
                 TileCacheDiagnostics.RetryDelaySelected(
                     _logger,
@@ -365,7 +360,8 @@ public partial class TileCacheService
         public DateTime? LastModified { get; }
         public string? ClientIp { get; }
         public string? PublicOrigin { get; }
-        public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+        public TileProviderPolicy ProviderPolicy { get; }
+        public DateTimeOffset DeadlineUtc { get; }
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
 
@@ -385,7 +381,7 @@ public partial class TileCacheService
 
         public TileRefreshSeries(string tileKey, string providerIdentity, string tileUrl, string tileFilePath,
             int zoom, int x, int y, string? etag, DateTime? lastModified, string? clientIp,
-            string? publicOrigin)
+            string? publicOrigin, TileProviderPolicy providerPolicy)
         {
             TileKey = tileKey;
             ProviderIdentity = providerIdentity;
@@ -398,6 +394,8 @@ public partial class TileCacheService
             LastModified = lastModified;
             ClientIp = clientIp;
             PublicOrigin = publicOrigin;
+            ProviderPolicy = providerPolicy;
+            DeadlineUtc = TileProviderRetryPolicy.UtcNow + providerPolicy.TotalRetryCeiling;
         }
 
         public void CancelForTesting() => _cancellationTokenSource.Cancel();

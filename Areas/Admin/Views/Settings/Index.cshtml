@@ -517,7 +517,6 @@
                         </div>
                         <hr/>
 
-                        <!-- Map tile provider configuration (preset or custom). -->
                         <div class="row">
                             <h3 class="text-center fs-4">Map Tile Provider</h3>
                             <p class="text-muted">
@@ -577,6 +576,8 @@
                                 </small>
                                 <span asp-validation-for="TileProviderApiKey" class="text-danger"></span>
                             </div>
+
+                            <partial name="_TileProviderPolicySettings" model="Model" />
                         </div>
 
                         <hr/>
@@ -592,7 +593,6 @@
                                     <input type="checkbox" class="form-check-input"
                                            id="TileRateLimitEnabled" name="TileRateLimitEnabled"
                                            value="true" @(Model.TileRateLimitEnabled ? "checked" : "")/>
-                                    @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
                                     <input type="hidden" name="TileRateLimitEnabled" value="false"/>
                                     <label class="form-check-label" for="TileRateLimitEnabled">
                                         Enable tile rate limiting
@@ -640,6 +640,7 @@
                                 </small>
                                 <span asp-validation-for="TileOutboundBudgetPerIpPerMinute" class="text-danger"></span>
                             </div>
+                            <partial name="_HistoricalTileBudgetNotice" model="Model" />
                         </div>
                         <div class="row">
                             <div class="col-md-3 mb-3">

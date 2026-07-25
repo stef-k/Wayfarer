@@ -143,7 +143,15 @@ This document covers the key services, file parsers, and background jobs in the 
 ## Map & Tile Services
 
 ### TileCacheService
-- Manages OpenStreetMap tile caching.
+- Manages provider-isolated map tile caching and bounded foreground/background scheduling.
+- Built-in profiles use Wayfarer operational defaults of 6 upstream contacts/second,
+  burst 20, and concurrency 6. These values are not provider-published guarantees or allowances.
+- OSM Standard is best-effort with no SLA; prefetch, offline download, adjacent-zoom warming,
+  and other cache-warming traffic are not permitted.
+- Custom-provider administrators are responsible for configuring advanced limits according to
+  their provider agreement.
+- Provider and Phase 3 cache migration remain automatic. Rate-policy changes do not alter cache
+  identity and do not require manually clearing cached tiles.
 - LRU eviction for tiles at zoom levels ≥ 9.
 - Permanent caching for zoom levels 0–8.
 - Tracks metadata in database for cache management.

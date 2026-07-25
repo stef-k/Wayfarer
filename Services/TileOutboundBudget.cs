@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using Wayfarer.Services;
 
 public partial class TileCacheService
@@ -10,10 +11,10 @@ public partial class TileCacheService
     internal static class OutboundBudget
     {
         /// <summary>Maximum number of immediate outbound acquisitions.</summary>
-        internal const int BurstCapacity = 12;
+        internal const int BurstCapacity = 20;
 
         /// <summary>Current interval between sustained outbound token replenishments.</summary>
-        internal const int ReplenishIntervalMs = 500;
+        internal const int ReplenishIntervalMs = 167;
 
         /// <summary>Maximum accepted foreground wait before bounded scheduler rejection.</summary>
         internal static readonly TimeSpan AcquireTimeout = TileWorkScheduler.ForegroundQueueWait;
@@ -37,6 +38,13 @@ public partial class TileCacheService
         private static readonly object _priorityLock = new();
         private static int _foregroundWaiters;
         private static int _backgroundContactActive;
+        private static readonly ConcurrentDictionary<string, ProviderBudgetState> _providerStates = new();
+        private static readonly object _providerStateLock = new();
+        private static bool _providerAdmissionClosed;
+        private const int MaximumRetainedProviderStates = 32;
+        private static Func<string, CancellationToken, Task>? _beforeProviderStateLock;
+        private static Func<string, CancellationToken, Task>? _beforeProviderCapacityWait;
+        private static int _providerReplenisherStarts;
 
         /// <summary>
         /// Reserves the single background transport slot without waiting or displacing foreground work.
@@ -109,6 +117,135 @@ public partial class TileCacheService
             return new OutboundBudgetAcquisition(acquiredForeground, stopwatch.Elapsed);
         }
 
+        /// <summary>
+        /// Acquires one profile rate token and one authoritative application concurrency slot.
+        /// The result reports acquisition wait evidence; its lease releases concurrency only.
+        /// </summary>
+        internal static async Task<ProviderContactAcquisition> AcquireProviderContactAsync(
+            TileProviderPolicy profile,
+            TileWorkPriority priority,
+            CancellationToken cancellationToken)
+        {
+            var acquireOverride = _acquireOverride;
+            if (acquireOverride != null)
+            {
+                var controlled = await acquireOverride(cancellationToken).ConfigureAwait(false);
+                return new ProviderContactAcquisition(
+                    controlled.Acquired ? ProviderContactLease.Controlled : null,
+                    controlled.WaitDuration);
+            }
+
+            var stopwatch = Stopwatch.StartNew();
+            var stateKey = string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{profile.Identity}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
+            var beforeProviderStateLock = _beforeProviderStateLock;
+            if (beforeProviderStateLock != null)
+            {
+                await beforeProviderStateLock(stateKey, cancellationToken).ConfigureAwait(false);
+            }
+
+            var state = AcquireProviderStateReference(stateKey, profile);
+            if (state == null)
+            {
+                stopwatch.Stop();
+                return new ProviderContactAcquisition(null, stopwatch.Elapsed);
+            }
+
+            var ownershipTransferred = false;
+            try
+            {
+                var beforeCapacityWait = _beforeProviderCapacityWait;
+                if (beforeCapacityWait != null)
+                {
+                    await beforeCapacityWait(stateKey, cancellationToken).ConfigureAwait(false);
+                }
+
+                if (!await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false) ||
+                    !await state.AcquireConcurrencyAsync(priority, cancellationToken).ConfigureAwait(false))
+                {
+                    stopwatch.Stop();
+                    return new ProviderContactAcquisition(null, stopwatch.Elapsed);
+                }
+
+                ownershipTransferred = true;
+                stopwatch.Stop();
+                return new ProviderContactAcquisition(new ProviderContactLease(state), stopwatch.Elapsed);
+            }
+            finally
+            {
+                if (!ownershipTransferred)
+                {
+                    ReleaseProviderStateReference(state);
+                }
+            }
+        }
+
+        /// <summary>Atomically finds or admits one referenced provider state.</summary>
+        private static ProviderBudgetState? AcquireProviderStateReference(
+            string stateKey,
+            TileProviderPolicy profile)
+        {
+            lock (_providerStateLock)
+            {
+                if (_providerAdmissionClosed)
+                {
+                    return null;
+                }
+
+                if (_providerStates.TryGetValue(stateKey, out var existing))
+                {
+                    existing.AddReference();
+                    return existing;
+                }
+
+                while (_providerStates.Count >= MaximumRetainedProviderStates &&
+                       RetireOneIdleProviderState())
+                {
+                }
+
+                if (_providerStates.Count >= MaximumRetainedProviderStates)
+                {
+                    return null;
+                }
+
+                var admitted = new ProviderBudgetState(stateKey, profile);
+                admitted.AddReference();
+                _providerStates[stateKey] = admitted;
+                return admitted;
+            }
+        }
+
+        /// <summary>Releases ownership and performs bounded retirement when capacity is full.</summary>
+        private static void ReleaseProviderStateReference(ProviderBudgetState state)
+        {
+            lock (_providerStateLock)
+            {
+                state.ReleaseReference();
+                if (_providerStates.Count >= MaximumRetainedProviderStates)
+                {
+                    RetireOneIdleProviderState();
+                }
+            }
+        }
+
+        /// <summary>Compare-removes and stops the oldest exact idle, unreferenced state.</summary>
+        private static bool RetireOneIdleProviderState()
+        {
+            var candidate = _providerStates
+                .Where(pair => pair.Value.IsRetirable)
+                .OrderBy(pair => pair.Value.LastUsedUtc)
+                .FirstOrDefault();
+            if (candidate.Value == null ||
+                !_providerStates.TryRemove(candidate))
+            {
+                return false;
+            }
+
+            candidate.Value.Dispose();
+            return true;
+        }
+
         /// <summary>Releases one token per current replenishment interval up to burst capacity.</summary>
         private static Task StartReplenisher(CancellationToken cancellationToken) =>
             Task.Run(async () =>
@@ -154,18 +291,41 @@ public partial class TileCacheService
             }
         }
 
-        /// <summary>Stops replenishment during application shutdown.</summary>
-        internal static void Stop() => _replenisherCts.Cancel();
+        /// <summary>Stops global and per-provider replenishment during application shutdown.</summary>
+        internal static void Stop()
+        {
+            _replenisherCts.Cancel();
+            lock (_providerStateLock)
+            {
+                _providerAdmissionClosed = true;
+                foreach (var state in _providerStates.Values)
+                {
+                    state.Stop();
+                }
+            }
+        }
 
         /// <summary>Restores burst capacity and production acquisition for an isolated test.</summary>
         internal static void ResetForTesting()
         {
             _acquireOverride = null;
+            _beforeProviderStateLock = null;
+            _beforeProviderCapacityWait = null;
             lock (_priorityLock)
             {
                 _foregroundWaiters = 0;
             }
             Interlocked.Exchange(ref _backgroundContactActive, 0);
+            lock (_providerStateLock)
+            {
+                foreach (var state in _providerStates.Values)
+                {
+                    state.Dispose();
+                }
+                _providerStates.Clear();
+                _providerReplenisherStarts = 0;
+                _providerAdmissionClosed = false;
+            }
             StopReplenisher();
             while (_tokens.CurrentCount > 0)
             {
@@ -182,7 +342,7 @@ public partial class TileCacheService
             }
         }
 
-        /// <summary>Drains capacity and prevents replenishment for an isolated rejection test.</summary>
+        /// <summary>Drains legacy capacity and rejects provider acquisition for an isolated test.</summary>
         internal static void DrainForTesting()
         {
             StopReplenisher();
@@ -192,12 +352,24 @@ public partial class TileCacheService
             }
 
             _replenisherCts.Cancel();
+            _acquireOverride = _ => Task.FromResult(
+                new OutboundBudgetAcquisition(Acquired: false, WaitDuration: AcquireTimeout));
         }
 
         /// <summary>Overrides acquisition without changing any production budget constant.</summary>
         internal static void SetAcquireOverrideForTesting(
             Func<CancellationToken, Task<OutboundBudgetAcquisition>>? acquireOverride) =>
             _acquireOverride = acquireOverride;
+
+        /// <summary>Gates acquisition immediately before the provider-state synchronization boundary.</summary>
+        internal static void SetBeforeProviderStateLockForTesting(
+            Func<string, CancellationToken, Task>? beforeProviderStateLock) =>
+            _beforeProviderStateLock = beforeProviderStateLock;
+
+        /// <summary>Gates a referenced state before capacity waits in focused ownership tests.</summary>
+        internal static void SetBeforeProviderCapacityWaitForTesting(
+            Func<string, CancellationToken, Task>? beforeCapacityWait) =>
+            _beforeProviderCapacityWait = beforeCapacityWait;
 
         /// <summary>Releases one controlled token for deterministic priority tests.</summary>
         internal static void ReleaseOneForTesting()
@@ -221,6 +393,145 @@ public partial class TileCacheService
                     Interlocked.Exchange(ref _backgroundContactActive, 0);
                 }
             }
+        }
+
+        /// <summary>Gets the retained provider-state count for focused invariant tests.</summary>
+        internal static int ProviderStateCountForTesting
+        {
+            get
+            {
+                lock (_providerStateLock)
+                {
+                    return _providerStates.Count;
+                }
+            }
+        }
+
+        /// <summary>Gets provider replenisher starts since the last isolated test reset.</summary>
+        internal static int ProviderReplenisherStartCountForTesting =>
+            Volatile.Read(ref _providerReplenisherStarts);
+
+        /// <summary>Returns provider-contact ownership with its acquisition wait evidence.</summary>
+        internal readonly record struct ProviderContactAcquisition(
+            ProviderContactLease? Lease,
+            TimeSpan WaitDuration);
+
+        /// <summary>Releases one application-level provider concurrency slot.</summary>
+        internal sealed class ProviderContactLease : IDisposable
+        {
+            private ProviderBudgetState? _state;
+            internal static ProviderContactLease Controlled => new(null);
+            internal ProviderContactLease(ProviderBudgetState? state) => _state = state;
+            public void Dispose()
+            {
+                var state = Interlocked.Exchange(ref _state, null);
+                if (state == null)
+                {
+                    return;
+                }
+
+                state.ReleaseConcurrency();
+                ReleaseProviderStateReference(state);
+            }
+        }
+
+        /// <summary>Owns rate and concurrency state for one immutable profile version.</summary>
+        internal sealed class ProviderBudgetState : IDisposable
+        {
+            private readonly SemaphoreSlim _tokens;
+            private readonly SemaphoreSlim _concurrency;
+            private readonly CancellationTokenSource _stop = new();
+            private readonly Task _replenisher;
+            private int _activeContacts;
+            private int _references;
+            private readonly string _stateKey;
+
+            internal ProviderBudgetState(string stateKey, TileProviderPolicy profile)
+            {
+                _stateKey = stateKey;
+                _tokens = new SemaphoreSlim(profile.BurstCapacity, profile.BurstCapacity);
+                _concurrency = new SemaphoreSlim(profile.MaxConcurrency, profile.MaxConcurrency);
+                var interval = TimeSpan.FromSeconds(1d / profile.SustainedRequestsPerSecond);
+                Interlocked.Increment(ref _providerReplenisherStarts);
+                _replenisher = Task.Run(() => ReplenishAsync(interval, profile.BurstCapacity));
+            }
+
+            internal DateTime LastUsedUtc { get; private set; } = DateTime.UtcNow;
+            internal bool IsRetirable =>
+                Volatile.Read(ref _references) == 0 &&
+                Volatile.Read(ref _activeContacts) == 0 &&
+                _providerStates.TryGetValue(_stateKey, out var current) &&
+                ReferenceEquals(current, this);
+            internal void Touch() => LastUsedUtc = DateTime.UtcNow;
+            internal void AddReference()
+            {
+                _references++;
+                Touch();
+            }
+
+            internal void ReleaseReference()
+            {
+                _references--;
+                Touch();
+            }
+
+            internal async Task<bool> AcquireRateAsync(
+                TileWorkPriority priority,
+                CancellationToken cancellationToken)
+            {
+                if (priority == TileWorkPriority.Background)
+                {
+                    return !TileWorkScheduler.HasQueuedForeground && _tokens.Wait(0);
+                }
+
+                return await _tokens.WaitAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
+            }
+
+            internal async Task<bool> AcquireConcurrencyAsync(
+                TileWorkPriority priority,
+                CancellationToken cancellationToken)
+            {
+                var acquired = priority == TileWorkPriority.Background
+                    ? _concurrency.Wait(0)
+                    : await _concurrency.WaitAsync(AcquireTimeout, cancellationToken).ConfigureAwait(false);
+                if (acquired)
+                {
+                    Interlocked.Increment(ref _activeContacts);
+                }
+                return acquired;
+            }
+
+            internal void ReleaseConcurrency()
+            {
+                Interlocked.Decrement(ref _activeContacts);
+                _concurrency.Release();
+                Touch();
+            }
+
+            private async Task ReplenishAsync(TimeSpan interval, int capacity)
+            {
+                using var timer = new PeriodicTimer(interval);
+                try
+                {
+                    while (await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))
+                    {
+                        if (_tokens.CurrentCount < capacity)
+                        {
+                            try { _tokens.Release(); } catch (SemaphoreFullException) { }
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+            }
+
+            public void Dispose()
+            {
+                Stop();
+                _replenisher.GetAwaiter().GetResult();
+                _stop.Dispose();
+            }
+
+            internal void Stop() => _stop.Cancel();
         }
     }
 }

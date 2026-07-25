@@ -67,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const tileProviderAttribution = document.getElementById('TileProviderAttribution');
     const tileProviderApiKeyRow = document.getElementById('tileProviderApiKeyRow');
     const tileProviderApiKey = document.getElementById('TileProviderApiKey');
+    const tileProviderAdvancedRow = document.getElementById('tileProviderAdvancedRow');
+    const tileProviderAdvancedToggle = document.getElementById('TileProviderAdvancedLimitsEnabled');
+    const tileProviderAdvancedFields = document.getElementById('tileProviderAdvancedFields');
 
     if (tileProviderKey && tileProviderTemplate && tileProviderAttribution && tileProviderApiKeyRow && tileProviderApiKey) {
         const customKey = tileProviderKey.dataset.customKey || 'custom';
@@ -88,6 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const presetTemplate = selectedOption?.dataset.template || '';
             const presetAttribution = selectedOption?.dataset.attribution || '';
             const presetRequiresKey = selectedOption?.dataset.requiresKey === 'true';
+            tileProviderAdvancedRow?.classList.toggle('d-none', !isCustom);
+            tileProviderAdvancedFields?.classList.toggle(
+                'd-none',
+                !isCustom || !tileProviderAdvancedToggle?.checked);
 
             if (isCustom) {
                 tileProviderTemplate.readOnly = false;
@@ -108,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         tileProviderKey.addEventListener('change', applyTileProviderSelection);
+        tileProviderAdvancedToggle?.addEventListener('change', applyTileProviderSelection);
         tileProviderTemplate.addEventListener('input', () => {
             if (tileProviderKey.value === customKey) {
                 customState.template = tileProviderTemplate.value;
