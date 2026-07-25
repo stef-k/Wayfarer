@@ -92,6 +92,7 @@ public sealed class TileCacheCancellationAndPrivacyTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.RetrieveTileAsync(
                 "5", "18", "21", CanonicalTileUrl(5, 18, 21), cancellation.Token));
+        await TileWorkScheduler.StopAndDrainAsync();
 
         AssertCancellation(harness.Logs, "global-budget-wait");
         AssertNoUpstreamFailure(harness.Logs);
