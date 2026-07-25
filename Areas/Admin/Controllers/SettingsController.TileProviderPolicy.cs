@@ -40,6 +40,10 @@ public partial class SettingsController
                 ApplicationSettings.DefaultTileOutboundBudgetPerIpPerMinute;
             settings.TileOutboundBudgetHistorical30Acknowledged = false;
             await _dbContext.SaveChangesAsync();
+            LogAudit(
+                "TileOutboundBudgetRecommendedApplied",
+                "TileOutboundBudgetPerIpPerMinute",
+                "30 -> 80");
             _settingsService.RefreshSettings();
         }
         return RedirectToAction(nameof(Index));
@@ -51,10 +55,16 @@ public partial class SettingsController
     public async Task<IActionResult> AcknowledgeHistoricalTileOutboundBudget()
     {
         var settings = await _dbContext.ApplicationSettings.FindAsync(1);
-        if (settings != null && settings.TileOutboundBudgetPerIpPerMinute == 30)
+        if (settings != null &&
+            settings.TileOutboundBudgetPerIpPerMinute == 30 &&
+            !settings.TileOutboundBudgetHistorical30Acknowledged)
         {
             settings.TileOutboundBudgetHistorical30Acknowledged = true;
             await _dbContext.SaveChangesAsync();
+            LogAudit(
+                "TileOutboundBudgetHistorical30Acknowledged",
+                "TileOutboundBudgetHistorical30Acknowledged",
+                "False -> True");
             _settingsService.RefreshSettings();
         }
         return RedirectToAction(nameof(Index));
