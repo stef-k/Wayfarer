@@ -170,6 +170,8 @@ public sealed class TileCachePhase3Tests
     public async Task ForegroundBudgetWaiter_PrecedesBackgroundRefresh()
     {
         TileCacheService.OutboundBudget.DrainForTesting();
+        // This legacy priority test exercises the token semaphore, not provider-contact rejection.
+        TileCacheService.OutboundBudget.SetAcquireOverrideForTesting(null);
         try
         {
             var foreground = TileCacheService.OutboundBudget.AcquireDetailedAsync(

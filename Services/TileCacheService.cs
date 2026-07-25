@@ -422,10 +422,10 @@ public partial class TileCacheService
             }
 
             // Every actual provider contact, including redirects and retries, consumes global capacity.
-            OutboundBudget.ProviderContactLease? providerContact;
+            OutboundBudget.ProviderContactAcquisition providerAcquisition;
             try
             {
-                providerContact = await OutboundBudget
+                providerAcquisition = await OutboundBudget
                     .AcquireProviderContactAsync(providerPolicy, priority, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -439,16 +439,18 @@ public partial class TileCacheService
                 throw;
             }
 
+            var providerContact = providerAcquisition.Lease;
+            var providerWaitMilliseconds = providerAcquisition.WaitDuration.TotalMilliseconds;
             TileCacheDiagnostics.BudgetWait(
                 _logger,
                 providerContact != null ? "acquired" : "rejected",
-                0);
+                providerWaitMilliseconds);
             if (providerContact == null)
             {
                 TileCacheDiagnostics.GlobalBudgetRejected(
                     _logger,
                     "global",
-                    0);
+                    providerWaitMilliseconds);
                 _logger.LogWarning("Global outbound tile budget exhausted; upstream request rejected.");
                 return TileRequestSendResult.Rejected(TileRequestRejection.GlobalBudget);
             }

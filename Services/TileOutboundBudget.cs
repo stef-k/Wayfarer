@@ -119,9 +119,9 @@ public partial class TileCacheService
 
         /// <summary>
         /// Acquires one profile rate token and one authoritative application concurrency slot.
-        /// The returned lease releases concurrency only; consumed rate tokens replenish over time.
+        /// The result reports acquisition wait evidence; its lease releases concurrency only.
         /// </summary>
-        internal static async Task<ProviderContactLease?> AcquireProviderContactAsync(
+        internal static async Task<ProviderContactAcquisition> AcquireProviderContactAsync(
             TileProviderPolicy profile,
             TileWorkPriority priority,
             CancellationToken cancellationToken)
@@ -130,9 +130,12 @@ public partial class TileCacheService
             if (acquireOverride != null)
             {
                 var controlled = await acquireOverride(cancellationToken).ConfigureAwait(false);
-                return controlled.Acquired ? ProviderContactLease.Controlled : null;
+                return new ProviderContactAcquisition(
+                    controlled.Acquired ? ProviderContactLease.Controlled : null,
+                    controlled.WaitDuration);
             }
 
+            var stopwatch = Stopwatch.StartNew();
             var stateKey = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"{profile.Identity}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
@@ -145,7 +148,8 @@ public partial class TileCacheService
             var state = AcquireProviderStateReference(stateKey, profile);
             if (state == null)
             {
-                return null;
+                stopwatch.Stop();
+                return new ProviderContactAcquisition(null, stopwatch.Elapsed);
             }
 
             var ownershipTransferred = false;
@@ -160,11 +164,13 @@ public partial class TileCacheService
                 if (!await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false) ||
                     !await state.AcquireConcurrencyAsync(priority, cancellationToken).ConfigureAwait(false))
                 {
-                    return null;
+                    stopwatch.Stop();
+                    return new ProviderContactAcquisition(null, stopwatch.Elapsed);
                 }
 
                 ownershipTransferred = true;
-                return new ProviderContactLease(state);
+                stopwatch.Stop();
+                return new ProviderContactAcquisition(new ProviderContactLease(state), stopwatch.Elapsed);
             }
             finally
             {
@@ -336,7 +342,7 @@ public partial class TileCacheService
             }
         }
 
-        /// <summary>Drains capacity and prevents replenishment for an isolated rejection test.</summary>
+        /// <summary>Drains legacy capacity and rejects provider acquisition for an isolated test.</summary>
         internal static void DrainForTesting()
         {
             StopReplenisher();
@@ -346,6 +352,8 @@ public partial class TileCacheService
             }
 
             _replenisherCts.Cancel();
+            _acquireOverride = _ => Task.FromResult(
+                new OutboundBudgetAcquisition(Acquired: false, WaitDuration: AcquireTimeout));
         }
 
         /// <summary>Overrides acquisition without changing any production budget constant.</summary>
@@ -402,6 +410,11 @@ public partial class TileCacheService
         /// <summary>Gets provider replenisher starts since the last isolated test reset.</summary>
         internal static int ProviderReplenisherStartCountForTesting =>
             Volatile.Read(ref _providerReplenisherStarts);
+
+        /// <summary>Returns provider-contact ownership with its acquisition wait evidence.</summary>
+        internal readonly record struct ProviderContactAcquisition(
+            ProviderContactLease? Lease,
+            TimeSpan WaitDuration);
 
         /// <summary>Releases one application-level provider concurrency slot.</summary>
         internal sealed class ProviderContactLease : IDisposable

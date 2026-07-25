@@ -162,6 +162,10 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
         Assert.Equal(
             TileWorkScheduler.ForegroundQueueWait.TotalMilliseconds,
             Convert.ToDouble(diagnostic.Fields["WaitMilliseconds"]));
+        var waitDiagnostic = AssertDiagnostic(harness.Logs, TileCacheDiagnosticEventIds.BudgetWait);
+        Assert.Equal(
+            TileWorkScheduler.ForegroundQueueWait.TotalMilliseconds,
+            Convert.ToDouble(waitDiagnostic.Fields["WaitMilliseconds"]));
         Assert.Empty(harness.Upstream.Requests);
     }
 

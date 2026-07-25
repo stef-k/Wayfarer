@@ -191,8 +191,8 @@ public sealed class TileProviderStateAdmissionTests
         try
         {
             retainedLease = Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
-                await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
-                    Profile(0), TileWorkPriority.Foreground, CancellationToken.None));
+                (await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    Profile(0), TileWorkPriority.Foreground, CancellationToken.None)).Lease);
             var retainedCount = TileCacheService.OutboundBudget.ProviderStateCountForTesting;
             var replenisherStarts = TileCacheService.OutboundBudget.ProviderReplenisherStartCountForTesting;
             var pausedAcquisition = TileCacheService.OutboundBudget.AcquireProviderContactAsync(
@@ -203,7 +203,7 @@ public sealed class TileProviderStateAdmissionTests
             TileCacheService.OutboundBudget.Stop();
             release.TrySetResult();
 
-            Assert.Null(await pausedAcquisition);
+            Assert.Null((await pausedAcquisition).Lease);
             Assert.Equal(retainedCount, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
             Assert.Equal(
                 replenisherStarts,
@@ -213,8 +213,8 @@ public sealed class TileProviderStateAdmissionTests
             retainedLease = null;
             TileCacheService.OutboundBudget.ResetForTesting();
             recoveredLease = Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
-                await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
-                    Profile(2), TileWorkPriority.Foreground, CancellationToken.None));
+                (await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    Profile(2), TileWorkPriority.Foreground, CancellationToken.None)).Lease);
         }
         finally
         {
@@ -253,17 +253,17 @@ public sealed class TileProviderStateAdmissionTests
             for (var index = 1; index < 32; index++)
             {
                 leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
-                    await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
-                        Profile(index), TileWorkPriority.Foreground, CancellationToken.None)));
+                    (await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                        Profile(index), TileWorkPriority.Foreground, CancellationToken.None)).Lease));
             }
 
-            Assert.Null(await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
-                Profile(32), TileWorkPriority.Foreground, CancellationToken.None));
+            Assert.Null((await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                Profile(32), TileWorkPriority.Foreground, CancellationToken.None)).Lease);
             Assert.Equal(32, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
 
             release.TrySetResult();
             leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(
-                await waiting));
+                (await waiting).Lease));
             Assert.Equal(32, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
         }
         finally
@@ -289,20 +289,20 @@ public sealed class TileProviderStateAdmissionTests
             {
                 var lease = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
                     Profile(index), TileWorkPriority.Foreground, CancellationToken.None);
-                leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(lease));
+                leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(lease.Lease));
             }
 
             var rejected = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
                 Profile(32), TileWorkPriority.Foreground, CancellationToken.None);
 
-            Assert.Null(rejected);
+            Assert.Null(rejected.Lease);
             Assert.Equal(32, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
 
             leases[0].Dispose();
             leases.RemoveAt(0);
             var admitted = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
                 Profile(33), TileWorkPriority.Foreground, CancellationToken.None);
-            leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(admitted));
+            leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(admitted.Lease));
             Assert.True(TileCacheService.OutboundBudget.ProviderStateCountForTesting <= 32);
         }
         finally
