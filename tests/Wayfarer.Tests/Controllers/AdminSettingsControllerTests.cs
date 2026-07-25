@@ -165,6 +165,49 @@ public class AdminSettingsControllerTests : TestBase
         settingsMock.Verify(service => service.RefreshSettings(), Times.Exactly(2));
     }
 
+    /// <summary>Applying the recommendation records only its single budget transition.</summary>
+    [Fact]
+    public async Task UseRecommendedTileOutboundBudget_RecordsOneFocusedAuditTransition()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            TileOutboundBudgetPerIpPerMinute = 30
+        });
+        await db.SaveChangesAsync();
+        var (controller, _, _) = BuildController(db);
+
+        await controller.UseRecommendedTileOutboundBudget();
+
+        var audit = Assert.Single(db.AuditLogs);
+        Assert.Equal("TileOutboundBudgetRecommendedApplied", audit.Action);
+        Assert.Equal("admin", audit.UserId);
+        Assert.Contains("TileOutboundBudgetPerIpPerMinute: 30 -> 80", audit.Details);
+    }
+
+    /// <summary>Acknowledging the historical value records only its single acknowledgement transition.</summary>
+    [Fact]
+    public async Task AcknowledgeHistoricalTileOutboundBudget_RecordsOneFocusedAuditTransition()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings
+        {
+            Id = 1,
+            TileOutboundBudgetPerIpPerMinute = 30,
+            TileOutboundBudgetHistorical30Acknowledged = false
+        });
+        await db.SaveChangesAsync();
+        var (controller, _, _) = BuildController(db);
+
+        await controller.AcknowledgeHistoricalTileOutboundBudget();
+
+        var audit = Assert.Single(db.AuditLogs);
+        Assert.Equal("TileOutboundBudgetHistorical30Acknowledged", audit.Action);
+        Assert.Equal("admin", audit.UserId);
+        Assert.Contains("TileOutboundBudgetHistorical30Acknowledged: False -> True", audit.Details);
+    }
+
     [Fact]
     public async Task Update_RejectsInvalidCustomProviderCrossFieldLimits()
     {

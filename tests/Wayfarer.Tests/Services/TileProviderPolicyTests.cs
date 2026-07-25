@@ -10,6 +10,45 @@ namespace Wayfarer.Tests.Services;
 /// </summary>
 public sealed class TileProviderPolicyTests
 {
+    /// <summary>Supplies persisted scalar and relationship violations that runtime resolution must contain.</summary>
+    public static TheoryData<Action<ApplicationSettings>> InvalidPersistedProfiles => new()
+    {
+        settings => settings.TileProviderSustainedRequestsPerSecond = 0,
+        settings => settings.TileProviderSustainedRequestsPerSecond = 21,
+        settings => settings.TileProviderBurstCapacity = 0,
+        settings => settings.TileProviderBurstCapacity = 51,
+        settings => settings.TileProviderMaxConcurrency = 0,
+        settings => settings.TileProviderMaxConcurrency = 17,
+        settings => settings.TileProviderMaxAttempts = 0,
+        settings => settings.TileProviderMaxAttempts = 4,
+        settings => settings.TileProviderFallbackBaseDelayMs = 249,
+        settings => settings.TileProviderFallbackBaseDelayMs = 5001,
+        settings => settings.TileProviderFallbackDelayCapSeconds = 0,
+        settings => settings.TileProviderFallbackDelayCapSeconds = 31,
+        settings => settings.TileProviderMaxIndividualWaitSeconds = 0,
+        settings => settings.TileProviderMaxIndividualWaitSeconds = 121,
+        settings => settings.TileProviderTotalRetryCeilingSeconds = 4,
+        settings => settings.TileProviderTotalRetryCeilingSeconds = 181,
+        settings => settings.TileProviderBurstCapacity = 5,
+        settings => settings.TileProviderFallbackDelayCapSeconds = 0,
+        settings => settings.TileProviderTotalRetryCeilingSeconds = 29
+    };
+
+    /// <summary>Invalid persisted values fail safely to the approved custom defaults.</summary>
+    [Theory]
+    [MemberData(nameof(InvalidPersistedProfiles))]
+    public void Resolve_InvalidPersistedCustomProfile_ReturnsSafeDefaults(
+        Action<ApplicationSettings> invalidate)
+    {
+        var settings = ValidCustomSettings();
+        invalidate(settings);
+
+        var profile = TileProviderPolicyResolver.Resolve(settings);
+
+        Assert.Equal("custom:default", profile.Identity);
+        AssertApprovedDefaults(profile);
+    }
+
     /// <summary>
     /// Ensures every built-in preset has its own immutable identity and approved defaults.
     /// </summary>
@@ -107,4 +146,67 @@ public sealed class TileProviderPolicyTests
         Assert.Equal(TimeSpan.FromSeconds(45), profile.TotalRetryCeiling);
         Assert.False(profile.PrefetchEnabled);
     }
+
+    private static ApplicationSettings ValidCustomSettings() => new()
+    {
+        TileProviderKey = TileProviderCatalog.CustomProviderKey,
+        TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png",
+        TileProviderAdvancedLimitsEnabled = true,
+        TileProviderSustainedRequestsPerSecond = 6,
+        TileProviderBurstCapacity = 20,
+        TileProviderMaxConcurrency = 6,
+        TileProviderMaxAttempts = 3,
+        TileProviderFallbackBaseDelayMs = 500,
+        TileProviderFallbackDelayCapSeconds = 4,
+        TileProviderMaxIndividualWaitSeconds = 30,
+        TileProviderTotalRetryCeilingSeconds = 45
+    };
+}
+
+/// <summary>Proves the provider-state table enforces its hard admission boundary.</summary>
+[Collection("OutboundBudget")]
+public sealed class TileProviderStateAdmissionTests
+{
+    /// <summary>A referenced table at capacity rejects a distinct state until one owner releases.</summary>
+    [Fact]
+    public async Task AcquireProviderContactAsync_AtThirtyTwoReferencedStates_RejectsThenRecovers()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+        var leases = new List<TileCacheService.OutboundBudget.ProviderContactLease>();
+        try
+        {
+            for (var index = 0; index < 32; index++)
+            {
+                var lease = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    Profile(index), TileWorkPriority.Foreground, CancellationToken.None);
+                leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(lease));
+            }
+
+            var rejected = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                Profile(32), TileWorkPriority.Foreground, CancellationToken.None);
+
+            Assert.Null(rejected);
+            Assert.Equal(32, TileCacheService.OutboundBudget.ProviderStateCountForTesting);
+
+            leases[0].Dispose();
+            leases.RemoveAt(0);
+            var admitted = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                Profile(33), TileWorkPriority.Foreground, CancellationToken.None);
+            leases.Add(Assert.IsType<TileCacheService.OutboundBudget.ProviderContactLease>(admitted));
+            Assert.True(TileCacheService.OutboundBudget.ProviderStateCountForTesting <= 32);
+        }
+        finally
+        {
+            foreach (var lease in leases)
+            {
+                lease.Dispose();
+            }
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
+    }
+
+    private static TileProviderPolicy Profile(int index) => new(
+        $"custom:test-{index}", 20, 50, 16, 3,
+        TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), false);
 }
