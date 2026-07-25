@@ -40,6 +40,7 @@ public partial class TileCacheService
         private static int _backgroundContactActive;
         private static readonly ConcurrentDictionary<string, ProviderBudgetState> _providerStates = new();
         private static readonly object _providerStateLock = new();
+        private static bool _providerAdmissionClosed;
         private const int MaximumRetainedProviderStates = 32;
         private static Func<string, CancellationToken, Task>? _beforeProviderStateLock;
         private static Func<string, CancellationToken, Task>? _beforeProviderCapacityWait;
@@ -181,6 +182,11 @@ public partial class TileCacheService
         {
             lock (_providerStateLock)
             {
+                if (_providerAdmissionClosed)
+                {
+                    return null;
+                }
+
                 if (_providerStates.TryGetValue(stateKey, out var existing))
                 {
                     existing.AddReference();
@@ -285,6 +291,7 @@ public partial class TileCacheService
             _replenisherCts.Cancel();
             lock (_providerStateLock)
             {
+                _providerAdmissionClosed = true;
                 foreach (var state in _providerStates.Values)
                 {
                     state.Stop();
@@ -311,6 +318,7 @@ public partial class TileCacheService
                 }
                 _providerStates.Clear();
                 _providerReplenisherStarts = 0;
+                _providerAdmissionClosed = false;
             }
             StopReplenisher();
             while (_tokens.CurrentCount > 0)
@@ -506,6 +514,7 @@ public partial class TileCacheService
             public void Dispose()
             {
                 Stop();
+                _replenisher.GetAwaiter().GetResult();
                 _stop.Dispose();
             }
 
