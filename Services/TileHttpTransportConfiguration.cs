@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace Wayfarer.Services;
 
 /// <summary>Applies Wayfarer's tile-specific HTTP version and transport safety settings.</summary>

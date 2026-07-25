@@ -1,3 +1,4 @@
+using System.Net;
 using Wayfarer.Services;
 using Wayfarer.Util;
 using Xunit;

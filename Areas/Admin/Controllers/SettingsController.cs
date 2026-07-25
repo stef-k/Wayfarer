@@ -11,7 +11,7 @@ namespace Wayfarer.Areas.Admin.Controllers
 {
     [Authorize(Roles = "Admin")]
     [Area("Admin")]
-    public class SettingsController : BaseController
+    public partial class SettingsController : BaseController
     {
         /// <summary>
         /// SSE channel name for broadcasting tile cache purge progress to admin clients.
@@ -518,59 +518,6 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 updatedSettings.TileProviderApiKey = null;
             }
-        }
-
-        /// <summary>Applies authoritative custom-provider cross-field validation.</summary>
-        private void ValidateTileProviderPolicy(ApplicationSettings settings)
-        {
-            if (!string.Equals(settings.TileProviderKey, TileProviderCatalog.CustomProviderKey,
-                    StringComparison.OrdinalIgnoreCase) ||
-                !settings.TileProviderAdvancedLimitsEnabled)
-            {
-                return;
-            }
-
-            try
-            {
-                TileProviderPolicyResolver.ValidateCustom(settings);
-            }
-            catch (ArgumentException exception)
-            {
-                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAdvancedLimitsEnabled),
-                    exception.Message);
-            }
-        }
-
-        /// <summary>Explicitly applies the current recommended outbound per-client value only.</summary>
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UseRecommendedTileOutboundBudget()
-        {
-            var settings = await _dbContext.ApplicationSettings.FindAsync(1);
-            if (settings != null && settings.TileOutboundBudgetPerIpPerMinute == 30)
-            {
-                settings.TileOutboundBudgetPerIpPerMinute =
-                    ApplicationSettings.DefaultTileOutboundBudgetPerIpPerMinute;
-                settings.TileOutboundBudgetHistorical30Acknowledged = false;
-                await _dbContext.SaveChangesAsync();
-                _settingsService.RefreshSettings();
-            }
-            return RedirectToAction(nameof(Index));
-        }
-
-        /// <summary>Explicitly retains 30 and persists acknowledgement of the historical notice.</summary>
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> AcknowledgeHistoricalTileOutboundBudget()
-        {
-            var settings = await _dbContext.ApplicationSettings.FindAsync(1);
-            if (settings != null && settings.TileOutboundBudgetPerIpPerMinute == 30)
-            {
-                settings.TileOutboundBudgetHistorical30Acknowledged = true;
-                await _dbContext.SaveChangesAsync();
-                _settingsService.RefreshSettings();
-            }
-            return RedirectToAction(nameof(Index));
         }
 
         /// <summary>
