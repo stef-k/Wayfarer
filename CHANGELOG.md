@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.7.0] - 2026-07-25
+
+### Changed
+- TODO: Add release notes before publishing.
+
 ## [1.6.0] - 2026-07-22
 
 ### Added
