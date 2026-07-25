@@ -67,6 +67,16 @@ public static class TileProviderCatalog
     }
 
     /// <summary>
+    /// Detects OSM Standard from its canonical endpoint rather than an editable provider label.
+    /// </summary>
+    public static bool IsCanonicalOsmTemplate(string? template) =>
+        !string.IsNullOrWhiteSpace(template) &&
+        string.Equals(
+            NormalizeTemplate(template),
+            NormalizeTemplate(ApplicationSettings.DefaultTileProviderUrlTemplate),
+            StringComparison.Ordinal);
+
+    /// <summary>
     /// Validates a tile URL template and ensures it points to a HTTPS PNG tile endpoint.
     /// </summary>
     public static bool TryValidateTemplate(string template, out string error)

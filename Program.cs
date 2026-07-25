@@ -554,6 +554,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
         {
             var config = sp.GetRequiredService<IConfiguration>();
             client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
 
             // OSM requires an honest User-Agent identifying the application.
             // See: https://operations.osmfoundation.org/policies/tiles/
@@ -578,10 +580,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
         .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
-            // OSM tile usage policy: "maximum of 2 download threads".
-            // Enforced at the transport layer so the token-bucket OutboundBudget
-            // can use a higher burst capacity without violating the connection limit.
-            MaxConnectionsPerServer = 2
+            // Wayfarer transport safety ceiling only. Provider-profile application
+            // concurrency remains authoritative, including for HTTP/2 multiplexing.
+            MaxConnectionsPerServer = 16
         });
 
     // Location service, handles location results per zoom and bounds levels

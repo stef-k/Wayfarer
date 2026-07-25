@@ -107,6 +107,20 @@ internal static class TileProviderRetryPolicy
             FallbackDelayCap.TotalMilliseconds));
     }
 
+    /// <summary>Calculates fallback delay from one immutable provider-policy snapshot.</summary>
+    internal static TimeSpan GetFallbackDelay(int failedAttempts, TileProviderPolicy policy)
+    {
+        var exponent = Math.Max(0, failedAttempts - 1);
+        var unjitteredMilliseconds = Math.Min(
+            policy.FallbackBaseDelay.TotalMilliseconds * Math.Pow(2, exponent),
+            policy.FallbackDelayCap.TotalMilliseconds);
+        var jitterSample = Math.Clamp(_jitter(failedAttempts), -1d, 1d);
+        return TimeSpan.FromMilliseconds(Math.Clamp(
+            unjitteredMilliseconds * (1d + (jitterSample * 0.2d)),
+            1d,
+            policy.FallbackDelayCap.TotalMilliseconds));
+    }
+
     /// <summary>Converts a remaining delay to bounded whole-second local retry guidance.</summary>
     internal static int GetBoundedRetryAfterSeconds(TimeSpan remainingDelay)
     {

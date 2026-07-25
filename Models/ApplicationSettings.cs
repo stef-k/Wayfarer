@@ -17,6 +17,9 @@ public class ApplicationSettings
     public const int DefaultTileRateLimitPerMinute = 600;
     public const int DefaultTileRateLimitAuthenticatedPerMinute = 2000;
     public const int DefaultTileOutboundBudgetPerIpPerMinute = 80;
+    public const int DefaultTileProviderSustainedRequestsPerSecond = 6;
+    public const int DefaultTileProviderBurstCapacity = 20;
+    public const int DefaultTileProviderMaxConcurrency = 6;
     public const int DefaultTileMetadataHotCacheSizeMB = 64;
     public const int DefaultProxyImageRateLimitPerMinute = 200;
     public const int DefaultMaxProxyImageDownloadMB = 50;
@@ -79,6 +82,44 @@ public class ApplicationSettings
     /// </summary>
     [MaxLength(200)]
     public string? TileProviderApiKey { get; set; }
+
+    /// <summary>Whether bounded custom-provider transport limits are administrator-managed.</summary>
+    public bool TileProviderAdvancedLimitsEnabled { get; set; }
+
+    /// <summary>Custom-provider sustained upstream contacts per second.</summary>
+    [Range(1, 20)]
+    public int TileProviderSustainedRequestsPerSecond { get; set; } = DefaultTileProviderSustainedRequestsPerSecond;
+
+    /// <summary>Custom-provider token-bucket burst capacity.</summary>
+    [Range(1, 50)]
+    public int TileProviderBurstCapacity { get; set; } = DefaultTileProviderBurstCapacity;
+
+    /// <summary>Custom-provider maximum simultaneous upstream contacts.</summary>
+    [Range(1, 16)]
+    public int TileProviderMaxConcurrency { get; set; } = DefaultTileProviderMaxConcurrency;
+
+    /// <summary>Custom-provider total contact ceiling, including the first attempt.</summary>
+    [Range(1, 3)]
+    public int TileProviderMaxAttempts { get; set; } = 3;
+
+    /// <summary>Custom-provider fallback retry base delay in milliseconds.</summary>
+    [Range(250, 5000)]
+    public int TileProviderFallbackBaseDelayMs { get; set; } = 500;
+
+    /// <summary>Custom-provider fallback retry cap in seconds.</summary>
+    [Range(1, 30)]
+    public int TileProviderFallbackDelayCapSeconds { get; set; } = 4;
+
+    /// <summary>Custom-provider maximum individual interactive wait in seconds.</summary>
+    [Range(1, 120)]
+    public int TileProviderMaxIndividualWaitSeconds { get; set; } = 30;
+
+    /// <summary>Custom-provider total interactive retry ceiling in seconds.</summary>
+    [Range(5, 180)]
+    public int TileProviderTotalRetryCeilingSeconds { get; set; } = 45;
+
+    /// <summary>Whether the administrator has explicitly resolved the historical 30/minute notice.</summary>
+    public bool TileOutboundBudgetHistorical30Acknowledged { get; set; }
 
     /// <summary>
     /// Whether to rate limit tile requests to prevent abuse.

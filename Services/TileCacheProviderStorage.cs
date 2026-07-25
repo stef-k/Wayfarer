@@ -125,6 +125,7 @@ public partial class TileCacheService
         string y,
         string providerIdentity,
         string tileFilePath,
+        TileProviderPolicy providerPolicy,
         string? clientIp,
         string? publicOrigin,
         CancellationToken cancellationToken)
@@ -134,13 +135,13 @@ public partial class TileCacheService
         if (service != null)
         {
             return await service.RetrieveColdTileCoreAsync(
-                tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, publicOrigin,
+                tileUrl, zoom, x, y, providerIdentity, tileFilePath, providerPolicy, clientIp, publicOrigin,
                 cancellationToken);
         }
 
         // Isolated unit constructions may not provide a scope factory; production DI always does.
         return await RetrieveColdTileCoreAsync(
-            tileUrl, zoom, x, y, providerIdentity, tileFilePath, clientIp, publicOrigin,
+            tileUrl, zoom, x, y, providerIdentity, tileFilePath, providerPolicy, clientIp, publicOrigin,
             cancellationToken);
     }
 
@@ -152,6 +153,7 @@ public partial class TileCacheService
         string y,
         string providerIdentity,
         string tileFilePath,
+        TileProviderPolicy providerPolicy,
         string? clientIp,
         string? publicOrigin,
         CancellationToken cancellationToken)
@@ -170,7 +172,7 @@ public partial class TileCacheService
         }
 
         var fillResult = await CacheTileWithRetryAsync(
-            tileUrl, zoom, x, y, providerIdentity, tileFilePath,
+            tileUrl, zoom, x, y, providerIdentity, tileFilePath, providerPolicy,
             clientIp, allowHttpContext: false, publicOrigin, cancellationToken);
         try
         {

@@ -313,9 +313,11 @@ public partial class TileCacheService
         bool deferCancellationDiagnostic = false, DateTimeOffset? interactiveDeadline = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
         TileWorkPriority priority = TileWorkPriority.Foreground,
+        TileProviderPolicy? providerPolicy = null,
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
+        providerPolicy ??= TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings());
         // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
         // then record the hit only after the global budget is acquired. This prevents
         // budget-exhausted requests from inflating the per-IP counter, which previously
@@ -420,11 +422,11 @@ public partial class TileCacheService
             }
 
             // Every actual provider contact, including redirects and retries, consumes global capacity.
-            OutboundBudgetAcquisition acquisition;
+            OutboundBudget.ProviderContactLease? providerContact;
             try
             {
-                acquisition = await OutboundBudget
-                    .AcquireDetailedAsync(cancellationToken, priority)
+                providerContact = await OutboundBudget
+                    .AcquireProviderContactAsync(providerPolicy, priority, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (callerCancellationToken.IsCancellationRequested)
@@ -439,14 +441,14 @@ public partial class TileCacheService
 
             TileCacheDiagnostics.BudgetWait(
                 _logger,
-                acquisition.Acquired ? "acquired" : "rejected",
-                acquisition.WaitDuration.TotalMilliseconds);
-            if (!acquisition.Acquired)
+                providerContact != null ? "acquired" : "rejected",
+                0);
+            if (providerContact == null)
             {
                 TileCacheDiagnostics.GlobalBudgetRejected(
                     _logger,
                     "global",
-                    acquisition.WaitDuration.TotalMilliseconds);
+                    0);
                 _logger.LogWarning("Global outbound tile budget exhausted; upstream request rejected.");
                 return TileRequestSendResult.Rejected(TileRequestRejection.GlobalBudget);
             }
@@ -506,6 +508,10 @@ public partial class TileCacheService
             {
                 TileCacheDiagnostics.UpstreamFailure(_logger, "transport");
                 throw;
+            }
+            finally
+            {
+                providerContact.Dispose();
             }
 
             TileCacheDiagnostics.UpstreamStatus(
@@ -567,6 +573,7 @@ public partial class TileCacheService
         string? publicOrigin = null,
         DateTimeOffset? interactiveDeadline = null,
         TileContactState? contactState = null,
+        TileProviderPolicy? providerPolicy = null,
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
@@ -575,6 +582,7 @@ public partial class TileCacheService
             publicOrigin: publicOrigin,
             interactiveDeadline: interactiveDeadline,
             contactState: contactState,
+            providerPolicy: providerPolicy,
             callerCancellationToken: callerCancellationToken,
             cancellationToken: cancellationToken);
     }
@@ -588,6 +596,7 @@ public partial class TileCacheService
         bool chargeClientAllowance = true, int attemptNumber = 1,
         string? publicOrigin = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
+        TileProviderPolicy? providerPolicy = null,
         CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
@@ -612,6 +621,7 @@ public partial class TileCacheService
             contactState: contactState,
             onClientAllowanceCharged: onClientAllowanceCharged,
             priority: TileWorkPriority.Background,
+            providerPolicy: providerPolicy,
             callerCancellationToken: cancellationToken,
             cancellationToken: cancellationToken);
     }
@@ -756,9 +766,11 @@ public partial class TileCacheService
     {
         var provider = GetActiveProviderIdentity();
         var tileFilePath = GetProviderTilePath(provider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
+        var providerPolicy = TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings());
         var result = await CacheTileWithRetryAsync(
             tileUrl, zoomLevel, xCoordinate, yCoordinate, provider.Fingerprint, tileFilePath,
-            clientIp: null, allowHttpContext: true, publicOrigin: null, cancellationToken);
+            providerPolicy, clientIp: null, allowHttpContext: true, publicOrigin: null,
+            cancellationToken: cancellationToken);
         return result.Status != TileCacheFillStatus.BudgetRejected;
     }
 
@@ -770,6 +782,7 @@ public partial class TileCacheService
         string yCoordinate,
         string providerIdentity,
         string tileFilePath,
+        TileProviderPolicy providerPolicy,
         string? clientIp,
         bool allowHttpContext,
         string? publicOrigin,
@@ -782,7 +795,7 @@ public partial class TileCacheService
             int x = int.Parse(xCoordinate);
             int y = int.Parse(yCoordinate);
             var download = await DownloadTileWithRetryAsync(
-                tileUrl, clientIp, allowHttpContext, publicOrigin, cancellationToken);
+                tileUrl, providerPolicy, clientIp, allowHttpContext, publicOrigin, cancellationToken);
             if (download.Status != TileCacheFillStatus.Cached)
             {
                 return new TileCacheFillResult(download.Status, download.RetryAfter);
@@ -1247,12 +1260,14 @@ public partial class TileCacheService
             _logger.LogDebug("Tile not in cache; starting controlled upstream fetch.");
             try
             {
+                var providerPolicy =
+                    TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings());
                 return await TileWorkScheduler.ExecuteForegroundAsync(
                     tileKey,
                     schedulerClientKey,
                     sharedCancellation => RetrieveColdTileInFreshScopeAsync(
                         tileUrl, zoomLevel, xCoordinate, yCoordinate,
-                        activeProvider.Fingerprint, scopedTilePath, clientIp, publicOrigin,
+                        activeProvider.Fingerprint, scopedTilePath, providerPolicy, clientIp, publicOrigin,
                         sharedCancellation),
                     cancellationToken);
             }
@@ -1297,6 +1312,7 @@ public partial class TileCacheService
             publicOrigin: series.PublicOrigin,
             contactState: series.ContactState,
             onClientAllowanceCharged: () => series.ClientAllowanceCharged = true,
+            providerPolicy: series.ProviderPolicy,
             cancellationToken: series.CancellationToken);
         if (sendResult.Response == null)
         {

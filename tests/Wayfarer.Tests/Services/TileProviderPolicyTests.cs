@@ -1,5 +1,6 @@
 using Wayfarer.Services;
 using Wayfarer.Util;
+using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
