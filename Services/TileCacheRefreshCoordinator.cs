@@ -85,7 +85,7 @@ public partial class TileCacheService
             series = new TileRefreshSeries(
                 tileKey, providerIdentity, tileUrl, tileFilePath,
                 zoom, x, y, etag, lastModified, clientIp, publicOrigin,
-                TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings()));
+                TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger));
             _refreshSeries[tileKey] = series;
             series.SetCompletion(Task.Run(
                 () => RunBackgroundRefreshSeriesAsync(series),
@@ -103,7 +103,7 @@ public partial class TileCacheService
         try
         {
             while (series.Attempts < series.ProviderPolicy.MaxAttempts &&
-                   DateTime.UtcNow - series.StartedAtUtc < series.ProviderPolicy.TotalRetryCeiling)
+                   TileProviderRetryPolicy.UtcNow < series.DeadlineUtc)
             {
                 series.Attempts++;
                 series.CancellationStage = "stale-refresh-attempt";
@@ -133,8 +133,7 @@ public partial class TileCacheService
                     break;
                 }
 
-                var remaining = series.ProviderPolicy.TotalRetryCeiling -
-                                (DateTime.UtcNow - series.StartedAtUtc);
+                var remaining = series.DeadlineUtc - TileProviderRetryPolicy.UtcNow;
                 if (remaining <= TimeSpan.Zero)
                 {
                     break;
@@ -362,7 +361,7 @@ public partial class TileCacheService
         public string? ClientIp { get; }
         public string? PublicOrigin { get; }
         public TileProviderPolicy ProviderPolicy { get; }
-        public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+        public DateTimeOffset DeadlineUtc { get; }
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         public int Attempts { get; set; }
 
@@ -396,6 +395,7 @@ public partial class TileCacheService
             ClientIp = clientIp;
             PublicOrigin = publicOrigin;
             ProviderPolicy = providerPolicy;
+            DeadlineUtc = TileProviderRetryPolicy.UtcNow + providerPolicy.TotalRetryCeiling;
         }
 
         public void CancelForTesting() => _cancellationTokenSource.Cancel();

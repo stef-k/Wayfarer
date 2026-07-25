@@ -317,7 +317,7 @@ public partial class TileCacheService
         CancellationToken callerCancellationToken = default,
         CancellationToken cancellationToken = default)
     {
-        providerPolicy ??= TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings());
+        providerPolicy ??= TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger);
         // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
         // then record the hit only after the global budget is acquired. This prevents
         // budget-exhausted requests from inflating the per-IP counter, which previously
@@ -371,7 +371,7 @@ public partial class TileCacheService
             var providerDelay = TileProviderRetryPolicy.GetRemainingProviderDelay(providerKey);
             if (providerDelay > TimeSpan.Zero)
             {
-                var allowedWait = TileProviderRetryPolicy.MaxIndividualWait;
+                var allowedWait = providerPolicy.MaxIndividualWait;
                 if (interactiveDeadline.HasValue)
                 {
                     var interactiveRemaining = interactiveDeadline.Value - TileProviderRetryPolicy.UtcNow;
@@ -597,6 +597,7 @@ public partial class TileCacheService
         string? publicOrigin = null,
         TileContactState? contactState = null, Action? onClientAllowanceCharged = null,
         TileProviderPolicy? providerPolicy = null,
+        DateTimeOffset? interactiveDeadline = null,
         CancellationToken cancellationToken = default)
     {
         return SendTileRequestCoreAsync(tileUrl, request =>
@@ -622,6 +623,7 @@ public partial class TileCacheService
             onClientAllowanceCharged: onClientAllowanceCharged,
             priority: TileWorkPriority.Background,
             providerPolicy: providerPolicy,
+            interactiveDeadline: interactiveDeadline,
             callerCancellationToken: cancellationToken,
             cancellationToken: cancellationToken);
     }
@@ -766,7 +768,7 @@ public partial class TileCacheService
     {
         var provider = GetActiveProviderIdentity();
         var tileFilePath = GetProviderTilePath(provider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
-        var providerPolicy = TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings());
+        var providerPolicy = TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger);
         var result = await CacheTileWithRetryAsync(
             tileUrl, zoomLevel, xCoordinate, yCoordinate, provider.Fingerprint, tileFilePath,
             providerPolicy, clientIp: null, allowHttpContext: true, publicOrigin: null,
@@ -1261,7 +1263,7 @@ public partial class TileCacheService
             try
             {
                 var providerPolicy =
-                    TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings());
+                    TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger);
                 return await TileWorkScheduler.ExecuteForegroundAsync(
                     tileKey,
                     schedulerClientKey,
@@ -1313,6 +1315,7 @@ public partial class TileCacheService
             contactState: series.ContactState,
             onClientAllowanceCharged: () => series.ClientAllowanceCharged = true,
             providerPolicy: series.ProviderPolicy,
+            interactiveDeadline: series.DeadlineUtc,
             cancellationToken: series.CancellationToken);
         if (sendResult.Response == null)
         {

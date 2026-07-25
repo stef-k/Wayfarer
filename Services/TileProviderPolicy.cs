@@ -1,4 +1,5 @@
 using Wayfarer.Util;
+using Microsoft.Extensions.Logging;
 
 namespace Wayfarer.Services;
 
@@ -26,7 +27,7 @@ internal static class TileProviderPolicyResolver
         6, 20, 6, 3, 500, 4, 30, 45);
 
     /// <summary>Resolves the active preset or bounded custom-provider policy.</summary>
-    internal static TileProviderPolicy Resolve(ApplicationSettings settings)
+    internal static TileProviderPolicy Resolve(ApplicationSettings settings, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var canonicalOsm = TileProviderCatalog.IsCanonicalOsmTemplate(settings.TileProviderUrlTemplate);
@@ -44,7 +45,17 @@ internal static class TileProviderPolicyResolver
             return Create("custom:default", Defaults);
         }
 
-        ValidateCustom(settings);
+        var errors = GetCustomValidationErrors(settings);
+        if (errors.Count > 0)
+        {
+            if (Interlocked.Exchange(ref _invalidProfileDiagnosticEmitted, 1) == 0)
+            {
+                logger?.LogWarning(
+                    "Invalid persisted custom tile-provider limits were replaced with safe defaults.");
+            }
+            return Create("custom:default", Defaults);
+        }
+
         return new TileProviderPolicy(
             "custom:advanced",
             settings.TileProviderSustainedRequestsPerSecond,
@@ -61,7 +72,37 @@ internal static class TileProviderPolicyResolver
     /// <summary>Validates cross-field invariants not expressible through range attributes.</summary>
     internal static IReadOnlyDictionary<string, string> ValidateCustom(ApplicationSettings settings)
     {
+        var errors = GetCustomValidationErrors(settings);
+        if (errors.Count > 0)
+        {
+            throw new ArgumentException(string.Join(" ", errors.Values));
+        }
+
+        return errors;
+    }
+
+    private static int _invalidProfileDiagnosticEmitted;
+
+    private static Dictionary<string, string> GetCustomValidationErrors(ApplicationSettings settings)
+    {
         var errors = new Dictionary<string, string>();
+        AddRangeError(errors, nameof(settings.TileProviderSustainedRequestsPerSecond),
+            settings.TileProviderSustainedRequestsPerSecond, 1, 20);
+        AddRangeError(errors, nameof(settings.TileProviderBurstCapacity),
+            settings.TileProviderBurstCapacity, 1, 50);
+        AddRangeError(errors, nameof(settings.TileProviderMaxConcurrency),
+            settings.TileProviderMaxConcurrency, 1, 16);
+        AddRangeError(errors, nameof(settings.TileProviderMaxAttempts),
+            settings.TileProviderMaxAttempts, 1, 3);
+        AddRangeError(errors, nameof(settings.TileProviderFallbackBaseDelayMs),
+            settings.TileProviderFallbackBaseDelayMs, 250, 5000);
+        AddRangeError(errors, nameof(settings.TileProviderFallbackDelayCapSeconds),
+            settings.TileProviderFallbackDelayCapSeconds, 1, 30);
+        AddRangeError(errors, nameof(settings.TileProviderMaxIndividualWaitSeconds),
+            settings.TileProviderMaxIndividualWaitSeconds, 1, 120);
+        AddRangeError(errors, nameof(settings.TileProviderTotalRetryCeilingSeconds),
+            settings.TileProviderTotalRetryCeilingSeconds, 5, 180);
+
         if (settings.TileProviderBurstCapacity < settings.TileProviderMaxConcurrency)
         {
             errors[nameof(settings.TileProviderBurstCapacity)] =
@@ -82,12 +123,20 @@ internal static class TileProviderPolicyResolver
                 "Total retry ceiling must not be below maximum individual wait.";
         }
 
-        if (errors.Count > 0)
-        {
-            throw new ArgumentException(string.Join(" ", errors.Values));
-        }
-
         return errors;
+    }
+
+    private static void AddRangeError(
+        IDictionary<string, string> errors,
+        string field,
+        int value,
+        int minimum,
+        int maximum)
+    {
+        if (value < minimum || value > maximum)
+        {
+            errors[field] = $"{field} must be between {minimum} and {maximum}.";
+        }
     }
 
     private static TileProviderPolicy Create(string identity, TileProviderPolicyDefaults values) =>

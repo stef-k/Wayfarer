@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -19,6 +20,57 @@ namespace Wayfarer.Tests.Services;
 /// </summary>
 public partial class TileCacheServiceTests
 {
+    /// <summary>A stale series respects its captured local ceiling without shortening a provider gate.</summary>
+    [Fact]
+    public async Task BackgroundRefresh_ProviderGateBeyondCapturedCeiling_DefersWithoutContact()
+    {
+        var now = new DateTimeOffset(2026, 7, 25, 12, 0, 0, TimeSpan.Zero);
+        await using var harness = new TileCacheTestHarness();
+        TileProviderRetryPolicy.SetDeterminismForTesting(() => now, _ => 0d);
+        harness.Settings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
+        harness.Settings.TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png";
+        harness.Settings.TileProviderAdvancedLimitsEnabled = true;
+        harness.Settings.TileProviderSustainedRequestsPerSecond = 6;
+        harness.Settings.TileProviderBurstCapacity = 20;
+        harness.Settings.TileProviderMaxConcurrency = 6;
+        harness.Settings.TileProviderMaxAttempts = 3;
+        harness.Settings.TileProviderFallbackBaseDelayMs = 500;
+        harness.Settings.TileProviderFallbackDelayCapSeconds = 4;
+        harness.Settings.TileProviderMaxIndividualWaitSeconds = 5;
+        harness.Settings.TileProviderTotalRetryCeilingSeconds = 5;
+        const string tileUrl = "https://tiles.example.test/9/3/4.png";
+
+        using (var scope = harness.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+            Assert.NotNull((await service.RetrieveTileAsync("9", "3", "4", tileUrl)).TileData);
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var metadata = await db.TileCacheMetadata.SingleAsync();
+            metadata.ExpiresAtUtc = now.UtcDateTime.AddMinutes(-1);
+            await db.SaveChangesAsync();
+        }
+
+        var providerKey = TileProviderRetryPolicy.GetProviderKey(tileUrl);
+        using (var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))
+        {
+            response.Headers.TryAddWithoutValidation("Retry-After", "10");
+            TileProviderRetryPolicy.ApplyRetryAfter(providerKey, response);
+        }
+        var contactsBeforeRefresh = harness.Upstream.Requests.Count;
+
+        using (var scope = harness.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+            Assert.NotNull((await service.RetrieveTileAsync("9", "3", "4", tileUrl)).TileData);
+        }
+
+        Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync(
+            "9_3_4", TimeSpan.FromSeconds(2)));
+        Assert.Equal(contactsBeforeRefresh, harness.Upstream.Requests.Count);
+        Assert.Equal(TimeSpan.FromSeconds(10),
+            TileProviderRetryPolicy.GetRemainingProviderDelay(providerKey));
+    }
+
     [Fact]
     public async Task BackgroundRefresh_UsesFreshScopeWithoutRequestHttpContext()
     {

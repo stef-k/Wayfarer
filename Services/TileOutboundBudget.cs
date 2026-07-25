@@ -39,6 +39,7 @@ public partial class TileCacheService
         private static int _foregroundWaiters;
         private static int _backgroundContactActive;
         private static readonly ConcurrentDictionary<string, ProviderBudgetState> _providerStates = new();
+        private static readonly object _providerStateLock = new();
         private const int MaximumRetainedProviderStates = 32;
 
         /// <summary>
@@ -131,41 +132,91 @@ public partial class TileCacheService
             var stateKey = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"{profile.Identity}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
-            var state = _providerStates.GetOrAdd(stateKey, _ => new ProviderBudgetState(profile));
-            state.Touch();
-
-            if (!await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false))
+            var state = AcquireProviderStateReference(stateKey, profile);
+            if (state == null)
             {
                 return null;
             }
 
-            if (!await state.AcquireConcurrencyAsync(priority, cancellationToken).ConfigureAwait(false))
+            var ownershipTransferred = false;
+            try
             {
-                return null;
-            }
-
-            RetireIdleProviderStates(stateKey);
-            return new ProviderContactLease(state);
-        }
-
-        /// <summary>Removes only idle obsolete states while retaining a fixed upper bound.</summary>
-        private static void RetireIdleProviderStates(string activeKey)
-        {
-            if (_providerStates.Count <= MaximumRetainedProviderStates)
-            {
-                return;
-            }
-
-            foreach (var candidate in _providerStates
-                         .Where(pair => pair.Key != activeKey && pair.Value.IsIdle)
-                         .OrderBy(pair => pair.Value.LastUsedUtc)
-                         .Take(_providerStates.Count - MaximumRetainedProviderStates))
-            {
-                if (_providerStates.TryRemove(candidate))
+                if (!await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false) ||
+                    !await state.AcquireConcurrencyAsync(priority, cancellationToken).ConfigureAwait(false))
                 {
-                    candidate.Value.Dispose();
+                    return null;
+                }
+
+                ownershipTransferred = true;
+                return new ProviderContactLease(state);
+            }
+            finally
+            {
+                if (!ownershipTransferred)
+                {
+                    ReleaseProviderStateReference(state);
                 }
             }
+        }
+
+        /// <summary>Atomically finds or admits one referenced provider state.</summary>
+        private static ProviderBudgetState? AcquireProviderStateReference(
+            string stateKey,
+            TileProviderPolicy profile)
+        {
+            lock (_providerStateLock)
+            {
+                if (_providerStates.TryGetValue(stateKey, out var existing))
+                {
+                    existing.AddReference();
+                    return existing;
+                }
+
+                while (_providerStates.Count >= MaximumRetainedProviderStates &&
+                       RetireOneIdleProviderState())
+                {
+                }
+
+                if (_providerStates.Count >= MaximumRetainedProviderStates)
+                {
+                    return null;
+                }
+
+                var admitted = new ProviderBudgetState(stateKey, profile);
+                admitted.AddReference();
+                _providerStates[stateKey] = admitted;
+                return admitted;
+            }
+        }
+
+        /// <summary>Releases ownership and performs bounded retirement when capacity is full.</summary>
+        private static void ReleaseProviderStateReference(ProviderBudgetState state)
+        {
+            lock (_providerStateLock)
+            {
+                state.ReleaseReference();
+                if (_providerStates.Count >= MaximumRetainedProviderStates)
+                {
+                    RetireOneIdleProviderState();
+                }
+            }
+        }
+
+        /// <summary>Compare-removes and stops the oldest exact idle, unreferenced state.</summary>
+        private static bool RetireOneIdleProviderState()
+        {
+            var candidate = _providerStates
+                .Where(pair => pair.Value.IsRetirable)
+                .OrderBy(pair => pair.Value.LastUsedUtc)
+                .FirstOrDefault();
+            if (candidate.Value == null ||
+                !_providerStates.TryRemove(candidate))
+            {
+                return false;
+            }
+
+            candidate.Value.Dispose();
+            return true;
         }
 
         /// <summary>Releases one token per current replenishment interval up to burst capacity.</summary>
@@ -225,11 +276,14 @@ public partial class TileCacheService
                 _foregroundWaiters = 0;
             }
             Interlocked.Exchange(ref _backgroundContactActive, 0);
-            foreach (var state in _providerStates.Values)
+            lock (_providerStateLock)
             {
-                state.Dispose();
+                foreach (var state in _providerStates.Values)
+                {
+                    state.Dispose();
+                }
+                _providerStates.Clear();
             }
-            _providerStates.Clear();
             StopReplenisher();
             while (_tokens.CurrentCount > 0)
             {
@@ -287,13 +341,35 @@ public partial class TileCacheService
             }
         }
 
+        /// <summary>Gets the retained provider-state count for focused invariant tests.</summary>
+        internal static int ProviderStateCountForTesting
+        {
+            get
+            {
+                lock (_providerStateLock)
+                {
+                    return _providerStates.Count;
+                }
+            }
+        }
+
         /// <summary>Releases one application-level provider concurrency slot.</summary>
         internal sealed class ProviderContactLease : IDisposable
         {
             private ProviderBudgetState? _state;
             internal static ProviderContactLease Controlled => new(null);
             internal ProviderContactLease(ProviderBudgetState? state) => _state = state;
-            public void Dispose() => Interlocked.Exchange(ref _state, null)?.ReleaseConcurrency();
+            public void Dispose()
+            {
+                var state = Interlocked.Exchange(ref _state, null);
+                if (state == null)
+                {
+                    return;
+                }
+
+                state.ReleaseConcurrency();
+                ReleaseProviderStateReference(state);
+            }
         }
 
         /// <summary>Owns rate and concurrency state for one immutable profile version.</summary>
@@ -304,9 +380,12 @@ public partial class TileCacheService
             private readonly CancellationTokenSource _stop = new();
             private readonly Task _replenisher;
             private int _activeContacts;
+            private int _references;
+            private readonly string _stateKey;
 
-            internal ProviderBudgetState(TileProviderPolicy profile)
+            internal ProviderBudgetState(string stateKey, TileProviderPolicy profile)
             {
+                _stateKey = stateKey;
                 _tokens = new SemaphoreSlim(profile.BurstCapacity, profile.BurstCapacity);
                 _concurrency = new SemaphoreSlim(profile.MaxConcurrency, profile.MaxConcurrency);
                 var interval = TimeSpan.FromSeconds(1d / profile.SustainedRequestsPerSecond);
@@ -314,8 +393,23 @@ public partial class TileCacheService
             }
 
             internal DateTime LastUsedUtc { get; private set; } = DateTime.UtcNow;
-            internal bool IsIdle => Volatile.Read(ref _activeContacts) == 0;
+            internal bool IsRetirable =>
+                Volatile.Read(ref _references) == 0 &&
+                Volatile.Read(ref _activeContacts) == 0 &&
+                _providerStates.TryGetValue(_stateKey, out var current) &&
+                ReferenceEquals(current, this);
             internal void Touch() => LastUsedUtc = DateTime.UtcNow;
+            internal void AddReference()
+            {
+                _references++;
+                Touch();
+            }
+
+            internal void ReleaseReference()
+            {
+                _references--;
+                Touch();
+            }
 
             internal async Task<bool> AcquireRateAsync(
                 TileWorkPriority priority,
