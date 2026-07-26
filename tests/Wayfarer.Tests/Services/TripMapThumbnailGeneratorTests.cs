@@ -106,18 +106,56 @@ public class TripMapThumbnailGeneratorTests : IDisposable
     }
 
     [Fact]
+    public async Task CapturePageAsync_ReturnsNull_WhenNavigationRedirectsToAnotherPage()
+    {
+        const string embedUrl = "http://wayfarer.example.com:5500/Public/Trips/example";
+        var page = new Mock<IPage>();
+        var response = new Mock<IResponse>();
+        response.SetupGet(item => item.Ok).Returns(true);
+        response.SetupGet(item => item.Url).Returns("http://wayfarer.example.com:5500/Identity/Account/Login");
+        page.Setup(item => item.GotoAsync(embedUrl, It.IsAny<PageGotoOptions>()))
+            .ReturnsAsync(response.Object);
+
+        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+            page.Object, embedUrl, CancellationToken.None);
+
+        Assert.Null(result);
+        page.Verify(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CapturePageAsync_ScreenshotsSuccessfulEmbedResponse()
+    {
+        const string embedUrl = "http://wayfarer.example.com:5500/Public/Trips/example";
+        var expected = new byte[] { 1, 2, 3 };
+        var page = new Mock<IPage>();
+        var response = new Mock<IResponse>();
+        response.SetupGet(item => item.Ok).Returns(true);
+        response.SetupGet(item => item.Url).Returns(embedUrl);
+        page.Setup(item => item.GotoAsync(embedUrl, It.IsAny<PageGotoOptions>()))
+            .ReturnsAsync(response.Object);
+        page.Setup(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()))
+            .ReturnsAsync(expected);
+
+        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+            page.Object, embedUrl, CancellationToken.None);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
     public async Task GetOrGenerateThumbnailAsync_PreservesExistingFile_WhenCaptureFails()
     {
         var tripId = Guid.NewGuid();
-        var path = Path.Combine(_root, "thumbs", "trips", $"{tripId}-800x450.jpg");
-        var original = new byte[] { 1, 2, 3 };
-        File.WriteAllBytes(path, original);
-        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-1));
         var generator = new TripMapThumbnailGenerator(
             _logger.Object,
             _env.Object,
             _config,
             _ => Task.FromResult<byte[]?>(null));
+        var path = Path.Combine(_root, "thumbs", "trips", $"{tripId}-800x450.jpg");
+        var original = new byte[] { 1, 2, 3 };
+        File.WriteAllBytes(path, original);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-1));
 
         var result = await generator.GetOrGenerateThumbnailAsync(
             tripId, 10, 20, 5, 800, 450, DateTime.UtcNow);
