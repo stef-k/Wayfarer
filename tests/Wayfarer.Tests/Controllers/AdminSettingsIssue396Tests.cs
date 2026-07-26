@@ -93,7 +93,7 @@ public partial class AdminSettingsControllerTests
         Assert.Contains("Compatibility=Blocked", audit.Details);
         Assert.Contains("TileRetryControlsActive=False", audit.Details);
         AssertPreservedRetryValuesAreBoundedAndNotEffective(audit.Details);
-        AssertSafeFocusedAudit(audit.Details, existing);
+        AssertSafeFocusedAudit(audit.Details);
         AssertStoredRetryValuesUnchanged(await db.ApplicationSettings.FindAsync(1));
     }
 
@@ -118,10 +118,8 @@ public partial class AdminSettingsControllerTests
         Assert.Contains("TileRetryControlsActive=False", audit.Details);
         Assert.Contains("TileRetryMaxAttempts=4", audit.Details);
         Assert.DoesNotContain("TileEffectiveMaxAttempts=4", audit.Details);
-        AssertSafeFocusedAudit(audit.Details, existing);
-        var stored = Assert.IsType<ApplicationSettings>(await db.ApplicationSettings.FindAsync(1));
-        Assert.Equal(4, stored.TileProviderMaxAttempts);
-        AssertStoredRetryValuesUnchanged(stored);
+        AssertSafeFocusedAudit(audit.Details);
+        AssertStoredRetryValuesUnchanged(await db.ApplicationSettings.FindAsync(1));
     }
 
     /// <summary>An active Conservative policy reports its bounded retry controls as active and accurate.</summary>
@@ -146,7 +144,7 @@ public partial class AdminSettingsControllerTests
         Assert.Contains("TileRetryFallbackDelayCapSeconds=7", audit.Details);
         Assert.Contains("TileRetryMaxIndividualWaitSeconds=44", audit.Details);
         Assert.Contains("TileRetryTotalCeilingSeconds=88", audit.Details);
-        AssertSafeFocusedAudit(audit.Details, existing);
+        AssertSafeFocusedAudit(audit.Details);
         AssertStoredRetryValuesUnchanged(await db.ApplicationSettings.FindAsync(1));
     }
 
@@ -197,11 +195,11 @@ public partial class AdminSettingsControllerTests
     }
 
     /// <summary>Asserts the audit excludes provider secrets, identity data, and settings snapshots.</summary>
-    private static void AssertSafeFocusedAudit(string details, ApplicationSettings original)
+    private static void AssertSafeFocusedAudit(string details)
     {
-        Assert.DoesNotContain(original.TileProviderUrlTemplate, details, StringComparison.Ordinal);
-        Assert.DoesNotContain(original.TileProviderAttribution, details, StringComparison.Ordinal);
-        Assert.DoesNotContain(original.TileProviderApiKey!, details, StringComparison.Ordinal);
+        Assert.DoesNotContain("http", details, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("audit-attribution-marker", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("audit-api-key-marker", details, StringComparison.Ordinal);
         Assert.DoesNotContain("TileProviderUrlTemplate", details);
         Assert.DoesNotContain("TileProviderApiKey", details);
         Assert.DoesNotContain("Credential", details, StringComparison.OrdinalIgnoreCase);

@@ -29,7 +29,7 @@ public partial class SettingsController
         updatedSettings.TileProviderTotalRetryCeilingSeconds = currentSettings.TileProviderTotalRetryCeilingSeconds;
     }
 
-    /// <summary>Formats the complete bounded non-secret effective policy for one audit transition.</summary>
+    /// <summary>Formats the complete bounded non-secret policy state for one audit transition.</summary>
     private static string DescribeTilePolicyForAudit(TileProviderPolicy policy) =>
         $"Mode={policy.TrafficMode}; " +
         $"Compatibility={policy.Compatibility.Status}; " +
@@ -38,11 +38,12 @@ public partial class SettingsController
         $"TileEffectiveBurst={policy.BurstCapacity}; TileEffectiveBurstActive={policy.IsBurstActive}; " +
         $"TileEffectiveConcurrency={policy.MaxConcurrency}; TileEffectiveConcurrencyActive={policy.IsConcurrencyActive}; " +
         $"TileEffectiveClientAllowance={policy.ClientSeriesPerMinute}; TileEffectiveClientAllowanceActive={policy.IsClientSeriesAllowanceActive}; " +
-        $"TileEffectiveMaxAttempts={policy.MaxAttempts}; " +
-        $"TileEffectiveFallbackBaseDelayMs={policy.FallbackBaseDelay.TotalMilliseconds:0}; " +
-        $"TileEffectiveFallbackDelayCapSeconds={policy.FallbackDelayCap.TotalSeconds:0}; " +
-        $"TileEffectiveMaxIndividualWaitSeconds={policy.MaxIndividualWait.TotalSeconds:0}; " +
-        $"TileEffectiveTotalRetryCeilingSeconds={policy.TotalRetryCeiling.TotalSeconds:0}";
+        $"TileRetryControlsActive={policy.CanContactProvider}; " +
+        $"TileRetryMaxAttempts={policy.MaxAttempts}; " +
+        $"TileRetryFallbackBaseDelayMs={policy.FallbackBaseDelay.TotalMilliseconds:0}; " +
+        $"TileRetryFallbackDelayCapSeconds={policy.FallbackDelayCap.TotalSeconds:0}; " +
+        $"TileRetryMaxIndividualWaitSeconds={policy.MaxIndividualWait.TotalSeconds:0}; " +
+        $"TileRetryTotalCeilingSeconds={policy.TotalRetryCeiling.TotalSeconds:0}";
 
     /// <summary>Applies authoritative custom-provider cross-field validation.</summary>
     private void ValidateTileProviderPolicy(ApplicationSettings settings)

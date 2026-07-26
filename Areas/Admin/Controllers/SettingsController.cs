@@ -201,7 +201,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     var oldTilePolicy = TileProviderPolicyResolver.Resolve(currentSettings);
                     var newTilePolicy = TileProviderPolicyResolver.Resolve(updatedSettings);
                     Track(
-                        "TileEffectivePolicy",
+                        "TilePolicy",
                         DescribeTilePolicyForAudit(oldTilePolicy),
                         DescribeTilePolicyForAudit(newTilePolicy));
                     Track("TileRateLimitEnabled", currentSettings.TileRateLimitEnabled, updatedSettings.TileRateLimitEnabled);
