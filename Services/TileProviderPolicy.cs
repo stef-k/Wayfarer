@@ -52,11 +52,6 @@ internal sealed record TileProviderPolicy(
 internal static class TileProviderPolicyResolver
 {
     private const string WayfarerSafeguardsSource = "Wayfarer safeguards";
-    private static readonly TileProviderCompatibilityDecision Supported = new(
-        TileProviderCompatibility.Supported,
-        "Provider policy and Wayfarer compatibility rules",
-        "Compatible with Wayfarer's tile cache/proxy architecture.");
-
     /// <summary>Resolves compatibility before selecting an active traffic mode.</summary>
     internal static TileProviderPolicy Resolve(ApplicationSettings settings, ILogger? logger = null)
     {
@@ -87,7 +82,7 @@ internal static class TileProviderPolicyResolver
                     "Custom traffic values are invalid and must be corrected before activation."));
             }
 
-            return Create(settings, mode, Supported, true,
+            return Create(settings, mode, compatibility, true,
                 settings.TileProviderSustainedRequestsPerSecond,
                 settings.TileProviderBurstCapacity,
                 settings.TileProviderMaxConcurrency,
@@ -96,11 +91,11 @@ internal static class TileProviderPolicyResolver
 
         if (mode == TileTrafficMode.Conservative)
         {
-            return Create(settings, mode, Supported, true, 12, 40, 8, 480);
+            return Create(settings, mode, compatibility, true, 12, 40, 8, 480);
         }
 
         // Interactive deliberately has no proactive rate, burst, global-token, or client-series admission.
-        return Create(settings, mode, Supported, false, 0, 0, 6, 0);
+        return Create(settings, mode, compatibility, false, 0, 0, 6, 0);
     }
 
     /// <summary>Validates all Custom scalars and cross-field invariants.</summary>

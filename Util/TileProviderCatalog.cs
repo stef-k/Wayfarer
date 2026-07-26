@@ -53,18 +53,18 @@ public static class TileProviderCatalog
     {
         var normalizedKey = key?.Trim().ToLowerInvariant() ?? string.Empty;
         if (ThunderforestKeys.Contains(normalizedKey, StringComparer.Ordinal))
-            return Blocked("Thunderforest terms", "This removed Thunderforest provider is incompatible with Wayfarer's cache/proxy architecture.");
+            return Blocked("https://www.thunderforest.com/terms/", "This removed Thunderforest provider is incompatible with Wayfarer's cache/proxy architecture.");
         if (CartoKeys.Contains(normalizedKey, StringComparer.Ordinal))
-            return Blocked("CARTO licensing", "This removed CARTO provider is not available through Wayfarer's cache/proxy architecture.");
+            return Blocked("https://docs.carto.com/faqs/carto-basemaps", "This removed CARTO provider is not available through Wayfarer's cache/proxy architecture.");
 
         if (!TryCreateTemplateUri(template?.Trim() ?? string.Empty, out var uri, out _))
             return Invalid("The provider endpoint is blank or malformed.");
 
         var host = NormalizeHost(uri.IdnHost);
         if (MatchesHostSet(host, ThunderforestHosts))
-            return Blocked("Thunderforest terms", "The endpoint is blocked for compatibility.");
+            return Blocked("https://www.thunderforest.com/terms/", "The endpoint is blocked for compatibility.");
         if (MatchesHostSet(host, CartoHosts))
-            return Blocked("CARTO licensing", "The endpoint is blocked for compatibility.");
+            return Blocked("https://docs.carto.com/faqs/carto-basemaps", "The endpoint is blocked for compatibility.");
 
         var preset = FindPreset(normalizedKey);
         if (preset != null)
@@ -77,7 +77,13 @@ public static class TileProviderCatalog
             return Invalid("The provider selection is removed or unknown.");
         }
 
-        return new(TileProviderCompatibility.Supported, "Provider policy and Wayfarer compatibility rules", "Supported.");
+        var source = normalizedKey switch
+        {
+            ApplicationSettings.DefaultTileProviderKey => "https://operations.osmfoundation.org/policies/tiles/",
+            "opentopomap" => "https://services.opentopomap.org/about",
+            _ => "Administrator-managed provider agreement"
+        };
+        return new(TileProviderCompatibility.Supported, source, "Supported.");
     }
 
     /// <summary>Returns true for an exact maintained host or one of its DNS subdomains.</summary>
