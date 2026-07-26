@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Wayfarer.Models;
+using Wayfarer.Services;
 
 namespace Wayfarer.Util;
 
@@ -28,30 +29,74 @@ public static class TileProviderCatalog
             ApplicationSettings.DefaultTileProviderAttribution,
             requiresApiKey: false),
         new TileProviderDefinition(
-            "carto-positron",
-            "CARTO Positron (Light)",
-            "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
-            "&copy; OpenStreetMap contributors &copy; CARTO",
-            requiresApiKey: false),
-        new TileProviderDefinition(
-            "carto-dark",
-            "CARTO Dark Matter",
-            "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
-            "&copy; OpenStreetMap contributors &copy; CARTO",
-            requiresApiKey: false),
-        new TileProviderDefinition(
             "opentopomap",
             "OpenTopoMap",
             "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
-            "&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap",
-            requiresApiKey: false),
-        new TileProviderDefinition(
-            "thunderforest-cycle",
-            "Thunderforest Cycle (API key required)",
-            "https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey={apiKey}",
-            "&copy; OpenStreetMap contributors &copy; Thunderforest",
-            requiresApiKey: true)
+            "Map data: &copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href=\"https://opentopomap.org\">OpenTopoMap</a> (<a href=\"https://creativecommons.org/licenses/by-sa/3.0/\">CC-BY-SA</a>)",
+            requiresApiKey: false)
     };
+
+    private static readonly string[] ThunderforestKeys = ["thunderforest-cycle"];
+    private static readonly string[] CartoKeys = ["carto-positron", "carto-dark"];
+    private static readonly string[] ThunderforestHosts = ["tile.thunderforest.com", "api.thunderforest.com"];
+    private static readonly string[] CartoHosts =
+    [
+        "cartodb-basemaps-a.global.ssl.fastly.net",
+        "cartodb-basemaps-b.global.ssl.fastly.net",
+        "cartodb-basemaps-c.global.ssl.fastly.net",
+        "cartodb-basemaps-d.global.ssl.fastly.net",
+        "basemaps.cartocdn.com"
+    ];
+
+    /// <summary>Resolves provider compatibility from both persisted key and normalized endpoint.</summary>
+    internal static TileProviderCompatibilityDecision ResolveCompatibility(string? key, string? template)
+    {
+        var normalizedKey = key?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (ThunderforestKeys.Contains(normalizedKey, StringComparer.Ordinal))
+            return Blocked("Thunderforest terms", "This removed Thunderforest provider is incompatible with Wayfarer's cache/proxy architecture.");
+        if (CartoKeys.Contains(normalizedKey, StringComparer.Ordinal))
+            return Blocked("CARTO licensing", "This removed CARTO provider is not available through Wayfarer's cache/proxy architecture.");
+
+        if (!TryCreateTemplateUri(template?.Trim() ?? string.Empty, out var uri, out _))
+            return Invalid("The provider endpoint is blank or malformed.");
+
+        var host = NormalizeHost(uri.IdnHost);
+        if (MatchesHostSet(host, ThunderforestHosts))
+            return Blocked("Thunderforest terms", "The endpoint is blocked for compatibility.");
+        if (MatchesHostSet(host, CartoHosts))
+            return Blocked("CARTO licensing", "The endpoint is blocked for compatibility.");
+
+        var preset = FindPreset(normalizedKey);
+        if (preset != null)
+        {
+            if (!string.Equals(NormalizeTemplate(template!), NormalizeTemplate(preset.UrlTemplate), StringComparison.Ordinal))
+                return Invalid("The selected built-in provider endpoint does not match its maintained preset.");
+        }
+        else if (!string.Equals(normalizedKey, CustomProviderKey, StringComparison.Ordinal))
+        {
+            return Invalid("The provider selection is removed or unknown.");
+        }
+
+        return new(TileProviderCompatibility.Supported, "Provider policy and Wayfarer compatibility rules", "Supported.");
+    }
+
+    /// <summary>Returns true for an exact maintained host or one of its DNS subdomains.</summary>
+    internal static bool IsBlockedContactHost(string? host)
+    {
+        var normalized = NormalizeHost(host);
+        return MatchesHostSet(normalized, ThunderforestHosts) || MatchesHostSet(normalized, CartoHosts);
+    }
+
+    private static TileProviderCompatibilityDecision Blocked(string source, string message) =>
+        new(TileProviderCompatibility.Blocked, source, message);
+
+    private static TileProviderCompatibilityDecision Invalid(string message) =>
+        new(TileProviderCompatibility.InvalidOrUnsupported, "Wayfarer compatibility validation", message);
+
+    private static string NormalizeHost(string? host) => (host ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+
+    private static bool MatchesHostSet(string host, IEnumerable<string> blockedHosts) =>
+        blockedHosts.Any(blocked => host.Equals(blocked, StringComparison.Ordinal) || host.EndsWith($".{blocked}", StringComparison.Ordinal));
 
     /// <summary>
     /// Attempts to resolve a preset provider by key.

@@ -10,7 +10,7 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 - **Interactive maps** with configurable tile providers.
 - **Tile provider settings** (Admin > Settings):
-  - Built-in presets: OpenStreetMap Standard, CARTO Light/Dark, OpenTopoMap, and Thunderforest Cycle.
+  - Built-in presets: OpenStreetMap Standard and OpenTopoMap. Removed Thunderforest/CARTO configurations are preserved for recovery but blocked before contact.
   - Custom tile URL templates with API key placeholders.
   - Optional bounded custom-provider rate, burst, concurrency, and retry limits.
   - Dynamic map attribution from active provider.

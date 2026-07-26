@@ -151,7 +151,7 @@ Edit `appsettings.json`:
 
 - **`Logging:LogFilePath:Default`** - Where application logs are written (ensure directory exists and is writable)
 - **`CacheSettings:TileCacheDirectory`** - Where map tiles are cached locally
-- **`AllowedHosts`** - Configure for your domain in production
+- **`AllowedHosts`** - Configure semicolon-separated exact public DNS hostnames in production; do not use wildcards, IP literals, localhost/private names, or ports
 
 ### Environment-Specific Configuration
 

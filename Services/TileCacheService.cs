@@ -318,6 +318,11 @@ public partial class TileCacheService
         CancellationToken cancellationToken = default)
     {
         providerPolicy ??= TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger);
+        if (!providerPolicy.CanContactProvider)
+        {
+            _logger.LogWarning("Tile provider compatibility rejected upstream traffic before contact.");
+            return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
+        }
         // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
         // then record the hit only after the global budget is acquired. This prevents
         // budget-exhausted requests from inflating the per-IP counter, which previously
@@ -330,7 +335,7 @@ public partial class TileCacheService
         string? resolvedIpForBudget = null;
         if (chargeClientAllowance)
         {
-            var perIpLimit = _applicationSettings.GetSettings().TileOutboundBudgetPerIpPerMinute;
+            var perIpLimit = providerPolicy.ClientSeriesPerMinute;
             if (perIpLimit > 0)
             {
                 resolvedIpForBudget = clientIp;
@@ -339,7 +344,8 @@ public partial class TileCacheService
                     var ctx = _httpContextAccessor.HttpContext;
                     if (ctx != null)
                     {
-                        resolvedIpForBudget = RateLimitHelper.GetClientIpAddress(ctx);
+                        resolvedIpForBudget = ResolveSchedulerClientKey(
+                            ctx, RateLimitHelper.GetClientIpAddress(ctx));
                     }
                 }
 
@@ -363,6 +369,13 @@ public partial class TileCacheService
 
         for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++)
         {
+            // Compatibility is checked immediately before every possible transport contact.
+            if (TileProviderCatalog.IsBlockedContactHost(currentUri.IdnHost))
+            {
+                _logger.LogWarning("Blocked tile provider contact rejected before transport.");
+                return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
+            }
+
             if (contactState.IsExhausted)
             {
                 return TileRequestSendResult.Rejected(TileRequestRejection.ContactLimit);
@@ -533,6 +546,13 @@ public partial class TileCacheService
                 }
 
                 var nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+
+                if (TileProviderCatalog.IsBlockedContactHost(nextUri.IdnHost))
+                {
+                    _logger.LogWarning("Blocked tile provider redirect rejected before transport.");
+                    response.Dispose();
+                    return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
+                }
 
                 if (!string.Equals(nextUri.Host, initialUri.Host, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1220,7 +1240,7 @@ public partial class TileCacheService
                 {
                     ScheduleBackgroundRefresh(
                         tileUrl, tileFilePath, tileKey, activeProvider.Fingerprint, zoomLvl, xVal, yVal,
-                        etag, lastModified, clientIp, publicOrigin);
+                        etag, lastModified, schedulerClientKey, publicOrigin);
                 }
 
                 // Graceful degradation: serve stale cached tile even when budget is exhausted
@@ -1271,7 +1291,7 @@ public partial class TileCacheService
                     schedulerClientKey,
                     sharedCancellation => RetrieveColdTileInFreshScopeAsync(
                         tileUrl, zoomLevel, xCoordinate, yCoordinate,
-                        activeProvider.Fingerprint, scopedTilePath, providerPolicy, clientIp, publicOrigin,
+                        activeProvider.Fingerprint, scopedTilePath, providerPolicy, schedulerClientKey, publicOrigin,
                         sharedCancellation),
                     cancellationToken);
             }

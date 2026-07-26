@@ -7,7 +7,7 @@ Sign‑In Issues
 Maps Not Loading
 - Check connectivity.
 - Ask your admin if tile cache path is configured and accessible.
-- **403 "Referrer is required"**: The tile provider (e.g. OpenStreetMap) is blocking requests. Configure `AllowedHosts` with Wayfarer's real public hostname so the application can derive a trustworthy origin-only Referer. Also configure `Application:ContactEmail` for the User-Agent contact identity; it does not configure Referer.
+- **403 "Referrer is required"**: Configure `AllowedHosts=wayfarer.example.com` for one hostname or `AllowedHosts=wayfarer.example.com;www.wayfarer.example.com` for several. Entries are semicolon-separated exact public DNS hostnames; wildcards, IP literals, localhost/private names, ports, and URL schemes are invalid. Also configure `Application:ContactEmail` for the User-Agent contact identity; it does not configure Referer.
 
 Imports Fail or Hang
 - Verify file format/size and required fields.

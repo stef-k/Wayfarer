@@ -66,7 +66,10 @@ Environment=HOME=/home/wayfarer
 # PUBLIC WAYFARER HOSTNAME
 # Required to send a trustworthy origin-only Referer to tile providers.
 # Use the public hostname only, without a scheme, port, path, or wildcard.
-# Environment=AllowedHosts=wayfarer.example.com
+# One exact public hostname:
+# Environment="AllowedHosts=wayfarer.example.com"
+# Multiple exact public hostnames:
+# Environment="AllowedHosts=wayfarer.example.com;www.wayfarer.example.com"
 
 # DATABASE CONNECTION STRING
 # This overrides the placeholder in appsettings.json - REQUIRED for production!

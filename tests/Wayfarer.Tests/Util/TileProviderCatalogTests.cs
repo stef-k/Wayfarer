@@ -9,6 +9,25 @@ namespace Wayfarer.Tests.Util;
 /// </summary>
 public class TileProviderCatalogTests
 {
+    /// <summary>Removed providers cannot be selected as built-in presets.</summary>
+    [Theory]
+    [InlineData("thunderforest-cycle")]
+    [InlineData("carto-positron")]
+    [InlineData("carto-dark")]
+    public void FindPreset_RemovedProvider_ReturnsNull(string key) =>
+        Assert.Null(TileProviderCatalog.FindPreset(key));
+
+    /// <summary>Blocked-host matching is exact or DNS-subdomain based, never substring based.</summary>
+    [Theory]
+    [InlineData("tile.thunderforest.com", true)]
+    [InlineData("a.tile.thunderforest.com", true)]
+    [InlineData("basemaps.cartocdn.com", true)]
+    [InlineData("tiles.basemaps.cartocdn.com", true)]
+    [InlineData("tile.thunderforest.com.example.test", false)]
+    [InlineData("notcartocdn.com", false)]
+    public void IsBlockedContactHost_UsesDnsBoundary(string host, bool expected) =>
+        Assert.Equal(expected, TileProviderCatalog.IsBlockedContactHost(host));
+
     [Fact]
     public void FindPreset_IgnoresCase()
     {

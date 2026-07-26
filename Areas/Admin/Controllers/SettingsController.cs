@@ -195,13 +195,15 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("ImageCacheExpiryDays", currentSettings.ImageCacheExpiryDays, updatedSettings.ImageCacheExpiryDays);
                     Track("MaxProxyImageDownloadMB", currentSettings.MaxProxyImageDownloadMB, updatedSettings.MaxProxyImageDownloadMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
-                    Track("TileProviderKey", currentSettings.TileProviderKey, updatedSettings.TileProviderKey);
-                    Track("TileProviderUrlTemplate", currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate);
-                    Track("TileProviderAttribution", currentSettings.TileProviderAttribution, updatedSettings.TileProviderAttribution);
-                    if (!string.Equals(currentSettings.TileProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal))
-                    {
-                        changes.Add("TileProviderApiKey: [updated]");
-                    }
+                    var oldTilePolicy = TileProviderPolicyResolver.Resolve(currentSettings);
+                    var newTilePolicy = TileProviderPolicyResolver.Resolve(updatedSettings);
+                    Track("TileTrafficMode", oldTilePolicy.TrafficMode, newTilePolicy.TrafficMode);
+                    Track("TileProviderCompatibility", oldTilePolicy.Compatibility.Status, newTilePolicy.Compatibility.Status);
+                    Track("TileProviderCompatibilitySource", oldTilePolicy.Compatibility.Source, newTilePolicy.Compatibility.Source);
+                    Track("TileEffectiveRate", oldTilePolicy.UsesRateTokens ? oldTilePolicy.SustainedRequestsPerSecond : 0, newTilePolicy.UsesRateTokens ? newTilePolicy.SustainedRequestsPerSecond : 0);
+                    Track("TileEffectiveBurst", oldTilePolicy.UsesRateTokens ? oldTilePolicy.BurstCapacity : 0, newTilePolicy.UsesRateTokens ? newTilePolicy.BurstCapacity : 0);
+                    Track("TileEffectiveConcurrency", oldTilePolicy.MaxConcurrency, newTilePolicy.MaxConcurrency);
+                    Track("TileEffectiveClientSeriesPerMinute", oldTilePolicy.ClientSeriesPerMinute, newTilePolicy.ClientSeriesPerMinute);
                     Track("TileRateLimitEnabled", currentSettings.TileRateLimitEnabled, updatedSettings.TileRateLimitEnabled);
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
                     Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
@@ -235,6 +237,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileProviderUrlTemplate = updatedSettings.TileProviderUrlTemplate;
                     currentSettings.TileProviderAttribution = updatedSettings.TileProviderAttribution;
                     currentSettings.TileProviderApiKey = updatedSettings.TileProviderApiKey;
+                    currentSettings.TileTrafficMode = updatedSettings.TileTrafficMode;
                     currentSettings.TileRateLimitEnabled = updatedSettings.TileRateLimitEnabled;
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
                     currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;

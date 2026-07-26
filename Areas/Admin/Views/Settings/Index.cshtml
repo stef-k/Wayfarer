@@ -546,7 +546,7 @@
 
                             <div class="col-md-6 mb-3">
                                 <div class="alert alert-info mb-0">
-                                    <strong>Cache note:</strong> Changing providers or API keys purges cached tiles so new imagery can load.
+                                    <strong>Cache note:</strong> Provider-scoped cached files are preserved when providers, credentials, or traffic modes change.
                                 </div>
                             </div>
 
@@ -629,18 +629,6 @@
                                 <span asp-validation-for="TileRateLimitAuthenticatedPerMinute" class="text-danger"></span>
                             </div>
 
-                            <div class="col-md-3 mb-3">
-                                <label asp-for="TileOutboundBudgetPerIpPerMinute" class="form-label">Cache miss budget (per IP)</label>
-                                <div class="input-group">
-                                    <input asp-for="TileOutboundBudgetPerIpPerMinute" class="form-control" type="number" min="0" max="1000" />
-                                    <span class="input-group-text">miss/min</span>
-                                </div>
-                                <small class="form-text text-muted">
-                                    Default: @ApplicationSettings.DefaultTileOutboundBudgetPerIpPerMinute. Max upstream fetches per IP per minute. 0 = disabled.
-                                </small>
-                                <span asp-validation-for="TileOutboundBudgetPerIpPerMinute" class="text-danger"></span>
-                            </div>
-                            <partial name="_HistoricalTileBudgetNotice" model="Model" />
                         </div>
                         <div class="row">
                             <div class="col-md-3 mb-3">

@@ -278,11 +278,14 @@ If configuring manually, add these lines to `/etc/systemd/system/wayfarer.servic
 ```ini
 Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD"
 Environment=Application__ContactEmail=admin@your-domain.example
-Environment=AllowedHosts=wayfarer.example.com
+# One exact public hostname
+Environment="AllowedHosts=wayfarer.example.com"
+# Multiple exact public hostnames
+Environment="AllowedHosts=wayfarer.example.com;www.wayfarer.example.com"
 ```
 
 The `Application__ContactEmail` is included in the User-Agent header sent to tile providers (e.g. OpenStreetMap) for policy compliance.
-`AllowedHosts` authorizes the public Wayfarer hostname used for the origin-only provider Referer. Do not use wildcards: wildcard configuration deliberately omits the Referer and may recreate provider 403 responses. The installer preserves a valid existing hostname before considering `CERTBOT_DOMAIN`; otherwise it prompts or warns without guessing.
+`AllowedHosts` authorizes the public Wayfarer hostnames used for the origin-only provider Referer. Enter semicolon-separated exact public DNS hostnames. Do not include wildcards, IP literals, localhost/private names, ports, or URL schemes. The installer preserves a valid existing hostname list before considering `CERTBOT_DOMAIN`; otherwise it prompts or warns without guessing.
 
 Then reload: `sudo systemctl daemon-reload && sudo systemctl restart wayfarer`
 

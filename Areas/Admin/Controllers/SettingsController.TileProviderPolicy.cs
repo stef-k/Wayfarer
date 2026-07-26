@@ -10,12 +10,25 @@ public partial class SettingsController
     /// <summary>Applies authoritative custom-provider cross-field validation.</summary>
     private void ValidateTileProviderPolicy(ApplicationSettings settings)
     {
-        if (!string.Equals(settings.TileProviderKey, TileProviderCatalog.CustomProviderKey,
-                StringComparison.OrdinalIgnoreCase) ||
-            !settings.TileProviderAdvancedLimitsEnabled)
+        if (settings.TileTrafficMode != TileTrafficMode.Custom)
         {
+            if (string.Equals(settings.TileProviderKey, TileProviderCatalog.CustomProviderKey,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                settings.TileProviderAdvancedLimitsEnabled = false;
+            }
             return;
         }
+
+        if (!string.Equals(settings.TileProviderKey, TileProviderCatalog.CustomProviderKey,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            ModelState.AddModelError(nameof(ApplicationSettings.TileTrafficMode),
+                "Provider Agreement mode requires a compatible Custom provider.");
+            return;
+        }
+
+        settings.TileProviderAdvancedLimitsEnabled = true;
 
         try
         {

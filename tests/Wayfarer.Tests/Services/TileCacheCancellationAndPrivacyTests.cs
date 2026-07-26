@@ -11,6 +11,7 @@ using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -251,6 +252,10 @@ public sealed class TileCacheCancellationAndPrivacyTests
     public async Task OutboundClientThrottle_Retains503AndReportsBoundedScope()
     {
         using var harness = new TileCacheTestHarness();
+        harness.Settings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
+        harness.Settings.TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png";
+        harness.Settings.TileTrafficMode = TileTrafficMode.Custom;
+        harness.Settings.TileProviderAdvancedLimitsEnabled = true;
         harness.Settings.TileOutboundBudgetPerIpPerMinute = 1;
         using var scope = harness.CreateScope();
         var context = TileCacheTestHarness.CreateHttpContext();

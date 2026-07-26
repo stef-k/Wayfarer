@@ -220,6 +220,7 @@ public class AdminSettingsControllerTests : TestBase
         {
             Id = 1,
             TileProviderKey = TileProviderCatalog.CustomProviderKey,
+            TileTrafficMode = TileTrafficMode.Custom,
             TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png",
             TileProviderAttribution = "Example",
             TileProviderAdvancedLimitsEnabled = true,

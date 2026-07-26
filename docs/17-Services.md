@@ -145,7 +145,9 @@ This document covers the key services, file parsers, and background jobs in the 
 ### TileCacheService
 - Manages provider-isolated map tile caching and bounded foreground/background scheduling.
 - Built-in profiles use Wayfarer operational defaults of 6 upstream contacts/second,
-  burst 20, and concurrency 6. These values are not provider-published guarantees or allowances.
+  Interactive bypasses proactive contact-rate, burst, and client-series admission while retaining concurrency 6.
+  Conservative uses Wayfarer safeguards of 12 actual contacts/second, burst 40, concurrency 8, and 480 admitted series/client/minute.
+  These values are not provider-published guarantees or allowances.
 - OSM Standard is best-effort with no SLA; prefetch, offline download, adjacent-zoom warming,
   and other cache-warming traffic are not permitted.
 - Custom-provider administrators are responsible for configuring advanced limits according to

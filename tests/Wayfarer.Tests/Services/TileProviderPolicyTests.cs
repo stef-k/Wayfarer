@@ -103,7 +103,7 @@ public sealed class TileProviderPolicyTests
         settings => settings.TileProviderTotalRetryCeilingSeconds = 29
     };
 
-    /// <summary>Invalid persisted values fail safely to the approved custom defaults.</summary>
+    /// <summary>Invalid persisted values remain recoverable and prevent activation.</summary>
     [Theory]
     [MemberData(nameof(InvalidPersistedProfiles))]
     public void Resolve_InvalidPersistedCustomProfile_ReturnsSafeDefaults(
@@ -114,8 +114,8 @@ public sealed class TileProviderPolicyTests
 
         var profile = TileProviderPolicyResolver.Resolve(settings);
 
-        Assert.Equal("custom:default", profile.Identity);
-        AssertApprovedDefaults(profile);
+        Assert.Equal(TileProviderCompatibility.InvalidOrUnsupported, profile.Compatibility.Status);
+        Assert.False(profile.CanContactProvider);
     }
 
     /// <summary>
@@ -133,7 +133,12 @@ public sealed class TileProviderPolicyTests
             .ToArray();
 
         Assert.Equal(profiles.Length, profiles.Select(profile => profile.Identity).Distinct().Count());
-        Assert.All(profiles, AssertApprovedDefaults);
+        Assert.All(profiles, profile =>
+        {
+            Assert.Equal(TileTrafficMode.Interactive, profile.TrafficMode);
+            Assert.False(profile.UsesRateTokens);
+            Assert.Equal(6, profile.MaxConcurrency);
+        });
     }
 
     /// <summary>
@@ -152,8 +157,7 @@ public sealed class TileProviderPolicyTests
             TileProviderMaxConcurrency = 16
         });
 
-        Assert.Equal("builtin:osm", profile.Identity);
-        AssertApprovedDefaults(profile);
+        Assert.Equal(TileTrafficMode.Custom, profile.TrafficMode);
         Assert.False(profile.PrefetchEnabled);
     }
 
@@ -236,6 +240,30 @@ public sealed class TileProviderPolicyTests
 [Collection("OutboundBudget")]
 public sealed class TileProviderStateAdmissionTests
 {
+    /// <summary>Interactive has no token ceiling while every contact still acquires concurrency.</summary>
+    [Fact]
+    public async Task AcquireProviderContactAsync_Interactive_AllowsMoreThanHistoricalBurst()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings());
+        try
+        {
+            for (var index = 0; index < 81; index++)
+            {
+                var acquisition = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    profile, TileWorkPriority.Foreground, CancellationToken.None);
+                Assert.NotNull(acquisition.Lease);
+                acquisition.Lease.Dispose();
+            }
+
+            Assert.Equal(0, TileCacheService.OutboundBudget.ProviderReplenisherStartCountForTesting);
+        }
+        finally
+        {
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
+    }
+
     /// <summary>Shutdown closes provider-state admission before a request can enter the state table.</summary>
     [Fact]
     public async Task AcquireProviderContactAsync_PausedBeforeStateLock_IsRejectedAfterStop()
@@ -385,7 +413,9 @@ public sealed class TileProviderStateAdmissionTests
     }
 
     private static TileProviderPolicy Profile(int index) => new(
-        $"custom:test-{index}", 20, 50, 16, 3,
+        $"custom:test-{index}", TileTrafficMode.Custom,
+        new(TileProviderCompatibility.Supported, "test", "test"), true,
+        20, 50, 16, 0, 3,
         TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1),
         TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), false);
 }
