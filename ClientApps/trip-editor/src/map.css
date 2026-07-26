@@ -327,6 +327,8 @@
     min-height: 0;
     position: absolute;
     width: 100%;
+    /* Contain Leaflet's pane z-indexes beneath sibling editor chrome. */
+    z-index: 0;
   }
 
   .trip-editor-toolbar {
