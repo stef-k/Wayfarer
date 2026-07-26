@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.8.1] - 2026-07-26
+
+### Fixed
+- Restored generated trip map thumbnails on deployments using restrictive public `AllowedHosts` by keeping browser capture on loopback with an authorized Host, rejecting failed navigation, and publishing completed JPEGs atomically (#401).
+
 ## [1.8.0] - 2026-07-26
 
 ### Added
