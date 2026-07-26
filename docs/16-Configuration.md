@@ -23,7 +23,7 @@ Logging
 
 Application
 - `Application:ContactEmail` — contact email included in the User-Agent header sent to tile providers (e.g. OpenStreetMap). OSM's tile usage policy requires an honest User-Agent identifying the application. Set this to a monitored email address. Default: `noreply@wayfarer.app`. In production, configure via systemd environment variable: `Application__ContactEmail=admin@your-domain.example`.
-- `AllowedHosts` — semicolon-separated public hostnames allowed to address Wayfarer and supply its origin-only tile-provider Referer. Production must configure the real public hostname through `AllowedHosts=wayfarer.example.com`; `*`, IP literals, localhost, and private names are not trusted for the provider Referer. Ports received through trusted forwarded headers are preserved after hostname authorization.
+- `AllowedHosts` — semicolon-separated exact public DNS hostnames allowed to address Wayfarer and supply its origin-only tile-provider Referer. Use `AllowedHosts=wayfarer.example.com` for one hostname or `AllowedHosts=wayfarer.example.com;www.wayfarer.example.com` for several. Do not include wildcards, IP literals, localhost/private names, ports, or URL schemes. Ports received separately through trusted forwarded headers are preserved after hostname authorization.
 
 CacheSettings
 - `CacheSettings:TileCacheDirectory` — local directory for map tile cache.
@@ -32,7 +32,7 @@ CacheSettings
 Tile Provider Settings (Admin UI)
 - **Tile Provider** — select from presets (OpenStreetMap, Carto Light/Dark, ESRI Satellite) or configure a custom URL template.
 - **Custom URL Template** — use `{z}`, `{x}`, `{y}` placeholders; optionally `{apikey}` for providers requiring authentication.
-- **API Key** — stored securely for tile providers that require it (e.g., Mapbox, Thunderforest).
+- **API Key** — stored securely for compatible Custom providers that require it.
 - **Attribution** — HTML attribution text displayed on maps; auto-filled for presets.
 - Provider changes trigger automatic cache purge to avoid tile mixing.
 

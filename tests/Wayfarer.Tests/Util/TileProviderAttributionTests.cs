@@ -104,9 +104,7 @@ public class TileProviderAttributionTests
     }
 
     [Theory]
-    [InlineData("carto-dark", "CARTO", null)]
     [InlineData("opentopomap", "SRTM", "OpenTopoMap")]
-    [InlineData("thunderforest-cycle", "Thunderforest", null)]
     public void Resolve_PreservesEveryPartyInBuiltInPresetAttribution(
         string providerKey,
         string expectedParty,

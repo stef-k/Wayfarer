@@ -318,41 +318,14 @@ public partial class TileCacheService
         CancellationToken cancellationToken = default)
     {
         providerPolicy ??= TileProviderPolicyResolver.Resolve(_applicationSettings.GetSettings(), _logger);
-        // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
-        // then record the hit only after the global budget is acquired. This prevents
-        // budget-exhausted requests from inflating the per-IP counter, which previously
-        // caused cascading 503 rejections: on cold-cache loads with ~35 tiles, every
-        // request (including those rejected by the global budget) incremented the per-IP
-        // counter, so retries found the counter already past the limit and failed immediately.
-        // The initiating request charges this allowance once; retries do not charge it again.
-        // clientIp may be passed explicitly by callers (e.g., coalesced revalidation) where
-        // HttpContext is no longer available; falls back to HttpContext if not provided.
-        string? resolvedIpForBudget = null;
-        if (chargeClientAllowance)
+        if (!providerPolicy.CanContactProvider)
         {
-            var perIpLimit = _applicationSettings.GetSettings().TileOutboundBudgetPerIpPerMinute;
-            if (perIpLimit > 0)
-            {
-                resolvedIpForBudget = clientIp;
-                if (resolvedIpForBudget == null && allowHttpContext)
-                {
-                    var ctx = _httpContextAccessor.HttpContext;
-                    if (ctx != null)
-                    {
-                        resolvedIpForBudget = RateLimitHelper.GetClientIpAddress(ctx);
-                    }
-                }
-
-                if (resolvedIpForBudget != null && RateLimitHelper.WouldExceedRateLimit(
-                        TilesController.OutboundBudgetCache, resolvedIpForBudget, perIpLimit))
-                {
-                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "outbound-client");
-                    _logger.LogWarning(
-                        "Per-client outbound tile allowance exceeded; upstream request rejected.");
-                    return TileRequestSendResult.Rejected(TileRequestRejection.ClientBudget);
-                }
-            }
+            _logger.LogWarning("Tile provider compatibility rejected upstream traffic before contact.");
+            return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
         }
+        if (!TryPrepareClientSeriesAllowance(providerPolicy, chargeClientAllowance,
+                clientIp, allowHttpContext, out var resolvedIpForBudget))
+            return TileRequestSendResult.Rejected(TileRequestRejection.ClientBudget);
 
         const int maxRedirects = 3;
         var initialUri = new Uri(tileUrl);
@@ -363,6 +336,13 @@ public partial class TileCacheService
 
         for (var redirectCount = 0; redirectCount <= maxRedirects; redirectCount++)
         {
+            // Compatibility is checked immediately before every possible transport contact.
+            if (TileProviderCatalog.IsBlockedContactHost(currentUri.IdnHost))
+            {
+                _logger.LogWarning("Blocked tile provider contact rejected before transport.");
+                return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
+            }
+
             if (contactState.IsExhausted)
             {
                 return TileRequestSendResult.Rejected(TileRequestRejection.ContactLimit);
@@ -533,6 +513,13 @@ public partial class TileCacheService
                 }
 
                 var nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+
+                if (TileProviderCatalog.IsBlockedContactHost(nextUri.IdnHost))
+                {
+                    _logger.LogWarning("Blocked tile provider redirect rejected before transport.");
+                    response.Dispose();
+                    return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
+                }
 
                 if (!string.Equals(nextUri.Host, initialUri.Host, StringComparison.OrdinalIgnoreCase))
                 {
@@ -1220,7 +1207,7 @@ public partial class TileCacheService
                 {
                     ScheduleBackgroundRefresh(
                         tileUrl, tileFilePath, tileKey, activeProvider.Fingerprint, zoomLvl, xVal, yVal,
-                        etag, lastModified, clientIp, publicOrigin);
+                        etag, lastModified, schedulerClientKey, publicOrigin);
                 }
 
                 // Graceful degradation: serve stale cached tile even when budget is exhausted
@@ -1271,7 +1258,7 @@ public partial class TileCacheService
                     schedulerClientKey,
                     sharedCancellation => RetrieveColdTileInFreshScopeAsync(
                         tileUrl, zoomLevel, xCoordinate, yCoordinate,
-                        activeProvider.Fingerprint, scopedTilePath, providerPolicy, clientIp, publicOrigin,
+                        activeProvider.Fingerprint, scopedTilePath, providerPolicy, schedulerClientKey, publicOrigin,
                         sharedCancellation),
                     cancellationToken);
             }

@@ -138,7 +138,7 @@ public partial class TileCacheService
             var stopwatch = Stopwatch.StartNew();
             var stateKey = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
-                $"{profile.Identity}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
+                $"{profile.Identity}|{profile.UsesRateTokens}|{profile.SustainedRequestsPerSecond}|{profile.BurstCapacity}|{profile.MaxConcurrency}");
             var beforeProviderStateLock = _beforeProviderStateLock;
             if (beforeProviderStateLock != null)
             {
@@ -161,7 +161,8 @@ public partial class TileCacheService
                     await beforeCapacityWait(stateKey, cancellationToken).ConfigureAwait(false);
                 }
 
-                if (!await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false) ||
+                if ((profile.UsesRateTokens &&
+                     !await state.AcquireRateAsync(priority, cancellationToken).ConfigureAwait(false)) ||
                     !await state.AcquireConcurrencyAsync(priority, cancellationToken).ConfigureAwait(false))
                 {
                     stopwatch.Stop();
@@ -449,11 +450,19 @@ public partial class TileCacheService
             internal ProviderBudgetState(string stateKey, TileProviderPolicy profile)
             {
                 _stateKey = stateKey;
-                _tokens = new SemaphoreSlim(profile.BurstCapacity, profile.BurstCapacity);
+                var tokenCapacity = profile.UsesRateTokens ? profile.BurstCapacity : 1;
+                _tokens = new SemaphoreSlim(tokenCapacity, tokenCapacity);
                 _concurrency = new SemaphoreSlim(profile.MaxConcurrency, profile.MaxConcurrency);
-                var interval = TimeSpan.FromSeconds(1d / profile.SustainedRequestsPerSecond);
-                Interlocked.Increment(ref _providerReplenisherStarts);
-                _replenisher = Task.Run(() => ReplenishAsync(interval, profile.BurstCapacity));
+                if (profile.UsesRateTokens)
+                {
+                    var interval = TimeSpan.FromSeconds(1d / profile.SustainedRequestsPerSecond);
+                    Interlocked.Increment(ref _providerReplenisherStarts);
+                    _replenisher = Task.Run(() => ReplenishAsync(interval, profile.BurstCapacity));
+                }
+                else
+                {
+                    _replenisher = Task.CompletedTask;
+                }
             }
 
             internal DateTime LastUsedUtc { get; private set; } = DateTime.UtcNow;

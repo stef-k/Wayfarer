@@ -10,6 +10,75 @@ namespace Wayfarer.Tests.Services;
 /// </summary>
 public sealed class TileProviderPolicyTests
 {
+    /// <summary>Supported built-ins migrate to Interactive without consulting dormant values.</summary>
+    [Fact]
+    public void Resolve_SupportedBuiltInWithDormantValues_IsInteractive()
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = "opentopomap",
+            TileProviderUrlTemplate = "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+            TileProviderAdvancedLimitsEnabled = true,
+            TileOutboundBudgetPerIpPerMinute = 30
+        });
+
+        Assert.Equal(TileTrafficMode.Interactive, profile.TrafficMode);
+        Assert.False(profile.UsesRateTokens);
+        Assert.Equal(0, profile.ClientSeriesPerMinute);
+        Assert.Equal(TileProviderCompatibility.Supported, profile.Compatibility.Status);
+    }
+
+    /// <summary>Blocked hosts win over a Custom label and advanced traffic controls.</summary>
+    [Theory]
+    [InlineData("custom", "https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png")]
+    [InlineData("unknown", "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png")]
+    public void Resolve_BlockedEndpoint_PrecedesTrafficMode(string key, string template)
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = key,
+            TileProviderUrlTemplate = template,
+            TileProviderAdvancedLimitsEnabled = true
+        });
+
+        Assert.Equal(TileProviderCompatibility.Blocked, profile.Compatibility.Status);
+        Assert.False(profile.CanContactProvider);
+    }
+
+    /// <summary>Blank and unknown provider states remain recoverable but fail closed.</summary>
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("removed", "https://tiles.example.test/{z}/{x}/{y}.png")]
+    public void Resolve_UnknownOrBlankProvider_FailsClosed(string key, string template)
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = key,
+            TileProviderUrlTemplate = template
+        });
+
+        Assert.Equal(TileProviderCompatibility.InvalidOrUnsupported, profile.Compatibility.Status);
+        Assert.False(profile.CanContactProvider);
+    }
+
+    /// <summary>Conservative mode has exact Wayfarer contact and series safeguards.</summary>
+    [Fact]
+    public void Resolve_Conservative_UsesDocumentedSafeguards()
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = ApplicationSettings.DefaultTileProviderKey,
+            TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate,
+            TileTrafficMode = TileTrafficMode.Conservative
+        });
+
+        Assert.Equal(12, profile.SustainedRequestsPerSecond);
+        Assert.Equal(40, profile.BurstCapacity);
+        Assert.Equal(8, profile.MaxConcurrency);
+        Assert.Equal(480, profile.ClientSeriesPerMinute);
+        Assert.True(profile.UsesRateTokens);
+    }
+
     /// <summary>Supplies persisted scalar and relationship violations that runtime resolution must contain.</summary>
     public static TheoryData<Action<ApplicationSettings>> InvalidPersistedProfiles => new()
     {
@@ -34,7 +103,7 @@ public sealed class TileProviderPolicyTests
         settings => settings.TileProviderTotalRetryCeilingSeconds = 29
     };
 
-    /// <summary>Invalid persisted values fail safely to the approved custom defaults.</summary>
+    /// <summary>Invalid persisted values remain recoverable and prevent activation.</summary>
     [Theory]
     [MemberData(nameof(InvalidPersistedProfiles))]
     public void Resolve_InvalidPersistedCustomProfile_ReturnsSafeDefaults(
@@ -45,8 +114,8 @@ public sealed class TileProviderPolicyTests
 
         var profile = TileProviderPolicyResolver.Resolve(settings);
 
-        Assert.Equal("custom:default", profile.Identity);
-        AssertApprovedDefaults(profile);
+        Assert.Equal(TileProviderCompatibility.InvalidOrUnsupported, profile.Compatibility.Status);
+        Assert.False(profile.CanContactProvider);
     }
 
     /// <summary>
@@ -64,7 +133,13 @@ public sealed class TileProviderPolicyTests
             .ToArray();
 
         Assert.Equal(profiles.Length, profiles.Select(profile => profile.Identity).Distinct().Count());
-        Assert.All(profiles, AssertApprovedDefaults);
+        Assert.All(profiles, profile =>
+        {
+            Assert.Equal(TileTrafficMode.Interactive, profile.TrafficMode);
+            Assert.False(profile.UsesRateTokens);
+            Assert.Equal(TileWorkScheduler.ForegroundConcurrency, profile.MaxConcurrency);
+            Assert.Equal(0, profile.ClientSeriesPerMinute);
+        });
     }
 
     /// <summary>
@@ -83,8 +158,7 @@ public sealed class TileProviderPolicyTests
             TileProviderMaxConcurrency = 16
         });
 
-        Assert.Equal("builtin:osm", profile.Identity);
-        AssertApprovedDefaults(profile);
+        Assert.Equal(TileTrafficMode.Custom, profile.TrafficMode);
         Assert.False(profile.PrefetchEnabled);
     }
 
@@ -165,8 +239,32 @@ public sealed class TileProviderPolicyTests
 
 /// <summary>Proves the provider-state table enforces its hard admission boundary.</summary>
 [Collection("OutboundBudget")]
-public sealed class TileProviderStateAdmissionTests
+public sealed partial class TileProviderStateAdmissionTests
 {
+    /// <summary>Interactive has no token ceiling while every contact still acquires concurrency.</summary>
+    [Fact]
+    public async Task AcquireProviderContactAsync_Interactive_AllowsMoreThanHistoricalBurst()
+    {
+        TileCacheService.OutboundBudget.ResetForTesting();
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings());
+        try
+        {
+            for (var index = 0; index < 81; index++)
+            {
+                var acquisition = await TileCacheService.OutboundBudget.AcquireProviderContactAsync(
+                    profile, TileWorkPriority.Foreground, CancellationToken.None);
+                Assert.NotNull(acquisition.Lease);
+                acquisition.Lease.Dispose();
+            }
+
+            Assert.Equal(0, TileCacheService.OutboundBudget.ProviderReplenisherStartCountForTesting);
+        }
+        finally
+        {
+            TileCacheService.OutboundBudget.ResetForTesting();
+        }
+    }
+
     /// <summary>Shutdown closes provider-state admission before a request can enter the state table.</summary>
     [Fact]
     public async Task AcquireProviderContactAsync_PausedBeforeStateLock_IsRejectedAfterStop()
@@ -316,7 +414,9 @@ public sealed class TileProviderStateAdmissionTests
     }
 
     private static TileProviderPolicy Profile(int index) => new(
-        $"custom:test-{index}", 20, 50, 16, 3,
+        $"custom:test-{index}", TileTrafficMode.Custom,
+        new(TileProviderCompatibility.Supported, "test", "test", "test"), true,
+        20, 50, 16, 0, 3,
         TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1),
         TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), false);
 }

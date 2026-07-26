@@ -21,7 +21,7 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>
 /// Admin settings controller basics.
 /// </summary>
-public class AdminSettingsControllerTests : TestBase
+public partial class AdminSettingsControllerTests : TestBase
 {
     [Fact]
     public async Task Index_ReturnsView_WithSettings()
@@ -220,6 +220,7 @@ public class AdminSettingsControllerTests : TestBase
         {
             Id = 1,
             TileProviderKey = TileProviderCatalog.CustomProviderKey,
+            TileTrafficMode = TileTrafficMode.Custom,
             TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png",
             TileProviderAttribution = "Example",
             TileProviderAdvancedLimitsEnabled = true,

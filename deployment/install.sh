@@ -719,7 +719,8 @@ echo "========================================="
 echo " Configuring the public Wayfarer hostname"
 echo "========================================="
 echo ""
-echo "Wayfarer uses AllowedHosts to authorize the origin-only Referer sent to tile providers."
+echo "Wayfarer uses semicolon-separated exact public DNS names in AllowedHosts to authorize the origin-only Referer."
+echo "Do not enter wildcards, IP literals, localhost/private names, ports, or URL schemes."
 
 if is_valid_public_host_configuration "$ALLOWED_HOSTS"; then
   ALLOWED_HOSTS="$(normalize_public_host_configuration "$ALLOWED_HOSTS")"
@@ -731,7 +732,7 @@ elif is_valid_public_host_configuration "$CERTBOT_DOMAIN"; then
   ALLOWED_HOSTS="$(normalize_public_host_configuration "$CERTBOT_DOMAIN")"
   echo "Using the public domain already supplied for Certbot: $ALLOWED_HOSTS"
 elif [[ $NONINTERACTIVE -eq 0 ]]; then
-  read -rp "Public Wayfarer hostname (leave blank to configure manually): " ALLOWED_HOSTS
+  read -rp "Public Wayfarer hostname(s), separated by semicolons (leave blank to configure manually): " ALLOWED_HOSTS
   if is_valid_public_host_configuration "$ALLOWED_HOSTS"; then
     ALLOWED_HOSTS="$(normalize_public_host_configuration "$ALLOWED_HOSTS")"
   else
@@ -758,7 +759,8 @@ elif [[ -n "$ALLOWED_HOSTS" ]]; then
 else
   echo "⚠ No public hostname was supplied; existing AllowedHosts configuration was left unchanged."
   echo "  Configure the real public Wayfarer hostname before restart:"
-  echo "  Environment=AllowedHosts=wayfarer.example.com"
+  echo "  Environment=\"AllowedHosts=wayfarer.example.com\""
+  echo "  Environment=\"AllowedHosts=wayfarer.example.com;www.wayfarer.example.com\""
   echo "  A wildcard does not authorize an upstream Referer and may cause tile-provider 403 responses."
 fi
 

@@ -153,6 +153,12 @@ public class TilesController : Controller
         }
         var preset = TileProviderCatalog.FindPreset(settings.TileProviderKey);
         var template = preset?.UrlTemplate ?? settings.TileProviderUrlTemplate;
+        var policy = TileProviderPolicyResolver.Resolve(settings, _logger);
+        if (!policy.CanContactProvider)
+        {
+            _logger.LogWarning("Tile provider compatibility blocks the active configuration.");
+            return StatusCode(503, "Tile provider configuration requires administrator attention.");
+        }
         var providerIdentity = TileProviderCatalog.CreateCacheIdentity(
             settings.TileProviderKey, template);
         var apiKey = TileProviderCatalog.RequiresApiKey(template) ? settings.TileProviderApiKey : null;

@@ -75,7 +75,7 @@ public sealed partial class TileCacheRetryStatusTests
             });
         });
         using var harness = new TileCacheTestHarness(upstream);
-        harness.Settings.TileOutboundBudgetPerIpPerMinute = 10;
+        harness.Settings.TileTrafficMode = TileTrafficMode.Conservative;
         SeedExpiredLowZoomTile(harness.CacheDirectory, 5, 23, 1, [9, 8, 7]);
         TileCacheService.SetRefreshRetryDelayForTesting(_ => TimeSpan.Zero);
         var acquisitions = 0;

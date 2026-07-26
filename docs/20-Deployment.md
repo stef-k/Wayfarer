@@ -370,14 +370,16 @@ Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=HOME=/home/wayfarer
 # Contact email for tile provider User-Agent (OSM compliance)
 Environment=Application__ContactEmail=admin@your-domain.example
-# Public hostname authorized for the origin-only tile provider Referer
-Environment=AllowedHosts=wayfarer.example.com
+# One exact public hostname authorized for the origin-only tile provider Referer
+Environment="AllowedHosts=wayfarer.example.com"
+# Multiple exact public hostnames
+Environment="AllowedHosts=wayfarer.example.com;www.wayfarer.example.com"
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Replace `wayfarer.example.com` with the real public hostname. Do not leave `AllowedHosts` as `*` in production: Wayfarer will omit the upstream Referer because a wildcard cannot establish a trustworthy deployment origin, and providers such as OSM may respond with 403.
+Replace the examples with semicolon-separated exact public DNS hostnames. Do not include wildcards, IP literals, localhost/private names, ports, or URL schemes. A wildcard cannot establish a trustworthy deployment origin, so Wayfarer omits the upstream Referer and providers may respond with 403.
 
 ```bash
 sudo systemctl daemon-reload

@@ -83,6 +83,10 @@ public class ApplicationSettings
     [MaxLength(200)]
     public string? TileProviderApiKey { get; set; }
 
+    /// <summary>Explicit traffic behavior for compatible tile providers.</summary>
+    public Wayfarer.Services.TileTrafficMode TileTrafficMode { get; set; } =
+        Wayfarer.Services.TileTrafficMode.Interactive;
+
     /// <summary>Whether bounded custom-provider transport limits are administrator-managed.</summary>
     public bool TileProviderAdvancedLimitsEnabled { get; set; }
 

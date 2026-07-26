@@ -67,9 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const tileProviderAttribution = document.getElementById('TileProviderAttribution');
     const tileProviderApiKeyRow = document.getElementById('tileProviderApiKeyRow');
     const tileProviderApiKey = document.getElementById('TileProviderApiKey');
-    const tileProviderAdvancedRow = document.getElementById('tileProviderAdvancedRow');
-    const tileProviderAdvancedToggle = document.getElementById('TileProviderAdvancedLimitsEnabled');
-    const tileProviderAdvancedFields = document.getElementById('tileProviderAdvancedFields');
 
     if (tileProviderKey && tileProviderTemplate && tileProviderAttribution && tileProviderApiKeyRow && tileProviderApiKey) {
         const customKey = tileProviderKey.dataset.customKey || 'custom';
@@ -78,9 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
             attribution: tileProviderAttribution.value
         };
 
-        const setApiKeyVisibility = (requiresApiKey) => {
+        const setApiKeyVisibility = (requiresApiKey, clearValue) => {
             tileProviderApiKeyRow.classList.toggle('d-none', !requiresApiKey);
-            if (!requiresApiKey) {
+            if (!requiresApiKey && clearValue) {
                 tileProviderApiKey.value = '';
             }
         };
@@ -91,11 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const presetTemplate = selectedOption?.dataset.template || '';
             const presetAttribution = selectedOption?.dataset.attribution || '';
             const presetRequiresKey = selectedOption?.dataset.requiresKey === 'true';
-            tileProviderAdvancedRow?.classList.toggle('d-none', !isCustom);
-            tileProviderAdvancedFields?.classList.toggle(
-                'd-none',
-                !isCustom || !tileProviderAdvancedToggle?.checked);
-
             if (isCustom) {
                 tileProviderTemplate.readOnly = false;
                 tileProviderAttribution.readOnly = false;
@@ -111,11 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const requiresApiKey = isCustom
                 ? tileProviderTemplate.value.includes('{apiKey}')
                 : presetRequiresKey;
-            setApiKeyVisibility(requiresApiKey);
+            setApiKeyVisibility(requiresApiKey, true);
         };
 
         tileProviderKey.addEventListener('change', applyTileProviderSelection);
-        tileProviderAdvancedToggle?.addEventListener('change', applyTileProviderSelection);
         tileProviderTemplate.addEventListener('input', () => {
             if (tileProviderKey.value === customKey) {
                 customState.template = tileProviderTemplate.value;
@@ -128,7 +119,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        applyTileProviderSelection();
+        // Initialization is display-only: persisted recovery fields must not be rewritten.
+        const selectedOption = tileProviderKey.options[tileProviderKey.selectedIndex];
+        const isCustom = selectedOption?.value === customKey;
+        const isPreserved = selectedOption?.dataset.preserved === 'true';
+        tileProviderTemplate.readOnly = !isCustom;
+        tileProviderAttribution.readOnly = !isCustom;
+        setApiKeyVisibility(
+            isPreserved || tileProviderTemplate.value.includes('{apiKey}') ||
+            selectedOption?.dataset.requiresKey === 'true',
+            false);
     }
 
     // On page load, check if a cache purge is already in progress and reconnect SSE.

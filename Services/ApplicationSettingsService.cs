@@ -63,17 +63,6 @@ namespace Wayfarer.Parsers
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
             }
 
-            // Resolve tile provider defaults when fields are missing.
-            if (string.IsNullOrWhiteSpace(settings.TileProviderKey))
-            {
-                settings.TileProviderKey = ApplicationSettings.DefaultTileProviderKey;
-            }
-
-            if (string.IsNullOrWhiteSpace(settings.TileProviderUrlTemplate))
-            {
-                settings.TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate;
-            }
-
             // Only a recognized preset can safely supply missing legacy attribution.
             // Unknown and custom providers must never be mislabeled as OpenStreetMap.
             if (string.IsNullOrWhiteSpace(settings.TileProviderAttribution) &&

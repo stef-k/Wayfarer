@@ -283,7 +283,7 @@ public sealed class TileCachePhase3Tests
         Assert.NotEqual(osm.Bytes, custom.Bytes);
     }
 
-    /// <summary>A 24-tile cold viewport completes progressively under the unchanged 12/2s budget.</summary>
+    /// <summary>A 24-tile Interactive viewport completes through concurrency without local rate delay.</summary>
     [Fact]
     public async Task ControlledColdViewport_CompletesProgressivelyWithinDerivedCeiling()
     {
@@ -308,11 +308,10 @@ public sealed class TileCachePhase3Tests
 
         Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
         Assert.Equal(tileCount, starts.Length);
-        Assert.Equal(20, TileCacheService.OutboundBudget.BurstCapacity);
-        Assert.Contains(starts, start => start >= TimeSpan.FromMilliseconds(500));
+        Assert.All(starts, start => Assert.True(start < TimeSpan.FromSeconds(1)));
         Assert.True(stopwatch.Elapsed <= derivedCeiling + TimeSpan.FromSeconds(2));
         _output.WriteLine(
-            "N={0}, B={1}, R=6/s, L={2}ms, queue={3}, ceiling={4:F1}s, actual={5:F3}s",
+            "N={0}, mode=Interactive, concurrency=6, L={2}ms, queue={3}, ceiling={4:F1}s, actual={5:F3}s",
             tileCount,
             TileCacheService.OutboundBudget.BurstCapacity,
             latency.TotalMilliseconds,

@@ -164,8 +164,11 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (currentSettings != null)
             {
                 // Validate tile provider settings before model validation.
-                NormalizeTileProviderSettings(currentSettings, updatedSettings);
-                ValidateTileProviderPolicy(updatedSettings);
+                var providerStatePreserved = NormalizeTileProviderSettings(currentSettings, updatedSettings);
+                if (!providerStatePreserved)
+                {
+                    ValidateTileProviderPolicy(updatedSettings);
+                }
             }
 
             if (!ValidateModelState())
@@ -195,13 +198,12 @@ namespace Wayfarer.Areas.Admin.Controllers
                     Track("ImageCacheExpiryDays", currentSettings.ImageCacheExpiryDays, updatedSettings.ImageCacheExpiryDays);
                     Track("MaxProxyImageDownloadMB", currentSettings.MaxProxyImageDownloadMB, updatedSettings.MaxProxyImageDownloadMB);
                     Track("UploadSizeLimitMB", currentSettings.UploadSizeLimitMB, updatedSettings.UploadSizeLimitMB);
-                    Track("TileProviderKey", currentSettings.TileProviderKey, updatedSettings.TileProviderKey);
-                    Track("TileProviderUrlTemplate", currentSettings.TileProviderUrlTemplate, updatedSettings.TileProviderUrlTemplate);
-                    Track("TileProviderAttribution", currentSettings.TileProviderAttribution, updatedSettings.TileProviderAttribution);
-                    if (!string.Equals(currentSettings.TileProviderApiKey, updatedSettings.TileProviderApiKey, StringComparison.Ordinal))
-                    {
-                        changes.Add("TileProviderApiKey: [updated]");
-                    }
+                    var oldTilePolicy = TileProviderPolicyResolver.Resolve(currentSettings);
+                    var newTilePolicy = TileProviderPolicyResolver.Resolve(updatedSettings);
+                    Track(
+                        "TilePolicy",
+                        DescribeTilePolicyForAudit(oldTilePolicy),
+                        DescribeTilePolicyForAudit(newTilePolicy));
                     Track("TileRateLimitEnabled", currentSettings.TileRateLimitEnabled, updatedSettings.TileRateLimitEnabled);
                     Track("TileRateLimitPerMinute", currentSettings.TileRateLimitPerMinute, updatedSettings.TileRateLimitPerMinute);
                     Track("TileRateLimitAuthenticatedPerMinute", currentSettings.TileRateLimitAuthenticatedPerMinute, updatedSettings.TileRateLimitAuthenticatedPerMinute);
@@ -235,6 +237,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     currentSettings.TileProviderUrlTemplate = updatedSettings.TileProviderUrlTemplate;
                     currentSettings.TileProviderAttribution = updatedSettings.TileProviderAttribution;
                     currentSettings.TileProviderApiKey = updatedSettings.TileProviderApiKey;
+                    currentSettings.TileTrafficMode = updatedSettings.TileTrafficMode;
                     currentSettings.TileRateLimitEnabled = updatedSettings.TileRateLimitEnabled;
                     currentSettings.TileRateLimitPerMinute = updatedSettings.TileRateLimitPerMinute;
                     currentSettings.TileRateLimitAuthenticatedPerMinute = updatedSettings.TileRateLimitAuthenticatedPerMinute;
@@ -456,17 +459,27 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <summary>
         /// Normalizes and validates tile provider settings, applying presets when selected.
         /// </summary>
-        private void NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
+        private bool NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
         {
             var providerKey = updatedSettings.TileProviderKey?.Trim();
+            var currentCompatibility = TileProviderCatalog.ResolveCompatibility(
+                currentSettings.TileProviderKey,
+                currentSettings.TileProviderUrlTemplate);
+            var preservesUnsupportedState =
+                currentCompatibility.Status != TileProviderCompatibility.Supported &&
+                (string.IsNullOrWhiteSpace(providerKey) ||
+                 string.Equals(providerKey, currentSettings.TileProviderKey?.Trim(),
+                     StringComparison.OrdinalIgnoreCase));
+            if (preservesUnsupportedState)
+            {
+                PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
+                return true;
+            }
             if (string.IsNullOrWhiteSpace(providerKey))
             {
-                // Preserve existing settings when tile provider fields are not posted.
-                updatedSettings.TileProviderKey = currentSettings.TileProviderKey;
-                updatedSettings.TileProviderUrlTemplate = currentSettings.TileProviderUrlTemplate;
-                updatedSettings.TileProviderAttribution = currentSettings.TileProviderAttribution;
-                updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
-                return;
+                // Preserve supported provider identity when an unrelated form omits this section.
+                PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
+                return true;
             }
             var preset = TileProviderCatalog.FindPreset(providerKey);
             var isCustom = string.Equals(providerKey, TileProviderCatalog.CustomProviderKey, StringComparison.OrdinalIgnoreCase);
@@ -474,7 +487,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (preset == null && !isCustom)
             {
                 ModelState.AddModelError(nameof(ApplicationSettings.TileProviderKey), "Unknown tile provider selection.");
-                return;
+                return false;
             }
 
             if (preset != null)
@@ -518,6 +531,8 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 updatedSettings.TileProviderApiKey = null;
             }
+
+            return false;
         }
 
         /// <summary>

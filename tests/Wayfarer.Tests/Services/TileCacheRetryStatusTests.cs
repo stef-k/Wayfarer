@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
