@@ -123,15 +123,16 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
 
   const applyActivePlaceDraftPreview = (state: EditorTripState): void => {
-    placeDraftPreview.clear();
     const preview = activePlaceDraftPreview;
     if (!preview) {
+      placeDraftPreview.clear();
       return;
     }
 
     if (preview.placeId) {
       placeMarkers.get(preview.placeId)?.remove();
     }
+    // Preserve the authoritative marker instance and Pick listeners while draft styling rerenders.
     placeDraftPreview.show(preview.coordinate, preview.label, preview);
   };
 

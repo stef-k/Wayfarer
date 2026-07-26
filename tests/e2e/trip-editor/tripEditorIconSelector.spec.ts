@@ -32,6 +32,76 @@ const iconNames = [
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe('Trip Editor icon selector', () => {
+  test('Pick styling preserves the pending coordinate across Done and coordinate-only Cancel', async ({ page }) => {
+    await signIn(page);
+    const requests: Record<string, any>[] = [];
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await loadWorkspaceWithIconFixture(page, requests);
+    await openPlace(page);
+    const form = page.locator('#trip-editor-place-form');
+    const baseline = await draftCoordinates(form);
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.62, yRatio: 0.39 });
+    const pending = await markerCoordinate(page);
+    expect(pending).not.toEqual(baseline);
+    await openIconSelector(page);
+    await page.locator('[data-selector-kind="icon"] [data-icon-selector-option]').nth(1).click();
+    await openColorSelector(page);
+    await page.locator('[data-selector-kind="color"] [data-icon-selector-option]').nth(1).click();
+    await expect.poll(() => markerCoordinate(page)).toEqual(pending);
+    await expect(draftMarkers(page)).toHaveCount(1);
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    await expect.poll(() => draftCoordinates(form)).toEqual(pending);
+    const selectedIcon = await selectedStyle(page, 'icon');
+    const selectedColor = await selectedStyle(page, 'color');
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.35, yRatio: 0.64 });
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await expect.poll(() => draftCoordinates(form)).toEqual(pending);
+    await expect.poll(() => markerCoordinate(page)).toEqual(pending);
+    expect(await selectedStyle(page, 'icon')).toBe(selectedIcon);
+    expect(await selectedStyle(page, 'color')).toBe(selectedColor);
+    expect(requests).toEqual([]);
+  });
+
+  test('phone Pick actions remain visible, contained, non-overlapping, and operable', async ({ page }) => {
+    await signIn(page);
+    const requests: Record<string, any>[] = [];
+    await loadWorkspaceWithIconFixture(page, requests);
+    await openPlace(page);
+    for (const width of [390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.getByRole('button', { name: 'Pick on map' }).click();
+      const mapWork = page.getByRole('region', { name: 'Map work' });
+      const done = mapWork.getByRole('button', { name: 'Done' });
+      const cancel = mapWork.getByRole('button', { name: 'Cancel' });
+      await expect(done).toBeInViewport();
+      await expect(cancel).toBeInViewport();
+      const layout = await page.evaluate(() => {
+        const drawer = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer');
+        const actions = document.querySelector<HTMLElement>('.trip-editor-map-work-toolbar__actions');
+        const buttons = Array.from(actions?.querySelectorAll<HTMLElement>('button') ?? []).map(button => button.getBoundingClientRect());
+        return {
+          actionsContained: Boolean(actions && actions.scrollWidth <= actions.clientWidth),
+          drawerContained: Boolean(drawer && drawer.scrollWidth <= drawer.clientWidth),
+          overlap: buttons.length >= 2 && buttons[0].right > buttons[buttons.length - 1].left
+        };
+      });
+      expect(layout.actionsContained).toBe(true);
+      expect(layout.drawerContained).toBe(true);
+      expect(layout.overlap).toBe(false);
+      await done.click();
+      await expect(mapWork).toHaveCount(0);
+      await page.getByRole('button', { name: 'Pick on map' }).click();
+      await cancel.click();
+      await expect(mapWork).toHaveCount(0);
+    }
+    expect(requests).toEqual([]);
+  });
+
   test('filters, selects, sends a mocked place save, and stays contained across responsive themes', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await signIn(page);
@@ -357,6 +427,31 @@ function sidebarPlaceIcon(page: Page): Locator {
 
 function mapMarkerIcon(page: Page): Locator {
   return page.locator(`[data-place-marker-icon="${placeId}"]`);
+}
+
+function draftMarkers(page: Page): Locator {
+  return page.locator('[data-place-draft-preview-marker], [data-coordinate-preview-marker]');
+}
+
+async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
+  await page.getByLabel('Read-only trip map').evaluate((element, point) => {
+    const box = element.getBoundingClientRect();
+    const clientX = box.left + box.width * point.xRatio;
+    const clientY = box.top + box.height * point.yRatio;
+    for (const type of ['mousedown', 'mouseup', 'click']) element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, view: window }));
+  }, position);
+}
+
+async function markerCoordinate(page: Page): Promise<{ latitude: string; longitude: string }> {
+  return draftMarkers(page).evaluate(element => ({ latitude: (element as HTMLElement).dataset.placeDraftLatitude ?? '', longitude: (element as HTMLElement).dataset.placeDraftLongitude ?? '' }));
+}
+
+async function draftCoordinates(form: Locator): Promise<{ latitude: string; longitude: string }> {
+  return { latitude: await form.getByLabel('Latitude').inputValue(), longitude: await form.getByLabel('Longitude').inputValue() };
+}
+
+async function selectedStyle(page: Page, kind: 'icon' | 'color'): Promise<string> {
+  return (await page.locator(`[data-selector-kind="${kind}"] [data-icon-selector-selected-name]`).textContent())?.trim() ?? '';
 }
 
 async function expectLoadedImages(images: Locator): Promise<void> {

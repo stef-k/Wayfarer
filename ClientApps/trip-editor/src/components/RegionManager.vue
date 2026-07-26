@@ -143,9 +143,14 @@ const renderedAreaIdsByRegionId = computed(() => {
   return result;
 });
 const placePreview = computed<PlaceDraftPreview | null>(() => {
+  // Pick owns the pending coordinate until Done or Cancel; form fields continue to own draft styling.
+  const coordinate = props.editorSurface.mapWork.value?.modeName === 'Pick place location'
+    && props.editorSurface.mapWork.value.target.identity === activePlaceTarget.value.identity
+    ? placeCoordinateMapWork.coordinate
+    : parseDraftCoordinate();
   if (placeDraft.id && activePlace.value && isPlaceEditOpen(activePlace.value)) {
     return {
-      coordinate: parseDraftCoordinate(),
+      coordinate,
       placeId: placeDraft.id,
       label: placeDraft.name || activePlace.value.name,
       iconName: placeDraft.iconName || activePlace.value.iconName,
@@ -155,7 +160,7 @@ const placePreview = computed<PlaceDraftPreview | null>(() => {
 
   if (!placeDraft.id && placeDraft.regionId && props.editorSurface.isTargetActive(activePlaceTarget.value)) {
     return {
-      coordinate: parseDraftCoordinate(),
+      coordinate,
       placeId: null,
       label: placeDraft.name || 'New place',
       iconName: placeDraft.iconName || 'marker',

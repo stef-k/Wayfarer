@@ -280,14 +280,14 @@
   }
 
   .trip-editor-map-work-toolbar__actions {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
     width: 100%;
   }
 
   .trip-editor-map-work-toolbar__actions .btn {
-    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
   }
 
   .trip-editor-sidebar--mobile-drawer .trip-editor-surface {
