@@ -83,7 +83,13 @@ public static class TileProviderCatalog
             "opentopomap" => "https://services.opentopomap.org/about",
             _ => "Administrator-managed provider agreement"
         };
-        return new(TileProviderCompatibility.Supported, source, "Supported.");
+        var auditSource = normalizedKey switch
+        {
+            ApplicationSettings.DefaultTileProviderKey => "OSM tile policy",
+            "opentopomap" => "OpenTopoMap usage policy",
+            _ => "Administrator-managed provider agreement"
+        };
+        return new(TileProviderCompatibility.Supported, source, auditSource, "Supported.");
     }
 
     /// <summary>Returns true for an exact maintained host or one of its DNS subdomains.</summary>
@@ -94,10 +100,20 @@ public static class TileProviderCatalog
     }
 
     private static TileProviderCompatibilityDecision Blocked(string source, string message) =>
-        new(TileProviderCompatibility.Blocked, source, message);
+        new(
+            TileProviderCompatibility.Blocked,
+            source,
+            source.Contains("thunderforest", StringComparison.OrdinalIgnoreCase)
+                ? "Thunderforest terms"
+                : "CARTO basemap policy",
+            message);
 
     private static TileProviderCompatibilityDecision Invalid(string message) =>
-        new(TileProviderCompatibility.InvalidOrUnsupported, "Wayfarer compatibility validation", message);
+        new(
+            TileProviderCompatibility.InvalidOrUnsupported,
+            "Wayfarer compatibility validation",
+            "Wayfarer compatibility validation",
+            message);
 
     private static string NormalizeHost(string? host) => (host ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
 

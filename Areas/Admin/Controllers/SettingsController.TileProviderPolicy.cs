@@ -7,6 +7,21 @@ namespace Wayfarer.Areas.Admin.Controllers;
 /// <summary>Owns the provider-policy validation and historical-budget workflow.</summary>
 public partial class SettingsController
 {
+    /// <summary>Formats the complete bounded non-secret effective policy for one audit transition.</summary>
+    private static string DescribeTilePolicyForAudit(TileProviderPolicy policy) =>
+        $"Mode={policy.TrafficMode}; " +
+        $"Compatibility={policy.Compatibility.Status}; " +
+        $"CompatibilitySource={policy.Compatibility.AuditSource}; " +
+        $"TileEffectiveRate={policy.SustainedRequestsPerSecond}; TileEffectiveRateActive={policy.IsRateActive}; " +
+        $"TileEffectiveBurst={policy.BurstCapacity}; TileEffectiveBurstActive={policy.IsBurstActive}; " +
+        $"TileEffectiveConcurrency={policy.MaxConcurrency}; TileEffectiveConcurrencyActive={policy.IsConcurrencyActive}; " +
+        $"TileEffectiveClientAllowance={policy.ClientSeriesPerMinute}; TileEffectiveClientAllowanceActive={policy.IsClientSeriesAllowanceActive}; " +
+        $"TileEffectiveMaxAttempts={policy.MaxAttempts}; " +
+        $"TileEffectiveFallbackBaseDelayMs={policy.FallbackBaseDelay.TotalMilliseconds:0}; " +
+        $"TileEffectiveFallbackDelayCapSeconds={policy.FallbackDelayCap.TotalSeconds:0}; " +
+        $"TileEffectiveMaxIndividualWaitSeconds={policy.MaxIndividualWait.TotalSeconds:0}; " +
+        $"TileEffectiveTotalRetryCeilingSeconds={policy.TotalRetryCeiling.TotalSeconds:0}";
+
     /// <summary>Applies authoritative custom-provider cross-field validation.</summary>
     private void ValidateTileProviderPolicy(ApplicationSettings settings)
     {

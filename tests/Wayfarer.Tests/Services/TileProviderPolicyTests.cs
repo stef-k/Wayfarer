@@ -467,7 +467,7 @@ public sealed class TileProviderStateAdmissionTests
 
     private static TileProviderPolicy Profile(int index) => new(
         $"custom:test-{index}", TileTrafficMode.Custom,
-        new(TileProviderCompatibility.Supported, "test", "test"), true,
+        new(TileProviderCompatibility.Supported, "test", "test", "test"), true,
         20, 50, 16, 0, 3,
         TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1),
         TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), false);

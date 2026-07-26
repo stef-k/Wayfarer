@@ -33,11 +33,17 @@
 
 <div class="col-md-6 mb-3">
     <div class="alert alert-info mb-0">
-        <strong>Effective active controls:</strong><br />
-        Rate: @(policy.UsesRateTokens ? $"{policy.SustainedRequestsPerSecond} actual contacts/sec" : "inactive")<br />
-        Burst: @(policy.UsesRateTokens ? $"{policy.BurstCapacity} contact tokens" : "inactive")<br />
-        Concurrency: @policy.MaxConcurrency simultaneous contacts (local resource protection)<br />
-        Client allowance: @(policy.ClientSeriesPerMinute > 0 ? $"{policy.ClientSeriesPerMinute} admitted series/client/min" : "inactive")
+        <strong>Complete effective traffic policy:</strong><br />
+        Mode: @policy.TrafficMode<br />
+        Rate: @(policy.IsRateActive ? $"{policy.SustainedRequestsPerSecond} actual contacts/sec (active)" : "inactive")<br />
+        Burst: @(policy.IsBurstActive ? $"{policy.BurstCapacity} contact tokens (active)" : "inactive")<br />
+        Concurrency: @(policy.IsConcurrencyActive ? $"{policy.MaxConcurrency} simultaneous contacts (active; local resource protection, not provider permission)" : "inactive")<br />
+        Client allowance: @(policy.IsClientSeriesAllowanceActive ? $"{policy.ClientSeriesPerMinute} admitted series/client/min (active)" : "inactive")<br />
+        Maximum attempts: @(compatible ? $"{policy.MaxAttempts}" : "inactive")<br />
+        Fallback base delay: @(compatible ? $"{policy.FallbackBaseDelay.TotalMilliseconds:0} ms" : "inactive")<br />
+        Fallback delay cap: @(compatible ? $"{policy.FallbackDelayCap.TotalSeconds:0} sec" : "inactive")<br />
+        Maximum provider/individual wait: @(compatible ? $"{policy.MaxIndividualWait.TotalSeconds:0} sec" : "inactive")<br />
+        Total retry ceiling: @(compatible ? $"{policy.TotalRetryCeiling.TotalSeconds:0} sec" : "inactive")
     </div>
 </div>
 

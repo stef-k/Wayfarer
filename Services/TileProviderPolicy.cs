@@ -23,6 +23,7 @@ public enum TileProviderCompatibility
 internal sealed record TileProviderCompatibilityDecision(
     TileProviderCompatibility Status,
     string Source,
+    string AuditSource,
     string Message);
 
 /// <summary>
@@ -46,6 +47,18 @@ internal sealed record TileProviderPolicy(
 {
     /// <summary>True only when the complete captured compatibility and scalar policy is eligible.</summary>
     internal bool CanContactProvider => Compatibility.Status == TileProviderCompatibility.Supported;
+
+    /// <summary>Whether sustained-rate admission is effective for this policy.</summary>
+    internal bool IsRateActive => CanContactProvider && UsesRateTokens;
+
+    /// <summary>Whether burst-token admission is effective for this policy.</summary>
+    internal bool IsBurstActive => CanContactProvider && UsesRateTokens;
+
+    /// <summary>Whether provider-contact concurrency is effective for this policy.</summary>
+    internal bool IsConcurrencyActive => CanContactProvider;
+
+    /// <summary>Whether the per-client admitted-series allowance is effective.</summary>
+    internal bool IsClientSeriesAllowanceActive => CanContactProvider && ClientSeriesPerMinute > 0;
 }
 
 /// <summary>Resolves persisted settings into one deterministic, fail-closed work-series policy.</summary>
@@ -78,6 +91,7 @@ internal static class TileProviderPolicyResolver
                 logger?.LogWarning("Invalid persisted custom tile-provider limits prevent upstream traffic.");
                 return Disabled(settings, new TileProviderCompatibilityDecision(
                     TileProviderCompatibility.InvalidOrUnsupported,
+                    WayfarerSafeguardsSource,
                     WayfarerSafeguardsSource,
                     "Custom traffic values are invalid and must be corrected before activation."));
             }
