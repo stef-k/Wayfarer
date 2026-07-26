@@ -49,7 +49,11 @@ test.describe.serial('Trip Editor segment editing', () => {
 
   test('docked segment map-work context spans and stays contained in its row', async ({ page }) => {
     await signIn(page);
-    await loadWorkspaceWithSegmentFixture(page);
+    await loadWorkspaceWithSegmentFixture(page, state => {
+      const [first, second] = Object.values(state.placesById) as Array<Record<string, any>>;
+      first.name = 'A very long departure station name that must wrap inside the segment row';
+      second.name = 'An equally long arrival station name that must remain contained';
+    });
 
     await openEditableSegment(page);
     await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
@@ -158,6 +162,36 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.locator(`[data-segment-id="${secondSegmentId}"][data-route-owner="draft"][data-route-kind="fallback"]`)).toHaveCount(1);
   });
 
+  test('failed Save retains the complete visible retryable draft and viewport', async ({ page }) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithSegmentFixture(page);
+    await page.unroute(editorApiMatcher);
+    await page.route(editorApiMatcher, async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
+        return;
+      }
+
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ title: 'Forced segment save failure' }) });
+    });
+
+    await openEditableSegment(page);
+    const form = page.locator('#trip-editor-segment-form');
+    const draftRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
+    const routePath = await draftRoute.getAttribute('d');
+    const map = page.locator('.trip-editor-map');
+    const viewport = await map.evaluate(element => ({ lat: element.dataset.tripEditorMapLat, lng: element.dataset.tripEditorMapLng, zoom: element.dataset.tripEditorMapZoom }));
+    await form.getByLabel('Estimated distance km').fill('99');
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Save failed' })).toBeVisible();
+    await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(draftRoute).toHaveAttribute('d', routePath ?? '');
+    await expect(map).toHaveAttribute('data-trip-editor-map-lat', viewport.lat ?? '');
+    await expect(map).toHaveAttribute('data-trip-editor-map-lng', viewport.lng ?? '');
+    await expect(map).toHaveAttribute('data-trip-editor-map-zoom', viewport.zoom ?? '');
+  });
+
   test('Cancel route map-work rolls back only route and delete confirms dirty discard first', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithSegmentFixture(page);
@@ -251,10 +285,11 @@ test.describe.serial('Trip Editor segment editing', () => {
   });
 });
 
-async function loadWorkspaceWithSegmentFixture(page: Page): Promise<MutableEditorState> {
+async function loadWorkspaceWithSegmentFixture(page: Page, customize?: (state: MutableEditorState) => void): Promise<MutableEditorState> {
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareSegmentState(state);
+  customize?.(state);
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
   await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);

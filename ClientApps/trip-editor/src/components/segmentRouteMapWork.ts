@@ -107,7 +107,7 @@ function sameGeometry(left: GeoJsonLineString | null, right: GeoJsonLineString |
 
 function segmentRouteStatus(route: GeoJsonLineString | null): string {
   const points = route?.coordinates.length ?? 0;
-  return points >= 2 ? `${points} route points ready` : 'No route ready';
+  return points >= 2 ? `Editing route · ${points} route points ready` : 'Editing route · no route ready';
 }
 
 function cloneGeometry<T>(geometry: T): T {

@@ -422,6 +422,16 @@ body {
   overflow-wrap: anywhere;
 }
 
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-list-button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-list-button > * {
+  display: block;
+}
+
 .trip-editor-place-row,
 .trip-editor-area-row {
   align-items: center;
