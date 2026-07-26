@@ -344,7 +344,7 @@
     position: absolute;
     right: 0.75rem;
     /* Clear Leaflet's top-right utilities while retaining the full toolbar width. */
-    top: 4rem;
+    top: 4.5rem;
     z-index: 12;
   }
 
