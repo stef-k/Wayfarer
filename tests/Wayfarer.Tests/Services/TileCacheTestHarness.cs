@@ -95,7 +95,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     /// <summary>Cancels tracked refreshes before synchronously completing bounded test cleanup.</summary>
     public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
-    /// <summary>Awaits tracked refresh completion before disposing services and deleting temporary data.</summary>
+    /// <summary>Awaits tracked refresh and scheduler completion before deleting temporary data.</summary>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -111,6 +111,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
             throw new TimeoutException("Tracked stale-tile refresh work exceeded the test cleanup timeout.");
         }
 
+        await TileWorkScheduler.StopAndDrainAsync();
         TileCacheService.ResetStaticStateForTesting();
         await _rootProvider.DisposeAsync();
 
