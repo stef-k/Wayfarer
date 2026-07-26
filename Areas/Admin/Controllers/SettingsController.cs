@@ -535,28 +535,6 @@ namespace Wayfarer.Areas.Admin.Controllers
             return false;
         }
 
-        /// <summary>Copies every persisted provider recovery field without normalization.</summary>
-        private static void PreserveTileProviderRecoveryState(
-            ApplicationSettings currentSettings,
-            ApplicationSettings updatedSettings)
-        {
-            updatedSettings.TileProviderKey = currentSettings.TileProviderKey;
-            updatedSettings.TileProviderUrlTemplate = currentSettings.TileProviderUrlTemplate;
-            updatedSettings.TileProviderAttribution = currentSettings.TileProviderAttribution;
-            updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
-            updatedSettings.TileTrafficMode = currentSettings.TileTrafficMode;
-            updatedSettings.TileOutboundBudgetPerIpPerMinute = currentSettings.TileOutboundBudgetPerIpPerMinute;
-            updatedSettings.TileProviderAdvancedLimitsEnabled = currentSettings.TileProviderAdvancedLimitsEnabled;
-            updatedSettings.TileProviderSustainedRequestsPerSecond = currentSettings.TileProviderSustainedRequestsPerSecond;
-            updatedSettings.TileProviderBurstCapacity = currentSettings.TileProviderBurstCapacity;
-            updatedSettings.TileProviderMaxConcurrency = currentSettings.TileProviderMaxConcurrency;
-            updatedSettings.TileProviderMaxAttempts = currentSettings.TileProviderMaxAttempts;
-            updatedSettings.TileProviderFallbackBaseDelayMs = currentSettings.TileProviderFallbackBaseDelayMs;
-            updatedSettings.TileProviderFallbackDelayCapSeconds = currentSettings.TileProviderFallbackDelayCapSeconds;
-            updatedSettings.TileProviderMaxIndividualWaitSeconds = currentSettings.TileProviderMaxIndividualWaitSeconds;
-            updatedSettings.TileProviderTotalRetryCeilingSeconds = currentSettings.TileProviderTotalRetryCeilingSeconds;
-        }
-
         /// <summary>
         /// Adds tile provider preset metadata needed by the settings view.
         /// </summary>

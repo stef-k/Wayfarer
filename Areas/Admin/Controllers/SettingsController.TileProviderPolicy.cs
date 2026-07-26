@@ -7,6 +7,28 @@ namespace Wayfarer.Areas.Admin.Controllers;
 /// <summary>Owns the provider-policy validation and historical-budget workflow.</summary>
 public partial class SettingsController
 {
+    /// <summary>Copies every persisted provider recovery field without normalization.</summary>
+    private static void PreserveTileProviderRecoveryState(
+        ApplicationSettings currentSettings,
+        ApplicationSettings updatedSettings)
+    {
+        updatedSettings.TileProviderKey = currentSettings.TileProviderKey;
+        updatedSettings.TileProviderUrlTemplate = currentSettings.TileProviderUrlTemplate;
+        updatedSettings.TileProviderAttribution = currentSettings.TileProviderAttribution;
+        updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
+        updatedSettings.TileTrafficMode = currentSettings.TileTrafficMode;
+        updatedSettings.TileOutboundBudgetPerIpPerMinute = currentSettings.TileOutboundBudgetPerIpPerMinute;
+        updatedSettings.TileProviderAdvancedLimitsEnabled = currentSettings.TileProviderAdvancedLimitsEnabled;
+        updatedSettings.TileProviderSustainedRequestsPerSecond = currentSettings.TileProviderSustainedRequestsPerSecond;
+        updatedSettings.TileProviderBurstCapacity = currentSettings.TileProviderBurstCapacity;
+        updatedSettings.TileProviderMaxConcurrency = currentSettings.TileProviderMaxConcurrency;
+        updatedSettings.TileProviderMaxAttempts = currentSettings.TileProviderMaxAttempts;
+        updatedSettings.TileProviderFallbackBaseDelayMs = currentSettings.TileProviderFallbackBaseDelayMs;
+        updatedSettings.TileProviderFallbackDelayCapSeconds = currentSettings.TileProviderFallbackDelayCapSeconds;
+        updatedSettings.TileProviderMaxIndividualWaitSeconds = currentSettings.TileProviderMaxIndividualWaitSeconds;
+        updatedSettings.TileProviderTotalRetryCeilingSeconds = currentSettings.TileProviderTotalRetryCeilingSeconds;
+    }
+
     /// <summary>Formats the complete bounded non-secret effective policy for one audit transition.</summary>
     private static string DescribeTilePolicyForAudit(TileProviderPolicy policy) =>
         $"Mode={policy.TrafficMode}; " +
