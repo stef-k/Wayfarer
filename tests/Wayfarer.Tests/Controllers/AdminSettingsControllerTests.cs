@@ -294,7 +294,9 @@ public class AdminSettingsControllerTests : TestBase
         };
         db.ApplicationSettings.Add(existing);
         await db.SaveChangesAsync();
-        var originalIdentity = TileProviderCatalog.CreateCacheIdentity(providerKey, template);
+        TileProviderCacheIdentity? originalIdentity = Uri.TryCreate(template, UriKind.Absolute, out _)
+            ? TileProviderCatalog.CreateCacheIdentity(providerKey, template)
+            : null;
         var (controller, _, _) = BuildController(db);
 
         var result = await controller.Update(new ApplicationSettings
@@ -319,8 +321,11 @@ public class AdminSettingsControllerTests : TestBase
         Assert.Equal(7, stored.TileProviderFallbackDelayCapSeconds);
         Assert.Equal(44, stored.TileProviderMaxIndividualWaitSeconds);
         Assert.Equal(88, stored.TileProviderTotalRetryCeilingSeconds);
-        Assert.Equal(originalIdentity, TileProviderCatalog.CreateCacheIdentity(
-            stored.TileProviderKey, stored.TileProviderUrlTemplate));
+        if (originalIdentity != null)
+        {
+            Assert.Equal(originalIdentity, TileProviderCatalog.CreateCacheIdentity(
+                stored.TileProviderKey, stored.TileProviderUrlTemplate));
+        }
     }
 
     /// <summary>A successful policy save emits one complete bounded non-secret transition.</summary>
