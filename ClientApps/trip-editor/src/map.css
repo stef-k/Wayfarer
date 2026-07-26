@@ -343,7 +343,8 @@
     padding: 0.5rem;
     position: absolute;
     right: 0.75rem;
-    top: 0.75rem;
+    /* Clear Leaflet's top-right utilities while retaining the full toolbar width. */
+    top: 4rem;
     z-index: 12;
   }
 

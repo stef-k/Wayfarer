@@ -275,7 +275,8 @@
     padding: 0.55rem;
     position: absolute;
     right: 0.75rem;
-    top: 0.75rem;
+    /* Match the normal mobile toolbar clearance below Leaflet utilities. */
+    top: 4rem;
     z-index: 14;
   }
 
