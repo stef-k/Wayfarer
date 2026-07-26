@@ -95,7 +95,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Selected');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
-    await expect(page.getByTitle('Selected place location preview')).toHaveCount(1);
+    await expect(activeDraftMarkers(page)).toHaveCount(1);
     await expect(page.locator('.trip-editor-map-distance-label')).toHaveCount(0);
   });
 
@@ -161,20 +161,19 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
 
     await openEditablePlace(page);
     await expectDraftCoordinates(page, { latitude: '10', longitude: '20' });
-    const originalAnchor = await markerAnchor(page.getByTitle(editablePlaceName));
+    const originalAnchor = await markerAnchor(activeDraftMarkers(page));
 
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await clickMap(page, { xRatio: 0.58, yRatio: 0.44 });
-    const previewAnchor = await markerAnchor(page.getByTitle('Selected place location preview'));
+    const previewAnchor = await markerAnchor(activeDraftMarkers(page));
 
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
     const form = page.locator('#trip-editor-place-form');
     await expect(form.getByLabel('Latitude')).not.toHaveValue('10');
     await expect(form.getByLabel('Longitude')).not.toHaveValue('20');
-    await expect(page.getByTitle('Selected place location preview')).toHaveCount(0);
-    await expect(page.locator(`.trip-editor-map-marker--selected[title="${editablePlaceName}"]`)).toBeVisible();
+    await expect(activeDraftMarkers(page)).toHaveCount(1);
 
-    const selectedAnchor = await markerAnchor(page.getByTitle(editablePlaceName));
+    const selectedAnchor = await markerAnchor(activeDraftMarkers(page));
     expect(Math.hypot(selectedAnchor.x - originalAnchor.x, selectedAnchor.y - originalAnchor.y), 'Selected marker should move away from the saved coordinate.').toBeGreaterThan(20);
     expect(Math.abs(selectedAnchor.x - previewAnchor.x), 'Selected marker should move to the picked preview x-position.').toBeLessThanOrEqual(3);
     expect(Math.abs(selectedAnchor.y - previewAnchor.y), 'Selected marker should move to the picked preview y-position.').toBeLessThanOrEqual(16);
@@ -255,11 +254,117 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect(page.locator('#trip-editor-place-form').getByLabel('Name')).toHaveValue('Unsaved switch name');
   });
 
+  test('new-place map Cancel, Reset, and form Cancel restore their distinct baselines', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    await firstEditableRegion(page).getByRole('button', { name: 'Add Place' }).click();
+    const form = page.locator('#trip-editor-place-form');
+    const initialDraft = await draftCoordinates(page);
+    const initialView = await mapView(page);
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.35, yRatio: 0.35 });
+    await clickMap(page, { xRatio: 0.65, yRatio: 0.55 });
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await expectDraftCoordinates(page, initialDraft);
+    await expectMarkerCoordinate(page, initialDraft);
+
+    await form.getByLabel('Name').fill('Changed draft name');
+    await form.getByLabel('Latitude').fill('12.5');
+    await form.getByLabel('Longitude').fill('44.25');
+    await expectMarkerCoordinate(page, { latitude: '12.5', longitude: '44.25' });
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expectDraftCoordinates(page, initialDraft);
+    await expectMarkerCoordinate(page, initialDraft);
+    await expect.poll(() => mapView(page)).toEqual(initialView);
+
+    await form.getByLabel('Name').fill('Discard this draft');
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await expect(form).toHaveCount(0);
+    await expect(activeDraftMarkers(page)).toHaveCount(0);
+    await expect.poll(() => mapView(page)).toEqual(initialView);
+  });
+
+  test('direct coordinate pairs preserve zero and ignore blank, partial, and out-of-range input', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    await openEditablePlace(page);
+    const form = page.locator('#trip-editor-place-form');
+    const initialMarker = await markerCoordinate(page);
+    const initialView = await mapView(page);
+
+    await form.getByLabel('Latitude').fill('');
+    await form.getByLabel('Longitude').fill('0');
+    await expectMarkerCoordinate(page, initialMarker);
+    await form.getByLabel('Latitude').fill('0');
+    await expectMarkerCoordinate(page, { latitude: '0', longitude: '0' });
+    await form.getByLabel('Latitude').fill('91');
+    await expectMarkerCoordinate(page, { latitude: '0', longitude: '0' });
+    await form.getByLabel('Latitude').fill('10');
+    await form.getByLabel('Longitude').fill('181');
+    await expectMarkerCoordinate(page, { latitude: '0', longitude: '0' });
+    await expect.poll(() => mapView(page)).toEqual(initialView);
+  });
+
+  test('dragging the one Pick marker changes pending state only until Done', async ({ page }) => {
+    await useMapWorkViewport(page);
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    await openEditablePlace(page);
+    const before = await draftCoordinates(page);
+    const marker = activeDraftMarkers(page);
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expect(marker).toHaveClass(/leaflet-marker-draggable/);
+    const box = await marker.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width / 2 + 80, box!.y + box!.height / 2 + 45, { steps: 8 });
+    await page.mouse.up();
+
+    await expectDraftCoordinates(page, before);
+    expect(await markerCoordinate(page)).not.toEqual(before);
+    await expect(activeDraftMarkers(page)).toHaveCount(1);
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    expect(await draftCoordinates(page)).not.toEqual(before);
+    await expect(activeDraftMarkers(page)).toHaveCount(1);
+  });
+
+  test('failed Save retains the complete retryable draft marker and viewport', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    await page.route(editorApiMatcher, async route => {
+      if (route.request().method() === 'GET') {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ title: 'Injected save failure' }) });
+    });
+    await openEditablePlace(page);
+    const form = page.locator('#trip-editor-place-form');
+    await form.getByLabel('Name').fill('Retryable name');
+    await form.getByLabel('Latitude').fill('12.25');
+    await form.getByLabel('Longitude').fill('22.75');
+    const beforeView = await mapView(page);
+
+    await page.getByRole('button', { name: 'Save Place' }).click();
+    await expect(page.getByText(/Place save failed|Injected save failure/).first()).toBeVisible();
+    await expect(form.getByLabel('Name')).toHaveValue('Retryable name');
+    await expectDraftCoordinates(page, { latitude: '12.25', longitude: '22.75' });
+    await expectMarkerCoordinate(page, { latitude: '12.25', longitude: '22.75' });
+    await expect(page.getByRole('button', { name: 'Reset' })).toBeEnabled();
+    await expect.poll(() => mapView(page)).toEqual(beforeView);
+  });
+
   test('Save after Done sends the picked coordinate to a mocked existing place endpoint', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
     const forbidden = watchForbiddenPickRequests(page);
     const savedRequests: Array<Record<string, any>> = [];
+    const serverCoordinate = { latitude: 12.125, longitude: 22.875 };
     await page.route(editorApiMatcher, async route => {
       const request = route.request();
       if (request.method() === 'GET') {
@@ -277,7 +382,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(editorMutationResult({ ...body, id: editablePlaceId }))
+        body: JSON.stringify(editorMutationResult({ ...body, id: editablePlaceId, location: serverCoordinate }))
       });
     });
 
@@ -292,11 +397,14 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expect.poll(() => savedRequests.length).toBe(1);
     expect(String(savedRequests[0].location.latitude)).toBe(picked.latitude);
     expect(String(savedRequests[0].location.longitude)).toBe(picked.longitude);
+    await expectDraftCoordinates(page, { latitude: String(serverCoordinate.latitude), longitude: String(serverCoordinate.longitude) });
+    await expectMarkerCoordinate(page, { latitude: String(serverCoordinate.latitude), longitude: String(serverCoordinate.longitude) });
     expect(forbidden(), 'Saving a picked coordinate must not call geocode/search providers.').toEqual([]);
   });
 });
 
 async function loadWorkspaceWithCoordinateFixture(page: Page): Promise<void> {
+  await blockTileRequests(page);
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareCoordinateState(state);
@@ -386,6 +494,10 @@ async function mapCursor(page: Page): Promise<string> {
   return page.getByLabel('Read-only trip map').evaluate(element => getComputedStyle(element).cursor);
 }
 
+async function blockTileRequests(page: Page): Promise<void> {
+  await page.route(/\/map\/tiles\//i, route => route.fulfill({ status: 204, body: '' }));
+}
+
 function activeDraftMarkers(page: Page): Locator {
   return page.locator('[data-place-draft-preview-marker], [data-coordinate-preview-marker]');
 }
@@ -396,6 +508,17 @@ async function mapView(page: Page): Promise<{ latitude: number; longitude: numbe
     longitude: Number((element as HTMLElement).dataset.tripEditorMapLng),
     zoom: Number((element as HTMLElement).dataset.tripEditorMapZoom)
   }));
+}
+
+async function markerCoordinate(page: Page): Promise<{ latitude: string; longitude: string }> {
+  return await activeDraftMarkers(page).evaluate(element => ({
+    latitude: (element as HTMLElement).dataset.placeDraftLatitude ?? '',
+    longitude: (element as HTMLElement).dataset.placeDraftLongitude ?? ''
+  }));
+}
+
+async function expectMarkerCoordinate(page: Page, coordinate: { latitude: string; longitude: string }): Promise<void> {
+  await expect.poll(() => markerCoordinate(page)).toEqual(coordinate);
 }
 
 function utilityButton(page: Page, name: string): Locator {
@@ -446,7 +569,7 @@ async function expectPickOnMapHelp(page: Page): Promise<void> {
   await expect(pickButton).toHaveAttribute('title', "Pick this place's latitude and longitude on the map");
   const describedBy = await pickButton.getAttribute('aria-describedby');
   expect(describedBy, 'Pick on map should expose an accessible help description.').toBeTruthy();
-  await expect(page.locator(`#${describedBy}`)).toContainText("Use the map to choose this place's latitude and longitude.");
+  await expect(page.locator(`#${describedBy}`)).toContainText('Click the map or drag the marker. Done updates the draft; Save Place persists it.');
 }
 
 async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
