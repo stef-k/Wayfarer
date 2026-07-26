@@ -181,8 +181,17 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expect(mapWorkEditor.getByRole('status')).toContainText('Saved');
     await expect(page.getByRole('region', { name: 'Map search' })).toHaveCount(0);
     await expectMapFirstPhoneLayout(page);
+    await expectMapWorkToolbarHitTesting(page);
     await capture(page, testInfo, 'phone-place-coordinate-map-work');
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
+
+    await page.setViewportSize({ width: 430, height: 844 });
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expectDrawerState(page, 'peek');
+    await expectMapWorkToolbarHitTesting(page);
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
   });
 
   test('dirty metadata tab switch keeps editing on cancel and discards before switching', async ({ page }) => {
@@ -513,6 +522,42 @@ async function expectOpaqueStickyChrome(page: Page): Promise<void> {
     expect(item.backgroundColor.length).toBeGreaterThan(0);
     expect(item.isOpaque).toBe(true);
   }
+}
+
+// Proves the map-work actions are the topmost focusable targets without covering the Peek drawer.
+async function expectMapWorkToolbarHitTesting(page: Page): Promise<void> {
+  const toolbar = page.getByRole('region', { name: 'Map work' });
+  const done = toolbar.getByRole('button', { name: 'Done' });
+  const cancel = toolbar.getByRole('button', { name: 'Cancel' });
+  await expect(done).toBeVisible();
+  await expect(cancel).toBeVisible();
+
+  for (const button of [done, cancel]) {
+    await button.focus();
+    await expect(button).toBeFocused();
+    const hitTargetIsButton = await button.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hitTarget === element || element.contains(hitTarget);
+    });
+    expect(hitTargetIsButton).toBe(true);
+  }
+
+  const geometry = await page.evaluate(() => {
+    const map = document.querySelector<HTMLElement>('.trip-editor-map')?.getBoundingClientRect();
+    const mapWork = document.querySelector<HTMLElement>('.trip-editor-map-work-toolbar')?.getBoundingClientRect();
+    const drawer = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer')?.getBoundingClientRect();
+    return {
+      mapTop: map?.top ?? 0,
+      mapBottom: map?.bottom ?? 0,
+      toolbarTop: mapWork?.top ?? 0,
+      toolbarBottom: mapWork?.bottom ?? 0,
+      drawerTop: drawer?.top ?? 0
+    };
+  });
+  expect(geometry.toolbarTop).toBeGreaterThanOrEqual(geometry.mapTop);
+  expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.mapBottom);
+  expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.drawerTop);
 }
 
 async function expectDirtyTabSwitchGuard(
