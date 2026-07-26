@@ -10,6 +10,75 @@ namespace Wayfarer.Tests.Services;
 /// </summary>
 public sealed class TileProviderPolicyTests
 {
+    /// <summary>Supported built-ins migrate to Interactive without consulting dormant values.</summary>
+    [Fact]
+    public void Resolve_SupportedBuiltInWithDormantValues_IsInteractive()
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = "opentopomap",
+            TileProviderUrlTemplate = "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+            TileProviderAdvancedLimitsEnabled = true,
+            TileOutboundBudgetPerIpPerMinute = 30
+        });
+
+        Assert.Equal(TileTrafficMode.Interactive, profile.TrafficMode);
+        Assert.False(profile.UsesRateTokens);
+        Assert.Equal(0, profile.ClientSeriesPerMinute);
+        Assert.Equal(TileProviderCompatibility.Supported, profile.Compatibility.Status);
+    }
+
+    /// <summary>Blocked hosts win over a Custom label and advanced traffic controls.</summary>
+    [Theory]
+    [InlineData("custom", "https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png")]
+    [InlineData("unknown", "https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png")]
+    public void Resolve_BlockedEndpoint_PrecedesTrafficMode(string key, string template)
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = key,
+            TileProviderUrlTemplate = template,
+            TileProviderAdvancedLimitsEnabled = true
+        });
+
+        Assert.Equal(TileProviderCompatibility.Blocked, profile.Compatibility.Status);
+        Assert.False(profile.CanContactProvider);
+    }
+
+    /// <summary>Blank and unknown provider states remain recoverable but fail closed.</summary>
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("removed", "https://tiles.example.test/{z}/{x}/{y}.png")]
+    public void Resolve_UnknownOrBlankProvider_FailsClosed(string key, string template)
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = key,
+            TileProviderUrlTemplate = template
+        });
+
+        Assert.Equal(TileProviderCompatibility.InvalidOrUnsupported, profile.Compatibility.Status);
+        Assert.False(profile.CanContactProvider);
+    }
+
+    /// <summary>Conservative mode has exact Wayfarer contact and series safeguards.</summary>
+    [Fact]
+    public void Resolve_Conservative_UsesDocumentedSafeguards()
+    {
+        var profile = TileProviderPolicyResolver.Resolve(new ApplicationSettings
+        {
+            TileProviderKey = ApplicationSettings.DefaultTileProviderKey,
+            TileProviderUrlTemplate = ApplicationSettings.DefaultTileProviderUrlTemplate,
+            TileTrafficMode = TileTrafficMode.Conservative
+        });
+
+        Assert.Equal(12, profile.SustainedRequestsPerSecond);
+        Assert.Equal(40, profile.BurstCapacity);
+        Assert.Equal(8, profile.MaxConcurrency);
+        Assert.Equal(480, profile.ClientSeriesPerMinute);
+        Assert.True(profile.UsesRateTokens);
+    }
+
     /// <summary>Supplies persisted scalar and relationship violations that runtime resolution must contain.</summary>
     public static TheoryData<Action<ApplicationSettings>> InvalidPersistedProfiles => new()
     {
