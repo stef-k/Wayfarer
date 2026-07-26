@@ -187,6 +187,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
 
     await page.setViewportSize({ width: 430, height: 844 });
+    await expectMapFirstPhoneLayout(page);
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expectDrawerState(page, 'peek');
     await expectMapWorkToolbarHitTesting(page);
@@ -476,9 +477,7 @@ async function expectDrawerState(page: Page, state: string): Promise<void> {
   await expect(page.locator('.trip-editor-sidebar--mobile-drawer')).toHaveAttribute('data-mobile-drawer-state', state);
 }
 
-async function drawerHeight(page: Page): Promise<number> {
-  return page.locator('.trip-editor-sidebar--mobile-drawer').evaluate(element => element.getBoundingClientRect().height);
-}
+const drawerHeight = (page: Page) => page.locator('.trip-editor-sidebar--mobile-drawer').evaluate(element => element.getBoundingClientRect().height);
 
 async function expectDrawerHeight(page: Page, expected: { min: number; max: number }): Promise<void> {
   const height = await drawerHeight(page);
@@ -547,17 +546,20 @@ async function expectMapWorkToolbarHitTesting(page: Page): Promise<void> {
     const map = document.querySelector<HTMLElement>('.trip-editor-map')?.getBoundingClientRect();
     const mapWork = document.querySelector<HTMLElement>('.trip-editor-map-work-toolbar')?.getBoundingClientRect();
     const drawer = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer')?.getBoundingClientRect();
+    const utilities = document.querySelector<HTMLElement>('.trip-editor-map-utilities')?.getBoundingClientRect();
     return {
       mapTop: map?.top ?? 0,
       mapBottom: map?.bottom ?? 0,
       toolbarTop: mapWork?.top ?? 0,
       toolbarBottom: mapWork?.bottom ?? 0,
-      drawerTop: drawer?.top ?? 0
+      drawerTop: drawer?.top ?? 0,
+      utilitiesBottom: utilities?.bottom ?? 0
     };
   });
   expect(geometry.toolbarTop).toBeGreaterThanOrEqual(geometry.mapTop);
   expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.mapBottom);
   expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.drawerTop);
+  expect(geometry.toolbarTop).toBeGreaterThanOrEqual(geometry.utilitiesBottom);
 }
 
 async function expectDirtyTabSwitchGuard(
@@ -591,9 +593,7 @@ async function expectDirtyTabSwitchGuard(
   await expect(page.getByRole('heading', { name: options.activeHeading })).toHaveCount(0);
 }
 
-function drawerTab(page: Page, name: string) {
-  return page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name, exact: true });
-}
+const drawerTab = (page: Page, name: string) => page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name, exact: true });
 
 async function tapFirstSavedPlaceMarker(page: Page): Promise<void> {
   const marker = page.locator('[data-place-marker-icon]').first();
@@ -603,9 +603,7 @@ async function tapFirstSavedPlaceMarker(page: Page): Promise<void> {
   });
 }
 
-async function expectSelectedMarkerCount(page: Page, count: number): Promise<void> {
-  await expect(page.locator('.trip-editor-map-marker--selected [data-place-marker-icon]')).toHaveCount(count);
-}
+const expectSelectedMarkerCount = async (page: Page, count: number) => expect(page.locator('.trip-editor-map-marker--selected [data-place-marker-icon]')).toHaveCount(count);
 
 async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
   await expectInitializedTripMap(page);
@@ -613,6 +611,8 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
     const workspace = document.querySelector<HTMLElement>('.trip-editor-workspace')?.getBoundingClientRect();
     const map = document.querySelector<HTMLElement>('.trip-editor-map')?.getBoundingClientRect();
     const drawer = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer')?.getBoundingClientRect();
+    const toolbar = document.querySelector<HTMLElement>('.trip-editor-toolbar, .trip-editor-map-work-toolbar')?.getBoundingClientRect();
+    const utilities = document.querySelector<HTMLElement>('.trip-editor-map-utilities')?.getBoundingClientRect();
     return {
       bodyWidth: document.body.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
@@ -621,6 +621,8 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
       mapBottom: map?.bottom ?? 0,
       mapHeight: map?.height ?? 0,
       mapTop: map?.top ?? 0,
+      toolbarTop: toolbar?.top ?? 0,
+      utilitiesBottom: utilities?.bottom ?? 0,
       viewportHeight: window.innerHeight,
       workspaceHeight: workspace?.height ?? 0,
       workspaceTop: workspace?.top ?? 0
@@ -634,6 +636,7 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
   expect(metrics.mapHeight, 'Map should remain the primary phone workspace.').toBeGreaterThan(metrics.viewportHeight * 0.72);
   expect(metrics.drawerTop, 'Drawer should sit over the lower part of the map.').toBeGreaterThan(metrics.viewportHeight * 0.45);
   expect(metrics.mapBottom, 'Map should continue behind the drawer instead of being pushed below it.').toBeGreaterThan(metrics.drawerTop);
+  expect(metrics.toolbarTop, 'Editor toolbar should start below the top-right map utilities.').toBeGreaterThanOrEqual(metrics.utilitiesBottom);
 }
 
 async function expectContainedSearch(page: Page): Promise<void> {
