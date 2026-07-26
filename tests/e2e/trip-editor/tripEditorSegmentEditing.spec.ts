@@ -35,6 +35,44 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.locator('#trip-editor-segment-form')).toHaveCount(1);
   });
 
+  test('open segment draft owns one test-observable route representation', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page);
+
+    await openEditableSegment(page);
+
+    const activeRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
+    await expect(activeRoute).toHaveCount(1);
+    await expect(activeRoute).toHaveAttribute('data-route-kind', 'custom');
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
+  });
+
+  test('docked segment map-work context spans and stays contained in its row', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page);
+
+    await openEditableSegment(page);
+    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+
+    const row = segmentRow(page, segmentId);
+    const context = row.locator('.trip-editor-surface-context');
+    await expect(context).toBeVisible();
+    const layout = await row.evaluate(element => {
+      const contextElement = element.querySelector<HTMLElement>('.trip-editor-surface-context');
+      if (!contextElement) {
+        throw new Error('Expected active segment map-work context.');
+      }
+
+      const rowBounds = element.getBoundingClientRect();
+      const contextBounds = contextElement.getBoundingClientRect();
+      return {
+        contained: element.scrollWidth <= element.clientWidth && contextElement.scrollWidth <= contextElement.clientWidth,
+        spansRow: Math.abs(contextBounds.left - rowBounds.left) <= 1 && Math.abs(contextBounds.right - rowBounds.right) <= 1
+      };
+    });
+    expect(layout).toEqual({ contained: true, spansRow: true });
+  });
+
   test('route map-work from docked and expanded sends a mocked route save only after Save', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithSegmentFixture(page);
