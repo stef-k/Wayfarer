@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { createSegment, deleteSegment, orderSegments, updateSegment } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
+import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
 import type { EditorMutationResult, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest, EditorTripState, Guid } from '../types';
 import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } from './regionPlaceEditorTargets';
 import { buildSegmentRequest, emptySegmentDraft, toSegmentDraft } from './regionPlaceDrafts';
@@ -33,6 +34,7 @@ const emit = defineEmits<{
   dirtyStateChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
   mutationApplied: [result: EditorMutationResult<unknown>];
+  routeDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
 }>();
 
 const segmentFields = ['fromPlaceId', 'toPlaceId', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'notesHtml', 'route', 'route.coordinates'];
@@ -63,6 +65,11 @@ const activeSegmentTarget = computed<EditorTarget>(() => draft.id && activeSegme
   : buildSegmentCreateTarget());
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
+watch(
+  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), props.hiddenSegmentIds.has(draft.id ?? '')],
+  syncRouteDraftPreview,
+  { flush: 'sync' }
+);
 watch(() => [props.segments.length, props.searchActive, segmentListKey.value], () => nextTick(attachSortable), { immediate: true });
 
 onMounted(() => {
@@ -76,6 +83,7 @@ onUnmounted(() => {
   unregisterHandler?.();
   destroySortable();
   stopSegmentRouteEdit(routeMapWork);
+  emit('routeDraftPreviewChanged', null);
   emit('dirtyStateChanged', false);
 });
 
@@ -89,6 +97,7 @@ async function openCreate(): Promise<void> {
   Object.assign(draft, emptySegmentDraft());
   createBaselineRequest.value = buildSegmentRequest(draft);
   resetFeedback();
+  syncRouteDraftPreview();
 }
 
 async function openEdit(segment: EditorSegment): Promise<boolean> {
@@ -109,12 +118,14 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
   Object.assign(draft, toSegmentDraft(segment));
   createBaselineRequest.value = null;
   resetFeedback();
+  syncRouteDraftPreview();
   return true;
 }
 
 function resetDraft(): void {
   Object.assign(draft, draft.id ? toSegmentDraft(activeSegment.value) : emptySegmentDraft());
   resetFeedback();
+  syncRouteDraftPreview();
 }
 
 async function cancelDraft(): Promise<void> {
@@ -126,13 +137,18 @@ async function saveDraft(): Promise<void> {
   resetFeedback();
   try {
     const request = buildSegmentRequest(draft);
+    const wasCreate = draft.id === null;
     const result = draft.id
       ? await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, request)
       : await createSegment(props.editorEndpoint, props.antiforgeryToken, request);
+    if (wasCreate) {
+      emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
+    }
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     Object.assign(draft, toSegmentDraft(result.data));
     createBaselineRequest.value = null;
     props.editorSurface.replaceActiveTarget(activeSegmentTarget.value);
+    emit('routeDraftPreviewChanged', null);
     markSaved();
   } catch (error) {
     applyError(error, 'Segment save failed.');
@@ -199,6 +215,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
     hidden.delete(segment.id);
     emit('hiddenSegmentIdsChanged', hidden);
     Object.assign(draft, emptySegmentDraft());
+    emit('routeDraftPreviewChanged', null);
     createBaselineRequest.value = null;
     props.editorSurface.clearActiveTarget(deletedTarget);
     markSaved();
@@ -210,7 +227,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
 }
 
 function drawRoute(): void {
-  beginSegmentRouteMapWork(draft, props.editorSurface, props.routeEditor, routeMapWork, props.state);
+  beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state);
 }
 
 function clearRoute(): void {
@@ -318,9 +335,34 @@ function restoreSegmentOrder(_previousIds: Guid[]): void {
 }
 
 function discardDraft(): void {
+  stopSegmentRouteEdit(routeMapWork);
   Object.assign(draft, emptySegmentDraft());
   createBaselineRequest.value = null;
   resetFeedback();
+  emit('routeDraftPreviewChanged', null);
+}
+
+/// Publishes the active segment form route without exposing form state to Leaflet internals.
+function syncRouteDraftPreview(): void {
+  if (!props.editorSurface.isTargetActive(activeSegmentTarget.value)) {
+    return;
+  }
+
+  emit('routeDraftPreviewChanged', buildRouteDraftPreview());
+}
+
+function buildRouteDraftPreview(segmentId: Guid | null = draft.id): SegmentDraftRoutePreview {
+  return {
+    fromPlaceId: draft.fromPlaceId,
+    identity: routePreviewIdentity(),
+    route: draft.route ? JSON.parse(JSON.stringify(draft.route)) : null,
+    segmentId,
+    toPlaceId: draft.toPlaceId
+  };
+}
+
+function routePreviewIdentity(): string {
+  return draft.id ?? activeSegmentTarget.value.identity;
 }
 
 function confirmDiscard(message: string): Promise<boolean> {

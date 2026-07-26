@@ -7,7 +7,7 @@ import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
@@ -322,6 +322,13 @@ const applyPlaceDraftPreview = (preview: PlaceDraftMarkerPreview | null): void =
   mapAdapter?.setPlaceDraftPreview(state.value, preview);
 };
 
+/// Applies segment form ownership through the segment-specific map preview contract.
+const applySegmentRouteDraftPreview = (preview: SegmentDraftRoutePreview | null): void => {
+  if (state.value) {
+    mapAdapter?.setSegmentDraftPreview(state.value, preview);
+  }
+};
+
 /// Applies mutation affected slices and authoritative deleted IDs to normalized editor state.
 const applyMutation = (result: EditorMutationResult<unknown>): void => {
   if (!state.value) {
@@ -491,6 +498,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @mutation-applied="applyMutation"
         @region-draft-dirty-changed="setRegionDraftChanges"
         @place-draft-preview-changed="applyPlaceDraftPreview"
+        @segment-route-draft-preview-changed="applySegmentRouteDraftPreview"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
         :select-place="placeId => selectPlace(placeId, { focusMap: true })"
         :clear-selected-place="clearSelectedPlace"

@@ -3,7 +3,9 @@ import { ensureLeafletDraw } from './leafletDrawPlugin';
 import type { GeoJsonLineString } from '../types';
 
 export interface SegmentRouteWorkOptions {
+  identity: string;
   initialRoute: GeoJsonLineString | null;
+  initialRouteKind: 'custom' | 'fallback';
   onChanged: (route: GeoJsonLineString | null) => void;
 }
 
@@ -14,6 +16,7 @@ type LatLngRoute = L.LatLng[];
 /// Owns the single temporary Leaflet.Draw polyline used by Trip Editor segment route map-work.
 export const createSegmentRouteWorkLayer = (map: LeafletMap): {
   dispose: () => void;
+  isActive: () => boolean;
   setRoute: (route: GeoJsonLineString | null) => void;
   start: (options: SegmentRouteWorkOptions) => () => void;
   stop: () => void;
@@ -27,6 +30,17 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
 
   const publish = (): void => {
     options?.onChanged(polyline ? latLngsToLineString(routeLatLngs(polyline)) : null);
+  };
+
+  const applyIdentity = (kind: 'custom' | 'fallback'): void => {
+    const element = polyline?.getElement();
+    if (!element || !options) {
+      return;
+    }
+
+    element.dataset.segmentId = options.identity;
+    element.dataset.routeOwner = 'work';
+    element.dataset.routeKind = kind;
   };
 
   const stopHandlers = (): void => {
@@ -46,11 +60,12 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
     options = null;
   };
 
-  const setRoute = (route: GeoJsonLineString | null): void => {
+  const setRoute = (route: GeoJsonLineString | null, kind: 'custom' | 'fallback' = 'custom'): void => {
     featureGroup.clearLayers();
     polyline = routeToLatLngs(route).length >= 2 ? createPolyline(routeToLatLngs(route)) : null;
     if (polyline) {
       featureGroup.addLayer(polyline);
+      applyIdentity(kind);
       startEditMode();
     } else {
       startDrawMode();
@@ -62,7 +77,7 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
   const start = (workOptions: SegmentRouteWorkOptions): (() => void) => {
     stop();
     options = workOptions;
-    setRoute(workOptions.initialRoute);
+    setRoute(workOptions.initialRoute, workOptions.initialRouteKind);
     if (polyline?.getBounds().isValid()) {
       map.fitBounds(polyline.getBounds(), { padding: [32, 32], maxZoom: 14 });
     }
@@ -100,12 +115,14 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
     polyline = event.layer;
     polyline.setStyle(routeStyle());
     featureGroup.addLayer(polyline);
+    applyIdentity('custom');
     startEditMode();
     publish();
   }
 
   return {
     dispose: stop,
+    isActive: () => options !== null,
     setRoute,
     start,
     stop
@@ -114,6 +131,7 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
 
 const routeStyle = (): L.PathOptions => ({
   color: '#f97316',
+  dashArray: '2 7',
   opacity: 0.9,
   weight: 4
 });

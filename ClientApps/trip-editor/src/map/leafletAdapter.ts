@@ -25,6 +25,7 @@ interface TripEditorMapAdapter {
   getMapView: () => TripEditorMapView;
   selectPlace: (state: EditorTripState, placeId: Guid | null, options?: SelectPlaceOptions) => void;
   setPlaceDraftPreview: (state: EditorTripState, preview: PlaceDraftMarkerPreview | null) => void;
+  setSegmentDraftPreview: (state: EditorTripState, preview: SegmentDraftRoutePreview | null) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
@@ -47,6 +48,14 @@ export interface PlaceDraftMarkerPreview extends Pick<EditorPlace, 'iconName' | 
   placeId: Guid | null;
 }
 
+export interface SegmentDraftRoutePreview {
+  fromPlaceId: Guid | null;
+  identity: string;
+  route: EditorSegment['route'];
+  segmentId: Guid | null;
+  toPlaceId: Guid | null;
+}
+
 export interface TripEditorMapOptions {
   onPlaceSelected?: (placeId: Guid) => boolean | Promise<boolean>;
 }
@@ -64,9 +73,13 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   const coordinatePick = createPlaceCoordinatePickLayer(map, placeDraftPreview);
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
+  const segmentDraftLayers = L.layerGroup().addTo(map);
   const mapUtilities = createMapUtilitiesControl(element).addTo(map);
   const placeMarkers = new Map<Guid, L.Marker>();
   let activePlaceDraftPreview: PlaceDraftMarkerPreview | null = null;
+  let activeSegmentDraftPreview: SegmentDraftRoutePreview | null = null;
+  let lastRenderedState: EditorTripState | null = null;
+  let lastHiddenSegmentIds: ReadonlySet<Guid> = new Set();
   const updateMapViewDataset = (): void => {
     const center = map.getCenter();
     element.dataset.tripEditorMapLat = center.lat.toFixed(6);
@@ -89,11 +102,12 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   map.attributionControl.getContainer()?.setAttribute('title', 'Map attribution');
 
   const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set(), nextSelectedPlaceId: Guid | null = selectedPlaceId): void => {
+    lastRenderedState = state;
+    lastHiddenSegmentIds = hiddenSegmentIds;
     searchPreview.clear();
     placeDraftPreview.clear();
     coordinatePick.clearRegisteredMarkers();
     areaPolygonWork.stop();
-    segmentRouteWork.stop();
     layers.clearLayers();
     placeMarkers.clear();
     selectedPlaceId = nextSelectedPlaceId && state.placesById[nextSelectedPlaceId] ? nextSelectedPlaceId : null;
@@ -108,7 +122,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       return options.onPlaceSelected?.(place.id) ?? true;
     }));
     Object.values(state.segmentsById).forEach(segment => {
-      if (!hiddenSegmentIds.has(segment.id)) {
+      if (!hiddenSegmentIds.has(segment.id) && segment.id !== activeSegmentDraftPreview?.segmentId) {
         renderSegment(segment, state, layers);
       }
     });
@@ -120,6 +134,39 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     updateMapViewDataset();
     applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
     applyActivePlaceDraftPreview(state);
+    applyActiveSegmentDraftPreview(state);
+  };
+
+  const applyActiveSegmentDraftPreview = (state: EditorTripState): void => {
+    segmentDraftLayers.clearLayers();
+    const preview = activeSegmentDraftPreview;
+    if (!preview || (preview.segmentId !== null && lastHiddenSegmentIds.has(preview.segmentId)) || segmentRouteWork.isActive()) {
+      return;
+    }
+
+    const coordinates = preview.route?.coordinates ?? fallbackSegmentPreviewCoordinates(preview, state);
+    if (!coordinates || coordinates.length < 2) {
+      return;
+    }
+
+    const polyline = L.polyline(coordinates.map(([longitude, latitude]) => [latitude, longitude]), {
+      color: '#38bdf8',
+      dashArray: '8 6',
+      opacity: 0.9,
+      weight: 4
+    }).addTo(segmentDraftLayers);
+    const element = polyline.getElement();
+    if (element) {
+      element.dataset.segmentId = preview.identity;
+      element.dataset.routeOwner = 'draft';
+      element.dataset.routeKind = preview.route === null ? 'fallback' : 'custom';
+    }
+  };
+
+  const setSegmentDraftPreview = (state: EditorTripState, preview: SegmentDraftRoutePreview | null): void => {
+    activeSegmentDraftPreview = preview;
+    // Reconcile the normal layer and preview in one synchronous adapter render.
+    render(state, lastHiddenSegmentIds, selectedPlaceId);
   };
 
   const applyActivePlaceDraftPreview = (state: EditorTripState): void => {
@@ -173,9 +220,20 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       }
     },
     setPlaceDraftPreview,
+    setSegmentDraftPreview,
     startCoordinatePick: options => (prepareMapWork(), coordinatePick.start(options)),
     startAreaPolygonWork: options => (prepareMapWork(), areaPolygonWork.start(options)),
-    startSegmentRouteWork: options => (prepareMapWork(), segmentRouteWork.start(options)),
+    startSegmentRouteWork: options => {
+      prepareMapWork();
+      segmentDraftLayers.clearLayers();
+      const stop = segmentRouteWork.start(options);
+      return () => {
+        stop();
+        if (lastRenderedState) {
+          applyActiveSegmentDraftPreview(lastRenderedState);
+        }
+      };
+    },
     setSegmentRouteWorkRoute: route => segmentRouteWork.setRoute(route),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
@@ -187,11 +245,18 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       coordinatePick.dispose();
       areaPolygonWork.dispose();
       segmentRouteWork.dispose();
+      segmentDraftLayers.clearLayers();
       mapUtilities.remove();
       map.off('moveend zoomend', updateMapViewDataset);
       map.remove();
     }
   };
+};
+
+const fallbackSegmentPreviewCoordinates = (preview: SegmentDraftRoutePreview, state: EditorTripState): Array<[number, number]> | null => {
+  const from = preview.fromPlaceId ? state.placesById[preview.fromPlaceId]?.location : null;
+  const to = preview.toPlaceId ? state.placesById[preview.toPlaceId]?.location : null;
+  return from && to ? [[from.longitude, from.latitude], [to.longitude, to.latitude]] : null;
 };
 
 const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
@@ -288,11 +353,17 @@ const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: L
   }
 
   const latLngs = coordinates.map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
-  L.polyline(latLngs, {
+  const polyline = L.polyline(latLngs, {
     color: '#0ea5e9',
     weight: 3,
     opacity: 0.8
   }).bindTooltip(escapeHtml(segmentLabel(segment, state))).addTo(layers);
+  const element = polyline.getElement();
+  if (element) {
+    element.dataset.segmentId = segment.id;
+    element.dataset.routeOwner = 'saved';
+    element.dataset.routeKind = segment.route === null ? 'fallback' : 'custom';
+  }
 };
 
 const fallbackSegmentCoordinates = (segment: EditorSegment, state: EditorTripState): Array<[number, number]> | null => {

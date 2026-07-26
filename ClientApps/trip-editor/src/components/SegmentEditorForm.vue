@@ -9,6 +9,7 @@ const props = defineProps<{
   fieldErrors: (key: string) => string[];
   formId: string;
   formSummaryErrors: string[];
+  isDirty: boolean;
   state: EditorTripState;
 }>();
 
@@ -19,10 +20,12 @@ defineEmits<{
 const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
 const routeSummary = computed(() => {
   if (props.draft.route) {
-    return `${props.draft.route.coordinates.length} custom route points`;
+    return `${props.isDirty ? 'Unsaved' : 'Saved'} route · ${props.draft.route.coordinates.length} custom route points`;
   }
 
-  return fallbackRoute(props.draft, props.state) ? 'Endpoint fallback available until saved' : 'No route';
+  return fallbackRoute(props.draft, props.state)
+    ? `Endpoint fallback available until saved${props.isDirty ? ' · unsaved' : ''}`
+    : 'No route';
 });
 
 function orderedPlaceIds(regionId: Guid): Guid[] {

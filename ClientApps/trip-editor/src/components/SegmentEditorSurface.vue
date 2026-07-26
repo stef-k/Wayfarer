@@ -36,6 +36,7 @@ defineEmits<{
         :field-errors="fieldErrors"
         :form-id="formId"
         :form-summary-errors="formSummaryErrors"
+        :is-dirty="isDirty"
         :state="state"
         @save="$emit('save')"
       />
