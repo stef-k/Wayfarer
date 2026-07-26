@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Runtime.InteropServices;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
@@ -10,7 +10,7 @@ namespace Wayfarer.Services;
 /// Service for generating trip map thumbnails using Playwright screenshots.
 /// Screenshots the public embed view of trips to create thumbnails that use the app's local tile cache.
 /// </summary>
-public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
+public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
 {
     // Static semaphore to prevent concurrent browser installations across all instances
     private static readonly SemaphoreSlim _installLock = new(1, 1);
@@ -153,11 +153,7 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
 
             if (thumbnailBytes != null && thumbnailBytes.Length > 0)
             {
-                // Save to disk
-                await File.WriteAllBytesAsync(filePath, thumbnailBytes, cancellationToken);
-
-                // Set file timestamp to match trip's UpdatedAt for cache validation
-                File.SetLastWriteTimeUtc(filePath, updatedAt);
+                await PersistThumbnailAsync(filePath, thumbnailBytes, updatedAt, cancellationToken);
 
                 _logger.LogInformation("Generated thumbnail for trip {TripId}: {Width}x{Height}, saved to: {FilePath}",
                     tripId, width, height, filePath);
@@ -166,6 +162,10 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
                 var timestamp = updatedAt.Ticks;
                 return $"/thumbs/trips/{filename}?v={timestamp}";
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -249,14 +249,15 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
     /// <summary>
     /// Captures a screenshot of the trip embed view using Playwright.
     /// </summary>
-    private async Task<byte[]?> CaptureEmbedViewAsync(
+    internal async Task<byte[]?> CaptureEmbedViewAsync(
         Guid tripId,
         double lat,
         double lon,
         int zoom,
         int width,
         int height,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<Task<IPlaywright>>? playwrightFactory = null)
     {
         var captureSettings = BuildCaptureSettings(tripId, lat, lon, zoom);
         if (captureSettings == null)
@@ -269,57 +270,43 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
 
         _logger.LogDebug("Capturing thumbnail for trip {TripId} through the loopback endpoint", tripId);
 
-        var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var launchArgs = new List<string>
-        {
-            "--ignore-certificate-errors",
-            "--disable-web-security",
-            $"--host-resolver-rules={captureSettings.Value.HostResolverRule}"
-        };
-
-        // ARM64 Linux specific flags
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.OSArchitecture == Architecture.Arm64)
-        {
-            launchArgs.AddRange(new[]
-            {
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu"
-            });
-        }
-
-        var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-        {
-            Headless = true,
-            Args = launchArgs
-        });
-        cancellationToken.ThrowIfCancellationRequested();
-
+        IPlaywright? playwright = null;
+        IBrowser? browser = null;
+        IPage? page = null;
+        Exception? captureException = null;
         try
         {
-            var page = await browser.NewPageAsync(new BrowserNewPageOptions
+            playwright = await (playwrightFactory?.Invoke() ?? Microsoft.Playwright.Playwright.CreateAsync());
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var launchArgs = CreateLaunchArguments(captureSettings.Value.HostResolverRule);
+            browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true,
+                Args = launchArgs
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+
+            page = await browser.NewPageAsync(new BrowserNewPageOptions
             {
                 ViewportSize = new ViewportSize { Width = width, Height = height }
             });
             cancellationToken.ThrowIfCancellationRequested();
 
-            try
-            {
-                return await CapturePageAsync(
-                    page, captureSettings.Value.EmbedUrl, cancellationToken);
-            }
-            finally
-            {
-                await page.CloseAsync();
-            }
+            return await CapturePageAsync(page, captureSettings.Value.EmbedUrl, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            captureException = ex;
+            throw;
         }
         finally
         {
-            await browser.CloseAsync();
-            playwright.Dispose();
+            var cleanupException = await DisposeCaptureResourcesAsync(page, browser, playwright);
+            if (captureException == null && cleanupException != null)
+            {
+                ExceptionDispatchInfo.Capture(cleanupException).Throw();
+            }
         }
     }
 
