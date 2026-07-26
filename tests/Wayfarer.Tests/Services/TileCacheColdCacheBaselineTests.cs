@@ -70,7 +70,7 @@ public sealed class TileCacheColdCacheBaselineTests
     /// Broadly characterizes real production-budget progress with actual fake latency and no public network.
     /// </summary>
     [Fact]
-    public async Task RealOutboundBudget_SpreadsStartsAndContinuesAfterInitialBurst()
+    public async Task InteractiveBudget_UsesConcurrencyWithoutRateTokenDelay()
     {
         const int productionPathTileCount = 24;
         var stopwatch = Stopwatch.StartNew();
@@ -90,18 +90,10 @@ public sealed class TileCacheColdCacheBaselineTests
             .Select(request => request.StartTime)
             .OrderBy(start => start)
             .ToArray();
-        var initialBurstStarts = starts.Take(TileCacheService.OutboundBudget.BurstCapacity).ToArray();
-        var laterStarts = starts.Skip(TileCacheService.OutboundBudget.BurstCapacity).ToArray();
-
         Assert.Equal(productionPathTileCount, outcomes.Length);
-        Assert.Equal(TileCacheService.OutboundBudget.BurstCapacity, initialBurstStarts.Length);
-        Assert.True(initialBurstStarts.Max() < TimeSpan.FromSeconds(1));
-        Assert.NotEmpty(laterStarts);
-        Assert.True(laterStarts.Max() - laterStarts.Min() >= TimeSpan.FromMilliseconds(300));
-        Assert.Contains(outcomes, outcome => outcome.StatusCode == StatusCodes.Status200OK);
-        Assert.True(
-            laterStarts.Any(start => start >= TimeSpan.FromMilliseconds(250)) ||
-            outcomes.Any(outcome => outcome.StatusCode == StatusCodes.Status503ServiceUnavailable));
+        Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
+        Assert.Equal(productionPathTileCount, starts.Length);
+        Assert.All(starts, start => Assert.True(start < TimeSpan.FromSeconds(1)));
     }
 
     /// <summary>Runs one isolated controller request and captures its local status and Retry-After.</summary>

@@ -7,6 +7,7 @@ using Wayfarer.Areas.Public.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -174,6 +175,10 @@ public sealed class TileCacheDiagnosticsAndPolicyTests
     public async Task PerClientBudgetRejection_IsDistinctFromGlobalRejection()
     {
         using var harness = new TileCacheTestHarness();
+        harness.Settings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
+        harness.Settings.TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png";
+        harness.Settings.TileTrafficMode = TileTrafficMode.Custom;
+        harness.Settings.TileProviderAdvancedLimitsEnabled = true;
         harness.Settings.TileOutboundBudgetPerIpPerMinute = 1;
 
         using (var firstScope = harness.CreateScope())
