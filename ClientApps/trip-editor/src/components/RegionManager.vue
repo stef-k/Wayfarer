@@ -62,6 +62,7 @@ const isSaving = ref(false);
 const isOrdering = ref(false);
 const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
 const placeCreateBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
+const placeCreateBaselineDraft = ref<EditorPlaceDraft | null>(null);
 const placeEditBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
 const areaCreateBaselineRequest = ref<EditorAreaSaveRequest | null>(null);
 let unregisterRegionHandler: (() => void) | null = null;
@@ -142,9 +143,14 @@ const renderedAreaIdsByRegionId = computed(() => {
   return result;
 });
 const placePreview = computed<PlaceDraftPreview | null>(() => {
+  // Pick owns the pending coordinate until Done or Cancel; form fields continue to own draft styling.
+  const coordinate = props.editorSurface.mapWork.value?.modeName === 'Pick place location'
+    && props.editorSurface.mapWork.value.target.identity === activePlaceTarget.value.identity
+    ? placeCoordinateMapWork.coordinate
+    : parseDraftCoordinate();
   if (placeDraft.id && activePlace.value && isPlaceEditOpen(activePlace.value)) {
     return {
-      coordinate: parseDraftCoordinate(),
+      coordinate,
       placeId: placeDraft.id,
       label: placeDraft.name || activePlace.value.name,
       iconName: placeDraft.iconName || activePlace.value.iconName,
@@ -154,7 +160,7 @@ const placePreview = computed<PlaceDraftPreview | null>(() => {
 
   if (!placeDraft.id && placeDraft.regionId && props.editorSurface.isTargetActive(activePlaceTarget.value)) {
     return {
-      coordinate: parseDraftCoordinate(),
+      coordinate,
       placeId: null,
       label: placeDraft.name || 'New place',
       iconName: placeDraft.iconName || 'marker',
@@ -257,6 +263,7 @@ const { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceCreateFrom
   isSaving,
   markSaved,
   placeCoordinateMapWork,
+  placeCreateBaselineDraft,
   placeCreateBaselineRequest,
   placeEditBaselineRequest,
   placeFormId,
@@ -393,6 +400,7 @@ function clearRegionPlaceDrafts(): void {
 function clearRegionPlaceBaselines(): void {
   regionCreateBaselineRequest.value = null;
   placeCreateBaselineRequest.value = null;
+  placeCreateBaselineDraft.value = null;
   placeEditBaselineRequest.value = null;
 }
 
@@ -415,9 +423,18 @@ function pushUnique(record: Record<Guid, Guid[]>, regionId: Guid, id: Guid): voi
 }
 
 function parseDraftCoordinate(): { latitude: number; longitude: number } | null {
-  const latitude = Number(String(placeDraft.latitude ?? '').trim());
-  const longitude = Number(String(placeDraft.longitude ?? '').trim());
-  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : null;
+  const latitudeText = String(placeDraft.latitude ?? '').trim();
+  const longitudeText = String(placeDraft.longitude ?? '').trim();
+  if (!latitudeText || !longitudeText) {
+    return null;
+  }
+
+  const latitude = Number(latitudeText);
+  const longitude = Number(longitudeText);
+  return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+    ? { latitude, longitude }
+    : null;
 }
 
 function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> {
@@ -452,6 +469,7 @@ function discardRegionDraft(): void {
 function discardPlaceDraft(): void {
   Object.assign(placeDraft, emptyPlaceDraft());
   placeCreateBaselineRequest.value = null;
+  placeCreateBaselineDraft.value = null;
   placeEditBaselineRequest.value = null;
   resetFeedback();
 }

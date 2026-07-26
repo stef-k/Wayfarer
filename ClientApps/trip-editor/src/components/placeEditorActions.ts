@@ -17,6 +17,8 @@ export function usePlaceEditorActions(context: any) {
   };
 
   const openPlaceCreateDraft = async (region: EditorRegion, result: EditorGeocodeSearchResult | null): Promise<boolean> => {
+    // Manual creation owns the map center that exists at invocation time, before target activation can render or wait.
+    const manualCenter = result ? null : context.props.coordinatePicker.getMapView()?.center ?? null;
     const target = buildPlaceCreateTarget(region);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
     if (!(await context.props.editorSurface.activateTarget(target)) || (isAlreadyActive && !result)) {
@@ -32,13 +34,14 @@ export function usePlaceEditorActions(context: any) {
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.placeDraft.name = result ? searchResultName(result) : 'New Place';
     context.placeDraft.address = result?.address || result?.displayName || '';
-    context.placeDraft.latitude = result?.latitude ?? '';
-    context.placeDraft.longitude = result?.longitude ?? '';
+    context.placeDraft.latitude = result?.latitude ?? manualCenter?.latitude ?? '';
+    context.placeDraft.longitude = result?.longitude ?? manualCenter?.longitude ?? '';
     context.placeDraft.iconName = defaultPlaceIconName;
     context.placeDraft.markerColor = defaultPlaceMarkerColor;
     context.placeDraft.reverseGeocode = false;
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = buildPlaceRequest(context.placeDraft);
+    context.placeCreateBaselineDraft.value = { ...context.placeDraft };
     context.placeEditBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
@@ -59,6 +62,7 @@ export function usePlaceEditorActions(context: any) {
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = null;
+    context.placeCreateBaselineDraft.value = null;
     context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     context.areaCreateBaselineRequest.value = null;
     // Quill can normalize legacy persisted notes after render; keep that hydration out of dirty-state prompts.
@@ -73,11 +77,7 @@ export function usePlaceEditorActions(context: any) {
 
   const resetPlaceDraft = (): void => {
     if (!context.placeDraft.id) {
-      const regionId = context.placeDraft.regionId;
-      Object.assign(context.placeDraft, emptyPlaceDraft(regionId));
-      context.placeDraft.name = 'New Place';
-      context.placeDraft.iconName = defaultPlaceIconName;
-      context.placeDraft.markerColor = defaultPlaceMarkerColor;
+      Object.assign(context.placeDraft, context.placeCreateBaselineDraft.value ?? emptyPlaceDraft(context.placeDraft.regionId));
     } else {
       Object.assign(context.placeDraft, toPlaceDraft(context.activePlace.value, context.placeDraft.regionId));
       context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
@@ -109,6 +109,7 @@ export function usePlaceEditorActions(context: any) {
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       Object.assign(context.placeDraft, toPlaceDraft(result.data, result.data.regionId));
       context.placeCreateBaselineRequest.value = null;
+      context.placeCreateBaselineDraft.value = null;
       context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
       context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
@@ -153,6 +154,7 @@ export function usePlaceEditorActions(context: any) {
       Object.assign(context.placeDraft, emptyPlaceDraft());
       Object.assign(context.areaDraft, emptyAreaDraft());
       context.placeCreateBaselineRequest.value = null;
+      context.placeCreateBaselineDraft.value = null;
       context.placeEditBaselineRequest.value = null;
       context.areaCreateBaselineRequest.value = null;
       context.props.editorSurface.clearActiveTarget(deletedTarget);

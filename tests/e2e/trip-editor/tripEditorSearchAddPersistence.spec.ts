@@ -30,10 +30,14 @@ test.describe.serial('Trip Editor search-add real place persistence contracts', 
       await runSearch(page, placeName);
       await selectSearchResult(page, placeName);
       await expect(page.getByLabel('Target region')).toHaveValue(targets.unassigned.id);
+      const resultView = await mapView(page);
 
       await page.getByRole('button', { name: 'Add as place' }).click();
       await expectSearchResultsCollapsed(page, placeName);
       await expectSearchAddDraft(page, placeName, targets.unassigned.id);
+      await expect(page.locator('[data-search-preview-marker]')).toHaveCount(0);
+      await expect(page.locator('[data-place-draft-preview-marker]')).toHaveCount(1);
+      await expect.poll(() => mapView(page)).toEqual(resultView);
 
       const createdPlaceId = await savePlaceThroughRealEndpoint(page, targets.unassigned.id);
       await expectSaved(page);
@@ -90,6 +94,7 @@ test.describe.serial('Trip Editor search-add real place persistence contracts', 
 });
 
 async function openEditor(page: Page): Promise<void> {
+  await page.route(/\/map\/tiles\//i, route => route.fulfill({ status: 204, body: '' }));
   await signIn(page);
   await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
@@ -154,6 +159,14 @@ async function expectSearchAddDraft(page: Page, name: string, regionId: string):
   await expect(form.locator('[data-selector-kind="color"] [data-icon-selector-selected-name]')).toHaveText('Blue');
   await expect(page.locator(`img[alt="Pending place location: ${name}"]`)).toBeVisible();
   await expect(page.locator('[data-place-draft-preview-marker]')).toHaveAttribute('src', /\/icons\/wayfarer-map-icons\/dist\/png\/marker\/bg-blue\/marker\.png$/);
+}
+
+async function mapView(page: Page): Promise<{ latitude: number; longitude: number; zoom: number }> {
+  return await page.getByLabel('Read-only trip map').evaluate(element => ({
+    latitude: Number((element as HTMLElement).dataset.tripEditorMapLat),
+    longitude: Number((element as HTMLElement).dataset.tripEditorMapLng),
+    zoom: Number((element as HTMLElement).dataset.tripEditorMapZoom)
+  }));
 }
 
 async function savePlaceThroughRealEndpoint(page: Page, regionId: string): Promise<string> {

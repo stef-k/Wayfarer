@@ -7,18 +7,10 @@ import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type SegmentRouteWorkOptions } from './map/leafletAdapter';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
-
-type PlaceDraftPreview = {
-  coordinate: EditorCoordinate | null;
-  iconName: string;
-  label: string;
-  markerColor: string;
-  placeId: Guid | null;
-};
 
 const state = ref<EditorTripState | null>(null);
 const error = ref<string | null>(null);
@@ -30,14 +22,14 @@ const mobileDrawerActive = ref(false);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
 const selectedPlaceId = ref<Guid | null>(null);
-const activePlaceDraftPreview = ref<PlaceDraftPreview | null>(null);
+const activePlaceDraftPreview = ref<PlaceDraftMarkerPreview | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const completedSearchAddRequestId = ref<number | null>(null);
 const editorSurface = useEditorSurface();
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 let mobileDrawerQuery: MediaQueryList | null = null;
 const coordinatePicker = {
-  applyPlaceDraftCoordinate: (placeId: Guid, coordinate: EditorCoordinate): void => mapAdapter?.applyPlaceDraftCoordinate(placeId, coordinate),
+  getMapView: (): TripEditorMapView | null => mapAdapter?.getMapView() ?? null,
   startCoordinatePick: (options: CoordinatePickOptions): (() => void) => mapAdapter?.startCoordinatePick(options) ?? (() => undefined)
 };
 const polygonEditor = {
@@ -107,7 +99,7 @@ watch(
     mapAdapter?.clearSearchPreview();
     const target = editorSurface.activeTarget.value;
     if (target?.kind === 'place' && target.mode === 'edit' && target.entityId && state.value?.placesById[target.entityId]) {
-      void selectPlace(target.entityId, { focusMap: true });
+      void selectPlace(target.entityId, { focusMap: false });
     }
   }
 );
@@ -320,32 +312,14 @@ const setRegionDraftChanges = (isDirty: boolean): void => {
 };
 
 /// Applies active place draft icon/color to the selected marker preview without saving it.
-const applyPlaceDraftPreview = (preview: PlaceDraftPreview | null): void => {
+const applyPlaceDraftPreview = (preview: PlaceDraftMarkerPreview | null): void => {
   if (!state.value) {
     activePlaceDraftPreview.value = preview;
     return;
   }
 
-  const previous = activePlaceDraftPreview.value;
-  if (previous?.placeId && previous.placeId !== preview?.placeId) {
-    mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
-  }
-  if (previous && previous.placeId === null && preview?.placeId !== null) {
-    mapAdapter?.clearPlaceDraftPreview();
-  }
-
   activePlaceDraftPreview.value = preview;
-  if (preview?.placeId) {
-    mapAdapter?.applyPlaceDraftMarker(state.value, preview.placeId, preview);
-    mapAdapter?.clearPlaceDraftPreview();
-  } else if (preview?.coordinate) {
-    mapAdapter?.showPlaceDraftPreview(preview.coordinate, preview.label, preview);
-  } else if (previous) {
-    if (previous.placeId) {
-      mapAdapter?.applyPlaceDraftMarker(state.value, previous.placeId, null);
-    }
-    mapAdapter?.clearPlaceDraftPreview();
-  }
+  mapAdapter?.setPlaceDraftPreview(state.value, preview);
 };
 
 /// Applies mutation affected slices and authoritative deleted IDs to normalized editor state.
@@ -432,13 +406,6 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
 
   state.value = next;
   mapAdapter?.render(next, hiddenSegmentIds.value, selectedPlaceId.value);
-  if (activePlaceDraftPreview.value) {
-    if (activePlaceDraftPreview.value.placeId) {
-      mapAdapter?.applyPlaceDraftMarker(next, activePlaceDraftPreview.value.placeId, activePlaceDraftPreview.value);
-    } else if (activePlaceDraftPreview.value.coordinate) {
-      mapAdapter?.showPlaceDraftPreview(activePlaceDraftPreview.value.coordinate, activePlaceDraftPreview.value.label, activePlaceDraftPreview.value);
-    }
-  }
 };
 
 /// Updates client-session-only segment visibility without touching the API contract.

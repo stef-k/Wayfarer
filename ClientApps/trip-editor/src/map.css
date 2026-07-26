@@ -327,6 +327,8 @@
     min-height: 0;
     position: absolute;
     width: 100%;
+    /* Contain Leaflet's pane z-indexes beneath sibling editor chrome. */
+    z-index: 0;
   }
 
   .trip-editor-toolbar {
@@ -341,7 +343,8 @@
     padding: 0.5rem;
     position: absolute;
     right: 0.75rem;
-    top: 0.75rem;
+    /* Clear Leaflet's top-right utilities while retaining the full toolbar width. */
+    top: 4.5rem;
     z-index: 12;
   }
 
