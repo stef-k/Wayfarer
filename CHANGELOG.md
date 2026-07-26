@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [1.8.0] - 2026-07-26
+
+### Added
+- Added explicit Interactive, Conservative, and Custom/Provider Agreement tile traffic modes. Interactive removes Wayfarer-originated rate-token and per-client cold-series throttling for ordinary human-driven map use while retaining bounded concurrency, queues, caching, coalescing, retries, and provider-directed safety gates (#396, #397).
+
+### Changed
+- Increased Interactive map responsiveness to the existing 12-request global and six-request per-client scheduler bounds, while Conservative mode provides explicit 12-contact/second, burst-40, concurrency-eight, and 480-series/client/minute safeguards (#396, #397).
+- Removed the incompatible Thunderforest and CARTO presets and fail closed for their known endpoints without deleting preserved configuration or provider-scoped cache data. Corrected the OpenTopoMap preset attribution and documented exact single- and multi-host `AllowedHosts` deployment configuration (#396, #397).
+- Existing supported built-ins migrate deterministically to Interactive mode and compatible Custom settings remain preserved. Traffic-mode changes do not change cache identity and require no cache purge (#396, #397).
+
+### Fixed
+- Corrected manual Trip Editor place positioning so Add Place preserves the current high-zoom viewport, initializes one authoritative marker at the map center, and retains click, drag, styling, Done, Cancel, Reset, Save, and responsive mobile behavior without duplicate markers (#386, #398).
+- Kept edited segment routes visible after map-work Done and before Save, with deterministic persisted/draft/work ownership, failure-safe lifecycle handling, distinguishable route states, and contained docked/mobile segment controls (#387, #399).
+
 ## [1.7.0] - 2026-07-25
 
 ### Added
