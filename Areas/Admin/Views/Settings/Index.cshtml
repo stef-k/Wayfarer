@@ -3,6 +3,7 @@
     var tileMetadataHotCacheEntries = Wayfarer.Services.TileMetadataHotCache.GetApproximateEntryLimit(Model.TileMetadataHotCacheSizeMB);
 }
 @using Wayfarer.Util
+@using Wayfarer.Services
 @{
     var isRegistrationOpen = (ViewData["IsRegistrationOpen"] as bool?) ?? false;
     var tileProviderPresets = ViewData["TileProviderPresets"] as IReadOnlyList<TileProviderDefinition> ?? Array.Empty<TileProviderDefinition>();
@@ -527,6 +528,12 @@
                             <div class="col-md-6 mb-3">
                                 <label asp-for="TileProviderKey" class="form-label">Provider</label>
                                 <select asp-for="TileProviderKey" class="form-control" data-custom-key="@tileProviderCustomKey">
+                                    @if (TileProviderCatalog.ResolveCompatibility(Model.TileProviderKey, Model.TileProviderUrlTemplate).Status != TileProviderCompatibility.Supported)
+                                    {
+                                        <option value="@Model.TileProviderKey" data-preserved="true" data-requires-key="false">
+                                            Unsupported persisted provider: @(string.IsNullOrWhiteSpace(Model.TileProviderKey) ? "(blank)" : Model.TileProviderKey)
+                                        </option>
+                                    }
                                     @foreach (var preset in tileProviderPresets)
                                     {
                                         <option value="@preset.Key"

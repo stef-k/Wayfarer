@@ -164,8 +164,11 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (currentSettings != null)
             {
                 // Validate tile provider settings before model validation.
-                NormalizeTileProviderSettings(currentSettings, updatedSettings);
-                ValidateTileProviderPolicy(updatedSettings);
+                var providerStatePreserved = NormalizeTileProviderSettings(currentSettings, updatedSettings);
+                if (!providerStatePreserved)
+                {
+                    ValidateTileProviderPolicy(updatedSettings);
+                }
             }
 
             if (!ValidateModelState())
@@ -459,17 +462,27 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <summary>
         /// Normalizes and validates tile provider settings, applying presets when selected.
         /// </summary>
-        private void NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
+        private bool NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
         {
             var providerKey = updatedSettings.TileProviderKey?.Trim();
+            var currentCompatibility = TileProviderCatalog.ResolveCompatibility(
+                currentSettings.TileProviderKey,
+                currentSettings.TileProviderUrlTemplate);
+            var preservesUnsupportedState =
+                currentCompatibility.Status != TileProviderCompatibility.Supported &&
+                (string.IsNullOrWhiteSpace(providerKey) ||
+                 string.Equals(providerKey, currentSettings.TileProviderKey?.Trim(),
+                     StringComparison.OrdinalIgnoreCase));
+            if (preservesUnsupportedState)
+            {
+                PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
+                return true;
+            }
             if (string.IsNullOrWhiteSpace(providerKey))
             {
-                // Preserve existing settings when tile provider fields are not posted.
-                updatedSettings.TileProviderKey = currentSettings.TileProviderKey;
-                updatedSettings.TileProviderUrlTemplate = currentSettings.TileProviderUrlTemplate;
-                updatedSettings.TileProviderAttribution = currentSettings.TileProviderAttribution;
-                updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
-                return;
+                // Preserve supported provider identity when an unrelated form omits this section.
+                PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
+                return true;
             }
             var preset = TileProviderCatalog.FindPreset(providerKey);
             var isCustom = string.Equals(providerKey, TileProviderCatalog.CustomProviderKey, StringComparison.OrdinalIgnoreCase);
@@ -477,7 +490,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (preset == null && !isCustom)
             {
                 ModelState.AddModelError(nameof(ApplicationSettings.TileProviderKey), "Unknown tile provider selection.");
-                return;
+                return false;
             }
 
             if (preset != null)
@@ -521,6 +534,30 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 updatedSettings.TileProviderApiKey = null;
             }
+
+            return false;
+        }
+
+        /// <summary>Copies every persisted provider recovery field without normalization.</summary>
+        private static void PreserveTileProviderRecoveryState(
+            ApplicationSettings currentSettings,
+            ApplicationSettings updatedSettings)
+        {
+            updatedSettings.TileProviderKey = currentSettings.TileProviderKey;
+            updatedSettings.TileProviderUrlTemplate = currentSettings.TileProviderUrlTemplate;
+            updatedSettings.TileProviderAttribution = currentSettings.TileProviderAttribution;
+            updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
+            updatedSettings.TileTrafficMode = currentSettings.TileTrafficMode;
+            updatedSettings.TileOutboundBudgetPerIpPerMinute = currentSettings.TileOutboundBudgetPerIpPerMinute;
+            updatedSettings.TileProviderAdvancedLimitsEnabled = currentSettings.TileProviderAdvancedLimitsEnabled;
+            updatedSettings.TileProviderSustainedRequestsPerSecond = currentSettings.TileProviderSustainedRequestsPerSecond;
+            updatedSettings.TileProviderBurstCapacity = currentSettings.TileProviderBurstCapacity;
+            updatedSettings.TileProviderMaxConcurrency = currentSettings.TileProviderMaxConcurrency;
+            updatedSettings.TileProviderMaxAttempts = currentSettings.TileProviderMaxAttempts;
+            updatedSettings.TileProviderFallbackBaseDelayMs = currentSettings.TileProviderFallbackBaseDelayMs;
+            updatedSettings.TileProviderFallbackDelayCapSeconds = currentSettings.TileProviderFallbackDelayCapSeconds;
+            updatedSettings.TileProviderMaxIndividualWaitSeconds = currentSettings.TileProviderMaxIndividualWaitSeconds;
+            updatedSettings.TileProviderTotalRetryCeilingSeconds = currentSettings.TileProviderTotalRetryCeilingSeconds;
         }
 
         /// <summary>

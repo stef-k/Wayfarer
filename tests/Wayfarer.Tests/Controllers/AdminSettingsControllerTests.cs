@@ -266,6 +266,8 @@ public class AdminSettingsControllerTests : TestBase
     [InlineData("thunderforest-cycle", "https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png")]
     [InlineData("carto-dark", "https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png")]
     [InlineData("retired-provider", "https://tiles.retired.example/{z}/{x}/{y}.png")]
+    [InlineData("", "")]
+    [InlineData("custom", "malformed endpoint")]
     public async Task Update_UnrelatedSavePreservesUnsupportedProviderRecoveryState(
         string providerKey, string template)
     {
@@ -283,6 +285,11 @@ public class AdminSettingsControllerTests : TestBase
             TileProviderBurstCapacity = 41,
             TileProviderMaxConcurrency = 9,
             TileOutboundBudgetPerIpPerMinute = 321,
+            TileProviderMaxAttempts = 2,
+            TileProviderFallbackBaseDelayMs = 750,
+            TileProviderFallbackDelayCapSeconds = 7,
+            TileProviderMaxIndividualWaitSeconds = 44,
+            TileProviderTotalRetryCeilingSeconds = 88,
             IsRegistrationOpen = false
         };
         db.ApplicationSettings.Add(existing);
@@ -294,7 +301,7 @@ public class AdminSettingsControllerTests : TestBase
         {
             Id = 1,
             IsRegistrationOpen = true,
-            TileProviderKey = string.Empty
+            TileProviderKey = providerKey
         });
 
         Assert.IsType<RedirectToActionResult>(result);
@@ -307,6 +314,11 @@ public class AdminSettingsControllerTests : TestBase
         Assert.Equal(41, stored.TileProviderBurstCapacity);
         Assert.Equal(9, stored.TileProviderMaxConcurrency);
         Assert.Equal(321, stored.TileOutboundBudgetPerIpPerMinute);
+        Assert.Equal(2, stored.TileProviderMaxAttempts);
+        Assert.Equal(750, stored.TileProviderFallbackBaseDelayMs);
+        Assert.Equal(7, stored.TileProviderFallbackDelayCapSeconds);
+        Assert.Equal(44, stored.TileProviderMaxIndividualWaitSeconds);
+        Assert.Equal(88, stored.TileProviderTotalRetryCeilingSeconds);
         Assert.Equal(originalIdentity, TileProviderCatalog.CreateCacheIdentity(
             stored.TileProviderKey, stored.TileProviderUrlTemplate));
     }
