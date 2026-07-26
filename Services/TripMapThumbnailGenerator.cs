@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Runtime.InteropServices;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
@@ -10,7 +10,7 @@ namespace Wayfarer.Services;
 /// Service for generating trip map thumbnails using Playwright screenshots.
 /// Screenshots the public embed view of trips to create thumbnails that use the app's local tile cache.
 /// </summary>
-public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
+public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
 {
     // Static semaphore to prevent concurrent browser installations across all instances
     private static readonly SemaphoreSlim _installLock = new(1, 1);
@@ -21,6 +21,7 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
     private readonly IConfiguration _configuration;
     private readonly string _thumbsDirectory;
     private readonly string _chromeCachePath;
+    private readonly Func<CancellationToken, Task<byte[]?>>? _captureOverride;
 
     /// <summary>
     /// Initializes the thumbnail generator.
@@ -48,6 +49,17 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
         Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightPath);
 
         _logger.LogInformation("Thumbnail generator - Chrome cache: {ChromePath}", _chromeCachePath);
+    }
+
+    /// <summary>Creates a generator with a controllable capture seam for focused tests.</summary>
+    internal TripMapThumbnailGenerator(
+        ILogger<TripMapThumbnailGenerator> logger,
+        IWebHostEnvironment env,
+        IConfiguration configuration,
+        Func<CancellationToken, Task<byte[]?>> captureOverride)
+        : this(logger, env, configuration)
+    {
+        _captureOverride = captureOverride;
     }
 
     /// <summary>
@@ -127,18 +139,21 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
         // Generate new thumbnail by screenshotting the embed view
         try
         {
-            await EnsureBrowsersInstalledAsync(cancellationToken);
-
-            var thumbnailBytes = await CaptureEmbedViewAsync(
-                tripId, centerLat, centerLon, zoom, width, height, cancellationToken);
+            byte[]? thumbnailBytes;
+            if (_captureOverride != null)
+            {
+                thumbnailBytes = await _captureOverride(cancellationToken);
+            }
+            else
+            {
+                await EnsureBrowsersInstalledAsync(cancellationToken);
+                thumbnailBytes = await CaptureEmbedViewAsync(
+                    tripId, centerLat, centerLon, zoom, width, height, cancellationToken);
+            }
 
             if (thumbnailBytes != null && thumbnailBytes.Length > 0)
             {
-                // Save to disk
-                await File.WriteAllBytesAsync(filePath, thumbnailBytes, cancellationToken);
-
-                // Set file timestamp to match trip's UpdatedAt for cache validation
-                File.SetLastWriteTimeUtc(filePath, updatedAt);
+                await PersistThumbnailAsync(filePath, thumbnailBytes, updatedAt, cancellationToken);
 
                 _logger.LogInformation("Generated thumbnail for trip {TripId}: {Width}x{Height}, saved to: {FilePath}",
                     tripId, width, height, filePath);
@@ -147,6 +162,10 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
                 var timestamp = updatedAt.Ticks;
                 return $"/thumbs/trips/{filename}?v={timestamp}";
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -205,94 +224,117 @@ public sealed class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
     }
 
     /// <summary>
+    /// Builds an authorized request authority whose DNS resolution is pinned to loopback.
+    /// </summary>
+    internal (string EmbedUrl, string HostResolverRule)? BuildCaptureSettings(
+        Guid tripId,
+        double lat,
+        double lon,
+        int zoom)
+    {
+        var authorizedHost = TileCacheService.GetFirstAuthorizedPublicHost(_configuration);
+        if (authorizedHost == null)
+        {
+            return null;
+        }
+
+        var localUri = new Uri(GetLocalBaseUrl());
+        var thumbnailZoom = Math.Max(1, zoom - 1);
+        var embedUrl = $"http://{authorizedHost}:{localUri.Port}/Public/Trips/{tripId}" +
+            $"?embed=true&lat={lat.ToString("F6", CultureInfo.InvariantCulture)}" +
+            $"&lon={lon.ToString("F6", CultureInfo.InvariantCulture)}&zoom={thumbnailZoom}";
+        return (embedUrl, $"MAP {authorizedHost} 127.0.0.1");
+    }
+
+    /// <summary>
     /// Captures a screenshot of the trip embed view using Playwright.
     /// </summary>
-    private async Task<byte[]?> CaptureEmbedViewAsync(
+    internal async Task<byte[]?> CaptureEmbedViewAsync(
         Guid tripId,
         double lat,
         double lon,
         int zoom,
         int width,
         int height,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<Task<IPlaywright>>? playwrightFactory = null)
     {
-        // Build embed URL using localhost HTTP endpoint (secure since it's loopback only)
-        // Playwright runs on same server, so we use http://127.0.0.1:{port} for performance and simplicity
-        var baseUrl = GetLocalBaseUrl();
-
-        // Zoom out by 1 level for better thumbnail overview (lower zoom = more area visible)
-        var thumbnailZoom = Math.Max(1, zoom - 1);
-
-        var embedUrl = $"{baseUrl}/Public/Trips/{tripId}?embed=true&lat={lat.ToString("F6", CultureInfo.InvariantCulture)}&lon={lon.ToString("F6", CultureInfo.InvariantCulture)}&zoom={thumbnailZoom}";
-
-        _logger.LogDebug("Capturing thumbnail from: {Url}", embedUrl);
-
-        var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var launchArgs = new List<string>
+        var captureSettings = BuildCaptureSettings(tripId, lat, lon, zoom);
+        if (captureSettings == null)
         {
-            "--ignore-certificate-errors",
-            "--disable-web-security"
-        };
-
-        // ARM64 Linux specific flags
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.OSArchitecture == Architecture.Arm64)
-        {
-            launchArgs.AddRange(new[]
-            {
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu"
-            });
+            _logger.LogWarning(
+                "Thumbnail capture skipped for trip {TripId}: no authorized public hostname is configured",
+                tripId);
+            return null;
         }
 
-        var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-        {
-            Headless = true,
-            Args = launchArgs
-        });
-        cancellationToken.ThrowIfCancellationRequested();
+        _logger.LogDebug("Capturing thumbnail for trip {TripId} through the loopback endpoint", tripId);
 
+        IPlaywright? playwright = null;
+        IBrowser? browser = null;
+        IPage? page = null;
+        Exception? captureException = null;
         try
         {
-            var page = await browser.NewPageAsync(new BrowserNewPageOptions
+            playwright = await (playwrightFactory?.Invoke() ?? Microsoft.Playwright.Playwright.CreateAsync());
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var launchArgs = CreateLaunchArguments(captureSettings.Value.HostResolverRule);
+            browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true,
+                Args = launchArgs
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+
+            page = await browser.NewPageAsync(new BrowserNewPageOptions
             {
                 ViewportSize = new ViewportSize { Width = width, Height = height }
             });
             cancellationToken.ThrowIfCancellationRequested();
 
-            try
-            {
-                // Navigate to embed view and wait for map to load
-                await page.GotoAsync(embedUrl, new PageGotoOptions
-                {
-                    WaitUntil = WaitUntilState.NetworkIdle,
-                    Timeout = 30000
-                });
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // Take screenshot
-                var screenshot = await page.ScreenshotAsync(new PageScreenshotOptions
-                {
-                    Type = ScreenshotType.Jpeg,
-                    Quality = 85,
-                    FullPage = false
-                });
-
-                return screenshot;
-            }
-            finally
-            {
-                await page.CloseAsync();
-            }
+            return await CapturePageAsync(page, captureSettings.Value.EmbedUrl, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            captureException = ex;
+            throw;
         }
         finally
         {
-            await browser.CloseAsync();
-            playwright.Dispose();
+            var cleanupException = await DisposeCaptureResourcesAsync(page, browser, playwright);
+            if (captureException == null && cleanupException != null)
+            {
+                ExceptionDispatchInfo.Capture(cleanupException).Throw();
+            }
         }
+    }
+
+    /// <summary>Captures only after Playwright confirms a successful main-document response.</summary>
+    internal static async Task<byte[]?> CapturePageAsync(
+        IPage page,
+        string embedUrl,
+        CancellationToken cancellationToken)
+    {
+        var response = await page.GotoAsync(embedUrl, new PageGotoOptions
+        {
+            WaitUntil = WaitUntilState.NetworkIdle,
+            Timeout = 30000
+        });
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (response?.Ok != true ||
+            !string.Equals(response.Url, embedUrl, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return await page.ScreenshotAsync(new PageScreenshotOptions
+        {
+            Type = ScreenshotType.Jpeg,
+            Quality = 85,
+            FullPage = false
+        });
     }
 
     /// <summary>

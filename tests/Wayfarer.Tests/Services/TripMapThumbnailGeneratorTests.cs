@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Playwright;
 using Moq;
 using Wayfarer.Services;
 using Xunit;
@@ -34,6 +35,204 @@ public class TripMapThumbnailGeneratorTests : IDisposable
             Guid.NewGuid(), 200, 10, 5, 200, 200, DateTime.UtcNow);
 
         Assert.Null(result);
+    }
+
+    [Fact]
+    public void BuildCaptureSettings_UsesAuthorizedHostWithLoopbackResolver()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AllowedHosts"] = "invalid host;wayfarer.example.com;other.example.com",
+                ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
+            })
+            .Build();
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+        var settings = generator.BuildCaptureSettings(Guid.Empty, 1, 2, 3);
+
+        Assert.NotNull(settings);
+        Assert.StartsWith("http://wayfarer.example.com:5500/Public/Trips/", settings.Value.EmbedUrl);
+        Assert.Equal("MAP wayfarer.example.com 127.0.0.1", settings.Value.HostResolverRule);
+        Assert.DoesNotContain("other.example.com", settings.Value.EmbedUrl);
+    }
+
+    [Fact]
+    public void BuildCaptureSettings_ReturnsNull_WhenAllowedHostIsNotPublic()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AllowedHosts"] = "wayfarer.test",
+                ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
+            })
+            .Build();
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+
+        var settings = generator.BuildCaptureSettings(Guid.Empty, 1, 2, 3);
+
+        Assert.Null(settings);
+    }
+
+    [Fact]
+    public async Task CapturePageAsync_ReturnsNull_WhenNavigationIsNonSuccess()
+    {
+        var page = new Mock<IPage>();
+        var response = new Mock<IResponse>();
+        response.SetupGet(item => item.Status).Returns(400);
+        response.SetupGet(item => item.Ok).Returns(false);
+        page.Setup(item => item.GotoAsync(It.IsAny<string>(), It.IsAny<PageGotoOptions>()))
+            .ReturnsAsync(response.Object);
+
+        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+            page.Object, "http://wayfarer.example.com:5500/Public/Trips/example", CancellationToken.None);
+
+        Assert.Null(result);
+        page.Verify(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CapturePageAsync_ReturnsNull_WhenNavigationResponseIsNull()
+    {
+        var page = new Mock<IPage>();
+        page.Setup(item => item.GotoAsync(It.IsAny<string>(), It.IsAny<PageGotoOptions>()))
+            .ReturnsAsync((IResponse?)null);
+
+        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+            page.Object, "http://wayfarer.example.com:5500/Public/Trips/example", CancellationToken.None);
+
+        Assert.Null(result);
+        page.Verify(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CapturePageAsync_ReturnsNull_WhenNavigationRedirectsToAnotherPage()
+    {
+        const string embedUrl = "http://wayfarer.example.com:5500/Public/Trips/example";
+        var page = new Mock<IPage>();
+        var response = new Mock<IResponse>();
+        response.SetupGet(item => item.Ok).Returns(true);
+        response.SetupGet(item => item.Url).Returns("http://wayfarer.example.com:5500/Identity/Account/Login");
+        page.Setup(item => item.GotoAsync(embedUrl, It.IsAny<PageGotoOptions>()))
+            .ReturnsAsync(response.Object);
+
+        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+            page.Object, embedUrl, CancellationToken.None);
+
+        Assert.Null(result);
+        page.Verify(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CapturePageAsync_ScreenshotsSuccessfulEmbedResponse()
+    {
+        const string embedUrl = "http://wayfarer.example.com:5500/Public/Trips/example";
+        var expected = new byte[] { 1, 2, 3 };
+        var page = new Mock<IPage>();
+        var response = new Mock<IResponse>();
+        response.SetupGet(item => item.Ok).Returns(true);
+        response.SetupGet(item => item.Url).Returns(embedUrl);
+        page.Setup(item => item.GotoAsync(embedUrl, It.IsAny<PageGotoOptions>()))
+            .ReturnsAsync(response.Object);
+        page.Setup(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()))
+            .ReturnsAsync(expected);
+
+        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+            page.Object, embedUrl, CancellationToken.None);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task GetOrGenerateThumbnailAsync_PreservesExistingFile_WhenCaptureFails()
+    {
+        var tripId = Guid.NewGuid();
+        var generator = new TripMapThumbnailGenerator(
+            _logger.Object,
+            _env.Object,
+            _config,
+            _ => Task.FromResult<byte[]?>(null));
+        var path = Path.Combine(_root, "thumbs", "trips", $"{tripId}-800x450.jpg");
+        var original = new byte[] { 1, 2, 3 };
+        File.WriteAllBytes(path, original);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-1));
+
+        var result = await generator.GetOrGenerateThumbnailAsync(
+            tripId, 10, 20, 5, 800, 450, DateTime.UtcNow);
+
+        Assert.Null(result);
+        Assert.Equal(original, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public async Task GetOrGenerateThumbnailAsync_PreservesExistingFile_WhenAtomicPublishFails()
+    {
+        var tripId = Guid.NewGuid();
+        var replacement = new byte[] { 9, 8, 7 };
+        var generator = new TripMapThumbnailGenerator(
+            _logger.Object,
+            _env.Object,
+            _config,
+            _ => Task.FromResult<byte[]?>(replacement));
+        var directory = Path.Combine(_root, "thumbs", "trips");
+        var path = Path.Combine(directory, $"{tripId}-800x450.jpg");
+        var original = new byte[] { 1, 2, 3 };
+        File.WriteAllBytes(path, original);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-1));
+        var originalTimestamp = File.GetLastWriteTimeUtc(path);
+
+        TripMapThumbnailGenerator.SetThumbnailFileReplacerForTesting(
+            (_, _) => throw new IOException("publish failed"));
+        try
+        {
+            var result = await generator.GetOrGenerateThumbnailAsync(
+                tripId, 10, 20, 5, 800, 450, DateTime.UtcNow);
+
+            Assert.Null(result);
+            Assert.Equal(original, File.ReadAllBytes(path));
+            Assert.Equal(originalTimestamp, File.GetLastWriteTimeUtc(path));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+        }
+        finally
+        {
+            TripMapThumbnailGenerator.SetThumbnailFileReplacerForTesting(null);
+        }
+    }
+
+    [Fact]
+    public async Task CaptureEmbedViewAsync_DisposesCreatedResourcesOnce_WhenCancelledAfterPageCreation()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AllowedHosts"] = "wayfarer.example.com",
+                ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
+            })
+            .Build();
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var playwright = new Mock<IPlaywright>();
+        var browserType = new Mock<IBrowserType>();
+        var browser = new Mock<IBrowser>();
+        var page = new Mock<IPage>();
+        using var cancellation = new CancellationTokenSource();
+        playwright.SetupGet(item => item.Chromium).Returns(browserType.Object);
+        browserType.Setup(item => item.LaunchAsync(It.IsAny<BrowserTypeLaunchOptions>()))
+            .ReturnsAsync(browser.Object);
+        browser.Setup(item => item.NewPageAsync(It.IsAny<BrowserNewPageOptions>()))
+            .ReturnsAsync(() =>
+            {
+                cancellation.Cancel();
+                return page.Object;
+            });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => generator.CaptureEmbedViewAsync(
+            Guid.NewGuid(), 10, 20, 5, 800, 450, cancellation.Token,
+            () => Task.FromResult(playwright.Object)));
+
+        page.Verify(item => item.CloseAsync(It.IsAny<PageCloseOptions>()), Times.Once);
+        browser.Verify(item => item.CloseAsync(It.IsAny<BrowserCloseOptions>()), Times.Once);
+        playwright.Verify(item => item.Dispose(), Times.Once);
     }
 
     [Fact]

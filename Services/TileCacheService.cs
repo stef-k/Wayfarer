@@ -14,6 +14,10 @@ using Wayfarer.Util;
 
 public partial class TileCacheService
 {
+    /// <summary>Returns the first configured hostname accepted by the shared public-host policy.</summary>
+    internal static string? GetFirstAuthorizedPublicHost(IConfiguration configuration) =>
+        GetAuthorizedHosts(configuration).FirstOrDefault();
+
     private readonly ILogger<TileCacheService> _logger;
 
     /// <summary>
