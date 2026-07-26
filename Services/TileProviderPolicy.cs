@@ -95,7 +95,15 @@ internal static class TileProviderPolicyResolver
         }
 
         // Interactive deliberately has no proactive rate, burst, global-token, or client-series admission.
-        return Create(settings, mode, compatibility, false, 0, 0, 6, 0);
+        return Create(
+            settings,
+            mode,
+            compatibility,
+            false,
+            0,
+            0,
+            TileWorkScheduler.ForegroundConcurrency,
+            0);
     }
 
     /// <summary>Validates all Custom scalars and cross-field invariants.</summary>
