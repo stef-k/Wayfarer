@@ -323,42 +323,9 @@ public partial class TileCacheService
             _logger.LogWarning("Tile provider compatibility rejected upstream traffic before contact.");
             return TileRequestSendResult.Rejected(TileRequestRejection.InvalidProviderResponse);
         }
-        // Two-phase per-IP outbound budget: peek first (fast-fail without incrementing),
-        // then record the hit only after the global budget is acquired. This prevents
-        // budget-exhausted requests from inflating the per-IP counter, which previously
-        // caused cascading 503 rejections: on cold-cache loads with ~35 tiles, every
-        // request (including those rejected by the global budget) incremented the per-IP
-        // counter, so retries found the counter already past the limit and failed immediately.
-        // The initiating request charges this allowance once; retries do not charge it again.
-        // clientIp may be passed explicitly by callers (e.g., coalesced revalidation) where
-        // HttpContext is no longer available; falls back to HttpContext if not provided.
-        string? resolvedIpForBudget = null;
-        if (chargeClientAllowance)
-        {
-            var perIpLimit = providerPolicy.ClientSeriesPerMinute;
-            if (perIpLimit > 0)
-            {
-                resolvedIpForBudget = clientIp;
-                if (resolvedIpForBudget == null && allowHttpContext)
-                {
-                    var ctx = _httpContextAccessor.HttpContext;
-                    if (ctx != null)
-                    {
-                        resolvedIpForBudget = ResolveSchedulerClientKey(
-                            ctx, RateLimitHelper.GetClientIpAddress(ctx));
-                    }
-                }
-
-                if (resolvedIpForBudget != null && RateLimitHelper.WouldExceedRateLimit(
-                        TilesController.OutboundBudgetCache, resolvedIpForBudget, perIpLimit))
-                {
-                    TileCacheDiagnostics.ClientBudgetRejected(_logger, "outbound-client");
-                    _logger.LogWarning(
-                        "Per-client outbound tile allowance exceeded; upstream request rejected.");
-                    return TileRequestSendResult.Rejected(TileRequestRejection.ClientBudget);
-                }
-            }
-        }
+        if (!TryPrepareClientSeriesAllowance(providerPolicy, chargeClientAllowance,
+                clientIp, allowHttpContext, out var resolvedIpForBudget))
+            return TileRequestSendResult.Rejected(TileRequestRejection.ClientBudget);
 
         const int maxRedirects = 3;
         var initialUri = new Uri(tileUrl);
