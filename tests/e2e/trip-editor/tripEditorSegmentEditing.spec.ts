@@ -35,6 +35,51 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.locator('#trip-editor-segment-form')).toHaveCount(1);
   });
 
+  test('open segment draft owns one test-observable route representation', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page);
+
+    await openEditableSegment(page);
+
+    const activeRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
+    await expect(activeRoute).toHaveCount(1);
+    await expect(activeRoute).toHaveAttribute('data-route-kind', 'custom');
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
+  });
+
+  test('docked segment map-work context spans and stays contained in its row', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page, state => {
+      const [first, second] = Object.values(state.placesById) as Array<Record<string, any>>;
+      first.name = 'A very long departure station name that must wrap inside the segment row';
+      second.name = 'An equally long arrival station name that must remain contained';
+    });
+
+    await openEditableSegment(page);
+    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+
+    const row = segmentRow(page, segmentId);
+    const context = row.locator('.trip-editor-surface-context');
+    await expect(context).toBeVisible();
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 430, height: 800 }, { width: 390, height: 800 }]) {
+      await page.setViewportSize(viewport);
+      const layout = await row.evaluate(element => {
+        const contextElement = element.querySelector<HTMLElement>('.trip-editor-surface-context');
+        if (!contextElement) {
+          throw new Error('Expected active segment map-work context.');
+        }
+
+        const rowBounds = element.getBoundingClientRect();
+        const contextBounds = contextElement.getBoundingClientRect();
+        return {
+          contained: element.scrollWidth <= element.clientWidth && contextElement.scrollWidth <= contextElement.clientWidth,
+          spansRow: Math.abs(contextBounds.left - rowBounds.left) <= 1 && Math.abs(contextBounds.right - rowBounds.right) <= 1
+        };
+      });
+      expect(layout).toEqual({ contained: true, spansRow: true });
+    }
+  });
+
   test('route map-work from docked and expanded sends a mocked route save only after Save', async ({ page }) => {
     await signIn(page);
     const state = await loadWorkspaceWithSegmentFixture(page);
@@ -61,28 +106,90 @@ test.describe.serial('Trip Editor segment editing', () => {
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Draw segment route');
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
+    const workRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="work"]`);
+    await expect(workRoute).toHaveAttribute('data-route-kind', 'custom');
     await expect(page.locator('.trip-editor-toolbar').getByRole('button', { name: 'Fit All' })).toHaveCount(0);
     await expectNoLegacyEditorAction(page);
     await expect(page.getByRole('button', { name: /pick on map|draw\/edit area|geocode|search.?add|marker drag/i })).toHaveCount(0);
     await expectNoSearchAddUi(page);
 
+    const editHandle = page.locator('.leaflet-editing-icon').last();
+    const handleBox = await editHandle.boundingBox();
+    if (!handleBox) {
+      throw new Error('Expected an editable segment route vertex.');
+    }
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + handleBox.width / 2 + 40, handleBox.y + handleBox.height / 2 - 30);
+    await page.mouse.up();
+    const workPath = await workRoute.getAttribute('d');
+
     await mapWork.getByRole('button', { name: 'Done' }).click();
     await expectNoLegacyEditorAction(page);
     expect(savedRequests, 'Done must not call the segment save endpoint.').toEqual([]);
     await expect(page.locator('#trip-editor-segment-form')).toContainText('2 custom route points');
-
-    await page.getByRole('button', { name: 'Clear Route' }).click();
-    expect(savedRequests, 'Clear Route must not call the segment save endpoint.').toEqual([]);
-    await expect(page.locator('#trip-editor-segment-form')).toContainText('Endpoint fallback available until saved');
+    const draftRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
+    await expect(draftRoute).toHaveAttribute('d', workPath ?? '');
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Save Segment' }).click();
     await expect.poll(() => savedRequests.length).toBe(1);
-    expect(savedRequests[0].route).toBeNull();
+    expect(savedRequests[0].route?.type).toBe('LineString');
+    expect(savedRequests[0].route?.coordinates).toHaveLength(2);
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
+    await expect(draftRoute).toHaveCount(0);
 
     await openEditableSegment(page);
     await page.getByRole('button', { name: 'Expand Editor' }).click();
     await page.getByRole('dialog', { name: /Edit Segment -/ }).getByRole('button', { name: 'Draw/Edit Route' }).click();
     await expect(page.getByRole('region', { name: 'Map work' })).toContainText('Draw segment route');
+  });
+
+  test('no-op Done preserves a nullable draft route and its endpoint fallback', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page);
+
+    await segmentRow(page, secondSegmentId).locator('.trip-editor-list-button').click();
+    const form = page.locator('#trip-editor-segment-form');
+    await expect(form).toContainText('Endpoint fallback available until saved');
+    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+    await expect(page.locator(`[data-segment-id="${secondSegmentId}"][data-route-owner="work"]`)).toHaveAttribute('data-route-kind', 'fallback');
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+
+    await expect(form).toContainText('Endpoint fallback available until saved');
+    await expect(form).not.toContainText('custom route points');
+    await expect(page.getByRole('button', { name: 'Clear Route' })).toBeDisabled();
+    await expect(page.locator(`[data-segment-id="${secondSegmentId}"][data-route-owner="draft"][data-route-kind="fallback"]`)).toHaveCount(1);
+  });
+
+  test('failed Save retains the complete visible retryable draft and viewport', async ({ page }) => {
+    await signIn(page);
+    const state = await loadWorkspaceWithSegmentFixture(page);
+    await page.unroute(editorApiMatcher);
+    await page.route(editorApiMatcher, async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
+        return;
+      }
+
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ title: 'Forced segment save failure' }) });
+    });
+
+    await openEditableSegment(page);
+    const form = page.locator('#trip-editor-segment-form');
+    const draftRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
+    const routePath = await draftRoute.getAttribute('d');
+    const map = page.locator('.trip-editor-map');
+    const viewport = await map.evaluate(element => ({ lat: element.dataset.tripEditorMapLat, lng: element.dataset.tripEditorMapLng, zoom: element.dataset.tripEditorMapZoom }));
+    await form.getByLabel('Estimated distance km').fill('99');
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: 'Save failed' })).toBeVisible();
+    await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(draftRoute).toHaveAttribute('d', routePath ?? '');
+    await expect(map).toHaveAttribute('data-trip-editor-map-lat', viewport.lat ?? '');
+    await expect(map).toHaveAttribute('data-trip-editor-map-lng', viewport.lng ?? '');
+    await expect(map).toHaveAttribute('data-trip-editor-map-zoom', viewport.zoom ?? '');
   });
 
   test('Cancel route map-work rolls back only route and delete confirms dirty discard first', async ({ page }) => {
@@ -97,6 +204,17 @@ test.describe.serial('Trip Editor segment editing', () => {
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
     await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(form).toContainText('2 custom route points');
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"][data-route-kind="custom"]`)).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Clear Route' }).click();
+    await expect(form).toContainText('Endpoint fallback available until saved');
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"][data-route-kind="fallback"]`)).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(form).toContainText('2 custom route points');
+    await expect(form.getByLabel('Estimated distance km')).toHaveValue('2');
+    await form.getByLabel('Estimated distance km').fill('99');
 
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
@@ -121,6 +239,8 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(segmentRow(page, secondSegmentId)).toBeVisible();
     await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
     await expect(segmentRow(page, segmentId).locator('#trip-editor-segment-form')).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${secondSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
   });
 
   test('client-session visibility hides map route without changing API or reload defaults', async ({ page }) => {
@@ -165,10 +285,11 @@ test.describe.serial('Trip Editor segment editing', () => {
   });
 });
 
-async function loadWorkspaceWithSegmentFixture(page: Page): Promise<MutableEditorState> {
+async function loadWorkspaceWithSegmentFixture(page: Page, customize?: (state: MutableEditorState) => void): Promise<MutableEditorState> {
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
   prepareSegmentState(state);
+  customize?.(state);
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
   await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);

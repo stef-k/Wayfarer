@@ -406,9 +406,30 @@ body {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
 }
 
-.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface {
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface,
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface-context {
   grid-column: 1 / -1;
   min-width: 0;
+}
+
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface-context > div {
+  min-width: 0;
+}
+
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface-context strong,
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-surface-context small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-list-button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.trip-editor-segments .trip-editor-segment-row > .trip-editor-list-button > * {
+  display: block;
 }
 
 .trip-editor-place-row,

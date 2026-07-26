@@ -7,7 +7,7 @@ import MapSearchControl from './MapSearchControl.vue';
 import RegionManager from './RegionManager.vue';
 import SegmentManager from './SegmentManager.vue';
 import VisitProgressSurface from './VisitProgressSurface.vue';
-import type { AreaPolygonWorkOptions, CoordinatePickOptions, SegmentRouteWorkOptions } from '../map/leafletAdapter';
+import type { AreaPolygonWorkOptions, CoordinatePickOptions, SegmentDraftRoutePreview, SegmentRouteWorkOptions } from '../map/leafletAdapter';
 
 type SidebarSearchResult = {
   hasMatches: boolean;
@@ -51,6 +51,7 @@ const emit = defineEmits<{
   regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
   placeDraftPreviewChanged: [preview: PlaceDraftPreview | null];
+  segmentRouteDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
   searchAddOpened: [requestId: number];
   searchAddPlace: [request: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number }];
   searchClearPreview: [];
@@ -401,6 +402,7 @@ function normalize(value: string): string {
             @dirty-state-changed="isDirty => { segmentDraftDirty = isDirty; emit('regionDraftDirtyChanged', hasAnyDraftChanges); }"
             @hidden-segment-ids-changed="ids => emit('hiddenSegmentIdsChanged', ids)"
             @mutation-applied="result => emit('mutationApplied', result)"
+            @route-draft-preview-changed="preview => emit('segmentRouteDraftPreviewChanged', preview)"
           />
         </section>
       </div>

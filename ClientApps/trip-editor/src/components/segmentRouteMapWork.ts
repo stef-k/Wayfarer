@@ -9,6 +9,7 @@ export type SegmentRouteEditor = {
 
 type SegmentRouteSnapshot = {
   route: GeoJsonLineString | null;
+  workBaseline: GeoJsonLineString | null;
 };
 
 export type SegmentRouteMapWorkState = {
@@ -18,17 +19,20 @@ export type SegmentRouteMapWorkState = {
 
 /// Starts route-only map-work for the active segment draft.
 export function beginSegmentRouteMapWork(
+  identity: string,
   draft: EditorSegmentDraft,
   editorSurface: EditorSurfaceController,
   routeEditor: SegmentRouteEditor,
   state: SegmentRouteMapWorkState,
   editorState: EditorTripState
 ): void {
-  const snapshot = snapshotSegmentRoute(draft);
-  state.route = cloneGeometry(draft.route ?? fallbackRoute(draft, editorState));
+  const snapshot = snapshotSegmentRoute(draft, editorState);
+  state.route = cloneGeometry(snapshot.workBaseline);
   stopSegmentRouteEdit(state);
   state.stopEdit = routeEditor.startSegmentRouteWork({
+    identity,
     initialRoute: state.route,
+    initialRouteKind: draft.route === null ? 'fallback' : 'custom',
     onChanged: route => {
       state.route = cloneGeometry(route);
     }
@@ -39,18 +43,19 @@ export function beginSegmentRouteMapWork(
     instruction: 'Draw or edit one route polyline.',
     statusText: () => segmentRouteStatus(state.route),
     canFinish: () => hasValidRoute(state.route),
-    isDirty: () => !sameGeometry(state.route, snapshot.route),
+    isDirty: () => !sameGeometry(state.route, snapshot.workBaseline),
     snapshot: () => snapshot,
     rollback: rollbackSnapshot => {
       restoreSegmentRoute(draft, state, rollbackSnapshot as SegmentRouteSnapshot);
     },
     clear: () => {
       state.route = null;
-      draft.route = null;
       routeEditor.setSegmentRouteWorkRoute(null);
     },
     done: () => {
-      draft.route = cloneGeometry(state.route);
+      draft.route = sameGeometry(state.route, snapshot.workBaseline)
+        ? cloneGeometry(snapshot.route)
+        : cloneGeometry(state.route);
       stopSegmentRouteEdit(state);
     },
     cancel: () => {
@@ -74,8 +79,11 @@ export function fallbackRoute(draft: Pick<EditorSegmentDraft, 'fromPlaceId' | 't
   return from && to ? { type: 'LineString', coordinates: [[from.longitude, from.latitude], [to.longitude, to.latitude]] } : null;
 }
 
-function snapshotSegmentRoute(draft: EditorSegmentDraft): SegmentRouteSnapshot {
-  return { route: cloneGeometry(draft.route) };
+function snapshotSegmentRoute(draft: EditorSegmentDraft, state: EditorTripState): SegmentRouteSnapshot {
+  return {
+    route: cloneGeometry(draft.route),
+    workBaseline: cloneGeometry(draft.route ?? fallbackRoute(draft, state))
+  };
 }
 
 function restoreSegmentRoute(draft: EditorSegmentDraft, state: SegmentRouteMapWorkState, snapshot: SegmentRouteSnapshot): void {
@@ -84,7 +92,13 @@ function restoreSegmentRoute(draft: EditorSegmentDraft, state: SegmentRouteMapWo
 }
 
 function hasValidRoute(route: GeoJsonLineString | null): boolean {
-  return Boolean(route?.coordinates && route.coordinates.length >= 2);
+  return Boolean(route?.type === 'LineString' && route.coordinates.length >= 2 && route.coordinates.every(([longitude, latitude]) =>
+    Number.isFinite(longitude) &&
+    Number.isFinite(latitude) &&
+    longitude >= -180 &&
+    longitude <= 180 &&
+    latitude >= -90 &&
+    latitude <= 90));
 }
 
 function sameGeometry(left: GeoJsonLineString | null, right: GeoJsonLineString | null): boolean {
@@ -93,7 +107,7 @@ function sameGeometry(left: GeoJsonLineString | null, right: GeoJsonLineString |
 
 function segmentRouteStatus(route: GeoJsonLineString | null): string {
   const points = route?.coordinates.length ?? 0;
-  return points >= 2 ? `${points} route points ready` : 'No route ready';
+  return points >= 2 ? `Editing route · ${points} route points ready` : 'Editing route · no route ready';
 }
 
 function cloneGeometry<T>(geometry: T): T {
