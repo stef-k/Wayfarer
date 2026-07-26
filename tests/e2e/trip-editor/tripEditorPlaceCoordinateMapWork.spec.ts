@@ -78,6 +78,74 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     expect(forbidden(), 'Coordinate picking must not call geocode/search providers.').toEqual([]);
   });
 
+  test('Pick styling preserves the pending coordinate across Done and coordinate-only Cancel', async ({ page }) => {
+    await useMapWorkViewport(page);
+    await signIn(page);
+    await loadWorkspaceWithCoordinateFixture(page);
+    await firstEditableRegion(page).getByRole('button', { name: 'Add Place' }).click();
+    const baseline = await draftCoordinates(page);
+    const view = await mapView(page);
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.62, yRatio: 0.39 });
+    const pending = await markerCoordinate(page);
+    expect(pending).not.toEqual(baseline);
+    await selectDraftStyle(page, 'icon');
+    await selectDraftStyle(page, 'color');
+    await expectMarkerCoordinate(page, pending);
+    await expect(activeDraftMarkers(page)).toHaveCount(1);
+    await expect.poll(() => mapView(page)).toEqual(view);
+
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    await expectDraftCoordinates(page, pending);
+    const selectedIcon = await selectedDraftStyle(page, 'icon');
+    const selectedColor = await selectedDraftStyle(page, 'color');
+
+    await page.getByRole('button', { name: 'Pick on map' }).click();
+    await clickMap(page, { xRatio: 0.35, yRatio: 0.64 });
+    await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await expectDraftCoordinates(page, pending);
+    await expectMarkerCoordinate(page, pending);
+    expect(await selectedDraftStyle(page, 'icon')).toBe(selectedIcon);
+    expect(await selectedDraftStyle(page, 'color')).toBe(selectedColor);
+    await expect(activeDraftMarkers(page)).toHaveCount(1);
+    await expect.poll(() => mapView(page)).toEqual(view);
+  });
+
+  test('phone Pick actions remain visible, contained, non-overlapping, and operable', async ({ page }) => {
+    await signIn(page);
+    for (const width of [390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      await loadWorkspaceWithCoordinateFixture(page);
+      await firstEditableRegion(page).getByRole('button', { name: 'Add Place' }).click();
+      await page.getByRole('button', { name: 'Pick on map' }).click();
+      const mapWork = page.getByRole('region', { name: 'Map work' });
+      const done = mapWork.getByRole('button', { name: 'Done' });
+      const cancel = mapWork.getByRole('button', { name: 'Cancel' });
+      await expect(done).toBeInViewport();
+      await expect(cancel).toBeInViewport();
+      const layout = await page.evaluate(() => {
+        const drawer = document.querySelector<HTMLElement>('.trip-editor-sidebar--mobile-drawer');
+        const actions = document.querySelector<HTMLElement>('.trip-editor-map-work-toolbar__actions');
+        const buttons = Array.from(actions?.querySelectorAll<HTMLElement>('button') ?? []).map(button => button.getBoundingClientRect());
+        return {
+          actionsContained: Boolean(actions && actions.scrollWidth <= actions.clientWidth),
+          drawerContained: Boolean(drawer && drawer.scrollWidth <= drawer.clientWidth),
+          overlap: buttons.length >= 2 && buttons[0].right > buttons[buttons.length - 1].left
+        };
+      });
+      expect(layout.actionsContained, `${width}px Pick actions should not scroll horizontally.`).toBe(true);
+      expect(layout.drawerContained, `${width}px drawer should not overflow horizontally.`).toBe(true);
+      expect(layout.overlap, `${width}px Done and Cancel should not overlap.`).toBe(false);
+      await done.click();
+      await expect(mapWork).toHaveCount(0);
+      await page.getByRole('button', { name: 'Pick on map' }).click();
+      await cancel.click();
+      await expect(mapWork).toHaveCount(0);
+    }
+  });
+
   test('Pick on map cancels active distance measurement before handling map clicks', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithCoordinateFixture(page);
@@ -548,6 +616,19 @@ async function expectDraftCoordinates(page: Page, values: { latitude: string; lo
   const form = page.locator('#trip-editor-place-form');
   await expect(form.getByLabel('Latitude')).toHaveValue(values.latitude);
   await expect(form.getByLabel('Longitude')).toHaveValue(values.longitude);
+}
+
+// Selects a non-default draft style through the same controls used by the place form.
+async function selectDraftStyle(page: Page, kind: 'icon' | 'color'): Promise<void> {
+  const selector = page.locator(`[data-selector-kind="${kind}"]`);
+  await selector.locator('[data-icon-selector-trigger]').click();
+  const options = selector.locator('[data-icon-selector-option]');
+  await expect(options.nth(1)).toBeVisible();
+  await options.nth(1).click();
+}
+
+async function selectedDraftStyle(page: Page, kind: 'icon' | 'color'): Promise<string> {
+  return (await page.locator(`[data-selector-kind="${kind}"] [data-icon-selector-selected-name]`).textContent())?.trim() ?? '';
 }
 
 async function markerAnchor(locator: Locator): Promise<{ x: number; y: number }> {
