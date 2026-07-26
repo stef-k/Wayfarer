@@ -211,7 +211,7 @@ const renderPlace = (
   place: EditorPlace,
   state: EditorTripState,
   layers: LayerGroup,
-  coordinatePick: ReturnType<typeof createCoordinatePickLayer>,
+  coordinatePick: ReturnType<typeof createPlaceCoordinatePickLayer>,
   placeMarkers: Map<Guid, L.Marker>,
   onSelected: () => boolean | Promise<boolean>
 ): void => {
