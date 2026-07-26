@@ -2,15 +2,16 @@ import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } fr
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
-import { createAreaPolygonWorkLayer } from './areaPolygonWorkLayer';
+import { createAreaPolygonWorkLayer, type AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 import { createMapUtilitiesControl } from './mapUtilitiesControl';
-import { createPlaceDraftPreviewLayer } from './placeDraftPreviewLayer';
-import { placeMarkerIcon, previewMarkerIcon, regionMarkerIcon } from './markerRendering';
+import { createPlaceCoordinatePickLayer, createPlaceDraftPreviewLayer, type CoordinatePickOptions } from './placeDraftPreviewLayer';
+import { placeMarkerIcon, regionMarkerIcon } from './markerRendering';
 import { placePopupHtml } from './placePopupRendering';
 import { createSearchPreviewLayer } from './searchPreviewLayer';
-import { createSegmentRouteWorkLayer } from './segmentRouteWorkLayer';
+import { createSegmentRouteWorkLayer, type SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 import { createTripEditorTileLayer } from './tileRetryLayer';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
+export type { CoordinatePickOptions } from './placeDraftPreviewLayer';
 export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 
 export type FitAllGeometryResult = 'moved' | 'no-geometry';
@@ -20,11 +21,10 @@ export type InitialMapViewSource = 'url' | 'saved' | 'fit-bounds' | 'fallback';
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>, selectedPlaceId?: Guid | null) => void;
-  applyPlaceDraftCoordinate: (placeId: Guid, coordinate: EditorCoordinate) => void;
-  applyPlaceDraftMarker: (state: EditorTripState, placeId: Guid, preview: Pick<EditorPlace, 'iconName' | 'markerColor'> | null) => void;
-  clearPlaceDraftPreview: () => void;
   clearSearchPreview: () => void;
+  getMapView: () => TripEditorMapView;
   selectPlace: (state: EditorTripState, placeId: Guid | null, options?: SelectPlaceOptions) => void;
+  setPlaceDraftPreview: (state: EditorTripState, preview: PlaceDraftMarkerPreview | null) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
@@ -32,9 +32,19 @@ interface TripEditorMapAdapter {
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
-  showPlaceDraftPreview: (coordinate: EditorCoordinate, label: string, preview: Pick<EditorPlace, 'iconName' | 'markerColor'>) => void;
   showSearchPreview: (coordinate: EditorCoordinate, label: string) => void;
   dispose: () => void;
+}
+
+export interface TripEditorMapView {
+  center: EditorCoordinate;
+  zoom: number;
+}
+
+export interface PlaceDraftMarkerPreview extends Pick<EditorPlace, 'iconName' | 'markerColor'> {
+  coordinate: EditorCoordinate | null;
+  label: string;
+  placeId: Guid | null;
 }
 
 export interface TripEditorMapOptions {
@@ -51,11 +61,12 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   const layers = L.layerGroup().addTo(map);
   const searchPreview = createSearchPreviewLayer(map);
   const placeDraftPreview = createPlaceDraftPreviewLayer(map);
-  const coordinatePick = createCoordinatePickLayer(map);
+  const coordinatePick = createPlaceCoordinatePickLayer(map, placeDraftPreview);
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
   const mapUtilities = createMapUtilitiesControl(element).addTo(map);
   const placeMarkers = new Map<Guid, L.Marker>();
+  let activePlaceDraftPreview: PlaceDraftMarkerPreview | null = null;
   const updateMapViewDataset = (): void => {
     const center = map.getCenter();
     element.dataset.tripEditorMapLat = center.lat.toFixed(6);
@@ -64,7 +75,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
   let selectedPlaceId: Guid | null = null;
   let initialViewApplied = false;
-  const prepareMapWork = (): void => { searchPreview.clear(); placeDraftPreview.clear(); mapUtilities.cancelMeasure(); };
+  const prepareMapWork = (): void => { searchPreview.clear(); mapUtilities.cancelMeasure(); };
 
   map.on('moveend zoomend', updateMapViewDataset);
 
@@ -108,32 +119,48 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     }
     updateMapViewDataset();
     applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
+    applyActivePlaceDraftPreview(state);
+  };
+
+  const applyActivePlaceDraftPreview = (state: EditorTripState): void => {
+    placeDraftPreview.clear();
+    const preview = activePlaceDraftPreview;
+    if (!preview) {
+      return;
+    }
+
+    if (preview.placeId) {
+      placeMarkers.get(preview.placeId)?.remove();
+    }
+    placeDraftPreview.show(preview.coordinate, preview.label, preview);
+  };
+
+  const setPlaceDraftPreview = (state: EditorTripState, preview: PlaceDraftMarkerPreview | null): void => {
+    const previousPlaceId = activePlaceDraftPreview?.placeId;
+    if (previousPlaceId) {
+      const marker = placeMarkers.get(previousPlaceId);
+      const place = state.placesById[previousPlaceId];
+      if (marker && place?.location) {
+        marker.setLatLng([place.location.latitude, place.location.longitude]);
+        marker.setIcon(placeMarkerIcon(place));
+        marker.addTo(layers);
+      }
+    }
+
+    // Partial or invalid direct input cannot take coordinate ownership from the last complete pair.
+    activePlaceDraftPreview = preview && !preview.coordinate && activePlaceDraftPreview?.coordinate && preview.placeId === previousPlaceId
+      ? { ...preview, coordinate: activePlaceDraftPreview.coordinate }
+      : preview;
+    applyActivePlaceDraftPreview(state);
   };
 
   return {
     render,
-    applyPlaceDraftCoordinate: (placeId, coordinate) => {
-      const marker = placeMarkers.get(placeId);
-      if (!marker) {
-        return;
-      }
-
-      marker.setLatLng([coordinate.latitude, coordinate.longitude]);
-      applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
-      updateMapViewDataset();
-    },
-    applyPlaceDraftMarker: (state, placeId, preview) => {
-      const marker = placeMarkers.get(placeId);
-      const place = state.placesById[placeId];
-      if (!marker || !place) {
-        return;
-      }
-
-      marker.setIcon(placeMarkerIcon(preview ? { ...place, ...preview } : place));
-      applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
-    },
-    clearPlaceDraftPreview: placeDraftPreview.clear,
     clearSearchPreview: searchPreview.clear,
+    getMapView: () => {
+      const center = map.getCenter();
+      return { center: { latitude: center.lat, longitude: center.lng }, zoom: map.getZoom() };
+    },
     selectPlace: (state, placeId, selectOptions = {}) => {
       selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;
       applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
@@ -144,6 +171,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
         focusSelectedPlace(map, state, placeMarkers, selectedPlaceId, selectOptions);
       }
     },
+    setPlaceDraftPreview,
     startCoordinatePick: options => (prepareMapWork(), coordinatePick.start(options)),
     startAreaPolygonWork: options => (prepareMapWork(), areaPolygonWork.start(options)),
     startSegmentRouteWork: options => (prepareMapWork(), segmentRouteWork.start(options)),
@@ -151,7 +179,6 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
-    showPlaceDraftPreview: placeDraftPreview.show,
     showSearchPreview: searchPreview.show,
     dispose: () => {
       searchPreview.dispose();
@@ -163,125 +190,6 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       map.off('moveend zoomend', updateMapViewDataset);
       map.remove();
     }
-  };
-};
-
-export interface CoordinatePickOptions {
-  initialCoordinate: EditorCoordinate | null;
-  onPicked: (coordinate: EditorCoordinate) => void;
-}
-
-const createCoordinatePickLayer = (map: LeafletMap): {
-  clearRegisteredMarkers: () => void;
-  dispose: () => void;
-  isActive: () => boolean;
-  pick: (coordinate: EditorCoordinate) => void;
-  registerMarker: (marker: L.Marker, coordinate: EditorCoordinate) => void;
-  start: (options: CoordinatePickOptions) => () => void;
-  stop: () => void;
-} => {
-  const layer = L.layerGroup().addTo(map);
-  let clickHandler: ((event: LeafletMouseEvent) => void) | null = null;
-  let onPicked: ((coordinate: EditorCoordinate) => void) | null = null;
-  let previousCursor: string | null = null;
-  const markers: Array<{ marker: L.Marker; coordinate: EditorCoordinate }> = [];
-  const markerListeners: Array<() => void> = [];
-
-  const setPreview = (coordinate: EditorCoordinate): void => {
-    layer.clearLayers();
-    L.marker([coordinate.latitude, coordinate.longitude], {
-      icon: previewMarkerIcon('coordinate', 'Selected place location preview'),
-      interactive: false,
-      keyboard: false,
-      title: 'Selected place location preview',
-      alt: 'Selected place location preview'
-    }).addTo(layer);
-  };
-
-  const pick = (coordinate: EditorCoordinate): void => {
-    setPreview(coordinate);
-    onPicked?.(coordinate);
-  };
-
-  const stop = (): void => {
-    if (clickHandler) {
-      map.off('click', clickHandler);
-      clickHandler = null;
-    }
-
-    onPicked = null;
-    if (previousCursor !== null) {
-      map.getContainer().style.cursor = previousCursor;
-      previousCursor = null;
-    }
-    detachMarkerListeners();
-    layer.clearLayers();
-  };
-
-  const attachMarkerListener = (marker: L.Marker, coordinate: EditorCoordinate): void => {
-    const handler = (event: LeafletMouseEvent): void => {
-      if (event.originalEvent) {
-        L.DomEvent.stop(event.originalEvent);
-      }
-
-      marker.closePopup();
-      pick(coordinate);
-    };
-    marker.on('click', handler);
-    markerListeners.push(() => marker.off('click', handler));
-  };
-
-  const attachMarkerListeners = (): void => {
-    detachMarkerListeners();
-    markers.forEach(({ marker, coordinate }) => attachMarkerListener(marker, coordinate));
-  };
-
-  const detachMarkerListeners = (): void => {
-    markerListeners.splice(0).forEach(detach => detach());
-  };
-
-  const registerMarker = (marker: L.Marker, coordinate: EditorCoordinate): void => {
-    markers.push({ marker, coordinate });
-    if (clickHandler) {
-      attachMarkerListener(marker, coordinate);
-    }
-  };
-
-  const clearRegisteredMarkers = (): void => {
-    detachMarkerListeners();
-    markers.splice(0);
-  };
-
-  const start = (options: CoordinatePickOptions): (() => void) => {
-    stop();
-    onPicked = options.onPicked;
-    previousCursor = map.getContainer().style.cursor;
-    map.getContainer().style.cursor = 'default';
-    attachMarkerListeners();
-
-    if (options.initialCoordinate) {
-      setPreview(options.initialCoordinate);
-    }
-
-    clickHandler = event => {
-      const coordinate = { latitude: event.latlng.lat, longitude: event.latlng.lng };
-      pick(coordinate);
-    };
-    map.on('click', clickHandler);
-    return stop;
-  };
-
-  return {
-    clearRegisteredMarkers,
-    dispose: () => {
-      stop();
-      clearRegisteredMarkers();
-    },
-    isActive: () => clickHandler !== null,
-    pick,
-    registerMarker,
-    start,
-    stop
   };
 };
 

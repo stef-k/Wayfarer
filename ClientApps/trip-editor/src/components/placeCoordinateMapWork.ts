@@ -1,9 +1,9 @@
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
-import type { CoordinatePickOptions } from '../map/leafletAdapter';
-import type { EditorCoordinate, EditorPlaceDraft, Guid } from '../types';
+import type { CoordinatePickOptions, TripEditorMapView } from '../map/leafletAdapter';
+import type { EditorCoordinate, EditorPlaceDraft } from '../types';
 
 export type PlaceCoordinatePicker = {
-  applyPlaceDraftCoordinate?: (placeId: Guid, coordinate: EditorCoordinate) => void;
+  getMapView: () => TripEditorMapView | null;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
 };
 
@@ -36,7 +36,7 @@ export function beginPlaceCoordinateMapWork(
 
   const entered = editorSurface.enterMapWork({
     modeName: 'Pick place location',
-    instruction: 'Click the map to choose this place location.',
+    instruction: 'Click the map or drag the marker. Done updates the draft; Save Place persists it.',
     statusText: () => placeCoordinatePickStatus(state.coordinate),
     canFinish: () => isValidCoordinate(state.coordinate),
     isDirty: () => !sameCoordinate(state.coordinate, coordinateFromSnapshot(coordinateSnapshot)),
@@ -48,9 +48,6 @@ export function beginPlaceCoordinateMapWork(
       if (isValidCoordinate(state.coordinate)) {
         draft.latitude = state.coordinate.latitude;
         draft.longitude = state.coordinate.longitude;
-        if (draft.id) {
-          coordinatePicker.applyPlaceDraftCoordinate?.(draft.id, state.coordinate);
-        }
       }
       stopPlaceCoordinatePick(state);
     },

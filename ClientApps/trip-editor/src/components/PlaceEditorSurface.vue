@@ -41,6 +41,7 @@ defineEmits<{
         :form-id="formId"
         :form-summary-errors="formSummaryErrors"
         :is-saving="isSaving"
+        :coordinate-read-only="isMapWorkActive"
         :normal-regions="normalRegions"
         :state="state"
         @save="$emit('save')"
@@ -60,7 +61,7 @@ defineEmits<{
         @click="$emit('pickCoordinate')"
       >
         Pick on map
-        <span :id="`${formId}-pick-help`" class="visually-hidden">Use the map to choose this place's latitude and longitude.</span>
+        <span :id="`${formId}-pick-help`" class="visually-hidden">Click the map or drag the marker. Done updates the draft; Save Place persists it.</span>
       </button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || isMapWorkActive" @click="$emit('cancel')">Cancel</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || isMapWorkActive || !isDirty" @click="$emit('reset')">Reset</button>

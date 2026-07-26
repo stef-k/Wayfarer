@@ -6,6 +6,7 @@ import RichNotesEditor from './RichNotesEditor.vue';
 
 const props = defineProps<{
   activePlace: EditorPlace | null;
+  coordinateReadOnly: boolean;
   draft: EditorPlaceDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
@@ -55,12 +56,12 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
     <div class="trip-editor-grid">
       <label class="trip-editor-field">
         <span>Latitude</span>
-        <input v-model="props.draft.latitude" type="number" step="any" />
+        <input v-model="props.draft.latitude" type="number" step="any" :readonly="props.coordinateReadOnly" />
         <small v-for="message in props.fieldErrors('location.latitude')" :key="message">{{ message }}</small>
       </label>
       <label class="trip-editor-field">
         <span>Longitude</span>
-        <input v-model="props.draft.longitude" type="number" step="any" />
+        <input v-model="props.draft.longitude" type="number" step="any" :readonly="props.coordinateReadOnly" />
         <small v-for="message in props.fieldErrors('location.longitude')" :key="message">{{ message }}</small>
       </label>
     </div>
