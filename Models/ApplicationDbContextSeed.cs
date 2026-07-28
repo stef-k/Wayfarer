@@ -18,7 +18,6 @@ public class ApplicationDbContextSeed
 
         // Seed default Activity Types
         await SeedActivityTypes(serviceProvider);
-
     }
 
     /// <summary>
