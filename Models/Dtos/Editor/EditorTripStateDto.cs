@@ -159,7 +159,7 @@ public sealed record EditorOptionsDto(
     EditorLimitsDto Limits);
 
 /// <summary>Transport mode option used by future segment forms.</summary>
-public sealed record EditorTransportModeDto(string Value, string Label, double SpeedKmh);
+public sealed record EditorTransportModeDto(string Value, string Label, double? SpeedKmh);
 
 /// <summary>Default values for future area creation.</summary>
 public sealed record EditorAreaDefaultsDto(string Name, string FillHex);

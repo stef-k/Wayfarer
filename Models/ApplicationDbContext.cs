@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
@@ -217,6 +216,8 @@ namespace Wayfarer.Models
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Trip planning setup
+            builder.ApplyConfiguration(new Configuration.TransportProfileConfiguration());
+
             // Trip ↔ ApplicationUser (cascade on delete)
             builder.Entity<Trip>()
                 .HasOne(t => t.User)

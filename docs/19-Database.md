@@ -134,7 +134,7 @@ Route between two places with travel mode and geometry.
 | `DisplayOrder` | int | Sort order within trip |
 | `Notes` | string | Rich-text HTML notes |
 
-**Speed Defaults:** walk: 5 km/h, bicycle: 15 km/h, car: 60 km/h, transit: 40 km/h
+Transport modes resolve through the administrator-managed `TransportProfiles` catalog. The durable segment `Mode` string remains compatible with public and interchange contracts; planning speeds are database configuration rather than documentation constants.
 
 ---
 

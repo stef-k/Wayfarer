@@ -18,6 +18,12 @@ defineEmits<{
 }>();
 
 const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
+// Preserve the current inactive or legacy value as a disabled option; changing away removes it from the selectable list.
+const transportModes = computed(() => {
+  const active = props.state.options.transportModes;
+  if (!props.draft.mode || active.some(mode => mode.value === props.draft.mode)) return active;
+  return [{ value: props.draft.mode, label: `${props.draft.mode} (inactive)`, speedKmh: null, inactive: true }, ...active];
+});
 const routeSummary = computed(() => {
   if (props.draft.route) {
     return `${props.isDirty ? 'Unsaved' : 'Saved'} route · ${props.draft.route.coordinates.length} custom route points`;
@@ -65,7 +71,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       <span>Transport mode</span>
       <select v-model="draft.mode">
         <option value="">Unset</option>
-        <option v-for="mode in state.options.transportModes" :key="mode.value" :value="mode.value">{{ mode.label }}</option>
+        <option v-for="mode in transportModes" :key="mode.value" :value="mode.value" :disabled="'inactive' in mode && mode.inactive">{{ mode.label }}</option>
       </select>
       <small v-for="message in fieldErrors('mode')" :key="message">{{ message }}</small>
     </label>

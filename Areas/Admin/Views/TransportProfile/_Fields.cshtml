@@ -1,0 +1,7 @@
+@model Wayfarer.Areas.Admin.Models.TransportProfileCreateViewModel
+<div class="mb-3"><label asp-for="Label" class="form-label"></label><input asp-for="Label" class="form-control" /><span asp-validation-for="Label" class="text-danger"></span></div>
+<div class="mb-3"><label asp-for="Category" class="form-label"></label><input asp-for="Category" class="form-control" /><span asp-validation-for="Category" class="text-danger"></span></div>
+<div class="mb-3"><label asp-for="PlanningSpeedKmh" class="form-label">Planning speed (km/h)</label><input asp-for="PlanningSpeedKmh" class="form-control" /><div class="form-text">Leave blank for a manual-only profile.</div><span asp-validation-for="PlanningSpeedKmh" class="text-danger"></span></div>
+<div class="mb-3"><label asp-for="SortOrder" class="form-label"></label><input asp-for="SortOrder" class="form-control" /><span asp-validation-for="SortOrder" class="text-danger"></span></div>
+<div class="form-check mb-3"><input asp-for="IsActive" class="form-check-input" /><label asp-for="IsActive" class="form-check-label">Available for new segment choices</label></div>
+<div class="mb-3"><label asp-for="Description" class="form-label"></label><textarea asp-for="Description" class="form-control" rows="3"></textarea><span asp-validation-for="Description" class="text-danger"></span></div>

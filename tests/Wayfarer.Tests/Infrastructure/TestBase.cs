@@ -27,6 +27,8 @@ public abstract class TestBase : IDisposable
             .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
         var context = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        context.Set<TransportProfile>().AddRange(TestDataFixtures.CreateTransportProfiles());
+        context.SaveChanges();
         _contexts.Add(context);
         return context;
     }

@@ -1,0 +1,9 @@
+@model Wayfarer.Areas.Admin.Models.TransportProfileCreateViewModel
+@{ ViewData["Title"] = "Create Transport Profile"; }
+<h1 class="text-center fs-3">Create Transport Profile</h1>
+<form method="post" class="card card-body" novalidate>
+    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+    <div class="mb-3"><label asp-for="Key" class="form-label"></label><input asp-for="Key" class="form-control" aria-describedby="key-help" /><div id="key-help" class="form-text">Immutable lowercase API/import identifier, for example scooter.</div><span asp-validation-for="Key" class="text-danger"></span></div>
+    <partial name="_Fields" model="Model" />
+    <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Create</button><a asp-action="Index" class="btn btn-secondary">Cancel</a></div>
+</form>

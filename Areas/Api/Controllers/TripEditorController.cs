@@ -125,7 +125,7 @@ public sealed partial class TripEditorController : ControllerBase
             return Ok(EditorTripStateMapper.ToEditorState(
                 trip,
                 visitsByPlaceId,
-                BuildOptions(),
+                await BuildOptionsAsync(cancellationToken),
                 publicUrl,
                 progressPublicUrl));
         }
@@ -351,7 +351,7 @@ public sealed partial class TripEditorController : ControllerBase
         };
     }
 
-    private EditorOptionsDto BuildOptions()
+    private EditorOptionsDto BuildOptions(IReadOnlyList<EditorTransportModeDto>? transportModes = null)
     {
         var colors = _iconColorProvider.GetAvailableColors();
 
@@ -359,10 +359,17 @@ public sealed partial class TripEditorController : ControllerBase
             ReadIconNames(),
             colors?.Backgrounds ?? Array.Empty<string>(),
             colors?.Glyphs ?? Array.Empty<string>(),
-            SegmentTransportModes.Options,
+            transportModes ?? Array.Empty<EditorTransportModeDto>(),
             new EditorAreaDefaultsDto("Area", "#ff6600"),
             new EditorTagOptionsDto(25, 8, "Letters, numbers, spaces, hyphens, and apostrophes."),
             new EditorLimitsDto(6, 1));
+    }
+
+    /// <summary>Builds editor options using the active database catalog as transport authority.</summary>
+    private async Task<EditorOptionsDto> BuildOptionsAsync(CancellationToken cancellationToken)
+    {
+        var transportModes = await new TransportProfileCatalog(_dbContext).GetEditorOptionsAsync(cancellationToken);
+        return BuildOptions(transportModes);
     }
 
     /// <summary>

@@ -1,0 +1,20 @@
+@model Wayfarer.Areas.Admin.Models.TransportProfileEditViewModel
+@{ ViewData["Title"] = "Edit Transport Profile"; }
+<h1 class="text-center fs-3">Edit Transport Profile</h1>
+<form method="post" class="card card-body" novalidate>
+    <input asp-for="Id" type="hidden" /><input asp-for="RowVersion" type="hidden" /><input asp-for="WasActive" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+    <div class="mb-3"><label asp-for="Key" class="form-label"></label><input asp-for="Key" class="form-control" readonly aria-describedby="immutable-key-help" /><div id="immutable-key-help" class="form-text">Keys are immutable durable identifiers.</div></div>
+    <div class="mb-3"><label asp-for="Label" class="form-label"></label><input asp-for="Label" class="form-control" /><span asp-validation-for="Label" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="Category" class="form-label"></label><input asp-for="Category" class="form-control" /><span asp-validation-for="Category" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="PlanningSpeedKmh" class="form-label">Planning speed (km/h)</label><input asp-for="PlanningSpeedKmh" class="form-control" /><div class="form-text">Referenced speed changes remain unavailable until #405. Null means manual only.</div><span asp-validation-for="PlanningSpeedKmh" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="SortOrder" class="form-label"></label><input asp-for="SortOrder" class="form-control" /></div>
+    <div class="form-check mb-3"><input asp-for="IsActive" class="form-check-input" /><label asp-for="IsActive" class="form-check-label">Available for new segment choices</label></div>
+    @if (Model.WasActive)
+    {
+        <div class="alert alert-warning">This profile is used by <strong>@Model.ReferencedSegments</strong> segment(s). Deactivation removes it from new choices and keeps existing segments unchanged.</div>
+        <div class="form-check mb-3"><input asp-for="ConfirmDeactivation" class="form-check-input" /><label asp-for="ConfirmDeactivation" class="form-check-label">I confirm deactivation after reviewing dependencies</label><span asp-validation-for="ConfirmDeactivation" class="text-danger d-block"></span></div>
+    }
+    <div class="mb-3"><label asp-for="Description" class="form-label"></label><textarea asp-for="Description" class="form-control" rows="3"></textarea><span asp-validation-for="Description" class="text-danger"></span></div>
+    <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save changes</button><a asp-action="Index" class="btn btn-secondary">Cancel</a></div>
+</form>
