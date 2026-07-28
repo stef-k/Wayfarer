@@ -19,6 +19,7 @@ public sealed class TransportProfileController : Controller
 {
     private const int PageSize = 15;
     private const string UniqueKeyConstraint = "IX_TransportProfiles_Key";
+    private const string SegmentTransportProfileConstraint = "FK_Segments_TransportProfiles_TransportProfileId";
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<TransportProfileController> _logger;
 
@@ -175,11 +176,10 @@ public sealed class TransportProfileController : Controller
             var current = await BuildEditModelAsync(id, cancellationToken);
             return current == null ? NotFound() : View(current);
         }
-        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+        catch (Exception exception) when (IsSerializationFailure(exception))
         {
             await transaction.RollbackAsync(cancellationToken);
-            _dbContext.Entry(profile).State = EntityState.Detached;
-            _dbContext.Entry(audit).State = EntityState.Detached;
+            DetachFailedMutation(profile, audit);
             ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
             var current = await BuildEditModelAsync(id, cancellationToken);
             return current == null ? NotFound() : View(current);
@@ -187,11 +187,10 @@ public sealed class TransportProfileController : Controller
         catch (DbUpdateException)
         {
             await transaction.RollbackAsync(cancellationToken);
-            _dbContext.Entry(profile).State = EntityState.Detached;
-            _dbContext.Entry(audit).State = EntityState.Detached;
-            ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
-            var current = await BuildEditModelAsync(id, cancellationToken);
-            return current == null ? NotFound() : View(current);
+            DetachFailedMutation(profile, audit);
+            _logger.LogError("Transport profile update failed without persisting changes.");
+            ModelState.AddModelError(string.Empty, "The transport profile could not be saved. Please try again.");
+            return View(model);
         }
 
         TempData["AlertMessage"] = "Transport profile updated.";
@@ -239,20 +238,26 @@ public sealed class TransportProfileController : Controller
             ModelState.AddModelError(string.Empty, "This profile changed after the confirmation was loaded.");
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (IsSegmentDependencyViolation(exception))
         {
             await transaction.RollbackAsync(cancellationToken);
-            _dbContext.Entry(profile).State = EntityState.Detached;
-            _dbContext.Entry(audit).State = EntityState.Detached;
+            DetachFailedMutation(profile, audit);
             ModelState.AddModelError(string.Empty, "The profile gained a dependency and cannot be deleted. Deactivate it instead.");
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
-        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+        catch (Exception exception) when (IsSerializationFailure(exception))
         {
             await transaction.RollbackAsync(cancellationToken);
-            _dbContext.Entry(profile).State = EntityState.Detached;
-            _dbContext.Entry(audit).State = EntityState.Detached;
+            DetachFailedMutation(profile, audit);
             ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. It was not deleted.");
+            return View("Delete", await BuildRowAsync(id, cancellationToken));
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            DetachFailedMutation(profile, audit);
+            _logger.LogError("Transport profile deletion failed without persisting changes.");
+            ModelState.AddModelError(string.Empty, "The transport profile could not be deleted. Please try again.");
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
 
@@ -308,13 +313,40 @@ public sealed class TransportProfileController : Controller
     private static string? NormalizeDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static bool IsDuplicateKey(DbUpdateException exception) =>
-        exception.InnerException is PostgresException postgres
+        FindPostgresException(exception) is PostgresException postgres
         && postgres.SqlState == PostgresErrorCodes.UniqueViolation
         && postgres.ConstraintName == UniqueKeyConstraint;
+
+    /// <summary>Identifies the precise PostgreSQL serialization SQLSTATE through provider wrappers.</summary>
+    private static bool IsSerializationFailure(Exception exception) =>
+        FindPostgresException(exception)?.SqlState == PostgresErrorCodes.SerializationFailure;
+
+    /// <summary>Identifies only the restrictive segment-to-profile foreign-key race.</summary>
+    private static bool IsSegmentDependencyViolation(DbUpdateException exception) =>
+        FindPostgresException(exception) is PostgresException postgres
+        && postgres.SqlState == PostgresErrorCodes.ForeignKeyViolation
+        && postgres.ConstraintName == SegmentTransportProfileConstraint;
+
+    /// <summary>Finds a PostgreSQL provider exception without matching localized messages.</summary>
+    private static PostgresException? FindPostgresException(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException!)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
+    }
 
     private void DetachFailedCreate(TransportProfile profile, AuditLog audit)
     {
         _dbContext.Entry(profile).State = EntityState.Detached;
         _dbContext.Entry(audit).State = EntityState.Detached;
     }
+
+    /// <summary>Clears failed profile and audit mutations before rebuilding a safe response.</summary>
+    private void DetachFailedMutation(TransportProfile profile, AuditLog audit) => DetachFailedCreate(profile, audit);
 }
