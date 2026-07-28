@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Moq;
@@ -167,6 +168,72 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         Assert.Equal(20, (await db.Set<TransportProfile>().FindAsync(profile.Id))!.PlanningSpeedKmh);
     }
 
+    /// <summary>Proves optimistic concurrency retains its bounded reload guidance.</summary>
+    [Fact]
+    public async Task Edit_DbUpdateConcurrencyException_ReturnsConcurrencyError()
+    {
+        var interceptor = new FailingSaveChangesInterceptor { Exception = new DbUpdateConcurrencyException("stale row") };
+        await using var db = CreateInterceptedDbContext(interceptor);
+        var profile = await AddEditableProfileAsync(db);
+        interceptor.Fail = true;
+        var controller = BuildController(db);
+
+        var result = await controller.Edit(profile.Id, BuildEditModel(profile, "Updated label"), CancellationToken.None);
+
+        Assert.IsType<TransportProfileEditViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal("This profile changed after the form was loaded. Review the current values and try again.",
+            Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage);
+    }
+
+    /// <summary>Proves an EF-wrapped PostgreSQL serialization failure retains retry guidance.</summary>
+    [Fact]
+    public async Task Edit_WrappedPostgresSerializationFailure_ReturnsConcurrencyError()
+    {
+        var interceptor = new FailingSaveChangesInterceptor
+        {
+            Exception = new DbUpdateException("save failed", CreatePostgresException(PostgresErrorCodes.SerializationFailure))
+        };
+        await using var db = CreateInterceptedDbContext(interceptor);
+        var profile = await AddEditableProfileAsync(db);
+        interceptor.Fail = true;
+        var controller = BuildController(db);
+
+        var result = await controller.Edit(profile.Id, BuildEditModel(profile, "Updated label"), CancellationToken.None);
+
+        Assert.IsType<TransportProfileEditViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal("The profile or its dependencies changed concurrently. No changes were saved.",
+            Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage);
+    }
+
+    /// <summary>Proves unrelated edit persistence failures stay generic, payload-safe, and preserve submitted state.</summary>
+    [Fact]
+    public async Task Edit_UnrelatedDbUpdateException_ReturnsGenericSaveError()
+    {
+        var interceptor = new FailingSaveChangesInterceptor
+        {
+            Exception = new DbUpdateException("SECRET profile contents and connection details")
+        };
+        await using var db = CreateInterceptedDbContext(interceptor);
+        var profile = await AddEditableProfileAsync(db);
+        interceptor.Fail = true;
+        var logger = new CapturingLogger<TransportProfileController>();
+        var controller = BuildController(db, logger);
+        var model = BuildEditModel(profile, "Submitted label");
+
+        var result = await controller.Edit(profile.Id, model, CancellationToken.None);
+
+        var returned = Assert.IsType<TransportProfileEditViewModel>(Assert.IsType<ViewResult>(result).Model);
+        var error = Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage;
+        Assert.Equal("The transport profile could not be saved. Please try again.", error);
+        Assert.DoesNotContain("concurrent", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Submitted label", returned.Label);
+        Assert.Equal(profile.Key, returned.Key);
+        Assert.Equal(0, returned.ReferencedSegments);
+        Assert.Equal(["Transport profile update failed without persisting changes."], logger.Messages);
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("SECRET", StringComparison.Ordinal));
+        Assert.DoesNotContain(db.ChangeTracker.Entries(), entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+    }
+
     /// <summary>Proves an unreferenced deployment profile can be deleted.</summary>
     [Fact]
     public async Task DeleteConfirmed_DeletesOnlyUnreferencedNonSeededProfile()
@@ -195,6 +262,71 @@ public sealed class AdminTransportProfileControllerTests : TestBase
 
         Assert.IsType<ViewResult>(result);
         Assert.NotNull(await db.Set<TransportProfile>().FindAsync(profile.Id));
+    }
+
+    /// <summary>Proves referenced non-seeded profiles retain the pre-save dependency rejection.</summary>
+    [Fact]
+    public async Task DeleteConfirmed_RejectsReferencedProfileBeforeSave()
+    {
+        await using var db = CreateDbContext();
+        var profile = await AddEditableProfileAsync(db);
+        db.Segments.Add(new Segment { Id = Guid.NewGuid(), UserId = "u", TripId = Guid.NewGuid(), Mode = profile.Key, TransportProfileId = profile.Id });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+
+        var result = await controller.DeleteConfirmed(profile.Id, profile.RowVersion, CancellationToken.None);
+
+        Assert.Equal("Referenced profiles cannot be deleted; deactivate them instead.",
+            Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage);
+        Assert.IsType<TransportProfileRowViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.NotNull(await db.Set<TransportProfile>().FindAsync(profile.Id));
+    }
+
+    /// <summary>Proves only the expected segment/profile FK violation receives dependency-race guidance.</summary>
+    [Fact]
+    public async Task DeleteConfirmed_ExpectedForeignKeyViolation_ReturnsDependencyRaceError()
+    {
+        var interceptor = new FailingSaveChangesInterceptor
+        {
+            Exception = new DbUpdateException("save failed", CreatePostgresException(
+                PostgresErrorCodes.ForeignKeyViolation, "FK_Segments_TransportProfiles_TransportProfileId"))
+        };
+        await using var db = CreateInterceptedDbContext(interceptor);
+        var profile = await AddEditableProfileAsync(db);
+        interceptor.Fail = true;
+        var controller = BuildController(db);
+
+        var result = await controller.DeleteConfirmed(profile.Id, profile.RowVersion, CancellationToken.None);
+
+        Assert.IsType<TransportProfileRowViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal("The profile gained a dependency and cannot be deleted. Deactivate it instead.",
+            Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage);
+    }
+
+    /// <summary>Proves unrelated delete persistence failures stay generic and payload-safe.</summary>
+    [Fact]
+    public async Task DeleteConfirmed_UnrelatedDbUpdateException_ReturnsGenericDeleteError()
+    {
+        var interceptor = new FailingSaveChangesInterceptor
+        {
+            Exception = new DbUpdateException("SECRET audit payload and SQL")
+        };
+        await using var db = CreateInterceptedDbContext(interceptor);
+        var profile = await AddEditableProfileAsync(db);
+        interceptor.Fail = true;
+        var logger = new CapturingLogger<TransportProfileController>();
+        var controller = BuildController(db, logger);
+
+        var result = await controller.DeleteConfirmed(profile.Id, profile.RowVersion, CancellationToken.None);
+
+        Assert.IsType<TransportProfileRowViewModel>(Assert.IsType<ViewResult>(result).Model);
+        var error = Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage;
+        Assert.Equal("The transport profile could not be deleted. Please try again.", error);
+        Assert.DoesNotContain("dependency", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["Transport profile deletion failed without persisting changes."], logger.Messages);
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("SECRET", StringComparison.Ordinal));
+        Assert.NotNull(await db.Set<TransportProfile>().FindAsync(profile.Id));
+        Assert.DoesNotContain(db.ChangeTracker.Entries(), entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
     }
 
     /// <summary>Proves index ordering is stable across sort order, label, and key.</summary>
@@ -227,14 +359,49 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         Assert.Equal("xmin", property.GetColumnName());
     }
 
-    private TransportProfileController BuildController(ApplicationDbContext db)
+    private TransportProfileController BuildController(
+        ApplicationDbContext db,
+        ILogger<TransportProfileController>? logger = null)
     {
-        var controller = new TransportProfileController(db, NullLogger<TransportProfileController>.Instance);
+        var controller = new TransportProfileController(db, logger ?? NullLogger<TransportProfileController>.Instance);
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
+
+    private static ApplicationDbContext CreateInterceptedDbContext(FailingSaveChangesInterceptor interceptor)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .AddInterceptors(interceptor)
+            .Options;
+        return new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+    }
+
+    private static async Task<TransportProfile> AddEditableProfileAsync(ApplicationDbContext db)
+    {
+        var profile = new TransportProfile
+        {
+            Id = Guid.NewGuid(), Key = "scooter", Label = "Scooter", Category = "Road",
+            PlanningSpeedKmh = 18, SortOrder = 45, IsActive = true
+        };
+        db.Set<TransportProfile>().Add(profile);
+        await db.SaveChangesAsync();
+        return profile;
+    }
+
+    private static TransportProfileEditViewModel BuildEditModel(TransportProfile profile, string label) => new()
+    {
+        Id = profile.Id, Key = profile.Key, Label = label, Category = profile.Category,
+        PlanningSpeedKmh = profile.PlanningSpeedKmh, SortOrder = profile.SortOrder,
+        IsActive = profile.IsActive, WasActive = profile.IsActive, RowVersion = profile.RowVersion
+    };
+
+    private static PostgresException CreatePostgresException(string sqlState, string? constraintName = null) => new(
+        "provider failure", "ERROR", "ERROR", sqlState, null!, null!, 0, 0, null!, null!,
+        "public", "Segments", "TransportProfileId", null!, constraintName!, "postgres.c", "1", "routine");
 
     /// <summary>Injects a provider-independent persistence failure after fixture setup.</summary>
     private sealed class FailingSaveChangesInterceptor : SaveChangesInterceptor
@@ -249,5 +416,18 @@ public sealed class AdminTransportProfileControllerTests : TestBase
             Fail
                 ? ValueTask.FromException<InterceptionResult<int>>(Exception)
                 : ValueTask.FromResult(result);
+    }
+
+    /// <summary>Captures rendered operational log messages for bounded-content assertions.</summary>
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Add(formatter(state, exception));
     }
 }
