@@ -3,6 +3,8 @@ using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Areas.Admin.Models;
@@ -43,6 +45,33 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         Assert.Contains(db.AuditLogs, audit => audit.Action == "TransportProfileCreate"
             && !audit.Details.Contains("trip", StringComparison.OrdinalIgnoreCase)
             && !audit.Details.Contains("scooter", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Proves an unrelated persistence failure is not presented as a duplicate key.</summary>
+    [Fact]
+    public async Task Create_UnrelatedDbUpdateException_ReturnsBoundedGlobalError()
+    {
+        var interceptor = new FailingSaveChangesInterceptor();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var db = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        db.Set<TransportProfile>().AddRange(TestDataFixtures.CreateTransportProfiles());
+        await db.SaveChangesAsync();
+        interceptor.Fail = true;
+        var controller = BuildController(db);
+        var model = new TransportProfileCreateViewModel { Key = "scooter", Label = "Scooter", Category = "Road", PlanningSpeedKmh = 18 };
+
+        var result = await controller.Create(model, CancellationToken.None);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.TryGetValue(nameof(model.Key), out var keyState) && keyState.Errors.Count > 0);
+        var error = Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage;
+        Assert.Equal("The transport profile could not be created. No changes were saved.", error);
+        Assert.DoesNotContain("database failure", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(db.ChangeTracker.Entries().Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted));
     }
 
     /// <summary>Proves the immutable key is not changed by an overposted edit model.</summary>
@@ -174,5 +203,19 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    /// <summary>Injects a provider-independent persistence failure after fixture setup.</summary>
+    private sealed class FailingSaveChangesInterceptor : SaveChangesInterceptor
+    {
+        public bool Fail { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default) =>
+            Fail
+                ? ValueTask.FromException<InterceptionResult<int>>(new DbUpdateException("database failure", new InvalidOperationException("connection interrupted")))
+                : ValueTask.FromResult(result);
     }
 }

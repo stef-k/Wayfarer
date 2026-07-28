@@ -28,7 +28,11 @@ public sealed class TransportProfileMigrationTests
         Assert.Contains("btrim(\"Mode\") <> ''", sql);
         Assert.Contains("SET \"TransportProfileId\"", sql);
         Assert.Contains("TR_Segments_TransportProfile", sql);
-        Assert.Contains("BEFORE INSERT OR UPDATE OF \"Mode\"", sql);
+        Assert.Contains("'Legacy: ' || left(btrim(\"Mode\"), 112)", sql);
+        Assert.Contains("'Legacy: ' || left(btrim(NEW.\"Mode\"), 112)", sql);
+        Assert.Contains("BEFORE INSERT OR UPDATE OF \"Mode\", \"TransportProfileId\"", sql);
+        Assert.Contains("public.\"TransportProfiles\"", sql);
+        Assert.Contains("public.\"Segments\"", sql);
         Assert.DoesNotContain("SET \"Mode\"", sql);
     }
 
