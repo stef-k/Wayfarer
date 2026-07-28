@@ -25,7 +25,7 @@ public sealed class TransportProfilePostgresTests
     {
         _fixture.RequireAvailable();
         var user = await _fixture.CreateUserAsync();
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "Transport profile fixture" };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Transport profile fixture" };
         var mode = $"Legacy Mode {Guid.NewGuid():N}";
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = mode };
         _fixture.RegisterTrip(trip.Id);
@@ -54,7 +54,7 @@ public sealed class TransportProfilePostgresTests
     {
         _fixture.RequireAvailable();
         var user = await _fixture.CreateUserAsync();
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "Legacy migration fixture" };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Legacy migration fixture" };
         _fixture.RegisterTrip(trip.Id);
         await using var context = _fixture.CreateContext();
         context.Trips.Add(trip);
@@ -97,7 +97,7 @@ public sealed class TransportProfilePostgresTests
     {
         _fixture.RequireAvailable();
         var user = await _fixture.CreateUserAsync();
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "Trigger fixture" };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trigger fixture" };
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = "walk" };
         _fixture.RegisterTrip(trip.Id);
         await using var context = _fixture.CreateContext();
@@ -132,8 +132,8 @@ public sealed class TransportProfilePostgresTests
         var firstUser = await _fixture.CreateUserAsync();
         var secondUser = await _fixture.CreateUserAsync();
         var mode = $"Concurrent unknown {Guid.NewGuid():N}";
-        var firstTrip = new Trip { Id = Guid.NewGuid(), UserId = firstUser.Id, User = firstUser, Name = "First concurrency fixture" };
-        var secondTrip = new Trip { Id = Guid.NewGuid(), UserId = secondUser.Id, User = secondUser, Name = "Second concurrency fixture" };
+        var firstTrip = new Trip { Id = Guid.NewGuid(), UserId = firstUser.Id, Name = "First concurrency fixture" };
+        var secondTrip = new Trip { Id = Guid.NewGuid(), UserId = secondUser.Id, Name = "Second concurrency fixture" };
         _fixture.RegisterTrip(firstTrip.Id);
         _fixture.RegisterTrip(secondTrip.Id);
         await using var first = _fixture.CreateContext();
@@ -156,7 +156,7 @@ public sealed class TransportProfilePostgresTests
     {
         _fixture.RequireAvailable();
         var user = await _fixture.CreateUserAsync();
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "Provider invariant fixture" };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Provider invariant fixture" };
         var profile = new TransportProfile { Id = Guid.NewGuid(), Key = $"fixture-{Guid.NewGuid():N}", Label = "Fixture", Category = "Test" };
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = profile.Key, TransportProfileId = profile.Id };
         _fixture.RegisterTrip(trip.Id);
@@ -194,7 +194,7 @@ public sealed class TransportProfilePostgresTests
         {
             Id = derivedId, Key = $"collision-holder-{Guid.NewGuid():N}", Label = "Collision holder", Category = "Test"
         };
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "Collision fixture" };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Collision fixture" };
         _fixture.RegisterTransportProfile(collidingProfile.Id);
         _fixture.RegisterTrip(trip.Id);
         context.AddRange(collidingProfile, trip);
@@ -238,6 +238,7 @@ public sealed class TransportProfilePostgresTests
 
     private static async Task<Guid> DerivedProfileIdAsync(ApplicationDbContext context, string key)
     {
+        await context.Database.OpenConnectionAsync();
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.CommandText = "SELECT md5('transport-profile:' || @key)::uuid";
         command.Parameters.Add(new NpgsqlParameter("key", key));
