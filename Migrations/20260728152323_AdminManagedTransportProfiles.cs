@@ -52,7 +52,7 @@ namespace Wayfarer.Migrations
 
             migrationBuilder.Sql(
                 """
-                INSERT INTO "TransportProfiles"
+                INSERT INTO public."TransportProfiles"
                     ("Id", "Key", "Label", "Category", "PlanningSpeedKmh", "SortOrder", "IsActive", "Description", "IsSeeded")
                 VALUES
                     ('11111111-0000-0000-0000-000000000001', 'walk', 'Walk', 'Active', 5, 10, TRUE, 'Average planning assumption; use a manual duration when the service differs.', TRUE),
@@ -77,15 +77,15 @@ namespace Wayfarer.Migrations
                             WHEN length(lower(btrim("Mode"))) <= 80 THEN lower(btrim("Mode"))
                             ELSE 'legacy-' || md5("Mode")
                         END AS key,
-                        left(btrim("Mode"), 120) AS label
-                    FROM "Segments"
+                        left(btrim("Mode"), 112) AS label
+                    FROM public."Segments"
                     WHERE "Mode" IS NOT NULL AND btrim("Mode") <> ''
                 ), legacy AS (
                     SELECT key, min(label) AS label
                     FROM raw_legacy
                     GROUP BY key
                 )
-                INSERT INTO "TransportProfiles"
+                INSERT INTO public."TransportProfiles"
                     ("Id", "Key", "Label", "Category", "PlanningSpeedKmh", "SortOrder", "IsActive", "Description", "IsSeeded")
                 SELECT
                     (substr(md5('transport-profile:' || key), 1, 8) || '-' ||
@@ -104,9 +104,9 @@ namespace Wayfarer.Migrations
                 FROM legacy
                 ON CONFLICT ("Key") DO NOTHING;
 
-                UPDATE "Segments" AS segment
+                UPDATE public."Segments" AS segment
                 SET "TransportProfileId" = profile."Id"
-                FROM "TransportProfiles" AS profile
+                FROM public."TransportProfiles" AS profile
                 WHERE segment."Mode" IS NOT NULL
                   AND btrim(segment."Mode") <> ''
                   AND profile."Key" = CASE
@@ -114,7 +114,7 @@ namespace Wayfarer.Migrations
                       ELSE 'legacy-' || md5(segment."Mode")
                   END;
 
-                CREATE FUNCTION "SetSegmentTransportProfile"() RETURNS trigger AS $$
+                CREATE FUNCTION public."SetSegmentTransportProfile"() RETURNS trigger AS $$
                 DECLARE
                     normalized_key text;
                     resolved_id uuid;
@@ -128,20 +128,22 @@ namespace Wayfarer.Migrations
                         WHEN length(lower(btrim(NEW."Mode"))) <= 80 THEN lower(btrim(NEW."Mode"))
                         ELSE 'legacy-' || md5(NEW."Mode")
                     END;
-                    SELECT "Id" INTO resolved_id FROM "TransportProfiles" WHERE "Key" = normalized_key;
+                    SELECT "Id" INTO resolved_id FROM public."TransportProfiles" WHERE "Key" = normalized_key;
                     IF resolved_id IS NULL THEN
+                        -- A derived UUID collision with a different key is an integrity failure;
+                        -- only a concurrent insert of this exact normalized key may be reused.
                         resolved_id := (substr(md5('transport-profile:' || normalized_key), 1, 8) || '-' ||
                             substr(md5('transport-profile:' || normalized_key), 9, 4) || '-' ||
                             substr(md5('transport-profile:' || normalized_key), 13, 4) || '-' ||
                             substr(md5('transport-profile:' || normalized_key), 17, 4) || '-' ||
                             substr(md5('transport-profile:' || normalized_key), 21, 12))::uuid;
-                        INSERT INTO "TransportProfiles"
+                        INSERT INTO public."TransportProfiles"
                             ("Id", "Key", "Label", "Category", "PlanningSpeedKmh", "SortOrder", "IsActive", "Description", "IsSeeded")
                         VALUES
-                            (resolved_id, normalized_key, 'Legacy: ' || left(btrim(NEW."Mode"), 120), 'Legacy', NULL, 10000, FALSE,
+                            (resolved_id, normalized_key, 'Legacy: ' || left(btrim(NEW."Mode"), 112), 'Legacy', NULL, 10000, FALSE,
                              'Inactive compatibility profile preserving an unknown segment mode.', FALSE)
                         ON CONFLICT ("Key") DO NOTHING;
-                        SELECT "Id" INTO resolved_id FROM "TransportProfiles" WHERE "Key" = normalized_key;
+                        SELECT "Id" INTO resolved_id FROM public."TransportProfiles" WHERE "Key" = normalized_key;
                     END IF;
                     NEW."TransportProfileId" := resolved_id;
                     RETURN NEW;
@@ -149,8 +151,8 @@ namespace Wayfarer.Migrations
                 $$ LANGUAGE plpgsql;
 
                 CREATE TRIGGER "TR_Segments_TransportProfile"
-                BEFORE INSERT OR UPDATE OF "Mode" ON "Segments"
-                FOR EACH ROW EXECUTE FUNCTION "SetSegmentTransportProfile"();
+                BEFORE INSERT OR UPDATE OF "Mode", "TransportProfileId" ON public."Segments"
+                FOR EACH ROW EXECUTE FUNCTION public."SetSegmentTransportProfile"();
                 """);
 
             migrationBuilder.AddForeignKey(
@@ -167,8 +169,8 @@ namespace Wayfarer.Migrations
         {
             migrationBuilder.Sql(
                 """
-                DROP TRIGGER IF EXISTS "TR_Segments_TransportProfile" ON "Segments";
-                DROP FUNCTION IF EXISTS "SetSegmentTransportProfile"();
+                DROP TRIGGER IF EXISTS "TR_Segments_TransportProfile" ON public."Segments";
+                DROP FUNCTION IF EXISTS public."SetSegmentTransportProfile"();
                 """);
 
             migrationBuilder.DropForeignKey(

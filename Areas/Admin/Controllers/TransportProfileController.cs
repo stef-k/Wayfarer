@@ -3,6 +3,7 @@ using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using System.Text.RegularExpressions;
 using Wayfarer.Areas.Admin.Models;
@@ -17,10 +18,16 @@ namespace Wayfarer.Areas.Admin.Controllers;
 public sealed class TransportProfileController : Controller
 {
     private const int PageSize = 15;
+    private const string UniqueKeyConstraint = "IX_TransportProfiles_Key";
     private readonly ApplicationDbContext _dbContext;
+    private readonly ILogger<TransportProfileController> _logger;
 
     /// <summary>Initializes the controller.</summary>
-    public TransportProfileController(ApplicationDbContext dbContext) => _dbContext = dbContext;
+    public TransportProfileController(ApplicationDbContext dbContext, ILogger<TransportProfileController> logger)
+    {
+        _dbContext = dbContext;
+        _logger = logger;
+    }
 
     /// <summary>Lists profiles with deterministic search, ordering, pagination, and dependencies.</summary>
     public async Task<IActionResult> Index(string search = "", int page = 1, CancellationToken cancellationToken = default)
@@ -86,11 +93,17 @@ public sealed class TransportProfileController : Controller
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
+        catch (DbUpdateException exception) when (IsDuplicateKey(exception))
+        {
+            DetachFailedCreate(profile, audit);
+            ModelState.AddModelError(nameof(model.Key), "That transport-profile key could not be created because it conflicts with current catalog state.");
+            return View(model);
+        }
         catch (DbUpdateException)
         {
-            _dbContext.Entry(profile).State = EntityState.Detached;
-            _dbContext.Entry(audit).State = EntityState.Detached;
-            ModelState.AddModelError(nameof(model.Key), "That transport-profile key could not be created because it conflicts with current catalog state.");
+            DetachFailedCreate(profile, audit);
+            _logger.LogError("Transport profile creation failed without persisting changes. ProfileId={ProfileId}", profile.Id);
+            ModelState.AddModelError(string.Empty, "The transport profile could not be created. No changes were saved.");
             return View(model);
         }
         TempData["AlertMessage"] = "Transport profile created.";
@@ -293,4 +306,15 @@ public sealed class TransportProfileController : Controller
     }
 
     private static string? NormalizeDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsDuplicateKey(DbUpdateException exception) =>
+        exception.InnerException is PostgresException postgres
+        && postgres.SqlState == PostgresErrorCodes.UniqueViolation
+        && postgres.ConstraintName == UniqueKeyConstraint;
+
+    private void DetachFailedCreate(TransportProfile profile, AuditLog audit)
+    {
+        _dbContext.Entry(profile).State = EntityState.Detached;
+        _dbContext.Entry(audit).State = EntityState.Detached;
+    }
 }

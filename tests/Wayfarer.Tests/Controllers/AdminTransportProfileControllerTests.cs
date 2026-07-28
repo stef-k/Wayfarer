@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Moq;
 using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Areas.Admin.Models;
@@ -71,7 +73,36 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         var error = Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage;
         Assert.Equal("The transport profile could not be created. No changes were saved.", error);
         Assert.DoesNotContain("database failure", error, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(db.ChangeTracker.Entries().Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted));
+        Assert.DoesNotContain(db.ChangeTracker.Entries(), entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+    }
+
+    /// <summary>Proves only the expected PostgreSQL key constraint receives duplicate-key guidance.</summary>
+    [Fact]
+    public async Task Create_ExpectedPostgresUniqueConstraint_ReturnsKeyError()
+    {
+        var postgres = new PostgresException(
+            "duplicate key", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation,
+            null!, null!, 0, 0, null!, null!, "public", "TransportProfiles", "Key", null!,
+            "IX_TransportProfiles_Key", "nbtinsert.c", "1", "_bt_check_unique");
+        var interceptor = new FailingSaveChangesInterceptor { Exception = new DbUpdateException("save failed", postgres) };
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+        await using var db = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        db.Set<TransportProfile>().AddRange(TestDataFixtures.CreateTransportProfiles());
+        await db.SaveChangesAsync();
+        interceptor.Fail = true;
+        var controller = BuildController(db);
+
+        var result = await controller.Create(
+            new TransportProfileCreateViewModel { Key = "scooter", Label = "Scooter", Category = "Road" },
+            CancellationToken.None);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Contains(controller.ModelState[nameof(TransportProfileCreateViewModel.Key)]!.Errors,
+            error => error.ErrorMessage.Contains("conflicts with current catalog state", StringComparison.Ordinal));
+        Assert.False(controller.ModelState.ContainsKey(string.Empty));
     }
 
     /// <summary>Proves the immutable key is not changed by an overposted edit model.</summary>
@@ -198,7 +229,7 @@ public sealed class AdminTransportProfileControllerTests : TestBase
 
     private TransportProfileController BuildController(ApplicationDbContext db)
     {
-        var controller = new TransportProfileController(db);
+        var controller = new TransportProfileController(db, NullLogger<TransportProfileController>.Instance);
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
@@ -209,13 +240,14 @@ public sealed class AdminTransportProfileControllerTests : TestBase
     private sealed class FailingSaveChangesInterceptor : SaveChangesInterceptor
     {
         public bool Fail { get; set; }
+        public DbUpdateException Exception { get; set; } = new("database failure", new InvalidOperationException("connection interrupted"));
 
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,
             InterceptionResult<int> result,
             CancellationToken cancellationToken = default) =>
             Fail
-                ? ValueTask.FromException<InterceptionResult<int>>(new DbUpdateException("database failure", new InvalidOperationException("connection interrupted")))
+                ? ValueTask.FromException<InterceptionResult<int>>(Exception)
                 : ValueTask.FromResult(result);
     }
 }
