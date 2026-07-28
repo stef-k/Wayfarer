@@ -1,15 +1,26 @@
 using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Wayfarer.Migrations;
+using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Verifies the provider migration's deterministic data-reconciliation contract without claiming database execution.</summary>
-public sealed class TransportProfileMigrationTests
+public sealed class TransportProfileMigrationTests : TestBase
 {
+    /// <summary>Proves the runtime model targets the table created by the transport-profile migration.</summary>
+    [Fact]
+    public void RuntimeModel_UsesMigratedTransportProfilesTable()
+    {
+        using var context = CreateDbContext();
+
+        Assert.Equal("TransportProfiles", context.Model.FindEntityType(typeof(TransportProfile))!.GetTableName());
+    }
+
     /// <summary>Proves schema, seed/reconciliation SQL, and referential compatibility occur in the required order.</summary>
     [Fact]
     public void Up_SeedsAndReconcilesBeforeAddingForeignKey()
