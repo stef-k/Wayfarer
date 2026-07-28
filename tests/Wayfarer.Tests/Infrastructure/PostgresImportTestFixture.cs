@@ -15,6 +15,7 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
     private const string RequiredDatabase = "wayfarer_import_tests";
     private readonly HashSet<Guid> _tagIds = [];
     private readonly HashSet<Guid> _tripIds = [];
+    private readonly HashSet<Guid> _transportProfileIds = [];
     private readonly HashSet<string> _userIds = [];
     private readonly IServiceProvider _serviceProvider = new ServiceCollection()
         .AddEntityFrameworkNpgsql()
@@ -47,6 +48,8 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
         await using var context = CreateContext();
         if (_tripIds.Count > 0)
             await context.Trips.Where(trip => _tripIds.Contains(trip.Id)).ExecuteDeleteAsync();
+        if (_transportProfileIds.Count > 0)
+            await context.Set<TransportProfile>().Where(profile => _transportProfileIds.Contains(profile.Id)).ExecuteDeleteAsync();
         if (_tagIds.Count > 0)
             await context.Tags.Where(tag => _tagIds.Contains(tag.Id)).ExecuteDeleteAsync();
         if (_userIds.Count > 0)
@@ -88,6 +91,9 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
 
     /// <summary>Registers a trip so cleanup cannot affect data not created by this fixture.</summary>
     public void RegisterTrip(Guid tripId) => _tripIds.Add(tripId);
+
+    /// <summary>Registers a compatibility profile so cleanup remains fixture-scoped.</summary>
+    public void RegisterTransportProfile(Guid profileId) => _transportProfileIds.Add(profileId);
 
     /// <summary>Raises a visible skipped result when relational prerequisites are not configured.</summary>
     public void RequireAvailable()

@@ -269,11 +269,13 @@ public sealed class TripEditorSegmentMutationService
             return null;
         }
 
-        var profileId = await _dbContext.TransportProfiles
+        var profileId = await _dbContext.Set<TransportProfile>()
             .Where(profile => profile.Key == resolved)
             .Select(profile => (Guid?)profile.Id)
             .SingleAsync(cancellationToken);
-        return (resolved, profileId);
+        var preserveCurrent = !string.IsNullOrWhiteSpace(currentMode)
+            && string.Equals(TransportProfile.NormalizeKey(requestedMode), TransportProfile.NormalizeKey(currentMode), StringComparison.Ordinal);
+        return (preserveCurrent ? currentMode! : resolved, profileId);
     }
 
     private async Task<EditorSegmentDto> LoadSegmentDtoAsync(Guid segmentId, Guid tripId, CancellationToken cancellationToken)

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
@@ -23,7 +22,6 @@ namespace Wayfarer.Models
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<JobHistory> JobHistories { get; set; }
         public DbSet<ActivityType> ActivityTypes { get; set; }
-        public DbSet<TransportProfile> TransportProfiles { get; set; }
         public DbSet<ApplicationSettings> ApplicationSettings { get; set; }
 
         public DbSet<TileCacheMetadata> TileCacheMetadata { get; set; }
@@ -218,25 +216,7 @@ namespace Wayfarer.Models
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Trip planning setup
-            builder.Entity<TransportProfile>(profile =>
-            {
-                profile.HasKey(item => item.Id);
-                profile.HasIndex(item => item.Key).IsUnique();
-                profile.Property(item => item.Key).HasMaxLength(80).IsRequired();
-                profile.Property(item => item.Label).HasMaxLength(120).IsRequired();
-                profile.Property(item => item.Category).HasMaxLength(80).IsRequired();
-                profile.Property(item => item.Description).HasMaxLength(500);
-                profile.Property(item => item.RowVersion)
-                    .HasColumnName("xmin")
-                    .IsRowVersion()
-                    .ValueGeneratedOnAddOrUpdate();
-                profile.ToTable(table => table.HasCheckConstraint(
-                    "CK_TransportProfile_NormalizedKey",
-                    "\"Key\" = lower(btrim(\"Key\")) AND length(\"Key\") > 0"));
-                profile.ToTable(table => table.HasCheckConstraint(
-                    "CK_TransportProfile_PlanningSpeedKmh",
-                    "\"PlanningSpeedKmh\" IS NULL OR (\"PlanningSpeedKmh\" > 0 AND isfinite(\"PlanningSpeedKmh\"))"));
-            });
+            builder.ApplyConfiguration(new Configuration.TransportProfileConfiguration());
 
             // Trip ↔ ApplicationUser (cascade on delete)
             builder.Entity<Trip>()
@@ -283,12 +263,6 @@ namespace Wayfarer.Models
             builder.Entity<Segment>()
                 .Property(s => s.RouteGeometry)
                 .HasColumnType("geography(LineString,4326)");
-
-            builder.Entity<Segment>()
-                .HasOne(segment => segment.TransportProfile)
-                .WithMany()
-                .HasForeignKey(segment => segment.TransportProfileId)
-                .OnDelete(DeleteBehavior.Restrict);
 
             // Segment → Place (origin)
             builder.Entity<Segment>()

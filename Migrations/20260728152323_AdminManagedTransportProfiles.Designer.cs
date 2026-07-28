@@ -1161,6 +1161,7 @@ namespace Wayfarer.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Mode")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Notes")
@@ -1340,9 +1341,9 @@ namespace Wayfarer.Migrations
 
                     b.ToTable("TransportProfiles", t =>
                         {
-                            t.HasCheckConstraint("CK_TransportProfile_NormalizedKey", "\"Key\" = lower(btrim(\"Key\")) AND length(\"Key\") > 0");
+                            t.HasCheckConstraint("CK_TransportProfile_NormalizedKey", "\"Key\" = lower(trim(\"Key\")) AND length(\"Key\") > 0");
 
-                            t.HasCheckConstraint("CK_TransportProfile_PlanningSpeedKmh", "\"PlanningSpeedKmh\" IS NULL OR (\"PlanningSpeedKmh\" > 0 AND isfinite(\"PlanningSpeedKmh\"))");
+                            t.HasCheckConstraint("CK_TransportProfile_PlanningSpeedKmh", "\"PlanningSpeedKmh\" IS NULL OR (\"PlanningSpeedKmh\" > 0 AND \"PlanningSpeedKmh\" < 1.7976931348623157E+308)");
                         });
                 });
 

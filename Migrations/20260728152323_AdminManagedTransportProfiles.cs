@@ -11,14 +11,6 @@ namespace Wayfarer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string>(
-                name: "Mode",
-                table: "Segments",
-                type: "text",
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "text");
-
             migrationBuilder.AddColumn<Guid>(
                 name: "TransportProfileId",
                 table: "Segments",
@@ -43,8 +35,8 @@ namespace Wayfarer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_TransportProfiles", x => x.Id);
-                    table.CheckConstraint("CK_TransportProfile_NormalizedKey", "\"Key\" = lower(btrim(\"Key\")) AND length(\"Key\") > 0");
-                    table.CheckConstraint("CK_TransportProfile_PlanningSpeedKmh", "\"PlanningSpeedKmh\" IS NULL OR (\"PlanningSpeedKmh\" > 0 AND isfinite(\"PlanningSpeedKmh\"))");
+                    table.CheckConstraint("CK_TransportProfile_NormalizedKey", "\"Key\" = lower(trim(\"Key\")) AND length(\"Key\") > 0");
+                    table.CheckConstraint("CK_TransportProfile_PlanningSpeedKmh", "\"PlanningSpeedKmh\" IS NULL OR (\"PlanningSpeedKmh\" > 0 AND \"PlanningSpeedKmh\" < 1.7976931348623157E+308)");
                 });
 
             migrationBuilder.CreateIndex(
@@ -79,8 +71,8 @@ namespace Wayfarer.Migrations
                     ('11111111-0000-0000-0000-000000000014', 'flight', 'Flight', 'Air', 800, 140, TRUE, 'Average planning assumption; use a manual duration when the service differs.', TRUE),
                     ('11111111-0000-0000-0000-000000000015', 'helicopter', 'Helicopter', 'Air', 200, 150, TRUE, 'Average planning assumption; use a manual duration when the service differs.', TRUE);
 
-                WITH legacy AS (
-                    SELECT DISTINCT
+                WITH raw_legacy AS (
+                    SELECT
                         CASE
                             WHEN length(lower(btrim("Mode"))) <= 80 THEN lower(btrim("Mode"))
                             ELSE 'legacy-' || md5("Mode")
@@ -88,6 +80,10 @@ namespace Wayfarer.Migrations
                         left(btrim("Mode"), 120) AS label
                     FROM "Segments"
                     WHERE "Mode" IS NOT NULL AND btrim("Mode") <> ''
+                ), legacy AS (
+                    SELECT key, min(label) AS label
+                    FROM raw_legacy
+                    GROUP BY key
                 )
                 INSERT INTO "TransportProfiles"
                     ("Id", "Key", "Label", "Category", "PlanningSpeedKmh", "SortOrder", "IsActive", "Description", "IsSeeded")
@@ -104,7 +100,7 @@ namespace Wayfarer.Migrations
                     10000,
                     FALSE,
                     'Inactive compatibility profile preserving a pre-catalog segment mode.',
-                    TRUE
+                    FALSE
                 FROM legacy
                 ON CONFLICT ("Key") DO NOTHING;
 
@@ -117,6 +113,44 @@ namespace Wayfarer.Migrations
                       WHEN length(lower(btrim(segment."Mode"))) <= 80 THEN lower(btrim(segment."Mode"))
                       ELSE 'legacy-' || md5(segment."Mode")
                   END;
+
+                CREATE FUNCTION "SetSegmentTransportProfile"() RETURNS trigger AS $$
+                DECLARE
+                    normalized_key text;
+                    resolved_id uuid;
+                BEGIN
+                    IF NEW."Mode" IS NULL OR btrim(NEW."Mode") = '' THEN
+                        NEW."TransportProfileId" := NULL;
+                        RETURN NEW;
+                    END IF;
+
+                    normalized_key := CASE
+                        WHEN length(lower(btrim(NEW."Mode"))) <= 80 THEN lower(btrim(NEW."Mode"))
+                        ELSE 'legacy-' || md5(NEW."Mode")
+                    END;
+                    SELECT "Id" INTO resolved_id FROM "TransportProfiles" WHERE "Key" = normalized_key;
+                    IF resolved_id IS NULL THEN
+                        resolved_id := (substr(md5('transport-profile:' || normalized_key), 1, 8) || '-' ||
+                            substr(md5('transport-profile:' || normalized_key), 9, 4) || '-' ||
+                            substr(md5('transport-profile:' || normalized_key), 13, 4) || '-' ||
+                            substr(md5('transport-profile:' || normalized_key), 17, 4) || '-' ||
+                            substr(md5('transport-profile:' || normalized_key), 21, 12))::uuid;
+                        INSERT INTO "TransportProfiles"
+                            ("Id", "Key", "Label", "Category", "PlanningSpeedKmh", "SortOrder", "IsActive", "Description", "IsSeeded")
+                        VALUES
+                            (resolved_id, normalized_key, 'Legacy: ' || left(btrim(NEW."Mode"), 120), 'Legacy', NULL, 10000, FALSE,
+                             'Inactive compatibility profile preserving an unknown segment mode.', FALSE)
+                        ON CONFLICT ("Key") DO NOTHING;
+                        SELECT "Id" INTO resolved_id FROM "TransportProfiles" WHERE "Key" = normalized_key;
+                    END IF;
+                    NEW."TransportProfileId" := resolved_id;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                CREATE TRIGGER "TR_Segments_TransportProfile"
+                BEFORE INSERT OR UPDATE OF "Mode" ON "Segments"
+                FOR EACH ROW EXECUTE FUNCTION "SetSegmentTransportProfile"();
                 """);
 
             migrationBuilder.AddForeignKey(
@@ -131,6 +165,12 @@ namespace Wayfarer.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(
+                """
+                DROP TRIGGER IF EXISTS "TR_Segments_TransportProfile" ON "Segments";
+                DROP FUNCTION IF EXISTS "SetSegmentTransportProfile"();
+                """);
+
             migrationBuilder.DropForeignKey(
                 name: "FK_Segments_TransportProfiles_TransportProfileId",
                 table: "Segments");
@@ -146,15 +186,6 @@ namespace Wayfarer.Migrations
                 name: "TransportProfileId",
                 table: "Segments");
 
-            migrationBuilder.AlterColumn<string>(
-                name: "Mode",
-                table: "Segments",
-                type: "text",
-                nullable: false,
-                defaultValue: "",
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldNullable: true);
         }
     }
 }

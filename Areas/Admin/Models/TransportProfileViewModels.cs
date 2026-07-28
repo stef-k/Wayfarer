@@ -53,6 +53,9 @@ public sealed class TransportProfileEditViewModel : TransportProfileCreateViewMo
     /// <summary>Gets or sets explicit confirmation for deactivating a referenced profile.</summary>
     public bool ConfirmDeactivation { get; set; }
 
+    /// <summary>Gets or sets whether the loaded record was active before this edit.</summary>
+    public bool WasActive { get; set; }
+
     /// <summary>Gets the current dependency count displayed before mutation.</summary>
     public int ReferencedSegments { get; set; }
 

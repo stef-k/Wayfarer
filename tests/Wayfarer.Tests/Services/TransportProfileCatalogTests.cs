@@ -18,8 +18,8 @@ public sealed class TransportProfileCatalogTests : TestBase
     public async Task GetEditorOptionsAsync_ReturnsOnlyActiveProfiles_InCatalogOrder()
     {
         await using var db = CreateDbContext();
-        db.TransportProfiles.RemoveRange(db.TransportProfiles);
-        db.TransportProfiles.AddRange(
+        db.Set<TransportProfile>().RemoveRange(db.Set<TransportProfile>());
+        db.Set<TransportProfile>().AddRange(
             Profile("z-last", "Zulu", 2, true),
             Profile("a-hidden", "Alpha", 0, false),
             Profile("b-first", "Beta", 1, true));
@@ -38,8 +38,8 @@ public sealed class TransportProfileCatalogTests : TestBase
     public async Task ResolveEditorModeAsync_PreservesOnlyCurrentInactiveSelection()
     {
         await using var db = CreateDbContext();
-        db.TransportProfiles.RemoveRange(db.TransportProfiles);
-        db.TransportProfiles.Add(Profile("legacy", "Legacy", 1, false));
+        db.Set<TransportProfile>().RemoveRange(db.Set<TransportProfile>());
+        db.Set<TransportProfile>().Add(Profile("legacy", "Legacy", 1, false));
         await db.SaveChangesAsync();
         var catalog = new TransportProfileCatalog(db);
 
@@ -54,10 +54,10 @@ public sealed class TransportProfileCatalogTests : TestBase
     public async Task CanChangePlanningSpeedAsync_RejectsReferencedProfile()
     {
         await using var db = CreateDbContext();
-        db.TransportProfiles.RemoveRange(db.TransportProfiles);
+        db.Set<TransportProfile>().RemoveRange(db.Set<TransportProfile>());
         var profile = Profile("walk", "Walk", 1, true);
-        db.TransportProfiles.Add(profile);
-        db.Segments.Add(new Segment { Id = Guid.NewGuid(), UserId = "u", TripId = Guid.NewGuid(), Mode = "walk", TransportProfileId = profile.Id });
+        db.Set<TransportProfile>().Add(profile);
+        db.Segments.Add(new Segment { Id = Guid.NewGuid(), UserId = "u", TripId = Guid.NewGuid(), Mode = " WALK " });
         await db.SaveChangesAsync();
         var catalog = new TransportProfileCatalog(db);
 
@@ -65,6 +65,23 @@ public sealed class TransportProfileCatalogTests : TestBase
 
         Assert.False(result.Allowed);
         Assert.Equal(1, result.ReferencedSegments);
+    }
+
+    /// <summary>Proves planning-speed resolution comes from mutable database state and preserves null.</summary>
+    [Fact]
+    public async Task GetPlanningSpeedAsync_ReturnsDatabaseValueOrManualOnlyNull()
+    {
+        await using var db = CreateDbContext();
+        var walk = await db.Set<TransportProfile>().SingleAsync(profile => profile.Key == "walk");
+        walk.PlanningSpeedKmh = 6.5;
+        var manual = Profile("custom", "Custom", 999, true);
+        manual.PlanningSpeedKmh = null;
+        db.Set<TransportProfile>().Add(manual);
+        await db.SaveChangesAsync();
+        var catalog = new TransportProfileCatalog(db);
+
+        Assert.Equal(6.5, await catalog.GetPlanningSpeedAsync("WALK"));
+        Assert.Null(await catalog.GetPlanningSpeedAsync("custom"));
     }
 
     private static TransportProfile Profile(string key, string label, int sortOrder, bool active) => new()

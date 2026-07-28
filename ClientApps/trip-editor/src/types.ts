@@ -120,7 +120,7 @@ export interface EditorOptions {
   iconNames: string[];
   markerColorClasses: string[];
   glyphColorClasses: string[];
-  transportModes: Array<{ value: string; label: string; speedKmh: number }>;
+  transportModes: Array<{ value: string; label: string; speedKmh: number | null }>;
   areaDefaults: { name: string; fillHex: string };
   tag: { maxTags: number; suggestionTake: number; allowedPatternDescription: string };
   limits: { nominatimSearchLimit: number; sidebarSearchMinCharacters: number };

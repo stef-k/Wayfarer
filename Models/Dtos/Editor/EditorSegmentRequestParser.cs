@@ -280,7 +280,7 @@ internal static class EditorSegmentRequestParser
     private static string CanonicalMode(string? mode) =>
         string.IsNullOrWhiteSpace(mode)
             ? string.Empty
-            : TransportProfile.NormalizeKey(mode);
+            : mode;
 
     private static void ValidateNotes(string? notesHtml, Dictionary<string, string[]> errors)
     {

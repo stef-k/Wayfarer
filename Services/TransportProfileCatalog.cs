@@ -16,7 +16,7 @@ public sealed class TransportProfileCatalog
 
     /// <summary>Returns active editor choices in deterministic catalog order.</summary>
     public async Task<IReadOnlyList<EditorTransportModeDto>> GetEditorOptionsAsync(CancellationToken cancellationToken = default) =>
-        await _dbContext.TransportProfiles
+        await _dbContext.Set<TransportProfile>()
             .AsNoTracking()
             .Where(profile => profile.IsActive)
             .OrderBy(profile => profile.SortOrder)
@@ -36,7 +36,7 @@ public sealed class TransportProfileCatalog
         }
 
         var normalized = TransportProfile.NormalizeKey(requestedKey);
-        var profile = await _dbContext.TransportProfiles.AsNoTracking()
+        var profile = await _dbContext.Set<TransportProfile>().AsNoTracking()
             .SingleOrDefaultAsync(candidate => candidate.Key == normalized, cancellationToken);
         if (profile == null)
         {
@@ -50,7 +50,7 @@ public sealed class TransportProfileCatalog
 
     /// <summary>Returns the planning speed for a known profile without treating null as automatic-capable.</summary>
     public Task<double?> GetPlanningSpeedAsync(string key, CancellationToken cancellationToken = default) =>
-        _dbContext.TransportProfiles.AsNoTracking()
+        _dbContext.Set<TransportProfile>().AsNoTracking()
             .Where(profile => profile.Key == TransportProfile.NormalizeKey(key))
             .Select(profile => profile.PlanningSpeedKmh)
             .SingleOrDefaultAsync(cancellationToken);
@@ -58,13 +58,20 @@ public sealed class TransportProfileCatalog
     /// <summary>Returns dependencies and whether the pre-#405 boundary permits a speed mutation.</summary>
     public async Task<TransportProfileSpeedChangeGate> CanChangePlanningSpeedAsync(Guid profileId, double? proposedSpeed, CancellationToken cancellationToken = default)
     {
-        var key = await _dbContext.TransportProfiles.AsNoTracking()
+        var key = await _dbContext.Set<TransportProfile>().AsNoTracking()
             .Where(profile => profile.Id == profileId)
             .Select(profile => profile.Key)
             .SingleAsync(cancellationToken);
-        var referenced = await _dbContext.Segments.CountAsync(segment => segment.TransportProfileId == profileId, cancellationToken);
+        var referenced = await CountReferencesAsync(profileId, key, cancellationToken);
         return new TransportProfileSpeedChangeGate(referenced == 0, referenced, proposedSpeed);
     }
+
+    /// <summary>Counts linked segments plus conservative Mode-only writers that have not attached catalog identity.</summary>
+    public Task<int> CountReferencesAsync(Guid profileId, string key, CancellationToken cancellationToken = default) =>
+        _dbContext.Segments.CountAsync(
+            segment => segment.TransportProfileId == profileId
+                || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == key),
+            cancellationToken);
 }
 
 /// <summary>Describes the approved pre-#405 speed-change gate.</summary>

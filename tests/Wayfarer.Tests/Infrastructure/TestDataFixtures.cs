@@ -12,6 +12,26 @@ public static class TestDataFixtures
     private static int _tripCounter;
     private static int _locationCounter;
 
+    /// <summary>Creates test catalog rows matching the migration-owned starter keys.</summary>
+    public static IReadOnlyList<TransportProfile> CreateTransportProfiles()
+    {
+        var values = new (string Key, string Label, double Speed)[]
+        {
+            ("walk", "Walk", 5), ("bicycle", "Bicycle", 15), ("bike", "Motorcycle", 40),
+            ("car", "Car", 60), ("bus", "Bus / coach", 35), ("tram", "Tram / streetcar", 20),
+            ("metro", "Metro / subway", 35), ("regional-train", "Regional train", 70),
+            ("train", "Train (general)", 100), ("intercity-train", "Intercity train", 120),
+            ("high-speed-train", "High-speed train", 250), ("ferry", "Ferry", 30),
+            ("boat", "Boat", 25), ("flight", "Flight", 800), ("helicopter", "Helicopter", 200)
+        };
+        return values.Select((value, index) => new TransportProfile
+        {
+            Id = Guid.Parse($"11111111-0000-0000-0000-{index + 1:000000000000}"),
+            Key = value.Key, Label = value.Label, Category = "Test", PlanningSpeedKmh = value.Speed,
+            SortOrder = (index + 1) * 10, IsActive = true, IsSeeded = true
+        }).ToList();
+    }
+
     /// <summary>
     /// Creates a test user with default values.
     /// </summary>

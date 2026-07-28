@@ -1,7 +1,10 @@
 using System.Security.Claims;
+using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using System.Text.RegularExpressions;
 using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -24,7 +27,7 @@ public sealed class TransportProfileController : Controller
     {
         page = Math.Max(1, page);
         search = search?.Trim() ?? string.Empty;
-        var query = _dbContext.TransportProfiles.AsNoTracking()
+        var query = _dbContext.Set<TransportProfile>().AsNoTracking()
             .Where(profile => search == string.Empty || profile.Key.Contains(search) || profile.Label.Contains(search) || profile.Category.Contains(search));
         var total = await query.CountAsync(cancellationToken);
         var rows = await query
@@ -33,7 +36,8 @@ public sealed class TransportProfileController : Controller
             .Select(profile => new TransportProfileRowViewModel(
                 profile.Id, profile.Key, profile.Label, profile.Category, profile.PlanningSpeedKmh,
                 profile.SortOrder, profile.IsActive, profile.IsSeeded,
-                _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id), profile.RowVersion))
+                _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)), profile.RowVersion))
             .ToListAsync(cancellationToken);
         return View(new TransportProfileIndexViewModel(rows, search, page, Math.Max(1, (int)Math.Ceiling(total / (double)PageSize))));
     }
@@ -47,7 +51,20 @@ public sealed class TransportProfileController : Controller
     public async Task<IActionResult> Create(TransportProfileCreateViewModel model, CancellationToken cancellationToken)
     {
         model.Key = TransportProfile.NormalizeKey(model.Key ?? string.Empty);
-        if (await _dbContext.TransportProfiles.AnyAsync(profile => profile.Key == model.Key, cancellationToken))
+        ModelState.Remove(nameof(model.Key));
+        if (!Regex.IsMatch(model.Key, "^[a-z0-9]+(?:-[a-z0-9]+)*$"))
+        {
+            ModelState.AddModelError(nameof(model.Key), "Use lowercase letters, numbers, and single hyphens only.");
+        }
+        if (string.IsNullOrWhiteSpace(model.Label))
+        {
+            ModelState.AddModelError(nameof(model.Label), "Label is required.");
+        }
+        if (string.IsNullOrWhiteSpace(model.Category))
+        {
+            ModelState.AddModelError(nameof(model.Category), "Category is required.");
+        }
+        if (await _dbContext.Set<TransportProfile>().AnyAsync(profile => profile.Key == model.Key, cancellationToken))
         {
             ModelState.AddModelError(nameof(model.Key), "That transport-profile key already exists.");
         }
@@ -63,9 +80,19 @@ public sealed class TransportProfileController : Controller
             PlanningSpeedKmh = model.PlanningSpeedKmh, SortOrder = model.SortOrder, IsActive = model.IsActive,
             Description = NormalizeDescription(model.Description), IsSeeded = false
         };
-        _dbContext.TransportProfiles.Add(profile);
-        AddAudit("TransportProfileCreate", profile, "created", 0);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        _dbContext.Set<TransportProfile>().Add(profile);
+        var audit = AddAudit("TransportProfileCreate", profile, "created", 0);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
+            ModelState.AddModelError(nameof(model.Key), "That transport-profile key could not be created because it conflicts with current catalog state.");
+            return View(model);
+        }
         TempData["AlertMessage"] = "Transport profile created.";
         TempData["AlertType"] = "success";
         return RedirectToAction(nameof(Index));
@@ -88,20 +115,22 @@ public sealed class TransportProfileController : Controller
             return NotFound();
         }
 
-        var profile = await _dbContext.TransportProfiles.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var profile = await _dbContext.Set<TransportProfile>().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (profile == null)
         {
             return NotFound();
         }
 
         model.Key = profile.Key;
-        model.ReferencedSegments = await _dbContext.Segments.CountAsync(segment => segment.TransportProfileId == id, cancellationToken);
+        model.ReferencedSegments = await new TransportProfileCatalog(_dbContext).CountReferencesAsync(id, profile.Key, cancellationToken);
         var speedChanged = profile.PlanningSpeedKmh != model.PlanningSpeedKmh;
         if (speedChanged && model.ReferencedSegments > 0)
         {
             ModelState.AddModelError(nameof(model.PlanningSpeedKmh), "Referenced planning-speed changes require #405 duration provenance and reconciliation.");
         }
-        if (profile.IsActive && !model.IsActive && model.ReferencedSegments > 0 && !model.ConfirmDeactivation)
+        if (profile.IsActive && !model.IsActive && !model.ConfirmDeactivation)
         {
             ModelState.AddModelError(nameof(model.ConfirmDeactivation), "Confirm deactivation after reviewing the dependency count.");
         }
@@ -118,14 +147,36 @@ public sealed class TransportProfileController : Controller
         profile.IsActive = model.IsActive;
         profile.Description = NormalizeDescription(model.Description);
         _dbContext.Entry(profile).Property(item => item.RowVersion).OriginalValue = model.RowVersion;
-        AddAudit("TransportProfileUpdate", profile, changed, model.ReferencedSegments);
+        var audit = AddAudit("TransportProfileUpdate", profile, changed, model.ReferencedSegments);
         try
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
             ModelState.AddModelError(string.Empty, "This profile changed after the form was loaded. Review the current values and try again.");
+            var current = await BuildEditModelAsync(id, cancellationToken);
+            return current == null ? NotFound() : View(current);
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
+            ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
+            var current = await BuildEditModelAsync(id, cancellationToken);
+            return current == null ? NotFound() : View(current);
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
+            ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
             var current = await BuildEditModelAsync(id, cancellationToken);
             return current == null ? NotFound() : View(current);
         }
@@ -147,28 +198,48 @@ public sealed class TransportProfileController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteConfirmed(Guid id, uint rowVersion, CancellationToken cancellationToken)
     {
-        var profile = await _dbContext.TransportProfiles.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var profile = await _dbContext.Set<TransportProfile>().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (profile == null)
         {
             return NotFound();
         }
-        var referenced = await _dbContext.Segments.CountAsync(segment => segment.TransportProfileId == id, cancellationToken);
+        var referenced = await new TransportProfileCatalog(_dbContext).CountReferencesAsync(id, profile.Key, cancellationToken);
         if (profile.IsSeeded || referenced > 0)
         {
             ModelState.AddModelError(string.Empty, profile.IsSeeded ? "Seeded profiles cannot be deleted; deactivate them instead." : "Referenced profiles cannot be deleted; deactivate them instead.");
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
-
         _dbContext.Entry(profile).Property(item => item.RowVersion).OriginalValue = rowVersion;
-        _dbContext.TransportProfiles.Remove(profile);
-        AddAudit("TransportProfileDelete", profile, "deleted", 0);
+        _dbContext.Set<TransportProfile>().Remove(profile);
+        var audit = AddAudit("TransportProfileDelete", profile, "deleted", 0);
         try
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
             ModelState.AddModelError(string.Empty, "This profile changed after the confirmation was loaded.");
+            return View("Delete", await BuildRowAsync(id, cancellationToken));
+        }
+        catch (DbUpdateException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
+            ModelState.AddModelError(string.Empty, "The profile gained a dependency and cannot be deleted. Deactivate it instead.");
+            return View("Delete", await BuildRowAsync(id, cancellationToken));
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _dbContext.Entry(profile).State = EntityState.Detached;
+            _dbContext.Entry(audit).State = EntityState.Detached;
+            ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. It was not deleted.");
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
 
@@ -178,30 +249,36 @@ public sealed class TransportProfileController : Controller
     }
 
     private Task<TransportProfileEditViewModel?> BuildEditModelAsync(Guid id, CancellationToken token) =>
-        _dbContext.TransportProfiles.AsNoTracking().Where(profile => profile.Id == id)
+        _dbContext.Set<TransportProfile>().AsNoTracking().Where(profile => profile.Id == id)
             .Select(profile => new TransportProfileEditViewModel
             {
                 Id = profile.Id, Key = profile.Key, Label = profile.Label, Category = profile.Category,
                 PlanningSpeedKmh = profile.PlanningSpeedKmh, SortOrder = profile.SortOrder, IsActive = profile.IsActive,
-                Description = profile.Description, RowVersion = profile.RowVersion,
-                ReferencedSegments = _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id)
+                Description = profile.Description, RowVersion = profile.RowVersion, WasActive = profile.IsActive,
+                ReferencedSegments = _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
             }).SingleOrDefaultAsync(token);
 
     private Task<TransportProfileRowViewModel?> BuildRowAsync(Guid id, CancellationToken token) =>
-        _dbContext.TransportProfiles.AsNoTracking().Where(profile => profile.Id == id)
+        _dbContext.Set<TransportProfile>().AsNoTracking().Where(profile => profile.Id == id)
             .Select(profile => new TransportProfileRowViewModel(profile.Id, profile.Key, profile.Label, profile.Category,
                 profile.PlanningSpeedKmh, profile.SortOrder, profile.IsActive, profile.IsSeeded,
-                _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id), profile.RowVersion))
+                _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)), profile.RowVersion))
             .SingleOrDefaultAsync(token);
 
-    private void AddAudit(string action, TransportProfile profile, string changedFields, int dependencies) =>
-        _dbContext.AuditLogs.Add(new AuditLog
+    private AuditLog AddAudit(string action, TransportProfile profile, string changedFields, int dependencies)
+    {
+        var audit = new AuditLog
         {
             UserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "admin",
             Action = action,
             Timestamp = DateTime.UtcNow,
-            Details = $"ProfileId={profile.Id};Key={profile.Key};Fields={changedFields};ReferencedSegments={dependencies}"
-        });
+            Details = $"ProfileId={profile.Id};Fields={changedFields};ReferencedSegments={dependencies}"
+        };
+        _dbContext.AuditLogs.Add(audit);
+        return audit;
+    }
 
     private static string ChangedFields(TransportProfile profile, TransportProfileEditViewModel model)
     {

@@ -36,7 +36,7 @@ public class Segment
     public Place? ToPlace { get; set; }
 
     /// <summary>Mode of transport (e.g., "walk", "bike").</summary>
-    public string? Mode { get; set; }
+    public string Mode { get; set; } = string.Empty;
 
     /// <summary>Optional catalog identity associated with the durable mode string.</summary>
     public Guid? TransportProfileId { get; set; }

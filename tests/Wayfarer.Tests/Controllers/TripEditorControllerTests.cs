@@ -311,7 +311,7 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.Equal(new[] { "alpha", "zulu" }, options.IconNames);
         Assert.Equal(new[] { "bg-blue", "bg-red" }, options.MarkerColorClasses);
         Assert.Equal(new[] { "color-white", "color-yellow" }, options.GlyphColorClasses);
-        Assert.Equal(TransportProfileSeedData.Create().Select(profile => profile.Key), options.TransportModes.Select(mode => mode.Value));
+        Assert.Equal(TestDataFixtures.CreateTransportProfiles().Select(profile => profile.Key), options.TransportModes.Select(mode => mode.Value));
         Assert.Equal(25, options.Tag.MaxTags);
         Assert.Equal(8, options.Tag.SuggestionTake);
         Assert.Equal(6, options.Limits.NominatimSearchLimit);
