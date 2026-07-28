@@ -270,16 +270,17 @@ internal static class EditorSegmentRequestParser
             return;
         }
 
-        if (!SegmentTransportModes.Options.Any(option => string.Equals(option.Value, mode.Trim(), StringComparison.OrdinalIgnoreCase)))
+        var normalized = TransportProfile.NormalizeKey(mode);
+        if (normalized.Length > 80)
         {
-            errors["mode"] = new[] { "Mode must match a supported transport mode." };
+            errors["mode"] = new[] { "Mode must be 80 characters or fewer." };
         }
     }
 
     private static string CanonicalMode(string? mode) =>
         string.IsNullOrWhiteSpace(mode)
             ? string.Empty
-            : SegmentTransportModes.Options.First(option => string.Equals(option.Value, mode.Trim(), StringComparison.OrdinalIgnoreCase)).Value;
+            : TransportProfile.NormalizeKey(mode);
 
     private static void ValidateNotes(string? notesHtml, Dictionary<string, string[]> errors)
     {

@@ -349,6 +349,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     //    So JobFactory can resolve them by type
     builder.Services.AddTransient<LogCleanupJob>();
     builder.Services.AddTransient<AuditLogCleanupJob>();
+    builder.Services.AddScoped<TransportProfileCatalog>();
     builder.Services.AddTransient<VisitCleanupJob>();
     builder.Services.AddTransient<RateLimitCleanupJob>();
     // ...and any other IJob implementations you'll use

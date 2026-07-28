@@ -1,0 +1,44 @@
+@model Wayfarer.Areas.Admin.Models.TransportProfileIndexViewModel
+@{ ViewData["Title"] = "Transport Profiles"; }
+
+<h1 class="text-center my-1 fs-3">Transport Profiles</h1>
+<div class="alert alert-light small mb-3">
+    Transport-profile keys are durable API/import identifiers. Deactivate a profile to remove it from new editor choices without changing existing segments.
+</div>
+<div class="d-flex flex-wrap gap-2 justify-content-between mb-3">
+    <a asp-action="Create" class="btn btn-success">Create transport profile</a>
+    <form method="get" class="d-flex" role="search">
+        <label class="visually-hidden" for="transport-profile-search">Search profiles</label>
+        <input id="transport-profile-search" name="search" value="@Model.Search" class="form-control me-2" placeholder="Key, label, or category" />
+        <button class="btn btn-primary" type="submit">Search</button>
+    </form>
+</div>
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead><tr><th>Order</th><th>Key</th><th>Label</th><th>Category</th><th>Speed km/h</th><th>Status</th><th>Segments</th><th>Actions</th></tr></thead>
+        <tbody>
+        @if (Model.Items.Count == 0)
+        {
+            <tr><td colspan="8" class="text-center text-muted">No transport profiles found.</td></tr>
+        }
+        @foreach (var item in Model.Items)
+        {
+            <tr>
+                <td>@item.SortOrder</td><td><code>@item.Key</code></td><td>@item.Label</td><td>@item.Category</td>
+                <td>@(item.PlanningSpeedKmh?.ToString("0.###") ?? "Manual only")</td>
+                <td>@(item.IsActive ? "Active" : "Inactive")</td><td>@item.ReferencedSegments</td>
+                <td><div class="btn-group" role="group" aria-label="Actions for @item.Label">
+                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Edit</a>
+                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Delete</a>
+                </div></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+<nav aria-label="Transport profile pages"><ul class="pagination justify-content-center">
+@for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+{
+    <li class="page-item @(pageNumber == Model.Page ? "active" : null)"><a class="page-link" asp-route-page="@pageNumber" asp-route-search="@Model.Search">@pageNumber</a></li>
+}
+</ul></nav>

@@ -47,6 +47,13 @@ public sealed class TripEditorSegmentMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(referenceErrors);
         }
 
+        var mode = await ResolveModeAsync(parsed.Value!.Mode, null, cancellationToken);
+        if (mode == null)
+        {
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile."] });
+        }
+
         var segment = new Segment
         {
             Id = Guid.NewGuid(),
@@ -56,6 +63,8 @@ public sealed class TripEditorSegmentMutationService
             DisplayOrder = NextSegmentOrder(trip),
         };
         Apply(segment, parsed.Value!);
+        segment.Mode = mode.Value.Key;
+        segment.TransportProfileId = mode.Value.ProfileId;
         _dbContext.Segments.Add(segment);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -99,7 +108,16 @@ public sealed class TripEditorSegmentMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(referenceErrors);
         }
 
+        var mode = await ResolveModeAsync(parsed.Value!.Mode, segment.Mode, cancellationToken);
+        if (mode == null)
+        {
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile or preserve the segment's current inactive profile."] });
+        }
+
         Apply(segment, parsed.Value!);
+        segment.Mode = mode.Value.Key;
+        segment.TransportProfileId = mode.Value.ProfileId;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var dto = await LoadSegmentDtoAsync(segmentId, tripId, cancellationToken);
@@ -234,6 +252,28 @@ public sealed class TripEditorSegmentMutationService
         segment.EstimatedDuration = request.EstimatedDurationMinutes.HasValue ? TimeSpan.FromMinutes(request.EstimatedDurationMinutes.Value) : null;
         segment.Notes = request.NotesHtml ?? string.Empty;
         segment.RouteGeometry = request.Route;
+    }
+
+    /// <summary>Resolves database-backed mode semantics for a create or edit operation.</summary>
+    private async Task<(string Key, Guid? ProfileId)?> ResolveModeAsync(string requestedMode, string? currentMode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(requestedMode))
+        {
+            return (string.Empty, null);
+        }
+
+        var resolved = await new TransportProfileCatalog(_dbContext)
+            .ResolveEditorModeAsync(requestedMode, currentMode, cancellationToken);
+        if (resolved == null)
+        {
+            return null;
+        }
+
+        var profileId = await _dbContext.TransportProfiles
+            .Where(profile => profile.Key == resolved)
+            .Select(profile => (Guid?)profile.Id)
+            .SingleAsync(cancellationToken);
+        return (resolved, profileId);
     }
 
     private async Task<EditorSegmentDto> LoadSegmentDtoAsync(Guid segmentId, Guid tripId, CancellationToken cancellationToken)

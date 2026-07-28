@@ -1,0 +1,17 @@
+@model Wayfarer.Areas.Admin.Models.TransportProfileRowViewModel
+@{ ViewData["Title"] = "Delete Transport Profile"; }
+<h1 class="text-center fs-3">Delete Transport Profile</h1>
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div class="card card-body">
+    <dl class="row"><dt class="col-sm-3">Key</dt><dd class="col-sm-9"><code>@Model.Key</code></dd><dt class="col-sm-3">Label</dt><dd class="col-sm-9">@Model.Label</dd><dt class="col-sm-3">Referenced segments</dt><dd class="col-sm-9">@Model.ReferencedSegments</dd></dl>
+    @if (Model.IsSeeded || Model.ReferencedSegments > 0)
+    {
+        <div class="alert alert-warning">This profile cannot be deleted. Deactivate it from Edit instead.</div>
+        <a asp-action="Index" class="btn btn-secondary align-self-start">Back</a>
+    }
+    else
+    {
+        <div class="alert alert-danger">Deletion is permanent and will remove this deployment-specific profile.</div>
+        <form method="post"><input name="rowVersion" value="@Model.RowVersion" type="hidden" /><button type="submit" class="btn btn-danger">Confirm delete</button> <a asp-action="Index" class="btn btn-secondary">Cancel</a></form>
+    }
+</div>

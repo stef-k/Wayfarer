@@ -18,6 +18,20 @@ public class ApplicationDbContextSeed
 
         // Seed default Activity Types
         await SeedActivityTypes(serviceProvider);
+
+        // Repair missing approved transport profiles without overwriting administrator edits.
+        await SeedTransportProfilesAsync(serviceProvider);
+    }
+
+    /// <summary>Ensures every approved starter profile exists after migration.</summary>
+    private static async Task SeedTransportProfilesAsync(IServiceProvider serviceProvider)
+    {
+        using var scope = serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var existingKeys = await dbContext.TransportProfiles.Select(profile => profile.Key).ToHashSetAsync();
+        var missing = TransportProfileSeedData.Create().Where(profile => !existingKeys.Contains(profile.Key));
+        dbContext.TransportProfiles.AddRange(missing);
+        await dbContext.SaveChangesAsync();
     }
 
     /// <summary>

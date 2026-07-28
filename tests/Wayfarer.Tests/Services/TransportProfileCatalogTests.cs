@@ -18,6 +18,7 @@ public sealed class TransportProfileCatalogTests : TestBase
     public async Task GetEditorOptionsAsync_ReturnsOnlyActiveProfiles_InCatalogOrder()
     {
         await using var db = CreateDbContext();
+        db.TransportProfiles.RemoveRange(db.TransportProfiles);
         db.TransportProfiles.AddRange(
             Profile("z-last", "Zulu", 2, true),
             Profile("a-hidden", "Alpha", 0, false),
@@ -37,6 +38,7 @@ public sealed class TransportProfileCatalogTests : TestBase
     public async Task ResolveEditorModeAsync_PreservesOnlyCurrentInactiveSelection()
     {
         await using var db = CreateDbContext();
+        db.TransportProfiles.RemoveRange(db.TransportProfiles);
         db.TransportProfiles.Add(Profile("legacy", "Legacy", 1, false));
         await db.SaveChangesAsync();
         var catalog = new TransportProfileCatalog(db);
@@ -52,9 +54,10 @@ public sealed class TransportProfileCatalogTests : TestBase
     public async Task CanChangePlanningSpeedAsync_RejectsReferencedProfile()
     {
         await using var db = CreateDbContext();
+        db.TransportProfiles.RemoveRange(db.TransportProfiles);
         var profile = Profile("walk", "Walk", 1, true);
         db.TransportProfiles.Add(profile);
-        db.Segments.Add(new Segment { Id = Guid.NewGuid(), UserId = "u", TripId = Guid.NewGuid(), Mode = "walk" });
+        db.Segments.Add(new Segment { Id = Guid.NewGuid(), UserId = "u", TripId = Guid.NewGuid(), Mode = "walk", TransportProfileId = profile.Id });
         await db.SaveChangesAsync();
         var catalog = new TransportProfileCatalog(db);
 

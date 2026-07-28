@@ -35,10 +35,27 @@ public sealed class TripEditorSegmentValidationControllerTests : TestBase
         """);
 
         var keys = TripEditorSegmentControllerTests.AssertValidationProblem(result).Errors.Keys;
-        foreach (var key in new[] { "id", "tripId", "displayOrder", "capabilities", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notesHtml", "route" })
+        foreach (var key in new[] { "id", "tripId", "displayOrder", "capabilities", "estimatedDistanceKm", "estimatedDurationMinutes", "notesHtml", "route" })
         {
             Assert.Contains(key, keys);
         }
+    }
+
+    /// <summary>Proves semantic mode validation uses the database catalog.</summary>
+    [Fact]
+    public async Task SaveRejectsModeMissingFromDatabaseCatalog()
+    {
+        using var db = CreateDbContext();
+        var graph = TripEditorSegmentControllerTests.SeedTripGraph(db, "owner-user");
+        var controller = TripEditorSegmentControllerTests.BuildController(db);
+        TripEditorSegmentControllerTests.ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await TripEditorSegmentControllerTests.SendJson(
+            controller,
+            c => c.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None),
+            TripEditorSegmentControllerTests.ValidBody(graph.FirstPlace.Id, graph.SecondPlace.Id, "hoverboard", "null"));
+
+        Assert.Contains("mode", TripEditorSegmentControllerTests.AssertValidationProblem(result).Errors.Keys);
     }
 
     [Fact]

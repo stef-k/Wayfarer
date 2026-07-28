@@ -36,7 +36,14 @@ public class Segment
     public Place? ToPlace { get; set; }
 
     /// <summary>Mode of transport (e.g., "walk", "bike").</summary>
-    public string Mode { get; set; } = string.Empty;
+    public string? Mode { get; set; }
+
+    /// <summary>Optional catalog identity associated with the durable mode string.</summary>
+    public Guid? TransportProfileId { get; set; }
+
+    /// <summary>Catalog profile resolved for this segment without replacing its public mode string.</summary>
+    [JsonIgnore]
+    public TransportProfile? TransportProfile { get; set; }
 
     /// <summary>Geometry of the route as a LineString.</summary>
     public LineString? RouteGeometry { get; set; }
