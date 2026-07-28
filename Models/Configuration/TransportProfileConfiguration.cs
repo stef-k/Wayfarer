@@ -9,6 +9,7 @@ public sealed class TransportProfileConfiguration : IEntityTypeConfiguration<Tra
     /// <summary>Applies the transport-profile relational contract.</summary>
     public void Configure(EntityTypeBuilder<TransportProfile> profile)
     {
+        profile.ToTable("TransportProfiles");
         profile.HasKey(item => item.Id);
         profile.HasIndex(item => item.Key).IsUnique();
         profile.Property(item => item.Key).HasMaxLength(80).IsRequired();
