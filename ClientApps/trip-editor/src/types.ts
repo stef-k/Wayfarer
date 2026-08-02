@@ -79,6 +79,7 @@ export interface EditorSegment {
   mode: string;
   estimatedDistanceKm: number | null;
   estimatedDurationMinutes: number | null;
+  estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string;
   route: GeoJsonLineString | null;
   displayOrder: number;
@@ -264,6 +265,7 @@ export interface EditorSegmentSaveRequest {
   mode: string | null;
   estimatedDistanceKm: number | null;
   estimatedDurationMinutes: number | null;
+  estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string | null;
   route: GeoJsonLineString | null;
 }
@@ -309,6 +311,7 @@ export interface EditorSegmentDraft {
   mode: string;
   estimatedDistanceKm: string | number;
   estimatedDurationMinutes: string | number;
+  estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string;
   route: GeoJsonLineString | null;
 }

@@ -119,6 +119,7 @@ public sealed record EditorSegmentSaveRequest(
     string Mode,
     double? EstimatedDistanceKm,
     double? EstimatedDurationMinutes,
+    EstimatedDurationSource EstimatedDurationSource,
     string? NotesHtml,
     NetTopologySuite.Geometries.LineString? Route);
 

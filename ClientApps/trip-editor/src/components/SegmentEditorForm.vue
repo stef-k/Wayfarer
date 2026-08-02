@@ -79,11 +79,18 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
     <div class="trip-editor-field-grid">
       <label class="trip-editor-field">
         <span>Estimated distance km</span>
-        <input v-model="draft.estimatedDistanceKm" type="number" min="0" step="any" />
+        <input :value="draft.estimatedDistanceKm" type="number" readonly aria-readonly="true" />
         <small v-for="message in fieldErrors('estimatedDistanceKm')" :key="message">{{ message }}</small>
       </label>
 
-      <label class="trip-editor-field">
+      <div class="trip-editor-field">
+        <span>Duration estimate</span>
+        <label><input v-model="draft.estimatedDurationSource" type="radio" value="Automatic" /> Use automatic estimate</label>
+        <label><input v-model="draft.estimatedDurationSource" type="radio" value="Manual" /> Enter manually</label>
+        <small v-for="message in fieldErrors('estimatedDurationSource')" :key="message">{{ message }}</small>
+      </div>
+
+      <label v-if="draft.estimatedDurationSource === 'Manual'" class="trip-editor-field">
         <span>Estimated duration minutes</span>
         <input v-model="draft.estimatedDurationMinutes" type="number" min="0" step="any" />
         <small v-for="message in fieldErrors('estimatedDurationMinutes')" :key="message">{{ message }}</small>

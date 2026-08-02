@@ -121,6 +121,7 @@ public static class EditorTripStateMapper
             segment.Mode ?? string.Empty,
             segment.EstimatedDistanceKm,
             segment.EstimatedDuration?.TotalMinutes,
+            segment.EstimatedDurationSource.ToString(),
             segment.Notes ?? string.Empty,
             ToGeoJson(segment.RouteGeometry),
             segment.DisplayOrder,

@@ -16,7 +16,7 @@ internal static class EditorSegmentRequestParser
     public static bool TryParseSave(JsonElement request, out EditorSegmentSaveRequest update, out Dictionary<string, string[]> errors)
     {
         errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        update = new EditorSegmentSaveRequest(null, null, string.Empty, null, null, null, null);
+        update = new EditorSegmentSaveRequest(null, null, string.Empty, null, null, EstimatedDurationSource.Automatic, null, null);
         if (!ValidateObject(request, errors, "Segment mutation request must be a JSON object."))
         {
             return false;
@@ -26,8 +26,13 @@ internal static class EditorSegmentRequestParser
         var fromPlaceId = ReadRequiredNullableGuid(request, "fromPlaceId", errors);
         var toPlaceId = ReadRequiredNullableGuid(request, "toPlaceId", errors);
         var mode = ReadRequiredNullableString(request, "mode", errors);
-        var distance = ReadRequiredNullableNonNegativeDouble(request, "estimatedDistanceKm", errors);
-        var duration = ReadRequiredNullableNonNegativeDouble(request, "estimatedDurationMinutes", errors);
+        var distance = ReadIgnoredRequiredNumber(request, "estimatedDistanceKm", errors);
+        var durationSource = ReadRequiredDurationSource(request, errors);
+        var duration = durationSource == EstimatedDurationSource.Manual
+            ? ReadRequiredNullableNonNegativeDouble(request, "estimatedDurationMinutes", errors)
+            : ReadIgnoredRequiredNumber(request, "estimatedDurationMinutes", errors);
+        if (durationSource == EstimatedDurationSource.Manual && !duration.HasValue && !errors.ContainsKey("estimatedDurationMinutes"))
+            errors["estimatedDurationMinutes"] = ["Manual duration is required."];
         var notesHtml = ReadRequiredNullableString(request, "notesHtml", errors);
         var route = ReadRequiredNullableRoute(request, errors);
         ValidateMode(mode, errors);
@@ -44,6 +49,7 @@ internal static class EditorSegmentRequestParser
             CanonicalMode(mode),
             distance,
             duration,
+            durationSource,
             EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
             route);
         return true;
@@ -176,6 +182,30 @@ internal static class EditorSegmentRequestParser
         }
 
         return value;
+    }
+
+    private static double? ReadIgnoredRequiredNumber(JsonElement request, string name, Dictionary<string, string[]> errors)
+    {
+        if (!request.TryGetProperty(name, out _))
+            errors[name] = ["The field is required for request-shape compatibility."];
+        return null;
+    }
+
+    private static EstimatedDurationSource ReadRequiredDurationSource(JsonElement request, Dictionary<string, string[]> errors)
+    {
+        if (!request.TryGetProperty("estimatedDurationSource", out var property))
+        {
+            errors["estimatedDurationSource"] = ["Reload the editor before saving; estimated duration source is required."];
+            return EstimatedDurationSource.Automatic;
+        }
+        if (property.ValueKind != JsonValueKind.String
+            || !Enum.TryParse<EstimatedDurationSource>(property.GetString(), ignoreCase: true, out var source)
+            || !Enum.IsDefined(source))
+        {
+            errors["estimatedDurationSource"] = ["Duration source must be Automatic or Manual."];
+            return EstimatedDurationSource.Automatic;
+        }
+        return source;
     }
 
     private static LineString? ReadRequiredNullableRoute(JsonElement request, Dictionary<string, string[]> errors)
