@@ -47,7 +47,7 @@ public sealed class SegmentWaypointPostgresTests
         Assert.Equal(12.345d, segment.EstimatedDistanceKm);
         Assert.Equal(4, segment.DisplayOrder);
         Assert.Equal("legacy notes", segment.Notes);
-        Assert.Empty(await context.SegmentWaypoints.Where(item => item.SegmentId == segmentId).ToListAsync());
+        Assert.Empty(await context.Set<SegmentWaypoint>().Where(item => item.SegmentId == segmentId).ToListAsync());
 
         await migrator.MigrateAsync(PreviousMigration);
         Assert.False(await TableExistsAsync(context, "SegmentWaypoints"));
@@ -63,17 +63,26 @@ public sealed class SegmentWaypointPostgresTests
         var aggregate = await SeedAggregateAsync();
         await using var context = _fixture.CreateContext();
 
+        await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.FirstPlaceId, 1, null);
+        await AssertInsertFailsAsync(context, Guid.NewGuid(), aggregate.SecondPlaceId, 1, null);
+        await AssertInsertFailsAsync(context, aggregate.SegmentId, Guid.NewGuid(), 1, null);
         await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, -1, null);
         await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, 1, 0);
         await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, 0, null);
         await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, 1, 2);
+
+        // PostgreSQL's partial index permits multiple null mappings while still rejecting duplicate custom indices.
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""INSERT INTO public."SegmentWaypoints" ("SegmentId", "PlaceId", "Position", "RouteVertexIndex") VALUES ({aggregate.SegmentId}, {aggregate.SecondPlaceId}, {1}, {null as int?})""");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""DELETE FROM public."SegmentWaypoints" WHERE "SegmentId" = {aggregate.SegmentId} AND "PlaceId" = {aggregate.SecondPlaceId}""");
 
         await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync(
             $"""DELETE FROM public."Places" WHERE "Id" = {aggregate.FirstPlaceId}"""));
         Assert.True(await context.Segments.AsNoTracking().AnyAsync(item => item.Id == aggregate.SegmentId));
 
         await context.Database.ExecuteSqlInterpolatedAsync($"""DELETE FROM public."Segments" WHERE "Id" = {aggregate.SegmentId}""");
-        Assert.False(await context.SegmentWaypoints.AsNoTracking().AnyAsync(item => item.SegmentId == aggregate.SegmentId));
+        Assert.False(await context.Set<SegmentWaypoint>().AsNoTracking().AnyAsync(item => item.SegmentId == aggregate.SegmentId));
     }
 
     /// <summary>Persists representative fallback, custom, and canonical closed-loop aggregates through the reconciler.</summary>
@@ -97,8 +106,8 @@ public sealed class SegmentWaypointPostgresTests
             [new(places[seeded.PlaceIds[1]], 0, null)], null).Succeeded);
 
         await context.SaveChangesAsync();
-        Assert.Equal(4, await context.SegmentWaypoints.CountAsync(item => item.SegmentId == fallback.Id || item.SegmentId == custom.Id || item.SegmentId == loop.Id));
-        Assert.Equal([1, 3], await context.SegmentWaypoints.Where(item => item.SegmentId == custom.Id).OrderBy(item => item.Position).Select(item => item.RouteVertexIndex!.Value).ToListAsync());
+        Assert.Equal(4, await context.Set<SegmentWaypoint>().CountAsync(item => item.SegmentId == fallback.Id || item.SegmentId == custom.Id || item.SegmentId == loop.Id));
+        Assert.Equal([1, 3], await context.Set<SegmentWaypoint>().Where(item => item.SegmentId == custom.Id).OrderBy(item => item.Position).Select(item => item.RouteVertexIndex!.Value).ToListAsync());
     }
 
     /// <summary>Proves rejection inside a real transaction leaves the stored and tracked aggregate unchanged.</summary>
@@ -124,7 +133,32 @@ public sealed class SegmentWaypointPostgresTests
         Assert.Equal(originalWaypointId, Assert.Single(segment.Waypoints).PlaceId);
         await transaction.CommitAsync();
         await using var verification = _fixture.CreateContext();
-        Assert.Equal(originalWaypointId, await verification.SegmentWaypoints.Where(item => item.SegmentId == segment.Id).Select(item => item.PlaceId).SingleAsync());
+        Assert.Equal(originalWaypointId, await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == segment.Id).Select(item => item.PlaceId).SingleAsync());
+    }
+
+    /// <summary>Proves the aggregate loader retrieves ordered waypoint places and supports one-unit-of-work updates.</summary>
+    [PostgresFact]
+    public async Task AggregateLoader_LoadsOrderedGraph_AndPersistsAcceptedUpdateOnce()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+        var segment = await SegmentRouteReconciler.LoadAggregateAsync(context, aggregate.SegmentId);
+        var replacement = await context.Places.Include(place => place.Region).SingleAsync(place => place.Id == aggregate.SecondPlaceId);
+
+        Assert.NotNull(segment);
+        Assert.NotNull(segment!.FromPlace?.Region);
+        Assert.NotNull(segment.ToPlace?.Region);
+        Assert.NotNull(Assert.Single(segment.Waypoints).Place.Region);
+        var result = SegmentRouteReconciler.Reconcile(segment, segment.FromPlace, segment.ToPlace, [new(replacement, 0, null)], null);
+
+        Assert.True(result.Succeeded);
+        await context.SaveChangesAsync();
+        await using var verification = _fixture.CreateContext();
+        var stored = await verification.Set<SegmentWaypoint>().SingleAsync(item => item.SegmentId == segment.Id);
+        Assert.Equal(replacement.Id, stored.PlaceId);
+        Assert.Null(stored.RouteVertexIndex);
+        Assert.Null(await verification.Segments.Where(item => item.Id == segment.Id).Select(item => item.RouteGeometry).SingleAsync());
     }
 
     private async Task<(Guid SegmentId, Guid FirstPlaceId, Guid SecondPlaceId, Guid ForeignPlaceId)> SeedAggregateAsync()

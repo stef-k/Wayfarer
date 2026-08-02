@@ -66,6 +66,21 @@ public sealed class SegmentRouteReconcilerTests
         Assert.Equal(endpoint.Id, result.EffectiveAnchorChain[^1].Id);
     }
 
+    /// <summary>A zero-waypoint fallback loop retains two route positions with one saved-place identity.</summary>
+    [Fact]
+    public void Reconcile_ZeroWaypointClosedLoop_ProducesZeroDistanceFallback()
+    {
+        var tripId = Guid.NewGuid();
+        var endpoint = Place(tripId, 1, 1);
+
+        var result = SegmentRouteReconciler.Reconcile(Segment(tripId), endpoint, endpoint, [], null);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, result.EffectiveAnchorChain.Count);
+        Assert.Same(result.EffectiveAnchorChain[0], result.EffectiveAnchorChain[1]);
+        Assert.True(result.EffectiveAnchorChain[0].Location!.Coordinate.Equals2D(result.EffectiveAnchorChain[1].Location!.Coordinate));
+    }
+
     /// <summary>A custom route accepts complete ordered interior anchor mappings.</summary>
     [Fact]
     public void Reconcile_ValidCustomGeometry_AcceptsOrderedWaypointIndices()
@@ -120,7 +135,10 @@ public sealed class SegmentRouteReconcilerTests
         (tripId, from, to, via) => (from, to, [new(to, 0, null)], null),
         (tripId, from, to, via) => (null, to, [new(via, 0, null)], null),
         (tripId, from, to, via) => (from, null, [new(via, 0, null)], null),
+        (tripId, from, to, via) => (Place(tripId, null, null), to, [new(via, 0, null)], null),
+        (tripId, from, to, via) => (from, Place(tripId, null, null), [new(via, 0, null)], null),
         (tripId, from, to, via) => (from, to, [new(Place(tripId, null, null), 0, null)], null),
+        (tripId, from, to, via) => (from, to, [new(Place(tripId, 2, 2, 3857), 0, null)], null),
         (tripId, from, to, via) => (from, to, [new(via, 1, null)], null),
         (tripId, from, to, via) => (from, to, [new(via, 0, null), new(Place(tripId, 3, 3), 0, null)], null),
         (tripId, from, to, via) => (from, to, [new(via, 0, null)], Line(Coordinate(10, 10), Coordinate(2, 2), Coordinate(11, 11))),
@@ -150,13 +168,13 @@ public sealed class SegmentRouteReconcilerTests
 
     private static Segment Segment(Guid? tripId = null) => new() { Id = Guid.NewGuid(), TripId = tripId ?? Guid.NewGuid(), UserId = "owner" };
 
-    private static Place Place(Guid tripId, double? longitude, double? latitude) => new()
+    private static Place Place(Guid tripId, double? longitude, double? latitude, int srid = 4326) => new()
     {
         Id = Guid.NewGuid(),
         Region = new Region { Id = Guid.NewGuid(), TripId = tripId, UserId = "owner" },
         RegionId = Guid.NewGuid(),
         UserId = "owner",
-        Location = longitude.HasValue ? new Point(longitude.Value, latitude!.Value) { SRID = 4326 } : null
+        Location = longitude.HasValue ? new Point(longitude.Value, latitude!.Value) { SRID = srid } : null
     };
 
     private static Coordinate Coordinate(double x, double y) => new(x, y);

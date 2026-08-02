@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 
@@ -24,6 +25,18 @@ public static class SegmentRouteReconciler
     /// <summary>Maximum independent longitude or latitude difference accepted for an anchor vertex.</summary>
     public const double CoordinateToleranceDegrees = 0.0000001d;
 
+    /// <summary>Loads the complete tracked aggregate required for authoritative route reconciliation.</summary>
+    public static Task<Segment?> LoadAggregateAsync(
+        ApplicationDbContext dbContext,
+        Guid segmentId,
+        CancellationToken cancellationToken = default) =>
+        dbContext.Segments
+            .Include(segment => segment.FromPlace).ThenInclude(place => place!.Region)
+            .Include(segment => segment.ToPlace).ThenInclude(place => place!.Region)
+            .Include(segment => segment.Waypoints.OrderBy(waypoint => waypoint.Position))
+                .ThenInclude(waypoint => waypoint.Place).ThenInclude(place => place.Region)
+            .SingleOrDefaultAsync(segment => segment.Id == segmentId, cancellationToken);
+
     /// <summary>
     /// Validates a complete proposal before changing the tracked segment, so rejection cannot partially
     /// replace waypoint rows, endpoints, or geometry.
@@ -49,19 +62,27 @@ public static class SegmentRouteReconciler
         segment.ToPlaceId = to?.Id;
         segment.ToPlace = to;
         segment.RouteGeometry = routeGeometry;
-        segment.Waypoints.Clear();
+        var existingByPlaceId = segment.Waypoints.ToDictionary(waypoint => waypoint.PlaceId);
+        var reconciledWaypoints = new List<SegmentWaypoint>(waypoints.Count);
         foreach (var proposed in waypoints)
         {
-            segment.Waypoints.Add(new SegmentWaypoint
+            if (!existingByPlaceId.TryGetValue(proposed.Place.Id, out var waypoint))
             {
-                SegmentId = segment.Id,
-                Segment = segment,
-                PlaceId = proposed.Place.Id,
-                Place = proposed.Place,
-                Position = proposed.Position,
-                RouteVertexIndex = proposed.RouteVertexIndex
-            });
+                waypoint = new SegmentWaypoint
+                {
+                    SegmentId = segment.Id,
+                    Segment = segment,
+                    PlaceId = proposed.Place.Id
+                };
+            }
+
+            waypoint.Place = proposed.Place;
+            waypoint.Position = proposed.Position;
+            waypoint.RouteVertexIndex = proposed.RouteVertexIndex;
+            reconciledWaypoints.Add(waypoint);
         }
+
+        segment.Waypoints = reconciledWaypoints;
 
         return new(true, [], BuildAnchorChain(from, waypoints, to));
     }
@@ -82,10 +103,10 @@ public static class SegmentRouteReconciler
 
         if (from == null) errors.Add("From place is required when a segment has waypoints.");
         if (to == null) errors.Add("To place is required when a segment has waypoints.");
-        if (from?.Location == null) errors.Add("From place must have a location when a segment has waypoints.");
-        if (to?.Location == null) errors.Add("To place must have a location when a segment has waypoints.");
-        if (from != null && TripId(from) != tripId) errors.Add("From place must belong to the segment trip.");
-        if (to != null && TripId(to) != tripId) errors.Add("To place must belong to the segment trip.");
+        if (from != null && !HasValidLocation(from)) errors.Add("From place must have a valid SRID 4326 location when a segment has waypoints.");
+        if (to != null && !HasValidLocation(to)) errors.Add("To place must have a valid SRID 4326 location when a segment has waypoints.");
+        if (from != null && !BelongsToTrip(from, tripId)) errors.Add("From place must belong to the segment trip.");
+        if (to != null && !BelongsToTrip(to, tripId)) errors.Add("To place must belong to the segment trip.");
 
         var placeIds = new HashSet<Guid>();
         var positions = new HashSet<int>();
@@ -98,8 +119,8 @@ public static class SegmentRouteReconciler
                 errors.Add("Intermediate waypoint places must be unique within a segment.");
             if (waypoint.Place.Id == from?.Id) errors.Add("A waypoint cannot equal the From place.");
             if (waypoint.Place.Id == to?.Id) errors.Add("A waypoint cannot equal the To place.");
-            if (TripId(waypoint.Place) != tripId) errors.Add("Every waypoint place must belong to the segment trip.");
-            if (waypoint.Place.Location == null) errors.Add("Every waypoint place must have a location.");
+            if (!BelongsToTrip(waypoint.Place, tripId)) errors.Add("Every waypoint place must belong to the segment trip.");
+            if (!HasValidLocation(waypoint.Place)) errors.Add("Every waypoint place must have a valid SRID 4326 location.");
         }
 
         if (geometry == null)
@@ -170,7 +191,12 @@ public static class SegmentRouteReconciler
         return anchors;
     }
 
-    private static Guid TripId(Place place) => place.Region.TripId;
+    private static bool BelongsToTrip(Place place, Guid tripId) => place.Region != null && place.Region.TripId == tripId;
+
+    private static bool HasValidLocation(Place place) =>
+        place.Location is { IsEmpty: false, SRID: 4326 } location
+        && double.IsFinite(location.X)
+        && double.IsFinite(location.Y);
 
     private static bool CoordinatesMatch(Coordinate actual, Coordinate expected)
     {

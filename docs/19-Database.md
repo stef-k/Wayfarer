@@ -134,6 +134,32 @@ Route between two places with travel mode and geometry.
 | `DisplayOrder` | int | Sort order within trip |
 | `Notes` | string | Rich-text HTML notes |
 
+### SegmentWaypoint
+
+Ordered intermediate saved-place anchors are persisted as aggregate children rather than embedded
+identifiers in route coordinates.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SegmentId` | Guid | Owning segment; part of the composite primary key |
+| `PlaceId` | Guid | Referenced canonical saved place; part of the composite primary key |
+| `Position` | int | Zero-based contiguous waypoint order |
+| `RouteVertexIndex` | int? | Zero-based interior vertex in custom geometry; null for fallback geometry |
+
+Deleting a Segment cascades to its waypoint associations. The Place relationship is restrictive:
+an association never owns or deletes its saved Place. PostgreSQL enforces nonnegative positions,
+positive non-null route indices, unique places and positions per Segment, and unique non-null route
+indices per Segment. Same-trip ownership, contiguity, endpoint eligibility, saved-place locations,
+and coordinate matching remain server aggregate invariants because they cross rows or spatial values.
+
+`SegmentRouteReconciler` is the single route-aggregate boundary. It loads endpoints and ordered
+waypoint places, validates a complete proposal before changing tracked state, and leaves transaction
+and `SaveChanges` ownership with its caller. Null `RouteGeometry` remains null; fallback consumers use
+the effective anchor chain `From → waypoints by Position → To` without persisting a convenience line.
+Custom routes use SRID 4326 longitude/latitude coordinates and require every semantic anchor to match
+within `0.0000001` degrees independently on each axis. A closed loop reuses one canonical Place for
+both endpoints and never creates a duplicate Place or marker identity.
+
 Transport modes resolve through the administrator-managed `TransportProfiles` catalog. The durable segment `Mode` string remains compatible with public and interchange contracts; planning speeds are database configuration rather than documentation constants.
 
 ---
