@@ -20,6 +20,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Tests.Services;
 using Wayfarer.Util;
 using Xunit;
 
@@ -30,6 +31,28 @@ namespace Wayfarer.Tests.Views;
 /// </summary>
 public sealed class TileAttributionLayoutRenderingTests
 {
+    [Fact]
+    public void PlaywrightEnvironmentUsers_ShareTheNonParallelCollection()
+    {
+        const string expectedCollection = "Playwright browser environment";
+        var affectedTypes = new[]
+        {
+            typeof(TripExportServiceTests),
+            typeof(TripMapThumbnailGeneratorTests),
+            typeof(TileAttributionLayoutRenderingTests)
+        };
+
+        Assert.All(affectedTypes, type =>
+            Assert.Equal(
+                expectedCollection,
+                type.GetCustomAttributesData()
+                    .Where(attribute => attribute.AttributeType == typeof(CollectionAttribute))
+                    .Single()
+                    .ConstructorArguments
+                    .Single()
+                    .Value));
+    }
+
     [Fact]
     public async Task LayoutReflectsProviderChangesAndSanitizesStoredAttributionOnEveryRender()
     {

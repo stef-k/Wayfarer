@@ -27,6 +27,24 @@ public class TripMapThumbnailGeneratorTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_PreservesUnsetPlaywrightBrowserPath()
+    {
+        var previousPath = Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", null);
+
+            _ = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
+
+            Assert.Null(Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", previousPath);
+        }
+    }
+
+    [Fact]
     public async Task GetOrGenerateThumbnailAsync_ReturnsNull_WhenCoordinatesInvalid()
     {
         var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
