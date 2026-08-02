@@ -74,7 +74,9 @@ public static class SegmentRouteReconciler
         {
             await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
 
-            await RefreshStaleCanonicalStateAsync(dbContext, proposal.SegmentId, cancellationToken);
+            var refreshScope = await LoadCanonicalRefreshScopeAsync(dbContext, proposal, cancellationToken);
+            if (refreshScope == null) return new(false, ["Segment was not found."], []);
+            RefreshStaleCanonicalState(dbContext, refreshScope);
             var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
             if (segment == null) return new(false, ["Segment was not found."], []);
             var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
@@ -135,43 +137,84 @@ public static class SegmentRouteReconciler
             cancellationToken);
     }
 
-    /// <summary>Refreshes unchanged identity-map values which could predate acquisition of the row lock.</summary>
-    private static async Task RefreshStaleCanonicalStateAsync(
+    /// <summary>Loads the bounded canonical identities and values needed after acquiring the Segment row lock.</summary>
+    private static async Task<CanonicalRefreshScope?> LoadCanonicalRefreshScopeAsync(
         ApplicationDbContext dbContext,
-        Guid segmentId,
+        SegmentRouteProposal proposal,
         CancellationToken cancellationToken)
     {
+        var segment = await dbContext.Segments.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == proposal.SegmentId, cancellationToken);
+        if (segment == null) return null;
+
+        var currentWaypointPlaceIds = await dbContext.Set<SegmentWaypoint>().AsNoTracking()
+            .Where(item => item.SegmentId == proposal.SegmentId)
+            .Select(item => item.PlaceId)
+            .ToArrayAsync(cancellationToken);
+        var placeIds = currentWaypointPlaceIds.Select(item => (Guid?)item)
+            .Concat(proposal.Waypoints.Select(item => (Guid?)item.PlaceId))
+            .Append(segment.FromPlaceId).Append(segment.ToPlaceId)
+            .Append(proposal.FromPlaceId).Append(proposal.ToPlaceId)
+            .Where(item => item.HasValue).Select(item => item!.Value).Distinct().ToArray();
+        var regionIds = await dbContext.Places.AsNoTracking()
+            .Where(item => placeIds.Contains(item.Id))
+            .Select(item => item.RegionId).Distinct().ToArrayAsync(cancellationToken);
+        var regions = await dbContext.Regions.AsNoTracking()
+            .Where(item => regionIds.Contains(item.Id)).ToArrayAsync(cancellationToken);
+        var tripIds = regions.Select(item => item.TripId).Append(segment.TripId).Distinct().ToArray();
+        var trips = await dbContext.Trips.AsNoTracking()
+            .Where(item => tripIds.Contains(item.Id)).ToArrayAsync(cancellationToken);
+        return new(segment, placeIds, regions, trips);
+    }
+
+    /// <summary>Refreshes only unchanged identity-map values in the target aggregate and proposal scope.</summary>
+    private static void RefreshStaleCanonicalState(
+        ApplicationDbContext dbContext,
+        CanonicalRefreshScope scope)
+    {
+        var segmentId = scope.Segment.Id;
         var trackedSegment = dbContext.ChangeTracker.Entries<Segment>()
             .SingleOrDefault(entry => entry.Entity.Id == segmentId);
         foreach (var entry in dbContext.ChangeTracker.Entries<SegmentWaypoint>()
                      .Where(entry => entry.Entity.SegmentId == segmentId).ToArray())
             entry.State = EntityState.Detached;
-        foreach (var entry in dbContext.ChangeTracker.Entries<Place>().ToArray()) entry.State = EntityState.Detached;
-        foreach (var entry in dbContext.ChangeTracker.Entries<Region>().ToArray()) entry.State = EntityState.Detached;
+        foreach (var entry in dbContext.ChangeTracker.Entries<Place>()
+                     .Where(entry => scope.PlaceIds.Contains(entry.Entity.Id)).ToArray())
+            entry.State = EntityState.Detached;
+        RefreshTrackedValues(dbContext.ChangeTracker.Entries<Region>(), scope.Regions, item => item.Id);
+        RefreshTrackedValues(dbContext.ChangeTracker.Entries<Trip>(), scope.Trips, item => item.Id);
         if (trackedSegment == null) return;
-        if (trackedSegment.State == EntityState.Detached)
-        {
-            var replacement = dbContext.ChangeTracker.Entries<Segment>()
-                .SingleOrDefault(entry => entry.Entity.Id == segmentId);
-            if (replacement != null) trackedSegment = replacement;
-            else
-            {
-                trackedSegment.Entity.FromPlace = null;
-                trackedSegment.Entity.ToPlace = null;
-                trackedSegment.Entity.Waypoints = [];
-                trackedSegment = dbContext.Attach(trackedSegment.Entity);
-            }
-        }
         trackedSegment.Entity.FromPlace = null;
         trackedSegment.Entity.ToPlace = null;
         trackedSegment.Entity.Waypoints = [];
-        var canonical = await dbContext.Segments.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == segmentId, cancellationToken);
-        if (canonical == null) return;
-        trackedSegment.CurrentValues.SetValues(canonical);
-        trackedSegment.OriginalValues.SetValues(canonical);
+        trackedSegment.CurrentValues.SetValues(scope.Segment);
+        trackedSegment.OriginalValues.SetValues(scope.Segment);
         trackedSegment.State = EntityState.Unchanged;
     }
+
+    /// <summary>Copies set-loaded canonical scalar values into matching unchanged tracked identities.</summary>
+    private static void RefreshTrackedValues<TEntity>(
+        IEnumerable<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<TEntity>> trackedEntries,
+        IEnumerable<TEntity> canonicalEntities,
+        Func<TEntity, Guid> idSelector)
+        where TEntity : class
+    {
+        var canonicalById = canonicalEntities.ToDictionary(idSelector);
+        foreach (var entry in trackedEntries.Where(entry => canonicalById.ContainsKey(idSelector(entry.Entity))).ToArray())
+        {
+            var canonical = canonicalById[idSelector(entry.Entity)];
+            entry.CurrentValues.SetValues(canonical);
+            entry.OriginalValues.SetValues(canonical);
+            entry.State = EntityState.Unchanged;
+        }
+    }
+
+    /// <summary>Contains post-lock canonical identities and scalar values bounded to one proposal.</summary>
+    private sealed record CanonicalRefreshScope(
+        Segment Segment,
+        Guid[] PlaceIds,
+        Region[] Regions,
+        Trip[] Trips);
 
     private static LineString? CopyGeometry(SegmentRouteProposal proposal) =>
         proposal.RouteGeometry == null ? null : (LineString)proposal.RouteGeometry.Copy();
