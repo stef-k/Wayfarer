@@ -323,6 +323,7 @@ public class TripControllerTests : TestBase
                 new Coordinate(11, 21)
             }) { SRID = 4326 },
             EstimatedDuration = TimeSpan.FromMinutes(30),
+            EstimatedDurationSource = EstimatedDurationSource.Manual,
             EstimatedDistanceKm = 25.5,
             DisplayOrder = 1,
             Notes = "Segment notes"
@@ -351,7 +352,8 @@ public class TripControllerTests : TestBase
         Assert.Equal(segment.Mode, clonedSegment.Mode);
         Assert.Equal(segment.Notes, clonedSegment.Notes);
         Assert.Equal(segment.EstimatedDuration, clonedSegment.EstimatedDuration);
-        Assert.Equal(segment.EstimatedDistanceKm, clonedSegment.EstimatedDistanceKm);
+        Assert.Equal(EstimatedDurationSource.Manual, clonedSegment.EstimatedDurationSource);
+        Assert.NotEqual(segment.EstimatedDistanceKm, clonedSegment.EstimatedDistanceKm);
 
         // Verify place ID mapping worked
         Assert.NotEqual(place1.Id, clonedSegment.FromPlaceId);
