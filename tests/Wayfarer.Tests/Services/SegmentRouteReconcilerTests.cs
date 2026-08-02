@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -5,229 +7,237 @@ using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
-/// <summary>Verifies the server-authoritative segment route aggregate invariants.</summary>
+/// <summary>Verifies canonical loading, validation, and defensive route ownership.</summary>
 public sealed class SegmentRouteReconcilerTests
 {
-    /// <summary>Legacy zero-waypoint segments retain optional endpoints and geometry.</summary>
+    /// <summary>Legacy zero-waypoint segments retain optional endpoints and receive a defensive geometry copy.</summary>
     [Fact]
-    public void Reconcile_ZeroWaypoints_PreservesLegacyCompatibility()
+    public async Task ReconcileAsync_ZeroWaypoints_PreservesLegacyCompatibility()
     {
-        var segment = Segment();
-        var geometry = Line(Coordinate(1, 1), Coordinate(2, 2));
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var geometry = Line((1, 1), (2, 2));
 
-        var result = SegmentRouteReconciler.Reconcile(segment, null, null, [], geometry);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], geometry));
 
         Assert.True(result.Succeeded);
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
         Assert.Null(segment.FromPlaceId);
         Assert.Null(segment.ToPlaceId);
-        Assert.Same(geometry, segment.RouteGeometry);
+        Assert.NotSame(geometry, segment.RouteGeometry);
         Assert.Empty(segment.Waypoints);
     }
 
-    /// <summary>A valid fallback proposal retains null geometry and produces its deterministic anchor chain.</summary>
+    /// <summary>A valid fallback proposal commits canonical endpoints and deterministic waypoint order.</summary>
     [Fact]
-    public void Reconcile_ValidFallback_ProducesOrderedAnchorChain()
+    public async Task ReconcileAsync_ValidFallback_UsesCanonicalAnchorChain()
     {
-        var tripId = Guid.NewGuid();
-        var from = Place(tripId, 1, 1);
-        var via = Place(tripId, 2, 2);
-        var to = Place(tripId, 3, 3);
-        var segment = Segment(tripId);
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
 
-        var result = SegmentRouteReconciler.Reconcile(segment, from, to, [new(via, 0, null)], null);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [new(seeded.PlaceIds[1], 0, null)], null));
 
         Assert.True(result.Succeeded);
-        Assert.Null(segment.RouteGeometry);
-        Assert.Collection(segment.Waypoints, waypoint =>
-        {
-            Assert.Equal(via.Id, waypoint.PlaceId);
-            Assert.Equal(0, waypoint.Position);
-            Assert.Null(waypoint.RouteVertexIndex);
-        });
-        Assert.Equal([from.Location!.Coordinate, via.Location!.Coordinate, to.Location!.Coordinate],
-            result.EffectiveAnchorChain.Select(place => place.Location!.Coordinate), CoordinateComparer.Instance);
+        Assert.Equal(seeded.PlaceIds, result.EffectiveAnchorChain.Select(item => item.Id));
+        var waypoint = await context.Set<SegmentWaypoint>().SingleAsync();
+        Assert.Equal(seeded.PlaceIds[1], waypoint.PlaceId);
+        Assert.Equal(0, waypoint.Position);
+        Assert.Null(waypoint.RouteVertexIndex);
     }
 
-    /// <summary>A closed loop reuses one canonical endpoint place without duplicating it.</summary>
+    /// <summary>Canonical endpoint identity may be reused for an approved closed loop.</summary>
     [Fact]
-    public void Reconcile_ValidClosedLoop_UsesCanonicalEndpointPlace()
+    public async Task ReconcileAsync_ClosedLoop_UsesOneCanonicalEndpoint()
     {
-        var tripId = Guid.NewGuid();
-        var endpoint = Place(tripId, 1, 1);
-        var via = Place(tripId, 2, 2);
-        var segment = Segment(tripId);
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
 
-        var result = SegmentRouteReconciler.Reconcile(segment, endpoint, endpoint, [new(via, 0, null)], null);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, seeded.PlaceIds[0], seeded.PlaceIds[0],
+                [new(seeded.PlaceIds[1], 0, null)], null));
 
         Assert.True(result.Succeeded);
-        Assert.Equal(endpoint.Id, segment.FromPlaceId);
-        Assert.Equal(endpoint.Id, segment.ToPlaceId);
-        Assert.Equal(endpoint.Id, result.EffectiveAnchorChain[0].Id);
-        Assert.Equal(endpoint.Id, result.EffectiveAnchorChain[^1].Id);
+        Assert.Equal(seeded.PlaceIds[0], result.EffectiveAnchorChain[0].Id);
+        Assert.Equal(seeded.PlaceIds[0], result.EffectiveAnchorChain[^1].Id);
     }
 
-    /// <summary>A zero-waypoint fallback loop retains two route positions with one saved-place identity.</summary>
+    /// <summary>Custom geometry is validated and stored as the same defensive copy.</summary>
     [Fact]
-    public void Reconcile_ZeroWaypointClosedLoop_ProducesZeroDistanceFallback()
+    public async Task ReconcileAsync_CustomGeometry_StoresValidatedDefensiveCopy()
     {
-        var tripId = Guid.NewGuid();
-        var endpoint = Place(tripId, 1, 1);
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var geometry = Line((1, 1), (2, 2), (3, 3));
 
-        var result = SegmentRouteReconciler.Reconcile(Segment(tripId), endpoint, endpoint, [], null);
-
-        Assert.True(result.Succeeded);
-        Assert.Equal(2, result.EffectiveAnchorChain.Count);
-        Assert.Same(result.EffectiveAnchorChain[0], result.EffectiveAnchorChain[1]);
-        Assert.True(result.EffectiveAnchorChain[0].Location!.Coordinate.Equals2D(result.EffectiveAnchorChain[1].Location!.Coordinate));
-    }
-
-    /// <summary>A custom route accepts complete ordered interior anchor mappings.</summary>
-    [Fact]
-    public void Reconcile_ValidCustomGeometry_AcceptsOrderedWaypointIndices()
-    {
-        var tripId = Guid.NewGuid();
-        var from = Place(tripId, 1, 1);
-        var first = Place(tripId, 2, 2);
-        var second = Place(tripId, 4, 4);
-        var to = Place(tripId, 5, 5);
-        var geometry = Line(Coordinate(1, 1), Coordinate(1.5, 1.5), Coordinate(2, 2), Coordinate(3, 3), Coordinate(4, 4), Coordinate(5, 5));
-        var segment = Segment(tripId);
-
-        var result = SegmentRouteReconciler.Reconcile(segment, from, to, [new(first, 0, 2), new(second, 1, 4)], geometry);
-
-        Assert.True(result.Succeeded);
-        Assert.Same(geometry, segment.RouteGeometry);
-        Assert.Equal([2, 4], segment.Waypoints.Select(waypoint => waypoint.RouteVertexIndex));
-    }
-
-    /// <summary>Representative invalid proposals reject without changing tracked aggregate state.</summary>
-    [Theory]
-    [MemberData(nameof(InvalidProposals))]
-    public void Reconcile_InvalidProposal_LeavesAggregateUnchanged(
-        Func<Guid, Place, Place, Place, (Place?, Place?, SegmentWaypointProposal[], LineString?)> proposal)
-    {
-        var tripId = Guid.NewGuid();
-        var originalFrom = Place(tripId, 10, 10);
-        var originalTo = Place(tripId, 11, 11);
-        var candidate = Place(tripId, 2, 2);
-        var segment = Segment(tripId);
-        segment.FromPlaceId = originalFrom.Id;
-        segment.FromPlace = originalFrom;
-        segment.ToPlaceId = originalTo.Id;
-        segment.ToPlace = originalTo;
-        segment.Waypoints.Add(new SegmentWaypoint { SegmentId = segment.Id, PlaceId = candidate.Id, Place = candidate, Position = 0 });
-        var before = Snapshot(segment);
-        var proposed = proposal(tripId, originalFrom, originalTo, candidate);
-
-        var result = SegmentRouteReconciler.Reconcile(segment, proposed.Item1, proposed.Item2, proposed.Item3, proposed.Item4);
-
-        Assert.False(result.Succeeded);
-        Assert.NotEmpty(result.Errors);
-        Assert.Equal(before, Snapshot(segment));
-    }
-
-    /// <summary>Enumerates ownership, ordering, endpoint, location, and geometry rejection cases.</summary>
-    public static TheoryData<Func<Guid, Place, Place, Place, (Place?, Place?, SegmentWaypointProposal[], LineString?)>> InvalidProposals => new()
-    {
-        (tripId, from, to, via) => (from, to, [new(Place(Guid.NewGuid(), 2, 2), 0, null)], null),
-        (tripId, from, to, via) => (from, to, [new(via, 0, null), new(via, 1, null)], null),
-        (tripId, from, to, via) => (from, to, [new(from, 0, null)], null),
-        (tripId, from, to, via) => (from, to, [new(to, 0, null)], null),
-        (tripId, from, to, via) => (null, to, [new(via, 0, null)], null),
-        (tripId, from, to, via) => (from, null, [new(via, 0, null)], null),
-        (tripId, from, to, via) => (Place(tripId, null, null), to, [new(via, 0, null)], null),
-        (tripId, from, to, via) => (from, Place(tripId, null, null), [new(via, 0, null)], null),
-        (tripId, from, to, via) => (from, to, [new(Place(tripId, null, null), 0, null)], null),
-        (tripId, from, to, via) => (from, to, [new(Place(tripId, 2, 2, 3857), 0, null)], null),
-        (tripId, from, to, via) => (from, to, [new(via, 1, null)], null),
-        (tripId, from, to, via) => (from, to, [new(via, 0, null), new(Place(tripId, 3, 3), 0, null)], null),
-        (tripId, from, to, via) => (from, to, [new(via, 0, null)], Line(Coordinate(10, 10), Coordinate(2, 2), Coordinate(11, 11))),
-        (tripId, from, to, via) => (from, to, [new(via, 0, 1)], null),
-        (tripId, from, to, via) => (from, to, [new(via, 0, 1), new(Place(tripId, 3, 3), 1, 1)], Line(Coordinate(10, 10), Coordinate(2, 2), Coordinate(3, 3), Coordinate(11, 11))),
-        (tripId, from, to, via) => (from, to, [new(via, 0, 2), new(Place(tripId, 3, 3), 1, 1)], Line(Coordinate(10, 10), Coordinate(3, 3), Coordinate(2, 2), Coordinate(11, 11))),
-        (tripId, from, to, via) => (from, to, [new(via, 0, 0)], Line(Coordinate(10, 10), Coordinate(2, 2), Coordinate(11, 11))),
-        (tripId, from, to, via) => (from, to, [new(via, 0, 2)], Line(Coordinate(10, 10), Coordinate(2, 2), Coordinate(11, 11))),
-        (tripId, from, to, via) => (from, to, [new(via, 0, 1)], Line(Coordinate(10, 10), Coordinate(2.000001, 2), Coordinate(11, 11))),
-        (tripId, from, to, via) => (from, from, [new(via, 0, 1)], Line(Coordinate(10, 10), Coordinate(2, 2), Coordinate(10.000001, 10)))
-    };
-
-    /// <summary>The inclusive tolerance boundary is accepted independently on both axes.</summary>
-    [Fact]
-    public void Reconcile_CoordinateAtToleranceBoundary_IsAccepted()
-    {
-        var tripId = Guid.NewGuid();
-        var from = Place(tripId, 1, 1);
-        var via = Place(tripId, 2, 2);
-        var to = Place(tripId, 3, 3);
-        var geometry = Line(Coordinate(1.0000001, 0.9999999), Coordinate(2.0000001, 1.9999999), Coordinate(3.0000001, 2.9999999));
-
-        var result = SegmentRouteReconciler.Reconcile(Segment(tripId), from, to, [new(via, 0, 1)], geometry);
-
-        Assert.True(result.Succeeded);
-    }
-
-    /// <summary>Caller-created place graphs cannot establish authoritative trip ownership.</summary>
-    [Fact]
-    public void Reconcile_FabricatedPlaceOwnership_IsRejected()
-    {
-        var tripId = Guid.NewGuid();
-        var from = Place(tripId, 1, 1);
-        var to = Place(tripId, 3, 3);
-        var fabricated = Place(tripId, 2, 2);
-
-        var result = SegmentRouteReconciler.Reconcile(
-            Segment(tripId),
-            from,
-            to,
-            [new(fabricated, 0, null)],
-            null);
-
-        Assert.False(result.Succeeded);
-    }
-
-    /// <summary>The accepted custom route must not retain caller-owned mutable geometry state.</summary>
-    [Fact]
-    public void Reconcile_CustomGeometryMutation_DoesNotChangeAcceptedRoute()
-    {
-        var tripId = Guid.NewGuid();
-        var from = Place(tripId, 1, 1);
-        var via = Place(tripId, 2, 2);
-        var to = Place(tripId, 3, 3);
-        var geometry = Line(Coordinate(1, 1), Coordinate(2, 2), Coordinate(3, 3));
-        var segment = Segment(tripId);
-
-        var result = SegmentRouteReconciler.Reconcile(segment, from, to, [new(via, 0, 1)], geometry);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [new(seeded.PlaceIds[1], 0, 1)], geometry));
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        var storedCopy = segment.RouteGeometry;
         geometry.GetCoordinateN(1).X = 99;
         geometry.SRID = 3857;
 
         Assert.True(result.Succeeded);
-        Assert.NotSame(geometry, segment.RouteGeometry);
-        Assert.Equal(2, segment.RouteGeometry!.GetCoordinateN(1).X);
-        Assert.Equal(4326, segment.RouteGeometry.SRID);
+        Assert.NotSame(geometry, storedCopy);
+        Assert.Equal(2, storedCopy!.GetCoordinateN(1).X);
+        Assert.Equal(4326, storedCopy.SRID);
     }
 
-    private static Segment Segment(Guid? tripId = null) => new() { Id = Guid.NewGuid(), TripId = tripId ?? Guid.NewGuid(), UserId = "owner" };
-
-    private static Place Place(Guid tripId, double? longitude, double? latitude, int srid = 4326) => new()
+    /// <summary>Caller-created Place graphs cannot enter the identity-only proposal boundary.</summary>
+    [Fact]
+    public async Task ReconcileAsync_FabricatedDetachedPlace_CannotInfluenceCanonicalState()
     {
-        Id = Guid.NewGuid(),
-        Region = new Region { Id = Guid.NewGuid(), TripId = tripId, UserId = "owner" },
-        RegionId = Guid.NewGuid(),
-        UserId = "owner",
-        Location = longitude.HasValue ? new Point(longitude.Value, latitude!.Value) { SRID = srid } : null
-    };
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var fabricated = new Place
+        {
+            Id = seeded.PlaceIds[1],
+            Region = new Region { TripId = seeded.TripId },
+            Location = new Point(99, 99) { SRID = 4326 }
+        };
 
-    private static Coordinate Coordinate(double x, double y) => new(x, y);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [new(fabricated.Id, 0, 1)], Line((1, 1), (99, 99), (3, 3))));
 
-    private static LineString Line(params Coordinate[] coordinates) => new(coordinates) { SRID = 4326 };
-
-    private static string Snapshot(Segment segment) =>
-        $"{segment.FromPlaceId}|{segment.ToPlaceId}|{segment.RouteGeometry?.AsText()}|{string.Join(';', segment.Waypoints.Select(waypoint => $"{waypoint.PlaceId}:{waypoint.Position}:{waypoint.RouteVertexIndex}"))}";
-
-    private sealed class CoordinateComparer : IEqualityComparer<Coordinate>
-    {
-        internal static readonly CoordinateComparer Instance = new();
-        public bool Equals(Coordinate? left, Coordinate? right) => left?.Equals2D(right) == true;
-        public int GetHashCode(Coordinate coordinate) => HashCode.Combine(coordinate.X, coordinate.Y);
+        Assert.False(result.Succeeded);
+        Assert.DoesNotContain(context.ChangeTracker.Entries<Place>(), entry => ReferenceEquals(entry.Entity, fabricated));
+        Assert.Empty(await context.Set<SegmentWaypoint>().ToListAsync());
     }
+
+    /// <summary>Canonical coordinates, rather than stale caller assumptions, authorize a custom route.</summary>
+    [Fact]
+    public async Task ReconcileAsync_CanonicalLocation_IsUsedForValidation()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [new(seeded.PlaceIds[1], 0, 1)], Line((1, 1), (2, 2), (3, 3))));
+
+        Assert.True(result.Succeeded);
+    }
+
+    /// <summary>Missing endpoint and waypoint identities produce deterministic distinct errors.</summary>
+    [Fact]
+    public async Task ReconcileAsync_MissingIdentities_AreDistinguished()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var missingEndpoint = Guid.NewGuid();
+        var missingWaypoint = Guid.NewGuid();
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, missingEndpoint, seeded.PlaceIds[2], [new(missingWaypoint, 0, null)], null));
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("From place was not found.", result.Errors);
+        Assert.Contains("Waypoint place at position 0 was not found.", result.Errors);
+    }
+
+    /// <summary>Canonical cross-trip endpoint and waypoint ownership failures are distinguished by label.</summary>
+    [Fact]
+    public async Task ReconcileAsync_CrossTripIdentities_AreRejected()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context, includeForeign: true);
+
+        var endpoint = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, seeded.ForeignPlaceId, seeded.PlaceIds[2], [new(seeded.PlaceIds[1], 0, null)], null));
+        var waypoint = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, seeded.PlaceIds[0], seeded.PlaceIds[2], [new(seeded.ForeignPlaceId!.Value, 0, null)], null));
+
+        Assert.Contains("From place must belong to the segment trip.", endpoint.Errors);
+        Assert.Contains("Every waypoint place must belong to the segment trip.", waypoint.Errors);
+    }
+
+    /// <summary>Representative malformed proposals leave tracked and persisted aggregate state unchanged.</summary>
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(0, true)]
+    public async Task ReconcileAsync_InvalidProposal_IsAtomic(int position, bool duplicateEndpoint)
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var original = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [new(seeded.PlaceIds[1], 0, null)], null));
+        Assert.True(original.Succeeded);
+        var before = await SnapshotAsync(context, seeded.SegmentId);
+        var waypointId = duplicateEndpoint ? seeded.PlaceIds[0] : seeded.PlaceIds[1];
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [new(waypointId, position, null)], null));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(before, await SnapshotAsync(context, seeded.SegmentId));
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+    }
+
+    /// <summary>The inclusive seven-decimal coordinate tolerance remains accepted.</summary>
+    [Fact]
+    public async Task ReconcileAsync_CoordinateAtToleranceBoundary_IsAccepted()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context, Proposal(seeded,
+            [new(seeded.PlaceIds[1], 0, 1)],
+            Line((1.0000001, 0.9999999), (2.0000001, 1.9999999), (3.0000001, 2.9999999))));
+
+        Assert.True(result.Succeeded);
+    }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var services = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new(options, services);
+    }
+
+    private static async Task<SeededAggregate> SeedAsync(ApplicationDbContext context, bool includeForeign = false)
+    {
+        var user = new ApplicationUser { Id = Guid.NewGuid().ToString(), UserName = Guid.NewGuid().ToString(), DisplayName = "owner" };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "region" };
+        var places = Enumerable.Range(1, 3).Select(index => new Place
+        {
+            Id = Guid.NewGuid(), RegionId = region.Id, Region = region, UserId = user.Id,
+            Name = $"place {index}", Location = new Point(index, index) { SRID = 4326 }
+        }).ToArray();
+        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Mode = "walk" };
+        context.AddRange(user, trip, region, segment);
+        context.Places.AddRange(places);
+        Guid? foreignPlaceId = null;
+        if (includeForeign)
+        {
+            var foreignTrip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, User = user, Name = "foreign" };
+            var foreignRegion = new Region { Id = Guid.NewGuid(), TripId = foreignTrip.Id, Trip = foreignTrip, UserId = user.Id, Name = "foreign" };
+            var foreign = new Place { Id = Guid.NewGuid(), RegionId = foreignRegion.Id, Region = foreignRegion, UserId = user.Id, Name = "foreign", Location = new Point(9, 9) { SRID = 4326 } };
+            context.AddRange(foreignTrip, foreignRegion, foreign);
+            foreignPlaceId = foreign.Id;
+        }
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        return new(segment.Id, trip.Id, places.Select(item => item.Id).ToArray(), foreignPlaceId);
+    }
+
+    private static SegmentRouteProposal Proposal(
+        SeededAggregate seeded,
+        IReadOnlyList<SegmentWaypointProposal> waypoints,
+        LineString? geometry) =>
+        new(seeded.SegmentId, seeded.PlaceIds[0], seeded.PlaceIds[2], waypoints, geometry);
+
+    private static LineString Line(params (double X, double Y)[] points) =>
+        new(points.Select(point => new Coordinate(point.X, point.Y)).ToArray()) { SRID = 4326 };
+
+    private static async Task<string> SnapshotAsync(ApplicationDbContext context, Guid segmentId)
+    {
+        var segment = await SegmentRouteReconciler.LoadAggregateAsync(context, segmentId);
+        return $"{segment!.FromPlaceId}|{segment.ToPlaceId}|{segment.RouteGeometry?.AsText()}|{string.Join(';', segment.Waypoints.OrderBy(item => item.Position).Select(item => $"{item.PlaceId}:{item.Position}:{item.RouteVertexIndex}"))}";
+    }
+
+    private sealed record SeededAggregate(Guid SegmentId, Guid TripId, Guid[] PlaceIds, Guid? ForeignPlaceId);
 }

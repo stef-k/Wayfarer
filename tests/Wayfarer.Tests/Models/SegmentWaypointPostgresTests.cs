@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
@@ -98,14 +99,15 @@ public sealed class SegmentWaypointPostgresTests
         var custom = NewSegment(seeded, 2);
         var loop = NewSegment(seeded, 3);
         context.Segments.AddRange(fallback, custom, loop);
-        Assert.True(SegmentRouteReconciler.Reconcile(fallback, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[2]], [new(places[seeded.PlaceIds[1]], 0, null)], null).Succeeded);
-        Assert.True(SegmentRouteReconciler.Reconcile(custom, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[3]],
-            [new(places[seeded.PlaceIds[1]], 0, 1), new(places[seeded.PlaceIds[2]], 1, 3)],
-            Line((1, 1), (2, 2), (2.5, 2.5), (3, 3), (4, 4))).Succeeded);
-        Assert.True(SegmentRouteReconciler.Reconcile(loop, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[0]],
-            [new(places[seeded.PlaceIds[1]], 0, null)], null).Succeeded);
-
         await context.SaveChangesAsync();
+        Assert.True((await SegmentRouteReconciler.ReconcileAsync(context,
+            new(fallback.Id, seeded.PlaceIds[0], seeded.PlaceIds[2], [new(seeded.PlaceIds[1], 0, null)], null))).Succeeded);
+        Assert.True((await SegmentRouteReconciler.ReconcileAsync(context,
+            new(custom.Id, seeded.PlaceIds[0], seeded.PlaceIds[3],
+                [new(seeded.PlaceIds[1], 0, 1), new(seeded.PlaceIds[2], 1, 3)],
+                Line((1, 1), (2, 2), (2.5, 2.5), (3, 3), (4, 4))))).Succeeded);
+        Assert.True((await SegmentRouteReconciler.ReconcileAsync(context,
+            new(loop.Id, seeded.PlaceIds[0], seeded.PlaceIds[0], [new(seeded.PlaceIds[1], 0, null)], null))).Succeeded);
         Assert.Equal(4, await context.Set<SegmentWaypoint>().CountAsync(item => item.SegmentId == fallback.Id || item.SegmentId == custom.Id || item.SegmentId == loop.Id));
         Assert.Equal([1, 3], await context.Set<SegmentWaypoint>().Where(item => item.SegmentId == custom.Id).OrderBy(item => item.Position).Select(item => item.RouteVertexIndex!.Value).ToListAsync());
     }
@@ -117,21 +119,17 @@ public sealed class SegmentWaypointPostgresTests
         _fixture.RequireAvailable();
         var aggregate = await SeedAggregateAsync();
         await using var context = _fixture.CreateContext();
-        await using var transaction = await context.Database.BeginTransactionAsync();
         var segment = await context.Segments
             .Include(item => item.FromPlace).ThenInclude(place => place!.Region)
             .Include(item => item.ToPlace).ThenInclude(place => place!.Region)
             .Include(item => item.Waypoints).ThenInclude(waypoint => waypoint.Place).ThenInclude(place => place.Region)
             .SingleAsync(item => item.Id == aggregate.SegmentId);
         var originalWaypointId = Assert.Single(segment.Waypoints).PlaceId;
-        var foreignTripPlace = await context.Places.Include(place => place.Region).SingleAsync(place => place.Id == aggregate.ForeignPlaceId);
-
-        var result = SegmentRouteReconciler.Reconcile(segment, segment.FromPlace, segment.ToPlace, [new(foreignTripPlace, 0, null)], null);
-        await context.SaveChangesAsync();
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, segment.FromPlaceId, segment.ToPlaceId, [new(aggregate.ForeignPlaceId, 0, null)], null));
 
         Assert.False(result.Succeeded);
         Assert.Equal(originalWaypointId, Assert.Single(segment.Waypoints).PlaceId);
-        await transaction.CommitAsync();
         await using var verification = _fixture.CreateContext();
         Assert.Equal(originalWaypointId, await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == segment.Id).Select(item => item.PlaceId).SingleAsync());
     }
@@ -144,19 +142,17 @@ public sealed class SegmentWaypointPostgresTests
         var aggregate = await SeedAggregateAsync();
         await using var context = _fixture.CreateContext();
         var segment = await SegmentRouteReconciler.LoadAggregateAsync(context, aggregate.SegmentId);
-        var replacement = await context.Places.Include(place => place.Region).SingleAsync(place => place.Id == aggregate.SecondPlaceId);
-
         Assert.NotNull(segment);
         Assert.NotNull(segment!.FromPlace?.Region);
         Assert.NotNull(segment.ToPlace?.Region);
         Assert.NotNull(Assert.Single(segment.Waypoints).Place.Region);
-        var result = SegmentRouteReconciler.Reconcile(segment, segment.FromPlace, segment.ToPlace, [new(replacement, 0, null)], null);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, segment.FromPlaceId, segment.ToPlaceId, [new(aggregate.SecondPlaceId, 0, null)], null));
 
         Assert.True(result.Succeeded);
-        await context.SaveChangesAsync();
         await using var verification = _fixture.CreateContext();
         var stored = await verification.Set<SegmentWaypoint>().SingleAsync(item => item.SegmentId == segment.Id);
-        Assert.Equal(replacement.Id, stored.PlaceId);
+        Assert.Equal(aggregate.SecondPlaceId, stored.PlaceId);
         Assert.Null(stored.RouteVertexIndex);
         Assert.Null(await verification.Segments.Where(item => item.Id == segment.Id).Select(item => item.RouteGeometry).SingleAsync());
     }
@@ -174,9 +170,10 @@ public sealed class SegmentWaypointPostgresTests
                 .Where(place => seeded.PlaceIds.Contains(place.Id))
                 .ToDictionaryAsync(place => place.Id);
             seedContext.Segments.Add(segment);
-            Assert.True(SegmentRouteReconciler.Reconcile(segment, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[3]],
-                [new(places[seeded.PlaceIds[1]], 0, null), new(places[seeded.PlaceIds[2]], 1, null)], null).Succeeded);
             await seedContext.SaveChangesAsync();
+            Assert.True((await SegmentRouteReconciler.ReconcileAsync(seedContext,
+                new(segment.Id, seeded.PlaceIds[0], seeded.PlaceIds[3],
+                    [new(seeded.PlaceIds[1], 0, null), new(seeded.PlaceIds[2], 1, null)], null))).Succeeded);
         }
 
         await using var context = _fixture.CreateContext();
@@ -184,15 +181,127 @@ public sealed class SegmentWaypointPostgresTests
         Assert.NotNull(aggregate);
         var original = aggregate!.Waypoints.OrderBy(item => item.Position).ToArray();
 
-        var result = SegmentRouteReconciler.Reconcile(aggregate, aggregate.FromPlace, aggregate.ToPlace,
-            [new(original[1].Place, 0, null), new(original[0].Place, 1, null)], null);
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(aggregate.Id, aggregate.FromPlaceId, aggregate.ToPlaceId,
+                [new(original[1].PlaceId, 0, null), new(original[0].PlaceId, 1, null)], null));
 
         Assert.True(result.Succeeded);
-        await context.SaveChangesAsync();
         await using var verification = _fixture.CreateContext();
         Assert.Equal([original[1].PlaceId, original[0].PlaceId],
             await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == segment.Id)
                 .OrderBy(item => item.Position).Select(item => item.PlaceId).ToListAsync());
+    }
+
+    /// <summary>Arbitrary persisted reorder shapes replace the complete association set atomically.</summary>
+    [PostgresTheory]
+    [InlineData(3, 2, 1, 0)]
+    [InlineData(1, 2, 3, 0)]
+    public async Task Reconcile_PersistedMultiWaypointReorder_CommitsContiguousOrder(params int[] order)
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+        var proposal = order.Select((sourceIndex, position) =>
+            new SegmentWaypointProposal(aggregate.WaypointIds[sourceIndex], position, null)).ToArray();
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(aggregate.SegmentId, aggregate.FromPlaceId, aggregate.ToPlaceId, proposal, null));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(order.Select(index => aggregate.WaypointIds[index]),
+            await context.Set<SegmentWaypoint>().Where(item => item.SegmentId == aggregate.SegmentId)
+                .OrderBy(item => item.Position).Select(item => item.PlaceId).ToListAsync());
+    }
+
+    /// <summary>Add, remove, and reorder are committed as one complete PostgreSQL association replacement.</summary>
+    [PostgresFact]
+    public async Task Reconcile_AddRemoveAndReorder_CommitsOneFinalSet()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+        var expected = new[] { aggregate.WaypointIds[2], aggregate.AdditionalPlaceId, aggregate.WaypointIds[0] };
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(aggregate.SegmentId, aggregate.FromPlaceId, aggregate.ToPlaceId,
+                expected.Select((id, position) => new SegmentWaypointProposal(id, position, null)).ToArray(), null));
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(expected, await context.Set<SegmentWaypoint>().Where(item => item.SegmentId == aggregate.SegmentId)
+            .OrderBy(item => item.Position).Select(item => item.PlaceId).ToArrayAsync());
+    }
+
+    /// <summary>A provider failure after deletion rolls back storage and selectively reloads usable tracked state.</summary>
+    [PostgresFact]
+    public async Task Reconcile_ProviderFailure_RollsBackAndRestoresTrackedAggregate()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        var interceptor = new FailNextSaveInterceptor();
+        await using var context = _fixture.CreateContext(interceptor);
+        var segment = await SegmentRouteReconciler.LoadAggregateAsync(context, aggregate.SegmentId);
+        var unrelated = await context.Places.SingleAsync(item => item.Id == aggregate.AdditionalPlaceId);
+        var original = segment!.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray();
+        interceptor.Arm();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, segment.FromPlaceId, segment.ToPlaceId,
+                original.Reverse().Select((id, position) => new SegmentWaypointProposal(id, position, null)).ToArray(), null)));
+
+        Assert.Equal(original, segment.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId));
+        Assert.Equal(EntityState.Unchanged, context.Entry(segment).State);
+        Assert.Equal(EntityState.Unchanged, context.Entry(unrelated).State);
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+        await context.SaveChangesAsync();
+        await using var verification = _fixture.CreateContext();
+        Assert.Equal(original, await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == segment.Id)
+            .OrderBy(item => item.Position).Select(item => item.PlaceId).ToArrayAsync());
+    }
+
+    /// <summary>PostgreSQL persistence retains the validated geometry copy after caller mutation.</summary>
+    [PostgresFact]
+    public async Task Reconcile_DefensiveGeometryCopy_PersistsCanonicalCoordinates()
+    {
+        _fixture.RequireAvailable();
+        var seeded = await SeedPlacesAsync();
+        var segment = NewSegment(seeded, 7);
+        await using var context = _fixture.CreateContext();
+        context.Segments.Add(segment);
+        await context.SaveChangesAsync();
+        var geometry = Line((1, 1), (2, 2), (3, 3));
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, seeded.PlaceIds[0], seeded.PlaceIds[2], [new(seeded.PlaceIds[1], 0, 1)], geometry));
+        geometry.GetCoordinateN(1).X = 99;
+        geometry.SRID = 3857;
+
+        Assert.True(result.Succeeded);
+        Assert.NotSame(geometry, segment.RouteGeometry);
+        await using var verification = _fixture.CreateContext();
+        var stored = await verification.Segments.Where(item => item.Id == segment.Id).Select(item => item.RouteGeometry).SingleAsync();
+        Assert.Equal(2, stored!.GetCoordinateN(1).X);
+        Assert.Equal(4326, stored.SRID);
+    }
+
+    /// <summary>Canonical provider loading distinguishes missing and cross-trip proposal identities.</summary>
+    [PostgresFact]
+    public async Task Reconcile_CanonicalIdentityFailures_AreDeterministicAndAtomic()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+        var missing = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(aggregate.SegmentId, Guid.NewGuid(), aggregate.SecondPlaceId, [new(Guid.NewGuid(), 0, null)], null));
+        var crossTrip = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(aggregate.SegmentId, aggregate.FirstPlaceId, aggregate.SecondPlaceId,
+                [new(aggregate.ForeignPlaceId, 0, null)], null));
+
+        Assert.Contains("From place was not found.", missing.Errors);
+        Assert.Contains("Waypoint place at position 0 was not found.", missing.Errors);
+        Assert.Contains("Every waypoint place must belong to the segment trip.", crossTrip.Errors);
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
     }
 
     private async Task<(Guid SegmentId, Guid FirstPlaceId, Guid SecondPlaceId, Guid ForeignPlaceId)> SeedAggregateAsync()
@@ -202,10 +311,26 @@ public sealed class SegmentWaypointPostgresTests
         var places = await context.Places.Include(place => place.Region).Where(place => seeded.PlaceIds.Contains(place.Id)).ToDictionaryAsync(place => place.Id);
         var segment = NewSegment(seeded, 1);
         context.Segments.Add(segment);
-        Assert.True(SegmentRouteReconciler.Reconcile(segment, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[2]], [new(places[seeded.PlaceIds[1]], 0, 2)],
-            Line((1, 1), (1.5, 1.5), (2, 2), (3, 3))).Succeeded);
         await context.SaveChangesAsync();
+        Assert.True((await SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, seeded.PlaceIds[0], seeded.PlaceIds[2], [new(seeded.PlaceIds[1], 0, 2)],
+                Line((1, 1), (1.5, 1.5), (2, 2), (3, 3))))).Succeeded);
         return (segment.Id, seeded.PlaceIds[1], seeded.PlaceIds[3], seeded.ForeignPlaceId!.Value);
+    }
+
+    private async Task<(Guid SegmentId, Guid FromPlaceId, Guid ToPlaceId, Guid[] WaypointIds, Guid AdditionalPlaceId)> SeedOrderedAggregateAsync()
+    {
+        var seeded = await SeedPlacesAsync();
+        var segment = NewSegment(seeded, 8);
+        await using var context = _fixture.CreateContext();
+        context.Segments.Add(segment);
+        await context.SaveChangesAsync();
+        var waypointIds = seeded.PlaceIds[1..5];
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, seeded.PlaceIds[0], seeded.PlaceIds[5],
+                waypointIds.Select((id, position) => new SegmentWaypointProposal(id, position, null)).ToArray(), null));
+        Assert.True(result.Succeeded);
+        return (segment.Id, seeded.PlaceIds[0], seeded.PlaceIds[5], waypointIds, seeded.PlaceIds[6]);
     }
 
     private async Task<(Guid TripId, string UserId, Guid[] PlaceIds, Guid? ForeignPlaceId)> SeedPlacesAsync(bool includeForeignTrip = false)
@@ -213,7 +338,7 @@ public sealed class SegmentWaypointPostgresTests
         var user = await _fixture.CreateUserAsync();
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Waypoint provider fixture" };
         var region = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Name = "Route" };
-        var places = Enumerable.Range(1, 4).Select(index => new Place
+        var places = Enumerable.Range(1, 7).Select(index => new Place
         {
             Id = Guid.NewGuid(), Region = region, RegionId = region.Id, UserId = user.Id, Name = $"Place {index}", Location = new Point(index, index) { SRID = 4326 }
         }).ToArray();
@@ -257,5 +382,24 @@ public sealed class SegmentWaypointPostgresTests
         command.CommandText = "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @table)";
         command.Parameters.Add(new NpgsqlParameter("table", table));
         return (bool)(await command.ExecuteScalarAsync())!;
+    }
+
+    private sealed class FailNextSaveInterceptor : SaveChangesInterceptor
+    {
+        private bool _armed;
+
+        /// <summary>Arms one deterministic persistence failure after provider-side waypoint deletion.</summary>
+        internal void Arm() => _armed = true;
+
+        /// <summary>Throws once at the SaveChanges seam used to insert the final association set.</summary>
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_armed) return base.SavingChangesAsync(eventData, result, cancellationToken);
+            _armed = false;
+            throw new InvalidOperationException("Forced waypoint persistence failure.");
+        }
     }
 }

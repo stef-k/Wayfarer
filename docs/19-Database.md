@@ -152,13 +152,24 @@ positive non-null route indices, unique places and positions per Segment, and un
 indices per Segment. Same-trip ownership, contiguity, endpoint eligibility, saved-place locations,
 and coordinate matching remain server aggregate invariants because they cross rows or spatial values.
 
-`SegmentRouteReconciler` is the single route-aggregate boundary. It loads endpoints and ordered
-waypoint places, validates a complete proposal before changing tracked state, and leaves transaction
-and `SaveChanges` ownership with its caller. Null `RouteGeometry` remains null; fallback consumers use
-the effective anchor chain `From → waypoints by Position → To` without persisting a convenience line.
-Custom routes use SRID 4326 longitude/latitude coordinates and require every semantic anchor to match
-within `0.0000001` degrees independently on each axis. A closed loop reuses one canonical Place for
-both endpoints and never creates a duplicate Place or marker identity.
+`SegmentRouteReconciler` is the single route-aggregate persistence boundary. Its internal proposal
+contains only Segment and Place identities, waypoint scalars, and optional geometry. The reconciler
+loads canonical Segment, Place, Region, and Trip ownership state through its DbContext in bounded
+queries; detached caller-created Place graphs are never authoritative or attached.
+
+The reconciler owns its transaction and `SaveChanges` boundary. After validation it replaces the
+complete waypoint association set inside one transaction, avoiding PostgreSQL's immediate unique-index
+collisions during arbitrary reorder while preserving the final indexes and checks. Provider failure
+rolls back and selectively reloads the affected aggregate without clearing unrelated tracked entities.
+Segment has no optimistic-concurrency token in this slice: transactions and database constraints keep
+each committed aggregate structurally valid, but user-facing conflict semantics remain a later API concern.
+
+Null `RouteGeometry` remains null; fallback consumers use the effective anchor chain
+`From → waypoints by Position → To` without persisting a convenience line. A proposed custom LineString
+is defensively copied before validation, and only that validated copy is stored. Custom routes use SRID
+4326 longitude/latitude coordinates and require every semantic anchor to match within `0.0000001`
+degrees independently on each axis. A closed loop reuses one canonical Place for both endpoints and
+never creates a duplicate Place or marker identity.
 
 Transport modes resolve through the administrator-managed `TransportProfiles` catalog. The durable segment `Mode` string remains compatible with public and interchange contracts; planning speeds are database configuration rather than documentation constants.
 

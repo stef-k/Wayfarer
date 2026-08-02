@@ -4,29 +4,105 @@ using Wayfarer.Models;
 
 namespace Wayfarer.Services;
 
-/// <summary>Describes one proposed intermediate saved-place anchor.</summary>
-/// <param name="Place">The canonical saved place.</param>
-/// <param name="Position">Its zero-based position in the submitted sequence.</param>
-/// <param name="RouteVertexIndex">Its custom-route vertex index, or null for fallback geometry.</param>
-public sealed record SegmentWaypointProposal(Place Place, int Position, int? RouteVertexIndex);
+/// <summary>Describes one proposed intermediate saved-place anchor by canonical identity.</summary>
+/// <param name="PlaceId">Canonical saved-place identity.</param>
+/// <param name="Position">Zero-based position in the submitted sequence.</param>
+/// <param name="RouteVertexIndex">Custom-route vertex index, or null for fallback geometry.</param>
+public sealed record SegmentWaypointProposal(Guid PlaceId, int Position, int? RouteVertexIndex);
 
-/// <summary>Reports whether a route proposal was applied and its effective saved-place anchor chain.</summary>
-/// <param name="Succeeded">Whether validation succeeded and the tracked aggregate was updated.</param>
+/// <summary>Describes a complete persisted Segment route aggregate proposal.</summary>
+/// <param name="SegmentId">Canonical Segment identity.</param>
+/// <param name="FromPlaceId">Proposed canonical origin identity.</param>
+/// <param name="ToPlaceId">Proposed canonical destination identity.</param>
+/// <param name="Waypoints">Ordered waypoint scalar proposals.</param>
+/// <param name="RouteGeometry">Proposed custom route, or null for fallback rendering.</param>
+public sealed record SegmentRouteProposal(
+    Guid SegmentId,
+    Guid? FromPlaceId,
+    Guid? ToPlaceId,
+    IReadOnlyList<SegmentWaypointProposal> Waypoints,
+    LineString? RouteGeometry);
+
+/// <summary>Reports whether a route proposal committed and its effective canonical anchor chain.</summary>
+/// <param name="Succeeded">Whether validation succeeded and the aggregate committed.</param>
 /// <param name="Errors">Deterministic aggregate validation errors.</param>
-/// <param name="EffectiveAnchorChain">The ordered saved-place anchors used by fallback rendering.</param>
+/// <param name="EffectiveAnchorChain">Canonical saved-place anchors used by fallback rendering.</param>
 public sealed record SegmentRouteReconciliationResult(
     bool Succeeded,
     IReadOnlyList<string> Errors,
     IReadOnlyList<Place> EffectiveAnchorChain);
 
-/// <summary>Validates and atomically applies endpoint, waypoint, and custom-route aggregate state.</summary>
+/// <summary>Loads, validates, and atomically persists canonical Segment route aggregate state.</summary>
 public static class SegmentRouteReconciler
 {
     /// <summary>Maximum independent longitude or latitude difference accepted for an anchor vertex.</summary>
     public const double CoordinateToleranceDegrees = 0.0000001d;
 
-    /// <summary>Loads the complete tracked aggregate required for authoritative route reconciliation.</summary>
-    public static Task<Segment?> LoadAggregateAsync(
+    /// <summary>
+    /// Owns the transaction and SaveChanges boundary required to replace ordered waypoint rows without
+    /// exposing an intermediate PostgreSQL uniqueness collision.
+    /// </summary>
+    public static async Task<SegmentRouteReconciliationResult> ReconcileAsync(
+        ApplicationDbContext dbContext,
+        SegmentRouteProposal proposal,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(proposal);
+        ArgumentNullException.ThrowIfNull(proposal.Waypoints);
+        if (dbContext.Database.CurrentTransaction != null)
+            throw new InvalidOperationException("Segment route reconciliation owns its transaction boundary.");
+
+        var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
+        if (segment == null)
+            return new(false, ["Segment was not found."], []);
+
+        var requiredPlaceIds = proposal.Waypoints.Select(item => (Guid?)item.PlaceId)
+            .Append(proposal.FromPlaceId)
+            .Append(proposal.ToPlaceId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToArray();
+        var placesById = await dbContext.Places
+            .Include(place => place.Region)
+            .Where(place => requiredPlaceIds.Contains(place.Id))
+            .ToDictionaryAsync(place => place.Id, cancellationToken);
+        var geometry = proposal.RouteGeometry == null ? null : (LineString)proposal.RouteGeometry.Copy();
+        var errors = Validate(segment.TripId, proposal, placesById, geometry);
+        var anchors = BuildAnchorChain(proposal, placesById);
+        if (errors.Count > 0)
+            return new(false, errors, anchors);
+
+        if (!dbContext.Database.IsRelational())
+        {
+            ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return new(true, [], anchors);
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await dbContext.Set<SegmentWaypoint>()
+                .Where(item => item.SegmentId == segment.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+            DetachCurrentWaypoints(dbContext, segment);
+            ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new(true, [], anchors);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            await ReloadAggregateAsync(dbContext, segment, cancellationToken);
+            throw;
+        }
+    }
+
+    /// <summary>Loads the complete tracked aggregate needed for mutation and failure recovery.</summary>
+    internal static Task<Segment?> LoadAggregateAsync(
         ApplicationDbContext dbContext,
         Guid segmentId,
         CancellationToken cancellationToken = default) =>
@@ -37,107 +113,147 @@ public static class SegmentRouteReconciler
                 .ThenInclude(waypoint => waypoint.Place).ThenInclude(place => place.Region)
             .SingleOrDefaultAsync(segment => segment.Id == segmentId, cancellationToken);
 
-    /// <summary>
-    /// Validates a complete proposal before changing the tracked segment, so rejection cannot partially
-    /// replace waypoint rows, endpoints, or geometry.
-    /// </summary>
-    public static SegmentRouteReconciliationResult Reconcile(
+    private static void ApplyTrackedState(
+        ApplicationDbContext dbContext,
         Segment segment,
-        Place? from,
-        Place? to,
-        IReadOnlyList<SegmentWaypointProposal> waypoints,
-        LineString? routeGeometry)
+        SegmentRouteProposal proposal,
+        IReadOnlyDictionary<Guid, Place> placesById,
+        LineString? geometry)
     {
-        ArgumentNullException.ThrowIfNull(segment);
-        ArgumentNullException.ThrowIfNull(waypoints);
-
-        var errors = Validate(segment.TripId, from, to, waypoints, routeGeometry);
-        if (errors.Count > 0)
+        if (!dbContext.Database.IsRelational())
         {
-            return new(false, errors, BuildAnchorChain(from, waypoints, to));
+            dbContext.RemoveRange(segment.Waypoints);
+            segment.Waypoints.Clear();
         }
 
-        segment.FromPlaceId = from?.Id;
-        segment.FromPlace = from;
-        segment.ToPlaceId = to?.Id;
-        segment.ToPlace = to;
-        segment.RouteGeometry = routeGeometry;
-        var existingByPlaceId = segment.Waypoints.ToDictionary(waypoint => waypoint.PlaceId);
-        var reconciledWaypoints = new List<SegmentWaypoint>(waypoints.Count);
-        foreach (var proposed in waypoints)
+        segment.FromPlaceId = proposal.FromPlaceId;
+        segment.FromPlace = proposal.FromPlaceId.HasValue ? placesById[proposal.FromPlaceId.Value] : null;
+        segment.ToPlaceId = proposal.ToPlaceId;
+        segment.ToPlace = proposal.ToPlaceId.HasValue ? placesById[proposal.ToPlaceId.Value] : null;
+        segment.RouteGeometry = geometry;
+        foreach (var proposed in proposal.Waypoints)
         {
-            if (!existingByPlaceId.TryGetValue(proposed.Place.Id, out var waypoint))
+            segment.Waypoints.Add(new SegmentWaypoint
             {
-                waypoint = new SegmentWaypoint
-                {
-                    SegmentId = segment.Id,
-                    Segment = segment,
-                    PlaceId = proposed.Place.Id
-                };
-            }
-
-            waypoint.Place = proposed.Place;
-            waypoint.Position = proposed.Position;
-            waypoint.RouteVertexIndex = proposed.RouteVertexIndex;
-            reconciledWaypoints.Add(waypoint);
+                SegmentId = segment.Id,
+                Segment = segment,
+                PlaceId = proposed.PlaceId,
+                Place = placesById[proposed.PlaceId],
+                Position = proposed.Position,
+                RouteVertexIndex = proposed.RouteVertexIndex
+            });
         }
+    }
 
-        segment.Waypoints = reconciledWaypoints;
+    private static void DetachCurrentWaypoints(ApplicationDbContext dbContext, Segment segment)
+    {
+        foreach (var waypoint in segment.Waypoints.ToArray())
+            dbContext.Entry(waypoint).State = EntityState.Detached;
+        segment.Waypoints = new List<SegmentWaypoint>();
+    }
 
-        return new(true, [], BuildAnchorChain(from, waypoints, to));
+    private static async Task ReloadAggregateAsync(
+        ApplicationDbContext dbContext,
+        Segment segment,
+        CancellationToken cancellationToken)
+    {
+        foreach (var entry in dbContext.ChangeTracker.Entries<SegmentWaypoint>()
+                     .Where(entry => entry.Entity.SegmentId == segment.Id).ToArray())
+            entry.State = EntityState.Detached;
+        await dbContext.Entry(segment).ReloadAsync(cancellationToken);
+        segment.Waypoints = new List<SegmentWaypoint>();
+        await dbContext.Entry(segment).Reference(item => item.FromPlace).LoadAsync(cancellationToken);
+        await dbContext.Entry(segment).Reference(item => item.ToPlace).LoadAsync(cancellationToken);
+        await dbContext.Entry(segment).Collection(item => item.Waypoints).Query()
+            .Include(item => item.Place).ThenInclude(place => place.Region)
+            .OrderBy(item => item.Position)
+            .LoadAsync(cancellationToken);
     }
 
     private static List<string> Validate(
         Guid tripId,
-        Place? from,
-        Place? to,
-        IReadOnlyList<SegmentWaypointProposal> waypoints,
+        SegmentRouteProposal proposal,
+        IReadOnlyDictionary<Guid, Place> placesById,
         LineString? geometry)
     {
         var errors = new List<string>();
-        if (waypoints.Count == 0)
+        if (proposal.Waypoints.Count > 0)
         {
-            // Legacy zero-waypoint segments retain their existing optional endpoint contract.
-            return errors;
+            ValidateIdentity("From place", proposal.FromPlaceId, placesById, errors);
+            ValidateIdentity("To place", proposal.ToPlaceId, placesById, errors);
         }
-
-        if (from == null) errors.Add("From place is required when a segment has waypoints.");
-        if (to == null) errors.Add("To place is required when a segment has waypoints.");
-        if (from != null && !HasValidLocation(from)) errors.Add("From place must have a valid SRID 4326 location when a segment has waypoints.");
-        if (to != null && !HasValidLocation(to)) errors.Add("To place must have a valid SRID 4326 location when a segment has waypoints.");
-        if (from != null && !BelongsToTrip(from, tripId)) errors.Add("From place must belong to the segment trip.");
-        if (to != null && !BelongsToTrip(to, tripId)) errors.Add("To place must belong to the segment trip.");
-
-        var placeIds = new HashSet<Guid>();
-        var positions = new HashSet<int>();
-        for (var index = 0; index < waypoints.Count; index++)
+        else
         {
-            var waypoint = waypoints[index];
-            if (waypoint.Position != index || !positions.Add(waypoint.Position))
+            ValidateOptionalIdentity("From place", proposal.FromPlaceId, placesById, errors);
+            ValidateOptionalIdentity("To place", proposal.ToPlaceId, placesById, errors);
+        }
+        for (var index = 0; index < proposal.Waypoints.Count; index++)
+        {
+            if (!placesById.ContainsKey(proposal.Waypoints[index].PlaceId))
+                errors.Add($"Waypoint place at position {index} was not found.");
+        }
+        if (errors.Count > 0) return errors;
+        if (proposal.Waypoints.Count == 0) return errors;
+
+        var from = placesById[proposal.FromPlaceId!.Value];
+        var to = placesById[proposal.ToPlaceId!.Value];
+        ValidateCanonicalPlace("From place", from, tripId, errors);
+        ValidateCanonicalPlace("To place", to, tripId, errors);
+        var placeIds = new HashSet<Guid>();
+        for (var index = 0; index < proposal.Waypoints.Count; index++)
+        {
+            var waypoint = proposal.Waypoints[index];
+            var place = placesById[waypoint.PlaceId];
+            if (waypoint.Position != index)
                 errors.Add("Waypoint positions must be unique and contiguous from zero in submitted order.");
-            if (!placeIds.Add(waypoint.Place.Id))
+            if (!placeIds.Add(waypoint.PlaceId))
                 errors.Add("Intermediate waypoint places must be unique within a segment.");
-            if (waypoint.Place.Id == from?.Id) errors.Add("A waypoint cannot equal the From place.");
-            if (waypoint.Place.Id == to?.Id) errors.Add("A waypoint cannot equal the To place.");
-            if (!BelongsToTrip(waypoint.Place, tripId)) errors.Add("Every waypoint place must belong to the segment trip.");
-            if (!HasValidLocation(waypoint.Place)) errors.Add("Every waypoint place must have a valid SRID 4326 location.");
+            if (waypoint.PlaceId == proposal.FromPlaceId) errors.Add("A waypoint cannot equal the From place.");
+            if (waypoint.PlaceId == proposal.ToPlaceId) errors.Add("A waypoint cannot equal the To place.");
+            ValidateCanonicalPlace("Every waypoint place", place, tripId, errors);
         }
 
         if (geometry == null)
         {
-            if (waypoints.Any(waypoint => waypoint.RouteVertexIndex.HasValue))
+            if (proposal.Waypoints.Any(waypoint => waypoint.RouteVertexIndex.HasValue))
                 errors.Add("Fallback geometry requires null waypoint route vertex indices.");
             return errors;
         }
 
-        ValidateCustomGeometry(from, to, waypoints, geometry, errors);
+        ValidateCustomGeometry(from, to, proposal.Waypoints, placesById, geometry, errors);
         return errors;
     }
 
+    private static void ValidateIdentity(
+        string label,
+        Guid? id,
+        IReadOnlyDictionary<Guid, Place> placesById,
+        List<string> errors)
+    {
+        if (!id.HasValue) errors.Add($"{label} is required when a segment has waypoints.");
+        else if (!placesById.ContainsKey(id.Value)) errors.Add($"{label} was not found.");
+    }
+
+    private static void ValidateOptionalIdentity(
+        string label,
+        Guid? id,
+        IReadOnlyDictionary<Guid, Place> placesById,
+        List<string> errors)
+    {
+        if (id.HasValue && !placesById.ContainsKey(id.Value)) errors.Add($"{label} was not found.");
+    }
+
+    private static void ValidateCanonicalPlace(string label, Place place, Guid tripId, List<string> errors)
+    {
+        if (place.Region?.TripId != tripId) errors.Add($"{label} must belong to the segment trip.");
+        if (!HasValidLocation(place)) errors.Add($"{label} must have a valid SRID 4326 location.");
+    }
+
     private static void ValidateCustomGeometry(
-        Place? from,
-        Place? to,
+        Place from,
+        Place to,
         IReadOnlyList<SegmentWaypointProposal> waypoints,
+        IReadOnlyDictionary<Guid, Place> placesById,
         LineString geometry,
         List<string> errors)
     {
@@ -146,10 +262,9 @@ public static class SegmentRouteReconciler
             errors.Add("Custom route geometry must be a valid SRID 4326 LineString with at least two vertices.");
             return;
         }
-
-        if (from?.Location != null && !CoordinatesMatch(geometry.GetCoordinateN(0), from.Location.Coordinate))
+        if (!CoordinatesMatch(geometry.GetCoordinateN(0), from.Location!.Coordinate))
             errors.Add("The first custom-route vertex must match the From place.");
-        if (to?.Location != null && !CoordinatesMatch(geometry.GetCoordinateN(geometry.NumPoints - 1), to.Location.Coordinate))
+        if (!CoordinatesMatch(geometry.GetCoordinateN(geometry.NumPoints - 1), to.Location!.Coordinate))
             errors.Add("The last custom-route vertex must match the To place.");
 
         var priorIndex = 0;
@@ -161,37 +276,28 @@ public static class SegmentRouteReconciler
                 errors.Add("Every waypoint requires a route vertex index for custom geometry.");
                 continue;
             }
-
             var vertexIndex = waypoint.RouteVertexIndex.Value;
             if (!usedIndices.Add(vertexIndex)) errors.Add("Waypoint route vertex indices must be unique.");
             if (vertexIndex <= priorIndex) errors.Add("Waypoint route vertex indices must increase in waypoint order.");
             if (vertexIndex <= 0 || vertexIndex >= geometry.NumPoints - 1)
-            {
                 errors.Add("Waypoint route vertex indices must identify interior route vertices.");
-            }
-            else if (waypoint.Place.Location != null
-                     && !CoordinatesMatch(geometry.GetCoordinateN(vertexIndex), waypoint.Place.Location.Coordinate))
-            {
+            else if (!CoordinatesMatch(geometry.GetCoordinateN(vertexIndex), placesById[waypoint.PlaceId].Location!.Coordinate))
                 errors.Add("Each indexed custom-route vertex must match its waypoint place.");
-            }
-
             priorIndex = vertexIndex;
         }
     }
 
     private static IReadOnlyList<Place> BuildAnchorChain(
-        Place? from,
-        IReadOnlyList<SegmentWaypointProposal> waypoints,
-        Place? to)
+        SegmentRouteProposal proposal,
+        IReadOnlyDictionary<Guid, Place> placesById)
     {
-        var anchors = new List<Place>(waypoints.Count + 2);
-        if (from != null) anchors.Add(from);
-        anchors.AddRange(waypoints.Select(waypoint => waypoint.Place));
-        if (to != null) anchors.Add(to);
+        var anchors = new List<Place>(proposal.Waypoints.Count + 2);
+        if (proposal.FromPlaceId.HasValue && placesById.TryGetValue(proposal.FromPlaceId.Value, out var from)) anchors.Add(from);
+        foreach (var waypoint in proposal.Waypoints)
+            if (placesById.TryGetValue(waypoint.PlaceId, out var place)) anchors.Add(place);
+        if (proposal.ToPlaceId.HasValue && placesById.TryGetValue(proposal.ToPlaceId.Value, out var to)) anchors.Add(to);
         return anchors;
     }
-
-    private static bool BelongsToTrip(Place place, Guid tripId) => place.Region != null && place.Region.TripId == tripId;
 
     private static bool HasValidLocation(Place place) =>
         place.Location is { IsEmpty: false, SRID: 4326 } location
@@ -201,12 +307,7 @@ public static class SegmentRouteReconciler
     private static bool CoordinatesMatch(Coordinate actual, Coordinate expected)
     {
         if (!double.IsFinite(actual.X) || !double.IsFinite(actual.Y)
-            || !double.IsFinite(expected.X) || !double.IsFinite(expected.Y))
-        {
-            return false;
-        }
-
-        // Decimal comparison keeps the contract's seven-decimal boundary inclusive despite binary rounding.
+            || !double.IsFinite(expected.X) || !double.IsFinite(expected.Y)) return false;
         const decimal tolerance = 0.0000001m;
         return Math.Abs((decimal)actual.X - (decimal)expected.X) <= tolerance
             && Math.Abs((decimal)actual.Y - (decimal)expected.Y) <= tolerance;
