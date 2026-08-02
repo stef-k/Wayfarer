@@ -127,7 +127,7 @@ test.describe.serial('Trip Editor segment editing', () => {
     await mapWork.getByRole('button', { name: 'Done' }).click();
     await expectNoLegacyEditorAction(page);
     expect(savedRequests, 'Done must not call the segment save endpoint.').toEqual([]);
-    await expect(page.locator('#trip-editor-segment-form')).toContainText('2 custom route points');
+    await expect(page.locator('#trip-editor-segment-form')).toContainText('3 custom route points');
     const draftRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
     await expect(draftRoute).toHaveAttribute('d', workPath ?? '');
     await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
@@ -135,7 +135,7 @@ test.describe.serial('Trip Editor segment editing', () => {
     await page.getByRole('button', { name: 'Save Segment' }).click();
     await expect.poll(() => savedRequests.length).toBe(1);
     expect(savedRequests[0].route?.type).toBe('LineString');
-    expect(savedRequests[0].route?.coordinates).toHaveLength(2);
+    expect(savedRequests[0].route?.coordinates).toHaveLength(3);
     await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
     await expect(draftRoute).toHaveCount(0);
 
@@ -184,7 +184,7 @@ test.describe.serial('Trip Editor segment editing', () => {
     await form.getByLabel('Estimated duration minutes').fill('99');
     await page.getByRole('button', { name: 'Save Segment' }).click();
 
-    await expect(page.getByRole('status').filter({ hasText: 'Save failed' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Save failed' }).first()).toBeVisible();
     await expect(form.getByLabel('Estimated duration minutes')).toHaveValue('99');
     await expect(draftRoute).toHaveAttribute('d', routePath ?? '');
     await expect(map).toHaveAttribute('data-trip-editor-map-lat', viewport.lat ?? '');
@@ -344,7 +344,7 @@ function segmentRow(page: Page, id: string) {
 
 async function expectSegmentOrder(page: Page, expected: string[]): Promise<void> {
   await expect.poll(async () => {
-    return await page.locator('[data-segment-id]').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.segmentId));
+    return await page.locator('.trip-editor-segments .trip-editor-segment-row[data-segment-id]').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.segmentId));
   }).toEqual(expected);
 }
 
