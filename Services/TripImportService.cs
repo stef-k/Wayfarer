@@ -161,6 +161,9 @@ public class TripImportService : ITripImportService
         }
 
         await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+        await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
+            _dbContext, target.Id, allowUnavailableAutomatic: false);
         if (transaction is not null)
         {
             await transaction.CommitAsync();

@@ -7,6 +7,22 @@ namespace Wayfarer.Services;
 /// <summary>Measurement portion of the transaction-neutral locked Segment aggregate core.</summary>
 public static partial class SegmentRouteReconciler
 {
+    /// <summary>Recalculates measurements on a tracked zero-waypoint Segment inside a caller-owned mutation.</summary>
+    internal static async Task ReconcileTrackedMeasurementsAsync(
+        ApplicationDbContext dbContext,
+        Segment segment,
+        CancellationToken cancellationToken)
+    {
+        var proposal = new SegmentRouteProposal(
+            segment.Id, segment.FromPlaceId, segment.ToPlaceId, [], segment.RouteGeometry);
+        var anchors = new[] { segment.FromPlace, segment.ToPlace }.Where(place => place != null).Cast<Place>().ToArray();
+        var errors = new List<string>();
+        var measurements = await CalculateMeasurementsAsync(
+            dbContext, segment, proposal, segment.RouteGeometry, anchors, errors, cancellationToken);
+        if (errors.Count > 0) throw new InvalidOperationException(string.Join(" ", errors));
+        ApplyMeasurements(segment, measurements!);
+    }
+
     /// <summary>
     /// Reconciles one complete canonical aggregate after the caller has acquired profile and Segment locks.
     /// This core neither starts nor commits a transaction and does not call SaveChanges.

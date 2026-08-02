@@ -147,7 +147,10 @@ public class GoogleMyMapsKmlParser
             TripId = tripId,
             UserId = userId,
             Mode = pm.Element(k + "name")?.Value ?? "drive",
-            RouteGeometry = new LineString(coords) { SRID = 4326 }
+            RouteGeometry = new LineString(coords) { SRID = 4326 },
+            EstimatedDistanceKm = null,
+            EstimatedDuration = null,
+            EstimatedDurationSource = EstimatedDurationSource.Automatic
         };
     }
 

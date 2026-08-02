@@ -1544,9 +1544,11 @@ return Ok(dto);
                         UserId = user.Id,
                         TripId = clonedTrip.Id,
                         Mode = sourceSegment.Mode,
+                        TransportProfileId = sourceSegment.TransportProfileId,
                         RouteGeometry = sourceSegment.RouteGeometry,
                         EstimatedDuration = sourceSegment.EstimatedDuration,
-                        EstimatedDistanceKm = sourceSegment.EstimatedDistanceKm,
+                        EstimatedDurationSource = sourceSegment.EstimatedDurationSource,
+                        EstimatedDistanceKm = null,
                         DisplayOrder = sourceSegment.DisplayOrder,
                         Notes = sourceSegment.Notes,
                         // Map old place IDs to new place IDs
@@ -1572,8 +1574,15 @@ return Ok(dto);
             }
 
             // Save cloned trip to database
+            await using var cloneTransaction = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync()
+                : null;
             _dbContext.Trips.Add(clonedTrip);
             await _dbContext.SaveChangesAsync();
+            _dbContext.ChangeTracker.Clear();
+            await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
+                _dbContext, clonedTrip.Id, allowUnavailableAutomatic: true);
+            if (cloneTransaction != null) await cloneTransaction.CommitAsync();
 
             _logger.LogDebug("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
                 user.Id, sourceTrip.Id, clonedTrip.Id);
