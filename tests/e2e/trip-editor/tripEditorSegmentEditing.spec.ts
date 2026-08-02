@@ -339,7 +339,7 @@ async function openEditableSegment(page: Page): Promise<void> {
 }
 
 function segmentRow(page: Page, id: string) {
-  return page.locator(`[data-segment-id="${id}"]`);
+  return page.locator(`.trip-editor-segment-row[data-segment-id="${id}"]`);
 }
 
 async function expectSegmentOrder(page: Page, expected: string[]): Promise<void> {

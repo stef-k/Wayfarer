@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorCloseButton,
   editorApiPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
@@ -114,7 +115,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
 
       await openPlace(page);
       await page.locator('#trip-editor-place-form').getByLabel('Name').fill('Unsaved visual place');
-      await page.getByRole('button', { name: 'Close' }).click();
+      await activeEditorCloseButton(page).click();
       await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
       await capture(page, testInfo, `${viewport.name}-dark-dirty-discard-confirm`);
       note(testInfo, 'dirty-discard confirmation', viewport.name, 'dark', 'data-bs-theme', 'pass');

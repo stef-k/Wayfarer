@@ -32,7 +32,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await form.getByLabel('Address').fill('PW failed place save address');
 
     const staleSave = await mockMutationFailure(page, 'PUT', `${editorApiPath}/places/${fixture.place.id}`, 404);
-    await page.getByRole('button', { name: 'Save Place' }).click();
+    await page.getByRole('button', { name: 'Save Place', exact: true }).click();
 
     await expect.poll(staleSave.requests).toBe(1);
     await expect(activeEditorAlert(page)).toContainText('Trip Editor place update returned 404');

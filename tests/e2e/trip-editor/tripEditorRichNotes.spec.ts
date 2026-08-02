@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorCloseButton,
   editorApiPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
@@ -318,7 +319,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(page.locator('#trip-editor-metadata-form')).toHaveCount(1);
     await expect(richEditor(page.locator('#trip-editor-metadata-form')).locator('.ql-editor')).toContainText('Expanded draft note');
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await activeEditorCloseButton(page).click();
     const discard = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(discard).toBeVisible();
     await discard.getByRole('button', { name: 'Keep editing' }).click();
