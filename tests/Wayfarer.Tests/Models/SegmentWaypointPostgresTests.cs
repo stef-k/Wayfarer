@@ -161,6 +161,40 @@ public sealed class SegmentWaypointPostgresTests
         Assert.Null(await verification.Segments.Where(item => item.Id == segment.Id).Select(item => item.RouteGeometry).SingleAsync());
     }
 
+    /// <summary>Reordering persisted rows must not collide with PostgreSQL's immediate position uniqueness check.</summary>
+    [PostgresFact]
+    public async Task Reconcile_PersistedSwap_SucceedsWithoutIntermediatePositionCollision()
+    {
+        _fixture.RequireAvailable();
+        var seeded = await SeedPlacesAsync();
+        var segment = NewSegment(seeded, 1);
+        await using (var seedContext = _fixture.CreateContext())
+        {
+            var places = await seedContext.Places.Include(place => place.Region)
+                .Where(place => seeded.PlaceIds.Contains(place.Id))
+                .ToDictionaryAsync(place => place.Id);
+            seedContext.Segments.Add(segment);
+            Assert.True(SegmentRouteReconciler.Reconcile(segment, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[3]],
+                [new(places[seeded.PlaceIds[1]], 0, null), new(places[seeded.PlaceIds[2]], 1, null)], null).Succeeded);
+            await seedContext.SaveChangesAsync();
+        }
+
+        await using var context = _fixture.CreateContext();
+        var aggregate = await SegmentRouteReconciler.LoadAggregateAsync(context, segment.Id);
+        Assert.NotNull(aggregate);
+        var original = aggregate!.Waypoints.OrderBy(item => item.Position).ToArray();
+
+        var result = SegmentRouteReconciler.Reconcile(aggregate, aggregate.FromPlace, aggregate.ToPlace,
+            [new(original[1].Place, 0, null), new(original[0].Place, 1, null)], null);
+
+        Assert.True(result.Succeeded);
+        await context.SaveChangesAsync();
+        await using var verification = _fixture.CreateContext();
+        Assert.Equal([original[1].PlaceId, original[0].PlaceId],
+            await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == segment.Id)
+                .OrderBy(item => item.Position).Select(item => item.PlaceId).ToListAsync());
+    }
+
     private async Task<(Guid SegmentId, Guid FirstPlaceId, Guid SecondPlaceId, Guid ForeignPlaceId)> SeedAggregateAsync()
     {
         var seeded = await SeedPlacesAsync(includeForeignTrip: true);

@@ -166,6 +166,46 @@ public sealed class SegmentRouteReconcilerTests
         Assert.True(result.Succeeded);
     }
 
+    /// <summary>Caller-created place graphs cannot establish authoritative trip ownership.</summary>
+    [Fact]
+    public void Reconcile_FabricatedPlaceOwnership_IsRejected()
+    {
+        var tripId = Guid.NewGuid();
+        var from = Place(tripId, 1, 1);
+        var to = Place(tripId, 3, 3);
+        var fabricated = Place(tripId, 2, 2);
+
+        var result = SegmentRouteReconciler.Reconcile(
+            Segment(tripId),
+            from,
+            to,
+            [new(fabricated, 0, null)],
+            null);
+
+        Assert.False(result.Succeeded);
+    }
+
+    /// <summary>The accepted custom route must not retain caller-owned mutable geometry state.</summary>
+    [Fact]
+    public void Reconcile_CustomGeometryMutation_DoesNotChangeAcceptedRoute()
+    {
+        var tripId = Guid.NewGuid();
+        var from = Place(tripId, 1, 1);
+        var via = Place(tripId, 2, 2);
+        var to = Place(tripId, 3, 3);
+        var geometry = Line(Coordinate(1, 1), Coordinate(2, 2), Coordinate(3, 3));
+        var segment = Segment(tripId);
+
+        var result = SegmentRouteReconciler.Reconcile(segment, from, to, [new(via, 0, 1)], geometry);
+        geometry.GetCoordinateN(1).X = 99;
+        geometry.SRID = 3857;
+
+        Assert.True(result.Succeeded);
+        Assert.NotSame(geometry, segment.RouteGeometry);
+        Assert.Equal(2, segment.RouteGeometry!.GetCoordinateN(1).X);
+        Assert.Equal(4326, segment.RouteGeometry.SRID);
+    }
+
     private static Segment Segment(Guid? tripId = null) => new() { Id = Guid.NewGuid(), TripId = tripId ?? Guid.NewGuid(), UserId = "owner" };
 
     private static Place Place(Guid tripId, double? longitude, double? latitude, int srid = 4326) => new()
