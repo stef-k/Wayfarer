@@ -264,6 +264,104 @@ public sealed class SegmentWaypointPostgresTests
             .OrderBy(item => item.Position).Select(item => item.PlaceId).ToArrayAsync());
     }
 
+    /// <summary>Rejects a dirty caller context before reconciliation can save or overwrite its pending Trip edit.</summary>
+    [PostgresFact]
+    public async Task Reconcile_DirtyContextRejectsAndPreservesPendingTripEdit()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+        var segment = await context.Segments.SingleAsync(item => item.Id == aggregate.SegmentId);
+        var trip = await context.Trips.SingleAsync(item => item.Id == segment.TripId);
+        trip.Name = "Pending caller edit";
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, aggregate.FromPlaceId, aggregate.ToPlaceId, [], null)));
+
+        Assert.Contains("clean", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Pending caller edit", trip.Name);
+        Assert.Equal(EntityState.Modified, context.Entry(trip).State);
+        await using var verification = _fixture.CreateContext();
+        Assert.NotEqual("Pending caller edit", await verification.Trips.Where(item => item.Id == trip.Id).Select(item => item.Name).SingleAsync());
+        Assert.Equal(aggregate.WaypointIds, await verification.Set<SegmentWaypoint>()
+            .Where(item => item.SegmentId == segment.Id).OrderBy(item => item.Position).Select(item => item.PlaceId).ToArrayAsync());
+    }
+
+    /// <summary>Uses a non-cancelled cleanup path after cancellation occurs after destructive waypoint deletion.</summary>
+    [PostgresFact]
+    public async Task Reconcile_CancellationAfterDeleteRollsBackAndLeavesReusableContext()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        using var cancellation = new CancellationTokenSource();
+        var interceptor = new CancelNextSaveInterceptor(cancellation);
+        await using var context = _fixture.CreateContext(interceptor);
+        var segment = await SegmentRouteReconciler.LoadAggregateAsync(context, aggregate.SegmentId);
+        var original = segment!.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray();
+        interceptor.Arm();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SegmentRouteReconciler.ReconcileAsync(context,
+            new(segment.Id, aggregate.FromPlaceId, aggregate.ToPlaceId, [], null), cancellation.Token));
+
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Equal(original, segment.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId));
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+        await context.SaveChangesAsync(CancellationToken.None);
+        await using var verification = _fixture.CreateContext();
+        Assert.Equal(original, await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == segment.Id)
+            .OrderBy(item => item.Position).Select(item => item.PlaceId).ToArrayAsync());
+    }
+
+    /// <summary>Surfaces both operation and rollback failures and invalidates the unsafe caller context.</summary>
+    [PostgresFact]
+    public async Task Reconcile_RollbackFailurePreservesBothFailuresAndInvalidatesContext()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        var interceptor = new SaveAndRollbackFailureInterceptor();
+        await using var context = _fixture.CreateContext(interceptor);
+        interceptor.Arm();
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => SegmentRouteReconciler.ReconcileAsync(context,
+            new(aggregate.SegmentId, aggregate.FromPlaceId, aggregate.ToPlaceId, [], null)));
+
+        Assert.Contains("Forced waypoint persistence failure.", exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Forced waypoint rollback failure.", exception.ToString(), StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+    }
+
+    /// <summary>Requires concurrent same-Segment proposals to acquire the provider row lock before aggregate loading.</summary>
+    [PostgresFact]
+    public async Task Reconcile_ConcurrentSameSegmentProposalsUseCanonicalRowLock()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedOrderedAggregateAsync();
+        var firstLock = new SegmentLockCommandInterceptor();
+        var secondLock = new SegmentLockCommandInterceptor();
+        await using var first = _fixture.CreateContext(firstLock);
+        await using var second = _fixture.CreateContext(secondLock);
+        var firstProposal = aggregate.WaypointIds.Reverse()
+            .Select((id, position) => new SegmentWaypointProposal(id, position, null)).ToArray();
+        var secondProposal = new[] { aggregate.AdditionalPlaceId }
+            .Select((id, position) => new SegmentWaypointProposal(id, position, null)).ToArray();
+
+        var results = await Task.WhenAll(
+            SegmentRouteReconciler.ReconcileAsync(first,
+                new(aggregate.SegmentId, aggregate.FromPlaceId, aggregate.ToPlaceId, firstProposal, null)),
+            SegmentRouteReconciler.ReconcileAsync(second,
+                new(aggregate.SegmentId, aggregate.FromPlaceId, aggregate.ToPlaceId, secondProposal, null)));
+
+        Assert.All(results, result => Assert.True(result.Succeeded));
+        Assert.Equal(1, firstLock.LockCount);
+        Assert.Equal(1, secondLock.LockCount);
+        await using var verification = _fixture.CreateContext();
+        var stored = await verification.Set<SegmentWaypoint>().Where(item => item.SegmentId == aggregate.SegmentId)
+            .OrderBy(item => item.Position).Select(item => item.PlaceId).ToArrayAsync();
+        Assert.True(stored.SequenceEqual(firstProposal.Select(item => item.PlaceId))
+            || stored.SequenceEqual(secondProposal.Select(item => item.PlaceId)));
+    }
+
     /// <summary>PostgreSQL persistence retains the validated geometry copy after caller mutation.</summary>
     [PostgresFact]
     public async Task Reconcile_DefensiveGeometryCopy_PersistsCanonicalCoordinates()
@@ -405,6 +503,69 @@ public sealed class SegmentWaypointPostgresTests
             if (!_armed) return base.SavingChangesAsync(eventData, result, cancellationToken);
             _armed = false;
             throw new InvalidOperationException("Forced waypoint persistence failure.");
+        }
+    }
+
+    private sealed class CancelNextSaveInterceptor(CancellationTokenSource cancellation) : SaveChangesInterceptor
+    {
+        private bool _armed;
+
+        /// <summary>Arms cancellation at the SaveChanges seam after the reconciler's provider-side deletion.</summary>
+        internal void Arm() => _armed = true;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_armed) return base.SavingChangesAsync(eventData, result, cancellationToken);
+            _armed = false;
+            cancellation.Cancel();
+            throw new OperationCanceledException("Forced cancellation after waypoint deletion.", cancellation.Token);
+        }
+    }
+
+    private sealed class SaveAndRollbackFailureInterceptor : SaveChangesInterceptor, IDbTransactionInterceptor
+    {
+        private bool _armed;
+
+        /// <summary>Arms paired persistence and rollback failures for context-invalidation coverage.</summary>
+        internal void Arm() => _armed = true;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_armed) return base.SavingChangesAsync(eventData, result, cancellationToken);
+            throw new InvalidOperationException("Forced waypoint persistence failure.");
+        }
+
+        public Task TransactionRollingBackAsync(
+            System.Data.Common.DbTransaction transaction,
+            TransactionEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            _armed = false;
+            throw new InvalidOperationException("Forced waypoint rollback failure.");
+        }
+    }
+
+
+    private sealed class SegmentLockCommandInterceptor : DbCommandInterceptor
+    {
+        /// <summary>Gets the number of canonical Segment row-lock commands executed by one reconciliation.</summary>
+        internal int LockCount { get; private set; }
+
+        public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
+                && command.CommandText.Contains("Segments", StringComparison.Ordinal)) LockCount++;
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 }
