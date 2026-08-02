@@ -1,7 +1,6 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
-  absoluteUrl,
-  activeEditorCloseButton,
+  absoluteUrl, activeEditorCloseButton,
   editorApiPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
