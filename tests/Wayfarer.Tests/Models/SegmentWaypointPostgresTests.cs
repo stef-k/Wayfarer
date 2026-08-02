@@ -1,0 +1,193 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
+using NetTopologySuite.Geometries;
+using Wayfarer.Models;
+using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
+using Xunit;
+
+namespace Wayfarer.Tests.Models;
+
+/// <summary>Executes waypoint migration, constraint, relationship, and transaction behavior on PostgreSQL.</summary>
+[Collection(PostgresImportTestCollection.Name)]
+public sealed class SegmentWaypointPostgresTests
+{
+    private const string PreviousMigration = "20260728152323_AdminManagedTransportProfiles";
+    private readonly PostgresImportTestFixture _fixture;
+
+    /// <summary>Initializes provider tests over the guarded isolated database fixture.</summary>
+    public SegmentWaypointPostgresTests(PostgresImportTestFixture fixture) => _fixture = fixture;
+
+    /// <summary>Executes exact-base upgrade and downgrade while preserving every legacy Segment value.</summary>
+    [PostgresFact]
+    public async Task MigrationUpAndDown_PreservesLegacySegments_AndOnlyAddsWaypointSchema()
+    {
+        _fixture.RequireAvailable();
+        var user = await _fixture.CreateUserAsync();
+        var tripId = Guid.NewGuid();
+        var segmentId = Guid.NewGuid();
+        _fixture.RegisterTrip(tripId);
+        await using var context = _fixture.CreateContext();
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(PreviousMigration);
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""INSERT INTO public."Trips" ("Id", "UserId", "Name", "IsPublic", "ShareProgressEnabled", "UpdatedAt") VALUES ({tripId}, {user.Id}, {"Legacy waypoint fixture"}, FALSE, FALSE, CURRENT_TIMESTAMP)""");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""INSERT INTO public."Segments" ("Id", "UserId", "TripId", "Mode", "EstimatedDuration", "EstimatedDistanceKm", "DisplayOrder", "Notes") VALUES ({segmentId}, {user.Id}, {tripId}, {"walk"}, {TimeSpan.FromMinutes(37)}, {12.345d}, {4}, {"legacy notes"})""");
+
+        await migrator.MigrateAsync();
+
+        var segment = await context.Segments.AsNoTracking().SingleAsync(item => item.Id == segmentId);
+        Assert.Equal("walk", segment.Mode);
+        Assert.Equal(TimeSpan.FromMinutes(37), segment.EstimatedDuration);
+        Assert.Equal(12.345d, segment.EstimatedDistanceKm);
+        Assert.Equal(4, segment.DisplayOrder);
+        Assert.Equal("legacy notes", segment.Notes);
+        Assert.Empty(await context.SegmentWaypoints.Where(item => item.SegmentId == segmentId).ToListAsync());
+
+        await migrator.MigrateAsync(PreviousMigration);
+        Assert.False(await TableExistsAsync(context, "SegmentWaypoints"));
+        Assert.True(await TableExistsAsync(context, "Segments"));
+        await transaction.RollbackAsync();
+    }
+
+    /// <summary>Proves real PostgreSQL checks, unique constraints, filtered indexes, and both FK policies.</summary>
+    [PostgresFact]
+    public async Task ProviderConstraints_EnforceRangesUniquenessCascadeAndRestriction()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+
+        await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, -1, null);
+        await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, 1, 0);
+        await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, 0, null);
+        await AssertInsertFailsAsync(context, aggregate.SegmentId, aggregate.SecondPlaceId, 1, 2);
+
+        await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync(
+            $"""DELETE FROM public."Places" WHERE "Id" = {aggregate.FirstPlaceId}"""));
+        Assert.True(await context.Segments.AsNoTracking().AnyAsync(item => item.Id == aggregate.SegmentId));
+
+        await context.Database.ExecuteSqlInterpolatedAsync($"""DELETE FROM public."Segments" WHERE "Id" = {aggregate.SegmentId}""");
+        Assert.False(await context.SegmentWaypoints.AsNoTracking().AnyAsync(item => item.SegmentId == aggregate.SegmentId));
+    }
+
+    /// <summary>Persists representative fallback, custom, and canonical closed-loop aggregates through the reconciler.</summary>
+    [PostgresFact]
+    public async Task ValidAggregates_PersistFallbackCustomAndClosedLoopMappings()
+    {
+        _fixture.RequireAvailable();
+        var seeded = await SeedPlacesAsync();
+        await using var context = _fixture.CreateContext();
+        var places = await context.Places.Include(place => place.Region).Where(place => seeded.PlaceIds.Contains(place.Id)).ToDictionaryAsync(place => place.Id);
+
+        var fallback = NewSegment(seeded, 1);
+        var custom = NewSegment(seeded, 2);
+        var loop = NewSegment(seeded, 3);
+        context.Segments.AddRange(fallback, custom, loop);
+        Assert.True(SegmentRouteReconciler.Reconcile(fallback, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[2]], [new(places[seeded.PlaceIds[1]], 0, null)], null).Succeeded);
+        Assert.True(SegmentRouteReconciler.Reconcile(custom, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[3]],
+            [new(places[seeded.PlaceIds[1]], 0, 1), new(places[seeded.PlaceIds[2]], 1, 3)],
+            Line((1, 1), (2, 2), (2.5, 2.5), (3, 3), (4, 4))).Succeeded);
+        Assert.True(SegmentRouteReconciler.Reconcile(loop, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[0]],
+            [new(places[seeded.PlaceIds[1]], 0, null)], null).Succeeded);
+
+        await context.SaveChangesAsync();
+        Assert.Equal(4, await context.SegmentWaypoints.CountAsync(item => item.SegmentId == fallback.Id || item.SegmentId == custom.Id || item.SegmentId == loop.Id));
+        Assert.Equal([1, 3], await context.SegmentWaypoints.Where(item => item.SegmentId == custom.Id).OrderBy(item => item.Position).Select(item => item.RouteVertexIndex!.Value).ToListAsync());
+    }
+
+    /// <summary>Proves rejection inside a real transaction leaves the stored and tracked aggregate unchanged.</summary>
+    [PostgresFact]
+    public async Task InvalidReconciliation_DoesNotPartiallyPersistOrMutateTrackedAggregate()
+    {
+        _fixture.RequireAvailable();
+        var aggregate = await SeedAggregateAsync();
+        await using var context = _fixture.CreateContext();
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        var segment = await context.Segments
+            .Include(item => item.FromPlace).ThenInclude(place => place!.Region)
+            .Include(item => item.ToPlace).ThenInclude(place => place!.Region)
+            .Include(item => item.Waypoints).ThenInclude(waypoint => waypoint.Place).ThenInclude(place => place.Region)
+            .SingleAsync(item => item.Id == aggregate.SegmentId);
+        var originalWaypointId = Assert.Single(segment.Waypoints).PlaceId;
+        var foreignTripPlace = await context.Places.Include(place => place.Region).SingleAsync(place => place.Id == aggregate.ForeignPlaceId);
+
+        var result = SegmentRouteReconciler.Reconcile(segment, segment.FromPlace, segment.ToPlace, [new(foreignTripPlace, 0, null)], null);
+        await context.SaveChangesAsync();
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(originalWaypointId, Assert.Single(segment.Waypoints).PlaceId);
+        await transaction.CommitAsync();
+        await using var verification = _fixture.CreateContext();
+        Assert.Equal(originalWaypointId, await verification.SegmentWaypoints.Where(item => item.SegmentId == segment.Id).Select(item => item.PlaceId).SingleAsync());
+    }
+
+    private async Task<(Guid SegmentId, Guid FirstPlaceId, Guid SecondPlaceId, Guid ForeignPlaceId)> SeedAggregateAsync()
+    {
+        var seeded = await SeedPlacesAsync(includeForeignTrip: true);
+        await using var context = _fixture.CreateContext();
+        var places = await context.Places.Include(place => place.Region).Where(place => seeded.PlaceIds.Contains(place.Id)).ToDictionaryAsync(place => place.Id);
+        var segment = NewSegment(seeded, 1);
+        context.Segments.Add(segment);
+        Assert.True(SegmentRouteReconciler.Reconcile(segment, places[seeded.PlaceIds[0]], places[seeded.PlaceIds[2]], [new(places[seeded.PlaceIds[1]], 0, 2)],
+            Line((1, 1), (1.5, 1.5), (2, 2), (3, 3))).Succeeded);
+        await context.SaveChangesAsync();
+        return (segment.Id, seeded.PlaceIds[1], seeded.PlaceIds[3], seeded.ForeignPlaceId!.Value);
+    }
+
+    private async Task<(Guid TripId, string UserId, Guid[] PlaceIds, Guid? ForeignPlaceId)> SeedPlacesAsync(bool includeForeignTrip = false)
+    {
+        var user = await _fixture.CreateUserAsync();
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Waypoint provider fixture" };
+        var region = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Name = "Route" };
+        var places = Enumerable.Range(1, 4).Select(index => new Place
+        {
+            Id = Guid.NewGuid(), Region = region, RegionId = region.Id, UserId = user.Id, Name = $"Place {index}", Location = new Point(index, index) { SRID = 4326 }
+        }).ToArray();
+        trip.Regions.Add(region);
+        foreach (var place in places) region.Places.Add(place);
+        _fixture.RegisterTrip(trip.Id);
+        await using var context = _fixture.CreateContext();
+        context.Trips.Add(trip);
+        Guid? foreignPlaceId = null;
+        if (includeForeignTrip)
+        {
+            var foreignTrip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Foreign trip" };
+            var foreignRegion = new Region { Id = Guid.NewGuid(), Trip = foreignTrip, TripId = foreignTrip.Id, UserId = user.Id, Name = "Foreign" };
+            var foreign = new Place { Id = Guid.NewGuid(), Region = foreignRegion, RegionId = foreignRegion.Id, UserId = user.Id, Name = "Foreign", Location = new Point(9, 9) { SRID = 4326 } };
+            foreignTrip.Regions.Add(foreignRegion);
+            foreignRegion.Places.Add(foreign);
+            context.Trips.Add(foreignTrip);
+            _fixture.RegisterTrip(foreignTrip.Id);
+            foreignPlaceId = foreign.Id;
+        }
+        await context.SaveChangesAsync();
+        return (trip.Id, user.Id, places.Select(place => place.Id).ToArray(), foreignPlaceId);
+    }
+
+    private static Segment NewSegment((Guid TripId, string UserId, Guid[] PlaceIds, Guid? ForeignPlaceId) seeded, int order) =>
+        new() { Id = Guid.NewGuid(), TripId = seeded.TripId, UserId = seeded.UserId, Mode = "walk", DisplayOrder = order };
+
+    private static LineString Line(params (double X, double Y)[] points) =>
+        new(points.Select(point => new Coordinate(point.X, point.Y)).ToArray()) { SRID = 4326 };
+
+    private static async Task AssertInsertFailsAsync(ApplicationDbContext context, Guid segmentId, Guid placeId, int position, int? routeVertexIndex)
+    {
+        await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync(
+            $"""INSERT INTO public."SegmentWaypoints" ("SegmentId", "PlaceId", "Position", "RouteVertexIndex") VALUES ({segmentId}, {placeId}, {position}, {routeVertexIndex})"""));
+    }
+
+    private static async Task<bool> TableExistsAsync(ApplicationDbContext context, string table)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.Transaction = context.Database.CurrentTransaction!.GetDbTransaction();
+        command.CommandText = "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @table)";
+        command.Parameters.Add(new NpgsqlParameter("table", table));
+        return (bool)(await command.ExecuteScalarAsync())!;
+    }
+}
