@@ -72,18 +72,10 @@ public static partial class SegmentRouteReconciler
 
         if (!dbContext.Database.IsRelational())
         {
-            var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
-            if (segment == null) return new(false, ["Segment was not found."], []);
-            var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
-            var geometry = CopyGeometry(proposal);
-            var errors = Validate(segment.TripId, proposal, placesById, geometry);
-            var anchors = BuildAnchorChain(proposal, placesById);
-            var measurement = await CalculateMeasurementsAsync(dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
-            if (errors.Count > 0) return new(false, errors, anchors);
-            ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
-            ApplyMeasurements(segment, measurement!);
+            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: false, cancellationToken);
+            if (!result.Succeeded) return result;
             await dbContext.SaveChangesAsync(cancellationToken);
-            return new(true, [], anchors);
+            return result;
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -92,27 +84,11 @@ public static partial class SegmentRouteReconciler
             await LockProfilesAsync(dbContext, await ResolveProfileLockIdsAsync(dbContext, proposal, cancellationToken), cancellationToken);
             await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
 
-            var refreshScope = await LoadCanonicalRefreshScopeAsync(dbContext, proposal, cancellationToken);
-            if (refreshScope == null) return new(false, ["Segment was not found."], []);
-            RefreshStaleCanonicalState(dbContext, refreshScope);
-            var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
-            if (segment == null) return new(false, ["Segment was not found."], []);
-            var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
-            var geometry = CopyGeometry(proposal);
-            var errors = Validate(segment.TripId, proposal, placesById, geometry);
-            var anchors = BuildAnchorChain(proposal, placesById);
-            var measurement = await CalculateMeasurementsAsync(dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
-            if (errors.Count > 0) return new(false, errors, anchors);
-
-            await dbContext.Set<SegmentWaypoint>()
-                .Where(item => item.SegmentId == segment.Id)
-                .ExecuteDeleteAsync(cancellationToken);
-            DetachCurrentWaypoints(dbContext, segment);
-            ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
-            ApplyMeasurements(segment, measurement!);
+            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: true, cancellationToken);
+            if (!result.Succeeded) return result;
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
-            return new(true, [], anchors);
+            return result;
         }
         catch (Exception originalFailure)
         {

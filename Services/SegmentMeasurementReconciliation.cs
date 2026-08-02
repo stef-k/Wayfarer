@@ -7,6 +7,45 @@ namespace Wayfarer.Services;
 /// <summary>Measurement portion of the transaction-neutral locked Segment aggregate core.</summary>
 public static partial class SegmentRouteReconciler
 {
+    /// <summary>
+    /// Reconciles one complete canonical aggregate after the caller has acquired profile and Segment locks.
+    /// This core neither starts nor commits a transaction and does not call SaveChanges.
+    /// </summary>
+    internal static async Task<SegmentRouteReconciliationResult> ReconcileLockedAsync(
+        ApplicationDbContext dbContext,
+        SegmentRouteProposal proposal,
+        bool refreshCanonicalState,
+        CancellationToken cancellationToken)
+    {
+        if (refreshCanonicalState)
+        {
+            var refreshScope = await LoadCanonicalRefreshScopeAsync(dbContext, proposal, cancellationToken);
+            if (refreshScope == null) return new(false, ["Segment was not found."], []);
+            RefreshStaleCanonicalState(dbContext, refreshScope);
+        }
+
+        var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
+        if (segment == null) return new(false, ["Segment was not found."], []);
+        var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
+        var geometry = CopyGeometry(proposal);
+        var errors = Validate(segment.TripId, proposal, placesById, geometry);
+        var anchors = BuildAnchorChain(proposal, placesById);
+        var measurement = await CalculateMeasurementsAsync(
+            dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
+        if (errors.Count > 0) return new(false, errors, anchors);
+
+        if (dbContext.Database.IsRelational())
+        {
+            await dbContext.Set<SegmentWaypoint>()
+                .Where(item => item.SegmentId == segment.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+            DetachCurrentWaypoints(dbContext, segment);
+        }
+        ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+        ApplyMeasurements(segment, measurement!);
+        return new(true, [], anchors);
+    }
+
     private static async Task<CalculatedSegmentMeasurements?> CalculateMeasurementsAsync(
         ApplicationDbContext dbContext,
         Segment segment,
