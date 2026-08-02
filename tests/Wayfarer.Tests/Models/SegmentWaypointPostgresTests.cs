@@ -53,6 +53,8 @@ public sealed class SegmentWaypointPostgresTests
         await migrator.MigrateAsync(PreviousMigration);
         Assert.False(await TableExistsAsync(context, "SegmentWaypoints"));
         Assert.True(await TableExistsAsync(context, "Segments"));
+        await migrator.MigrateAsync();
+        Assert.True(await TableExistsAsync(context, "SegmentWaypoints"));
         await transaction.RollbackAsync();
     }
 
@@ -240,15 +242,18 @@ public sealed class SegmentWaypointPostgresTests
         var interceptor = new FailNextSaveInterceptor();
         await using var context = _fixture.CreateContext(interceptor);
         var segment = await SegmentRouteReconciler.LoadAggregateAsync(context, aggregate.SegmentId);
-        var unrelated = await context.Places.SingleAsync(item => item.Id == aggregate.AdditionalPlaceId);
+        var unrelated = await context.Users.FirstAsync();
         var original = segment!.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray();
+        var originalFromPlaceId = segment.FromPlaceId;
         interceptor.Arm();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => SegmentRouteReconciler.ReconcileAsync(context,
-            new(segment.Id, segment.FromPlaceId, segment.ToPlaceId,
+            new(segment.Id, aggregate.AdditionalPlaceId, segment.ToPlaceId,
                 original.Reverse().Select((id, position) => new SegmentWaypointProposal(id, position, null)).ToArray(), null)));
 
         Assert.Equal(original, segment.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId));
+        Assert.Equal(originalFromPlaceId, segment.FromPlaceId);
+        Assert.Equal(originalFromPlaceId, segment.FromPlace!.Id);
         Assert.Equal(EntityState.Unchanged, context.Entry(segment).State);
         Assert.Equal(EntityState.Unchanged, context.Entry(unrelated).State);
         Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>

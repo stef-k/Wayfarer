@@ -161,13 +161,22 @@ public static class SegmentRouteReconciler
                      .Where(entry => entry.Entity.SegmentId == segment.Id).ToArray())
             entry.State = EntityState.Detached;
         await dbContext.Entry(segment).ReloadAsync(cancellationToken);
-        segment.Waypoints = new List<SegmentWaypoint>();
-        await dbContext.Entry(segment).Reference(item => item.FromPlace).LoadAsync(cancellationToken);
-        await dbContext.Entry(segment).Reference(item => item.ToPlace).LoadAsync(cancellationToken);
-        await dbContext.Entry(segment).Collection(item => item.Waypoints).Query()
+        var endpointIds = new[] { segment.FromPlaceId, segment.ToPlaceId }
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+        var endpoints = await dbContext.Places.Include(item => item.Region)
+            .Where(item => endpointIds.Contains(item.Id))
+            .ToDictionaryAsync(item => item.Id, cancellationToken);
+        segment.FromPlace = segment.FromPlaceId.HasValue ? endpoints[segment.FromPlaceId.Value] : null;
+        segment.ToPlace = segment.ToPlaceId.HasValue ? endpoints[segment.ToPlaceId.Value] : null;
+        segment.Waypoints = await dbContext.Set<SegmentWaypoint>()
+            .Where(item => item.SegmentId == segment.Id)
             .Include(item => item.Place).ThenInclude(place => place.Region)
             .OrderBy(item => item.Position)
-            .LoadAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
+        var trackedTrip = dbContext.ChangeTracker.Entries<Trip>()
+            .SingleOrDefault(entry => entry.Entity.Id == segment.TripId);
+        if (trackedTrip is { State: not EntityState.Unchanged })
+            await trackedTrip.ReloadAsync(cancellationToken);
     }
 
     private static List<string> Validate(
