@@ -216,7 +216,7 @@ namespace Wayfarer.Models
                 .OnDelete(DeleteBehavior.Cascade);
 
             // Trip planning setup
-            builder.ApplyConfiguration(new Configuration.TransportProfileConfiguration());
+            builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
             // Trip ↔ ApplicationUser (cascade on delete)
             builder.Entity<Trip>()
