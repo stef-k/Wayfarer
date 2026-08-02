@@ -43,7 +43,7 @@ public sealed class SegmentRouteReconcilerConcurrencyPostgresTests(PostgresImpor
         await AssertStoredProposalAsync(secondProposal);
     }
 
-    /// <summary>Holding one Segment row lock does not block reconciliation of another Segment.</summary>
+    /// <summary>Distinct profile and Segment rows remain independently reconcilable under the global lock order.</summary>
     [PostgresFact]
     public async Task DifferentSegments_AreNotGloballySerialized()
     {
@@ -125,13 +125,22 @@ public sealed class SegmentRouteReconcilerConcurrencyPostgresTests(PostgresImpor
         }).ToArray();
         foreach (var place in places) region.Places.Add(place);
         trip.Regions.Add(region);
+        var profiles = Enumerable.Range(0, segmentCount).Select(index => new TransportProfile
+        {
+            Id = Guid.NewGuid(), Key = $"concurrent-{Guid.NewGuid():N}"[..30], Label = $"Concurrent {index}",
+            Category = "Test", PlanningSpeedKmh = 5 + index, IsActive = true
+        }).ToArray();
         var segments = Enumerable.Range(0, segmentCount).Select(index => new Segment
         {
-            Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = "walk", DisplayOrder = index
+            Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id,
+            Mode = profiles[index].Key, TransportProfile = profiles[index], TransportProfileId = profiles[index].Id,
+            DisplayOrder = index
         }).ToArray();
         foreach (var segment in segments) trip.Segments.Add(segment);
         fixture.RegisterTrip(trip.Id);
+        foreach (var profile in profiles) fixture.RegisterTransportProfile(profile.Id);
         await using var context = fixture.CreateContext();
+        context.AddRange(profiles);
         context.Trips.Add(trip);
         await context.SaveChangesAsync();
         return new(segments.Select(item => item.Id).ToArray(), places[0].Id, places[^1].Id,
