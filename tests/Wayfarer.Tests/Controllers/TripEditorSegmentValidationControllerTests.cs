@@ -29,13 +29,14 @@ public sealed class TripEditorSegmentValidationControllerTests : TestBase
           "mode": "hoverboard",
           "estimatedDistanceKm": -1,
           "estimatedDurationMinutes": -2,
+          "estimatedDurationSource": "Manual",
           "notesHtml": "<img src=\"   data:image/png;base64,abc\">",
           "route": { "type": "Point", "coordinates": [0, 0] }
         }
         """);
 
         var keys = TripEditorSegmentControllerTests.AssertValidationProblem(result).Errors.Keys;
-        foreach (var key in new[] { "id", "tripId", "displayOrder", "capabilities", "estimatedDistanceKm", "estimatedDurationMinutes", "notesHtml", "route" })
+        foreach (var key in new[] { "id", "tripId", "displayOrder", "capabilities", "estimatedDurationMinutes", "notesHtml", "route" })
         {
             Assert.Contains(key, keys);
         }
@@ -116,6 +117,7 @@ public sealed class TripEditorSegmentValidationControllerTests : TestBase
           "mode": "walk",
           "estimatedDistanceKm": null,
           "estimatedDurationMinutes": null,
+          "estimatedDurationSource": "Automatic",
           "notesHtml": null
         }
         """);

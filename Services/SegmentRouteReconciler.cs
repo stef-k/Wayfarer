@@ -35,13 +35,17 @@ public sealed record SegmentMeasurementProposal(
 /// <param name="Waypoints">Ordered waypoint scalar proposals.</param>
 /// <param name="RouteGeometry">Proposed custom route, or null for fallback rendering.</param>
 /// <param name="Measurement">Explicit measurement state, or null to reconcile the canonical compatibility state.</param>
+/// <param name="ApplyNotes">Whether this complete mutation also replaces editor notes.</param>
+/// <param name="NotesHtml">Normalized notes supplied by a complete editor mutation.</param>
 public sealed record SegmentRouteProposal(
     Guid SegmentId,
     Guid? FromPlaceId,
     Guid? ToPlaceId,
     IReadOnlyList<SegmentWaypointProposal> Waypoints,
     LineString? RouteGeometry,
-    SegmentMeasurementProposal? Measurement = null);
+    SegmentMeasurementProposal? Measurement = null,
+    bool ApplyNotes = false,
+    string? NotesHtml = null);
 
 /// <summary>Reports whether a route proposal committed and its effective canonical anchor chain.</summary>
 /// <param name="Succeeded">Whether validation succeeded and the aggregate committed.</param>
@@ -118,7 +122,7 @@ public static partial class SegmentRouteReconciler
     }
 
     /// <summary>Rejects pending caller work because this operation owns SaveChanges and recovery.</summary>
-    private static void EnsureCleanContext(ApplicationDbContext dbContext)
+    internal static void EnsureCleanContext(ApplicationDbContext dbContext)
     {
         dbContext.ChangeTracker.DetectChanges();
         if (dbContext.ChangeTracker.Entries().Any(entry =>
@@ -127,7 +131,7 @@ public static partial class SegmentRouteReconciler
     }
 
     /// <summary>Locks only the canonical Segment row for the lifetime of the owned PostgreSQL transaction.</summary>
-    private static async Task LockSegmentAsync(
+    internal static async Task LockSegmentAsync(
         ApplicationDbContext dbContext,
         Guid segmentId,
         CancellationToken cancellationToken)
@@ -138,7 +142,7 @@ public static partial class SegmentRouteReconciler
     }
 
     /// <summary>Locks canonical profiles in ascending identity order before the Segment row.</summary>
-    private static async Task LockProfilesAsync(
+    internal static async Task LockProfilesAsync(
         ApplicationDbContext dbContext,
         IReadOnlyList<Guid> profileIds,
         CancellationToken cancellationToken)
