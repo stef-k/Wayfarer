@@ -7,6 +7,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      MvcFrontendKitEnabled: 'false'
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
+      WAYFARER_TEST_ARTIFACT_DIRECTORY: ${{ runner.temp }}/wayfarer-test-artifacts
 
     steps:
       - uses: actions/checkout@v4
@@ -28,8 +32,19 @@ jobs:
       - name: Check file size limits
         run: dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600
 
-      - name: Build and Test
-        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
-        env:
-          # Disable frontend bundling in CI - we're testing C# code, not frontend assets
-          MvcFrontendKitEnabled: 'false'
+      - name: Build tests
+        run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
+
+      - name: Run ordinary tests
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
+
+      - name: Install .NET Playwright Chromium
+        run: pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: Run .NET Playwright rendering tests
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=RequiresPlaywright"
+
+      - name: Verify .NET Playwright rendering artifacts
+        run: |
+          test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution.pdf"
+          test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution-print.png"

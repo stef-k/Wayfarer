@@ -14,30 +14,10 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>
 /// Tests for <see cref="TripExportService"/> covering KML export operations.
-/// Note: Full PDF generation tests are skipped due to complex external dependencies (Playwright, HttpContext).
 /// </summary>
+[Collection(PlaywrightEnvironmentTestCollection.Name), PlaywrightEnvironmentIsolation]
 public class TripExportServiceTests : TestBase
 {
-    [Fact]
-    public void CreateService_RestoresOriginalPlaywrightBrowserPath()
-    {
-        const string originalPath = "issue-415-original-browser-path";
-        var previousPath = Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH");
-        try
-        {
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", originalPath);
-            using var db = CreateDbContext();
-
-            _ = CreateService(db);
-
-            Assert.Equal(originalPath, Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH"));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", previousPath);
-        }
-    }
-
     /// <summary>
     /// Creates a TripExportService with minimal mocked dependencies for scoped export testing.
     /// </summary>

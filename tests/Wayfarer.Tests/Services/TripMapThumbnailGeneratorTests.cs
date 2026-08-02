@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Moq;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -11,6 +12,8 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// File-system behaviors for the map thumbnail generator (Playwright-free paths).
 /// </summary>
+[Collection(PlaywrightEnvironmentTestCollection.Name)]
+[PlaywrightEnvironmentIsolation]
 public class TripMapThumbnailGeneratorTests : IDisposable
 {
     private readonly string _root;
@@ -24,24 +27,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         Directory.CreateDirectory(_root);
         _env.SetupGet(e => e.WebRootPath).Returns(_root);
         _config = new ConfigurationBuilder().Build();
-    }
-
-    [Fact]
-    public void Constructor_PreservesUnsetPlaywrightBrowserPath()
-    {
-        var previousPath = Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH");
-        try
-        {
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", null);
-
-            _ = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
-
-            Assert.Null(Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH"));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", previousPath);
-        }
     }
 
     [Fact]

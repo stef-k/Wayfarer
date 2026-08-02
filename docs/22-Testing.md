@@ -8,6 +8,44 @@ Running Tests
 - `dotnet test`
 - Trip Editor E2E: `npm run test:e2e:trip-editor`
 
+.NET Playwright Rendering Test
+- The .NET rendering test owns a browser cache separate from JavaScript Playwright.
+- Restore and build first so Microsoft.Playwright generates its version-coupled installer.
+- The installer and test process must receive the same absolute `PLAYWRIGHT_BROWSERS_PATH`.
+
+```powershell
+dotnet restore
+$env:MvcFrontendKitEnabled = 'false'
+dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
+
+$dotnetBrowserCache = [IO.Path]::GetFullPath('.local/playwright/dotnet-browsers')
+$artifactDirectory = [IO.Path]::GetFullPath('.local/test-results/415')
+New-Item -ItemType Directory -Force $dotnetBrowserCache, $artifactDirectory | Out-Null
+$env:PLAYWRIGHT_BROWSERS_PATH = $dotnetBrowserCache
+$env:WAYFARER_TEST_ARTIFACT_DIRECTORY = $artifactDirectory
+
+pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install chromium
+
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
+    --configuration Release `
+    --no-build `
+    --filter "Category=RequiresPlaywright"
+
+# Optional: run every discovered .NET test with the same browser cache.
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
+    --configuration Release `
+    --no-build
+```
+
+- Retained PDF and screenshot evidence is written only when `WAYFARER_TEST_ARTIFACT_DIRECTORY` is set.
+- Cleanup is limited to the issue-owned directories created above:
+
+```powershell
+Remove-Item -LiteralPath $dotnetBrowserCache -Recurse -Force
+Remove-Item -LiteralPath $artifactDirectory -Recurse -Force
+```
+- Do not delete global Playwright caches, production `ChromeCache`, browser profiles, JavaScript browser assets, or unrelated `.local` content.
+
 Trip Editor Asset-Mode Smoke
 - These smokes are explicit opt-in checks. They do not run as part of `npm run test:e2e:trip-editor`.
 - Development smoke proves ASP.NET Development + Vite dev-server integration only.
