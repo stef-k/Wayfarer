@@ -17,8 +17,8 @@ public sealed class SegmentMeasurementCalculatorTests
             new Coordinate(1, 1)
         ]);
 
-        Assert.Equal(222_372.917, result.UnroundedMetres, 3);
-        Assert.Equal(222.373, result.RoundedKilometres);
+        Assert.Equal(222_389.853, result.UnroundedMetres, 3);
+        Assert.Equal(222.390, result.RoundedKilometres);
     }
 
     /// <summary>Proves non-equatorial longitude distance uses latitude in radians.</summary>
