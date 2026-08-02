@@ -7,7 +7,12 @@
     <div class="mb-3"><label asp-for="Key" class="form-label"></label><input asp-for="Key" class="form-control" readonly aria-describedby="immutable-key-help" /><div id="immutable-key-help" class="form-text">Keys are immutable durable identifiers.</div></div>
     <div class="mb-3"><label asp-for="Label" class="form-label"></label><input asp-for="Label" class="form-control" /><span asp-validation-for="Label" class="text-danger"></span></div>
     <div class="mb-3"><label asp-for="Category" class="form-label"></label><input asp-for="Category" class="form-control" /><span asp-validation-for="Category" class="text-danger"></span></div>
-    <div class="mb-3"><label asp-for="PlanningSpeedKmh" class="form-label">Planning speed (km/h)</label><input asp-for="PlanningSpeedKmh" class="form-control" /><div class="form-text">Referenced speed changes remain unavailable until #405. Null means manual only.</div><span asp-validation-for="PlanningSpeedKmh" class="text-danger"></span></div>
+    <div class="mb-3"><label asp-for="PlanningSpeedKmh" class="form-label">Planning speed (km/h)</label><input asp-for="PlanningSpeedKmh" class="form-control" /><div class="form-text">Null makes Automatic estimates unavailable; Manual durations are preserved.</div><span asp-validation-for="PlanningSpeedKmh" class="text-danger"></span></div>
+    @if (Model.ReferencedSegments > 0)
+    {
+        <div class="alert alert-warning">References: <strong>@Model.ReferencedSegments</strong> total; <strong>@Model.AutomaticSegments</strong> Automatic; <strong>@Model.ManualSegments</strong> Manual.</div>
+        <div class="form-check mb-3"><input asp-for="ConfirmReferencedSpeedChange" class="form-check-input" /><label asp-for="ConfirmReferencedSpeedChange" class="form-check-label">I confirm any planning-speed change or clearing will reconcile all Automatic segments</label><span asp-validation-for="ConfirmReferencedSpeedChange" class="text-danger d-block"></span></div>
+    }
     <div class="mb-3"><label asp-for="SortOrder" class="form-label"></label><input asp-for="SortOrder" class="form-control" /></div>
     <div class="form-check mb-3"><input asp-for="IsActive" class="form-check-input" /><label asp-for="IsActive" class="form-check-label">Available for new segment choices</label></div>
     @if (Model.WasActive)

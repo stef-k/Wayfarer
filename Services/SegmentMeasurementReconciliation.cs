@@ -98,7 +98,8 @@ public static partial class SegmentRouteReconciler
                 else
                     duration = SegmentMeasurementCalculator.NormalizeManualDuration(proposal.ManualDurationMinutes.Value);
             }
-            else if (profile?.PlanningSpeedKmh is > 0d and var speed && double.IsFinite(speed))
+            else if ((proposal.UsePlanningSpeedOverride ? proposal.PlanningSpeedKmhOverride : profile?.PlanningSpeedKmh)
+                     is > 0d and var speed && double.IsFinite(speed))
             {
                 duration = distance.HasValue
                     ? SegmentMeasurementCalculator.CalculateAutomaticDuration(distance.Value.UnroundedMetres, speed)

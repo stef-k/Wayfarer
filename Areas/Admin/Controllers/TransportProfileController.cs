@@ -45,7 +45,13 @@ public sealed class TransportProfileController : Controller
                 profile.Id, profile.Key, profile.Label, profile.Category, profile.PlanningSpeedKmh,
                 profile.SortOrder, profile.IsActive, profile.IsSeeded,
                 _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id
-                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)), profile.RowVersion))
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)),
+                _dbContext.Segments.Count(segment => (segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+                    && segment.EstimatedDurationSource == EstimatedDurationSource.Automatic),
+                _dbContext.Segments.Count(segment => (segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+                    && segment.EstimatedDurationSource == EstimatedDurationSource.Manual), profile.RowVersion))
             .ToListAsync(cancellationToken);
         return View(new TransportProfileIndexViewModel(rows, search, page, Math.Max(1, (int)Math.Ceiling(total / (double)PageSize))));
     }
@@ -129,6 +135,38 @@ public sealed class TransportProfileController : Controller
             return NotFound();
         }
 
+        var snapshot = await _dbContext.Set<TransportProfile>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (snapshot == null) return NotFound();
+        var counts = await LoadDependencyCountsAsync(snapshot, cancellationToken);
+        model.Key = snapshot.Key;
+        model.ReferencedSegments = counts.Total;
+        model.AutomaticSegments = counts.Automatic;
+        model.ManualSegments = counts.Manual;
+        var speedChangedBeforeLock = snapshot.PlanningSpeedKmh != model.PlanningSpeedKmh;
+        if (speedChangedBeforeLock && counts.Total > 0 && !model.ConfirmReferencedSpeedChange)
+            ModelState.AddModelError(nameof(model.ConfirmReferencedSpeedChange), "Confirm the referenced planning-speed reconciliation after reviewing dependency counts.");
+        if (snapshot.IsActive && !model.IsActive && !model.ConfirmDeactivation)
+            ModelState.AddModelError(nameof(model.ConfirmDeactivation), "Confirm deactivation after reviewing the dependency count.");
+        if (!ModelState.IsValid) return View(model);
+
+        if (speedChangedBeforeLock)
+        {
+            var update = new TransportProfileUpdateProposal(
+                model.Label.Trim(), model.Category.Trim(), model.PlanningSpeedKmh, model.SortOrder,
+                model.IsActive, NormalizeDescription(model.Description), model.RowVersion);
+            var result = await TransportProfileMeasurementReconciler.ReconcileUpdateAsync(
+                _dbContext, id, update, User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "admin", cancellationToken);
+            if (!result.Succeeded)
+            {
+                ModelState.AddModelError(string.Empty, result.Errors[0]);
+                return View(model);
+            }
+            TempData["AlertMessage"] = $"Transport profile updated; {result.RecalculatedReferences} Automatic segment(s) recalculated and {result.UnavailableReferences} unavailable.";
+            TempData["AlertType"] = "success";
+            return RedirectToAction(nameof(Index));
+        }
+
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
         var profile = await _dbContext.Set<TransportProfile>().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
@@ -139,15 +177,6 @@ public sealed class TransportProfileController : Controller
 
         model.Key = profile.Key;
         model.ReferencedSegments = await new TransportProfileCatalog(_dbContext).CountReferencesAsync(id, profile.Key, cancellationToken);
-        var speedChanged = profile.PlanningSpeedKmh != model.PlanningSpeedKmh;
-        if (speedChanged && model.ReferencedSegments > 0)
-        {
-            ModelState.AddModelError(nameof(model.PlanningSpeedKmh), "Referenced planning-speed changes require #405 duration provenance and reconciliation.");
-        }
-        if (profile.IsActive && !model.IsActive && !model.ConfirmDeactivation)
-        {
-            ModelState.AddModelError(nameof(model.ConfirmDeactivation), "Confirm deactivation after reviewing the dependency count.");
-        }
         if (!ModelState.IsValid)
         {
             return View(model);
@@ -274,7 +303,13 @@ public sealed class TransportProfileController : Controller
                 PlanningSpeedKmh = profile.PlanningSpeedKmh, SortOrder = profile.SortOrder, IsActive = profile.IsActive,
                 Description = profile.Description, RowVersion = profile.RowVersion, WasActive = profile.IsActive,
                 ReferencedSegments = _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)),
+                AutomaticSegments = _dbContext.Segments.Count(segment => (segment.TransportProfileId == profile.Id
                     || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+                    && segment.EstimatedDurationSource == EstimatedDurationSource.Automatic),
+                ManualSegments = _dbContext.Segments.Count(segment => (segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+                    && segment.EstimatedDurationSource == EstimatedDurationSource.Manual)
             }).SingleOrDefaultAsync(token);
 
     private Task<TransportProfileRowViewModel?> BuildRowAsync(Guid id, CancellationToken token) =>
@@ -282,8 +317,27 @@ public sealed class TransportProfileController : Controller
             .Select(profile => new TransportProfileRowViewModel(profile.Id, profile.Key, profile.Label, profile.Category,
                 profile.PlanningSpeedKmh, profile.SortOrder, profile.IsActive, profile.IsSeeded,
                 _dbContext.Segments.Count(segment => segment.TransportProfileId == profile.Id
-                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)), profile.RowVersion))
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key)),
+                _dbContext.Segments.Count(segment => (segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+                    && segment.EstimatedDurationSource == EstimatedDurationSource.Automatic),
+                _dbContext.Segments.Count(segment => (segment.TransportProfileId == profile.Id
+                    || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+                    && segment.EstimatedDurationSource == EstimatedDurationSource.Manual), profile.RowVersion))
             .SingleOrDefaultAsync(token);
+
+    private async Task<(int Total, int Automatic, int Manual)> LoadDependencyCountsAsync(
+        TransportProfile profile,
+        CancellationToken cancellationToken)
+    {
+        var sources = await _dbContext.Segments.AsNoTracking()
+            .Where(segment => segment.TransportProfileId == profile.Id
+                || (segment.TransportProfileId == null && segment.Mode.Trim().ToLower() == profile.Key))
+            .Select(segment => segment.EstimatedDurationSource)
+            .ToArrayAsync(cancellationToken);
+        return (sources.Length, sources.Count(source => source == EstimatedDurationSource.Automatic),
+            sources.Count(source => source == EstimatedDurationSource.Manual));
+    }
 
     private AuditLog AddAudit(string action, TransportProfile profile, string changedFields, int dependencies)
     {

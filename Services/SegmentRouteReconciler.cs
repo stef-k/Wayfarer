@@ -17,12 +17,16 @@ public sealed record SegmentWaypointProposal(Guid PlaceId, int Position, int? Ro
 /// <param name="DurationSource">Explicit Automatic or Manual duration ownership.</param>
 /// <param name="ManualDurationMinutes">Submitted Manual duration, otherwise ignored.</param>
 /// <param name="AllowUnavailableAutomatic">Whether an administrator-owned compatibility operation may clear Automatic duration without speed.</param>
+/// <param name="UsePlanningSpeedOverride">Whether a profile mutation supplies the canonical proposed speed.</param>
+/// <param name="PlanningSpeedKmhOverride">Proposed speed, including null for a confirmed clear.</param>
 public sealed record SegmentMeasurementProposal(
     string Mode,
     Guid? TransportProfileId,
     EstimatedDurationSource DurationSource,
     double? ManualDurationMinutes,
-    bool AllowUnavailableAutomatic = false);
+    bool AllowUnavailableAutomatic = false,
+    bool UsePlanningSpeedOverride = false,
+    double? PlanningSpeedKmhOverride = null);
 
 /// <summary>Describes a complete persisted Segment route aggregate proposal.</summary>
 /// <param name="SegmentId">Canonical Segment identity.</param>
