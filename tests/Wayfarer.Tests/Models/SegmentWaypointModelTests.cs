@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -13,7 +15,7 @@ public sealed class SegmentWaypointModelTests : TestBase
     public void RuntimeModel_DefinesWaypointPersistenceContract()
     {
         using var context = CreateDbContext();
-        var entity = context.Model.FindEntityType(typeof(SegmentWaypoint));
+        var entity = context.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(SegmentWaypoint));
 
         Assert.NotNull(entity);
         Assert.Equal("SegmentWaypoints", entity!.GetTableName());

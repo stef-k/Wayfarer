@@ -35,6 +35,10 @@ public class Segment
     [JsonIgnore]
     public Place? ToPlace { get; set; }
 
+    /// <summary>Ordered intermediate saved-place anchors owned by this segment.</summary>
+    [JsonIgnore]
+    public ICollection<SegmentWaypoint> Waypoints { get; set; } = new List<SegmentWaypoint>();
+
     /// <summary>Mode of transport (e.g., "walk", "bike").</summary>
     public string Mode { get; set; } = string.Empty;
 

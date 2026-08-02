@@ -45,7 +45,7 @@ public sealed class SegmentRouteReconcilerTests
             Assert.Null(waypoint.RouteVertexIndex);
         });
         Assert.Equal([from.Location!.Coordinate, via.Location!.Coordinate, to.Location!.Coordinate],
-            result.EffectiveAnchorChain.Select(point => point.Coordinate), CoordinateComparer.Instance);
+            result.EffectiveAnchorChain.Select(place => place.Location!.Coordinate), CoordinateComparer.Instance);
     }
 
     /// <summary>A closed loop reuses one canonical endpoint place without duplicating it.</summary>
@@ -89,7 +89,7 @@ public sealed class SegmentRouteReconcilerTests
     [Theory]
     [MemberData(nameof(InvalidProposals))]
     public void Reconcile_InvalidProposal_LeavesAggregateUnchanged(
-        Func<Guid, Place, Place, Place, (Place? From, Place? To, SegmentWaypointProposal[] Waypoints, LineString? Geometry)> proposal)
+        Func<Guid, Place, Place, Place, (Place?, Place?, SegmentWaypointProposal[], LineString?)> proposal)
     {
         var tripId = Guid.NewGuid();
         var originalFrom = Place(tripId, 10, 10);
@@ -104,7 +104,7 @@ public sealed class SegmentRouteReconcilerTests
         var before = Snapshot(segment);
         var proposed = proposal(tripId, originalFrom, originalTo, candidate);
 
-        var result = SegmentRouteReconciler.Reconcile(segment, proposed.From, proposed.To, proposed.Waypoints, proposed.Geometry);
+        var result = SegmentRouteReconciler.Reconcile(segment, proposed.Item1, proposed.Item2, proposed.Item3, proposed.Item4);
 
         Assert.False(result.Succeeded);
         Assert.NotEmpty(result.Errors);

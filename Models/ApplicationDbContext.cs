@@ -37,6 +37,7 @@ namespace Wayfarer.Models
         public DbSet<Region> Regions { get; set; }
         public DbSet<Place> Places { get; set; }
         public DbSet<Segment> Segments { get; set; }
+        public DbSet<SegmentWaypoint> SegmentWaypoints { get; set; }
         public DbSet<Tag> Tags { get; set; }
 
         public DbSet<Area> Areas { get; set; }
@@ -217,6 +218,7 @@ namespace Wayfarer.Models
 
             // Trip planning setup
             builder.ApplyConfiguration(new Configuration.TransportProfileConfiguration());
+            builder.ApplyConfiguration(new Configuration.SegmentWaypointConfiguration());
 
             // Trip ↔ ApplicationUser (cascade on delete)
             builder.Entity<Trip>()
