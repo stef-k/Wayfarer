@@ -29,6 +29,64 @@ public sealed class SegmentRouteReconcilerTests
         Assert.Empty(segment.Waypoints);
     }
 
+    /// <summary>Every supplied custom route is validated even when the Segment has no waypoint rows.</summary>
+    [Theory]
+    [InlineData("srid")]
+    [InlineData("empty")]
+    [InlineData("nonfinite")]
+    public async Task ReconcileAsync_ZeroWaypoints_InvalidCustomGeometryIsRejectedAtomically(string defect)
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var geometry = defect switch
+        {
+            "srid" => new LineString([new Coordinate(1, 1), new Coordinate(2, 2)]) { SRID = 0 },
+            "empty" => new LineString([]) { SRID = 4326 },
+            "nonfinite" => new LineString([new Coordinate(1, 1), new Coordinate(double.NaN, 2)]) { SRID = 4326 },
+            _ => throw new InvalidOperationException("Unknown geometry fixture.")
+        };
+        var before = await SnapshotAsync(context, seeded.SegmentId);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], geometry));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(before, await SnapshotAsync(context, seeded.SegmentId));
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+    }
+
+    /// <summary>Optional legacy endpoints still require canonical ownership when custom geometry supplies the route.</summary>
+    [Fact]
+    public async Task ReconcileAsync_ZeroWaypoints_CustomGeometryRejectsForeignOptionalEndpoint()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context, includeForeign: true);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, seeded.ForeignPlaceId, null, [], Line((1, 1), (2, 2))));
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("From place must belong to the segment trip.", result.Errors);
+    }
+
+    /// <summary>A valid custom route remains complete without legacy endpoints under the approved compatibility contract.</summary>
+    [Fact]
+    public async Task ReconcileAsync_ZeroWaypoints_ValidCustomGeometryNeedsNoLegacyEndpoints()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], Line((1, 1), (2, 2))));
+
+        Assert.True(result.Succeeded);
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Null(segment.FromPlaceId);
+        Assert.Null(segment.ToPlaceId);
+        Assert.NotNull(segment.RouteGeometry);
+    }
+
     /// <summary>A valid fallback proposal commits canonical endpoints and deterministic waypoint order.</summary>
     [Fact]
     public async Task ReconcileAsync_ValidFallback_UsesCanonicalAnchorChain()

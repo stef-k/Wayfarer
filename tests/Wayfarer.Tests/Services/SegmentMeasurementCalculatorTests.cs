@@ -7,6 +7,30 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Verifies deterministic distance and duration numerical policy independently of persistence.</summary>
 public sealed class SegmentMeasurementCalculatorTests
 {
+    /// <summary>Uses independently precomputed GeographicLib-style fixtures for difficult spherical routes.</summary>
+    [Theory]
+    [MemberData(nameof(DifficultRouteFixtures))]
+    public void CalculateDistance_DifficultSphericalFixturesMatchIndependentConstants(
+        Coordinate[] coordinates,
+        double expectedMetres,
+        double toleranceMetres)
+    {
+        var result = SegmentMeasurementCalculator.CalculateDistance(coordinates);
+
+        Assert.InRange(result.UnroundedMetres, expectedMetres - toleranceMetres, expectedMetres + toleranceMetres);
+        Assert.True(double.IsFinite(result.UnroundedMetres));
+    }
+
+    /// <summary>Independent expected distances, not calculated through production code.</summary>
+    public static TheoryData<Coordinate[], double, double> DifficultRouteFixtures => new()
+    {
+        { [new(179.9, 0), new(-179.9, 0)], 22_238.985, 0.01 },
+        { [new(0, 89.9), new(90, 89.9)], 15_725.333, 0.02 },
+        { [new(0, 0), new(179.999999, 0)], 20_015_086.796, 0.05 },
+        { [new(23.7, 37.9), new(23.7 + 1e-12, 37.9 + 1e-12)], 0.000000142, 0.00000001 },
+        { [new(0, 0), new(1, 0), new(1, 1)], 222_389.853, 0.01 }
+    };
+
     /// <summary>Proves longitude/latitude Haversine distance across every consecutive pair.</summary>
     [Fact]
     public void CalculateDistance_SumsEveryConsecutiveLongitudeLatitudePair()
