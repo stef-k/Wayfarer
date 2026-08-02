@@ -136,6 +136,8 @@ public class TripImportService : ITripImportService
             tReg.Areas ??= new List<Area>();
         }
 
+        await ResolveImportedProfilesAsync(target.Segments ?? [], CancellationToken.None);
+
         // --- ensure every trip has its "Unassigned Places" shadow region ---
         const string ShadowName = "Unassigned Places";
         if (!(target.Regions ?? Enumerable.Empty<Region>()).Any(r => r.Name == ShadowName))
@@ -163,12 +165,24 @@ public class TripImportService : ITripImportService
         await _dbContext.SaveChangesAsync();
         _dbContext.ChangeTracker.Clear();
         await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
-            _dbContext, target.Id, allowUnavailableAutomatic: false);
+            _dbContext, target.Id, allowUnavailableAutomatic: true);
         if (transaction is not null)
         {
             await transaction.CommitAsync();
         }
         return target.Id;
+    }
+
+    /// <summary>Links known import modes before reconciliation while leaving unknown modes to the database compatibility trigger.</summary>
+    private async Task ResolveImportedProfilesAsync(IEnumerable<Segment> segments, CancellationToken cancellationToken)
+    {
+        var profiles = await _dbContext.Set<TransportProfile>().AsNoTracking().ToDictionaryAsync(
+            profile => profile.Key, cancellationToken);
+        foreach (var segment in segments)
+        {
+            var normalized = TransportProfile.NormalizeKey(segment.Mode);
+            segment.TransportProfileId = profiles.TryGetValue(normalized, out var profile) ? profile.Id : null;
+        }
     }
 
     /* ---------- helpers ------------------------------------------------- */

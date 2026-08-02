@@ -234,6 +234,51 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         Assert.DoesNotContain(db.ChangeTracker.Entries(), entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
     }
 
+    /// <summary>Every profile-batch exception class is bounded at the reconciliation call boundary.</summary>
+    [Theory]
+    [InlineData("concurrency", "This profile changed after the form was loaded. Review the current values and try again.")]
+    [InlineData("serialization", "The profile or its dependencies changed concurrently. No changes were saved.")]
+    [InlineData("cancellation", "The update was cancelled before it completed. No changes were saved.")]
+    [InlineData("provider", "The profile or one of its dependencies could not be saved. No changes were saved.")]
+    [InlineData("unexpected", "The transport profile could not be saved. Please try again.")]
+    public async Task Edit_ReferencedSpeedReconciliationFailure_ReturnsPayloadSafeView(
+        string classification,
+        string expectedGuidance)
+    {
+        var interceptor = new FailingSaveChangesInterceptor();
+        await using var db = CreateInterceptedDbContext(interceptor);
+        var profile = await AddEditableProfileAsync(db);
+        db.Segments.Add(new Segment
+        {
+            Id = Guid.NewGuid(), UserId = "owner", TripId = Guid.NewGuid(), Mode = profile.Key,
+            TransportProfileId = profile.Id, EstimatedDurationSource = EstimatedDurationSource.Automatic
+        });
+        await db.SaveChangesAsync();
+        interceptor.Exception = classification switch
+        {
+            "concurrency" => new DbUpdateConcurrencyException("SECRET geometry and SQL"),
+            "serialization" => new DbUpdateException("SECRET SQL", CreatePostgresException(PostgresErrorCodes.SerializationFailure)),
+            "cancellation" => new OperationCanceledException("SECRET cancellation payload"),
+            "provider" => new DbUpdateException("SECRET provider and connection details"),
+            "unexpected" => new InvalidOperationException("SECRET audit and trip contents"),
+            _ => throw new InvalidOperationException("Unknown classification fixture.")
+        };
+        interceptor.Fail = true;
+        var logger = new CapturingLogger<TransportProfileController>();
+        var controller = BuildController(db, logger);
+        var model = BuildEditModel(profile, "Submitted label");
+        model.PlanningSpeedKmh = 22;
+        model.ConfirmReferencedSpeedChange = true;
+
+        var result = await controller.Edit(profile.Id, model, CancellationToken.None);
+
+        var returned = Assert.IsType<TransportProfileEditViewModel>(Assert.IsType<ViewResult>(result).Model);
+        Assert.Equal("Submitted label", returned.Label);
+        Assert.Equal(expectedGuidance, Assert.Single(controller.ModelState[string.Empty]!.Errors).ErrorMessage);
+        Assert.DoesNotContain("SECRET", expectedGuidance, StringComparison.Ordinal);
+        Assert.DoesNotContain(logger.Messages, message => message.Contains("SECRET", StringComparison.Ordinal));
+    }
+
     /// <summary>Proves an unreferenced deployment profile can be deleted.</summary>
     [Fact]
     public async Task DeleteConfirmed_DeletesOnlyUnreferencedNonSeededProfile()
@@ -407,7 +452,7 @@ public sealed class AdminTransportProfileControllerTests : TestBase
     private sealed class FailingSaveChangesInterceptor : SaveChangesInterceptor
     {
         public bool Fail { get; set; }
-        public DbUpdateException Exception { get; set; } = new("database failure", new InvalidOperationException("connection interrupted"));
+        public Exception Exception { get; set; } = new DbUpdateException("database failure", new InvalidOperationException("connection interrupted"));
 
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData,

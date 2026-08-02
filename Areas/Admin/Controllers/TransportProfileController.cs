@@ -155,8 +155,42 @@ public sealed class TransportProfileController : Controller
             var update = new TransportProfileUpdateProposal(
                 model.Label.Trim(), model.Category.Trim(), model.PlanningSpeedKmh, model.SortOrder,
                 model.IsActive, NormalizeDescription(model.Description), model.RowVersion);
-            var result = await TransportProfileMeasurementReconciler.ReconcileUpdateAsync(
-                _dbContext, id, update, User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "admin", cancellationToken);
+            TransportProfileMeasurementResult result;
+            try
+            {
+                result = await TransportProfileMeasurementReconciler.ReconcileUpdateAsync(
+                    _dbContext, id, update, User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "admin", cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                _logger.LogWarning("Referenced transport-profile reconciliation encountered optimistic concurrency.");
+                ModelState.AddModelError(string.Empty, "This profile changed after the form was loaded. Review the current values and try again.");
+                return View(model);
+            }
+            catch (Exception exception) when (IsSerializationFailure(exception))
+            {
+                _logger.LogWarning("Referenced transport-profile reconciliation encountered serialization concurrency.");
+                ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
+                return View(model);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Referenced transport-profile reconciliation was cancelled.");
+                ModelState.AddModelError(string.Empty, "The update was cancelled before it completed. No changes were saved.");
+                return View(model);
+            }
+            catch (DbUpdateException)
+            {
+                _logger.LogError("Referenced transport-profile reconciliation failed provider integrity checks.");
+                ModelState.AddModelError(string.Empty, "The profile or one of its dependencies could not be saved. No changes were saved.");
+                return View(model);
+            }
+            catch (Exception)
+            {
+                _logger.LogError("Referenced transport-profile reconciliation failed unexpectedly without persisting changes.");
+                ModelState.AddModelError(string.Empty, "The transport profile could not be saved. Please try again.");
+                return View(model);
+            }
             if (!result.Succeeded)
             {
                 ModelState.AddModelError(string.Empty, result.Errors[0]);

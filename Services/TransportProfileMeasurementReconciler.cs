@@ -1,6 +1,8 @@
 using System.Data;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Wayfarer.Models;
 
 namespace Wayfarer.Services;
@@ -43,6 +45,8 @@ public static class TransportProfileMeasurementReconciler
             return await ReconcileLockedAsync(dbContext, profileId, proposedSpeedKmh, actorUserId, update, cancellationToken);
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        Guid[] segmentIds = [];
+        var cleanupAttempted = false;
         try
         {
             await dbContext.Database.ExecuteSqlInterpolatedAsync(
@@ -50,7 +54,7 @@ public static class TransportProfileMeasurementReconciler
             var profile = await dbContext.Set<TransportProfile>().AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == profileId, cancellationToken);
             if (profile == null) return TransportProfileMeasurementResult.Failure("Transport profile was not found.");
-            var segmentIds = await ReferenceIdsAsync(dbContext, profile, cancellationToken);
+            segmentIds = await ReferenceIdsAsync(dbContext, profile, cancellationToken);
             foreach (var segmentId in segmentIds.Order())
                 await dbContext.Database.ExecuteSqlInterpolatedAsync(
                     $"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {segmentId} FOR UPDATE", cancellationToken);
@@ -58,19 +62,63 @@ public static class TransportProfileMeasurementReconciler
             var result = await ReconcileLockedAsync(dbContext, profileId, proposedSpeedKmh, actorUserId, update, cancellationToken);
             if (!result.Succeeded)
             {
-                await transaction.RollbackAsync(CancellationToken.None);
-                dbContext.ChangeTracker.Clear();
+                cleanupAttempted = true;
+                await CleanupAsync(dbContext, transaction, profileId, segmentIds,
+                    new InvalidOperationException(string.Join(" ", result.Errors)));
                 return result;
             }
             await transaction.CommitAsync(cancellationToken);
             return result;
         }
-        catch
+        catch (Exception originalFailure)
         {
-            await transaction.RollbackAsync(CancellationToken.None);
-            dbContext.ChangeTracker.Clear();
+            if (cleanupAttempted)
+            {
+                ExceptionDispatchInfo.Capture(originalFailure).Throw();
+                throw;
+            }
+            await CleanupAsync(dbContext, transaction, profileId, segmentIds, originalFailure);
+            ExceptionDispatchInfo.Capture(originalFailure).Throw();
             throw;
         }
+    }
+
+    /// <summary>Preserves the operation failure and invalidates the context when mandatory cleanup is incomplete.</summary>
+    private static async Task CleanupAsync(
+        ApplicationDbContext dbContext,
+        IDbContextTransaction transaction,
+        Guid profileId,
+        IReadOnlyList<Guid> segmentIds,
+        Exception originalFailure)
+    {
+        var cleanupFailures = new List<Exception>();
+        try { await transaction.RollbackAsync(CancellationToken.None); }
+        catch (Exception rollbackFailure) { cleanupFailures.Add(rollbackFailure); }
+        try { await RecoverTrackedScopeAsync(dbContext, profileId, segmentIds); }
+        catch (Exception recoveryFailure) { cleanupFailures.Add(recoveryFailure); }
+        if (cleanupFailures.Count == 0) return;
+
+        try { await dbContext.DisposeAsync(); }
+        catch (Exception disposalFailure) { cleanupFailures.Add(disposalFailure); }
+        throw new AggregateException(
+            "Transport-profile reconciliation failed and mandatory cleanup could not restore a reusable DbContext.",
+            [originalFailure, .. cleanupFailures]);
+    }
+
+    /// <summary>Recovers only the profile-batch aggregate scope and preserves unrelated unchanged tracking.</summary>
+    private static async Task RecoverTrackedScopeAsync(
+        ApplicationDbContext dbContext,
+        Guid profileId,
+        IReadOnlyList<Guid> segmentIds)
+    {
+        foreach (var audit in dbContext.ChangeTracker.Entries<AuditLog>()
+                     .Where(entry => entry.State == EntityState.Added).ToArray())
+            audit.State = EntityState.Detached;
+        foreach (var segmentId in segmentIds)
+            await SegmentRouteReconciler.RecoverAggregateAsync(dbContext, segmentId, CancellationToken.None);
+        var profileEntry = dbContext.ChangeTracker.Entries<TransportProfile>()
+            .SingleOrDefault(entry => entry.Entity.Id == profileId);
+        if (profileEntry != null) await profileEntry.ReloadAsync(CancellationToken.None);
     }
 
     private static async Task<TransportProfileMeasurementResult> ReconcileLockedAsync(

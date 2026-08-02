@@ -61,6 +61,7 @@ public static partial class SegmentRouteReconciler
 {
     /// <summary>Maximum independent longitude or latitude difference accepted for an anchor vertex.</summary>
     public const double CoordinateToleranceDegrees = 0.0000001d;
+    private const int MaximumProfileLockAttempts = 3;
 
     /// <summary>
     /// Requires a clean caller context and owns the transaction, canonical Segment row lock, and SaveChanges
@@ -86,39 +87,56 @@ public static partial class SegmentRouteReconciler
             return result;
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var requiredProfileIds = await ResolveProfileLockIdsAsync(dbContext, proposal, cancellationToken);
+        for (var attempt = 1; attempt <= MaximumProfileLockAttempts; attempt++)
         {
-            await LockProfilesAsync(dbContext, await ResolveProfileLockIdsAsync(dbContext, proposal, cancellationToken), cancellationToken);
-            await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
-
-            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: true, cancellationToken);
-            if (!result.Succeeded) return result;
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return result;
-        }
-        catch (Exception originalFailure)
-        {
-            var cleanupFailures = new List<Exception>();
-            try { await transaction.RollbackAsync(CancellationToken.None); }
-            catch (Exception rollbackFailure) { cleanupFailures.Add(rollbackFailure); }
-
-            try { await RecoverAggregateAsync(dbContext, proposal.SegmentId, CancellationToken.None); }
-            catch (Exception recoveryFailure) { cleanupFailures.Add(recoveryFailure); }
-
-            if (cleanupFailures.Count > 0)
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                try { await dbContext.DisposeAsync(); }
-                catch (Exception disposalFailure) { cleanupFailures.Add(disposalFailure); }
-                throw new AggregateException(
-                    "Segment route reconciliation failed and mandatory cleanup could not restore a reusable DbContext.",
-                    [originalFailure, .. cleanupFailures]);
-            }
+                await LockProfilesAsync(dbContext, requiredProfileIds, cancellationToken);
+                await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
+                var currentProfileId = await dbContext.Segments.AsNoTracking()
+                    .Where(segment => segment.Id == proposal.SegmentId)
+                    .Select(segment => segment.TransportProfileId)
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (currentProfileId.HasValue && !requiredProfileIds.Contains(currentProfileId.Value))
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    requiredProfileIds = requiredProfileIds.Append(currentProfileId.Value).Distinct().Order().ToArray();
+                    if (attempt == MaximumProfileLockAttempts)
+                        return new(false, ["The Segment profile changed repeatedly while waiting. Reload and try again."], []);
+                    continue;
+                }
 
-            ExceptionDispatchInfo.Capture(originalFailure).Throw();
-            throw;
+                var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: true, cancellationToken);
+                if (!result.Succeeded) return result;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch (Exception originalFailure)
+            {
+                var cleanupFailures = new List<Exception>();
+                try { await transaction.RollbackAsync(CancellationToken.None); }
+                catch (Exception rollbackFailure) { cleanupFailures.Add(rollbackFailure); }
+
+                try { await RecoverAggregateAsync(dbContext, proposal.SegmentId, CancellationToken.None); }
+                catch (Exception recoveryFailure) { cleanupFailures.Add(recoveryFailure); }
+
+                if (cleanupFailures.Count > 0)
+                {
+                    try { await dbContext.DisposeAsync(); }
+                    catch (Exception disposalFailure) { cleanupFailures.Add(disposalFailure); }
+                    throw new AggregateException(
+                        "Segment route reconciliation failed and mandatory cleanup could not restore a reusable DbContext.",
+                        [originalFailure, .. cleanupFailures]);
+                }
+
+                ExceptionDispatchInfo.Capture(originalFailure).Throw();
+                throw;
+            }
         }
+        throw new InvalidOperationException("The bounded profile-lock attempt loop terminated unexpectedly.");
     }
 
     /// <summary>Rejects pending caller work because this operation owns SaveChanges and recovery.</summary>
@@ -312,7 +330,7 @@ public static partial class SegmentRouteReconciler
         segment.Waypoints = new List<SegmentWaypoint>();
     }
 
-    private static async Task RecoverAggregateAsync(
+    internal static async Task RecoverAggregateAsync(
         ApplicationDbContext dbContext,
         Guid segmentId,
         CancellationToken cancellationToken)
@@ -374,12 +392,16 @@ public static partial class SegmentRouteReconciler
                 errors.Add($"Waypoint place at position {index} was not found.");
         }
         if (errors.Count > 0) return errors;
+
+        if (proposal.FromPlaceId.HasValue)
+            ValidateCanonicalPlace("From place", placesById[proposal.FromPlaceId.Value], tripId, errors);
+        if (proposal.ToPlaceId.HasValue)
+            ValidateCanonicalPlace("To place", placesById[proposal.ToPlaceId.Value], tripId, errors);
+        if (geometry != null) ValidateBasicCustomGeometry(geometry, errors);
         if (proposal.Waypoints.Count == 0) return errors;
 
         var from = placesById[proposal.FromPlaceId!.Value];
         var to = placesById[proposal.ToPlaceId!.Value];
-        ValidateCanonicalPlace("From place", from, tripId, errors);
-        ValidateCanonicalPlace("To place", to, tripId, errors);
         var placeIds = new HashSet<Guid>();
         for (var index = 0; index < proposal.Waypoints.Count; index++)
         {
@@ -438,11 +460,6 @@ public static partial class SegmentRouteReconciler
         LineString geometry,
         List<string> errors)
     {
-        if (geometry.SRID != 4326 || geometry.IsEmpty || geometry.NumPoints < 2 || !geometry.IsValid)
-        {
-            errors.Add("Custom route geometry must be a valid SRID 4326 LineString with at least two vertices.");
-            return;
-        }
         if (!CoordinatesMatch(geometry.GetCoordinateN(0), from.Location!.Coordinate))
             errors.Add("The first custom-route vertex must match the From place.");
         if (!CoordinatesMatch(geometry.GetCoordinateN(geometry.NumPoints - 1), to.Location!.Coordinate))
@@ -466,6 +483,15 @@ public static partial class SegmentRouteReconciler
                 errors.Add("Each indexed custom-route vertex must match its waypoint place.");
             priorIndex = vertexIndex;
         }
+    }
+
+    /// <summary>Validates route shape independently from waypoint anchor semantics.</summary>
+    private static void ValidateBasicCustomGeometry(LineString geometry, List<string> errors)
+    {
+        if (geometry.SRID != 4326 || geometry.IsEmpty || geometry.NumPoints < 2 || !geometry.IsValid
+            || geometry.Coordinates.Any(coordinate => !double.IsFinite(coordinate.X) || !double.IsFinite(coordinate.Y)
+                || coordinate.X is < -180d or > 180d || coordinate.Y is < -90d or > 90d))
+            errors.Add("Custom route geometry must be a valid SRID 4326 LineString with at least two finite longitude/latitude vertices.");
     }
 
     private static IReadOnlyList<Place> BuildAnchorChain(

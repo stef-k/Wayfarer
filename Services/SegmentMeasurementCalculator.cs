@@ -77,6 +77,7 @@ public static class SegmentMeasurementCalculator
         var longitudeTerm = Math.Sin(longitudeDelta / 2d);
         var a = latitudeTerm * latitudeTerm
             + Math.Cos(latitude1) * Math.Cos(latitude2) * longitudeTerm * longitudeTerm;
+        a = Math.Clamp(a, 0d, 1d);
         var centralAngle = 2d * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1d - a));
         return EarthRadiusMetres * centralAngle;
     }

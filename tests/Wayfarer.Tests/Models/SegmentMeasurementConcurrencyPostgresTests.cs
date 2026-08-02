@@ -62,6 +62,37 @@ public sealed class SegmentMeasurementConcurrencyPostgresTests(PostgresImportTes
         await AssertCoherentAutomaticAsync(data.Segments[0].Id, data.SecondProfile!.Id, 30, data.From.Id, data.To.Id);
     }
 
+    /// <summary>A waiter that observes A to C drift retries before applying proposed B with the complete profile union.</summary>
+    [PostgresFact]
+    public async Task WaitingSegmentChangesFromAToC_ProposedBLocksPostWaitUnionBeforeMutation()
+    {
+        var data = await SeedAsync(segmentCount: 1, includeSecondProfile: true);
+        var thirdProfile = Profile("third", 45);
+        fixture.RegisterTransportProfile(thirdProfile.Id);
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.Add(thirdProfile);
+            await seed.SaveChangesAsync();
+        }
+        await using var blocker = fixture.CreateContext();
+        await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM public.\"TransportProfiles\" WHERE \"Id\" = {data.FirstProfile.Id} FOR UPDATE");
+        await using var waiter = fixture.CreateContext();
+        await waiter.Database.OpenConnectionAsync();
+        var waiterPid = await BackendPidAsync(waiter);
+        var operation = SegmentRouteReconciler.ReconcileAsync(waiter,
+            Proposal(data.Segments[0], data.SecondProfile!, data.From, data.To), CancellationToken.None);
+        await WaitUntilBlockedAsync(waiterPid);
+        await using (var drift = fixture.CreateContext())
+            await drift.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE public.\"Segments\" SET \"Mode\" = {thirdProfile.Key}, \"TransportProfileId\" = {thirdProfile.Id} WHERE \"Id\" = {data.Segments[0].Id}");
+        await blockerTransaction.CommitAsync();
+
+        Assert.True((await operation).Succeeded);
+        await AssertCoherentAutomaticAsync(data.Segments[0].Id, data.SecondProfile!.Id, 30, data.From.Id, data.To.Id);
+    }
+
     /// <summary>Opposing profile moves acquire the same profile union order and cannot deadlock or mix measurements.</summary>
     [PostgresFact]
     public async Task OpposingModeChanges_LockProfileUnionInOneOrder()
@@ -136,15 +167,32 @@ public sealed class SegmentMeasurementConcurrencyPostgresTests(PostgresImportTes
         await AssertAllAutomaticMatchAsync(data, speed!.Value);
     }
 
-    /// <summary>A waiter never reports success from dependency counts captured before its profile lock.</summary>
+    /// <summary>A profile batch re-reads dependencies after its known lock wait instead of using the pre-wait set.</summary>
     [PostgresFact]
-    public async Task DependencyDriftAfterLockWait_IsRejectedInsteadOfUsingStaleState()
+    public async Task DependencyDriftAfterLockWait_RevalidatesMutatedDependency()
     {
-        var data = await SeedAsync(segmentCount: 1);
-        var outcomes = await RunOpposingProfileEditsAsync(data, 8, 16);
-        Assert.Equal(1, outcomes.Count(item => item.Succeeded));
-        Assert.Contains(outcomes, item => !item.Succeeded && item.SerializationFailure);
-        await AssertAllAutomaticMatchAsync(data, (await CurrentSpeedAsync(data.FirstProfile.Id))!.Value);
+        var data = await SeedAsync(segmentCount: 1, includeSecondProfile: true);
+        await using var blocker = fixture.CreateContext();
+        await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM public.\"TransportProfiles\" WHERE \"Id\" = {data.FirstProfile.Id} FOR UPDATE");
+        await using var waiter = fixture.CreateContext();
+        await waiter.Database.OpenConnectionAsync();
+        var waiterPid = await BackendPidAsync(waiter);
+        var operation = TransportProfileMeasurementReconciler.ReconcileAsync(
+            waiter, data.FirstProfile.Id, 16, data.User.Id, CancellationToken.None);
+        await WaitUntilBlockedAsync(waiterPid);
+
+        await using (var drift = fixture.CreateContext())
+            await drift.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE public.\"Segments\" SET \"Mode\" = {data.SecondProfile!.Key}, \"TransportProfileId\" = {data.SecondProfile.Id}, \"EstimatedDistanceKm\" = {11.119d}, \"EstimatedDuration\" = {ExpectedDuration(30)} WHERE \"Id\" = {data.Segments[0].Id}");
+        await blockerTransaction.CommitAsync();
+
+        var outcome = await CaptureAsync(() => operation);
+        Assert.False(outcome.Succeeded);
+        Assert.True(outcome.SerializationFailure);
+        await AssertCoherentAutomaticAsync(data.Segments[0].Id, data.SecondProfile!.Id, 30, data.From.Id, data.To.Id);
+        Assert.Equal(5, await CurrentSpeedAsync(data.FirstProfile.Id));
     }
 
     /// <summary>A provider failure rolls profile, every Segment, and audit back and leaves no tracked intermediate work.</summary>
@@ -156,10 +204,28 @@ public sealed class SegmentMeasurementConcurrencyPostgresTests(PostgresImportTes
         await using var context = fixture.CreateContext(failure);
         await Assert.ThrowsAsync<InvalidOperationException>(() => TransportProfileMeasurementReconciler.ReconcileAsync(
             context, data.FirstProfile.Id, 14, data.User.Id, CancellationToken.None));
-        Assert.Empty(context.ChangeTracker.Entries());
+        Assert.All(context.ChangeTracker.Entries(), entry => Assert.Equal(EntityState.Unchanged, entry.State));
         await context.SaveChangesAsync();
         Assert.Equal(5d, await CurrentSpeedAsync(data.FirstProfile.Id));
         await AssertAllAutomaticMatchAsync(data, 5);
+        Assert.Equal(0, await AuditCountAsync(data.FirstProfile.Id));
+    }
+
+    /// <summary>A rollback failure preserves the provider failure and deterministically invalidates the context.</summary>
+    [PostgresFact]
+    public async Task ProfileBatchRollbackFailure_PreservesCombinedFailuresAndInvalidatesContext()
+    {
+        var data = await SeedAsync(segmentCount: 2);
+        var saveFailure = new ThrowingSaveInterceptor();
+        await using var context = fixture.CreateContext(saveFailure, new RollbackFailureInterceptor());
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => TransportProfileMeasurementReconciler.ReconcileAsync(
+            context, data.FirstProfile.Id, 14, data.User.Id, CancellationToken.None));
+
+        Assert.Contains("Deterministic provider failure.", exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Deterministic profile rollback failure.", exception.ToString(), StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+        Assert.Equal(5, await CurrentSpeedAsync(data.FirstProfile.Id));
         Assert.Equal(0, await AuditCountAsync(data.FirstProfile.Id));
     }
 
@@ -176,7 +242,7 @@ public sealed class SegmentMeasurementConcurrencyPostgresTests(PostgresImportTes
         await interceptor.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
-        Assert.Empty(context.ChangeTracker.Entries());
+        Assert.All(context.ChangeTracker.Entries(), entry => Assert.Equal(EntityState.Unchanged, entry.State));
         Assert.Equal(5d, await CurrentSpeedAsync(data.FirstProfile.Id));
         await AssertAllAutomaticMatchAsync(data, 5);
         Assert.Equal(0, await AuditCountAsync(data.FirstProfile.Id));
@@ -283,11 +349,13 @@ public sealed class SegmentMeasurementConcurrencyPostgresTests(PostgresImportTes
         }
     }
 
-    private static SegmentDistanceMeasurement ExpectedDistance =>
-        SegmentMeasurementCalculator.CalculateDistance([new Coordinate(0, 0), new Coordinate(0.1, 0)]);
+    private const double IndependentExpectedMetres = 11_119.492664455875d;
+    private static SegmentDistanceMeasurement ExpectedDistance => new(IndependentExpectedMetres, 11.119d);
 
     private static TimeSpan ExpectedDuration(double speed) =>
-        SegmentMeasurementCalculator.CalculateAutomaticDuration(ExpectedDistance.UnroundedMetres, speed);
+        TimeSpan.FromSeconds(Math.Round(
+            IndependentExpectedMetres / (speed * 1000d / 3600d),
+            MidpointRounding.AwayFromZero));
 
     private async Task<double?> CurrentSpeedAsync(Guid profileId)
     {
@@ -365,6 +433,18 @@ public sealed class SegmentMeasurementConcurrencyPostgresTests(PostgresImportTes
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return result;
         }
+    }
+
+    private sealed class RollbackFailureInterceptor : DbTransactionInterceptor
+    {
+        /// <summary>Fails mandatory rollback so combined failure preservation and invalidation are observable.</summary>
+        public override ValueTask<InterceptionResult> TransactionRollingBackAsync(
+            DbTransaction transaction,
+            TransactionEventData eventData,
+            InterceptionResult result,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<InterceptionResult>(
+                new InvalidOperationException("Deterministic profile rollback failure."));
     }
 
     private sealed record FixtureData(
