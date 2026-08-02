@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
+using System.Runtime.ExceptionServices;
 using Wayfarer.Models;
 
 namespace Wayfarer.Services;
@@ -39,8 +40,8 @@ public static class SegmentRouteReconciler
     public const double CoordinateToleranceDegrees = 0.0000001d;
 
     /// <summary>
-    /// Owns the transaction and SaveChanges boundary required to replace ordered waypoint rows without
-    /// exposing an intermediate PostgreSQL uniqueness collision.
+    /// Requires a clean caller context and owns the transaction, canonical Segment row lock, and SaveChanges
+    /// boundary required to replace ordered waypoint rows as one serialized aggregate proposal.
     /// </summary>
     public static async Task<SegmentRouteReconciliationResult> ReconcileAsync(
         ApplicationDbContext dbContext,
@@ -50,32 +51,19 @@ public static class SegmentRouteReconciler
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(proposal);
         ArgumentNullException.ThrowIfNull(proposal.Waypoints);
+        EnsureCleanContext(dbContext);
         if (dbContext.Database.CurrentTransaction != null)
             throw new InvalidOperationException("Segment route reconciliation owns its transaction boundary.");
 
-        var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
-        if (segment == null)
-            return new(false, ["Segment was not found."], []);
-
-        var requiredPlaceIds = proposal.Waypoints.Select(item => (Guid?)item.PlaceId)
-            .Append(proposal.FromPlaceId)
-            .Append(proposal.ToPlaceId)
-            .Where(id => id.HasValue)
-            .Select(id => id!.Value)
-            .Distinct()
-            .ToArray();
-        var placesById = await dbContext.Places
-            .Include(place => place.Region)
-            .Where(place => requiredPlaceIds.Contains(place.Id))
-            .ToDictionaryAsync(place => place.Id, cancellationToken);
-        var geometry = proposal.RouteGeometry == null ? null : (LineString)proposal.RouteGeometry.Copy();
-        var errors = Validate(segment.TripId, proposal, placesById, geometry);
-        var anchors = BuildAnchorChain(proposal, placesById);
-        if (errors.Count > 0)
-            return new(false, errors, anchors);
-
         if (!dbContext.Database.IsRelational())
         {
+            var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
+            if (segment == null) return new(false, ["Segment was not found."], []);
+            var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
+            var geometry = CopyGeometry(proposal);
+            var errors = Validate(segment.TripId, proposal, placesById, geometry);
+            var anchors = BuildAnchorChain(proposal, placesById);
+            if (errors.Count > 0) return new(false, errors, anchors);
             ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
             await dbContext.SaveChangesAsync(cancellationToken);
             return new(true, [], anchors);
@@ -84,6 +72,17 @@ public static class SegmentRouteReconciler
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
+
+            await RefreshStaleCanonicalStateAsync(dbContext, proposal.SegmentId, cancellationToken);
+            var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
+            if (segment == null) return new(false, ["Segment was not found."], []);
+            var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
+            var geometry = CopyGeometry(proposal);
+            var errors = Validate(segment.TripId, proposal, placesById, geometry);
+            var anchors = BuildAnchorChain(proposal, placesById);
+            if (errors.Count > 0) return new(false, errors, anchors);
+
             await dbContext.Set<SegmentWaypoint>()
                 .Where(item => item.SegmentId == segment.Id)
                 .ExecuteDeleteAsync(cancellationToken);
@@ -93,12 +92,101 @@ public static class SegmentRouteReconciler
             await transaction.CommitAsync(cancellationToken);
             return new(true, [], anchors);
         }
-        catch
+        catch (Exception originalFailure)
         {
-            await transaction.RollbackAsync(cancellationToken);
-            await ReloadAggregateAsync(dbContext, segment, cancellationToken);
+            var cleanupFailures = new List<Exception>();
+            try { await transaction.RollbackAsync(CancellationToken.None); }
+            catch (Exception rollbackFailure) { cleanupFailures.Add(rollbackFailure); }
+
+            try { await RecoverAggregateAsync(dbContext, proposal.SegmentId, CancellationToken.None); }
+            catch (Exception recoveryFailure) { cleanupFailures.Add(recoveryFailure); }
+
+            if (cleanupFailures.Count > 0)
+            {
+                try { await dbContext.DisposeAsync(); }
+                catch (Exception disposalFailure) { cleanupFailures.Add(disposalFailure); }
+                throw new AggregateException(
+                    "Segment route reconciliation failed and mandatory cleanup could not restore a reusable DbContext.",
+                    [originalFailure, .. cleanupFailures]);
+            }
+
+            ExceptionDispatchInfo.Capture(originalFailure).Throw();
             throw;
         }
+    }
+
+    /// <summary>Rejects pending caller work because this operation owns SaveChanges and recovery.</summary>
+    private static void EnsureCleanContext(ApplicationDbContext dbContext)
+    {
+        dbContext.ChangeTracker.DetectChanges();
+        if (dbContext.ChangeTracker.Entries().Any(entry =>
+                entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Segment route reconciliation requires a clean DbContext.");
+    }
+
+    /// <summary>Locks only the canonical Segment row for the lifetime of the owned PostgreSQL transaction.</summary>
+    private static async Task LockSegmentAsync(
+        ApplicationDbContext dbContext,
+        Guid segmentId,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {segmentId} FOR UPDATE",
+            cancellationToken);
+    }
+
+    /// <summary>Refreshes unchanged identity-map values which could predate acquisition of the row lock.</summary>
+    private static async Task RefreshStaleCanonicalStateAsync(
+        ApplicationDbContext dbContext,
+        Guid segmentId,
+        CancellationToken cancellationToken)
+    {
+        var trackedSegment = dbContext.ChangeTracker.Entries<Segment>()
+            .SingleOrDefault(entry => entry.Entity.Id == segmentId);
+        foreach (var entry in dbContext.ChangeTracker.Entries<SegmentWaypoint>()
+                     .Where(entry => entry.Entity.SegmentId == segmentId).ToArray())
+            entry.State = EntityState.Detached;
+        foreach (var entry in dbContext.ChangeTracker.Entries<Place>().ToArray()) entry.State = EntityState.Detached;
+        foreach (var entry in dbContext.ChangeTracker.Entries<Region>().ToArray()) entry.State = EntityState.Detached;
+        if (trackedSegment == null) return;
+        if (trackedSegment.State == EntityState.Detached)
+        {
+            var replacement = dbContext.ChangeTracker.Entries<Segment>()
+                .SingleOrDefault(entry => entry.Entity.Id == segmentId);
+            if (replacement != null) trackedSegment = replacement;
+            else
+            {
+                trackedSegment.Entity.FromPlace = null;
+                trackedSegment.Entity.ToPlace = null;
+                trackedSegment.Entity.Waypoints = [];
+                trackedSegment = dbContext.Attach(trackedSegment.Entity);
+            }
+        }
+        trackedSegment.Entity.FromPlace = null;
+        trackedSegment.Entity.ToPlace = null;
+        trackedSegment.Entity.Waypoints = [];
+        var canonical = await dbContext.Segments.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == segmentId, cancellationToken);
+        if (canonical == null) return;
+        trackedSegment.CurrentValues.SetValues(canonical);
+        trackedSegment.OriginalValues.SetValues(canonical);
+        trackedSegment.State = EntityState.Unchanged;
+    }
+
+    private static LineString? CopyGeometry(SegmentRouteProposal proposal) =>
+        proposal.RouteGeometry == null ? null : (LineString)proposal.RouteGeometry.Copy();
+
+    private static async Task<Dictionary<Guid, Place>> LoadProposalPlacesAsync(
+        ApplicationDbContext dbContext,
+        SegmentRouteProposal proposal,
+        CancellationToken cancellationToken)
+    {
+        var requiredPlaceIds = proposal.Waypoints.Select(item => (Guid?)item.PlaceId)
+            .Append(proposal.FromPlaceId).Append(proposal.ToPlaceId)
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
+        return await dbContext.Places.Include(place => place.Region)
+            .Where(place => requiredPlaceIds.Contains(place.Id))
+            .ToDictionaryAsync(place => place.Id, cancellationToken);
     }
 
     /// <summary>Loads the complete tracked aggregate needed for mutation and failure recovery.</summary>
@@ -152,15 +240,27 @@ public static class SegmentRouteReconciler
         segment.Waypoints = new List<SegmentWaypoint>();
     }
 
-    private static async Task ReloadAggregateAsync(
+    private static async Task RecoverAggregateAsync(
         ApplicationDbContext dbContext,
-        Segment segment,
+        Guid segmentId,
         CancellationToken cancellationToken)
     {
+        var segment = dbContext.ChangeTracker.Entries<Segment>()
+            .SingleOrDefault(entry => entry.Entity.Id == segmentId)?.Entity;
         foreach (var entry in dbContext.ChangeTracker.Entries<SegmentWaypoint>()
-                     .Where(entry => entry.Entity.SegmentId == segment.Id).ToArray())
+                     .Where(entry => entry.Entity.SegmentId == segmentId).ToArray())
             entry.State = EntityState.Detached;
-        await dbContext.Entry(segment).ReloadAsync(cancellationToken);
+        if (segment == null)
+        {
+            await LoadAggregateAsync(dbContext, segmentId, cancellationToken);
+            return;
+        }
+        var canonical = await dbContext.Segments.AsNoTracking()
+            .SingleAsync(item => item.Id == segmentId, cancellationToken);
+        var segmentEntry = dbContext.Entry(segment);
+        segmentEntry.CurrentValues.SetValues(canonical);
+        segmentEntry.OriginalValues.SetValues(canonical);
+        segmentEntry.State = EntityState.Unchanged;
         var endpointIds = new[] { segment.FromPlaceId, segment.ToPlaceId }
             .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
         var endpoints = await dbContext.Places.Include(item => item.Region)

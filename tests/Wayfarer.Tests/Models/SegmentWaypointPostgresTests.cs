@@ -319,9 +319,10 @@ public sealed class SegmentWaypointPostgresTests
     {
         _fixture.RequireAvailable();
         var aggregate = await SeedOrderedAggregateAsync();
-        var interceptor = new SaveAndRollbackFailureInterceptor();
-        await using var context = _fixture.CreateContext(interceptor);
-        interceptor.Arm();
+        var saveFailure = new FailNextSaveInterceptor();
+        var rollbackFailure = new RollbackFailureInterceptor();
+        await using var context = _fixture.CreateContext(saveFailure, rollbackFailure);
+        saveFailure.Arm();
 
         var exception = await Assert.ThrowsAnyAsync<Exception>(() => SegmentRouteReconciler.ReconcileAsync(context,
             new(aggregate.SegmentId, aggregate.FromPlaceId, aggregate.ToPlaceId, [], null)));
@@ -525,28 +526,15 @@ public sealed class SegmentWaypointPostgresTests
         }
     }
 
-    private sealed class SaveAndRollbackFailureInterceptor : SaveChangesInterceptor, IDbTransactionInterceptor
+    private sealed class RollbackFailureInterceptor : DbTransactionInterceptor
     {
-        private bool _armed;
-
-        /// <summary>Arms paired persistence and rollback failures for context-invalidation coverage.</summary>
-        internal void Arm() => _armed = true;
-
-        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData,
-            InterceptionResult<int> result,
-            CancellationToken cancellationToken = default)
-        {
-            if (!_armed) return base.SavingChangesAsync(eventData, result, cancellationToken);
-            throw new InvalidOperationException("Forced waypoint persistence failure.");
-        }
-
-        public Task TransactionRollingBackAsync(
+        /// <summary>Fails mandatory asynchronous rollback to exercise context invalidation.</summary>
+        public override ValueTask<InterceptionResult> TransactionRollingBackAsync(
             System.Data.Common.DbTransaction transaction,
             TransactionEventData eventData,
+            InterceptionResult result,
             CancellationToken cancellationToken = default)
         {
-            _armed = false;
             throw new InvalidOperationException("Forced waypoint rollback failure.");
         }
     }
@@ -566,6 +554,17 @@ public sealed class SegmentWaypointPostgresTests
             if (command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
                 && command.CommandText.Contains("Segments", StringComparison.Ordinal)) LockCount++;
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
+                && command.CommandText.Contains("Segments", StringComparison.Ordinal)) LockCount++;
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 }

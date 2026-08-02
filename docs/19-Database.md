@@ -153,16 +153,25 @@ indices per Segment. Same-trip ownership, contiguity, endpoint eligibility, save
 and coordinate matching remain server aggregate invariants because they cross rows or spatial values.
 
 `SegmentRouteReconciler` is the single route-aggregate persistence boundary. Its internal proposal
-contains only Segment and Place identities, waypoint scalars, and optional geometry. The reconciler
-loads canonical Segment, Place, Region, and Trip ownership state through its DbContext in bounded
-queries; detached caller-created Place graphs are never authoritative or attached.
+contains only Segment and Place identities, waypoint scalars, and optional geometry. The operation
+requires a clean caller `DbContext`: after change detection, any pre-existing Added, Modified, or Deleted
+entry is rejected before transaction creation, locking, loading, or mutation and remains caller-owned.
 
-The reconciler owns its transaction and `SaveChanges` boundary. After validation it replaces the
-complete waypoint association set inside one transaction, avoiding PostgreSQL's immediate unique-index
-collisions during arbitrary reorder while preserving the final indexes and checks. Provider failure
-rolls back and selectively reloads the affected aggregate without clearing unrelated tracked entities.
-Segment has no optimistic-concurrency token in this slice: transactions and database constraints keep
-each committed aggregate structurally valid, but user-facing conflict semantics remain a later API concern.
+For PostgreSQL, the reconciler begins its owned transaction and acquires `SELECT ... FOR UPDATE` on the
+canonical Segment row before loading mutable aggregate state. It then refreshes any unchanged tracked
+identity-map values and loads canonical endpoints, waypoint rows and Places, Region ownership, and Trip
+ownership under that lock. The lock is per Segment and remains held through deletion, final
+`SaveChangesAsync`, and commit, so a later reconciliation reloads after the earlier complete proposal
+commits. Different Segments are not serialized by an application-global lock.
+
+After validation, the reconciler replaces the complete waypoint association set inside the same
+transaction, avoiding PostgreSQL's immediate unique-index collisions during arbitrary reorder while
+preserving the final indexes and checks. Rollback and mandatory tracker repair use a non-cancelled cleanup
+path and restore only reconciliation-owned Segment, waypoint, and Trip timestamp state. If rollback or
+repair fails, the caller context is disposed and the resulting aggregate exception retains both the
+original and cleanup failures; an unsafe context is never presented as reusable. Segment has no
+optimistic-concurrency token in this slice: the later locked writer may win with one complete revalidated
+proposal, but no user-facing conflict semantics are claimed.
 
 Null `RouteGeometry` remains null; fallback consumers use the effective anchor chain
 `From → waypoints by Position → To` without persisting a convenience line. A proposed custom LineString
