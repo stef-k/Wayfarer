@@ -1,0 +1,112 @@
+using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
+using Wayfarer.Models;
+
+namespace Wayfarer.Services;
+
+/// <summary>Measurement portion of the transaction-neutral locked Segment aggregate core.</summary>
+public static partial class SegmentRouteReconciler
+{
+    private static async Task<CalculatedSegmentMeasurements?> CalculateMeasurementsAsync(
+        ApplicationDbContext dbContext,
+        Segment segment,
+        SegmentRouteProposal routeProposal,
+        LineString? geometry,
+        IReadOnlyList<Place> anchors,
+        List<string> errors,
+        CancellationToken cancellationToken)
+    {
+        var proposal = routeProposal.Measurement ?? new(
+            segment.Mode,
+            segment.TransportProfileId,
+            segment.EstimatedDurationSource,
+            segment.EstimatedDuration?.TotalMinutes,
+            AllowUnavailableAutomatic: true);
+        if (!Enum.IsDefined(proposal.DurationSource))
+        {
+            errors.Add("Duration source must be Automatic or Manual.");
+            return null;
+        }
+
+        TransportProfile? profile = null;
+        if (proposal.TransportProfileId.HasValue)
+            profile = await dbContext.Set<TransportProfile>().AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == proposal.TransportProfileId.Value, cancellationToken);
+        if (proposal.TransportProfileId.HasValue && profile == null)
+            errors.Add("Transport profile was not found.");
+        else if (profile != null && !string.Equals(profile.Key, TransportProfile.NormalizeKey(proposal.Mode), StringComparison.Ordinal))
+            errors.Add("Mode must match the linked transport profile.");
+
+        SegmentDistanceMeasurement? distance = null;
+        try
+        {
+            var coordinates = EffectiveCoordinates(routeProposal, geometry, anchors);
+            if (coordinates != null)
+                distance = SegmentMeasurementCalculator.CalculateDistance(coordinates);
+        }
+        catch (ArgumentException exception)
+        {
+            errors.Add(exception.Message);
+        }
+
+        TimeSpan? duration = null;
+        try
+        {
+            if (proposal.DurationSource == EstimatedDurationSource.Manual)
+            {
+                if (!proposal.ManualDurationMinutes.HasValue)
+                    errors.Add("Manual duration is required.");
+                else
+                    duration = SegmentMeasurementCalculator.NormalizeManualDuration(proposal.ManualDurationMinutes.Value);
+            }
+            else if (profile?.PlanningSpeedKmh is > 0d and var speed && double.IsFinite(speed))
+            {
+                duration = distance.HasValue
+                    ? SegmentMeasurementCalculator.CalculateAutomaticDuration(distance.Value.UnroundedMetres, speed)
+                    : null;
+            }
+            else if (!proposal.AllowUnavailableAutomatic)
+            {
+                errors.Add("Automatic duration requires a linked profile with a positive planning speed.");
+            }
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            errors.Add(exception.Message);
+        }
+
+        return errors.Count == 0
+            ? new(proposal.Mode, proposal.TransportProfileId, proposal.DurationSource, distance?.RoundedKilometres, duration)
+            : null;
+    }
+
+    private static IReadOnlyList<Coordinate>? EffectiveCoordinates(
+        SegmentRouteProposal proposal,
+        LineString? geometry,
+        IReadOnlyList<Place> anchors)
+    {
+        if (geometry != null)
+            return geometry.Coordinates;
+        if (!proposal.FromPlaceId.HasValue || !proposal.ToPlaceId.HasValue
+            || anchors.Count != proposal.Waypoints.Count + 2
+            || anchors.Any(place => !HasValidLocation(place)))
+            return null;
+        return anchors.Select(place => place.Location!.Coordinate).ToArray();
+    }
+
+    private static void ApplyMeasurements(Segment segment, CalculatedSegmentMeasurements measurements)
+    {
+        segment.Mode = measurements.Mode;
+        segment.TransportProfileId = measurements.TransportProfileId;
+        segment.EstimatedDurationSource = measurements.DurationSource;
+        segment.EstimatedDistanceKm = measurements.DistanceKm;
+        segment.EstimatedDuration = measurements.Duration;
+    }
+
+    private sealed record CalculatedSegmentMeasurements(
+        string Mode,
+        Guid? TransportProfileId,
+        EstimatedDurationSource DurationSource,
+        double? DistanceKm,
+        TimeSpan? Duration);
+}

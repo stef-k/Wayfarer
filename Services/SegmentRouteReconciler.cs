@@ -11,18 +11,33 @@ namespace Wayfarer.Services;
 /// <param name="RouteVertexIndex">Custom-route vertex index, or null for fallback geometry.</param>
 public sealed record SegmentWaypointProposal(Guid PlaceId, int Position, int? RouteVertexIndex);
 
+/// <summary>Describes the proposed mode and explicit duration-provenance state.</summary>
+/// <param name="Mode">Durable public/interchange mode value.</param>
+/// <param name="TransportProfileId">Canonical linked transport-profile identity.</param>
+/// <param name="DurationSource">Explicit Automatic or Manual duration ownership.</param>
+/// <param name="ManualDurationMinutes">Submitted Manual duration, otherwise ignored.</param>
+/// <param name="AllowUnavailableAutomatic">Whether an administrator-owned compatibility operation may clear Automatic duration without speed.</param>
+public sealed record SegmentMeasurementProposal(
+    string Mode,
+    Guid? TransportProfileId,
+    EstimatedDurationSource DurationSource,
+    double? ManualDurationMinutes,
+    bool AllowUnavailableAutomatic = false);
+
 /// <summary>Describes a complete persisted Segment route aggregate proposal.</summary>
 /// <param name="SegmentId">Canonical Segment identity.</param>
 /// <param name="FromPlaceId">Proposed canonical origin identity.</param>
 /// <param name="ToPlaceId">Proposed canonical destination identity.</param>
 /// <param name="Waypoints">Ordered waypoint scalar proposals.</param>
 /// <param name="RouteGeometry">Proposed custom route, or null for fallback rendering.</param>
+/// <param name="Measurement">Explicit measurement state, or null to reconcile the canonical compatibility state.</param>
 public sealed record SegmentRouteProposal(
     Guid SegmentId,
     Guid? FromPlaceId,
     Guid? ToPlaceId,
     IReadOnlyList<SegmentWaypointProposal> Waypoints,
-    LineString? RouteGeometry);
+    LineString? RouteGeometry,
+    SegmentMeasurementProposal? Measurement = null);
 
 /// <summary>Reports whether a route proposal committed and its effective canonical anchor chain.</summary>
 /// <param name="Succeeded">Whether validation succeeded and the aggregate committed.</param>
@@ -34,7 +49,7 @@ public sealed record SegmentRouteReconciliationResult(
     IReadOnlyList<Place> EffectiveAnchorChain);
 
 /// <summary>Loads, validates, and atomically persists canonical Segment route aggregate state.</summary>
-public static class SegmentRouteReconciler
+public static partial class SegmentRouteReconciler
 {
     /// <summary>Maximum independent longitude or latitude difference accepted for an anchor vertex.</summary>
     public const double CoordinateToleranceDegrees = 0.0000001d;
@@ -63,8 +78,10 @@ public static class SegmentRouteReconciler
             var geometry = CopyGeometry(proposal);
             var errors = Validate(segment.TripId, proposal, placesById, geometry);
             var anchors = BuildAnchorChain(proposal, placesById);
+            var measurement = await CalculateMeasurementsAsync(dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
             if (errors.Count > 0) return new(false, errors, anchors);
             ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+            ApplyMeasurements(segment, measurement!);
             await dbContext.SaveChangesAsync(cancellationToken);
             return new(true, [], anchors);
         }
@@ -72,6 +89,7 @@ public static class SegmentRouteReconciler
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            await LockProfilesAsync(dbContext, await ResolveProfileLockIdsAsync(dbContext, proposal, cancellationToken), cancellationToken);
             await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
 
             var refreshScope = await LoadCanonicalRefreshScopeAsync(dbContext, proposal, cancellationToken);
@@ -83,6 +101,7 @@ public static class SegmentRouteReconciler
             var geometry = CopyGeometry(proposal);
             var errors = Validate(segment.TripId, proposal, placesById, geometry);
             var anchors = BuildAnchorChain(proposal, placesById);
+            var measurement = await CalculateMeasurementsAsync(dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
             if (errors.Count > 0) return new(false, errors, anchors);
 
             await dbContext.Set<SegmentWaypoint>()
@@ -90,6 +109,7 @@ public static class SegmentRouteReconciler
                 .ExecuteDeleteAsync(cancellationToken);
             DetachCurrentWaypoints(dbContext, segment);
             ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+            ApplyMeasurements(segment, measurement!);
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new(true, [], anchors);
@@ -135,6 +155,31 @@ public static class SegmentRouteReconciler
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {segmentId} FOR UPDATE",
             cancellationToken);
+    }
+
+    /// <summary>Locks canonical profiles in ascending identity order before the Segment row.</summary>
+    private static async Task LockProfilesAsync(
+        ApplicationDbContext dbContext,
+        IReadOnlyList<Guid> profileIds,
+        CancellationToken cancellationToken)
+    {
+        foreach (var profileId in profileIds.Order())
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM public.\"TransportProfiles\" WHERE \"Id\" = {profileId} FOR UPDATE",
+                cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<Guid>> ResolveProfileLockIdsAsync(
+        ApplicationDbContext dbContext,
+        SegmentRouteProposal proposal,
+        CancellationToken cancellationToken)
+    {
+        var current = await dbContext.Segments.AsNoTracking()
+            .Where(segment => segment.Id == proposal.SegmentId)
+            .Select(segment => segment.TransportProfileId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return new[] { current, proposal.Measurement?.TransportProfileId }
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().Order().ToArray();
     }
 
     /// <summary>Loads the bounded canonical identities and values needed after acquiring the Segment row lock.</summary>
