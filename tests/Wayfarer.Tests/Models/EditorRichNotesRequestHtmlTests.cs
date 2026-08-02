@@ -162,6 +162,7 @@ public sealed class EditorRichNotesRequestHtmlTests
           "mode": "walk",
           "estimatedDistanceKm": null,
           "estimatedDurationMinutes": null,
+          "estimatedDurationSource": "Automatic",
           "notesHtml": "{{JsonEncodedText(notesHtml)}}",
           "route": null
         }
