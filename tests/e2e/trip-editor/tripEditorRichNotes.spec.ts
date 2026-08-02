@@ -489,7 +489,7 @@ function prepareRichNotesState(state: MutableEditorState): void {
     toPlaceId: placeId,
     mode: state.options.transportModes[0]?.value ?? 'walk',
     estimatedDistanceKm: 1,
-    estimatedDurationMinutes: 10,
+    estimatedDurationMinutes: 10, estimatedDurationSource: 'Manual',
     notesHtml: '<p>Persisted segment note</p>',
     route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] },
     displayOrder: 1,
@@ -598,7 +598,6 @@ async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {
     if (!(trailingLine instanceof HTMLElement)) {
       throw new Error('Rich notes editor has no trailing line.');
     }
-
     trailingLine.scrollIntoView({ block: 'center', inline: 'nearest' });
     const lineBounds = trailingLine.getBoundingClientRect();
     return {

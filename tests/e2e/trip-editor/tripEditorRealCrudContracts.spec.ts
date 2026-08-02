@@ -532,6 +532,7 @@ async function createSegmentViaEndpoint(page: Page, distance: string, duration: 
     mode: 'walk',
     estimatedDistanceKm: Number(distance),
     estimatedDurationMinutes: Number(duration),
+    estimatedDurationSource: 'Manual',
     notesHtml: '',
     route: null
   });
@@ -548,6 +549,7 @@ async function updateSegmentRouteViaEndpoint(page: Page, segmentId: string): Pro
     mode: segment.mode,
     estimatedDistanceKm: segment.estimatedDistanceKm,
     estimatedDurationMinutes: segment.estimatedDurationMinutes,
+    estimatedDurationSource: segment.estimatedDurationSource,
     notesHtml: segment.notesHtml,
     route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] }
   });
