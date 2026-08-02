@@ -282,9 +282,8 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
 
     await page.getByRole('button', { name: 'Segments' }).click();
     await page.getByRole('button', { name: 'Add Segment' }).click();
-    const form = activeEditorSurface(page);
+    const form = activeEditorSurface(page); const duration = form.getByLabel('Estimated duration minutes');
     await form.getByLabel('Enter manually').check();
-    const duration = form.getByLabel('Estimated duration minutes');
     await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
     await duration.fill('14');
 
