@@ -20,6 +20,8 @@ using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Tests.Services;
 using Wayfarer.Util;
 using Xunit;
 
@@ -28,8 +30,79 @@ namespace Wayfarer.Tests.Views;
 /// <summary>
 /// Verifies that the compiled shared layout serializes only final provider-safe attribution.
 /// </summary>
+[Collection(PlaywrightEnvironmentTestCollection.Name)]
+[PlaywrightEnvironmentIsolation]
 public sealed class TileAttributionLayoutRenderingTests
 {
+    /// <summary>Verifies every process-wide Playwright environment user is serialized.</summary>
+    [Fact]
+    public void PlaywrightEnvironmentUsers_ShareTheNonParallelCollection()
+    {
+        var affectedTypes = new[]
+        {
+            typeof(TripExportServiceTests),
+            typeof(TripMapThumbnailGeneratorTests),
+            typeof(TileAttributionLayoutRenderingTests)
+        };
+
+        Assert.All(affectedTypes, type =>
+            Assert.Equal(
+                PlaywrightEnvironmentTestCollection.Name,
+                type.GetCustomAttributesData()
+                    .Where(attribute => attribute.AttributeType == typeof(CollectionAttribute))
+                    .Single()
+                    .ConstructorArguments
+                    .Single()
+                    .Value));
+
+        var definition = typeof(PlaywrightEnvironmentTestCollection)
+            .GetCustomAttributes(typeof(CollectionDefinitionAttribute), inherit: false)
+            .Cast<CollectionDefinitionAttribute>()
+            .Single();
+        Assert.True(definition.DisableParallelization);
+    }
+
+    /// <summary>Verifies the isolation hook restores set and unset browser-path states.</summary>
+    [Fact]
+    public void EnvironmentIsolation_RestoresExactOriginalBrowserPath()
+    {
+        var previousPath = Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH");
+        try
+        {
+            AssertEnvironmentRestoration("issue-415-original-path");
+            AssertEnvironmentRestoration(null);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", previousPath);
+        }
+    }
+
+    /// <summary>Exercises the same guaranteed after-test hook used when an assertion fails.</summary>
+    private static void AssertEnvironmentRestoration(string? originalPath)
+    {
+        var isolation = new PlaywrightEnvironmentIsolationAttribute();
+        var testMethod = typeof(TileAttributionLayoutRenderingTests)
+            .GetMethod(nameof(EnvironmentIsolation_RestoresExactOriginalBrowserPath))!;
+        Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", originalPath);
+        isolation.Before(testMethod);
+        try
+        {
+            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", "mutated-by-production-service");
+            throw new InvalidOperationException("Simulated test failure.");
+        }
+        catch (InvalidOperationException)
+        {
+            // xUnit invokes the after-test hook while unwinding a failed test.
+        }
+        finally
+        {
+            isolation.After(testMethod);
+        }
+
+        Assert.Equal(originalPath, Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH"));
+    }
+
     [Fact]
     public async Task LayoutReflectsProviderChangesAndSanitizesStoredAttributionOnEveryRender()
     {
@@ -79,10 +152,15 @@ public sealed class TileAttributionLayoutRenderingTests
         }
     }
 
+    /// <summary>Proves compiled viewer and print output using real package-compatible Chromium.</summary>
     [Fact]
     [Trait("Category", "RequiresPlaywright")]
     public async Task SnapshotBackedViewerAndPrintOutputRenderResolvedProviderAttribution()
     {
+        var browserPath = Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH");
+        Assert.False(string.IsNullOrWhiteSpace(browserPath));
+        Assert.True(Path.IsPathFullyQualified(browserPath));
+
         var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-attribution-snapshot-{Guid.NewGuid():N}");
         Directory.CreateDirectory(webRoot);
         await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");

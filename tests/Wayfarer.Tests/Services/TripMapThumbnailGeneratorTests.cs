@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Moq;
 using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -11,6 +12,8 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// File-system behaviors for the map thumbnail generator (Playwright-free paths).
 /// </summary>
+[Collection(PlaywrightEnvironmentTestCollection.Name)]
+[PlaywrightEnvironmentIsolation]
 public class TripMapThumbnailGeneratorTests : IDisposable
 {
     private readonly string _root;

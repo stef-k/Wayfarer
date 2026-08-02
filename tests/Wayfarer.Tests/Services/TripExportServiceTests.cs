@@ -14,8 +14,8 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>
 /// Tests for <see cref="TripExportService"/> covering KML export operations.
-/// Note: Full PDF generation tests are skipped due to complex external dependencies (Playwright, HttpContext).
 /// </summary>
+[Collection(PlaywrightEnvironmentTestCollection.Name), PlaywrightEnvironmentIsolation]
 public class TripExportServiceTests : TestBase
 {
     /// <summary>
