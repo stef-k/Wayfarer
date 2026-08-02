@@ -1,6 +1,5 @@
 using System.Text;
 using NetTopologySuite.Geometries;
-using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Xunit;
 
@@ -274,8 +273,7 @@ public class WayfarerKmlParserTests
         Assert.Equal(toPlaceId, segment.ToPlaceId);
         Assert.Equal("driving", segment.Mode);
         Assert.Null(segment.EstimatedDistanceKm);
-        Assert.Equal(TimeSpan.FromMinutes(15), segment.EstimatedDuration);
-        Assert.Equal(EstimatedDurationSource.Manual, segment.EstimatedDurationSource);
+        Assert.Equal(((TimeSpan?)TimeSpan.FromMinutes(15), Wayfarer.Models.EstimatedDurationSource.Manual), (segment.EstimatedDuration, segment.EstimatedDurationSource));
         Assert.Equal(1, segment.DisplayOrder);
         Assert.Equal("Segment notes", segment.Notes);
         Assert.IsType<LineString>(segment.RouteGeometry);

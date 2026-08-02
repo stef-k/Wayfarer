@@ -113,3 +113,6 @@ This enables full roundtrip: export from Wayfarer, then reimport without losing 
 
 - Export filenames include the current date/time for convenience.
 - Exports contain only your own data and respect your trip privacy settings.
+# Segment measurement compatibility
+
+Imported distance is ignored and recalculated by the server. Wayfarer KML v1 `DurationMin` is treated as an intentional Manual duration; absence defaults to Automatic. Generic KML/GeoJSON segments default to Automatic and do not infer semantic waypoints. Existing public/export duration minutes continue to use `TimeSpan.TotalMinutes`, so whole-second values retain fractional-minute precision. Waypoint-aware clone remapping and Wayfarer KML v2 remain owned by issues 412 and 413.

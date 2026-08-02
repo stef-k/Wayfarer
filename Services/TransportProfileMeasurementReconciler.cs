@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
@@ -104,7 +105,7 @@ public static class TransportProfileMeasurementReconciler
                 canonical.Waypoints.OrderBy(item => item.Position)
                     .Select(item => new SegmentWaypointProposal(item.PlaceId, item.Position, item.RouteVertexIndex)).ToArray(),
                 canonical.RouteGeometry,
-                new(canonical.Mode, profile.Id, canonical.EstimatedDurationSource,
+                new(canonical.Mode, canonical.TransportProfileId, canonical.EstimatedDurationSource,
                     canonical.EstimatedDuration?.TotalMinutes, AllowUnavailableAutomatic: true,
                     UsePlanningSpeedOverride: true, PlanningSpeedKmhOverride: proposedSpeedKmh));
             var result = await SegmentRouteReconciler.ReconcileLockedAsync(
@@ -129,7 +130,7 @@ public static class TransportProfileMeasurementReconciler
             UserId = actorUserId,
             Action = "TransportProfileSpeedReconciliation",
             Timestamp = DateTime.UtcNow,
-            Details = $"ProfileId={profile.Id}; Key={profile.Key}; OldSpeed={oldSpeed?.ToString() ?? "null"}; NewSpeed={proposedSpeedKmh?.ToString() ?? "null"}; Total={segments.Length}; Automatic={automatic}; Manual={manual}; Recalculated={automatic - unavailable}; Unavailable={unavailable}; Outcome=Committed"
+            Details = $"ProfileId={profile.Id}; Key={profile.Key}; OldSpeed={FormatSpeed(oldSpeed)}; NewSpeed={FormatSpeed(proposedSpeedKmh)}; Total={segments.Length}; Automatic={automatic}; Manual={manual}; Recalculated={automatic - unavailable}; Unavailable={unavailable}; Outcome=Committed"
         });
         await dbContext.SaveChangesAsync(cancellationToken);
         return new(true, [], segments.Length, automatic, manual, automatic - unavailable, unavailable);
@@ -153,6 +154,9 @@ public static class TransportProfileMeasurementReconciler
                 entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             throw new InvalidOperationException("Profile measurement reconciliation requires a clean DbContext.");
     }
+
+    private static string FormatSpeed(double? speed) =>
+        speed?.ToString("R", CultureInfo.InvariantCulture) ?? "null";
 }
 
 /// <summary>Allowlisted profile fields committed with one speed-reconciliation transaction.</summary>

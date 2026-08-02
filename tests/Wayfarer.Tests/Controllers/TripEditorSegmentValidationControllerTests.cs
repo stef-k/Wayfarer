@@ -10,6 +10,26 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorSegmentValidationControllerTests : TestBase
 {
+    /// <summary>Missing provenance is never inferred and receives the deterministic stale-client field error.</summary>
+    [Fact]
+    public async Task SaveRejectsMissingDurationSourceAsStaleClient()
+    {
+        using var db = CreateDbContext();
+        var graph = TripEditorSegmentControllerTests.SeedTripGraph(db, "owner-user");
+        var controller = TripEditorSegmentControllerTests.BuildController(db);
+        TripEditorSegmentControllerTests.ConfigureControllerWithUserRole(controller, "owner-user");
+        var body = TripEditorSegmentControllerTests.ValidBody(
+            graph.FirstPlace.Id, graph.SecondPlace.Id, "walk", "null")
+            .Replace("\"estimatedDurationSource\": \"Manual\",", string.Empty, StringComparison.Ordinal);
+
+        var result = await TripEditorSegmentControllerTests.SendJson(
+            controller, c => c.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None), body);
+
+        var errors = TripEditorSegmentControllerTests.AssertValidationProblem(result).Errors;
+        Assert.Equal("Reload the editor before saving; estimated duration source is required.",
+            Assert.Single(errors["estimatedDurationSource"]));
+    }
+
     [Fact]
     public async Task SaveRejectsForbiddenFieldsAndInvalidEditableFields()
     {

@@ -1538,27 +1538,8 @@ return Ok(dto);
             {
                 foreach (var sourceSegment in sourceTrip.Segments)
                 {
-                    var clonedSegment = new Segment
-                    {
-                        Id = Guid.NewGuid(),
-                        UserId = user.Id,
-                        TripId = clonedTrip.Id,
-                        Mode = sourceSegment.Mode,
-                        TransportProfileId = sourceSegment.TransportProfileId,
-                        RouteGeometry = sourceSegment.RouteGeometry,
-                        EstimatedDuration = sourceSegment.EstimatedDuration,
-                        EstimatedDurationSource = sourceSegment.EstimatedDurationSource,
-                        EstimatedDistanceKm = null,
-                        DisplayOrder = sourceSegment.DisplayOrder,
-                        Notes = sourceSegment.Notes,
-                        // Map old place IDs to new place IDs
-                        FromPlaceId = sourceSegment.FromPlaceId.HasValue && placeIdMapping.ContainsKey(sourceSegment.FromPlaceId.Value)
-                            ? placeIdMapping[sourceSegment.FromPlaceId.Value]
-                            : null,
-                        ToPlaceId = sourceSegment.ToPlaceId.HasValue && placeIdMapping.ContainsKey(sourceSegment.ToPlaceId.Value)
-                            ? placeIdMapping[sourceSegment.ToPlaceId.Value]
-                            : null
-                    };
+                    var clonedSegment = SegmentMeasurementWriterReconciler.CreateClone(
+                        sourceSegment, clonedTrip.Id, user.Id, placeIdMapping);
 
                     clonedTrip.Segments!.Add(clonedSegment);
                 }
@@ -1574,15 +1555,7 @@ return Ok(dto);
             }
 
             // Save cloned trip to database
-            await using var cloneTransaction = _dbContext.Database.IsRelational()
-                ? await _dbContext.Database.BeginTransactionAsync()
-                : null;
-            _dbContext.Trips.Add(clonedTrip);
-            await _dbContext.SaveChangesAsync();
-            _dbContext.ChangeTracker.Clear();
-            await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
-                _dbContext, clonedTrip.Id, allowUnavailableAutomatic: true);
-            if (cloneTransaction != null) await cloneTransaction.CommitAsync();
+            await SegmentMeasurementWriterReconciler.PersistCloneAsync(_dbContext, clonedTrip);
 
             _logger.LogDebug("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
                 user.Id, sourceTrip.Id, clonedTrip.Id);

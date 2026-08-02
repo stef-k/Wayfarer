@@ -150,3 +150,6 @@ Guidelines
 - Keep tests focused and deterministic.
 - Avoid real secrets and external network calls in tests.
 
+# Segment measurement provider tests
+
+Issue 405 provider tests require `WAYFARER_TEST_POSTGRES_CONNECTION` to identify the dedicated `wayfarer_import_tests` PostgreSQL 17/PostGIS database. They execute the exact-base provenance migration, backfill, enum constraint, downgrade/re-upgrade, row-lock ordering, rollback/tracker recovery, and referenced profile-speed reconciliation. A skipped provider test is unavailable evidence and must not be reported as a pass.

@@ -239,3 +239,6 @@ When editing a trip, the progress header shows:
 - Add cover images for visual organization.
 - Use tags to group related trips.
 
+# Segment distance and duration
+
+Segment distance is read-only and always calculated from the saved route. Duration has explicit **Use automatic estimate** and **Manual** states. Automatic duration is unavailable when the route is incomplete or an administrator has cleared the linked profile speed. Manual duration, including zero, is preserved across route, endpoint, mode, and profile-speed changes until Automatic is explicitly selected.
