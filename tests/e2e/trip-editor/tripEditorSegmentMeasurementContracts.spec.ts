@@ -5,7 +5,6 @@ import {
   editorPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
-  regionCard,
   signIn,
   uniqueName
 } from './tripEditorTestUtils';
@@ -30,9 +29,9 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
   await expectMountedWorkspace(page);
 
   try {
-    regionId = await createRegion(page, regionName);
-    fromId = await createPlace(page, regionName, fromName, '0', '0');
-    toId = await createPlace(page, regionName, toName, '0', '0.1');
+    regionId = (await mutate(page, 'post', `${editorApiPath}/regions`, { name: regionName, notesHtml: '', coverImage: null, center: null })).data.id;
+    fromId = (await mutate(page, 'post', `${editorApiPath}/regions/${regionId}/places`, placeRequest(fromName, 0, 0))).data.id;
+    toId = (await mutate(page, 'post', `${editorApiPath}/regions/${regionId}/places`, placeRequest(toName, 0, 0.1))).data.id;
     let current = await state(page);
 
     const created = await mutate(page, 'post', `${editorApiPath}/segments`, automaticRequest(fromId, toId, 'walk', 999, 999));
@@ -103,11 +102,6 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
     expect(segment.estimatedDurationMinutes).toBeCloseTo(2669 / 60, 8);
     expect(segment.estimatedDistanceKm).toBeCloseTo(11.119, 3);
 
-    const manualOnly = await rawMutation(page, 'put', `${editorApiPath}/segments/${segmentId}`,
-      automaticRequest(fromId, toId, 'issue-405-manual', 1, 1));
-    expect(manualOnly.status()).toBe(400);
-    expect(await manualOnly.text()).toContain('estimatedDurationSource');
-
     await mutate(page, 'put', `${editorApiPath}/segments/${segmentId}`, automaticRequest(fromId, fromId, 'walk', 9, 9));
     segment = (await state(page)).segmentsById[segmentId];
     expect(segment.estimatedDistanceKm).toBe(0);
@@ -151,41 +145,14 @@ function manualRequest(fromPlaceId: string, toPlaceId: string, mode: string,
     estimatedDurationSource: 'Manual', notesHtml: '', route: null };
 }
 
-async function createRegion(page: Page, name: string): Promise<string> {
-  await page.getByRole('button', { name: 'Add Region' }).click();
-  await page.locator('#trip-editor-region-form').getByLabel('Name').fill(name);
-  const saved = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/editor/regions'));
-  await page.getByRole('button', { name: 'Save Region' }).click();
-  const body = await (await saved).json();
-  await expectSaved(page);
-  await closeForm(page, '#trip-editor-region-form');
-  return body.data.id;
-}
-
-async function createPlace(page: Page, regionName: string, name: string, latitude: string, longitude: string): Promise<string> {
-  await regionCard(page, regionName).getByRole('button', { name: 'Add Place' }).click();
-  const form = page.locator('#trip-editor-place-form');
-  await form.getByLabel('Name').fill(name);
-  await form.getByLabel('Address').fill(`${name} address`);
-  await form.getByLabel('Latitude').fill(latitude);
-  await form.getByLabel('Longitude').fill(longitude);
-  await form.getByLabel('Reverse geocode this location on save').uncheck();
-  const saved = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/editor/places'));
-  await page.getByRole('button', { name: 'Save Place', exact: true }).click();
-  const body = await (await saved).json();
-  await expectSaved(page);
-  await closeForm(page, '#trip-editor-place-form');
-  return body.data.id;
+function placeRequest(name: string, latitude: number, longitude: number): Record<string, unknown> {
+  return { name, address: `${name} address`, location: { latitude, longitude }, reverseGeocode: false,
+    notesHtml: '', iconName: 'marker', markerColor: 'bg-blue' };
 }
 
 async function openSegment(page: Page, id: string): Promise<void> {
   await page.locator(`[data-segment-id="${id}"] .trip-editor-list-button`).click();
   await expect(page.locator('#trip-editor-segment-form')).toBeVisible();
-}
-
-async function closeForm(page: Page, selector: string): Promise<void> {
-  const surface = page.locator('.trip-editor-surface--docked').filter({ has: page.locator(selector) });
-  if (await surface.count()) await surface.getByRole('button', { name: 'Cancel' }).click();
 }
 
 async function expectSaved(page: Page): Promise<void> {

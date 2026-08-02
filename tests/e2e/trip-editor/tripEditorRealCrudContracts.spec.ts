@@ -44,7 +44,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         await regionOrderRelease;
         await route.fulfill({ response });
       });
-      await regionCard(page, secondName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, firstName));
+      await dragFromHandle(page, regionCard(page, secondName), regionCard(page, firstName), 'Drag to reorder region');
       await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
       await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
       await expect(page.locator('.trip-editor-save-state').filter({ hasText: 'Saving order...' }).first()).toBeVisible();
@@ -70,7 +70,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         await failedRegionOrderRelease;
         await route.fulfill({ status: 500, body: 'forced reorder failure' });
       }, { times: 1 });
-      await regionCard(page, firstName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, secondName));
+      await dragFromHandle(page, regionCard(page, firstName), regionCard(page, secondName), 'Drag to reorder region');
       await expect(regionLabel(page, firstName)).toHaveText(`${firstOrdinal}-${firstName}`);
       releaseFailedRegionOrder();
       await expect(page.locator('.trip-editor-form-error')).toBeVisible();
@@ -140,7 +140,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         await placeOrderRelease;
         await route.fulfill({ response });
       });
-      await placeRowByName(page, region.id, firstPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, region.id, secondPlace));
+      await dragFromHandle(page, placeRowByName(page, region.id, firstPlace), placeRowByName(page, region.id, secondPlace), 'Drag to reorder place');
       await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
       await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
       const blockedPlaceHandle = placeRowByName(page, region.id, secondPlace).getByRole('button', { name: 'Drag to reorder place' });
@@ -169,7 +169,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         await failedPlaceOrderRelease;
         await route.fulfill({ status: 500, body: 'forced place reorder failure' });
       }, { times: 1 });
-      await placeRowByName(page, reloadedRegion.id, secondPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, reloadedRegion.id, firstPlace));
+      await dragFromHandle(page, placeRowByName(page, reloadedRegion.id, secondPlace), placeRowByName(page, reloadedRegion.id, firstPlace), 'Drag to reorder place');
       await expect(placeLabel(page, reloadedRegion.id, secondPlace)).toHaveText(`1-${secondPlace}`);
       releaseFailedPlaceOrder();
       await expect(page.locator('.trip-editor-form-error')).toBeVisible();
@@ -615,10 +615,24 @@ async function dragByMouse(page: Page, source: Locator, target: Locator): Promis
   const targetBox = await target.boundingBox();
   expect(sourceBox, 'Drag source must have a rendered box.').not.toBeNull();
   expect(targetBox, 'Drag target must have a rendered box.').not.toBeNull();
+  const movingUp = sourceBox!.y > targetBox!.y;
+  const targetY = movingUp ? targetBox!.y + 2 : targetBox!.y + targetBox!.height - 2;
   await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 8 });
+  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetY, { steps: 8 });
   await page.mouse.up();
+}
+
+/** Drags a Sortable row from its visible handle while keeping the row as the native drag source. */
+async function dragFromHandle(page: Page, sourceRow: Locator, targetRow: Locator, handleName: string): Promise<void> {
+  const rowBox = await sourceRow.boundingBox();
+  const handleBox = await sourceRow.getByRole('button', { name: handleName }).boundingBox();
+  expect(rowBox, 'Sortable source row must have a rendered box.').not.toBeNull();
+  expect(handleBox, 'Sortable source handle must have a rendered box.').not.toBeNull();
+  await sourceRow.dragTo(targetRow, {
+    sourcePosition: { x: handleBox!.x - rowBox!.x + handleBox!.width / 2, y: handleBox!.y - rowBox!.y + handleBox!.height / 2 },
+    targetPosition: { x: 8, y: 2 }
+  });
 }
 
 /** Waits for the completed drag event and its queued browser work without a timing window. */

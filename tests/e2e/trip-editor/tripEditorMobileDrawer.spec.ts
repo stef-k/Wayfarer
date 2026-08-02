@@ -283,9 +283,10 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('button', { name: 'Segments' }).click();
     await page.getByRole('button', { name: 'Add Segment' }).click();
     const form = activeEditorSurface(page);
-    const distance = form.getByLabel('Estimated distance km');
+    await form.getByLabel('Enter manually').check();
+    const duration = form.getByLabel('Estimated duration minutes');
     await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
-    await distance.fill('14');
+    await duration.fill('14');
 
     await tapFirstSavedPlaceMarker(page);
     const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
@@ -293,7 +294,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
     await expect(drawerTab(page, 'Segments')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
-    await expect(distance).toHaveValue('14');
+    await expect(duration).toHaveValue('14');
     await expectSelectedMarkerCount(page, 0);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
 
@@ -341,7 +342,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('button', { name: 'Segments' }).click();
     await page.getByRole('button', { name: 'Add Segment' }).click();
     await expectDirtyTabSwitchGuard(page, {
-      dirtyFieldLabel: 'Estimated distance km',
+      dirtyFieldLabel: 'Estimated duration minutes',
       draftValue: '12',
       owningTab: 'Segments',
       targetTab: 'Trip',
