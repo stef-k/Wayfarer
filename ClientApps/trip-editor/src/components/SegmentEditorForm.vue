@@ -90,9 +90,10 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
         <small v-for="message in fieldErrors('estimatedDurationSource')" :key="message">{{ message }}</small>
       </div>
 
-      <label v-if="draft.estimatedDurationSource === 'Manual'" class="trip-editor-field">
+      <label class="trip-editor-field">
         <span>Estimated duration minutes</span>
-        <input v-model="draft.estimatedDurationMinutes" type="number" min="0" step="any" />
+        <input v-if="draft.estimatedDurationSource === 'Manual'" v-model="draft.estimatedDurationMinutes" type="number" min="0" step="any" />
+        <input v-else :value="draft.estimatedDurationMinutes" type="number" disabled readonly aria-readonly="true" :placeholder="draft.estimatedDurationMinutes === '' ? 'Unavailable until route and speed are available' : undefined" />
         <small v-for="message in fieldErrors('estimatedDurationMinutes')" :key="message">{{ message }}</small>
       </label>
     </div>

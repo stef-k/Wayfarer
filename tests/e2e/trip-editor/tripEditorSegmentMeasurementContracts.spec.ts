@@ -6,7 +6,8 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   regionCard,
-  signIn
+  signIn,
+  uniqueName
 } from './tripEditorTestUtils';
 
 type EditorState = Record<string, any>;
@@ -14,9 +15,10 @@ type EditorState = Record<string, any>;
 // Exercises #405 against a disposable persisted zero-waypoint aggregate through the real editor and mutation endpoints.
 test('persisted zero-waypoint Segment keeps server-authoritative Automatic and Manual measurements', async ({ page }) => {
   test.setTimeout(90_000);
-  const regionName = 'Issue 405 measurement region';
-  const fromName = 'Issue 405 origin';
-  const toName = 'Issue 405 destination';
+  const runIdentity = uniqueName('issue-405-measurement');
+  const regionName = `${runIdentity} region`;
+  const fromName = `${runIdentity} origin`;
+  const toName = `${runIdentity} destination`;
   let regionId = '';
   let fromId = '';
   let toId = '';
@@ -28,13 +30,10 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
   await expectMountedWorkspace(page);
 
   try {
-    await createRegion(page, regionName);
-    regionId = regionByName(await state(page), regionName).id;
-    await createPlace(page, regionName, fromName, '0', '0');
-    await createPlace(page, regionName, toName, '0', '0.1');
+    regionId = await createRegion(page, regionName);
+    fromId = await createPlace(page, regionName, fromName, '0', '0');
+    toId = await createPlace(page, regionName, toName, '0', '0.1');
     let current = await state(page);
-    fromId = placeByName(current, fromName).id;
-    toId = placeByName(current, toName).id;
 
     const created = await mutate(page, 'post', `${editorApiPath}/segments`, automaticRequest(fromId, toId, 'walk', 999, 999));
     segmentId = created.data.id;
@@ -53,6 +52,15 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
     await expect(distance).toHaveAttribute('aria-readonly', 'true');
     await expect(form.getByLabel('Use automatic estimate')).toBeChecked();
     await expect(form.getByLabel('Enter manually')).not.toBeChecked();
+    const automaticDuration = form.getByLabel('Estimated duration minutes');
+    await expect(automaticDuration).toBeVisible();
+    await expect(automaticDuration).toBeDisabled();
+    await expect(automaticDuration).toHaveAttribute('readonly', '');
+    await expect(automaticDuration).toHaveValue(String(8006 / 60));
+    await form.getByLabel('Enter manually').check();
+    await expect(form.getByLabel('Estimated duration minutes')).toBeEnabled();
+    await form.getByLabel('Use automatic estimate').check();
+    await expect(form.getByLabel('Estimated duration minutes')).toBeDisabled();
 
     const missingSource = { ...automaticRequest(fromId, toId, 'walk', 777, 777) } as Record<string, unknown>;
     delete missingSource.estimatedDurationSource;
@@ -78,6 +86,10 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
     await openSegment(page, segmentId);
     await expect(page.locator('#trip-editor-segment-form').getByLabel('Enter manually')).toBeChecked();
     await expect(page.locator('#trip-editor-segment-form').getByLabel('Estimated duration minutes')).toHaveValue(String(91 / 60));
+    await page.locator('#trip-editor-segment-form').getByLabel('Use automatic estimate').check();
+    await expect(page.locator('#trip-editor-segment-form').getByLabel('Estimated duration minutes')).toBeDisabled();
+    await page.locator('#trip-editor-segment-form').getByLabel('Enter manually').check();
+    await expect(page.locator('#trip-editor-segment-form').getByLabel('Estimated duration minutes')).toBeEnabled();
 
     await mutate(page, 'put', `${editorApiPath}/segments/${segmentId}`, manualRequest(toId, fromId, 'bicycle', 12345, 91 / 60));
     segment = (await state(page)).segmentsById[segmentId];
@@ -106,12 +118,23 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
     expect(segment.estimatedDistanceKm).toBeNull();
     expect(segment.estimatedDurationMinutes).toBeNull();
     expect(segment.estimatedDurationSource).toBe('Automatic');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expectMountedWorkspace(page);
+    await openSegment(page, segmentId);
+    const unavailable = page.locator('#trip-editor-segment-form').getByLabel('Estimated duration minutes');
+    await expect(unavailable).toBeDisabled();
+    await expect(unavailable).toHaveAttribute('placeholder', 'Unavailable until route and speed are available');
   } finally {
     if (process.env.WAYFARER_E2E_KEEP_MEASUREMENT_FIXTURE !== '1') {
       if (segmentId) await deleteIfPresent(page, `${editorApiPath}/segments/${segmentId}`);
       if (fromId) await deleteIfPresent(page, `${editorApiPath}/places/${fromId}`);
       if (toId) await deleteIfPresent(page, `${editorApiPath}/places/${toId}`);
       if (regionId) await deleteIfPresent(page, `${editorApiPath}/regions/${regionId}`);
+      const remaining = await state(page);
+      expect(remaining.segmentsById[segmentId]).toBeUndefined();
+      expect(remaining.placesById[fromId]).toBeUndefined();
+      expect(remaining.placesById[toId]).toBeUndefined();
+      expect(remaining.regionsById[regionId]).toBeUndefined();
     }
   }
 });
@@ -128,15 +151,18 @@ function manualRequest(fromPlaceId: string, toPlaceId: string, mode: string,
     estimatedDurationSource: 'Manual', notesHtml: '', route: null };
 }
 
-async function createRegion(page: Page, name: string): Promise<void> {
+async function createRegion(page: Page, name: string): Promise<string> {
   await page.getByRole('button', { name: 'Add Region' }).click();
   await page.locator('#trip-editor-region-form').getByLabel('Name').fill(name);
+  const saved = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/editor/regions'));
   await page.getByRole('button', { name: 'Save Region' }).click();
+  const body = await (await saved).json();
   await expectSaved(page);
   await closeForm(page, '#trip-editor-region-form');
+  return body.data.id;
 }
 
-async function createPlace(page: Page, regionName: string, name: string, latitude: string, longitude: string): Promise<void> {
+async function createPlace(page: Page, regionName: string, name: string, latitude: string, longitude: string): Promise<string> {
   await regionCard(page, regionName).getByRole('button', { name: 'Add Place' }).click();
   const form = page.locator('#trip-editor-place-form');
   await form.getByLabel('Name').fill(name);
@@ -144,9 +170,12 @@ async function createPlace(page: Page, regionName: string, name: string, latitud
   await form.getByLabel('Latitude').fill(latitude);
   await form.getByLabel('Longitude').fill(longitude);
   await form.getByLabel('Reverse geocode this location on save').uncheck();
+  const saved = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/editor/places'));
   await page.getByRole('button', { name: 'Save Place', exact: true }).click();
+  const body = await (await saved).json();
   await expectSaved(page);
   await closeForm(page, '#trip-editor-place-form');
+  return body.data.id;
 }
 
 async function openSegment(page: Page, id: string): Promise<void> {
@@ -165,14 +194,6 @@ async function expectSaved(page: Page): Promise<void> {
 
 async function state(page: Page): Promise<EditorState> {
   return await loadEditorStateFixture(page) as EditorState;
-}
-
-function regionByName(value: EditorState, name: string): any {
-  return Object.values<any>(value.regionsById).find(item => item.name === name);
-}
-
-function placeByName(value: EditorState, name: string): any {
-  return Object.values<any>(value.placesById).find(item => item.name === name);
 }
 
 async function mutate(page: Page, method: 'post' | 'put', path: string, data: Record<string, unknown>): Promise<any> {
