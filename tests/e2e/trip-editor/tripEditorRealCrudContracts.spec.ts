@@ -262,7 +262,8 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         expect(state.segmentsById[firstId].route.coordinates.length).toBeGreaterThan(1);
       });
 
-      await orderSegmentsViaEndpoint(page, [secondId, firstId]);
+      await dragFromHandle(page, segmentRow(page, secondId), segmentRow(page, firstId), 'Drag to reorder segment');
+      await expectSegmentOrder(page, [secondId, firstId]);
       await page.reload();
       await expectMountedWorkspace(page);
       await expectSegmentOrder(page, [secondId, firstId]);
@@ -506,13 +507,6 @@ async function orderAreasViaEndpoint(page: Page, regionId: string, adjacentNames
   });
 }
 
-async function orderSegmentsViaEndpoint(page: Page, adjacentIds: [string, string]): Promise<void> {
-  const state = await loadEditorStateFixture(page);
-  await putOrder(page, `${editorApiPath}/segments/order`, {
-    segmentIds: reorderedAdjacent(state.segmentOrder as string[], adjacentIds[0], adjacentIds[1])
-  });
-}
-
 async function createSegmentViaEndpoint(page: Page, distance: string, duration: string): Promise<string> {
   const result = await postMutation(page, `${editorApiPath}/segments`, {
     fromPlaceId: null,
@@ -623,16 +617,26 @@ async function dragByMouse(page: Page, source: Locator, target: Locator): Promis
   await page.mouse.up();
 }
 
-/** Drags a Sortable row from its visible handle while keeping the row as the native drag source. */
+/** Reproduces a user's pointer drag from the visible handle through the destination row. */
 async function dragFromHandle(page: Page, sourceRow: Locator, targetRow: Locator, handleName: string): Promise<void> {
-  const rowBox = await sourceRow.boundingBox();
-  const handleBox = await sourceRow.getByRole('button', { name: handleName }).boundingBox();
-  expect(rowBox, 'Sortable source row must have a rendered box.').not.toBeNull();
+  const handle = sourceRow.getByRole('button', { name: handleName });
+  await expect(handle).toHaveCount(1);
+  await expect(handle).toBeVisible();
+  await expect(handle).toBeEnabled();
+  await handle.scrollIntoViewIfNeeded();
+  const handleBox = await handle.boundingBox();
+  const targetBox = await targetRow.boundingBox();
   expect(handleBox, 'Sortable source handle must have a rendered box.').not.toBeNull();
-  await sourceRow.dragTo(targetRow, {
-    sourcePosition: { x: handleBox!.x - rowBox!.x + handleBox!.width / 2, y: handleBox!.y - rowBox!.y + handleBox!.height / 2 },
-    targetPosition: { x: 8, y: 2 }
-  });
+  expect(targetBox, 'Sortable destination row must have a rendered box.').not.toBeNull();
+  const sourceX = handleBox!.x + handleBox!.width / 2;
+  const sourceY = handleBox!.y + handleBox!.height / 2;
+  const movingUp = sourceY > targetBox!.y + targetBox!.height / 2;
+  const targetY = movingUp ? targetBox!.y + 2 : targetBox!.y + targetBox!.height - 2;
+  await page.mouse.move(sourceX, sourceY);
+  await page.mouse.down();
+  await page.mouse.move(sourceX, sourceY + (movingUp ? -6 : 6), { steps: 3 });
+  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetY, { steps: 12 });
+  await page.mouse.up();
 }
 
 /** Waits for the completed drag event and its queued browser work without a timing window. */
@@ -645,7 +649,7 @@ function areaRowByName(page: Page, regionId: string, name: string): Locator {
 }
 
 function segmentRow(page: Page, segmentId: string): Locator {
-  return page.locator(`[data-segment-id="${segmentId}"]`);
+  return page.locator(`.trip-editor-segment-row[data-segment-id="${segmentId}"]`);
 }
 
 async function drawTriangle(page: Page): Promise<void> {
