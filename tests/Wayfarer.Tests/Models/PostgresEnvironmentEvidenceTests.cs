@@ -1,4 +1,5 @@
 using Npgsql;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 using Xunit.Abstractions;
@@ -6,14 +7,16 @@ using Xunit.Abstractions;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Records isolated provider versions and verifies lifecycle fixture cleanup.</summary>
-public sealed class PostgresEnvironmentEvidenceTests(ITestOutputHelper output)
+[Collection(PostgresImportTestCollection.Name)]
+public sealed class PostgresEnvironmentEvidenceTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
     /// <summary>Reports PostgreSQL/PostGIS versions and proves no lifecycle fixture rows remain.</summary>
     [PostgresFact]
     public async Task IsolatedProvider_ReportsVersionsAndHasNoLifecycleFixtureResidue()
     {
-        var connectionString = Environment.GetEnvironmentVariable("WAYFARER_TEST_POSTGRES_CONNECTION");
-        await using var connection = new NpgsqlConnection(connectionString);
+        fixture.RequireAvailable();
+        await using var context = fixture.CreateContext();
+        var connection = (NpgsqlConnection)context.Database.GetDbConnection();
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText =
