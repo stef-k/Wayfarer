@@ -121,7 +121,7 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
       await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
       await expect(dialog).toHaveCount(0);
       await expect(deleteButton).toBeDisabled();
-      await expect(page.getByRole('status').filter({ hasText: 'Saving' })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: 'Saving' }).first()).toBeVisible();
       expect((await response).status()).toBe(500);
     } finally {
       startPostgres();
