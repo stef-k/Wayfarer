@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -16,6 +16,9 @@ type LifecycleFixture = {
   deletedRegion: { id: string; name: string; deletedPlaces: number; deletedAreas: number; endpointSegments: number; waypointOnlySegments: number };
   stalePlace: { id: string; name: string; endpointSegments: number; waypointOnlySegments: number };
   failurePlace: { id: string; name: string; endpointSegments: number; waypointOnlySegments: number };
+  phoneStalePlace: { id: string; name: string; endpointSegments: number; waypointOnlySegments: number };
+  phoneFailurePlace: { id: string; name: string; endpointSegments: number; waypointOnlySegments: number };
+  phoneRegion: { id: string; name: string; deletedPlaces: number; deletedAreas: number; endpointSegments: number; waypointOnlySegments: number };
   staleDriftSegmentId: string;
   segmentIds: string[];
 };
@@ -40,7 +43,7 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
 
     await expect(dialog).toHaveCount(0);
     await expect(placeRow(page, fixture.waypointOnlyPlace.id)).toBeVisible();
-    await expect(deleteButton).toBeFocused();
+    await expect(page.locator('.trip-editor-workspace')).toBeFocused();
     await expectPersistedPlace(page, fixture.waypointOnlyPlace.id);
 
     const survivingSegment = fixture.segmentIds[0];
@@ -71,7 +74,7 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     await openFixture(page);
     const target = fixture.deletedRegion;
     const card = regionCard(page, target.id);
-    await card.getByRole('button', { name: 'Edit' }).click();
+    await card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' }).click();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Delete region?' });
     await expect(dialog).toHaveAccessibleDescription(
@@ -104,6 +107,46 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     expect(requests()[2].confirmation).toBeTruthy();
     await expectMeaningfulFocus(page);
   });
+
+  test('provider failure preserves visible state, prevents duplicate confirmation, and permits retry', async ({ page }) => {
+    await openFixture(page);
+    const target = fixture.failurePlace;
+    await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
+    const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
+    await deleteButton.click();
+    const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+    stopPostgres();
+    try {
+      const response = page.waitForResponse(candidate => candidate.request().method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
+      await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(deleteButton).toBeDisabled();
+      await expect(page.getByRole('status').filter({ hasText: 'Saving' })).toBeVisible();
+      expect((await response).status()).toBe(500);
+    } finally {
+      startPostgres();
+    }
+
+    await expect(placeRow(page, target.id)).toBeVisible();
+    await expect(segmentRow(page, fixture.segmentIds[7])).toBeVisible();
+    await expect(page.locator('.trip-editor-form-error[role="alert"]')).toContainText('place delete returned 500');
+    await deleteButton.click();
+    await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(placeRow(page, target.id)).toHaveCount(0);
+    await expectMeaningfulFocus(page);
+  });
+
+  for (const viewport of [{ width: 390, height: 844 }, { width: 430, height: 932 }]) {
+    test(`phone ${viewport.width}x${viewport.height} keeps lifecycle warnings usable and state coherent`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openFixture(page);
+      await assertPhonePlaceWarning(page, fixture.phoneFailurePlace, viewport);
+      await assertPhoneRegionWarning(page, fixture.phoneRegion, viewport);
+      await assertPhoneStaleRefresh(page, viewport);
+      await assertPhoneFailureRollback(page, viewport);
+      await expectNoHorizontalOverflow(page);
+    });
+  }
 });
 
 /** Loads the exact IDs emitted by the run-owned PostgreSQL fixture provisioner. */
@@ -132,7 +175,7 @@ function placeRow(page: Page, placeId: string) {
 
 /** Locates one rendered Segment by its captured identity. */
 function segmentRow(page: Page, segmentId: string) {
-  return page.locator(`[data-segment-id="${segmentId}"]`);
+  return page.locator(`.trip-editor-segment-row[data-segment-id="${segmentId}"]`);
 }
 
 /** Locates one rendered Region by its captured identity. */
@@ -184,6 +227,124 @@ function applyFixtureDrift(): void {
   const helper = process.env.WAYFARER_E2E_LIFECYCLE_HELPER!;
   if (!helper) throw new Error('WAYFARER_E2E_LIFECYCLE_HELPER is required for stale-confirmation coverage.');
   execFileSync('dotnet', [helper, 'drift', manifestPath], { stdio: 'pipe', env: process.env });
+}
+
+/** Invokes one exact fixture helper mutation without exposing a production endpoint. */
+function runFixtureHelper(command: string): void {
+  const manifestPath = process.env.WAYFARER_E2E_LIFECYCLE_FIXTURE!;
+  const helper = process.env.WAYFARER_E2E_LIFECYCLE_HELPER!;
+  if (!helper) throw new Error('WAYFARER_E2E_LIFECYCLE_HELPER is required for lifecycle fixture control.');
+  execFileSync('dotnet', [helper, command, manifestPath], { stdio: 'pipe', env: process.env });
+}
+
+/** Stops only the run-owned PostgreSQL cluster used by the current browser fixture. */
+function stopPostgres(): void {
+  const control = requiredEnvironment('WAYFARER_E2E_PG_CTL');
+  const data = requiredEnvironment('WAYFARER_E2E_POSTGRES_DATA');
+  execFileSync(control, ['-D', data, '-m', 'fast', 'stop'], { stdio: 'pipe' });
+}
+
+/** Restarts only the run-owned PostgreSQL cluster after deterministic failure evidence. */
+function startPostgres(): void {
+  const control = requiredEnvironment('WAYFARER_E2E_PG_CTL');
+  const data = requiredEnvironment('WAYFARER_E2E_POSTGRES_DATA');
+  const log = requiredEnvironment('WAYFARER_E2E_POSTGRES_LOG');
+  const port = requiredEnvironment('WAYFARER_E2E_POSTGRES_PORT');
+  execFileSync(control, ['-D', data, '-l', log, '-o', `-p ${port} -h 127.0.0.1`, 'start'], { stdio: 'pipe' });
+}
+
+/** Returns a required run-owned orchestration value without printing it. */
+function requiredEnvironment(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required for lifecycle provider-failure coverage.`);
+  return value;
+}
+
+/** Exercises a contained Place warning and cancel focus at the active phone viewport. */
+async function assertPhonePlaceWarning(page: Page, target: LifecycleFixture['phoneFailurePlace'], viewport: { width: number; height: number }): Promise<void> {
+  await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+  await assertContainedDialog(dialog, viewport);
+  await expect(dialog).toContainText('connected segment(s)');
+  await dialog.getByRole('button', { name: 'Keep place' }).click();
+  await expect(page.locator('.trip-editor-workspace')).toBeFocused();
+}
+
+/** Exercises Region counts and controls without consuming the reusable phone fixture. */
+async function assertPhoneRegionWarning(page: Page, target: LifecycleFixture['phoneRegion'], viewport: { width: number; height: number }): Promise<void> {
+  const card = regionCard(page, target.id);
+  await card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete region?' });
+  await assertContainedDialog(dialog, viewport);
+  await expect(dialog).toContainText(`${target.deletedPlaces} place(s), ${target.deletedAreas} area(s)`);
+  await dialog.getByRole('button', { name: 'Keep region' }).click();
+  await expect(page.locator('.trip-editor-workspace')).toBeFocused();
+}
+
+/** Proves stale-warning refresh at phone width while retaining the reusable target. */
+async function assertPhoneStaleRefresh(page: Page, viewport: { width: number; height: number }): Promise<void> {
+  runFixtureHelper('reset-drift');
+  const target = fixture.phoneStalePlace;
+  await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const first = page.getByRole('dialog', { name: 'Delete place?' });
+  await expect(first).toContainText('updates 1 waypoint route(s)');
+  runFixtureHelper('phone-drift');
+  await first.getByRole('button', { name: 'Delete', exact: true }).click();
+  const refreshed = page.getByRole('dialog', { name: 'Dependencies changed' });
+  await assertContainedDialog(refreshed, viewport);
+  await expect(refreshed).toContainText('updates 2 waypoint route(s)');
+  await refreshed.getByRole('button', { name: 'Keep place' }).click();
+  await expect(placeRow(page, target.id)).toBeVisible();
+  await expect(page.locator('.trip-editor-workspace')).toBeFocused();
+}
+
+/** Proves provider rollback and retry availability at phone width without deleting the target. */
+async function assertPhoneFailureRollback(page: Page, viewport: { width: number; height: number }): Promise<void> {
+  const target = fixture.phoneFailurePlace;
+  await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
+  const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
+  await deleteButton.click();
+  const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+  await assertContainedDialog(dialog, viewport);
+  stopPostgres();
+  try {
+    const response = page.waitForResponse(candidate => candidate.request().method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(deleteButton).toBeDisabled();
+    expect((await response).status()).toBe(500);
+  } finally {
+    startPostgres();
+  }
+  await expect(placeRow(page, target.id)).toBeVisible();
+  await deleteButton.click();
+  const retry = page.getByRole('dialog', { name: 'Delete place?' });
+  await assertContainedDialog(retry, viewport);
+  await retry.getByRole('button', { name: 'Keep place' }).click();
+}
+
+/** Asserts required content and touch controls remain inside the visual viewport. */
+async function assertContainedDialog(dialog: Locator, viewport: { width: number; height: number }): Promise<void> {
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+  for (const button of [dialog.getByRole('button').first(), dialog.getByRole('button').last()]) {
+    await expect(button).toBeVisible();
+    const buttonBox = await button.boundingBox();
+    expect(buttonBox!.height).toBeGreaterThanOrEqual(38);
+  }
+}
+
+/** Proves neither the document nor the mounted editor introduces phone-width overflow. */
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  expect(await page.evaluate(() => ({ document: document.documentElement.scrollWidth - document.documentElement.clientWidth, editor: document.querySelector('.trip-editor-workspace')!.scrollWidth - document.querySelector('.trip-editor-workspace')!.clientWidth })))
+    .toEqual({ document: 0, editor: 0 });
 }
 
 /** Proves focus remains inside a visible, useful editor control after a destructive outcome. */

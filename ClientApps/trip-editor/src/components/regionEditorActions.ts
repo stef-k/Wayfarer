@@ -95,6 +95,8 @@ export function useRegionEditorActions(context: any) {
         } catch (error) {
           if (!(error instanceof EditorLifecycleConfirmationError)) throw error;
           const warning = error.conflict;
+          // The dependency request is complete while the user decides, so its trigger can receive restored focus.
+          context.isSaving.value = false;
           const confirmed = await confirm({
             title: warning.code === 'lifecycle-confirmation-stale' ? 'Dependencies changed' : 'Delete region?',
             message: `This deletes ${warning.deletedPlaces.count} place(s), ${warning.deletedAreas.count} area(s), ${warning.endpointSegments.count} connected segment(s), and updates ${warning.waypointOnlySegments.count} waypoint route(s).`,
@@ -103,6 +105,7 @@ export function useRegionEditorActions(context: any) {
             variant: 'danger'
           });
           if (!confirmed) return;
+          context.isSaving.value = true;
           confirmationToken = warning.confirmationToken;
         }
       }

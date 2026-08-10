@@ -8,7 +8,7 @@ using Wayfarer.Util;
 
 const string connectionVariable = "WAYFARER_TEST_POSTGRES_CONNECTION";
 if (args.Length is < 2 or > 3)
-    throw new InvalidOperationException("Usage: Wayfarer.LifecycleBrowserFixture <provision|drift|cleanup|verify-cleanup> <manifest> [password].");
+    throw new InvalidOperationException("Usage: Wayfarer.LifecycleBrowserFixture <provision|drift|reset-drift|cleanup|verify-cleanup> <manifest> [password].");
 
 var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
@@ -31,6 +31,12 @@ switch (command)
         break;
     case "drift":
         await ApplyDriftAsync(context, await ReadManifestAsync(manifestPath));
+        break;
+    case "phone-drift":
+        await ApplyPhoneDriftAsync(context, await ReadManifestAsync(manifestPath));
+        break;
+    case "reset-drift":
+        await ResetPhoneDriftAsync(context, await ReadManifestAsync(manifestPath));
         break;
     case "cleanup":
         await CleanupAsync(context, await ReadManifestAsync(manifestPath));
@@ -81,14 +87,25 @@ static async Task<LifecycleFixtureManifest> ProvisionAsync(ApplicationDbContext 
     var mixed = Place(primary, user.Id, $"Mixed delete {run}", 4, 23.73, 37.99);
     var stale = Place(primary, user.Id, $"Stale delete {run}", 5, 23.74, 38.00);
     var failure = Place(primary, user.Id, $"Failure delete {run}", 6, 23.75, 38.005);
+    var phoneStale = Place(primary, user.Id, $"Phone stale {run}", 7, 23.755, 38.006);
+    var phoneFailure = Place(primary, user.Id, $"Phone failure {run}", 8, 23.758, 38.008);
     var regionEndpoint = Place(deletedRegion, user.Id, $"Region endpoint {run}", 1, 23.76, 37.96);
     var regionWaypoint = Place(deletedRegion, user.Id, $"Region waypoint {run}", 2, 23.77, 37.965);
+    var phoneRegion = Region(trip, user.Id, $"Phone region {run}", 3);
+    var phoneRegionEndpoint = Place(phoneRegion, user.Id, $"Phone region endpoint {run}", 1, 23.765, 37.955);
+    var phoneRegionWaypoint = Place(phoneRegion, user.Id, $"Phone region waypoint {run}", 2, 23.775, 37.966);
     var area = new Area
     {
         Id = Guid.NewGuid(), Region = deletedRegion, RegionId = deletedRegion.Id, Name = $"Region area {run}", DisplayOrder = 1,
         Geometry = Polygon(23.75, 37.95)
     };
     deletedRegion.Areas.Add(area);
+    var phoneArea = new Area
+    {
+        Id = Guid.NewGuid(), Region = phoneRegion, RegionId = phoneRegion.Id, Name = $"Phone area {run}", DisplayOrder = 1,
+        Geometry = Polygon(23.76, 37.95)
+    };
+    phoneRegion.Areas.Add(phoneArea);
 
     var profile = new TransportProfile
     {
@@ -104,7 +121,13 @@ static async Task<LifecycleFixtureManifest> ProvisionAsync(ApplicationDbContext 
     var staleSegment = CustomSegment(trip, user.Id, profile, 6, start, end, stale, EstimatedDurationSource.Automatic);
     var staleDriftSegment = FallbackSegment(trip, user.Id, profile, 7, start, end, EstimatedDurationSource.Automatic);
     var failureSegment = CustomSegment(trip, user.Id, profile, 8, start, end, failure, EstimatedDurationSource.Automatic);
-    segments.AddRange([waypointSegment, mixedEndpoint, mixedSurvivor, regionEndpointSegment, regionSurvivor, staleSegment, staleDriftSegment, failureSegment]);
+    var phoneStaleSegment = CustomSegment(trip, user.Id, profile, 9, start, end, phoneStale, EstimatedDurationSource.Automatic);
+    var phoneStaleDriftSegment = FallbackSegment(trip, user.Id, profile, 10, start, end, EstimatedDurationSource.Automatic);
+    var phoneFailureSegment = CustomSegment(trip, user.Id, profile, 11, start, end, phoneFailure, EstimatedDurationSource.Automatic);
+    var phoneRegionEndpointSegment = FallbackSegment(trip, user.Id, profile, 12, phoneRegionEndpoint, start, EstimatedDurationSource.Automatic);
+    var phoneRegionSurvivor = CustomSegment(trip, user.Id, profile, 13, start, end, phoneRegionWaypoint, EstimatedDurationSource.Automatic);
+    segments.AddRange([waypointSegment, mixedEndpoint, mixedSurvivor, regionEndpointSegment, regionSurvivor, staleSegment, staleDriftSegment, failureSegment,
+        phoneStaleSegment, phoneStaleDriftSegment, phoneFailureSegment, phoneRegionEndpointSegment, phoneRegionSurvivor]);
     foreach (var segment in segments) trip.Segments.Add(segment);
 
     context.Users.Add(user);
@@ -121,10 +144,15 @@ static async Task<LifecycleFixtureManifest> ProvisionAsync(ApplicationDbContext 
         new Target(stale.Id, stale.Name, 0, 1),
         new Target(failure.Id, failure.Name, 0, 1),
         staleDriftSegment.Id,
+        new Target(phoneStale.Id, phoneStale.Name, 0, 1),
+        phoneStaleDriftSegment.Id,
+        new Target(phoneFailure.Id, phoneFailure.Name, 0, 1),
+        new RegionTarget(phoneRegion.Id, phoneRegion.Name, 2, 1, 1, 1),
         segments.Select(segment => segment.Id).ToArray(),
-        [shadow.Id, primary.Id, deletedRegion.Id],
-        [start.Id, end.Id, waypointOnly.Id, mixed.Id, stale.Id, failure.Id, regionEndpoint.Id, regionWaypoint.Id],
-        [area.Id]);
+        [shadow.Id, primary.Id, deletedRegion.Id, phoneRegion.Id],
+        [start.Id, end.Id, waypointOnly.Id, mixed.Id, stale.Id, failure.Id, phoneStale.Id, phoneFailure.Id, regionEndpoint.Id, regionWaypoint.Id,
+            phoneRegionEndpoint.Id, phoneRegionWaypoint.Id],
+        [area.Id, phoneArea.Id]);
 }
 
 /// <summary>Adds one captured waypoint identity so the first confirmation token becomes stale.</summary>
@@ -136,6 +164,23 @@ static async Task ApplyDriftAsync(ApplicationDbContext context, LifecycleFixture
     context.Set<SegmentWaypoint>().Add(new SegmentWaypoint
     {
         SegmentId = manifest.StaleDriftSegmentId, PlaceId = manifest.StalePlace.Id, Position = 0, RouteVertexIndex = null
+    });
+    await context.SaveChangesAsync();
+}
+
+/// <summary>Resets and reapplies only the reusable phone stale-confirmation association.</summary>
+static async Task ResetPhoneDriftAsync(ApplicationDbContext context, LifecycleFixtureManifest manifest)
+{
+    await context.Set<SegmentWaypoint>().Where(waypoint =>
+        waypoint.SegmentId == manifest.PhoneStaleDriftSegmentId && waypoint.PlaceId == manifest.PhoneStalePlace.Id).ExecuteDeleteAsync();
+}
+
+/// <summary>Adds the reusable phone-only association after its warning has been rendered.</summary>
+static async Task ApplyPhoneDriftAsync(ApplicationDbContext context, LifecycleFixtureManifest manifest)
+{
+    context.Set<SegmentWaypoint>().Add(new SegmentWaypoint
+    {
+        SegmentId = manifest.PhoneStaleDriftSegmentId, PlaceId = manifest.PhoneStalePlace.Id, Position = 0, RouteVertexIndex = null
     });
     await context.SaveChangesAsync();
 }
@@ -228,7 +273,8 @@ internal sealed record RegionTarget(Guid Id, string Name, int DeletedPlaces, int
 internal sealed record LifecycleFixtureManifest(
     Guid TripId, string UserId, string Username, string Password, Guid TransportProfileId,
     Target WaypointOnlyPlace, Target MixedPlace, RegionTarget DeletedRegion, Target StalePlace, Target FailurePlace,
-    Guid StaleDriftSegmentId, Guid[] SegmentIds, Guid[] RegionIds, Guid[] PlaceIds, Guid[] AreaIds);
+    Guid StaleDriftSegmentId, Target PhoneStalePlace, Guid PhoneStaleDriftSegmentId, Target PhoneFailurePlace, RegionTarget PhoneRegion,
+    Guid[] SegmentIds, Guid[] RegionIds, Guid[] PlaceIds, Guid[] AreaIds);
 
 internal static class FixtureJson
 {
