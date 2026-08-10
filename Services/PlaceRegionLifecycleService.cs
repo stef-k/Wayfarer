@@ -129,23 +129,29 @@ public sealed partial class PlaceRegionLifecycleService
         var warning = _confirmation.Create("place-delete-dependencies", PlaceDeleteOperation, userId, tripId, placeId, dependencies);
         if (dependencies.RequiresConfirmation && !_confirmation.IsValid(confirmationToken, PlaceDeleteOperation, userId, tripId, placeId, dependencies))
             return PlaceLifecycleDeleteResult.Conflict(warning with { Code = string.IsNullOrWhiteSpace(confirmationToken) ? warning.Code : "lifecycle-confirmation-stale" });
+        var regionId = await _dbContext.Places.AsNoTracking()
+            .Where(place => place.Id == placeId && place.UserId == userId && place.Region.TripId == tripId)
+            .Select(place => place.RegionId)
+            .SingleAsync(cancellationToken);
+        var candidates = await BuildDeleteLockCandidatesAsync(dependencies, [placeId], [regionId], cancellationToken);
 
         await using var transaction = await BeginTransactionAsync(cancellationToken);
         try
         {
+            await LockAsync(candidates, cancellationToken);
             var canonical = await DiscoverPlaceDependenciesAsync(tripId, placeId, userId, cancellationToken);
             if (canonical == null) return PlaceLifecycleDeleteResult.NotFound;
-            var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
-            var place = await LoadOwnedPlaceAsync(tripId, placeId, userId, cancellationToken);
-            if (place == null) return PlaceLifecycleDeleteResult.NotFound;
-            recovery = new([placeId], [place.RegionId], affected.Select(item => item.Id).ToArray());
-            await LockAsync(affected, [placeId], [place.RegionId], cancellationToken);
             if (dependencies.Fingerprint() != canonical.Fingerprint())
             {
                 await RollbackAsync(transaction);
                 var stale = _confirmation.Create("lifecycle-confirmation-stale", PlaceDeleteOperation, userId, tripId, placeId, canonical);
                 return PlaceLifecycleDeleteResult.Conflict(stale);
             }
+            DetachCanonicalEntries(candidates);
+            var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
+            var place = await LoadOwnedPlaceAsync(tripId, placeId, userId, cancellationToken);
+            if (place == null) return PlaceLifecycleDeleteResult.NotFound;
+            recovery = new([placeId], [place.RegionId], affected.Select(item => item.Id).ToArray());
 
             var endpointIds = canonical.EndpointSegmentIds.ToHashSet();
             var deletedSegments = affected.Where(segment => endpointIds.Contains(segment.Id)).ToArray();
@@ -157,7 +163,7 @@ public sealed partial class PlaceRegionLifecycleService
                 await ReconcileSegmentAsync(segment, cancellationToken);
             }
 
-            var regionId = place.RegionId;
+            regionId = place.RegionId;
             _dbContext.Places.Remove(place);
             await NormalizePlaceOrdersAsync(regionId, placeId, cancellationToken);
             await NormalizeSegmentOrdersAsync(tripId, userId, endpointIds, cancellationToken);
@@ -202,25 +208,27 @@ public sealed partial class PlaceRegionLifecycleService
         var warning = _confirmation.Create("region-delete-dependencies", RegionDeleteOperation, userId, tripId, regionId, dependencies);
         if (dependencies.RequiresConfirmation && !_confirmation.IsValid(confirmationToken, RegionDeleteOperation, userId, tripId, regionId, dependencies))
             return RegionLifecycleDeleteResult.Conflict(warning with { Code = string.IsNullOrWhiteSpace(confirmationToken) ? warning.Code : "lifecycle-confirmation-stale" });
+        var candidates = await BuildDeleteLockCandidatesAsync(dependencies, dependencies.PlaceIds.ToArray(), [regionId], cancellationToken);
 
         await using var transaction = await BeginTransactionAsync(cancellationToken);
         try
         {
-            var region = await _dbContext.Regions.Include(item => item.Places).Include(item => item.Areas)
-                .SingleOrDefaultAsync(item => item.Id == regionId && item.TripId == tripId && item.UserId == userId, cancellationToken);
-            if (region == null || region.Name == "Unassigned Places") return RegionLifecycleDeleteResult.NotFound;
+            await LockAsync(candidates, cancellationToken);
             var canonical = await DiscoverRegionDependenciesAsync(tripId, regionId, userId, cancellationToken);
             if (canonical == null) return RegionLifecycleDeleteResult.NotFound;
-            var placeIds = region.Places.Select(item => item.Id).Order().ToArray();
-            var affected = placeIds.Length == 0 ? [] : await LoadAffectedSegmentsAsync(tripId, userId, placeIds, cancellationToken);
-            recovery = new(placeIds, [regionId], affected.Select(item => item.Id).ToArray());
-            await LockAsync(affected, placeIds, [regionId], cancellationToken);
             if (canonical.Fingerprint() != dependencies.Fingerprint())
             {
                 await RollbackAsync(transaction);
                 return RegionLifecycleDeleteResult.Conflict(
                     _confirmation.Create("lifecycle-confirmation-stale", RegionDeleteOperation, userId, tripId, regionId, canonical));
             }
+            DetachCanonicalEntries(candidates);
+            var region = await _dbContext.Regions.Include(item => item.Places).Include(item => item.Areas)
+                .SingleOrDefaultAsync(item => item.Id == regionId && item.TripId == tripId && item.UserId == userId, cancellationToken);
+            if (region == null || region.Name == "Unassigned Places") return RegionLifecycleDeleteResult.NotFound;
+            var placeIds = region.Places.Select(item => item.Id).Order().ToArray();
+            var affected = placeIds.Length == 0 ? [] : await LoadAffectedSegmentsAsync(tripId, userId, placeIds, cancellationToken);
+            recovery = new(placeIds, [regionId], affected.Select(item => item.Id).ToArray());
 
             var endpointIds = canonical.EndpointSegmentIds.ToHashSet();
             _dbContext.Segments.RemoveRange(affected.Where(item => endpointIds.Contains(item.Id)));
@@ -305,6 +313,22 @@ public sealed partial class PlaceRegionLifecycleService
             segments.Select(item => item.Id).Distinct().Order().ToArray(),
             [placeId],
             new[] { currentRegionId.Value, targetRegionId }.Distinct().Order().ToArray());
+    }
+
+    private async Task<LifecycleLockCandidates> BuildDeleteLockCandidatesAsync(
+        LifecycleDependencies dependencies,
+        Guid[] placeIds,
+        Guid[] regionIds,
+        CancellationToken cancellationToken)
+    {
+        var segmentIds = dependencies.EndpointSegmentIds.Concat(dependencies.WaypointOnlySegmentIds).Distinct().Order().ToArray();
+        var profileIds = await _dbContext.Segments.AsNoTracking()
+            .Where(segment => segmentIds.Contains(segment.Id) && segment.TransportProfileId.HasValue)
+            .Select(segment => segment.TransportProfileId!.Value)
+            .Distinct()
+            .Order()
+            .ToArrayAsync(cancellationToken);
+        return new(profileIds, segmentIds, placeIds.Distinct().Order().ToArray(), regionIds.Distinct().Order().ToArray());
     }
 
     private void DetachCanonicalEntries(LifecycleLockCandidates candidates)

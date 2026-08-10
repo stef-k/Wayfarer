@@ -138,6 +138,34 @@ public sealed class PlaceRegionLifecyclePostgresTests
             coordinate => coordinate.Equals2D(new Coordinate(4, 4))));
     }
 
+    /// <summary>Returns a refreshed warning when a confirmed Place deletion gains a dependency during its lock wait.</summary>
+    [PostgresFact]
+    public async Task ConfirmedPlaceDelete_PostLockDependencyDrift_ReturnsFreshStaleWarningWithoutMutation()
+    {
+        var seeded = await SeedAsync(customRoute: true);
+        await using var challengeContext = _fixture.CreateContext();
+        var confirmation = new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider());
+        var challengeService = new PlaceRegionLifecycleService(challengeContext, confirmation);
+        var challenge = await challengeService.DeletePlaceAsync(
+            seeded.TripId, seeded.WaypointId, seeded.UserId, null, CancellationToken.None);
+        var drift = new DependencyDriftInterceptor(1, () => AddEndpointDependencyAsync(seeded));
+        await using var confirmedContext = _fixture.CreateContext(drift);
+
+        var result = await new PlaceRegionLifecycleService(confirmedContext, confirmation).DeletePlaceAsync(
+            seeded.TripId,
+            seeded.WaypointId,
+            seeded.UserId,
+            challenge.Warning!.ConfirmationToken,
+            CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("lifecycle-confirmation-stale", result.Warning!.Code);
+        Assert.Equal(1, result.Warning.EndpointSegments.Count);
+        await using var verification = _fixture.CreateContext();
+        Assert.True(await verification.Places.AnyAsync(item => item.Id == seeded.WaypointId));
+        Assert.Equal(2, await verification.Segments.CountAsync(item => item.TripId == seeded.TripId));
+    }
+
     private async Task<SeededLifecycle> SeedAsync(bool customRoute)
     {
         _fixture.RequireAvailable();
