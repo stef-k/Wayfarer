@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
@@ -109,40 +110,62 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
   });
 
   test('provider failure preserves visible state, prevents duplicate confirmation, and permits retry', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
     const timing = (event: string): void => testInfo.annotations.push({ type: 'provider-outage-timing', description: `${new Date().toISOString()} ${event}` });
     await openFixture(page);
     const target = fixture.failurePlace;
+    const requests = collectDeleteRequests(page, target.id);
     await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
     const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
     await deleteButton.click();
     const dialog = page.getByRole('dialog', { name: 'Delete place?' });
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Delete', exact: true })).toBeEnabled();
+    timing('Delete button actionable before stop');
     timing('warning dialog visible');
     timing('PostgreSQL stop command start');
     stopPostgres();
     timing('PostgreSQL stop command end');
+    await expect.poll(postgresPortIsOpen, { timeout: 15_000 }).toBe(false);
+    timing('port closure confirmed');
     try {
+      const confirmDelete = dialog.getByRole('button', { name: 'Delete', exact: true });
+      await expect(dialog).toBeVisible();
+      await expect(confirmDelete).toBeVisible();
+      await expect(confirmDelete).toBeEnabled();
+      timing('Delete button actionable after stop');
       const response = page.waitForResponse(candidate => candidate.request().method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
+      const dispatched = page.waitForRequest(candidate => candidate.method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
       timing('confirmation click');
-      await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+      await confirmDelete.click();
+      await dispatched;
+      timing('DELETE request dispatched');
       timing('confirmation click completed');
       await expect(dialog).toHaveCount(0);
       await expect(deleteButton).toBeDisabled();
       await expect(page.getByRole('status').filter({ hasText: 'Saving' }).first()).toBeVisible();
       expect((await response).status()).toBe(500);
       timing('HTTP 500 response');
+      expect(requests()).toHaveLength(2);
     } finally {
       timing('PostgreSQL restart start');
       startPostgres();
+      await expect.poll(postgresPortIsOpen, { timeout: 30_000 }).toBe(true);
       timing('PostgreSQL restart end');
     }
+
+    await expect.poll(async () => (await page.request.get(absoluteUrl(editorApiPath))).status(), { timeout: 30_000 }).toBe(200);
+    timing('PostgreSQL readiness verified');
 
     await expect(placeRow(page, target.id)).toBeVisible();
     await expect(segmentRow(page, fixture.segmentIds[7])).toBeVisible();
     await expect(page.locator('.trip-editor-form-error[role="alert"]')).toContainText('place delete returned 500');
+    timing('retry request start');
     await deleteButton.click();
     await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(placeRow(page, target.id)).toHaveCount(0);
+    timing('retry success response');
+    expect(requests()).toHaveLength(4);
     await expectMeaningfulFocus(page);
   });
 
@@ -255,7 +278,7 @@ function runFixtureHelper(command: string): void {
 function stopPostgres(): void {
   const control = requiredEnvironment('WAYFARER_E2E_PG_CTL');
   const data = requiredEnvironment('WAYFARER_E2E_POSTGRES_DATA');
-  execFileSync(control, ['-D', data, '-m', 'fast', 'stop'], { stdio: 'pipe' });
+  execFileSync(control, ['-D', data, '-m', 'fast', 'stop'], { stdio: 'pipe', timeout: 30_000 });
 }
 
 /** Restarts only the run-owned PostgreSQL cluster after deterministic failure evidence. */
@@ -264,7 +287,20 @@ function startPostgres(): void {
   const data = requiredEnvironment('WAYFARER_E2E_POSTGRES_DATA');
   const log = requiredEnvironment('WAYFARER_E2E_POSTGRES_LOG');
   const port = requiredEnvironment('WAYFARER_E2E_POSTGRES_PORT');
-  execFileSync(control, ['-D', data, '-l', log, '-o', `-p ${port} -h 127.0.0.1`, 'start'], { stdio: 'ignore' });
+  execFileSync(control, ['-D', data, '-l', log, '-o', `-p ${port} -h 127.0.0.1`, 'start'], { stdio: 'ignore', timeout: 30_000 });
+}
+
+/** Probes only the run-owned PostgreSQL TCP port with a bounded socket attempt. */
+async function postgresPortIsOpen(): Promise<boolean> {
+  const port = Number(requiredEnvironment('WAYFARER_E2E_POSTGRES_PORT'));
+  return await new Promise(resolve => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    const finish = (open: boolean): void => { socket.destroy(); resolve(open); };
+    socket.setTimeout(1_000);
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+    socket.once('timeout', () => finish(false));
+  });
 }
 
 /** Returns a required run-owned orchestration value without printing it. */
