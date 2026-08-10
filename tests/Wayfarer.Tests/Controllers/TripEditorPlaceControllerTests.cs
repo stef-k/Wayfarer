@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
@@ -233,6 +234,8 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var segment = trip.Segments.Single(s => s.FromPlaceId == place.Id);
         segment.RouteGeometry = new LineString(Array.Empty<Coordinate>()) { SRID = 4326 };
         db.SaveChanges();
+        var unrelated = trip.Regions.Single(region => region.Name == "Thessaloniki").Places.Single();
+        unrelated.Notes = "pending unrelated edit";
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
@@ -241,6 +244,10 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
 
         Assert.Equal(23, db.Places.Single(item => item.Id == place.Id).Location!.X);
         Assert.Equal(0, db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!.NumPoints);
+        Assert.Equal(EntityState.Modified, db.Entry(unrelated).State);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        Assert.Equal("pending unrelated edit", db.Places.Single(item => item.Id == unrelated.Id).Notes);
     }
 
     [Fact]

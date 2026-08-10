@@ -8,7 +8,7 @@ using Wayfarer.Models.Dtos.Editor;
 namespace Wayfarer.Services;
 
 /// <summary>Owns atomic, waypoint-aware mutations of existing Places and Regions.</summary>
-public sealed class PlaceRegionLifecycleService
+public sealed partial class PlaceRegionLifecycleService
 {
     private const string PlaceDeleteOperation = "place-delete";
     private const string RegionDeleteOperation = "region-delete";
@@ -30,6 +30,7 @@ public sealed class PlaceRegionLifecycleService
         PlaceLifecycleUpdate update,
         CancellationToken cancellationToken)
     {
+        var recovery = new LifecycleRecoveryScope([placeId], [update.RegionId], []);
         await using var transaction = await BeginTransactionAsync(cancellationToken);
         try
         {
@@ -40,6 +41,7 @@ public sealed class PlaceRegionLifecycleService
             if (targetRegion == null) return PlaceLifecycleUpdateResult.NotFound;
 
             var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
+            recovery = new([placeId], [place.RegionId, targetRegion.Id], affected.Select(item => item.Id).ToArray());
             await LockAsync(affected, [placeId], [place.RegionId, targetRegion.Id], cancellationToken);
             var oldRegionId = place.RegionId;
             var moved = oldRegionId != targetRegion.Id;
@@ -89,10 +91,9 @@ public sealed class PlaceRegionLifecycleService
                 : update.DisplayOrder.HasValue ? new[] { targetRegion.Id } : [];
             return new(true, null, null, place, affected, orderRegions, locationChanged);
         }
-        catch
+        catch (Exception original)
         {
-            await RollbackAsync(transaction);
-            _dbContext.ChangeTracker.Clear();
+            await RecoverAndRethrowAsync(original, transaction, recovery);
             throw;
         }
     }
@@ -105,6 +106,7 @@ public sealed class PlaceRegionLifecycleService
         string? confirmationToken,
         CancellationToken cancellationToken)
     {
+        var recovery = new LifecycleRecoveryScope([placeId], [], []);
         var dependencies = await DiscoverPlaceDependenciesAsync(tripId, placeId, userId, cancellationToken);
         if (dependencies == null) return PlaceLifecycleDeleteResult.NotFound;
         var warning = _confirmation.Create("place-delete-dependencies", PlaceDeleteOperation, userId, tripId, placeId, dependencies);
@@ -119,6 +121,7 @@ public sealed class PlaceRegionLifecycleService
             var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
             var place = await LoadOwnedPlaceAsync(tripId, placeId, userId, cancellationToken);
             if (place == null) return PlaceLifecycleDeleteResult.NotFound;
+            recovery = new([placeId], [place.RegionId], affected.Select(item => item.Id).ToArray());
             await LockAsync(affected, [placeId], [place.RegionId], cancellationToken);
             if (dependencies.Fingerprint() != canonical.Fingerprint())
             {
@@ -145,10 +148,9 @@ public sealed class PlaceRegionLifecycleService
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
             return new(true, null, placeId, regionId, endpointIds.Order().ToArray(), surviving);
         }
-        catch
+        catch (Exception original)
         {
-            await RollbackAsync(transaction);
-            _dbContext.ChangeTracker.Clear();
+            await RecoverAndRethrowAsync(original, transaction, recovery);
             throw;
         }
     }
@@ -177,6 +179,7 @@ public sealed class PlaceRegionLifecycleService
         string? confirmationToken,
         CancellationToken cancellationToken)
     {
+        var recovery = new LifecycleRecoveryScope([], [regionId], []);
         var dependencies = await DiscoverRegionDependenciesAsync(tripId, regionId, userId, cancellationToken);
         if (dependencies == null) return RegionLifecycleDeleteResult.NotFound;
         var warning = _confirmation.Create("region-delete-dependencies", RegionDeleteOperation, userId, tripId, regionId, dependencies);
@@ -193,6 +196,7 @@ public sealed class PlaceRegionLifecycleService
             if (canonical == null) return RegionLifecycleDeleteResult.NotFound;
             var placeIds = region.Places.Select(item => item.Id).Order().ToArray();
             var affected = placeIds.Length == 0 ? [] : await LoadAffectedSegmentsAsync(tripId, userId, placeIds, cancellationToken);
+            recovery = new(placeIds, [regionId], affected.Select(item => item.Id).ToArray());
             await LockAsync(affected, placeIds, [regionId], cancellationToken);
             if (canonical.Fingerprint() != dependencies.Fingerprint())
             {
@@ -220,10 +224,9 @@ public sealed class PlaceRegionLifecycleService
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
             return new(true, null, regionId, placeIds, areaIds, endpointIds.Order().ToArray(), surviving);
         }
-        catch
+        catch (Exception original)
         {
-            await RollbackAsync(transaction);
-            _dbContext.ChangeTracker.Clear();
+            await RecoverAndRethrowAsync(original, transaction, recovery);
             throw;
         }
     }
