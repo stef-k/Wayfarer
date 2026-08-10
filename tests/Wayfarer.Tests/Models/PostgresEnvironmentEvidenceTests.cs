@@ -1,0 +1,41 @@
+using Npgsql;
+using Wayfarer.Tests.Infrastructure;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Wayfarer.Tests.Models;
+
+/// <summary>Records isolated provider versions and verifies lifecycle fixture cleanup.</summary>
+public sealed class PostgresEnvironmentEvidenceTests(ITestOutputHelper output)
+{
+    /// <summary>Reports PostgreSQL/PostGIS versions and proves no lifecycle fixture rows remain.</summary>
+    [PostgresFact]
+    public async Task IsolatedProvider_ReportsVersionsAndHasNoLifecycleFixtureResidue()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("WAYFARER_TEST_POSTGRES_CONNECTION");
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT current_setting('server_version'), postgis_full_version(),
+              (SELECT count(*) FROM "AspNetUsers" WHERE "Id" LIKE 'import-fixture-%'),
+              (SELECT count(*) FROM "Trips" WHERE "Name" IN (
+                'Lifecycle concurrency', 'Destructive concurrency', 'Dependency drift', 'Lock order',
+                'Recovery', 'Malformed lifecycle', 'Malformed Region lifecycle', 'Region matrix',
+                'Mixed Region matrix', 'Lifecycle transition', 'Lifecycle fixture'))
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        var postgres = reader.GetString(0);
+        var postgis = reader.GetString(1);
+        var fixtureUsers = reader.GetInt64(2);
+        var lifecycleTrips = reader.GetInt64(3);
+        output.WriteLine($"PostgreSQL: {postgres}");
+        output.WriteLine($"PostGIS: {postgis}");
+        output.WriteLine($"Fixture users remaining: {fixtureUsers}");
+        output.WriteLine($"Named lifecycle trips remaining: {lifecycleTrips}");
+        Assert.Equal(0, fixtureUsers);
+        Assert.Equal(0, lifecycleTrips);
+    }
+}
