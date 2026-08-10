@@ -120,6 +120,77 @@ public sealed class PlaceRegionLifecycleTransitionPostgresTests(PostgresImportTe
         Assert.Equal(durationSource, segment.EstimatedDurationSource);
     }
 
+    /// <summary>Preserves null fallback storage and Manual authority for zero-waypoint location clearing.</summary>
+    [PostgresTheory]
+    [InlineData(EstimatedDurationSource.Automatic)]
+    [InlineData(EstimatedDurationSource.Manual)]
+    public async Task ZeroWaypointFallbackLocationClearPreservesCompatibility(
+        EstimatedDurationSource durationSource)
+    {
+        var seeded = await SeedCustomAsync(
+            AnchorRole.From, waypointBearing: false, durationSource);
+        await using (var setup = fixture.CreateContext())
+        {
+            var segment = await setup.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+            segment.RouteGeometry = null;
+            await setup.SaveChangesAsync();
+        }
+        await using var context = fixture.CreateContext();
+
+        var result = await Service(context).UpdatePlaceAsync(
+            seeded.TripId, seeded.MovingPlaceId, seeded.UserId,
+            Update(seeded.SourceRegionId, null), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        await using var verification = fixture.CreateContext();
+        var segmentAfter = await verification.Segments.AsNoTracking()
+            .SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Null(segmentAfter.RouteGeometry);
+        Assert.Null(segmentAfter.EstimatedDistanceKm);
+        Assert.Equal(durationSource, segmentAfter.EstimatedDurationSource);
+        Assert.Equal(
+            durationSource == EstimatedDurationSource.Manual ? TimeSpan.FromMinutes(37) : null,
+            segmentAfter.EstimatedDuration);
+    }
+
+    /// <summary>Rejects an atomic clear when mixed dependencies contain any waypoint-bearing Segment.</summary>
+    [PostgresFact]
+    public async Task MixedZeroWaypointAndWaypointBearingLocationClearRejectsEveryDependency()
+    {
+        var seeded = await SeedCustomAsync(AnchorRole.From, waypointBearing: true);
+        Guid zeroWaypointSegmentId;
+        await using (var setup = fixture.CreateContext())
+        {
+            var trip = await setup.Trips.SingleAsync(item => item.Id == seeded.TripId);
+            var toId = await setup.Places.Where(item => item.RegionId == seeded.SourceRegionId && item.Id != seeded.MovingPlaceId)
+                .Select(item => item.Id).FirstAsync();
+            var segment = new Segment
+            {
+                Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = seeded.UserId,
+                FromPlaceId = seeded.MovingPlaceId, ToPlaceId = toId, DisplayOrder = 2,
+                RouteGeometry = new LineString([new(1, 1), new(1.5, 1.5), new(2, 2)]) { SRID = 4326 }
+            };
+            zeroWaypointSegmentId = segment.Id;
+            setup.Segments.Add(segment);
+            await setup.SaveChangesAsync();
+        }
+        await using var context = fixture.CreateContext();
+
+        var result = await Service(context).UpdatePlaceAsync(
+            seeded.TripId, seeded.MovingPlaceId, seeded.UserId,
+            Update(seeded.TargetRegionId, null), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("waypoint-location-required", result.ErrorCode);
+        await using var verification = fixture.CreateContext();
+        Assert.NotNull(await verification.Places.Where(item => item.Id == seeded.MovingPlaceId)
+            .Select(item => item.Location).SingleAsync());
+        Assert.NotNull(await verification.Segments.Where(item => item.Id == seeded.SegmentId)
+            .Select(item => item.RouteGeometry).SingleAsync());
+        Assert.NotNull(await verification.Segments.Where(item => item.Id == zeroWaypointSegmentId)
+            .Select(item => item.RouteGeometry).SingleAsync());
+    }
+
     /// <summary>Moves Region membership alone without changing route or measurement state.</summary>
     [PostgresFact]
     public async Task RegionOnlyMovementPreservesGeometryAndMeasurements()
