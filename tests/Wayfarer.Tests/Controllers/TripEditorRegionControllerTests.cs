@@ -102,6 +102,23 @@ public sealed class TripEditorRegionControllerTests : TestBase
     }
 
     [Fact]
+    public async Task DeleteRegionWithChildrenRequiresServerConfirmationWithoutMutation()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripWithDeleteGraph(db, "owner-user");
+        var deletedRegion = trip.Regions.Single(r => r.Name == "Delete Me");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains(db.Regions, region => region.Id == deletedRegion.Id);
+        Assert.Contains(db.Places, place => place.RegionId == deletedRegion.Id);
+        Assert.Contains(db.Areas, area => area.RegionId == deletedRegion.Id);
+    }
+
+    [Fact]
     public async Task OrderRegionsForOwnerPersistsShadowAtZeroAndNormalRegionsFromOne()
     {
         using var db = CreateDbContext();

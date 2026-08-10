@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
@@ -148,6 +149,74 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var cleared = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(place.RegionId, "Cleared", null, null));
         Assert.Single(AssertMutation<EditorPlaceDto>(cleared).Affected.Segments);
         Assert.Null(db.Segments.Single(s => s.Id == segment.Id).RouteGeometry);
+    }
+
+    [Fact]
+    public async Task CoordinateUpdateRewritesOnlyTheReferencedWaypointVertex()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var waypoint = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
+        var segment = trip.Segments.Single(s => s.FromPlaceId != waypoint.Id && s.ToPlaceId != waypoint.Id);
+        segment.RouteGeometry = new LineString(new[]
+        {
+            new Coordinate(22, 40),
+            new Coordinate(22.5, 39.5),
+            new Coordinate(23, 37),
+            new Coordinate(21.5, 39.5),
+            new Coordinate(22, 40)
+        }) { SRID = 4326 };
+        segment.Waypoints.Add(new SegmentWaypoint
+        {
+            Segment = segment,
+            SegmentId = segment.Id,
+            Place = waypoint,
+            PlaceId = waypoint.Id,
+            Position = 0,
+            RouteVertexIndex = 2
+        });
+        db.SaveChanges();
+        var original = segment.RouteGeometry.Copy();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await SendJson(
+            controller,
+            c => c.UpdatePlace(trip.Id, waypoint.Id, CancellationToken.None),
+            ValidUpdateBody(waypoint.RegionId, "Moved waypoint", 38, 24));
+
+        var envelope = AssertMutation<EditorPlaceDto>(result);
+        var route = db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!;
+        Assert.Equal(24, route.Coordinates[2].X);
+        Assert.Equal(38, route.Coordinates[2].Y);
+        Assert.Equal(original.Coordinates.Where((_, index) => index != 2), route.Coordinates.Where((_, index) => index != 2));
+        Assert.Equal(new[] { segment.Id }, envelope.Affected.Segments.Select(s => s.Id));
+    }
+
+    [Fact]
+    public async Task DeleteWaypointOnlyPlaceRequiresServerConfirmationWithoutMutation()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var waypoint = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
+        var segment = trip.Segments.Single(s => s.FromPlaceId != waypoint.Id && s.ToPlaceId != waypoint.Id);
+        segment.Waypoints.Add(new SegmentWaypoint
+        {
+            Segment = segment,
+            SegmentId = segment.Id,
+            Place = waypoint,
+            PlaceId = waypoint.Id,
+            Position = 0
+        });
+        db.SaveChanges();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.DeletePlace(trip.Id, waypoint.Id, CancellationToken.None);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains(db.Places, place => place.Id == waypoint.Id);
+        Assert.Contains(db.Set<SegmentWaypoint>(), item => item.PlaceId == waypoint.Id);
     }
 
     [Fact]
