@@ -30,6 +30,7 @@ public sealed partial class PlaceRegionLifecycleService
 
         try
         {
+            await VerifyRecoveredRowsAsync(scope);
             RestoreTracker(scope, trackerSnapshot);
         }
         catch (Exception cleanupFailure)
@@ -51,6 +52,23 @@ public sealed partial class PlaceRegionLifecycleService
         }
 
         ExceptionDispatchInfo.Capture(original).Throw();
+    }
+
+    /// <summary>Verifies rollback restored every lifecycle-owned canonical row before tracker reuse.</summary>
+    private async Task VerifyRecoveredRowsAsync(LifecycleRecoveryScope scope)
+    {
+        var placeCount = await _dbContext.Places.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
+            .CountAsync(item => scope.PlaceIds.Contains(item.Id), CancellationToken.None);
+        var regionCount = await _dbContext.Regions.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
+            .CountAsync(item => scope.RegionIds.Contains(item.Id), CancellationToken.None);
+        var segmentCount = await _dbContext.Segments.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
+            .CountAsync(item => scope.SegmentIds.Contains(item.Id), CancellationToken.None);
+        if (placeCount != scope.PlaceIds.Distinct().Count()
+            || regionCount != scope.RegionIds.Distinct().Count()
+            || segmentCount != scope.SegmentIds.Distinct().Count())
+        {
+            throw new InvalidOperationException("Lifecycle rollback did not restore every affected canonical row.");
+        }
     }
 
     private void RestoreTracker(LifecycleRecoveryScope scope, LifecycleTrackerSnapshot trackerSnapshot)
