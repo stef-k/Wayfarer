@@ -1,5 +1,6 @@
 import type {
   EditorMutationResult,
+  EditorLifecycleConflict,
   EditorGeocodeSearchResponse,
   EditorArea,
   EditorAreaDeleteResult,
@@ -37,6 +38,16 @@ export class EditorValidationError extends Error {
   constructor(problem: ValidationProblemDetails) {
     super(problem.title ?? 'Validation failed.');
     this.errors = problem.errors ?? {};
+  }
+}
+
+/// Error raised when canonical lifecycle dependencies require confirmation or changed before retry.
+export class EditorLifecycleConfirmationError extends Error {
+  readonly conflict: EditorLifecycleConflict;
+
+  constructor(conflict: EditorLifecycleConflict) {
+    super(conflict.code);
+    this.conflict = conflict;
   }
 }
 
@@ -162,8 +173,9 @@ export const updateRegion = async (
 export const deleteRegion = async (
   endpoint: string,
   regionId: string,
-  antiforgeryToken: string
-): Promise<EditorMutationResult<EditorRegion | null>> => sendMutation(`${endpoint}/regions/${regionId}`, 'DELETE', antiforgeryToken, null, 'region delete');
+  antiforgeryToken: string,
+  confirmationToken?: string
+): Promise<EditorMutationResult<EditorRegion | null>> => sendMutation(`${endpoint}/regions/${regionId}`, 'DELETE', antiforgeryToken, null, 'region delete', confirmationToken);
 
 /// Persists the complete normal-region order through the same-origin editor API.
 export const orderRegions = async (
@@ -192,8 +204,9 @@ export const updatePlace = async (
 export const deletePlace = async (
   endpoint: string,
   placeId: string,
-  antiforgeryToken: string
-): Promise<EditorMutationResult<EditorPlaceDeleteResult>> => sendMutation(`${endpoint}/places/${placeId}`, 'DELETE', antiforgeryToken, null, 'place delete');
+  antiforgeryToken: string,
+  confirmationToken?: string
+): Promise<EditorMutationResult<EditorPlaceDeleteResult>> => sendMutation(`${endpoint}/places/${placeId}`, 'DELETE', antiforgeryToken, null, 'place delete', confirmationToken);
 
 /// Persists the complete place order for one normal region.
 export const orderPlaces = async (
@@ -270,7 +283,8 @@ const sendMutation = async <TData>(
   method: string,
   antiforgeryToken: string,
   request: unknown,
-  label: string
+  label: string,
+  confirmationToken?: string
 ): Promise<EditorMutationResult<TData>> => {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -286,10 +300,17 @@ const sendMutation = async <TData>(
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(request);
   }
+  if (confirmationToken) {
+    headers['X-Wayfarer-Dependency-Confirmation'] = confirmationToken;
+  }
 
   const response = await fetch(url, init);
   if (response.status === 400) {
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
+  }
+
+  if (response.status === 409) {
+    throw new EditorLifecycleConfirmationError((await response.json()) as EditorLifecycleConflict);
   }
 
   if (!response.ok) {

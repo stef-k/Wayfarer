@@ -62,6 +62,7 @@ public sealed class PlaceRegionLifecycleService
                 place.Region = targetRegion;
                 place.DisplayOrder = await NextPlaceOrderAsync(targetRegion.Id, cancellationToken);
             }
+            if (update.DisplayOrder.HasValue) place.DisplayOrder = update.DisplayOrder.Value;
 
             if (locationChanged)
             {
@@ -77,10 +78,16 @@ public sealed class PlaceRegionLifecycleService
                 await NormalizePlaceOrdersAsync(oldRegionId, placeId, cancellationToken);
                 await NormalizePlaceOrdersAsync(targetRegion.Id, null, cancellationToken);
             }
+            else if (update.DisplayOrder.HasValue)
+            {
+                await NormalizePlaceOrdersAsync(targetRegion.Id, null, cancellationToken);
+            }
 
             await _dbContext.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
-            return new(true, null, null, place, affected, moved ? [oldRegionId, targetRegion.Id] : [], locationChanged);
+            var orderRegions = moved ? new[] { oldRegionId, targetRegion.Id }
+                : update.DisplayOrder.HasValue ? new[] { targetRegion.Id } : [];
+            return new(true, null, null, place, affected, orderRegions, locationChanged);
         }
         catch
         {
@@ -357,7 +364,7 @@ public sealed class PlaceRegionLifecycleService
 }
 
 /// <summary>Allowlisted scalar state for one existing Place update.</summary>
-public sealed record PlaceLifecycleUpdate(Guid RegionId, string Name, string Notes, string Address, string IconName, string MarkerColor, Point? Location);
+public sealed record PlaceLifecycleUpdate(Guid RegionId, string Name, string Notes, string Address, string IconName, string MarkerColor, Point? Location, int? DisplayOrder = null);
 
 /// <summary>Result of an atomic Place update.</summary>
 public sealed record PlaceLifecycleUpdateResult(bool Succeeded, Dictionary<string, string[]>? Errors, string? ErrorCode, Place? Place, IReadOnlyList<Segment> Segments, IReadOnlyList<Guid> OrderRegionIds, bool LocationChanged)
