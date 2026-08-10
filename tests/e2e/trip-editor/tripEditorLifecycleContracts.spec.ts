@@ -111,7 +111,11 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
 
   test('provider failure preserves visible state, prevents duplicate confirmation, and permits retry', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
-    const timing = (event: string): void => testInfo.annotations.push({ type: 'provider-outage-timing', description: `${new Date().toISOString()} ${event}` });
+    const timing = (event: string): void => {
+      const description = `${new Date().toISOString()} ${event}`;
+      testInfo.annotations.push({ type: 'provider-outage-timing', description });
+      console.info(`[provider-outage] ${description}`);
+    };
     await openFixture(page);
     const target = fixture.failurePlace;
     const requests = collectDeleteRequests(page, target.id);
