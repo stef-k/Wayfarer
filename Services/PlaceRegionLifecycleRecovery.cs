@@ -55,18 +55,39 @@ public sealed partial class PlaceRegionLifecycleService
 
     private void RestoreTracker(LifecycleRecoveryScope scope, LifecycleTrackerSnapshot trackerSnapshot)
     {
+        var restored = new HashSet<object>(ReferenceEqualityComparer.Instance);
         foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray())
         {
             if (trackerSnapshot.Entries.TryGetValue(entry.Entity, out var original))
             {
                 entry.CurrentValues.SetValues(original.Values);
                 entry.State = original.State;
+                restored.Add(entry.Entity);
                 continue;
             }
 
             if (entry.State != EntityState.Unchanged || IsAffected(entry.Entity, scope))
                 entry.State = EntityState.Detached;
         }
+
+        foreach (var pair in trackerSnapshot.Entries.Where(pair => !restored.Contains(pair.Key)))
+        {
+            var replacement = _dbContext.ChangeTracker.Entries()
+                .FirstOrDefault(entry => HasSamePrimaryKey(entry, pair.Key, pair.Value.Values));
+            if (replacement != null) replacement.State = EntityState.Detached;
+            var entry = _dbContext.Entry(pair.Key);
+            entry.State = EntityState.Unchanged;
+            entry.CurrentValues.SetValues(pair.Value.Values);
+            entry.State = pair.Value.State;
+        }
+    }
+
+    private static bool HasSamePrimaryKey(EntityEntry entry, object entity, PropertyValues values)
+    {
+        if (entry.Entity.GetType() != entity.GetType()) return false;
+        var key = entry.Metadata.FindPrimaryKey();
+        return key != null && key.Properties.All(property =>
+            Equals(entry.Property(property.Name).CurrentValue, values[property.Name]));
     }
 
     private static bool IsAffected(object entity, LifecycleRecoveryScope scope) => entity switch
