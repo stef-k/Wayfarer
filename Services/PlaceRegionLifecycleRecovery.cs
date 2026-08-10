@@ -15,6 +15,17 @@ public sealed partial class PlaceRegionLifecycleService
         LifecycleRecoveryScope scope,
         LifecycleTrackerSnapshot trackerSnapshot)
     {
+        await RecoverAsync(original, transaction, scope, trackerSnapshot);
+        ExceptionDispatchInfo.Capture(original).Throw();
+    }
+
+    /// <summary>Performs mandatory non-cancelled cleanup and returns only when the context is coherent.</summary>
+    private async Task RecoverAsync(
+        Exception original,
+        IDbContextTransaction? transaction,
+        LifecycleRecoveryScope scope,
+        LifecycleTrackerSnapshot trackerSnapshot)
+    {
         var cleanupFailures = new List<Exception>();
         if (transaction != null)
         {
@@ -50,8 +61,6 @@ public sealed partial class PlaceRegionLifecycleService
             }
             throw new AggregateException([original, .. cleanupFailures]);
         }
-
-        ExceptionDispatchInfo.Capture(original).Throw();
     }
 
     /// <summary>Verifies rollback restored every lifecycle-owned canonical row before tracker reuse.</summary>

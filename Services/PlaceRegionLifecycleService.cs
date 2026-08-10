@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using NetTopologySuite.Geometries;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 
@@ -105,6 +106,11 @@ public sealed partial class PlaceRegionLifecycleService
                 var orderRegions = moved ? new[] { oldRegionId, targetRegion.Id }
                     : update.DisplayOrder.HasValue ? new[] { targetRegion.Id } : [];
                 return new(true, null, null, place, affected, orderRegions, locationChanged);
+            }
+            catch (Exception original) when (attempt < MaximumUpdateAttempts && IsSerializationFailure(original))
+            {
+                await RecoverAsync(original, transaction, recovery, trackerSnapshot);
+                continue;
             }
             catch (Exception original)
             {
@@ -487,6 +493,15 @@ public sealed partial class PlaceRegionLifecycleService
     private static Point? CopyPoint(Point? point) => point == null ? null : (Point)point.Copy();
     private static bool CoordinatesEqual(Point? left, Point? right) => left == null && right == null
         || left != null && right != null && left.X.Equals(right.X) && left.Y.Equals(right.Y);
+
+    private static bool IsSerializationFailure(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException!)
+        {
+            if (current is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure }) return true;
+        }
+        return false;
+    }
 }
 
 /// <summary>Allowlisted scalar state for one existing Place update.</summary>
