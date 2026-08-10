@@ -161,8 +161,7 @@ public sealed partial class PlaceRegionLifecycleService
             _dbContext.Segments.RemoveRange(deletedSegments);
             foreach (var segment in surviving)
             {
-                DetachWaypoints(segment, new HashSet<Guid> { placeId });
-                await ReconcileSegmentAsync(segment, cancellationToken);
+                await ReconcileAfterWaypointDeletionAsync(segment, new HashSet<Guid> { placeId }, cancellationToken);
             }
 
             regionId = place.RegionId;
@@ -239,8 +238,7 @@ public sealed partial class PlaceRegionLifecycleService
             var deletedPlaces = placeIds.ToHashSet();
             foreach (var segment in surviving)
             {
-                DetachWaypoints(segment, deletedPlaces);
-                await ReconcileSegmentAsync(segment, cancellationToken);
+                await ReconcileAfterWaypointDeletionAsync(segment, deletedPlaces, cancellationToken);
             }
             var areaIds = region.Areas.Select(item => item.Id).Order().ToArray();
             _dbContext.Areas.RemoveRange(region.Areas);
@@ -397,12 +395,35 @@ public sealed partial class PlaceRegionLifecycleService
         segment.RouteGeometry = new LineString(coordinates) { SRID = 4326 };
     }
 
-    private static void DetachWaypoints(Segment segment, IReadOnlySet<Guid> deletedPlaceIds)
+    private async Task ReconcileAfterWaypointDeletionAsync(
+        Segment segment,
+        IReadOnlySet<Guid> deletedPlaceIds,
+        CancellationToken cancellationToken)
     {
-        var removed = segment.Waypoints.Where(item => deletedPlaceIds.Contains(item.PlaceId)).ToArray();
-        foreach (var item in removed) segment.Waypoints.Remove(item);
-        var position = 0;
-        foreach (var item in segment.Waypoints.OrderBy(item => item.Position)) item.Position = position++;
+        var canonicalErrors = await SegmentRouteReconciler.ValidateLockedAggregateAsync(
+            _dbContext, segment, cancellationToken);
+        if (canonicalErrors.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", canonicalErrors));
+
+        var survivingWaypoints = segment.Waypoints.OrderBy(item => item.Position)
+            .Where(item => !deletedPlaceIds.Contains(item.PlaceId))
+            .Select((item, position) => new SegmentWaypointProposal(
+                item.PlaceId, position, item.RouteVertexIndex))
+            .ToArray();
+        var proposal = new SegmentRouteProposal(
+            segment.Id,
+            segment.FromPlaceId,
+            segment.ToPlaceId,
+            survivingWaypoints,
+            segment.RouteGeometry,
+            new(segment.Mode, segment.TransportProfileId, segment.EstimatedDurationSource,
+                segment.EstimatedDurationSource == EstimatedDurationSource.Manual
+                    ? segment.EstimatedDuration?.TotalMinutes
+                    : null,
+                true));
+        var result = await SegmentRouteReconciler.ReconcileLockedAsync(
+            _dbContext, proposal, false, cancellationToken);
+        if (!result.Succeeded) throw new InvalidOperationException(string.Join(" ", result.Errors));
     }
 
     private async Task LockAsync(IReadOnlyList<Segment> segments, Guid[] placeIds, Guid[] regionIds, CancellationToken cancellationToken)

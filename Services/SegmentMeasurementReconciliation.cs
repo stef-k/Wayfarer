@@ -7,6 +7,24 @@ namespace Wayfarer.Services;
 /// <summary>Measurement portion of the transaction-neutral locked Segment aggregate core.</summary>
 public static partial class SegmentRouteReconciler
 {
+    /// <summary>Validates a locked canonical aggregate without changing tracked or database state.</summary>
+    internal static async Task<IReadOnlyList<string>> ValidateLockedAggregateAsync(
+        ApplicationDbContext dbContext,
+        Segment segment,
+        CancellationToken cancellationToken)
+    {
+        var proposal = new SegmentRouteProposal(
+            segment.Id,
+            segment.FromPlaceId,
+            segment.ToPlaceId,
+            segment.Waypoints.OrderBy(item => item.Position)
+                .Select(item => new SegmentWaypointProposal(item.PlaceId, item.Position, item.RouteVertexIndex))
+                .ToArray(),
+            segment.RouteGeometry);
+        var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
+        return Validate(segment.TripId, proposal, placesById, CopyGeometry(proposal));
+    }
+
     /// <summary>Recalculates measurements on a tracked zero-waypoint Segment inside a caller-owned mutation.</summary>
     internal static async Task ReconcileTrackedMeasurementsAsync(
         ApplicationDbContext dbContext,
