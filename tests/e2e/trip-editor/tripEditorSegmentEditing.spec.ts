@@ -113,15 +113,10 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.getByRole('button', { name: /pick on map|draw\/edit area|geocode|search.?add|marker drag/i })).toHaveCount(0);
     await expectNoSearchAddUi(page);
 
-    const editHandle = page.locator('.leaflet-editing-icon').last();
-    const handleBox = await editHandle.boundingBox();
-    if (!handleBox) {
-      throw new Error('Expected an editable segment route vertex.');
-    }
-    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handleBox.x + handleBox.width / 2 + 40, handleBox.y + handleBox.height / 2 - 30);
-    await page.mouse.up();
+    const editHandle = page.locator('.leaflet-editing-icon[style*="opacity: 0.6"]');
+    await expect(editHandle).toHaveCount(1);
+    await expect(editHandle).toBeVisible();
+    await editHandle.click();
     const workPath = await workRoute.getAttribute('d');
 
     await mapWork.getByRole('button', { name: 'Done' }).click();

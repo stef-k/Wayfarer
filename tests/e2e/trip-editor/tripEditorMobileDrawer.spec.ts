@@ -187,7 +187,11 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
 
     await page.setViewportSize({ width: 430, height: 844 });
+    await page.getByRole('button', { name: 'Peek', exact: true }).click();
+    await expectDrawerState(page, 'peek');
     await expectMapFirstPhoneLayout(page);
+    await page.getByRole('button', { name: 'Expand', exact: true }).click();
+    await expectDrawerState(page, 'expanded-edit');
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expectDrawerState(page, 'peek');
     await expectMapWorkToolbarHitTesting(page);
