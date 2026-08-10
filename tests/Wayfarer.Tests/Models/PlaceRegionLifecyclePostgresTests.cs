@@ -206,6 +206,120 @@ public sealed class PlaceRegionLifecyclePostgresTests
         Assert.Equal("pending unrelated edit", await verification.Places.Where(item => item.Id == unrelatedId).Select(item => item.Notes).SingleAsync());
     }
 
+    /// <summary>Deletes an unreferenced Place without confirmation and closes its Region order gap.</summary>
+    [PostgresFact]
+    public async Task UnreferencedPlaceDeletionRequiresNoConfirmationAndNormalizesOrder()
+    {
+        var seeded = await SeedAsync(customRoute: true);
+        Guid unreferencedId;
+        await using (var seed = _fixture.CreateContext())
+        {
+            var unreferenced = new Place
+            {
+                Id = Guid.NewGuid(), RegionId = seeded.WaypointRegionId, UserId = seeded.UserId,
+                Name = "Unreferenced", DisplayOrder = 2, Location = Point(9, 9)
+            };
+            seed.Places.Add(unreferenced);
+            unreferencedId = unreferenced.Id;
+            await seed.SaveChangesAsync();
+        }
+        await using var context = _fixture.CreateContext();
+
+        var result = await Service(context).DeletePlaceAsync(
+            seeded.TripId, unreferencedId, seeded.UserId, null, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Null(result.Warning);
+        await using var verification = _fixture.CreateContext();
+        Assert.False(await verification.Places.AnyAsync(item => item.Id == unreferencedId));
+        Assert.Equal(1, await verification.Places.Where(item => item.Id == seeded.WaypointId).Select(item => item.DisplayOrder).SingleAsync());
+    }
+
+    /// <summary>Deletes endpoint dependencies once and detaches the Place from every surviving waypoint route.</summary>
+    [PostgresFact]
+    public async Task MixedEndpointAndWaypointDeletionReturnsExactIdsAndPreservesSurvivingAnchor()
+    {
+        var seeded = await SeedAsync(customRoute: true);
+        Guid endpointSegmentId;
+        await using (var seed = _fixture.CreateContext())
+        {
+            var trip = await seed.Trips.SingleAsync(item => item.Id == seeded.TripId);
+            var endpoint = new Segment
+            {
+                Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = seeded.UserId,
+                FromPlaceId = seeded.WaypointId, ToPlaceId = seeded.WaypointId, DisplayOrder = 2,
+                RouteGeometry = new LineString([new(2, 2), new(2.2, 2.2), new(2, 2)]) { SRID = 4326 }
+            };
+            endpoint.Waypoints.Add(new SegmentWaypoint
+            {
+                Segment = endpoint, SegmentId = endpoint.Id, PlaceId = seeded.WaypointId,
+                Position = 0, RouteVertexIndex = 1
+            });
+            endpointSegmentId = endpoint.Id;
+            seed.Segments.Add(endpoint);
+            await seed.SaveChangesAsync();
+        }
+        var confirmation = new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider());
+        await using var context = _fixture.CreateContext();
+        var service = new PlaceRegionLifecycleService(context, confirmation);
+        var challenge = await service.DeletePlaceAsync(seeded.TripId, seeded.WaypointId, seeded.UserId, null, CancellationToken.None);
+
+        var result = await service.DeletePlaceAsync(
+            seeded.TripId, seeded.WaypointId, seeded.UserId,
+            challenge.Warning!.ConfirmationToken, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([endpointSegmentId], result.DeletedSegmentIds);
+        await using var verification = _fixture.CreateContext();
+        Assert.False(await verification.Places.AnyAsync(item => item.Id == seeded.WaypointId));
+        Assert.False(await verification.Segments.AnyAsync(item => item.Id == endpointSegmentId));
+        var surviving = await verification.Segments.Include(item => item.Waypoints).SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Empty(surviving.Waypoints);
+        Assert.Equal(new Coordinate(2, 2), surviving.RouteGeometry!.Coordinates[2]);
+        Assert.Equal(1, surviving.DisplayOrder);
+    }
+
+    /// <summary>Deletes a Region's exact child/dependency set while reconciling an outside-anchored route once.</summary>
+    [PostgresFact]
+    public async Task RegionDeletionDeduplicatesMixedDependenciesAndReturnsExactIds()
+    {
+        var seeded = await SeedAsync(customRoute: true);
+        Guid areaId;
+        await using (var seed = _fixture.CreateContext())
+        {
+            var region = await seed.Regions.SingleAsync(item => item.Id == seeded.WaypointRegionId);
+            var area = new Area
+            {
+                Id = Guid.NewGuid(), Region = region, RegionId = region.Id,
+                Name = "Deleted area", DisplayOrder = 1,
+                Geometry = new Polygon(new LinearRing([
+                    new(0, 0), new(0, 1), new(1, 1), new(1, 0), new(0, 0)])) { SRID = 4326 }
+            };
+            areaId = area.Id;
+            seed.Areas.Add(area);
+            await seed.SaveChangesAsync();
+        }
+        var confirmation = new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider());
+        await using var context = _fixture.CreateContext();
+        var service = new PlaceRegionLifecycleService(context, confirmation);
+        var challenge = await service.DeleteRegionAsync(seeded.TripId, seeded.WaypointRegionId, seeded.UserId, null, CancellationToken.None);
+
+        var result = await service.DeleteRegionAsync(
+            seeded.TripId, seeded.WaypointRegionId, seeded.UserId,
+            challenge.Warning!.ConfirmationToken, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([seeded.WaypointId], result.PlaceIds);
+        Assert.Equal([areaId], result.AreaIds);
+        Assert.Empty(result.SegmentIds);
+        await using var verification = _fixture.CreateContext();
+        Assert.False(await verification.Regions.AnyAsync(item => item.Id == seeded.WaypointRegionId));
+        Assert.False(await verification.Areas.AnyAsync(item => item.Id == areaId));
+        var surviving = await verification.Segments.Include(item => item.Waypoints).SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Empty(surviving.Waypoints);
+        Assert.Equal(new Coordinate(2, 2), surviving.RouteGeometry!.Coordinates[2]);
+    }
+
     private async Task<SeededLifecycle> SeedAsync(bool customRoute)
     {
         _fixture.RequireAvailable();
