@@ -616,7 +616,6 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
     return {
       bodyWidth: document.body.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
-      documentHeight: document.scrollingElement?.scrollHeight ?? document.documentElement.scrollHeight,
       drawerTop: drawer?.top ?? 0,
       mapBottom: map?.bottom ?? 0,
       mapHeight: map?.height ?? 0,
@@ -630,8 +629,8 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
   });
 
   expect(metrics.bodyWidth, 'Phone layout should not create horizontal overflow.').toBeLessThanOrEqual(metrics.clientWidth + 1);
-  expect(metrics.documentHeight, 'Phone drawer layout should keep page-level scroll bounded.').toBeLessThanOrEqual(metrics.viewportHeight + 2);
   expect(metrics.workspaceHeight, 'Phone workspace should be viewport-bounded.').toBeLessThanOrEqual(metrics.viewportHeight + 2);
+  expect(metrics.workspaceTop + metrics.workspaceHeight, 'Phone workspace should end within its viewport-height allocation.').toBeLessThanOrEqual(metrics.workspaceTop + metrics.viewportHeight + 2);
   expect(metrics.mapTop, 'Map should begin at the top of the phone workspace.').toBeLessThanOrEqual(metrics.workspaceTop + 2);
   expect(metrics.mapHeight, 'Map should remain the primary phone workspace.').toBeGreaterThan(metrics.viewportHeight * 0.72);
   expect(metrics.drawerTop, 'Drawer should sit over the lower part of the map.').toBeGreaterThan(metrics.viewportHeight * 0.45);

@@ -185,6 +185,33 @@ export function regionCard(page: Page, name: string): Locator {
   return page.locator('.trip-editor-region-card').filter({ has: page.getByRole('heading', { name }) });
 }
 
+/** Reproduces a user's pointer drag from one visible Sortable handle through the destination row. */
+export async function dragFromVisibleHandle(sourceRow: Locator, targetRow: Locator, handleName: string): Promise<void> {
+  const handle = sourceRow.getByRole('button', { name: handleName });
+  await expect(handle).toHaveCount(1);
+  await expect(handle).toBeVisible();
+  await expect(handle).toBeEnabled();
+  await handle.scrollIntoViewIfNeeded();
+  const handleBox = await handle.boundingBox();
+  const sourceBox = await sourceRow.boundingBox();
+  const targetBox = await targetRow.boundingBox();
+  expect(handleBox, 'Sortable source handle must have a rendered box.').not.toBeNull();
+  expect(sourceBox, 'Sortable source row must have a rendered box.').not.toBeNull();
+  expect(targetBox, 'Sortable destination row must have a rendered box.').not.toBeNull();
+  const sourceY = handleBox!.y + handleBox!.height / 2;
+  const movingUp = sourceY > targetBox!.y + targetBox!.height / 2;
+  await sourceRow.dragTo(targetRow, {
+    sourcePosition: {
+      x: handleBox!.x - sourceBox!.x + handleBox!.width / 2,
+      y: handleBox!.y - sourceBox!.y + handleBox!.height / 2
+    },
+    targetPosition: {
+      x: targetBox!.width / 2,
+      y: targetBox!.height * (movingUp ? 0.25 : 0.75)
+    }
+  });
+}
+
 // Locates the region header edit action when the current region allows it.
 export function regionEditButton(card: Locator): Locator {
   return card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' });
