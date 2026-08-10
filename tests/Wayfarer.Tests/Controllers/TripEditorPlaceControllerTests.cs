@@ -195,7 +195,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         Assert.Equal(38, route.Coordinates[2].Y);
         Assert.Equal(original.Coordinates.Where((_, index) => index != 2), route.Coordinates.Where((_, index) => index != 2));
         Assert.Equal(
-            trip.Segments.Where(item => item.FromPlaceId == waypoint.Id || item.ToPlaceId == waypoint.Id || item.Waypoints.Any(child => child.PlaceId == waypoint.Id)).Select(item => item.Id).Order(),
+            trip.Segments.Where(item => item.FromPlaceId == waypoint.Id || item.ToPlaceId == waypoint.Id || item.Waypoints.Any(child => child.PlaceId == waypoint.Id)).Select(item => item.Id).Distinct().Order(),
             envelope.Affected.Segments.Select(item => item.Id).Order());
     }
 
