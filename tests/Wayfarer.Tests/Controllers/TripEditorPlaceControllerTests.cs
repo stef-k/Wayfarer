@@ -148,10 +148,19 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var movedRoute = db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!;
         Assert.Equal(22, movedRoute.Coordinates[0].X);
         Assert.Equal(11, movedRoute.Coordinates[0].Y);
-        Assert.Single(movedEnvelope.Affected.Segments);
+        var movedSegment = Assert.Single(movedEnvelope.Affected.Segments);
+        Assert.Equal(segment.Id, movedSegment.Id);
+        Assert.Equal(db.Segments.Single(s => s.Id == segment.Id).EstimatedDistanceKm, movedSegment.EstimatedDistanceKm);
+        Assert.Equal(db.Segments.Single(s => s.Id == segment.Id).EstimatedDuration?.TotalMinutes, movedSegment.EstimatedDurationMinutes);
+        Assert.Equal(db.Segments.Single(s => s.Id == segment.Id).EstimatedDurationSource.ToString(), movedSegment.EstimatedDurationSource);
+        Assert.Equal(22, movedSegment.Route!.Value.GetProperty("coordinates")[0][0].GetDouble());
+        Assert.Equal(11, movedSegment.Route.Value.GetProperty("coordinates")[0][1].GetDouble());
 
         var cleared = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(place.RegionId, "Cleared", null, null));
-        Assert.Single(AssertMutation<EditorPlaceDto>(cleared).Affected.Segments);
+        var clearedSegment = Assert.Single(AssertMutation<EditorPlaceDto>(cleared).Affected.Segments);
+        Assert.Null(clearedSegment.Route);
+        Assert.Null(clearedSegment.EstimatedDistanceKm);
+        Assert.Null(clearedSegment.EstimatedDurationMinutes);
         Assert.Null(db.Segments.Single(s => s.Id == segment.Id).RouteGeometry);
     }
 
