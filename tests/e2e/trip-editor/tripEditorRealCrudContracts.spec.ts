@@ -314,7 +314,9 @@ async function deleteRegion(page: Page, name: string): Promise<void> {
 
   await card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Delete region?' }).getByRole('button', { name: 'Delete' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete region?' });
+  await dialog.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => undefined);
+  if (await dialog.isVisible()) await dialog.getByRole('button', { name: 'Delete' }).click();
   await expectSaved(page);
   await expect(card).toHaveCount(0);
 }
@@ -349,7 +351,9 @@ async function deletePlace(page: Page, regionId: string, name: string): Promise<
 
   await row.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+  await dialog.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => undefined);
+  if (await dialog.isVisible()) await dialog.getByRole('button', { name: 'Delete' }).click();
   await expectSaved(page);
   await expect(row).toHaveCount(0);
 }

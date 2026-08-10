@@ -7,6 +7,7 @@ import {
   editorPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
+  pathRegex,
   signIn,
   uniqueName
 } from './tripEditorTestUtils';
@@ -80,7 +81,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await expect(form).toHaveCount(0);
   });
 
-  test('delete confirmation appears first and mocked delete failure keeps row and editor state', async ({ page }) => {
+  test('server dependency warning precedes confirmed delete failure and keeps editor state', async ({ page }) => {
     await openEditor(page);
     const initial = await loadEditorStateFixture(page) as EditorState;
     const fixture = editablePlaceFixture(initial);
@@ -91,11 +92,34 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
 
     await editPlace(page, fixture.place.id);
     const form = page.locator('#trip-editor-place-form');
-    const failure = await mockMutationFailure(page, 'DELETE', `${editorApiPath}/places/${fixture.place.id}`, 500);
+    let requests = 0;
+    await page.route(pathRegex(`${editorApiPath}/places/${fixture.place.id}`), async route => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      requests += 1;
+      const confirmationToken = route.request().headers()['x-wayfarer-dependency-confirmation'];
+      if (!confirmationToken || confirmationToken === 'opaque-test-token') {
+        const stale = confirmationToken === 'opaque-test-token';
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: stale ? 'lifecycle-confirmation-stale' : 'place-delete-dependencies', operation: 'place-delete', targetId: fixture.place.id,
+            endpointSegments: { count: 1, ids: ['00000000-0000-0000-0000-000000000001'], hasMore: false },
+            waypointOnlySegments: { count: 0, ids: [], hasMore: false },
+            waypointAssociations: { count: 0, ids: [], hasMore: false },
+            deletedPlaces: { count: 0, ids: [], hasMore: false },
+            deletedAreas: { count: 0, ids: [], hasMore: false },
+            confirmationToken: stale ? 'refreshed-opaque-token' : 'opaque-test-token', expiresAt: '2099-01-01T00:00:00Z'
+          })
+        });
+        return;
+      }
+      await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+    });
 
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Delete place?' })).toBeVisible();
-    await expect.poll(failure.requests).toBe(0);
+    await expect.poll(() => requests).toBe(1);
     await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Keep place' }).click();
     await expect(page.getByRole('dialog', { name: 'Delete place?' })).toHaveCount(0);
     await expect(form).toBeVisible();
@@ -103,15 +127,16 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
 
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('dialog', { name: 'Dependencies changed' }).getByRole('button', { name: 'Delete' }).click();
 
-    await expect.poll(failure.requests).toBe(1);
+    await expect.poll(() => requests).toBe(4);
     await expect(activeEditorAlert(page)).toContainText('Trip Editor place delete returned 500');
     await expectFailedStatus(page);
     await expect(form).toBeVisible();
     await expect(placeRow(page, fixture.place.id)).toBeVisible();
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
 
-    await failure.unroute();
+    await page.unroute(pathRegex(`${editorApiPath}/places/${fixture.place.id}`));
   });
 
   test('clean and dirty cancel paths leave persisted place state unchanged', async ({ page }) => {
