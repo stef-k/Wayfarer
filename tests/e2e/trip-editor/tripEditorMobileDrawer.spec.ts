@@ -344,6 +344,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
 
     await page.getByRole('button', { name: 'Segments' }).click();
     await page.getByRole('button', { name: 'Add Segment' }).click();
+    await activeEditorSurface(page).getByLabel('Enter manually').check();
     await expectDirtyTabSwitchGuard(page, {
       dirtyFieldLabel: 'Estimated duration minutes',
       draftValue: '12',
