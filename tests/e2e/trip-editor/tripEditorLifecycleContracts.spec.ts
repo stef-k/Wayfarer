@@ -166,6 +166,10 @@ async function openFixture(page: Page): Promise<void> {
   await page.goto(absoluteUrl(editorPath));
   await expect(page).toHaveURL(new RegExp(`${fixture.tripId}/?$`, 'i'));
   await expectMountedWorkspace(page);
+  if (await page.evaluate(() => window.matchMedia('(max-width: 640px)').matches)) {
+    await page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name: 'Regions' }).click();
+    await page.getByRole('button', { name: 'Expand' }).click();
+  }
 }
 
 /** Locates one fixture Place by its exact captured identity. */
