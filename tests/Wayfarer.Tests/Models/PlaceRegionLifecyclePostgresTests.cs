@@ -166,6 +166,46 @@ public sealed class PlaceRegionLifecyclePostgresTests
         Assert.Equal(2, await verification.Segments.CountAsync(item => item.TripId == seeded.TripId));
     }
 
+    /// <summary>Provider rollback repairs every lifecycle-created tracker delta while preserving an unrelated pending edit.</summary>
+    [PostgresFact]
+    public async Task ProviderFailureAfterOrderAndRouteChanges_RepairsLifecycleStateAndPreservesUnrelatedTrackerState()
+    {
+        var seeded = await SeedAsync(customRoute: true);
+        var unrelatedId = Guid.NewGuid();
+        var unrelatedTripId = Guid.NewGuid();
+        _fixture.RegisterTrip(unrelatedTripId);
+        await using (var seed = _fixture.CreateContext())
+        {
+            var unrelatedTrip = new Trip { Id = unrelatedTripId, UserId = seeded.UserId, Name = "Unrelated tracker fixture" };
+            var unrelatedRegion = Region(unrelatedTrip, seeded.UserId, "Unrelated", 1);
+            var unrelatedPlace = Place(unrelatedRegion, seeded.UserId, "Unrelated", Point(0, 0));
+            unrelatedPlace.Id = unrelatedId;
+            seed.Trips.Add(unrelatedTrip);
+            await seed.SaveChangesAsync();
+        }
+        var failure = new ThrowingSaveInterceptor();
+        await using var context = _fixture.CreateContext(failure);
+        var unrelated = await context.Places.SingleAsync(item => item.Id == unrelatedId);
+        unrelated.Notes = "pending unrelated edit";
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service(context).UpdatePlaceAsync(
+            seeded.TripId,
+            seeded.WaypointId,
+            seeded.UserId,
+            new(seeded.ToRegionId, "Changed", "changed", "changed", "marker", "bg-red", Point(4, 4)),
+            CancellationToken.None));
+
+        Assert.Equal(EntityState.Modified, context.Entry(unrelated).State);
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.Entity != unrelated && entry.State is EntityState.Modified or EntityState.Added or EntityState.Deleted);
+        await context.SaveChangesAsync();
+        await using var verification = _fixture.CreateContext();
+        var place = await verification.Places.AsNoTracking().SingleAsync(item => item.Id == seeded.WaypointId);
+        Assert.Equal(seeded.WaypointRegionId, place.RegionId);
+        Assert.Equal(new Coordinate(2, 2), place.Location!.Coordinate);
+        Assert.Equal("pending unrelated edit", await verification.Places.Where(item => item.Id == unrelatedId).Select(item => item.Notes).SingleAsync());
+    }
+
     private async Task<SeededLifecycle> SeedAsync(bool customRoute)
     {
         _fixture.RequireAvailable();
@@ -193,7 +233,7 @@ public sealed class PlaceRegionLifecyclePostgresTests
         await using var context = _fixture.CreateContext();
         context.Trips.Add(trip);
         await context.SaveChangesAsync();
-        return new(user.Id, trip.Id, waypointRegion.Id, waypoint.Id, to.Id, segment.Id);
+        return new(user.Id, trip.Id, waypointRegion.Id, toRegion.Id, waypoint.Id, to.Id, segment.Id);
     }
 
     private async Task AddEndpointDependencyAsync(SeededLifecycle seeded)
@@ -236,6 +276,7 @@ public sealed class PlaceRegionLifecyclePostgresTests
         string UserId,
         Guid TripId,
         Guid WaypointRegionId,
+        Guid ToRegionId,
         Guid WaypointId,
         Guid ToPlaceId,
         Guid SegmentId);
@@ -268,6 +309,25 @@ public sealed class PlaceRegionLifecyclePostgresTests
             _attempts++;
             if (_attempts <= driftAttempts) await addDependency();
             return result;
+        }
+    }
+
+    /// <summary>Fails only the lifecycle persistence boundary so recovery and later context reuse are observable.</summary>
+    private sealed class ThrowingSaveInterceptor : SaveChangesInterceptor
+    {
+        private bool _throw = true;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (_throw)
+            {
+                _throw = false;
+                throw new InvalidOperationException("Deterministic lifecycle provider failure.");
+            }
+            return ValueTask.FromResult(result);
         }
     }
 }

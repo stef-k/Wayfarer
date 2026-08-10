@@ -31,6 +31,7 @@ public sealed partial class PlaceRegionLifecycleService
         PlaceLifecycleUpdate update,
         CancellationToken cancellationToken)
     {
+        var trackerSnapshot = LifecycleTrackerSnapshot.Capture(_dbContext);
         for (var attempt = 1; attempt <= MaximumUpdateAttempts; attempt++)
         {
             var candidates = await DiscoverUpdateCandidatesAsync(tripId, placeId, update.RegionId, userId, cancellationToken);
@@ -107,7 +108,7 @@ public sealed partial class PlaceRegionLifecycleService
             }
             catch (Exception original)
             {
-                await RecoverAndRethrowAsync(original, transaction, recovery);
+                await RecoverAndRethrowAsync(original, transaction, recovery, trackerSnapshot);
                 throw;
             }
         }
@@ -123,6 +124,7 @@ public sealed partial class PlaceRegionLifecycleService
         string? confirmationToken,
         CancellationToken cancellationToken)
     {
+        var trackerSnapshot = LifecycleTrackerSnapshot.Capture(_dbContext);
         var recovery = new LifecycleRecoveryScope([placeId], [], []);
         var dependencies = await DiscoverPlaceDependenciesAsync(tripId, placeId, userId, cancellationToken);
         if (dependencies == null) return PlaceLifecycleDeleteResult.NotFound;
@@ -173,7 +175,7 @@ public sealed partial class PlaceRegionLifecycleService
         }
         catch (Exception original)
         {
-            await RecoverAndRethrowAsync(original, transaction, recovery);
+            await RecoverAndRethrowAsync(original, transaction, recovery, trackerSnapshot);
             throw;
         }
     }
@@ -202,6 +204,7 @@ public sealed partial class PlaceRegionLifecycleService
         string? confirmationToken,
         CancellationToken cancellationToken)
     {
+        var trackerSnapshot = LifecycleTrackerSnapshot.Capture(_dbContext);
         var recovery = new LifecycleRecoveryScope([], [regionId], []);
         var dependencies = await DiscoverRegionDependenciesAsync(tripId, regionId, userId, cancellationToken);
         if (dependencies == null) return RegionLifecycleDeleteResult.NotFound;
@@ -251,7 +254,7 @@ public sealed partial class PlaceRegionLifecycleService
         }
         catch (Exception original)
         {
-            await RecoverAndRethrowAsync(original, transaction, recovery);
+            await RecoverAndRethrowAsync(original, transaction, recovery, trackerSnapshot);
             throw;
         }
     }

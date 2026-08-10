@@ -1,6 +1,7 @@
 using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Wayfarer.Models;
 
 namespace Wayfarer.Services;
@@ -11,7 +12,8 @@ public sealed partial class PlaceRegionLifecycleService
     private async Task RecoverAndRethrowAsync(
         Exception original,
         IDbContextTransaction? transaction,
-        LifecycleRecoveryScope scope)
+        LifecycleRecoveryScope scope,
+        LifecycleTrackerSnapshot trackerSnapshot)
     {
         var cleanupFailures = new List<Exception>();
         if (transaction != null)
@@ -28,7 +30,7 @@ public sealed partial class PlaceRegionLifecycleService
 
         try
         {
-            DetachAffectedEntries(scope);
+            RestoreTracker(scope, trackerSnapshot);
         }
         catch (Exception cleanupFailure)
         {
@@ -51,10 +53,20 @@ public sealed partial class PlaceRegionLifecycleService
         ExceptionDispatchInfo.Capture(original).Throw();
     }
 
-    private void DetachAffectedEntries(LifecycleRecoveryScope scope)
+    private void RestoreTracker(LifecycleRecoveryScope scope, LifecycleTrackerSnapshot trackerSnapshot)
     {
-        foreach (var entry in _dbContext.ChangeTracker.Entries().Where(entry => IsAffected(entry.Entity, scope)).ToArray())
-            entry.State = EntityState.Detached;
+        foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray())
+        {
+            if (trackerSnapshot.Entries.TryGetValue(entry.Entity, out var original))
+            {
+                entry.CurrentValues.SetValues(original.Values);
+                entry.State = original.State;
+                continue;
+            }
+
+            if (entry.State != EntityState.Unchanged || IsAffected(entry.Entity, scope))
+                entry.State = EntityState.Detached;
+        }
     }
 
     private static bool IsAffected(object entity, LifecycleRecoveryScope scope) => entity switch
@@ -72,3 +84,18 @@ internal sealed record LifecycleRecoveryScope(
     IReadOnlyList<Guid> PlaceIds,
     IReadOnlyList<Guid> RegionIds,
     IReadOnlyList<Guid> SegmentIds);
+
+/// <summary>Exact pre-operation tracker values used to preserve caller-owned state during recovery.</summary>
+internal sealed record LifecycleTrackerSnapshot(
+    IReadOnlyDictionary<object, LifecycleTrackedEntrySnapshot> Entries)
+{
+    /// <summary>Captures entity identity, scalar values, and state before lifecycle work begins.</summary>
+    internal static LifecycleTrackerSnapshot Capture(DbContext context) => new(
+        context.ChangeTracker.Entries().ToDictionary(
+            entry => entry.Entity,
+            entry => new LifecycleTrackedEntrySnapshot(entry.State, entry.CurrentValues.Clone()),
+            ReferenceEqualityComparer.Instance));
+}
+
+/// <summary>One caller-owned tracked entry as it existed before lifecycle orchestration.</summary>
+internal sealed record LifecycleTrackedEntrySnapshot(EntityState State, PropertyValues Values);
