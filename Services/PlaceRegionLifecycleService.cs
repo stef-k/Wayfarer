@@ -143,16 +143,20 @@ public sealed partial class PlaceRegionLifecycleService
             .SingleAsync(cancellationToken);
         var candidates = await BuildDeleteLockCandidatesAsync(dependencies, [placeId], [regionId], cancellationToken);
 
-        await using var transaction = await BeginTransactionAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken, IsolationLevel.ReadCommitted);
         try
         {
             await LockAsync(candidates, cancellationToken);
             var canonical = await DiscoverPlaceDependenciesAsync(tripId, placeId, userId, cancellationToken);
             if (canonical == null) return PlaceLifecycleDeleteResult.NotFound;
-            if (dependencies.Fingerprint() != canonical.Fingerprint())
+            var requiredLocks = await BuildDeleteLockCandidatesAsync(canonical, [placeId], [regionId], cancellationToken);
+            if (dependencies.Fingerprint() != canonical.Fingerprint() || requiredLocks.RequiresLocksOutside(candidates))
             {
                 await RollbackAsync(transaction);
-                var stale = _confirmation.Create("lifecycle-confirmation-stale", PlaceDeleteOperation, userId, tripId, placeId, canonical);
+                RestoreTracker(recovery, trackerSnapshot);
+                var current = await DiscoverPlaceDependenciesAsync(tripId, placeId, userId, CancellationToken.None);
+                if (current == null) return PlaceLifecycleDeleteResult.NotFound;
+                var stale = _confirmation.Create("lifecycle-confirmation-stale", PlaceDeleteOperation, userId, tripId, placeId, current);
                 return PlaceLifecycleDeleteResult.Conflict(stale);
             }
             DetachCanonicalEntries(candidates);
@@ -218,17 +222,22 @@ public sealed partial class PlaceRegionLifecycleService
             return RegionLifecycleDeleteResult.Conflict(warning with { Code = string.IsNullOrWhiteSpace(confirmationToken) ? warning.Code : "lifecycle-confirmation-stale" });
         var candidates = await BuildDeleteLockCandidatesAsync(dependencies, dependencies.PlaceIds.ToArray(), [regionId], cancellationToken);
 
-        await using var transaction = await BeginTransactionAsync(cancellationToken);
+        await using var transaction = await BeginTransactionAsync(cancellationToken, IsolationLevel.ReadCommitted);
         try
         {
             await LockAsync(candidates, cancellationToken);
             var canonical = await DiscoverRegionDependenciesAsync(tripId, regionId, userId, cancellationToken);
             if (canonical == null) return RegionLifecycleDeleteResult.NotFound;
-            if (canonical.Fingerprint() != dependencies.Fingerprint())
+            var requiredLocks = await BuildDeleteLockCandidatesAsync(
+                canonical, canonical.PlaceIds.ToArray(), [regionId], cancellationToken);
+            if (canonical.Fingerprint() != dependencies.Fingerprint() || requiredLocks.RequiresLocksOutside(candidates))
             {
                 await RollbackAsync(transaction);
+                RestoreTracker(recovery, trackerSnapshot);
+                var current = await DiscoverRegionDependenciesAsync(tripId, regionId, userId, CancellationToken.None);
+                if (current == null) return RegionLifecycleDeleteResult.NotFound;
                 return RegionLifecycleDeleteResult.Conflict(
-                    _confirmation.Create("lifecycle-confirmation-stale", RegionDeleteOperation, userId, tripId, regionId, canonical));
+                    _confirmation.Create("lifecycle-confirmation-stale", RegionDeleteOperation, userId, tripId, regionId, current));
             }
             DetachCanonicalEntries(candidates);
             var region = await _dbContext.Regions.Include(item => item.Places).Include(item => item.Areas)
@@ -482,8 +491,10 @@ public sealed partial class PlaceRegionLifecycleService
     private async Task<int> NextPlaceOrderAsync(Guid regionId, CancellationToken cancellationToken) =>
         (await _dbContext.Places.Where(place => place.RegionId == regionId).MaxAsync(place => (int?)place.DisplayOrder, cancellationToken) ?? 0) + 1;
 
-    private async Task<IDbContextTransaction?> BeginTransactionAsync(CancellationToken cancellationToken) =>
-        _dbContext.Database.IsRelational() ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
+    private async Task<IDbContextTransaction?> BeginTransactionAsync(
+        CancellationToken cancellationToken,
+        IsolationLevel isolationLevel = IsolationLevel.Serializable) =>
+        _dbContext.Database.IsRelational() ? await _dbContext.Database.BeginTransactionAsync(isolationLevel, cancellationToken) : null;
 
     private static async Task RollbackAsync(IDbContextTransaction? transaction)
     {
