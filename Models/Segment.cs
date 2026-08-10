@@ -3,6 +3,16 @@ using NetTopologySuite.Geometries;
 
 namespace Wayfarer.Models;
 
+/// <summary>Identifies whether a segment duration is server-calculated or explicitly supplied.</summary>
+public enum EstimatedDurationSource
+{
+    /// <summary>The server derives duration from the canonical route and linked planning speed.</summary>
+    Automatic = 0,
+
+    /// <summary>The user explicitly supplies the duration.</summary>
+    Manual = 1
+}
+
 /// <summary>
 /// Represents a travel segment or leg between two places in a trip.
 /// </summary>
@@ -54,6 +64,9 @@ public class Segment
 
     /// <summary>Estimated duration of this segment.</summary>
     public TimeSpan? EstimatedDuration { get; set; }
+
+    /// <summary>Identifies whether the estimated duration is automatic or manual.</summary>
+    public EstimatedDurationSource EstimatedDurationSource { get; set; } = EstimatedDurationSource.Automatic;
 
     /// <summary>Estimated distance in kilometers.</summary>
     public double? EstimatedDistanceKm { get; set; }

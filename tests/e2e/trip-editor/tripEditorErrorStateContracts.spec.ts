@@ -32,7 +32,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await form.getByLabel('Address').fill('PW failed place save address');
 
     const staleSave = await mockMutationFailure(page, 'PUT', `${editorApiPath}/places/${fixture.place.id}`, 404);
-    await page.getByRole('button', { name: 'Save Place' }).click();
+    await page.getByRole('button', { name: 'Save Place', exact: true }).click();
 
     await expect.poll(staleSave.requests).toBe(1);
     await expect(activeEditorAlert(page)).toContainText('Trip Editor place update returned 404');
@@ -62,7 +62,8 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
 
     await editSegment(page, segment.id);
     const form = page.locator('#trip-editor-segment-form');
-    await form.getByLabel('Estimated distance km').fill('123.45');
+    await form.getByLabel('Enter manually').check();
+    await form.getByLabel('Estimated duration minutes').fill('123.45');
 
     const failure = await mockMutationFailure(page, 'PUT', `${editorApiPath}/segments/${segment.id}`, 500);
     await page.getByRole('button', { name: 'Save Segment' }).click();
@@ -70,7 +71,7 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await expect.poll(failure.requests).toBe(1);
     await expect(activeEditorAlert(page)).toContainText('Trip Editor segment update returned 500');
     await expectFailedStatus(page);
-    await expect(form.getByLabel('Estimated distance km')).toHaveValue('123.45');
+    await expect(form.getByLabel('Estimated duration minutes')).toHaveValue('123.45');
     await expectPersistedSegmentDistance(page, segment.id, segment.estimatedDistanceKm);
 
     await failure.unroute();

@@ -37,7 +37,7 @@ const emit = defineEmits<{
   routeDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
 }>();
 
-const segmentFields = ['fromPlaceId', 'toPlaceId', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'notesHtml', 'route', 'route.coordinates'];
+const segmentFields = ['fromPlaceId', 'toPlaceId', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'estimatedDurationSource', 'notesHtml', 'route', 'route.coordinates'];
 const segmentFormId = 'trip-editor-segment-form';
 const segmentList = ref<HTMLElement | null>(null);
 const segmentListKey = ref(0);

@@ -14,6 +14,60 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Route-bearing Wayfarer v1 imports resolve profiles and ignore imported distance authority.</summary>
+    [PostgresTheory]
+    [InlineData("walk", null, EstimatedDurationSource.Automatic, false)]
+    [InlineData("walk", 12.5, EstimatedDurationSource.Manual, false)]
+    [InlineData("unknown fixture mode", null, EstimatedDurationSource.Automatic, true)]
+    public async Task WayfarerV1RouteImport_ResolvesProfileAndReconcilesMeasurements(
+        string mode,
+        double? durationMinutes,
+        EstimatedDurationSource expectedSource,
+        bool expectUnavailable)
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        await using var context = fixture.CreateContext();
+        var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
+
+        var tripId = await service.ImportWayfarerKmlAsync(
+            ToStream(CreateRouteKml(Guid.NewGuid(), mode, durationMinutes, importedDistanceKm: 999_999)),
+            user.Id,
+            TripImportMode.CreateNew);
+        fixture.RegisterTrip(tripId);
+
+        var segment = await context.Segments.AsNoTracking().SingleAsync(item => item.TripId == tripId);
+        Assert.Equal(mode, segment.Mode);
+        Assert.NotNull(segment.TransportProfileId);
+        Assert.NotEqual(999_999, segment.EstimatedDistanceKm);
+        Assert.InRange(segment.EstimatedDistanceKm!.Value, 111.194, 111.196);
+        Assert.Equal(expectedSource, segment.EstimatedDurationSource);
+        if (expectedSource == EstimatedDurationSource.Manual)
+            Assert.Equal(TimeSpan.FromMinutes(12.5), segment.EstimatedDuration);
+        else if (expectUnavailable)
+            Assert.Null(segment.EstimatedDuration);
+        else
+            Assert.NotNull(segment.EstimatedDuration);
+    }
+
+    /// <summary>Generic route KML defaults Automatic and derives distance and duration through the known catalog profile.</summary>
+    [PostgresFact]
+    public async Task GenericKmlRouteImport_DefaultsAutomaticAndCalculatesKnownMode()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        await using var context = fixture.CreateContext();
+        var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
+
+        var tripId = await service.ImportWayfarerKmlAsync(ToStream(CreateGenericRouteKml("walk")), user.Id, TripImportMode.CreateNew);
+        fixture.RegisterTrip(tripId);
+
+        var segment = await context.Segments.AsNoTracking().SingleAsync(item => item.TripId == tripId);
+        Assert.Equal(EstimatedDurationSource.Automatic, segment.EstimatedDurationSource);
+        Assert.NotNull(segment.TransportProfileId);
+        Assert.NotNull(segment.EstimatedDistanceKm);
+        Assert.NotNull(segment.EstimatedDuration);
+    }
     [PostgresFact]
     public async Task Tags_UseCitextAndBothGlobalUniqueIndexes()
     {
@@ -192,6 +246,20 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
     private static MemoryStream ToStream(string kml) => new(Encoding.UTF8.GetBytes(kml));
 
     private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData><Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData></Document></kml>";
+
+    private static string CreateRouteKml(Guid id, string mode, double? durationMinutes, double importedDistanceKm) => $@"
+<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name>
+<ExtendedData><Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value></value></Data></ExtendedData>
+<Folder><name>Segments</name><Placemark><name>Route</name><ExtendedData>
+<Data name=""Mode""><value>{mode}</value></Data><Data name=""DistanceKm""><value>{importedDistanceKm}</value></Data>
+{(durationMinutes.HasValue ? $"<Data name=\"DurationMin\"><value>{durationMinutes.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}</value></Data>" : string.Empty)}
+</ExtendedData><LineString><coordinates>0,0 1,0</coordinates></LineString></Placemark></Folder>
+</Document></kml>";
+
+    private static string CreateGenericRouteKml(string mode) => $@"
+<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Generic</name><Folder><name>Routes</name>
+<Placemark><name>{mode}</name><LineString><coordinates>0,0 1,0</coordinates></LineString></Placemark>
+</Folder></Document></kml>";
 
     private static Trip CreateTrip(string userId, bool isPublic, params Tag[] tags) => new()
     {

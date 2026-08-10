@@ -115,6 +115,7 @@ public sealed record EditorSegmentDto(
     string Mode,
     double? EstimatedDistanceKm,
     double? EstimatedDurationMinutes,
+    string EstimatedDurationSource,
     string NotesHtml,
     JsonElement? Route,
     int DisplayOrder,

@@ -408,8 +408,11 @@ body {
 
 .trip-editor-segments .trip-editor-segment-row > .trip-editor-surface,
 .trip-editor-segments .trip-editor-segment-row > .trip-editor-surface-context {
+  box-sizing: border-box;
   grid-column: 1 / -1;
+  margin-inline: -0.65rem;
   min-width: 0;
+  width: calc(100% + 1.3rem);
 }
 
 .trip-editor-segments .trip-editor-segment-row > .trip-editor-surface-context > div {

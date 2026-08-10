@@ -59,10 +59,21 @@ public sealed class TransportProfileEditViewModel : TransportProfileCreateViewMo
     /// <summary>Gets the current dependency count displayed before mutation.</summary>
     public int ReferencedSegments { get; set; }
 
+    /// <summary>Gets the Automatic duration dependency count.</summary>
+    public int AutomaticSegments { get; set; }
+
+    /// <summary>Gets the Manual duration dependency count.</summary>
+    public int ManualSegments { get; set; }
+
+    /// <summary>Gets or sets explicit confirmation for a referenced planning-speed change or clear.</summary>
+    public bool ConfirmReferencedSpeedChange { get; set; }
+
 }
 
 /// <summary>Read-only transport-profile row for index and delete confirmation.</summary>
-public sealed record TransportProfileRowViewModel(Guid Id, string Key, string Label, string Category, double? PlanningSpeedKmh, int SortOrder, bool IsActive, bool IsSeeded, int ReferencedSegments, uint RowVersion);
+public sealed record TransportProfileRowViewModel(
+    Guid Id, string Key, string Label, string Category, double? PlanningSpeedKmh, int SortOrder,
+    bool IsActive, bool IsSeeded, int ReferencedSegments, int AutomaticSegments, int ManualSegments, uint RowVersion);
 
 /// <summary>Paginated deterministic transport-profile index state.</summary>
 public sealed record TransportProfileIndexViewModel(IReadOnlyList<TransportProfileRowViewModel> Items, string Search, int Page, int TotalPages);

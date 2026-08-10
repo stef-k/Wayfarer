@@ -254,3 +254,10 @@ Candidates are deleted once a PlaceVisitEvent is created or when stale.
 ## Quartz
 
 - Quartz uses a persistent ADO store with `qrtz_*` tables, auto‑created via `QuartzSchemaInstaller` on startup.
+# Segment measurement provenance
+
+`Segments.EstimatedDurationSource` is a required integer enum: `Automatic = 0` and `Manual = 1`. The database default is Automatic and `CK_Segments_EstimatedDurationSource` rejects every other value. The issue 405 migration classifies each legacy non-null duration as Manual and each null duration as Automatic without recalculating distance or duration. Downgrading removes the column and permanently loses provenance written after the upgrade; re-upgrading can only reclassify from duration nullability.
+
+Distance is never accepted from a writer. The server uses custom SRID 4326 `RouteGeometry` when present, otherwise the complete ordered anchor fallback. It sums Haversine distance over consecutive `[longitude, latitude]` coordinates with radius `6,371,000 m`, retains metres transiently for duration, and stores kilometres rounded to three decimals away from zero. Automatic duration uses the linked database planning speed and rounds seconds away from zero. Manual duration is required, non-negative, and normalized to whole seconds.
+
+Single-Segment mutations lock current/proposed transport profiles by ascending GUID and then the Segment. Profile-speed mutations use a serializable transaction, lock the profile and affected Segments in ascending GUID order, recompute Automatic measurements, preserve Manual durations, and commit profile, Segments, and bounded audit data atomically.

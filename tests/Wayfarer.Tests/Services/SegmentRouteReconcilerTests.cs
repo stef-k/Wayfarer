@@ -29,6 +29,64 @@ public sealed class SegmentRouteReconcilerTests
         Assert.Empty(segment.Waypoints);
     }
 
+    /// <summary>Every supplied custom route is validated even when the Segment has no waypoint rows.</summary>
+    [Theory]
+    [InlineData("srid")]
+    [InlineData("empty")]
+    [InlineData("nonfinite")]
+    public async Task ReconcileAsync_ZeroWaypoints_InvalidCustomGeometryIsRejectedAtomically(string defect)
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var geometry = defect switch
+        {
+            "srid" => new LineString([new Coordinate(1, 1), new Coordinate(2, 2)]) { SRID = 0 },
+            "empty" => new LineString([]) { SRID = 4326 },
+            "nonfinite" => new LineString([new Coordinate(1, 1), new Coordinate(double.NaN, 2)]) { SRID = 4326 },
+            _ => throw new InvalidOperationException("Unknown geometry fixture.")
+        };
+        var before = await SnapshotAsync(context, seeded.SegmentId);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], geometry));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(before, await SnapshotAsync(context, seeded.SegmentId));
+        Assert.DoesNotContain(context.ChangeTracker.Entries(), entry =>
+            entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+    }
+
+    /// <summary>Optional legacy endpoints still require canonical ownership when custom geometry supplies the route.</summary>
+    [Fact]
+    public async Task ReconcileAsync_ZeroWaypoints_CustomGeometryRejectsForeignOptionalEndpoint()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context, includeForeign: true);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, seeded.ForeignPlaceId, null, [], Line((1, 1), (2, 2))));
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("From place must belong to the segment trip.", result.Errors);
+    }
+
+    /// <summary>A valid custom route remains complete without legacy endpoints under the approved compatibility contract.</summary>
+    [Fact]
+    public async Task ReconcileAsync_ZeroWaypoints_ValidCustomGeometryNeedsNoLegacyEndpoints()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], Line((1, 1), (2, 2))));
+
+        Assert.True(result.Succeeded);
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Null(segment.FromPlaceId);
+        Assert.Null(segment.ToPlaceId);
+        Assert.NotNull(segment.RouteGeometry);
+    }
+
     /// <summary>A valid fallback proposal commits canonical endpoints and deterministic waypoint order.</summary>
     [Fact]
     public async Task ReconcileAsync_ValidFallback_UsesCanonicalAnchorChain()
@@ -188,6 +246,67 @@ public sealed class SegmentRouteReconcilerTests
         Assert.True(result.Succeeded);
     }
 
+    /// <summary>Automatic reconciliation derives distance and duration from the complete canonical fallback route.</summary>
+    [Fact]
+    public async Task ReconcileAsync_AutomaticUsesUnroundedCanonicalRouteAndProfileSpeed()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+
+        var result = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [], null, new("walk", seeded.ProfileId, EstimatedDurationSource.Automatic, null)));
+
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        var distance = SegmentMeasurementCalculator.CalculateDistance([
+            new Coordinate(1, 1), new Coordinate(3, 3)]);
+        Assert.True(result.Succeeded);
+        Assert.Equal(distance.RoundedKilometres, segment.EstimatedDistanceKm);
+        Assert.Equal(SegmentMeasurementCalculator.CalculateAutomaticDuration(distance.UnroundedMetres, 5), segment.EstimatedDuration);
+        Assert.Equal(EstimatedDurationSource.Automatic, segment.EstimatedDurationSource);
+    }
+
+    /// <summary>Manual reconciliation normalizes duration while distance remains server-derived.</summary>
+    [Fact]
+    public async Task ReconcileAsync_ManualPreservesExplicitDurationButRejectsNull()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var valid = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [], null, new("walk", seeded.ProfileId, EstimatedDurationSource.Manual, 0.025)));
+
+        Assert.True(valid.Succeeded);
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Equal(TimeSpan.FromSeconds(2), segment.EstimatedDuration);
+        Assert.Equal(EstimatedDurationSource.Manual, segment.EstimatedDurationSource);
+
+        var invalid = await SegmentRouteReconciler.ReconcileAsync(context,
+            Proposal(seeded, [], null, new("walk", seeded.ProfileId, EstimatedDurationSource.Manual, null)));
+        Assert.False(invalid.Succeeded);
+        Assert.Contains("Manual duration is required.", invalid.Errors);
+    }
+
+    /// <summary>Incomplete fallback clears Automatic measurements while a newly requested missing speed is rejected.</summary>
+    [Fact]
+    public async Task ReconcileAsync_AutomaticDistinguishesUnavailableRouteFromUnavailableSpeed()
+    {
+        await using var context = CreateContext();
+        var seeded = await SeedAsync(context);
+        var incomplete = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], null,
+                new("walk", seeded.ProfileId, EstimatedDurationSource.Automatic, null)));
+
+        Assert.True(incomplete.Succeeded);
+        var segment = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Null(segment.EstimatedDistanceKm);
+        Assert.Null(segment.EstimatedDuration);
+
+        var unavailable = await SegmentRouteReconciler.ReconcileAsync(context,
+            new(seeded.SegmentId, null, null, [], null,
+                new(string.Empty, null, EstimatedDurationSource.Automatic, null)));
+        Assert.False(unavailable.Succeeded);
+        Assert.Contains("Automatic duration requires a linked profile with a positive planning speed.", unavailable.Errors);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var services = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
@@ -207,8 +326,17 @@ public sealed class SegmentRouteReconcilerTests
             Id = Guid.NewGuid(), RegionId = region.Id, Region = region, UserId = user.Id,
             Name = $"place {index}", Location = new Point(index, index) { SRID = 4326 }
         }).ToArray();
-        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Mode = "walk" };
-        context.AddRange(user, trip, region, segment);
+        var profile = new TransportProfile
+        {
+            Id = Guid.NewGuid(), Key = "walk", Label = "Walk", Category = "Land",
+            PlanningSpeedKmh = 5, IsActive = true
+        };
+        var segment = new Segment
+        {
+            Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Mode = "walk",
+            TransportProfileId = profile.Id, TransportProfile = profile
+        };
+        context.AddRange(user, trip, region, profile, segment);
         context.Places.AddRange(places);
         Guid? foreignPlaceId = null;
         if (includeForeign)
@@ -221,14 +349,15 @@ public sealed class SegmentRouteReconcilerTests
         }
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
-        return new(segment.Id, trip.Id, places.Select(item => item.Id).ToArray(), foreignPlaceId);
+        return new(segment.Id, trip.Id, places.Select(item => item.Id).ToArray(), profile.Id, foreignPlaceId);
     }
 
     private static SegmentRouteProposal Proposal(
         SeededAggregate seeded,
         IReadOnlyList<SegmentWaypointProposal> waypoints,
-        LineString? geometry) =>
-        new(seeded.SegmentId, seeded.PlaceIds[0], seeded.PlaceIds[2], waypoints, geometry);
+        LineString? geometry,
+        SegmentMeasurementProposal? measurement = null) =>
+        new(seeded.SegmentId, seeded.PlaceIds[0], seeded.PlaceIds[2], waypoints, geometry, measurement);
 
     private static LineString Line(params (double X, double Y)[] points) =>
         new(points.Select(point => new Coordinate(point.X, point.Y)).ToArray()) { SRID = 4326 };
@@ -239,5 +368,5 @@ public sealed class SegmentRouteReconcilerTests
         return $"{segment!.FromPlaceId}|{segment.ToPlaceId}|{segment.RouteGeometry?.AsText()}|{string.Join(';', segment.Waypoints.OrderBy(item => item.Position).Select(item => $"{item.PlaceId}:{item.Position}:{item.RouteVertexIndex}"))}";
     }
 
-    private sealed record SeededAggregate(Guid SegmentId, Guid TripId, Guid[] PlaceIds, Guid? ForeignPlaceId);
+    private sealed record SeededAggregate(Guid SegmentId, Guid TripId, Guid[] PlaceIds, Guid ProfileId, Guid? ForeignPlaceId);
 }

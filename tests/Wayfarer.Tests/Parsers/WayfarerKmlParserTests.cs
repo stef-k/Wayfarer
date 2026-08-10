@@ -272,8 +272,8 @@ public class WayfarerKmlParserTests
         Assert.Equal(fromPlaceId, segment.FromPlaceId);
         Assert.Equal(toPlaceId, segment.ToPlaceId);
         Assert.Equal("driving", segment.Mode);
-        Assert.Equal(5.5, segment.EstimatedDistanceKm);
-        Assert.Equal(TimeSpan.FromMinutes(15), segment.EstimatedDuration);
+        Assert.Null(segment.EstimatedDistanceKm);
+        Assert.Equal(((TimeSpan?)TimeSpan.FromMinutes(15), Wayfarer.Models.EstimatedDurationSource.Manual), (segment.EstimatedDuration, segment.EstimatedDurationSource));
         Assert.Equal(1, segment.DisplayOrder);
         Assert.Equal("Segment notes", segment.Notes);
         Assert.IsType<LineString>(segment.RouteGeometry);

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
-  absoluteUrl,
+  absoluteUrl, activeEditorCloseButton,
   editorApiPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
@@ -318,7 +318,7 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     await expect(page.locator('#trip-editor-metadata-form')).toHaveCount(1);
     await expect(richEditor(page.locator('#trip-editor-metadata-form')).locator('.ql-editor')).toContainText('Expanded draft note');
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await activeEditorCloseButton(page).click();
     const discard = page.getByRole('dialog', { name: 'Discard changes?' });
     await expect(discard).toBeVisible();
     await discard.getByRole('button', { name: 'Keep editing' }).click();
@@ -489,7 +489,7 @@ function prepareRichNotesState(state: MutableEditorState): void {
     toPlaceId: placeId,
     mode: state.options.transportModes[0]?.value ?? 'walk',
     estimatedDistanceKm: 1,
-    estimatedDurationMinutes: 10,
+    estimatedDurationMinutes: 10, estimatedDurationSource: 'Manual',
     notesHtml: '<p>Persisted segment note</p>',
     route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] },
     displayOrder: 1,
@@ -598,7 +598,6 @@ async function clickEditableTrailingBlankLine(editor: Locator): Promise<void> {
     if (!(trailingLine instanceof HTMLElement)) {
       throw new Error('Rich notes editor has no trailing line.');
     }
-
     trailingLine.scrollIntoView({ block: 'center', inline: 'nearest' });
     const lineBounds = trailingLine.getBoundingClientRect();
     return {

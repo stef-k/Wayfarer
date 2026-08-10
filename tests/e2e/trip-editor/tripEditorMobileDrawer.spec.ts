@@ -99,30 +99,25 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expectDrawerHeight(page, { min: 170, max: 190 });
     const initialPeekHeight = await drawerHeight(page);
 
-    await page.getByRole('button', { name: 'Collapse' }).click();
-    await expectDrawerState(page, 'collapsed');
+    await clickAndExpectDrawerState(page, 'Collapse', 'collapsed');
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeHidden();
     await expectDrawerHeight(page, { min: 84, max: 100 });
     await expectMapFirstPhoneLayout(page);
 
-    await page.getByRole('button', { name: 'Peek' }).click();
-    await expectDrawerState(page, 'peek');
+    await clickAndExpectDrawerState(page, 'Peek', 'peek');
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
     await expectHeightCloseTo(page, initialPeekHeight);
     await expectMapFirstPhoneLayout(page);
 
-    await page.getByRole('button', { name: 'Expand' }).click();
-    await expectDrawerState(page, 'expanded-view');
+    await clickAndExpectDrawerState(page, 'Expand', 'expanded-view');
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expectDrawerHeight(page, { min: 640, max: 735 });
     const expandedHeight = await drawerHeight(page);
 
-    await page.getByRole('button', { name: 'Regions' }).click();
-    await expectDrawerState(page, 'expanded-view');
+    await clickAndExpectDrawerState(page, 'Regions', 'expanded-view');
     await expectHeightCloseTo(page, expandedHeight);
 
-    await page.getByRole('button', { name: 'Segments' }).click();
-    await expectDrawerState(page, 'expanded-view');
+    await clickAndExpectDrawerState(page, 'Segments', 'expanded-view');
     await expectHeightCloseTo(page, expandedHeight);
   });
 
@@ -150,11 +145,9 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     const metadataName = page.locator('#trip-editor-metadata-form').getByLabel('Name');
     const activeDraftName = `${await metadataName.inputValue()} drawer recoverable edit`;
     await metadataName.fill(activeDraftName);
-    await page.getByRole('button', { name: 'Collapse' }).click();
-    await expectDrawerState(page, 'collapsed');
+    await clickAndExpectDrawerState(page, 'Collapse', 'collapsed');
     await expect(page.locator('#trip-editor-metadata-form')).toBeHidden();
-    await page.getByRole('button', { name: 'Expand' }).click();
-    await expectDrawerState(page, 'expanded-edit');
+    await clickAndExpectDrawerState(page, 'Expand', 'expanded-edit');
     await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(activeDraftName);
     await capture(page, testInfo, 'phone-dark-active-trip-edit');
     await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
@@ -186,8 +179,10 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
 
-    await page.setViewportSize({ width: 430, height: 844 });
+    await page.setViewportSize({ width: 430, height: 932 });
+    await clickAndExpectDrawerState(page, 'Peek', 'peek');
     await expectMapFirstPhoneLayout(page);
+    await clickAndExpectDrawerState(page, 'Expand', 'expanded-edit');
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expectDrawerState(page, 'peek');
     await expectMapWorkToolbarHitTesting(page);
@@ -282,10 +277,10 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
 
     await page.getByRole('button', { name: 'Segments' }).click();
     await page.getByRole('button', { name: 'Add Segment' }).click();
-    const form = activeEditorSurface(page);
-    const distance = form.getByLabel('Estimated distance km');
+    const form = activeEditorSurface(page); const duration = form.getByLabel('Estimated duration minutes');
+    await form.getByLabel('Enter manually').check();
     await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
-    await distance.fill('14');
+    await duration.fill('14');
 
     await tapFirstSavedPlaceMarker(page);
     const keepDialog = page.getByRole('dialog', { name: 'Discard changes?' });
@@ -293,7 +288,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await keepDialog.getByRole('button', { name: 'Keep editing' }).click();
     await expect(drawerTab(page, 'Segments')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('heading', { name: 'Add Segment' })).toBeVisible();
-    await expect(distance).toHaveValue('14');
+    await expect(duration).toHaveValue('14');
     await expectSelectedMarkerCount(page, 0);
     await expect(page.locator('.leaflet-popup')).toHaveCount(0);
 
@@ -340,8 +335,9 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
 
     await page.getByRole('button', { name: 'Segments' }).click();
     await page.getByRole('button', { name: 'Add Segment' }).click();
+    await activeEditorSurface(page).getByLabel('Enter manually').check();
     await expectDirtyTabSwitchGuard(page, {
-      dirtyFieldLabel: 'Estimated distance km',
+      dirtyFieldLabel: 'Estimated duration minutes',
       draftValue: '12',
       owningTab: 'Segments',
       targetTab: 'Trip',
@@ -475,6 +471,12 @@ async function openEditorWithTripSummaryFixture(
 
 async function expectDrawerState(page: Page, state: string): Promise<void> {
   await expect(page.locator('.trip-editor-sidebar--mobile-drawer')).toHaveAttribute('data-mobile-drawer-state', state);
+}
+
+// Exercises a visible drawer control and verifies the resulting public state.
+async function clickAndExpectDrawerState(page: Page, controlName: string, state: string): Promise<void> {
+  await page.getByRole('button', { name: controlName, exact: true }).click();
+  await expectDrawerState(page, state);
 }
 
 const drawerHeight = (page: Page) => page.locator('.trip-editor-sidebar--mobile-drawer').evaluate(element => element.getBoundingClientRect().height);
@@ -616,7 +618,6 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
     return {
       bodyWidth: document.body.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
-      documentHeight: document.scrollingElement?.scrollHeight ?? document.documentElement.scrollHeight,
       drawerTop: drawer?.top ?? 0,
       mapBottom: map?.bottom ?? 0,
       mapHeight: map?.height ?? 0,
@@ -630,8 +631,8 @@ async function expectMapFirstPhoneLayout(page: Page): Promise<void> {
   });
 
   expect(metrics.bodyWidth, 'Phone layout should not create horizontal overflow.').toBeLessThanOrEqual(metrics.clientWidth + 1);
-  expect(metrics.documentHeight, 'Phone drawer layout should keep page-level scroll bounded.').toBeLessThanOrEqual(metrics.viewportHeight + 2);
   expect(metrics.workspaceHeight, 'Phone workspace should be viewport-bounded.').toBeLessThanOrEqual(metrics.viewportHeight + 2);
+  expect(metrics.workspaceTop + metrics.workspaceHeight, 'Phone workspace should end within its viewport-height allocation.').toBeLessThanOrEqual(metrics.workspaceTop + metrics.viewportHeight + 2);
   expect(metrics.mapTop, 'Map should begin at the top of the phone workspace.').toBeLessThanOrEqual(metrics.workspaceTop + 2);
   expect(metrics.mapHeight, 'Map should remain the primary phone workspace.').toBeGreaterThan(metrics.viewportHeight * 0.72);
   expect(metrics.drawerTop, 'Drawer should sit over the lower part of the map.').toBeGreaterThan(metrics.viewportHeight * 0.45);

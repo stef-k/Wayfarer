@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
@@ -152,10 +153,13 @@ public class WayfarerKmlParser
                     FromPlaceId = ReadGuid(pm, "FromPlaceId"),
                     ToPlaceId = ReadGuid(pm, "ToPlaceId"),
                     Mode = ReadString(pm, "Mode") ?? string.Empty,
-                    EstimatedDistanceKm = ReadDouble(pm, "DistanceKm"),
+                    EstimatedDistanceKm = null,
                     EstimatedDuration = ReadDouble(pm, "DurationMin") is { } m
-                        ? TimeSpan.FromMinutes(m)
+                        ? SegmentMeasurementCalculator.NormalizeManualDuration(m)
                         : null,
+                    EstimatedDurationSource = ReadDouble(pm, "DurationMin").HasValue
+                        ? EstimatedDurationSource.Manual
+                        : EstimatedDurationSource.Automatic,
                     DisplayOrder = ReadInt(pm, "DisplayOrder") ?? 0,
                     Notes = ReadString(pm, "NotesHtml"),
                     RouteGeometry = line

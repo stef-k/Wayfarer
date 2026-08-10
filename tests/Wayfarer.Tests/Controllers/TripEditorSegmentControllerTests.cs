@@ -146,6 +146,7 @@ public sealed class TripEditorSegmentControllerTests : TestBase
           "mode": {{StringJson(mode)}},
           "estimatedDistanceKm": 12.5,
           "estimatedDurationMinutes": 35,
+          "estimatedDurationSource": "Manual",
           "notesHtml": null,
           "route": {{routeJson}}
         }

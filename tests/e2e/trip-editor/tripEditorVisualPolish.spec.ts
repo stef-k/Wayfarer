@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorCloseButton,
   editorApiPath,
   expectMountedWorkspace,
   loadEditorStateFixture,
@@ -114,7 +115,7 @@ test.describe.serial('Trip Editor issue 275 visual polish evidence', () => {
 
       await openPlace(page);
       await page.locator('#trip-editor-place-form').getByLabel('Name').fill('Unsaved visual place');
-      await page.getByRole('button', { name: 'Close' }).click();
+      await activeEditorCloseButton(page).click();
       await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
       await capture(page, testInfo, `${viewport.name}-dark-dirty-discard-confirm`);
       note(testInfo, 'dirty-discard confirmation', viewport.name, 'dark', 'data-bs-theme', 'pass');
@@ -212,7 +213,7 @@ function areaFixture(state: MutableEditorState): Record<string, any> {
 }
 
 function segmentFixture(state: MutableEditorState): Record<string, any> {
-  return { id: segmentId, tripId: state.tripId, fromPlaceId: placeId, toPlaceId: secondPlaceId, mode: state.options.transportModes[0]?.value ?? 'walk', estimatedDistanceKm: 2, estimatedDurationMinutes: 30, notesHtml: '<p>Segment notes</p>', route: { type: 'LineString', coordinates: [[23.7275, 37.9838], [23.74, 37.99]] }, displayOrder: 1, capabilities: editableCapabilities() };
+  return { id: segmentId, tripId: state.tripId, fromPlaceId: placeId, toPlaceId: secondPlaceId, mode: state.options.transportModes[0]?.value ?? 'walk', estimatedDistanceKm: 2, estimatedDurationMinutes: 30, estimatedDurationSource: 'Manual', notesHtml: '<p>Segment notes</p>', route: { type: 'LineString', coordinates: [[23.7275, 37.9838], [23.74, 37.99]] }, displayOrder: 1, capabilities: editableCapabilities() };
 }
 
 function editableCapabilities(): Record<string, boolean> {

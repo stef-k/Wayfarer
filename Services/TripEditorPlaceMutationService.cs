@@ -150,7 +150,9 @@ public sealed class TripEditorPlaceMutationService
             place.DisplayOrder = NextPlaceOrder(targetRegion);
         }
 
-        var affectedSegments = locationChanged ? _routeEffects.RewriteEndpointRoutes(trip, place.Id, update.Location) : Array.Empty<Segment>();
+        var affectedSegments = locationChanged
+            ? await _routeEffects.RewriteEndpointRoutesAsync(trip, place.Id, update.Location, cancellationToken)
+            : Array.Empty<Segment>();
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         if (moved)

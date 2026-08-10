@@ -23,7 +23,11 @@ public sealed class TripEditorPlaceRouteEffects
     /// <summary>
     /// Rewrites or clears endpoint route geometries affected by a place coordinate change.
     /// </summary>
-    public IReadOnlyList<Segment> RewriteEndpointRoutes(Trip trip, Guid placeId, EditorCoordinateDto? location)
+    public async Task<IReadOnlyList<Segment>> RewriteEndpointRoutesAsync(
+        Trip trip,
+        Guid placeId,
+        EditorCoordinateDto? location,
+        CancellationToken cancellationToken)
     {
         var affected = trip.Segments.Where(s => s.FromPlaceId == placeId || s.ToPlaceId == placeId).ToList();
         foreach (var segment in affected)
@@ -53,6 +57,9 @@ public sealed class TripEditorPlaceRouteEffects
 
             segment.RouteGeometry = new LineString(coordinates) { SRID = 4326 };
         }
+
+        foreach (var segment in affected.Where(segment => segment.Waypoints.Count == 0))
+            await SegmentRouteReconciler.ReconcileTrackedMeasurementsAsync(_dbContext, segment, cancellationToken);
 
         return affected;
     }

@@ -113,21 +113,16 @@ test.describe.serial('Trip Editor segment editing', () => {
     await expect(page.getByRole('button', { name: /pick on map|draw\/edit area|geocode|search.?add|marker drag/i })).toHaveCount(0);
     await expectNoSearchAddUi(page);
 
-    const editHandle = page.locator('.leaflet-editing-icon').last();
-    const handleBox = await editHandle.boundingBox();
-    if (!handleBox) {
-      throw new Error('Expected an editable segment route vertex.');
-    }
-    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handleBox.x + handleBox.width / 2 + 40, handleBox.y + handleBox.height / 2 - 30);
-    await page.mouse.up();
+    const editHandle = page.locator('.leaflet-editing-icon[style*="opacity: 0.6"]');
+    await expect(editHandle).toHaveCount(1);
+    await expect(editHandle).toBeVisible();
+    await editHandle.click();
     const workPath = await workRoute.getAttribute('d');
 
     await mapWork.getByRole('button', { name: 'Done' }).click();
     await expectNoLegacyEditorAction(page);
     expect(savedRequests, 'Done must not call the segment save endpoint.').toEqual([]);
-    await expect(page.locator('#trip-editor-segment-form')).toContainText('2 custom route points');
+    await expect(page.locator('#trip-editor-segment-form')).toContainText('3 custom route points');
     const draftRoute = page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`);
     await expect(draftRoute).toHaveAttribute('d', workPath ?? '');
     await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
@@ -135,7 +130,7 @@ test.describe.serial('Trip Editor segment editing', () => {
     await page.getByRole('button', { name: 'Save Segment' }).click();
     await expect.poll(() => savedRequests.length).toBe(1);
     expect(savedRequests[0].route?.type).toBe('LineString');
-    expect(savedRequests[0].route?.coordinates).toHaveLength(2);
+    expect(savedRequests[0].route?.coordinates).toHaveLength(3);
     await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
     await expect(draftRoute).toHaveCount(0);
 
@@ -181,11 +176,11 @@ test.describe.serial('Trip Editor segment editing', () => {
     const routePath = await draftRoute.getAttribute('d');
     const map = page.locator('.trip-editor-map');
     const viewport = await map.evaluate(element => ({ lat: element.dataset.tripEditorMapLat, lng: element.dataset.tripEditorMapLng, zoom: element.dataset.tripEditorMapZoom }));
-    await form.getByLabel('Estimated distance km').fill('99');
+    await form.getByLabel('Estimated duration minutes').fill('99');
     await page.getByRole('button', { name: 'Save Segment' }).click();
 
-    await expect(page.getByRole('status').filter({ hasText: 'Save failed' })).toBeVisible();
-    await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(page.getByRole('status').filter({ hasText: 'Save failed' }).first()).toBeVisible();
+    await expect(form.getByLabel('Estimated duration minutes')).toHaveValue('99');
     await expect(draftRoute).toHaveAttribute('d', routePath ?? '');
     await expect(map).toHaveAttribute('data-trip-editor-map-lat', viewport.lat ?? '');
     await expect(map).toHaveAttribute('data-trip-editor-map-lng', viewport.lng ?? '');
@@ -198,12 +193,12 @@ test.describe.serial('Trip Editor segment editing', () => {
 
     await openEditableSegment(page);
     const form = page.locator('#trip-editor-segment-form');
-    await form.getByLabel('Estimated distance km').fill('99');
+    await form.getByLabel('Estimated duration minutes').fill('99');
     await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Clear Route' }).click();
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
     await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
-    await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(form.getByLabel('Estimated duration minutes')).toHaveValue('99');
     await expect(form).toContainText('2 custom route points');
     await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"][data-route-kind="custom"]`)).toHaveCount(1);
 
@@ -213,8 +208,8 @@ test.describe.serial('Trip Editor segment editing', () => {
 
     await page.getByRole('button', { name: 'Reset' }).click();
     await expect(form).toContainText('2 custom route points');
-    await expect(form.getByLabel('Estimated distance km')).toHaveValue('2');
-    await form.getByLabel('Estimated distance km').fill('99');
+    await expect(form.getByLabel('Estimated duration minutes')).toHaveValue('30');
+    await form.getByLabel('Estimated duration minutes').fill('99');
 
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Discard changes?' })).toBeVisible();
@@ -228,7 +223,7 @@ test.describe.serial('Trip Editor segment editing', () => {
 
     await openEditableSegment(page);
     const form = page.locator('#trip-editor-segment-form');
-    await form.getByLabel('Estimated distance km').fill('99');
+    await form.getByLabel('Estimated duration minutes').fill('99');
 
     await segmentRow(page, secondSegmentId).getByRole('button', { name: 'Delete segment' }).click();
     const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
@@ -237,7 +232,7 @@ test.describe.serial('Trip Editor segment editing', () => {
 
     await expect(page.getByRole('dialog', { name: 'Delete segment?' })).toHaveCount(0);
     await expect(segmentRow(page, secondSegmentId)).toBeVisible();
-    await expect(form.getByLabel('Estimated distance km')).toHaveValue('99');
+    await expect(form.getByLabel('Estimated duration minutes')).toHaveValue('99');
     await expect(segmentRow(page, segmentId).locator('#trip-editor-segment-form')).toHaveCount(1);
     await expect(page.locator(`[data-segment-id="${segmentId}"][data-route-owner="draft"]`)).toHaveCount(1);
     await expect(page.locator(`[data-segment-id="${secondSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
@@ -325,6 +320,7 @@ function segmentFixture(state: MutableEditorState, id: string, fromPlaceId: stri
     mode: 'walk',
     estimatedDistanceKm: 2,
     estimatedDurationMinutes: 30,
+    estimatedDurationSource: 'Manual',
     notesHtml,
     route: route ? { type: 'LineString', coordinates: route } : null,
     displayOrder: id === segmentId ? 1 : 2,
@@ -338,12 +334,12 @@ async function openEditableSegment(page: Page): Promise<void> {
 }
 
 function segmentRow(page: Page, id: string) {
-  return page.locator(`[data-segment-id="${id}"]`);
+  return page.locator(`.trip-editor-segment-row[data-segment-id="${id}"]`);
 }
 
 async function expectSegmentOrder(page: Page, expected: string[]): Promise<void> {
   await expect.poll(async () => {
-    return await page.locator('[data-segment-id]').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.segmentId));
+    return await page.locator('.trip-editor-segments .trip-editor-segment-row[data-segment-id]').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.segmentId));
   }).toEqual(expected);
 }
 

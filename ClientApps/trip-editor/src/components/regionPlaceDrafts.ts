@@ -119,7 +119,7 @@ export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest 
 }
 
 export function emptySegmentDraft(): EditorSegmentDraft {
-  return { id: null, fromPlaceId: null, toPlaceId: null, mode: '', estimatedDistanceKm: '', estimatedDurationMinutes: '', notesHtml: '', route: null };
+  return { id: null, fromPlaceId: null, toPlaceId: null, mode: '', estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null };
 }
 
 export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraft {
@@ -134,6 +134,7 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
     mode: segment.mode,
     estimatedDistanceKm: segment.estimatedDistanceKm ?? '',
     estimatedDurationMinutes: segment.estimatedDurationMinutes ?? '',
+    estimatedDurationSource: segment.estimatedDurationSource,
     notesHtml: normalizeNotesHtml(segment.notesHtml),
     route: cloneGeometry(segment.route)
   };
@@ -146,6 +147,7 @@ export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSav
     mode: value.mode || null,
     estimatedDistanceKm: nullableNumber(value.estimatedDistanceKm),
     estimatedDurationMinutes: nullableNumber(value.estimatedDurationMinutes),
+    estimatedDurationSource: value.estimatedDurationSource,
     notesHtml: normalizeNotesHtml(value.notesHtml),
     route: cloneGeometry(value.route)
   };

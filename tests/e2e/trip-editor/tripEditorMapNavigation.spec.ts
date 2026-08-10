@@ -329,6 +329,7 @@ function prepareSegmentGeometryState(state: MutableEditorState, useRoute: boolea
       mode: 'car',
       estimatedDistanceKm: null,
       estimatedDurationMinutes: null,
+      estimatedDurationSource: 'Automatic',
       notesHtml: '',
       route: useRoute
         ? { type: 'LineString', coordinates: [[-74.006, 40.7128], [-73, 41.25], [-71.0589, 42.3601]] }

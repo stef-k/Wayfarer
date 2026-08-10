@@ -423,25 +423,8 @@ namespace Wayfarer.Areas.User.Controllers
                 {
                     foreach (var sourceSegment in sourceTrip.Segments)
                     {
-                        var clonedSegment = new Segment
-                        {
-                            Id = Guid.NewGuid(),
-                            UserId = userId,
-                            TripId = clonedTrip.Id,
-                            Mode = sourceSegment.Mode,
-                            RouteGeometry = sourceSegment.RouteGeometry,
-                            EstimatedDuration = sourceSegment.EstimatedDuration,
-                            EstimatedDistanceKm = sourceSegment.EstimatedDistanceKm,
-                            DisplayOrder = sourceSegment.DisplayOrder,
-                            Notes = sourceSegment.Notes,
-                            // Map old place IDs to new place IDs
-                            FromPlaceId = sourceSegment.FromPlaceId.HasValue && placeIdMapping.ContainsKey(sourceSegment.FromPlaceId.Value)
-                                ? placeIdMapping[sourceSegment.FromPlaceId.Value]
-                                : null,
-                            ToPlaceId = sourceSegment.ToPlaceId.HasValue && placeIdMapping.ContainsKey(sourceSegment.ToPlaceId.Value)
-                                ? placeIdMapping[sourceSegment.ToPlaceId.Value]
-                                : null
-                        };
+                        var clonedSegment = SegmentMeasurementWriterReconciler.CreateClone(
+                            sourceSegment, clonedTrip.Id, userId, placeIdMapping);
 
                         clonedTrip.Segments!.Add(clonedSegment);
                     }
@@ -456,8 +439,7 @@ namespace Wayfarer.Areas.User.Controllers
                     }
                 }
 
-                _dbContext.Trips.Add(clonedTrip);
-                await _dbContext.SaveChangesAsync();
+                await SegmentMeasurementWriterReconciler.PersistCloneAsync(_dbContext, clonedTrip);
 
                 // Schedule immediate cache warm-up if the cloned trip has images
                 if (!string.IsNullOrWhiteSpace(clonedTrip.CoverImageUrl)

@@ -54,21 +54,15 @@ public sealed class TripEditorSegmentMutationService
                 new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile."] });
         }
 
-        var segment = new Segment
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Trip = trip,
-            TripId = trip.Id,
-            DisplayOrder = NextSegmentOrder(trip),
-        };
-        Apply(segment, parsed.Value!);
-        segment.Mode = mode.Value.Key;
-        segment.TransportProfileId = mode.Value.ProfileId;
-        _dbContext.Segments.Add(segment);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var segmentId = Guid.NewGuid();
+        var creation = new SegmentCreation(segmentId, userId, trip.Id, NextSegmentOrder(trip));
+        var proposal = BuildProposal(segmentId, parsed.Value!, mode.Value);
+        _dbContext.ChangeTracker.Clear();
+        var reconciliation = await SegmentRouteReconciler.CreateAsync(_dbContext, creation, proposal, cancellationToken);
+        if (!reconciliation.Succeeded)
+            return ReconciliationFailed(reconciliation);
 
-        var dto = await LoadSegmentDtoAsync(segment.Id, tripId, cancellationToken);
+        var dto = await LoadSegmentDtoAsync(segmentId, tripId, cancellationToken);
         var affected = await BuildAffectedAsync(tripId, new[] { dto }, includeOrder: true, cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Succeeded(
             new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
@@ -115,10 +109,11 @@ public sealed class TripEditorSegmentMutationService
                 new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile or preserve the segment's current inactive profile."] });
         }
 
-        Apply(segment, parsed.Value!);
-        segment.Mode = mode.Value.Key;
-        segment.TransportProfileId = mode.Value.ProfileId;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var proposal = BuildProposal(segment.Id, parsed.Value!, mode.Value);
+        _dbContext.ChangeTracker.Clear();
+        var reconciliation = await SegmentRouteReconciler.ReconcileAsync(_dbContext, proposal, cancellationToken);
+        if (!reconciliation.Succeeded)
+            return ReconciliationFailed(reconciliation);
 
         var dto = await LoadSegmentDtoAsync(segmentId, tripId, cancellationToken);
         var affected = await BuildAffectedAsync(tripId, new[] { dto }, includeOrder: false, cancellationToken);
@@ -243,15 +238,23 @@ public sealed class TripEditorSegmentMutationService
         return errors;
     }
 
-    private static void Apply(Segment segment, EditorSegmentSaveRequest request)
+    private static SegmentRouteProposal BuildProposal(
+        Guid segmentId,
+        EditorSegmentSaveRequest request,
+        (string Key, Guid? ProfileId) mode) =>
+        new(segmentId, request.FromPlaceId, request.ToPlaceId, [], request.Route,
+            new(mode.Key, mode.ProfileId, request.EstimatedDurationSource, request.EstimatedDurationMinutes),
+            ApplyNotes: true, NotesHtml: request.NotesHtml);
+
+    private static EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>> ReconciliationFailed(
+        SegmentRouteReconciliationResult result)
     {
-        segment.FromPlaceId = request.FromPlaceId;
-        segment.ToPlaceId = request.ToPlaceId;
-        segment.Mode = request.Mode;
-        segment.EstimatedDistanceKm = request.EstimatedDistanceKm;
-        segment.EstimatedDuration = request.EstimatedDurationMinutes.HasValue ? TimeSpan.FromMinutes(request.EstimatedDurationMinutes.Value) : null;
-        segment.Notes = request.NotesHtml ?? string.Empty;
-        segment.RouteGeometry = request.Route;
+        var automaticUnavailable = result.Errors.Any(error => error.StartsWith("Automatic duration requires", StringComparison.Ordinal));
+        return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+            new Dictionary<string, string[]>
+            {
+                [automaticUnavailable ? "estimatedDurationSource" : "segment"] = result.Errors.ToArray()
+            });
     }
 
     /// <summary>Resolves database-backed mode semantics for a create or edit operation.</summary>

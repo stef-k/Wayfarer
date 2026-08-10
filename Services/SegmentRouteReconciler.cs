@@ -11,18 +11,41 @@ namespace Wayfarer.Services;
 /// <param name="RouteVertexIndex">Custom-route vertex index, or null for fallback geometry.</param>
 public sealed record SegmentWaypointProposal(Guid PlaceId, int Position, int? RouteVertexIndex);
 
+/// <summary>Describes the proposed mode and explicit duration-provenance state.</summary>
+/// <param name="Mode">Durable public/interchange mode value.</param>
+/// <param name="TransportProfileId">Canonical linked transport-profile identity.</param>
+/// <param name="DurationSource">Explicit Automatic or Manual duration ownership.</param>
+/// <param name="ManualDurationMinutes">Submitted Manual duration, otherwise ignored.</param>
+/// <param name="AllowUnavailableAutomatic">Whether an administrator-owned compatibility operation may clear Automatic duration without speed.</param>
+/// <param name="UsePlanningSpeedOverride">Whether a profile mutation supplies the canonical proposed speed.</param>
+/// <param name="PlanningSpeedKmhOverride">Proposed speed, including null for a confirmed clear.</param>
+public sealed record SegmentMeasurementProposal(
+    string Mode,
+    Guid? TransportProfileId,
+    EstimatedDurationSource DurationSource,
+    double? ManualDurationMinutes,
+    bool AllowUnavailableAutomatic = false,
+    bool UsePlanningSpeedOverride = false,
+    double? PlanningSpeedKmhOverride = null);
+
 /// <summary>Describes a complete persisted Segment route aggregate proposal.</summary>
 /// <param name="SegmentId">Canonical Segment identity.</param>
 /// <param name="FromPlaceId">Proposed canonical origin identity.</param>
 /// <param name="ToPlaceId">Proposed canonical destination identity.</param>
 /// <param name="Waypoints">Ordered waypoint scalar proposals.</param>
 /// <param name="RouteGeometry">Proposed custom route, or null for fallback rendering.</param>
+/// <param name="Measurement">Explicit measurement state, or null to reconcile the canonical compatibility state.</param>
+/// <param name="ApplyNotes">Whether this complete mutation also replaces editor notes.</param>
+/// <param name="NotesHtml">Normalized notes supplied by a complete editor mutation.</param>
 public sealed record SegmentRouteProposal(
     Guid SegmentId,
     Guid? FromPlaceId,
     Guid? ToPlaceId,
     IReadOnlyList<SegmentWaypointProposal> Waypoints,
-    LineString? RouteGeometry);
+    LineString? RouteGeometry,
+    SegmentMeasurementProposal? Measurement = null,
+    bool ApplyNotes = false,
+    string? NotesHtml = null);
 
 /// <summary>Reports whether a route proposal committed and its effective canonical anchor chain.</summary>
 /// <param name="Succeeded">Whether validation succeeded and the aggregate committed.</param>
@@ -34,10 +57,11 @@ public sealed record SegmentRouteReconciliationResult(
     IReadOnlyList<Place> EffectiveAnchorChain);
 
 /// <summary>Loads, validates, and atomically persists canonical Segment route aggregate state.</summary>
-public static class SegmentRouteReconciler
+public static partial class SegmentRouteReconciler
 {
     /// <summary>Maximum independent longitude or latitude difference accepted for an anchor vertex.</summary>
     public const double CoordinateToleranceDegrees = 0.0000001d;
+    private const int MaximumProfileLockAttempts = 3;
 
     /// <summary>
     /// Requires a clean caller context and owns the transaction, canonical Segment row lock, and SaveChanges
@@ -57,68 +81,66 @@ public static class SegmentRouteReconciler
 
         if (!dbContext.Database.IsRelational())
         {
-            var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
-            if (segment == null) return new(false, ["Segment was not found."], []);
-            var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
-            var geometry = CopyGeometry(proposal);
-            var errors = Validate(segment.TripId, proposal, placesById, geometry);
-            var anchors = BuildAnchorChain(proposal, placesById);
-            if (errors.Count > 0) return new(false, errors, anchors);
-            ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: false, cancellationToken);
+            if (!result.Succeeded) return result;
             await dbContext.SaveChangesAsync(cancellationToken);
-            return new(true, [], anchors);
+            return result;
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        var requiredProfileIds = await ResolveProfileLockIdsAsync(dbContext, proposal, cancellationToken);
+        for (var attempt = 1; attempt <= MaximumProfileLockAttempts; attempt++)
         {
-            await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
-
-            var refreshScope = await LoadCanonicalRefreshScopeAsync(dbContext, proposal, cancellationToken);
-            if (refreshScope == null) return new(false, ["Segment was not found."], []);
-            RefreshStaleCanonicalState(dbContext, refreshScope);
-            var segment = await LoadAggregateAsync(dbContext, proposal.SegmentId, cancellationToken);
-            if (segment == null) return new(false, ["Segment was not found."], []);
-            var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
-            var geometry = CopyGeometry(proposal);
-            var errors = Validate(segment.TripId, proposal, placesById, geometry);
-            var anchors = BuildAnchorChain(proposal, placesById);
-            if (errors.Count > 0) return new(false, errors, anchors);
-
-            await dbContext.Set<SegmentWaypoint>()
-                .Where(item => item.SegmentId == segment.Id)
-                .ExecuteDeleteAsync(cancellationToken);
-            DetachCurrentWaypoints(dbContext, segment);
-            ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return new(true, [], anchors);
-        }
-        catch (Exception originalFailure)
-        {
-            var cleanupFailures = new List<Exception>();
-            try { await transaction.RollbackAsync(CancellationToken.None); }
-            catch (Exception rollbackFailure) { cleanupFailures.Add(rollbackFailure); }
-
-            try { await RecoverAggregateAsync(dbContext, proposal.SegmentId, CancellationToken.None); }
-            catch (Exception recoveryFailure) { cleanupFailures.Add(recoveryFailure); }
-
-            if (cleanupFailures.Count > 0)
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            try
             {
-                try { await dbContext.DisposeAsync(); }
-                catch (Exception disposalFailure) { cleanupFailures.Add(disposalFailure); }
-                throw new AggregateException(
-                    "Segment route reconciliation failed and mandatory cleanup could not restore a reusable DbContext.",
-                    [originalFailure, .. cleanupFailures]);
-            }
+                await LockProfilesAsync(dbContext, requiredProfileIds, cancellationToken);
+                await LockSegmentAsync(dbContext, proposal.SegmentId, cancellationToken);
+                var currentProfileId = await dbContext.Segments.AsNoTracking()
+                    .Where(segment => segment.Id == proposal.SegmentId)
+                    .Select(segment => segment.TransportProfileId)
+                    .SingleOrDefaultAsync(cancellationToken);
+                if (currentProfileId.HasValue && !requiredProfileIds.Contains(currentProfileId.Value))
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    requiredProfileIds = requiredProfileIds.Append(currentProfileId.Value).Distinct().Order().ToArray();
+                    if (attempt == MaximumProfileLockAttempts)
+                        return new(false, ["The Segment profile changed repeatedly while waiting. Reload and try again."], []);
+                    continue;
+                }
 
-            ExceptionDispatchInfo.Capture(originalFailure).Throw();
-            throw;
+                var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: true, cancellationToken);
+                if (!result.Succeeded) return result;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch (Exception originalFailure)
+            {
+                var cleanupFailures = new List<Exception>();
+                try { await transaction.RollbackAsync(CancellationToken.None); }
+                catch (Exception rollbackFailure) { cleanupFailures.Add(rollbackFailure); }
+
+                try { await RecoverAggregateAsync(dbContext, proposal.SegmentId, CancellationToken.None); }
+                catch (Exception recoveryFailure) { cleanupFailures.Add(recoveryFailure); }
+
+                if (cleanupFailures.Count > 0)
+                {
+                    try { await dbContext.DisposeAsync(); }
+                    catch (Exception disposalFailure) { cleanupFailures.Add(disposalFailure); }
+                    throw new AggregateException(
+                        "Segment route reconciliation failed and mandatory cleanup could not restore a reusable DbContext.",
+                        [originalFailure, .. cleanupFailures]);
+                }
+
+                ExceptionDispatchInfo.Capture(originalFailure).Throw();
+                throw;
+            }
         }
+        throw new InvalidOperationException("The bounded profile-lock attempt loop terminated unexpectedly.");
     }
 
     /// <summary>Rejects pending caller work because this operation owns SaveChanges and recovery.</summary>
-    private static void EnsureCleanContext(ApplicationDbContext dbContext)
+    internal static void EnsureCleanContext(ApplicationDbContext dbContext)
     {
         dbContext.ChangeTracker.DetectChanges();
         if (dbContext.ChangeTracker.Entries().Any(entry =>
@@ -127,7 +149,7 @@ public static class SegmentRouteReconciler
     }
 
     /// <summary>Locks only the canonical Segment row for the lifetime of the owned PostgreSQL transaction.</summary>
-    private static async Task LockSegmentAsync(
+    internal static async Task LockSegmentAsync(
         ApplicationDbContext dbContext,
         Guid segmentId,
         CancellationToken cancellationToken)
@@ -135,6 +157,31 @@ public static class SegmentRouteReconciler
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {segmentId} FOR UPDATE",
             cancellationToken);
+    }
+
+    /// <summary>Locks canonical profiles in ascending identity order before the Segment row.</summary>
+    internal static async Task LockProfilesAsync(
+        ApplicationDbContext dbContext,
+        IReadOnlyList<Guid> profileIds,
+        CancellationToken cancellationToken)
+    {
+        foreach (var profileId in profileIds.Order())
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM public.\"TransportProfiles\" WHERE \"Id\" = {profileId} FOR UPDATE",
+                cancellationToken);
+    }
+
+    private static async Task<IReadOnlyList<Guid>> ResolveProfileLockIdsAsync(
+        ApplicationDbContext dbContext,
+        SegmentRouteProposal proposal,
+        CancellationToken cancellationToken)
+    {
+        var current = await dbContext.Segments.AsNoTracking()
+            .Where(segment => segment.Id == proposal.SegmentId)
+            .Select(segment => segment.TransportProfileId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return new[] { current, proposal.Measurement?.TransportProfileId }
+            .Where(id => id.HasValue).Select(id => id!.Value).Distinct().Order().ToArray();
     }
 
     /// <summary>Loads the bounded canonical identities and values needed after acquiring the Segment row lock.</summary>
@@ -283,7 +330,7 @@ public static class SegmentRouteReconciler
         segment.Waypoints = new List<SegmentWaypoint>();
     }
 
-    private static async Task RecoverAggregateAsync(
+    internal static async Task RecoverAggregateAsync(
         ApplicationDbContext dbContext,
         Guid segmentId,
         CancellationToken cancellationToken)
@@ -345,12 +392,16 @@ public static class SegmentRouteReconciler
                 errors.Add($"Waypoint place at position {index} was not found.");
         }
         if (errors.Count > 0) return errors;
+
+        if (proposal.FromPlaceId.HasValue)
+            ValidateCanonicalPlace("From place", placesById[proposal.FromPlaceId.Value], tripId, errors);
+        if (proposal.ToPlaceId.HasValue)
+            ValidateCanonicalPlace("To place", placesById[proposal.ToPlaceId.Value], tripId, errors);
+        if (geometry != null) ValidateBasicCustomGeometry(geometry, errors);
         if (proposal.Waypoints.Count == 0) return errors;
 
         var from = placesById[proposal.FromPlaceId!.Value];
         var to = placesById[proposal.ToPlaceId!.Value];
-        ValidateCanonicalPlace("From place", from, tripId, errors);
-        ValidateCanonicalPlace("To place", to, tripId, errors);
         var placeIds = new HashSet<Guid>();
         for (var index = 0; index < proposal.Waypoints.Count; index++)
         {
@@ -409,11 +460,6 @@ public static class SegmentRouteReconciler
         LineString geometry,
         List<string> errors)
     {
-        if (geometry.SRID != 4326 || geometry.IsEmpty || geometry.NumPoints < 2 || !geometry.IsValid)
-        {
-            errors.Add("Custom route geometry must be a valid SRID 4326 LineString with at least two vertices.");
-            return;
-        }
         if (!CoordinatesMatch(geometry.GetCoordinateN(0), from.Location!.Coordinate))
             errors.Add("The first custom-route vertex must match the From place.");
         if (!CoordinatesMatch(geometry.GetCoordinateN(geometry.NumPoints - 1), to.Location!.Coordinate))
@@ -437,6 +483,15 @@ public static class SegmentRouteReconciler
                 errors.Add("Each indexed custom-route vertex must match its waypoint place.");
             priorIndex = vertexIndex;
         }
+    }
+
+    /// <summary>Validates route shape independently from waypoint anchor semantics.</summary>
+    private static void ValidateBasicCustomGeometry(LineString geometry, List<string> errors)
+    {
+        if (geometry.SRID != 4326 || geometry.IsEmpty || geometry.NumPoints < 2 || !geometry.IsValid
+            || geometry.Coordinates.Any(coordinate => !double.IsFinite(coordinate.X) || !double.IsFinite(coordinate.Y)
+                || coordinate.X is < -180d or > 180d || coordinate.Y is < -90d or > 90d))
+            errors.Add("Custom route geometry must be a valid SRID 4326 LineString with at least two finite longitude/latitude vertices.");
     }
 
     private static IReadOnlyList<Place> BuildAnchorChain(

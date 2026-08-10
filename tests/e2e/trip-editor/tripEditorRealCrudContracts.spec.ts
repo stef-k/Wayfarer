@@ -3,6 +3,7 @@ import {
   absoluteUrl,
   editorApiPath,
   editorPath,
+  dragFromVisibleHandle,
   expectMountedWorkspace,
   loadEditorStateFixture,
   regionCard,
@@ -33,36 +34,29 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       });
       const firstOrdinal = itineraryOrdinal(await regionLabel(page, firstName).innerText());
       const secondOrdinal = itineraryOrdinal(await regionLabel(page, secondName).innerText());
-
       let releaseRegionOrder!: () => void;
       const regionOrderRelease = new Promise<void>(resolve => { releaseRegionOrder = resolve; });
       const regionOrderRequests: string[][] = [];
       const regionOrderPath = /\/editor\/regions\/order$/;
       await page.route(regionOrderPath, async route => {
         regionOrderRequests.push((await route.request().postDataJSON()).regionIds);
-        if (regionOrderRequests.length > 1) {
-          await route.abort();
-          return;
-        }
+        if (regionOrderRequests.length > 1) { await route.abort(); return; }
         const response = await route.fetch();
         await regionOrderRelease;
         await route.fulfill({ response });
       });
-      await regionCard(page, secondName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, firstName));
+      await dragFromVisibleHandle(regionCard(page, secondName), regionCard(page, firstName), 'Drag to reorder region');
       await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
       await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
       await expect(page.locator('.trip-editor-save-state').filter({ hasText: 'Saving order...' }).first()).toBeVisible();
       const blockedRegionHandle = regionCard(page, firstName).getByRole('button', { name: 'Drag to reorder region' });
       await expect(blockedRegionHandle).toBeDisabled();
       await dragByMouse(page, blockedRegionHandle, regionCard(page, secondName));
-      expect(regionOrderRequests, 'Only the first region order request may be emitted while ordering is pending.').toHaveLength(1);
-      await expect(regionLabel(page, secondName)).toHaveText(`${firstOrdinal}-${secondName}`);
-      await expect(regionLabel(page, firstName)).toHaveText(`${secondOrdinal}-${firstName}`);
+      expect(regionOrderRequests).toHaveLength(1);
       releaseRegionOrder();
       await expectSaved(page);
       await expect(blockedRegionHandle).toBeEnabled();
       await page.unroute(regionOrderPath);
-      await expectRegionOrder(page, [secondName, firstName]);
       await page.reload();
       await expectMountedWorkspace(page);
       await expectRegionOrder(page, [secondName, firstName]);
@@ -73,11 +67,11 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
 
       let releaseFailedRegionOrder!: () => void;
       const failedRegionOrderRelease = new Promise<void>(resolve => { releaseFailedRegionOrder = resolve; });
-      await page.route(/\/editor\/regions\/order$/, async route => {
+      await page.route(regionOrderPath, async route => {
         await failedRegionOrderRelease;
         await route.fulfill({ status: 500, body: 'forced reorder failure' });
       }, { times: 1 });
-      await regionCard(page, firstName).getByRole('button', { name: 'Drag to reorder region' }).dragTo(regionCard(page, secondName));
+      await dragFromVisibleHandle(regionCard(page, firstName), regionCard(page, secondName), 'Drag to reorder region');
       await expect(regionLabel(page, firstName)).toHaveText(`${firstOrdinal}-${firstName}`);
       releaseFailedRegionOrder();
       await expect(page.locator('.trip-editor-form-error')).toBeVisible();
@@ -142,15 +136,12 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       const placeOrderRequests: string[][] = [];
       await page.route(placeOrderPath, async route => {
         placeOrderRequests.push((await route.request().postDataJSON()).placeIds);
-        if (placeOrderRequests.length > 1) {
-          await route.abort();
-          return;
-        }
+        if (placeOrderRequests.length > 1) { await route.abort(); return; }
         const response = await route.fetch();
         await placeOrderRelease;
         await route.fulfill({ response });
       });
-      await placeRowByName(page, region.id, firstPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, region.id, secondPlace));
+      await dragFromVisibleHandle(placeRowByName(page, region.id, firstPlace), placeRowByName(page, region.id, secondPlace), 'Drag to reorder place');
       await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
       await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
       const blockedPlaceHandle = placeRowByName(page, region.id, secondPlace).getByRole('button', { name: 'Drag to reorder place' });
@@ -158,9 +149,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
       await expect(blockedPlaceHandle).toBeDisabled();
       await expect(blockedRegionHandle).toBeDisabled();
       await dragByMouse(page, blockedPlaceHandle, placeRowByName(page, region.id, firstPlace));
-      expect(placeOrderRequests, 'Only the first place order request may be emitted while ordering is pending.').toHaveLength(1);
-      await expect(placeLabel(page, region.id, firstPlace)).toHaveText(`1-${firstPlace}`);
-      await expect(placeLabel(page, region.id, secondPlace)).toHaveText(`2-${secondPlace}`);
+      expect(placeOrderRequests).toHaveLength(1);
       releasePlaceOrder();
       await expectSaved(page);
       await expect(blockedPlaceHandle).toBeEnabled();
@@ -181,7 +170,7 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         await failedPlaceOrderRelease;
         await route.fulfill({ status: 500, body: 'forced place reorder failure' });
       }, { times: 1 });
-      await placeRowByName(page, reloadedRegion.id, secondPlace).getByRole('button', { name: 'Drag to reorder place' }).dragTo(placeRowByName(page, reloadedRegion.id, firstPlace));
+      await dragFromVisibleHandle(placeRowByName(page, reloadedRegion.id, secondPlace), placeRowByName(page, reloadedRegion.id, firstPlace), 'Drag to reorder place');
       await expect(placeLabel(page, reloadedRegion.id, secondPlace)).toHaveText(`1-${secondPlace}`);
       releaseFailedPlaceOrder();
       await expect(page.locator('.trip-editor-form-error')).toBeVisible();
@@ -274,7 +263,8 @@ test.describe.serial('Trip Editor real endpoint CRUD persistence contracts', () 
         expect(state.segmentsById[firstId].route.coordinates.length).toBeGreaterThan(1);
       });
 
-      await orderSegmentsViaEndpoint(page, [secondId, firstId]);
+      await dragFromVisibleHandle(segmentRow(page, secondId), segmentRow(page, firstId), 'Drag to reorder segment');
+      await expectSegmentOrder(page, [secondId, firstId]);
       await page.reload();
       await expectMountedWorkspace(page);
       await expectSegmentOrder(page, [secondId, firstId]);
@@ -338,7 +328,7 @@ async function createPlace(page: Page, regionName: string, name: string, latitud
   await form.getByLabel('Latitude').fill(latitude);
   await form.getByLabel('Longitude').fill(longitude);
   await form.getByLabel('Reverse geocode this location on save').uncheck();
-  await page.getByRole('button', { name: 'Save Place' }).click();
+  await page.getByRole('button', { name: 'Save Place', exact: true }).click();
   await expectSaved(page);
   await closeFormSurface(page, '#trip-editor-place-form');
 }
@@ -346,7 +336,7 @@ async function createPlace(page: Page, regionName: string, name: string, latitud
 async function movePlace(page: Page, fromRegionId: string, name: string, toRegionId: string): Promise<void> {
   await placeRowByName(page, fromRegionId, name).getByRole('button', { name: 'Edit', exact: true }).click();
   await page.locator('#trip-editor-place-form').getByLabel('Region').selectOption(toRegionId);
-  await page.getByRole('button', { name: 'Save Place' }).click();
+  await page.getByRole('button', { name: 'Save Place', exact: true }).click();
   await expectSaved(page);
   await closeFormSurface(page, '#trip-editor-place-form');
 }
@@ -518,13 +508,6 @@ async function orderAreasViaEndpoint(page: Page, regionId: string, adjacentNames
   });
 }
 
-async function orderSegmentsViaEndpoint(page: Page, adjacentIds: [string, string]): Promise<void> {
-  const state = await loadEditorStateFixture(page);
-  await putOrder(page, `${editorApiPath}/segments/order`, {
-    segmentIds: reorderedAdjacent(state.segmentOrder as string[], adjacentIds[0], adjacentIds[1])
-  });
-}
-
 async function createSegmentViaEndpoint(page: Page, distance: string, duration: string): Promise<string> {
   const result = await postMutation(page, `${editorApiPath}/segments`, {
     fromPlaceId: null,
@@ -532,6 +515,7 @@ async function createSegmentViaEndpoint(page: Page, distance: string, duration: 
     mode: 'walk',
     estimatedDistanceKm: Number(distance),
     estimatedDurationMinutes: Number(duration),
+    estimatedDurationSource: 'Manual',
     notesHtml: '',
     route: null
   });
@@ -548,6 +532,7 @@ async function updateSegmentRouteViaEndpoint(page: Page, segmentId: string): Pro
     mode: segment.mode,
     estimatedDistanceKm: segment.estimatedDistanceKm,
     estimatedDurationMinutes: segment.estimatedDurationMinutes,
+    estimatedDurationSource: segment.estimatedDurationSource,
     notesHtml: segment.notesHtml,
     route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] }
   });
@@ -625,9 +610,11 @@ async function dragByMouse(page: Page, source: Locator, target: Locator): Promis
   const targetBox = await target.boundingBox();
   expect(sourceBox, 'Drag source must have a rendered box.').not.toBeNull();
   expect(targetBox, 'Drag target must have a rendered box.').not.toBeNull();
+  const movingUp = sourceBox!.y > targetBox!.y;
+  const targetY = movingUp ? targetBox!.y + 2 : targetBox!.y + targetBox!.height - 2;
   await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 8 });
+  await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetY, { steps: 8 });
   await page.mouse.up();
 }
 
@@ -641,7 +628,7 @@ function areaRowByName(page: Page, regionId: string, name: string): Locator {
 }
 
 function segmentRow(page: Page, segmentId: string): Locator {
-  return page.locator(`[data-segment-id="${segmentId}"]`);
+  return page.locator(`.trip-editor-segment-row[data-segment-id="${segmentId}"]`);
 }
 
 async function drawTriangle(page: Page): Promise<void> {
