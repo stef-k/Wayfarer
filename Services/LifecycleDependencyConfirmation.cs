@@ -38,7 +38,7 @@ public sealed class LifecycleDependencyConfirmation
         return new(code, operation, targetId,
             Sample(dependencies.EndpointSegmentIds),
             Sample(dependencies.WaypointOnlySegmentIds),
-            Sample(dependencies.WaypointAssociationIds.Select(item => item.PlaceId)),
+            SampleAssociations(dependencies.WaypointAssociationIds),
             Sample(dependencies.PlaceIds),
             Sample(dependencies.AreaIds),
             token,
@@ -81,6 +81,17 @@ public sealed class LifecycleDependencyConfirmation
     private static EditorLifecycleDependencySampleDto Sample(IEnumerable<Guid> identities)
     {
         var ordered = identities.Distinct().Order().ToArray();
+        return new(ordered.Length, ordered.Take(5).ToArray(), ordered.Length > 5);
+    }
+
+    private static EditorLifecycleAssociationSampleDto SampleAssociations(
+        IEnumerable<(Guid SegmentId, Guid PlaceId)> identities)
+    {
+        var ordered = identities.Distinct()
+            .OrderBy(item => item.SegmentId)
+            .ThenBy(item => item.PlaceId)
+            .Select(item => new EditorLifecycleWaypointAssociationDto(item.SegmentId, item.PlaceId))
+            .ToArray();
         return new(ordered.Length, ordered.Take(5).ToArray(), ordered.Length > 5);
     }
 

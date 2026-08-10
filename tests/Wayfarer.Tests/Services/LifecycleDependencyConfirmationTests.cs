@@ -69,7 +69,8 @@ public sealed class LifecycleDependencyConfirmationTests
             dependencies);
 
         Assert.Equal(7, warning.WaypointAssociations.Count);
-        Assert.Equal(segmentIds.Take(5), warning.WaypointAssociations.Ids);
+        Assert.Equal(segmentIds.Take(5), warning.WaypointAssociations.Ids.Select(item => item.SegmentId));
+        Assert.All(warning.WaypointAssociations.Ids, item => Assert.Equal(sharedPlaceId, item.PlaceId));
         Assert.True(warning.WaypointAssociations.HasMore);
     }
 
