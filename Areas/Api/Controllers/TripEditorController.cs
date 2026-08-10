@@ -278,7 +278,12 @@ public sealed partial class TripEditorController : ControllerBase
             return authFailure;
         }
 
-        var outcome = await _regionMutations.DeleteRegionAsync(tripId, regionId, userId!, cancellationToken);
+        var outcome = await _regionMutations.DeleteRegionAsync(
+            tripId,
+            regionId,
+            userId!,
+            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
+            cancellationToken);
         return ToActionResult(outcome);
     }
 
@@ -460,6 +465,7 @@ public sealed partial class TripEditorController : ControllerBase
             EditorRegionMutationStatus.NotFound => NotFound(),
             EditorRegionMutationStatus.Forbidden => ForbiddenProblem(outcome.ForbiddenDetail ?? "The operation is forbidden."),
             EditorRegionMutationStatus.ValidationFailed => ValidationError(outcome.ValidationErrors ?? new Dictionary<string, string[]>()),
+            EditorRegionMutationStatus.Conflict => Conflict(outcome.Conflict),
             _ => StatusCode(StatusCodes.Status500InternalServerError)
         };
 

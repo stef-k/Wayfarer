@@ -203,3 +203,19 @@ public sealed record EditorDeletedIdsDto(
 /// Non-fatal mutation warning returned to the editor UI.
 /// </summary>
 public sealed record EditorWarningDto(string Code, string Message, string? EntityType, string? EntityId);
+
+/// <summary>Bounded identifiers returned for one lifecycle dependency category.</summary>
+public sealed record EditorLifecycleDependencySampleDto(int Count, IReadOnlyList<Guid> Ids, bool HasMore);
+
+/// <summary>Opaque server-owned confirmation challenge for destructive lifecycle operations.</summary>
+public sealed record EditorLifecycleConflictDto(
+    string Code,
+    string Operation,
+    Guid TargetId,
+    EditorLifecycleDependencySampleDto EndpointSegments,
+    EditorLifecycleDependencySampleDto WaypointOnlySegments,
+    EditorLifecycleDependencySampleDto WaypointAssociations,
+    EditorLifecycleDependencySampleDto DeletedPlaces,
+    EditorLifecycleDependencySampleDto DeletedAreas,
+    string ConfirmationToken,
+    DateTimeOffset ExpiresAt);

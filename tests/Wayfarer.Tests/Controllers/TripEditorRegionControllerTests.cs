@@ -83,6 +83,9 @@ public sealed class TripEditorRegionControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
+        var challengeResult = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
+        var challenge = Assert.IsType<EditorLifecycleConflictDto>(Assert.IsType<ConflictObjectResult>(challengeResult).Value);
+        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
         var result = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
 
         var envelope = AssertMutation<EditorRegionDto?>(result);
