@@ -81,7 +81,6 @@ public sealed class PlaceRegionLifecyclePostgresTests
     {
         var seeded = await SeedAsync(customRoute: true);
         var drift = new DependencyDriftInterceptor(
-            seeded.SegmentId,
             driftAttempts,
             () => AddEndpointDependencyAsync(seeded));
         await using var context = _fixture.CreateContext(drift);
@@ -112,7 +111,6 @@ public sealed class PlaceRegionLifecyclePostgresTests
     {
         var seeded = await SeedAsync(customRoute: true);
         var drift = new DependencyDriftInterceptor(
-            seeded.SegmentId,
             driftAttempts: 3,
             () => AddEndpointDependencyAsync(seeded));
         await using var context = _fixture.CreateContext(drift);
@@ -216,11 +214,11 @@ public sealed class PlaceRegionLifecyclePostgresTests
 
     /// <summary>Adds one dependency immediately before the known Segment lock on selected attempts.</summary>
     private sealed class DependencyDriftInterceptor(
-        Guid firstSegmentId,
         int driftAttempts,
         Func<Task> addDependency) : DbCommandInterceptor
     {
         private int _attempts;
+        private readonly HashSet<Guid> _observedTransactions = [];
 
         /// <summary>Gets the number of complete-attempt markers observed.</summary>
         internal int Attempts => _attempts;
@@ -233,9 +231,8 @@ public sealed class PlaceRegionLifecyclePostgresTests
         {
             if (!command.CommandText.Contains("FROM public.\"Segments\"", StringComparison.Ordinal)
                 || !command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
-                || command.Parameters.Count == 0
-                || command.Parameters[0].Value is not Guid segmentId
-                || segmentId != firstSegmentId)
+                || eventData.Context?.Database.CurrentTransaction is not { } transaction
+                || !_observedTransactions.Add(transaction.TransactionId))
             {
                 return result;
             }

@@ -10,6 +10,7 @@ namespace Wayfarer.Services;
 /// <summary>Owns atomic, waypoint-aware mutations of existing Places and Regions.</summary>
 public sealed partial class PlaceRegionLifecycleService
 {
+    private const int MaximumUpdateAttempts = 3;
     private const string PlaceDeleteOperation = "place-delete";
     private const string RegionDeleteOperation = "region-delete";
     private readonly ApplicationDbContext _dbContext;
@@ -30,72 +31,88 @@ public sealed partial class PlaceRegionLifecycleService
         PlaceLifecycleUpdate update,
         CancellationToken cancellationToken)
     {
-        var recovery = new LifecycleRecoveryScope([placeId], [update.RegionId], []);
-        await using var transaction = await BeginTransactionAsync(cancellationToken);
-        try
+        for (var attempt = 1; attempt <= MaximumUpdateAttempts; attempt++)
         {
-            var place = await LoadOwnedPlaceAsync(tripId, placeId, userId, cancellationToken);
-            if (place == null) return PlaceLifecycleUpdateResult.NotFound;
-            var targetRegion = await _dbContext.Regions
-                .SingleOrDefaultAsync(region => region.Id == update.RegionId && region.TripId == tripId && region.UserId == userId, cancellationToken);
-            if (targetRegion == null) return PlaceLifecycleUpdateResult.NotFound;
-
-            var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
-            recovery = new([placeId], [place.RegionId, targetRegion.Id], affected.Select(item => item.Id).ToArray());
-            await LockAsync(affected, [placeId], [place.RegionId, targetRegion.Id], cancellationToken);
-            var oldRegionId = place.RegionId;
-            var moved = oldRegionId != targetRegion.Id;
-            var locationChanged = !CoordinatesEqual(place.Location, update.Location);
-            if (update.Location == null && affected.Any(segment => segment.Waypoints.Count > 0))
+            var candidates = await DiscoverUpdateCandidatesAsync(tripId, placeId, update.RegionId, userId, cancellationToken);
+            if (candidates == null) return PlaceLifecycleUpdateResult.NotFound;
+            var recovery = new LifecycleRecoveryScope([placeId], candidates.RegionIds, candidates.SegmentIds);
+            await using var transaction = await BeginTransactionAsync(cancellationToken);
+            try
             {
-                await RollbackAsync(transaction);
-                return PlaceLifecycleUpdateResult.Validation("location", "waypoint-location-required", "Location is required while the Place is referenced by a waypoint-bearing Segment.");
-            }
-
-            place.Name = update.Name;
-            place.Notes = update.Notes;
-            place.Address = update.Address;
-            place.IconName = update.IconName;
-            place.MarkerColor = update.MarkerColor;
-            place.Location = CopyPoint(update.Location);
-            if (moved)
-            {
-                place.RegionId = targetRegion.Id;
-                place.Region = targetRegion;
-                place.DisplayOrder = await NextPlaceOrderAsync(targetRegion.Id, cancellationToken);
-            }
-            if (update.DisplayOrder.HasValue) place.DisplayOrder = update.DisplayOrder.Value;
-
-            if (locationChanged)
-            {
-                foreach (var segment in affected.OrderBy(item => item.Id))
+                await LockAsync(candidates, cancellationToken);
+                var canonicalCandidates = await DiscoverUpdateCandidatesAsync(tripId, placeId, update.RegionId, userId, cancellationToken);
+                if (canonicalCandidates == null) return PlaceLifecycleUpdateResult.NotFound;
+                if (canonicalCandidates.RequiresLocksOutside(candidates))
                 {
-                    RewriteLocation(segment, placeId, update.Location);
-                    await ReconcileSegmentAsync(segment, cancellationToken);
+                    await RollbackAsync(transaction);
+                    if (attempt == MaximumUpdateAttempts) return PlaceLifecycleUpdateResult.ConcurrencyConflict;
+                    continue;
                 }
-            }
 
-            if (moved)
-            {
-                await NormalizePlaceOrdersAsync(oldRegionId, placeId, cancellationToken);
-                await NormalizePlaceOrdersAsync(targetRegion.Id, null, cancellationToken);
-            }
-            else if (update.DisplayOrder.HasValue)
-            {
-                await NormalizePlaceOrdersAsync(targetRegion.Id, null, cancellationToken);
-            }
+                DetachCanonicalEntries(canonicalCandidates);
+                var place = await LoadOwnedPlaceAsync(tripId, placeId, userId, cancellationToken);
+                if (place == null) return PlaceLifecycleUpdateResult.NotFound;
+                var targetRegion = await _dbContext.Regions
+                    .SingleOrDefaultAsync(region => region.Id == update.RegionId && region.TripId == tripId && region.UserId == userId, cancellationToken);
+                if (targetRegion == null) return PlaceLifecycleUpdateResult.NotFound;
+                var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
+                recovery = new([placeId], [place.RegionId, targetRegion.Id], affected.Select(item => item.Id).ToArray());
+                var oldRegionId = place.RegionId;
+                var moved = oldRegionId != targetRegion.Id;
+                var locationChanged = !CoordinatesEqual(place.Location, update.Location);
+                if (update.Location == null && affected.Any(segment => segment.Waypoints.Count > 0))
+                {
+                    await RollbackAsync(transaction);
+                    return PlaceLifecycleUpdateResult.Validation("location", "waypoint-location-required", "Location is required while the Place is referenced by a waypoint-bearing Segment.");
+                }
 
-            await _dbContext.SaveChangesAsync(cancellationToken);
-            if (transaction != null) await transaction.CommitAsync(cancellationToken);
-            var orderRegions = moved ? new[] { oldRegionId, targetRegion.Id }
-                : update.DisplayOrder.HasValue ? new[] { targetRegion.Id } : [];
-            return new(true, null, null, place, affected, orderRegions, locationChanged);
+                place.Name = update.Name;
+                place.Notes = update.Notes;
+                place.Address = update.Address;
+                place.IconName = update.IconName;
+                place.MarkerColor = update.MarkerColor;
+                place.Location = CopyPoint(update.Location);
+                if (moved)
+                {
+                    place.RegionId = targetRegion.Id;
+                    place.Region = targetRegion;
+                    place.DisplayOrder = await NextPlaceOrderAsync(targetRegion.Id, cancellationToken);
+                }
+                if (update.DisplayOrder.HasValue) place.DisplayOrder = update.DisplayOrder.Value;
+
+                if (locationChanged)
+                {
+                    foreach (var segment in affected.OrderBy(item => item.Id))
+                    {
+                        RewriteLocation(segment, placeId, update.Location);
+                        await ReconcileSegmentAsync(segment, cancellationToken);
+                    }
+                }
+
+                if (moved)
+                {
+                    await NormalizePlaceOrdersAsync(oldRegionId, placeId, cancellationToken);
+                    await NormalizePlaceOrdersAsync(targetRegion.Id, null, cancellationToken);
+                }
+                else if (update.DisplayOrder.HasValue)
+                {
+                    await NormalizePlaceOrdersAsync(targetRegion.Id, null, cancellationToken);
+                }
+
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                if (transaction != null) await transaction.CommitAsync(cancellationToken);
+                var orderRegions = moved ? new[] { oldRegionId, targetRegion.Id }
+                    : update.DisplayOrder.HasValue ? new[] { targetRegion.Id } : [];
+                return new(true, null, null, place, affected, orderRegions, locationChanged);
+            }
+            catch (Exception original)
+            {
+                await RecoverAndRethrowAsync(original, transaction, recovery);
+                throw;
+            }
         }
-        catch (Exception original)
-        {
-            await RecoverAndRethrowAsync(original, transaction, recovery);
-            throw;
-        }
+
+        return PlaceLifecycleUpdateResult.ConcurrencyConflict;
     }
 
     /// <summary>Deletes a Place and all endpoint/waypoint effects after server-owned confirmation.</summary>
@@ -262,6 +279,52 @@ public sealed partial class PlaceRegionLifecycleService
                 && (placeIds.Contains(segment.FromPlaceId!.Value) || placeIds.Contains(segment.ToPlaceId!.Value) || segment.Waypoints.Any(item => placeIds.Contains(item.PlaceId))))
             .OrderBy(segment => segment.Id).ToArrayAsync(cancellationToken);
 
+    private async Task<LifecycleLockCandidates?> DiscoverUpdateCandidatesAsync(
+        Guid tripId,
+        Guid placeId,
+        Guid targetRegionId,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        var currentRegionId = await _dbContext.Places.AsNoTracking()
+            .Where(place => place.Id == placeId && place.UserId == userId && place.Region.TripId == tripId)
+            .Select(place => (Guid?)place.RegionId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (!currentRegionId.HasValue) return null;
+        var targetExists = await _dbContext.Regions.AsNoTracking()
+            .AnyAsync(region => region.Id == targetRegionId && region.TripId == tripId && region.UserId == userId, cancellationToken);
+        if (!targetExists) return null;
+        var segments = await _dbContext.Segments.AsNoTracking()
+            .Where(segment => segment.TripId == tripId && segment.UserId == userId
+                && (segment.FromPlaceId == placeId || segment.ToPlaceId == placeId || segment.Waypoints.Any(item => item.PlaceId == placeId)))
+            .Select(segment => new { segment.Id, segment.TransportProfileId })
+            .OrderBy(segment => segment.Id)
+            .ToArrayAsync(cancellationToken);
+        return new(
+            segments.Where(item => item.TransportProfileId.HasValue).Select(item => item.TransportProfileId!.Value).Distinct().Order().ToArray(),
+            segments.Select(item => item.Id).Distinct().Order().ToArray(),
+            [placeId],
+            new[] { currentRegionId.Value, targetRegionId }.Distinct().Order().ToArray());
+    }
+
+    private void DetachCanonicalEntries(LifecycleLockCandidates candidates)
+    {
+        var segmentIds = candidates.SegmentIds.ToHashSet();
+        var placeIds = candidates.PlaceIds.ToHashSet();
+        var regionIds = candidates.RegionIds.ToHashSet();
+        foreach (var entry in _dbContext.ChangeTracker.Entries().Where(entry => entry.Entity switch
+        {
+            Segment segment => segmentIds.Contains(segment.Id),
+            SegmentWaypoint waypoint => segmentIds.Contains(waypoint.SegmentId),
+            Place place => placeIds.Contains(place.Id),
+            Region region => regionIds.Contains(region.Id),
+            _ => false
+        }).ToArray())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
     private async Task<Place?> LoadOwnedPlaceAsync(Guid tripId, Guid placeId, string userId, CancellationToken cancellationToken) =>
         await _dbContext.Places.Include(place => place.Region)
             .SingleOrDefaultAsync(place => place.Id == placeId && place.UserId == userId && place.Region.TripId == tripId, cancellationToken);
@@ -327,6 +390,18 @@ public sealed partial class PlaceRegionLifecycleService
             await _dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {regionId} FOR UPDATE", cancellationToken);
     }
 
+    private async Task LockAsync(LifecycleLockCandidates candidates, CancellationToken cancellationToken)
+    {
+        if (!_dbContext.Database.IsRelational()) return;
+        await SegmentRouteReconciler.LockProfilesAsync(_dbContext, candidates.ProfileIds, cancellationToken);
+        foreach (var segmentId in candidates.SegmentIds)
+            await SegmentRouteReconciler.LockSegmentAsync(_dbContext, segmentId, cancellationToken);
+        foreach (var placeId in candidates.PlaceIds)
+            await _dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {placeId} FOR UPDATE", cancellationToken);
+        foreach (var regionId in candidates.RegionIds)
+            await _dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {regionId} FOR UPDATE", cancellationToken);
+    }
+
     private async Task NormalizePlaceOrdersAsync(Guid regionId, Guid? excludedPlaceId, CancellationToken cancellationToken)
     {
         var places = await _dbContext.Places.Where(place => place.RegionId == regionId && place.Id != excludedPlaceId)
@@ -376,6 +451,23 @@ public sealed record PlaceLifecycleUpdateResult(bool Succeeded, Dictionary<strin
     public static PlaceLifecycleUpdateResult NotFound { get; } = new(false, null, null, null, [], [], false);
     /// <summary>Represents deterministic field validation.</summary>
     public static PlaceLifecycleUpdateResult Validation(string field, string code, string message) => new(false, new() { [field] = [message] }, code, null, [], [], false);
+    /// <summary>Represents bounded dependency drift after all permitted attempts.</summary>
+    public static PlaceLifecycleUpdateResult ConcurrencyConflict { get; } = new(false, null, "lifecycle-concurrency-conflict", null, [], [], false);
+}
+
+/// <summary>Sorted identities that one lifecycle attempt must lock before canonical reload.</summary>
+internal sealed record LifecycleLockCandidates(
+    Guid[] ProfileIds,
+    Guid[] SegmentIds,
+    Guid[] PlaceIds,
+    Guid[] RegionIds)
+{
+    /// <summary>Returns whether canonical state requires any lock absent from the candidate attempt.</summary>
+    internal bool RequiresLocksOutside(LifecycleLockCandidates held) =>
+        ProfileIds.Except(held.ProfileIds).Any()
+        || SegmentIds.Except(held.SegmentIds).Any()
+        || PlaceIds.Except(held.PlaceIds).Any()
+        || RegionIds.Except(held.RegionIds).Any();
 }
 
 /// <summary>Result of an atomic Place deletion.</summary>

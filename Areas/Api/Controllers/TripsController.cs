@@ -766,7 +766,9 @@ return Ok(dto);
                 request.DisplayOrder),
             HttpContext.RequestAborted);
         if (!lifecycle.Succeeded)
-            return lifecycle.Errors != null
+            return lifecycle.ErrorCode == "lifecycle-concurrency-conflict"
+                ? Conflict(new { code = lifecycle.ErrorCode })
+                : lifecycle.Errors != null
                 ? BadRequest(new { code = lifecycle.ErrorCode, errors = lifecycle.Errors })
                 : NotFound("Place not found.");
         place = lifecycle.Place!;

@@ -149,6 +149,8 @@ public sealed class TripEditorPlaceMutationService
             cancellationToken);
         if (!lifecycle.Succeeded)
         {
+            if (lifecycle.ErrorCode == "lifecycle-concurrency-conflict")
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Conflicted(new { code = lifecycle.ErrorCode });
             return lifecycle.Errors != null
                 ? EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(lifecycle.Errors)
                 : EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
