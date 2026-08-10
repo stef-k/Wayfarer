@@ -19,7 +19,6 @@ public sealed class TripEditorPlaceMutationService
     private readonly IIconColorProvider _iconColorProvider;
     private readonly ILogger<TripEditorPlaceMutationService> _logger;
     private readonly TripEditorPlaceMutationReader _reader;
-    private readonly TripEditorPlaceRouteEffects _routeEffects;
     private readonly PlaceRegionLifecycleService _lifecycle;
     private readonly ReverseGeocodingService _reverseGeocodingService;
 
@@ -32,7 +31,6 @@ public sealed class TripEditorPlaceMutationService
         IIconColorProvider iconColorProvider,
         ReverseGeocodingService reverseGeocodingService,
         TripEditorPlaceMutationReader? reader = null,
-        TripEditorPlaceRouteEffects? routeEffects = null,
         ILogger<TripEditorPlaceMutationService>? logger = null,
         PlaceRegionLifecycleService? lifecycle = null)
     {
@@ -41,7 +39,6 @@ public sealed class TripEditorPlaceMutationService
         _iconColorProvider = iconColorProvider;
         _reverseGeocodingService = reverseGeocodingService;
         _reader = reader ?? new TripEditorPlaceMutationReader(dbContext);
-        _routeEffects = routeEffects ?? new TripEditorPlaceRouteEffects(dbContext);
         _lifecycle = lifecycle ?? new PlaceRegionLifecycleService(
             dbContext,
             new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider()));

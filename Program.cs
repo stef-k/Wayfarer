@@ -600,7 +600,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
     builder.Services.AddSingleton<MapSnapshotService>();
-    builder.Services.AddSingleton(TimeProvider.System); builder.Services.AddScoped<LifecycleDependencyConfirmation>(); builder.Services.AddScoped<PlaceRegionLifecycleService>(); builder.Services.AddScoped<TripEditorRegionMutationService>(); builder.Services.AddScoped<TripEditorPlaceMutationReader>(); builder.Services.AddScoped<TripEditorPlaceRouteEffects>(); builder.Services.AddScoped<TripEditorPlaceMutationService>(); builder.Services.AddScoped<TripEditorAreaMutationService>(); builder.Services.AddScoped<TripEditorSegmentMutationService>();
+    builder.Services.AddSingleton(TimeProvider.System); builder.Services.AddScoped<LifecycleDependencyConfirmation>(); builder.Services.AddScoped<PlaceRegionLifecycleService>(); builder.Services.AddScoped<TripEditorRegionMutationService>(); builder.Services.AddScoped<TripEditorPlaceMutationReader>(); builder.Services.AddScoped<TripEditorPlaceMutationService>(); builder.Services.AddScoped<TripEditorAreaMutationService>(); builder.Services.AddScoped<TripEditorSegmentMutationService>();
 
     builder.Services.AddScoped<ITripThumbnailService, TripThumbnailService>();
     builder.Services.AddSingleton<ITripMapThumbnailGenerator, TripMapThumbnailGenerator>();
