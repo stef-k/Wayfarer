@@ -99,30 +99,25 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await expectDrawerHeight(page, { min: 170, max: 190 });
     const initialPeekHeight = await drawerHeight(page);
 
-    await page.getByRole('button', { name: 'Collapse' }).click();
-    await expectDrawerState(page, 'collapsed');
+    await clickAndExpectDrawerState(page, 'Collapse', 'collapsed');
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeHidden();
     await expectDrawerHeight(page, { min: 84, max: 100 });
     await expectMapFirstPhoneLayout(page);
 
-    await page.getByRole('button', { name: 'Peek' }).click();
-    await expectDrawerState(page, 'peek');
+    await clickAndExpectDrawerState(page, 'Peek', 'peek');
     await expect(page.getByRole('navigation', { name: 'Trip editor sections' })).toBeVisible();
     await expectHeightCloseTo(page, initialPeekHeight);
     await expectMapFirstPhoneLayout(page);
 
-    await page.getByRole('button', { name: 'Expand' }).click();
-    await expectDrawerState(page, 'expanded-view');
+    await clickAndExpectDrawerState(page, 'Expand', 'expanded-view');
     await expect(page.getByRole('button', { name: 'Trip', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expectDrawerHeight(page, { min: 640, max: 735 });
     const expandedHeight = await drawerHeight(page);
 
-    await page.getByRole('button', { name: 'Regions' }).click();
-    await expectDrawerState(page, 'expanded-view');
+    await clickAndExpectDrawerState(page, 'Regions', 'expanded-view');
     await expectHeightCloseTo(page, expandedHeight);
 
-    await page.getByRole('button', { name: 'Segments' }).click();
-    await expectDrawerState(page, 'expanded-view');
+    await clickAndExpectDrawerState(page, 'Segments', 'expanded-view');
     await expectHeightCloseTo(page, expandedHeight);
   });
 
@@ -150,11 +145,9 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     const metadataName = page.locator('#trip-editor-metadata-form').getByLabel('Name');
     const activeDraftName = `${await metadataName.inputValue()} drawer recoverable edit`;
     await metadataName.fill(activeDraftName);
-    await page.getByRole('button', { name: 'Collapse' }).click();
-    await expectDrawerState(page, 'collapsed');
+    await clickAndExpectDrawerState(page, 'Collapse', 'collapsed');
     await expect(page.locator('#trip-editor-metadata-form')).toBeHidden();
-    await page.getByRole('button', { name: 'Expand' }).click();
-    await expectDrawerState(page, 'expanded-edit');
+    await clickAndExpectDrawerState(page, 'Expand', 'expanded-edit');
     await expect(page.locator('#trip-editor-metadata-form').getByLabel('Name')).toHaveValue(activeDraftName);
     await capture(page, testInfo, 'phone-dark-active-trip-edit');
     await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Close' }).click();
@@ -186,12 +179,10 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
 
-    await page.setViewportSize({ width: 430, height: 844 });
-    await page.getByRole('button', { name: 'Peek', exact: true }).click();
-    await expectDrawerState(page, 'peek');
+    await page.setViewportSize({ width: 430, height: 932 });
+    await clickAndExpectDrawerState(page, 'Peek', 'peek');
     await expectMapFirstPhoneLayout(page);
-    await page.getByRole('button', { name: 'Expand', exact: true }).click();
-    await expectDrawerState(page, 'expanded-edit');
+    await clickAndExpectDrawerState(page, 'Expand', 'expanded-edit');
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await expectDrawerState(page, 'peek');
     await expectMapWorkToolbarHitTesting(page);
@@ -480,6 +471,12 @@ async function openEditorWithTripSummaryFixture(
 
 async function expectDrawerState(page: Page, state: string): Promise<void> {
   await expect(page.locator('.trip-editor-sidebar--mobile-drawer')).toHaveAttribute('data-mobile-drawer-state', state);
+}
+
+// Exercises a visible drawer control and verifies the resulting public state.
+async function clickAndExpectDrawerState(page: Page, controlName: string, state: string): Promise<void> {
+  await page.getByRole('button', { name: controlName, exact: true }).click();
+  await expectDrawerState(page, state);
 }
 
 const drawerHeight = (page: Page) => page.locator('.trip-editor-sidebar--mobile-drawer').evaluate(element => element.getBoundingClientRect().height);
