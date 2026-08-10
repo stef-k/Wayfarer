@@ -250,7 +250,7 @@ function startPostgres(): void {
   const data = requiredEnvironment('WAYFARER_E2E_POSTGRES_DATA');
   const log = requiredEnvironment('WAYFARER_E2E_POSTGRES_LOG');
   const port = requiredEnvironment('WAYFARER_E2E_POSTGRES_PORT');
-  execFileSync(control, ['-D', data, '-l', log, '-o', `-p ${port} -h 127.0.0.1`, 'start'], { stdio: 'pipe' });
+  execFileSync(control, ['-D', data, '-l', log, '-o', `-p ${port} -h 127.0.0.1`, 'start'], { stdio: 'ignore' });
 }
 
 /** Returns a required run-owned orchestration value without printing it. */
