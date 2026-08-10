@@ -14,6 +14,43 @@ namespace Wayfarer.Tests.Models;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class PlaceRegionLifecycleDestructiveConcurrencyPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Rejects confirmed Place deletion when a waited-on Segment changes to an unlocked profile.</summary>
+    [PostgresFact]
+    public async Task ConfirmedWaypointPlaceDeletion_ProfileChangesDuringSegmentWait_ReturnsFreshStaleToken()
+    {
+        var seeded = await SeedAsync();
+        var confirmation = new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider());
+        var token = await PlaceTokenAsync(seeded, confirmation);
+        await using var blocker = fixture.CreateContext();
+        await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
+        await SegmentRouteReconciler.LockSegmentAsync(blocker, seeded.SegmentId, CancellationToken.None);
+        await using var lifecycle = fixture.CreateContext();
+        await lifecycle.Database.OpenConnectionAsync();
+        var lifecyclePid = await BackendPidAsync(lifecycle);
+        var deletion = Service(lifecycle, confirmation).DeletePlaceAsync(
+            seeded.TripId, seeded.WaypointId, seeded.UserId, token, CancellationToken.None);
+
+        await WaitUntilBlockedAsync(lifecyclePid);
+        var segment = await blocker.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        segment.TransportProfileId = seeded.SecondProfileId;
+        segment.Mode = seeded.SecondProfileKey;
+        await blocker.SaveChangesAsync();
+        await blockerTransaction.CommitAsync();
+
+        var result = await deletion;
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("lifecycle-confirmation-stale", result.Warning!.Code);
+        Assert.False(string.IsNullOrWhiteSpace(result.Warning.ConfirmationToken));
+        await using var verification = fixture.CreateContext();
+        Assert.True(await verification.Places.AnyAsync(item => item.Id == seeded.WaypointId));
+        var persisted = await verification.Segments.Include(item => item.Waypoints)
+            .SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Equal(seeded.SecondProfileId, persisted.TransportProfileId);
+        Assert.Contains(persisted.Waypoints, item => item.PlaceId == seeded.WaypointId);
+        Assert.Equal(new Coordinate(2, 2), persisted.RouteGeometry!.Coordinates[1]);
+    }
+
     /// <summary>Serializes confirmed Place deletion against direct reconciliation of its surviving Segment.</summary>
     [PostgresFact]
     public async Task PlaceDeletion_VersusSegmentReconciliation_CommitsOneCoherentState()
@@ -135,6 +172,10 @@ public sealed class PlaceRegionLifecycleDestructiveConcurrencyPostgresTests(Post
     {
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
+        var firstProfile = Profile("drift-a");
+        var secondProfile = Profile("drift-b");
+        fixture.RegisterTransportProfile(firstProfile.Id);
+        fixture.RegisterTransportProfile(secondProfile.Id);
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Destructive concurrency" };
         fixture.RegisterTrip(trip.Id);
         var deletedRegion = Region(trip, user.Id, "Deleted", 1);
@@ -146,6 +187,7 @@ public sealed class PlaceRegionLifecycleDestructiveConcurrencyPostgresTests(Post
         {
             Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id,
             FromPlaceId = from.Id, ToPlaceId = to.Id, DisplayOrder = 1,
+            Mode = firstProfile.Key, TransportProfile = firstProfile, TransportProfileId = firstProfile.Id,
             RouteGeometry = new LineString([new(1, 1), new(2, 2), new(3, 3)]) { SRID = 4326 }
         };
         segment.Waypoints.Add(new SegmentWaypoint
@@ -155,9 +197,11 @@ public sealed class PlaceRegionLifecycleDestructiveConcurrencyPostgresTests(Post
         });
         trip.Segments.Add(segment);
         await using var context = fixture.CreateContext();
+        context.Set<TransportProfile>().Add(secondProfile);
         context.Trips.Add(trip);
         await context.SaveChangesAsync();
-        return new(user.Id, trip.Id, deletedRegion.Id, outsideRegion.Id, waypoint.Id, from.Id, to.Id, segment.Id);
+        return new(user.Id, trip.Id, deletedRegion.Id, outsideRegion.Id, waypoint.Id, from.Id, to.Id, segment.Id,
+            firstProfile.Id, secondProfile.Id, secondProfile.Key);
     }
 
     private async Task<string> PlaceTokenAsync(
@@ -250,6 +294,12 @@ public sealed class PlaceRegionLifecycleDestructiveConcurrencyPostgresTests(Post
 
     private static Point Point(double x, double y) => new(x, y) { SRID = 4326 };
 
+    private static TransportProfile Profile(string prefix) => new()
+    {
+        Id = Guid.NewGuid(), Key = $"{prefix}-{Guid.NewGuid():N}"[..30], Label = prefix,
+        Category = "Test", PlanningSpeedKmh = 5, IsActive = false
+    };
+
     private sealed record Captured<T>(T? Result, Exception? Exception);
 
     private sealed record DestructiveSeed(
@@ -260,7 +310,10 @@ public sealed class PlaceRegionLifecycleDestructiveConcurrencyPostgresTests(Post
         Guid WaypointId,
         Guid FromPlaceId,
         Guid ToPlaceId,
-        Guid SegmentId);
+        Guid SegmentId,
+        Guid FirstProfileId,
+        Guid SecondProfileId,
+        string SecondProfileKey);
 
     private sealed class SaveGateInterceptor : SaveChangesInterceptor
     {

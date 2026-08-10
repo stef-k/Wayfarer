@@ -19,6 +19,7 @@ public sealed class PostgresEnvironmentEvidenceTests(ITestOutputHelper output)
         command.CommandText =
             """
             SELECT current_setting('server_version'), postgis_full_version(),
+              (SELECT count(*) FROM "__EFMigrationsHistory"),
               (SELECT count(*) FROM "AspNetUsers" WHERE "Id" LIKE 'import-fixture-%'),
               (SELECT count(*) FROM "Trips" WHERE "Name" IN (
                 'Lifecycle concurrency', 'Destructive concurrency', 'Dependency drift', 'Lock order',
@@ -29,12 +30,15 @@ public sealed class PostgresEnvironmentEvidenceTests(ITestOutputHelper output)
         Assert.True(await reader.ReadAsync());
         var postgres = reader.GetString(0);
         var postgis = reader.GetString(1);
-        var fixtureUsers = reader.GetInt64(2);
-        var lifecycleTrips = reader.GetInt64(3);
+        var migrationCount = reader.GetInt64(2);
+        var fixtureUsers = reader.GetInt64(3);
+        var lifecycleTrips = reader.GetInt64(4);
         output.WriteLine($"PostgreSQL: {postgres}");
         output.WriteLine($"PostGIS: {postgis}");
+        output.WriteLine($"Applied migrations: {migrationCount}");
         output.WriteLine($"Fixture users remaining: {fixtureUsers}");
         output.WriteLine($"Named lifecycle trips remaining: {lifecycleTrips}");
+        Assert.True(migrationCount > 0);
         Assert.Equal(0, fixtureUsers);
         Assert.Equal(0, lifecycleTrips);
     }

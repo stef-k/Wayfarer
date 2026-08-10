@@ -108,23 +108,33 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     await expectMeaningfulFocus(page);
   });
 
-  test('provider failure preserves visible state, prevents duplicate confirmation, and permits retry', async ({ page }) => {
+  test('provider failure preserves visible state, prevents duplicate confirmation, and permits retry', async ({ page }, testInfo) => {
+    const timing = (event: string): void => testInfo.annotations.push({ type: 'provider-outage-timing', description: `${new Date().toISOString()} ${event}` });
     await openFixture(page);
     const target = fixture.failurePlace;
     await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
     const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
     await deleteButton.click();
     const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+    await expect(dialog).toBeVisible();
+    timing('warning dialog visible');
+    timing('PostgreSQL stop command start');
     stopPostgres();
+    timing('PostgreSQL stop command end');
     try {
       const response = page.waitForResponse(candidate => candidate.request().method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
+      timing('confirmation click');
       await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+      timing('confirmation click completed');
       await expect(dialog).toHaveCount(0);
       await expect(deleteButton).toBeDisabled();
       await expect(page.getByRole('status').filter({ hasText: 'Saving' }).first()).toBeVisible();
       expect((await response).status()).toBe(500);
+      timing('HTTP 500 response');
     } finally {
+      timing('PostgreSQL restart start');
       startPostgres();
+      timing('PostgreSQL restart end');
     }
 
     await expect(placeRow(page, target.id)).toBeVisible();
