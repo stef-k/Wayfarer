@@ -119,8 +119,8 @@ test.describe.serial('Trip Editor dev verification', () => {
       const placeDialog = page.getByRole('dialog', { name: 'Add Place' });
       await expect(placeDialog).toBeVisible();
       await placeDialog.getByRole('button', { name: 'Dock to sidebar' }).click();
-      const placeForm = page.locator('#trip-editor-place-form');
-      const savePlace = placeForm.getByRole('button', { name: 'Save Place', exact: true });
+      const placeSurface = page.getByRole('region', { name: 'Add Place', exact: true });
+      const savePlace = placeSurface.getByRole('button', { name: 'Save Place', exact: true });
       await expect(savePlace).toHaveCount(1);
       await expect(savePlace).toBeVisible();
       await expect(savePlace).toBeEnabled();
