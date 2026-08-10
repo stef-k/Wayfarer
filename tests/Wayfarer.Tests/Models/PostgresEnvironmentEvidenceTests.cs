@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Records isolated provider versions and verifies lifecycle fixture cleanup.</summary>
-[Collection(PostgresImportTestCollection.Name)]
+[Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class PostgresEnvironmentEvidenceTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
     /// <summary>Reports PostgreSQL/PostGIS versions and proves no lifecycle fixture rows remain.</summary>
