@@ -20,14 +20,15 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
     {
         var plan = new FailurePlan();
         var seed = await SeedAsync();
-        await using var context = fixture.CreateContext(new FailingSaveInterceptor(plan));
+        var operation = new FailingSaveInterceptor(plan);
+        await using var context = fixture.CreateContext(operation);
         var recovery = new FailingContextRecovery(failRestore: true, failDispose: false);
 
         var exception = await Assert.ThrowsAsync<AggregateException>(
             () => ReplaceAsync(context, seed, CancellationToken.None, recovery));
 
         Assert.Collection(exception.InnerExceptions,
-            original => Assert.Equal("Deterministic #407 provider failure.", original.Message),
+            original => Assert.Same(operation.Failure, original),
             restoration => Assert.Same(recovery.RestorationFailure, restoration));
         await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
         await AssertOriginalAggregateAsync(seed);

@@ -104,7 +104,7 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
         var generatedId = Guid.NewGuid();
         var save = new PlannedSaveFailureInterceptor(plan);
         var recovery = new CreateRecoveryReadFailureInterceptor(plan);
-        var before = await ReadUnrelatedStateAsync(seed);
+        var before = await ReadProviderSnapshotAsync(seed);
         await using var context = fixture.CreateContext(
             save, recovery);
 
@@ -122,7 +122,7 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
         await using var verification = fixture.CreateContext();
         Assert.False(await verification.Segments.AsNoTracking().AnyAsync(item => item.Id == generatedId));
         Assert.False(await verification.Set<SegmentWaypoint>().AsNoTracking().AnyAsync(item => item.SegmentId == generatedId));
-        Assert.Equal(before, await ReadUnrelatedStateAsync(seed));
+        AssertProviderSnapshotEqual(before, await ReadProviderSnapshotAsync(seed));
     }
 
     /// <summary>An application-generated ID collision returns the bounded create conflict without partial state.</summary>
@@ -169,26 +169,99 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
                 .Select(segment => segment.Id).Contains(item.SegmentId)).ToListAsync());
     }
 
-    private async Task<CreateUnrelatedState> ReadUnrelatedStateAsync(SegmentSeed seed)
+    private async Task<CreateRecoveryProviderSnapshot> ReadProviderSnapshotAsync(SegmentSeed seed)
     {
         await using var context = fixture.CreateContext();
         var trip = await context.Trips.AsNoTracking().SingleAsync(item => item.Id == seed.TripId);
+        var regions = await context.Regions.AsNoTracking().Where(item => item.TripId == seed.TripId)
+            .OrderBy(item => item.Id).ToListAsync();
+        var regionIds = regions.Select(item => item.Id).ToArray();
+        var places = await context.Places.AsNoTracking().Where(item => regionIds.Contains(item.RegionId))
+            .OrderBy(item => item.Id).ToListAsync();
+        var profiles = await context.Set<TransportProfile>().AsNoTracking()
+            .Where(item => item.Id == seed.FirstProfileId || item.Id == seed.SecondProfileId)
+            .OrderBy(item => item.Id).ToListAsync();
+        var segments = await context.Segments.AsNoTracking().Where(item => item.TripId == seed.TripId)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
+            .OrderBy(item => item.Id).ToListAsync();
+
         return new(
-            trip.UpdatedAt,
-            await context.Segments.AsNoTracking().CountAsync(item => item.TripId == seed.TripId),
-            await context.Regions.AsNoTracking().CountAsync(item => item.TripId == seed.TripId),
-            await context.Places.AsNoTracking().CountAsync(item => item.Region.TripId == seed.TripId),
-            string.Join('|', await context.Set<TransportProfile>().AsNoTracking()
-                .Where(item => item.Id == seed.FirstProfileId || item.Id == seed.SecondProfileId)
-                .OrderBy(item => item.Id).Select(item => item.Label).ToArrayAsync()));
+            new(trip.Id, trip.UserId, trip.Name, trip.Notes, trip.IsPublic, trip.ShareProgressEnabled,
+                trip.CenterLat, trip.CenterLon, trip.Zoom, trip.CoverImageUrl, trip.UpdatedAt),
+            regions.Select(item => new RegionSnapshot(item.Id, item.UserId, item.TripId, item.Name, item.Notes,
+                item.Center?.X, item.Center?.Y, item.Center?.SRID, item.DisplayOrder, item.CoverImageUrl)).ToArray(),
+            places.Select(item => new PlaceSnapshot(item.Id, item.UserId, item.RegionId, item.Name, item.Notes,
+                item.Location?.X, item.Location?.Y, item.Location?.SRID, item.DisplayOrder,
+                item.IconName, item.MarkerColor, item.Address)).ToArray(),
+            profiles.Select(item => new ProfileSnapshot(item.Id, item.Key, item.Label, item.Category,
+                item.Description, item.PlanningSpeedKmh, item.IsActive, item.IsSeeded, item.SortOrder)).ToArray(),
+            segments.Select(item => new SegmentSnapshot(item.Id, item.UserId, item.TripId, item.FromPlaceId,
+                item.ToPlaceId, item.TransportProfileId, item.Mode, item.Notes, item.DisplayOrder,
+                item.RouteGeometry?.SRID, item.RouteGeometry?.Coordinates.Select(coordinate => $"{coordinate.X:R},{coordinate.Y:R}").ToArray() ?? [],
+                item.EstimatedDistanceKm, item.EstimatedDuration, item.EstimatedDurationSource, item.RowVersion,
+                item.Waypoints.Select(waypoint => new WaypointSnapshot(waypoint.SegmentId, waypoint.PlaceId,
+                    waypoint.Position, waypoint.RouteVertexIndex)).ToArray())).ToArray(),
+            regions.Count, places.Count, segments.Count, segments.Sum(item => item.Waypoints.Count));
     }
 
-    private sealed record CreateUnrelatedState(
-        DateTime UpdatedAt,
-        int SegmentCount,
+    private static void AssertProviderSnapshotEqual(
+        CreateRecoveryProviderSnapshot expected, CreateRecoveryProviderSnapshot actual)
+    {
+        Assert.Equal(expected.Trip, actual.Trip);
+        Assert.Equal(expected.RegionSnapshots, actual.RegionSnapshots);
+        Assert.Equal(expected.PlaceSnapshots, actual.PlaceSnapshots);
+        Assert.Equal(expected.ProfileSnapshots, actual.ProfileSnapshots);
+        Assert.Equal(expected.RegionCount, actual.RegionCount);
+        Assert.Equal(expected.PlaceCount, actual.PlaceCount);
+        Assert.Equal(expected.SegmentCount, actual.SegmentCount);
+        Assert.Equal(expected.WaypointCount, actual.WaypointCount);
+        Assert.Equal(expected.SegmentSnapshots.Length, actual.SegmentSnapshots.Length);
+        for (var index = 0; index < expected.SegmentSnapshots.Length; index++)
+        {
+            var before = expected.SegmentSnapshots[index];
+            var after = actual.SegmentSnapshots[index];
+            Assert.Equal(before with { RouteCoordinates = [], WaypointSnapshots = [] },
+                after with { RouteCoordinates = [], WaypointSnapshots = [] });
+            Assert.Equal(before.RouteCoordinates, after.RouteCoordinates);
+            Assert.Equal(before.WaypointSnapshots, after.WaypointSnapshots);
+        }
+    }
+
+    private sealed record CreateRecoveryProviderSnapshot(
+        TripSnapshot Trip,
+        RegionSnapshot[] RegionSnapshots,
+        PlaceSnapshot[] PlaceSnapshots,
+        ProfileSnapshot[] ProfileSnapshots,
+        SegmentSnapshot[] SegmentSnapshots,
         int RegionCount,
         int PlaceCount,
-        string ProfileLabels);
+        int SegmentCount,
+        int WaypointCount);
+
+    private sealed record TripSnapshot(
+        Guid Id, string UserId, string Name, string? Notes, bool IsPublic, bool ShareProgressEnabled,
+        double? CenterLat, double? CenterLon, int? Zoom, string? CoverImageUrl, DateTime UpdatedAt);
+
+    private sealed record RegionSnapshot(
+        Guid Id, string UserId, Guid TripId, string Name, string? Notes,
+        double? CenterLongitude, double? CenterLatitude, int? CenterSrid, int DisplayOrder, string? CoverImageUrl);
+
+    private sealed record PlaceSnapshot(
+        Guid Id, string UserId, Guid RegionId, string Name, string? Notes,
+        double? Longitude, double? Latitude, int? LocationSrid, int? DisplayOrder,
+        string? IconName, string? MarkerColor, string? Address);
+
+    private sealed record ProfileSnapshot(
+        Guid Id, string Key, string Label, string Category, string? Description,
+        double? PlanningSpeedKmh, bool IsActive, bool IsSeeded, int SortOrder);
+
+    private sealed record SegmentSnapshot(
+        Guid Id, string UserId, Guid TripId, Guid? FromPlaceId, Guid? ToPlaceId,
+        Guid? TransportProfileId, string Mode, string? Notes, int DisplayOrder, int? RouteSrid,
+        string[] RouteCoordinates, double? EstimatedDistanceKm, TimeSpan? EstimatedDuration,
+        EstimatedDurationSource EstimatedDurationSource, uint RowVersion, WaypointSnapshot[] WaypointSnapshots);
+
+    private sealed record WaypointSnapshot(Guid SegmentId, Guid PlaceId, int Position, int? RouteVertexIndex);
 
     private sealed class FinalSaveRecorder : SaveChangesInterceptor
     {

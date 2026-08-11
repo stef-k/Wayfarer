@@ -87,6 +87,7 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     });
     waypointSegment.RouteGeometry = Line(from.Location!.Coordinate,
         new Coordinate(23.72, 37.98), waypoint.Location!.Coordinate, to.Location!.Coordinate);
+    AssertCanonicalDistance(waypointSegment.RouteGeometry.Coordinates, waypointSegment.EstimatedDistanceKm!.Value);
     var zeroSegment = Segment(trip, user.Id, profile, 2, from, to, "Zero waypoint browser", false);
     trip.Segments.Add(waypointSegment);
     trip.Segments.Add(zeroSegment);
@@ -122,7 +123,8 @@ static async Task VerifyPreservedAsync(ApplicationDbContext context, WaypointFix
         .SingleAsync(item => item.Id == manifest.WaypointSegmentId);
     var coordinates = segment.RouteGeometry?.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray();
     var failures = new List<string>();
-    if (segment.EstimatedDistanceKm != manifest.EstimatedDistanceKm) failures.Add($"distance={segment.EstimatedDistanceKm}");
+    AssertCanonicalDistance(segment.RouteGeometry?.Coordinates ?? [], segment.EstimatedDistanceKm ?? double.NaN);
+    if (segment.EstimatedDistanceKm != 8.303d) failures.Add($"distance={segment.EstimatedDistanceKm}");
     if (segment.EstimatedDuration != TimeSpan.FromMinutes(manifest.EstimatedDurationMinutes)) failures.Add($"duration={segment.EstimatedDuration}");
     if (segment.EstimatedDurationSource.ToString() != manifest.EstimatedDurationSource) failures.Add($"provenance={segment.EstimatedDurationSource}");
     if (segment.Mode != manifest.Mode) failures.Add($"mode={segment.Mode}");
@@ -198,6 +200,36 @@ static Segment Segment(Trip trip, string userId, TransportProfile profile, int o
 }
 
 static LineString Line(params Coordinate[] coordinates) => new(coordinates) { SRID = 4326 };
+
+/// <summary>Calculates the literal fixture route independently with longitude/latitude Haversine evidence.</summary>
+static void AssertCanonicalDistance(Coordinate[] coordinates, double observedKilometres)
+{
+    const double earthRadiusMetres = 6_371_000d;
+    double[][] expectedCoordinates = [[23.70, 37.97], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    if (!coordinates.Select(item => new[] { item.X, item.Y }).SelectMany(item => item)
+            .SequenceEqual(expectedCoordinates.SelectMany(item => item)))
+        throw new InvalidOperationException("Canonical #407 fixture geometry or coordinate order changed.");
+
+    var unroundedMetres = 0d;
+    for (var index = 1; index < expectedCoordinates.Length; index++)
+    {
+        var previous = expectedCoordinates[index - 1];
+        var current = expectedCoordinates[index];
+        var latitudeDelta = DegreesToRadians(current[1] - previous[1]);
+        var longitudeDelta = DegreesToRadians(current[0] - previous[0]);
+        var haversine = Math.Pow(Math.Sin(latitudeDelta / 2d), 2d)
+            + Math.Cos(DegreesToRadians(previous[1])) * Math.Cos(DegreesToRadians(current[1]))
+            * Math.Pow(Math.Sin(longitudeDelta / 2d), 2d);
+        unroundedMetres += 2d * earthRadiusMetres * Math.Asin(Math.Sqrt(haversine));
+    }
+
+    var roundedKilometres = Math.Round(unroundedMetres / 1_000d, 3, MidpointRounding.AwayFromZero);
+    if (roundedKilometres != 8.303d || observedKilometres != 8.303d || roundedKilometres == 9.407d)
+        throw new InvalidOperationException($"Canonical #407 distance mismatch: {unroundedMetres:R} m -> {roundedKilometres:F3} km; observed {observedKilometres:F3} km.");
+    Console.WriteLine($"independent-distance: {unroundedMetres:R} unrounded metres -> 8.303 km; former 9.407 km rejected");
+
+    static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
+}
 static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
     JsonSerializer.Deserialize<WaypointFixtureManifest>(await File.ReadAllTextAsync(path), FixtureJson.Options)
     ?? throw new InvalidOperationException("Fixture manifest is empty.");

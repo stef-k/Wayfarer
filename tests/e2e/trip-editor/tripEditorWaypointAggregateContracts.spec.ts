@@ -44,7 +44,7 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
     const original = structuredClone(initial.segmentsById[fixture.waypointSegmentId]);
     expect(original.waypointPlaceIds).toEqual([fixture.waypointId]);
     expect(original.waypointRouteVertexIndices).toEqual([2]);
-    expect(original.estimatedDistanceKm).toBe(fixture.estimatedDistanceKm);
+    expect(original.estimatedDistanceKm).toBe(8.303);
     expect(original.estimatedDurationMinutes).toBe(fixture.estimatedDurationMinutes);
     expect(original.estimatedDurationSource).toBe(fixture.estimatedDurationSource);
     expect(original.mode).toBe(fixture.mode);

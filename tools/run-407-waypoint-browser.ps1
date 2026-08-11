@@ -18,6 +18,7 @@ $hostProcess = $null
 $databaseStarted = $false
 $originalFailure = $null
 $cleanupFailures = [System.Collections.Generic.List[Exception]]::new()
+$cleanupVerificationAttempted = $false
 $ownedVariables = @(
     'WAYFARER_TEST_POSTGRES_CONNECTION', 'ConnectionStrings__DefaultConnection', 'ASPNETCORE_ENVIRONMENT',
     'ASPNETCORE_URLS', 'WAYFARER_E2E_BASE_URL', 'WAYFARER_E2E_USERNAME', 'WAYFARER_E2E_PASSWORD',
@@ -52,6 +53,10 @@ function Wait-Port([int]$port, [bool]$open) {
 function Invoke-Checked([string]$file, [string[]]$arguments) {
     & $file @arguments
     if ($LASTEXITCODE -ne 0) { throw "Command failed with exit code ${LASTEXITCODE}: $file $($arguments -join ' ')" }
+}
+
+function Add-PhaseFailure([string]$phase, [Exception]$failure) {
+    $cleanupFailures.Add([InvalidOperationException]::new("$phase failed: $($failure.Message)", $failure))
 }
 
 try {
@@ -105,9 +110,9 @@ try {
     $originalFailure = $_.Exception
 } finally {
     if ($hostProcess -and !$hostProcess.HasExited) {
-        try { Stop-Process -Id $hostProcess.Id -ErrorAction Stop; $hostProcess.WaitForExit(10000) | Out-Null } catch { $cleanupFailures.Add($_.Exception) }
+        try { Stop-Process -Id $hostProcess.Id -ErrorAction Stop; $hostProcess.WaitForExit(10000) | Out-Null } catch { Add-PhaseFailure 'host-stop' $_.Exception }
     }
-    if ($hostPort) { try { Wait-Port $hostPort $false } catch { $cleanupFailures.Add($_.Exception) } }
+    if ($hostPort) { try { Wait-Port $hostPort $false } catch { Add-PhaseFailure 'host-port-verification' $_.Exception } }
     if (Test-Path -LiteralPath $manifestPath) {
         try {
             if (!(Test-Port $databasePort)) {
@@ -115,24 +120,36 @@ try {
                 $databaseStarted = $true
                 Wait-Port $databasePort $true
             }
-            $helper = Join-Path $helperDirectory 'Wayfarer.WaypointBrowserFixture.dll'
-            Invoke-Checked 'dotnet.exe' @($helper, 'cleanup', $manifestPath)
+        } catch { Add-PhaseFailure 'cleanup-database-readiness' $_.Exception }
+        $helper = Join-Path $helperDirectory 'Wayfarer.WaypointBrowserFixture.dll'
+        try { Invoke-Checked 'dotnet.exe' @($helper, 'cleanup', $manifestPath) } catch { Add-PhaseFailure 'fixture-cleanup' $_.Exception }
+        try {
+            $cleanupVerificationAttempted = $true
             Invoke-Checked 'dotnet.exe' @($helper, 'verify-cleanup', $manifestPath)
-        } catch { $cleanupFailures.Add($_.Exception) }
+        } catch { Add-PhaseFailure 'fixture-cleanup-verification' $_.Exception }
     }
     if ($databaseStarted -and (Test-Path -LiteralPath $databaseDirectory)) {
-        try { Invoke-Checked (Join-Path $postgresBin 'pg_ctl.exe') @('-D', $databaseDirectory, '-m', 'fast', 'stop') } catch { $cleanupFailures.Add($_.Exception) }
+        try { Invoke-Checked (Join-Path $postgresBin 'pg_ctl.exe') @('-D', $databaseDirectory, '-m', 'fast', 'stop') } catch { Add-PhaseFailure 'database-stop' $_.Exception }
     }
-    if ($databasePort) { try { Wait-Port $databasePort $false } catch { $cleanupFailures.Add($_.Exception) } }
-    foreach ($name in $ownedVariables) { [Environment]::SetEnvironmentVariable($name, $originalVariables[$name], 'Process') }
-    try {
-        $resolvedRunRoot = [IO.Path]::GetFullPath($runRoot)
-        $resolvedLocal = [IO.Path]::GetFullPath((Join-Path $repository '.local')) + [IO.Path]::DirectorySeparatorChar
-        if (!$resolvedRunRoot.StartsWith($resolvedLocal, [StringComparison]::OrdinalIgnoreCase)) { throw "Refusing to remove non-run-owned path $resolvedRunRoot" }
-        if (Test-Path -LiteralPath $resolvedRunRoot) { Remove-Item -LiteralPath $resolvedRunRoot -Recurse -Force }
-    } catch { $cleanupFailures.Add($_.Exception) }
+    if ($databasePort) { try { Wait-Port $databasePort $false } catch { Add-PhaseFailure 'database-port-verification' $_.Exception } }
+    foreach ($name in $ownedVariables) {
+        try { [Environment]::SetEnvironmentVariable($name, $originalVariables[$name], 'Process') }
+        catch { Add-PhaseFailure "environment-restore-$name" $_.Exception }
+    }
+    if (!$originalFailure -and $cleanupFailures.Count -eq 0) {
+        try {
+            $resolvedRunRoot = [IO.Path]::GetFullPath($runRoot)
+            $resolvedLocal = [IO.Path]::GetFullPath((Join-Path $repository '.local')) + [IO.Path]::DirectorySeparatorChar
+            if (!$resolvedRunRoot.StartsWith($resolvedLocal, [StringComparison]::OrdinalIgnoreCase)) { throw "Refusing to remove non-run-owned path $resolvedRunRoot" }
+            if (Test-Path -LiteralPath $resolvedRunRoot) { Remove-Item -LiteralPath $resolvedRunRoot -Recurse -Force }
+        } catch { Add-PhaseFailure 'artifact-removal' $_.Exception }
+    }
 }
 
+if ($originalFailure -or $cleanupFailures.Count -gt 0) {
+    Write-Error "#407 browser run failed. Retained evidence directory: $runRoot" -ErrorAction Continue
+    Write-Error "Cleanup verification attempted: $cleanupVerificationAttempted; cleanup phase failures: $($cleanupFailures.Count)." -ErrorAction Continue
+}
 if ($originalFailure -and $cleanupFailures.Count -gt 0) {
     throw [AggregateException]::new('Browser execution and cleanup both failed.', @($originalFailure) + @($cleanupFailures))
 }
