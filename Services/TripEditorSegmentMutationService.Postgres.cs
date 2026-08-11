@@ -12,6 +12,69 @@ namespace Wayfarer.Services;
 /// <summary>PostgreSQL transaction, lock, and recovery orchestration for editor Segment updates.</summary>
 public sealed partial class TripEditorSegmentMutationService
 {
+    /// <summary>Creates one complete editor Segment inside its caller-specific Serializable transaction.</summary>
+    private async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>> CreateRelationalAsync(
+        Guid tripId,
+        string userId,
+        EditorSegmentSaveRequest request,
+        (string Key, Guid? ProfileId) mode,
+        CancellationToken cancellationToken)
+    {
+        var trackerSnapshot = SegmentEditorTrackerSnapshot.Capture(_dbContext);
+        var segmentId = Guid.NewGuid();
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        try
+        {
+            await SegmentRouteReconciler.LockProfilesAsync(
+                _dbContext, mode.ProfileId.HasValue ? [mode.ProfileId.Value] : [], cancellationToken);
+            var placeIds = request.WaypointPlaceIds.Select(item => (Guid?)item)
+                .Append(request.FromPlaceId).Append(request.ToPlaceId)
+                .Where(item => item.HasValue).Select(item => item!.Value).Distinct().Order().ToArray();
+            await SegmentRouteReconciler.LockPlacesAndRegionsAsync(_dbContext, placeIds, cancellationToken);
+            var canonicalTrip = await _dbContext.Trips.AsNoTracking()
+                .Include(item => item.Regions).ThenInclude(item => item.Places)
+                .Include(item => item.Segments)
+                .SingleOrDefaultAsync(item => item.Id == tripId && item.UserId == userId, cancellationToken);
+            if (canonicalTrip == null)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.NotFound();
+            }
+
+            var referenceErrors = ValidatePlaceReferences(request, canonicalTrip);
+            if (referenceErrors.Count > 0)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                    referenceErrors, SegmentValidationCode(referenceErrors));
+            }
+
+            var creation = new SegmentCreation(segmentId, userId, tripId, NextSegmentOrder(canonicalTrip));
+            var reconciliation = await SegmentRouteReconciler.ReconcileNewLockedAsync(
+                _dbContext, creation, BuildProposal(segmentId, request, mode), cancellationToken);
+            if (!reconciliation.Succeeded)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                trackerSnapshot.Restore(_dbContext);
+                return ReconciliationFailed(reconciliation);
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception original)
+        {
+            await CleanupRelationalFailureAsync(transaction, segmentId, trackerSnapshot, original);
+            ExceptionDispatchInfo.Capture(original).Throw();
+            throw;
+        }
+
+        var dto = await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken);
+        var affected = await BuildAffectedAsync(tripId, [dto], true, cancellationToken);
+        return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Succeeded(
+            new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, []));
+    }
+
     private async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>> UpdateRelationalAsync(
         Trip candidateTrip, Segment candidateSegment, EditorSegmentSaveRequest request, string userId,
         string? confirmationToken, CancellationToken cancellationToken, int lockAttempt = 1,

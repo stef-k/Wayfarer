@@ -22,7 +22,7 @@ public static partial class SegmentRouteReconciler
 
         if (!dbContext.Database.IsRelational())
         {
-            var result = await ReconcileNewTrackedAsync(dbContext, creation, proposal, cancellationToken);
+            var result = await ReconcileNewLockedAsync(dbContext, creation, proposal, cancellationToken);
             if (result.Succeeded) await dbContext.SaveChangesAsync(cancellationToken);
             else dbContext.ChangeTracker.Clear();
             return result;
@@ -36,7 +36,7 @@ public static partial class SegmentRouteReconciler
             await LockPlacesAndRegionsAsync(dbContext, proposal.Waypoints.Select(item => (Guid?)item.PlaceId)
                 .Append(proposal.FromPlaceId).Append(proposal.ToPlaceId)
                 .Where(item => item.HasValue).Select(item => item!.Value).ToArray(), cancellationToken);
-            var result = await ReconcileNewTrackedAsync(dbContext, creation, proposal, cancellationToken);
+            var result = await ReconcileNewLockedAsync(dbContext, creation, proposal, cancellationToken);
             if (!result.Succeeded)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
@@ -69,7 +69,7 @@ public static partial class SegmentRouteReconciler
     }
 
     /// <summary>Validates and composes a new application-identified aggregate before its only insert boundary.</summary>
-    private static async Task<SegmentRouteReconciliationResult> ReconcileNewTrackedAsync(
+    internal static async Task<SegmentRouteReconciliationResult> ReconcileNewLockedAsync(
         ApplicationDbContext dbContext,
         SegmentCreation creation,
         SegmentRouteProposal proposal,

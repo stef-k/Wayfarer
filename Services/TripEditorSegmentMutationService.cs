@@ -86,12 +86,20 @@ public sealed partial class TripEditorSegmentMutationService
                 new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile."] });
         }
 
+        if (_dbContext.Database.IsRelational())
+            return await CreateRelationalAsync(trip.Id, userId, parsed.Value!, mode.Value, cancellationToken);
+
         var segmentId = Guid.NewGuid();
         var creation = new SegmentCreation(segmentId, userId, trip.Id, NextSegmentOrder(trip));
         var proposal = BuildProposal(segmentId, parsed.Value!, mode.Value);
-        var reconciliation = await SegmentRouteReconciler.CreateAsync(_dbContext, creation, proposal, cancellationToken);
+        var reconciliation = await SegmentRouteReconciler.ReconcileNewLockedAsync(
+            _dbContext, creation, proposal, cancellationToken);
         if (!reconciliation.Succeeded)
+        {
+            _dbContext.ChangeTracker.Clear();
             return ReconciliationFailed(reconciliation);
+        }
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         var dto = await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken);
         var affected = await BuildAffectedAsync(tripId, new[] { dto }, includeOrder: true, cancellationToken);
