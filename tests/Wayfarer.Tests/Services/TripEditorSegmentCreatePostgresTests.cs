@@ -94,6 +94,26 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
         await AssertNoSegmentsAsync(seed);
     }
 
+    /// <summary>A failed recovery reread after a failed final save retains both failures and all persisted boundaries.</summary>
+    [PostgresFact]
+    public async Task RecoveryReadFailure_RetainsOriginalAndInvalidatesContextWithoutResidue()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync(includeSegment: false);
+        var plan = new FailurePlan();
+        await using var context = fixture.CreateContext(
+            new PlannedSaveFailureInterceptor(plan), new CreateRecoveryReadFailureInterceptor(plan));
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(
+            () => CreateAsync(context, support, seed, CancellationToken.None));
+
+        Assert.Contains("Deterministic create save failure.", exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Deterministic create recovery-read failure.", exception.ToString(), StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+        await AssertNoSegmentsAsync(seed);
+        Assert.Fail("Strict-review red checkpoint: create recovery identity, ordering, and complete residue assertions were missing.");
+    }
+
     /// <summary>An application-generated ID collision returns the bounded create conflict without partial state.</summary>
     [PostgresFact]
     public async Task GeneratedIdCollision_ReturnsWriteConflictWithoutPartialState()
@@ -210,5 +230,20 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
             CancellationToken cancellationToken = default) => plan.Failed
             ? ValueTask.FromException<InterceptionResult>(new InvalidOperationException("Deterministic create rollback failure."))
             : ValueTask.FromResult(result);
+    }
+
+
+    private sealed class CreateRecoveryReadFailureInterceptor(FailurePlan plan) : DbCommandInterceptor
+    {
+        /// <summary>Fails only the generated-ID reload after the final create save has failed.</summary>
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (plan.Failed && command.CommandText.Contains("FROM \"Segments\" AS", StringComparison.Ordinal))
+                return ValueTask.FromException<InterceptionResult<DbDataReader>>(
+                    new InvalidOperationException("Deterministic create recovery-read failure."));
+            return ValueTask.FromResult(result);
+        }
     }
 }

@@ -27,6 +27,31 @@ public sealed class TripEditorStrictReviewSourceContractTests
         Assert.Contains("CancellationToken.None", action, StringComparison.Ordinal);
     }
 
+    /// <summary>The browser fixture and reread must name every independently seeded measurement and provenance value.</summary>
+    [Fact]
+    public void WaypointBrowserEvidence_ContainsCompleteMeasurementAndProviderRereadAssertions()
+    {
+        var fixture = Read("tools", "Wayfarer.WaypointBrowserFixture", "Program.cs");
+        var browser = Read("tests", "e2e", "trip-editor", "tripEditorWaypointAggregateContracts.spec.ts");
+
+        Assert.Contains("EstimatedDistanceKm", fixture, StringComparison.Ordinal);
+        Assert.Contains("EstimatedDurationSource", fixture, StringComparison.Ordinal);
+        Assert.DoesNotContain("provider-reread", browser, StringComparison.Ordinal);
+        Assert.Fail("Strict-review red checkpoint: browser/provider reread omitted complete measurement and provenance assertions.");
+    }
+
+    /// <summary>The definitive #407 browser entrypoint must own setup and unconditional verified cleanup.</summary>
+    [Fact]
+    public void WaypointBrowserRunner_IsFinallyProtectedAndRunOwned()
+    {
+        var scripts = Directory.Exists(Path.Combine(FindRepositoryRoot(), "tools"))
+            ? Directory.GetFiles(Path.Combine(FindRepositoryRoot(), "tools"), "*407*", SearchOption.TopDirectoryOnly)
+            : [];
+
+        Assert.Empty(scripts);
+        Assert.Fail("Strict-review red checkpoint: #407 browser execution lacked finally-protected orchestration.");
+    }
+
     private static string Read(params string[] path) => File.ReadAllText(
         Path.Combine(FindRepositoryRoot(), Path.Combine(path)));
 
