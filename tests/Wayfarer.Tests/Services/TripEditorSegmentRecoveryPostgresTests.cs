@@ -19,11 +19,12 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         var plan = new FailurePlan();
         var seed = await SeedAsync();
         await using var context = fixture.CreateContext(new FailingSaveInterceptor(plan));
+        var trackerBefore = TrackerSnapshot(context);
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => ReplaceAsync(context, seed, CancellationToken.None));
 
         Assert.Equal("Deterministic #407 provider failure.", exception.Message);
-        Assert.All(context.ChangeTracker.Entries(), entry => Assert.Equal(EntityState.Unchanged, entry.State));
-        await context.SaveChangesAsync();
+        Assert.Equal(trackerBefore, TrackerSnapshot(context));
+        await AssertContextReusableAsync(context, seed);
         await AssertOriginalAggregateAsync(seed);
     }
 
@@ -35,12 +36,14 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         var interceptor = new CancellingSaveInterceptor();
         var seed = await SeedAsync();
         await using var context = fixture.CreateContext(interceptor);
+        var trackerBefore = TrackerSnapshot(context);
         var mutation = ReplaceAsync(context, seed, cancellation.Token);
         await interceptor.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => mutation);
-        Assert.All(context.ChangeTracker.Entries(), entry => Assert.Equal(EntityState.Unchanged, entry.State));
+        Assert.Equal(trackerBefore, TrackerSnapshot(context));
+        await AssertContextReusableAsync(context, seed);
         await AssertOriginalAggregateAsync(seed);
     }
 
@@ -119,6 +122,22 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         Assert.Equal(471.652, segment.EstimatedDistanceKm);
         Assert.Equal("original notes", segment.Notes);
     }
+
+    /// <summary>Proves successful cleanup permits a later unrelated write through the same context.</summary>
+    private static async Task AssertContextReusableAsync(ApplicationDbContext context, SegmentSeed seed)
+    {
+        var profile = await context.Set<TransportProfile>().SingleAsync(item => item.Id == seed.FirstProfileId);
+        profile.Label = "context reuse verified";
+        await context.SaveChangesAsync();
+        Assert.Equal("context reuse verified", await context.Set<TransportProfile>().AsNoTracking()
+            .Where(item => item.Id == seed.FirstProfileId).Select(item => item.Label).SingleAsync());
+    }
+
+    /// <summary>Captures the exact tracked type, key, state, and scalar values around provider cleanup.</summary>
+    private static string[] TrackerSnapshot(ApplicationDbContext context) => context.ChangeTracker.Entries()
+        .Select(entry => $"{entry.Metadata.ClrType.Name}|{string.Join(',', entry.Properties.Where(property => property.Metadata.IsPrimaryKey()).Select(property => property.CurrentValue))}|{entry.State}|{string.Join(',', entry.Properties.Select(property => $"{property.Metadata.Name}={property.CurrentValue}"))}")
+        .Order(StringComparer.Ordinal)
+        .ToArray();
 
     private sealed class FailurePlan
     {
