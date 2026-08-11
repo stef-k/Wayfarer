@@ -19,13 +19,10 @@ public sealed class TripEditorStrictReviewSourceContractTests
     [Fact]
     public void NotesOnlyRelationalWriter_UpdatesTripTimestampInsideOwnedTransaction()
     {
-        var source = Read("Areas", "Api", "Controllers", "TripsController.cs");
-        var start = source.IndexOf("UpdateSegmentNotes", StringComparison.Ordinal);
-        var end = source.IndexOf("UpdateRegion", start, StringComparison.Ordinal);
-        var action = source[start..end];
+        var action = Read("Services", "SegmentNotesMutation.cs");
 
         Assert.Contains("BeginTransactionAsync", action, StringComparison.Ordinal);
-        Assert.Contains("_dbContext.Trips", action, StringComparison.Ordinal);
+        Assert.Contains("context.Trips", action, StringComparison.Ordinal);
         Assert.Contains("UpdatedAt", action, StringComparison.Ordinal);
         Assert.Contains("CancellationToken.None", action, StringComparison.Ordinal);
     }
