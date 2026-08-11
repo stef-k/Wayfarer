@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.AspNetCore.DataProtection;
 using NetTopologySuite.Geometries;
 using Npgsql;
 using Wayfarer.Models;
@@ -162,6 +163,128 @@ public sealed class TripEditorSegmentConcurrencyPostgresTests(PostgresImportTest
         Assert.Equal("mobile notes", stored.Notes);
         Assert.NotEqual(originalVersion, stored.RowVersion);
         Assert.False(string.IsNullOrWhiteSpace(outcome.Result!.Data.AggregateConcurrencyToken));
+    }
+
+    /// <summary>A referenced profile-speed reconciliation waits behind the editor and preserves the committed replacement.</summary>
+    [PostgresFact]
+    public async Task AggregateReplacementAndReferencedProfileSpeedReconciliation_Serialize()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync(customRoute: false);
+        var gate = new SaveGateInterceptor();
+        await using var editor = fixture.CreateContext(gate);
+        var token = await support.TokenAsync(editor, seed);
+        var aggregate = support.Service(editor).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey), null, CancellationToken.None);
+        await gate.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var profile = fixture.CreateContext();
+        await profile.Database.OpenConnectionAsync();
+        var profilePid = await BackendPidAsync(profile);
+        var reconciliation = TransportProfileMeasurementReconciler.ReconcileAsync(
+            profile, seed.SecondProfileId, 25, seed.UserId, CancellationToken.None);
+        await WaitUntilBlockedAsync(profilePid);
+        gate.ReleaseSave.TrySetResult();
+
+        Assert.Equal(EditorRegionMutationStatus.Success, (await aggregate).Status);
+        var profileFailure = await Assert.ThrowsAnyAsync<Exception>(() => reconciliation);
+        Assert.Contains(PostgresErrorCodes.SerializationFailure, profileFailure.ToString(), StringComparison.Ordinal);
+        await AssertReplacementAsync(seed, "updated notes");
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(20, await verification.Set<TransportProfile>().Where(item => item.Id == seed.SecondProfileId)
+            .Select(item => item.PlanningSpeedKmh).SingleAsync());
+    }
+
+    /// <summary>A Place lifecycle mutation retries after the editor adds its dependency and preserves both changes.</summary>
+    [PostgresFact]
+    public async Task AggregateReplacementAndPlaceLifecycleMutation_Serialize()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync(customRoute: false);
+        var gate = new SaveGateInterceptor();
+        await using var editor = fixture.CreateContext(gate);
+        var token = await support.TokenAsync(editor, seed);
+        var aggregate = support.Service(editor).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey),
+            null, CancellationToken.None);
+        await gate.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var lifecycleContext = fixture.CreateContext();
+        await lifecycleContext.Database.OpenConnectionAsync();
+        var lifecyclePid = await BackendPidAsync(lifecycleContext);
+        var placeState = await lifecycleContext.Places.AsNoTracking()
+            .Where(item => item.Id == seed.AlternateId)
+            .Select(item => new { item.RegionId, item.Location }).SingleAsync();
+        var lifecycle = new PlaceRegionLifecycleService(lifecycleContext,
+            new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider()));
+        var placeUpdate = lifecycle.UpdatePlaceAsync(seed.TripId, seed.AlternateId, seed.UserId,
+            new PlaceLifecycleUpdate(placeState.RegionId, "Lifecycle renamed", "", "", "", "", placeState.Location),
+            CancellationToken.None);
+        await WaitUntilBlockedAsync(lifecyclePid);
+        gate.ReleaseSave.TrySetResult();
+
+        Assert.Equal(EditorRegionMutationStatus.Success, (await aggregate).Status);
+        Assert.True((await placeUpdate).Succeeded);
+        await AssertReplacementAsync(seed, "updated notes");
+        await using var verification = fixture.CreateContext();
+        Assert.Equal("Lifecycle renamed", await verification.Places.Where(item => item.Id == seed.AlternateId)
+            .Select(item => item.Name).SingleAsync());
+    }
+
+    /// <summary>Region deletion refreshes after the editor creates a new dependency and returns a stale lifecycle warning.</summary>
+    [PostgresFact]
+    public async Task AggregateReplacementAndRegionLifecycleMutation_Serialize()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync(customRoute: false);
+        var auxiliaryRegionId = Guid.NewGuid();
+        await using (var setup = fixture.CreateContext())
+        {
+            setup.Regions.Add(new Region { Id = auxiliaryRegionId, TripId = seed.TripId, UserId = seed.UserId, Name = "Disposable region", DisplayOrder = 2 });
+            await setup.SaveChangesAsync();
+            await setup.Places.Where(item => item.Id == seed.AlternateId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.RegionId, auxiliaryRegionId));
+        }
+
+        await using var lifecycleContext = fixture.CreateContext();
+        await lifecycleContext.Database.OpenConnectionAsync();
+        var lifecycle = new PlaceRegionLifecycleService(lifecycleContext,
+            new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider()));
+        var challenge = await lifecycle.DeleteRegionAsync(
+            seed.TripId, auxiliaryRegionId, seed.UserId, null, CancellationToken.None);
+        var confirmation = challenge.Warning!.ConfirmationToken;
+
+        var gate = new SaveGateInterceptor();
+        await using var editor = fixture.CreateContext(gate);
+        var token = await support.TokenAsync(editor, seed);
+        var aggregate = support.Service(editor).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey),
+            null, CancellationToken.None);
+        await gate.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var lifecyclePid = await BackendPidAsync(lifecycleContext);
+        var deletion = lifecycle.DeleteRegionAsync(
+            seed.TripId, auxiliaryRegionId, seed.UserId, confirmation, CancellationToken.None);
+        await WaitUntilBlockedAsync(lifecyclePid);
+        gate.ReleaseSave.TrySetResult();
+
+        Assert.Equal(EditorRegionMutationStatus.Success, (await aggregate).Status);
+        var deletionResult = await deletion;
+        Assert.False(deletionResult.Succeeded);
+        Assert.Equal("lifecycle-confirmation-stale", deletionResult.Warning!.Code);
+        await AssertReplacementAsync(seed, "updated notes");
+    }
+
+    private async Task AssertReplacementAsync(SegmentSeed seed, string notes)
+    {
+        await using var verification = fixture.CreateContext();
+        var stored = await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(verification, seed.SegmentId!.Value);
+        Assert.Equal([seed.AlternateId], stored.Waypoints.Select(item => item.PlaceId));
+        Assert.Equal(seed.SecondProfileId, stored.TransportProfileId);
+        Assert.Equal(notes, stored.Notes);
     }
 
     private async Task WaitUntilBlockedAsync(int backendPid)
