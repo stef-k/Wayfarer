@@ -26,6 +26,7 @@ public sealed partial class TripEditorSegmentMutationService
 
         var profileIds = new[] { candidateSegment.TransportProfileId, mode.Value.ProfileId }
             .Where(item => item.HasValue).Select(item => item!.Value).Distinct().Order().ToArray();
+        var aggregateTokenCompared = false;
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
@@ -81,6 +82,7 @@ public sealed partial class TripEditorSegmentMutationService
                     new EditorSegmentConflictDto("segment-aggregate-stale", "update", current,
                         "The Segment changed. Reload its authoritative state before saving.", null, null));
             }
+            aggregateTokenCompared = true;
 
             if (RequiresRouteClearConfirmation(canonical, request))
             {
@@ -116,6 +118,17 @@ public sealed partial class TripEditorSegmentMutationService
         {
             await transaction.RollbackAsync(CancellationToken.None);
             await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, candidateSegment.Id, CancellationToken.None);
+            var currentVersion = await _dbContext.Segments.AsNoTracking()
+                .Where(item => item.Id == candidateSegment.Id)
+                .Select(item => item.RowVersion)
+                .SingleAsync(CancellationToken.None);
+            if (!aggregateTokenCompared && submittedVersion != currentVersion)
+            {
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
+                    new EditorSegmentConflictDto("segment-aggregate-stale", "update",
+                        await LoadSegmentDtoAsync(candidateSegment.Id, candidateTrip.Id, userId, CancellationToken.None),
+                        "The Segment changed. Reload its authoritative state before saving.", null, null));
+            }
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
                 new EditorSegmentConflictDto("segment-write-conflict", "update",
                     await LoadSegmentDtoAsync(candidateSegment.Id, candidateTrip.Id, userId, CancellationToken.None),
