@@ -112,6 +112,7 @@ public sealed partial class TripEditorSegmentMutationService
     {
         if (_dbContext.Database.IsRelational())
         {
+            var trackerSnapshot = SegmentEditorTrackerSnapshot.Capture(_dbContext);
             var candidate = await _dbContext.Segments.AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId, cancellationToken);
             if (candidate == null)
@@ -121,7 +122,8 @@ public sealed partial class TripEditorSegmentMutationService
                 return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
                     relationalRequest.ValidationErrors, SegmentValidationCode(relationalRequest.ValidationErrors));
             var candidateTrip = new Trip { Id = tripId, UserId = userId, Name = string.Empty, UpdatedAt = DateTime.UtcNow };
-            return await UpdateRelationalAsync(candidateTrip, candidate, relationalRequest.Value!, userId, confirmationToken, cancellationToken);
+            return await UpdateRelationalAsync(candidateTrip, candidate, relationalRequest.Value!, userId,
+                confirmationToken, cancellationToken, trackerSnapshot: trackerSnapshot);
         }
 
         var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);

@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using NetTopologySuite.Geometries;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
@@ -107,6 +108,62 @@ public sealed class TripEditorSegmentConcurrencyPostgresTests(PostgresImportTest
         Assert.Equal(new[] { seed.FirstProfileId, seed.SecondProfileId }.Order(), recorder.ProfileIds);
     }
 
+    /// <summary>A PostgreSQL serialization rejection after token comparison is an exact write conflict with no partial aggregate.</summary>
+    [PostgresFact]
+    public async Task PostComparisonSerializationFailure_ReturnsWriteConflictWithoutPartialState()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync(customRoute: false);
+        await using var context = fixture.CreateContext(new SerializationSaveInterceptor());
+        var token = await support.TokenAsync(context, seed);
+        var outcome = await support.Service(context).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey, notes: "must not persist"), null, CancellationToken.None);
+
+        Assert.Equal(EditorRegionMutationStatus.Conflict, outcome.Status);
+        Assert.Equal("segment-write-conflict", Assert.IsType<EditorSegmentConflictDto>(outcome.Conflict).Code);
+        await using var verification = fixture.CreateContext();
+        var stored = await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(verification, seed.SegmentId.Value);
+        Assert.Equal([seed.FirstWaypointId, seed.SecondWaypointId], stored.Waypoints.Select(item => item.PlaceId));
+        Assert.Equal(seed.FirstProfileId, stored.TransportProfileId);
+        Assert.Equal("original notes", stored.Notes);
+    }
+
+    /// <summary>A property-only notes write queued behind an editor replacement preserves both committed intentions.</summary>
+    [PostgresFact]
+    public async Task NotesOnlyUpdateAndAggregateReplacement_PreserveBothChanges()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync(customRoute: false);
+        var gate = new SaveGateInterceptor();
+        await using var editor = fixture.CreateContext(gate);
+        var token = await support.TokenAsync(editor, seed);
+        var originalVersion = (await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(editor, seed.SegmentId!.Value)).RowVersion;
+        var aggregate = support.Service(editor).UpdateSegmentAsync(seed.TripId, seed.SegmentId.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey, notes: "editor notes"), null, CancellationToken.None);
+        await gate.SaveEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var notes = fixture.CreateContext();
+        await notes.Database.OpenConnectionAsync();
+        var notesPid = await BackendPidAsync(notes);
+        var notesWrite = notes.Segments.Where(item => item.Id == seed.SegmentId && item.UserId == seed.UserId)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.Notes, "mobile notes"));
+        await WaitUntilBlockedAsync(notesPid);
+        gate.ReleaseSave.TrySetResult();
+
+        var outcome = await aggregate;
+        Assert.Equal(1, await notesWrite);
+        Assert.Equal(EditorRegionMutationStatus.Success, outcome.Status);
+        await using var verification = fixture.CreateContext();
+        var stored = await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(verification, seed.SegmentId.Value);
+        Assert.Equal([seed.AlternateId], stored.Waypoints.Select(item => item.PlaceId));
+        Assert.Equal(seed.SecondProfileId, stored.TransportProfileId);
+        Assert.Equal("mobile notes", stored.Notes);
+        Assert.NotEqual(originalVersion, stored.RowVersion);
+        Assert.False(string.IsNullOrWhiteSpace(outcome.Result!.Data.AggregateConcurrencyToken));
+    }
+
     private async Task WaitUntilBlockedAsync(int backendPid)
     {
         await using var context = fixture.CreateContext();
@@ -137,5 +194,31 @@ public sealed class TripEditorSegmentConcurrencyPostgresTests(PostgresImportTest
                 ProfileIds.Add((Guid)command.Parameters[0].Value!);
             return ValueTask.FromResult(result);
         }
+    }
+
+    private sealed class SaveGateInterceptor : SaveChangesInterceptor
+    {
+        internal TaskCompletionSource SaveEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource ReleaseSave { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>Holds the editor transaction after destructive replacement and before its single final save.</summary>
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            SaveEntered.TrySetResult();
+            await ReleaseSave.Task.WaitAsync(cancellationToken);
+            return result;
+        }
+    }
+
+    private sealed class SerializationSaveInterceptor : SaveChangesInterceptor
+    {
+        /// <summary>Injects the provider's exact serialization code only at the final aggregate save.</summary>
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<InterceptionResult<int>>(new PostgresException(
+                "serialization", "ERROR", "ERROR", PostgresErrorCodes.SerializationFailure,
+                null!, null!, 0, 0, null!, null!, "public", null!, null!, null!,
+                null!, "predicate.c", "1", "serialization_failure"));
     }
 }

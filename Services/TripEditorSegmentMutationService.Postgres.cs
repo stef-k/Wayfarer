@@ -1,6 +1,7 @@
 using System.Data;
 using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
@@ -12,8 +13,10 @@ public sealed partial class TripEditorSegmentMutationService
 {
     private async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>> UpdateRelationalAsync(
         Trip candidateTrip, Segment candidateSegment, EditorSegmentSaveRequest request, string userId,
-        string? confirmationToken, CancellationToken cancellationToken, int lockAttempt = 1)
+        string? confirmationToken, CancellationToken cancellationToken, int lockAttempt = 1,
+        SegmentEditorTrackerSnapshot? trackerSnapshot = null)
     {
+        trackerSnapshot ??= SegmentEditorTrackerSnapshot.Capture(_dbContext);
         if (!_aggregateTokens.TryRead(request.AggregateConcurrencyToken, userId, candidateTrip.Id, candidateSegment.Id, out var submittedVersion))
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
                 new() { ["aggregateConcurrencyToken"] = ["The aggregate token is missing, malformed, or scoped to another Segment."] },
@@ -66,7 +69,8 @@ public sealed partial class TripEditorSegmentMutationService
                 DetachTargetAggregate(canonical.Id);
                 if (lockAttempt < 3)
                     return await UpdateRelationalAsync(
-                        candidateTrip, canonical, request, userId, confirmationToken, cancellationToken, lockAttempt + 1);
+                        candidateTrip, canonical, request, userId, confirmationToken, cancellationToken,
+                        lockAttempt + 1, trackerSnapshot);
                 return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
                     new EditorSegmentConflictDto("segment-write-conflict", "update",
                         await LoadSegmentDtoAsync(canonical.Id, canonical.TripId, userId, cancellationToken),
@@ -139,6 +143,7 @@ public sealed partial class TripEditorSegmentMutationService
             var cleanup = new List<Exception>();
             try { await transaction.RollbackAsync(CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
             try { await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, candidateSegment.Id, CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
+            try { trackerSnapshot.Restore(_dbContext); } catch (Exception failure) { cleanup.Add(failure); }
             if (cleanup.Count > 0)
             {
                 try { await _dbContext.DisposeAsync(); } catch (Exception failure) { cleanup.Add(failure); }
@@ -153,6 +158,57 @@ public sealed partial class TripEditorSegmentMutationService
         return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Succeeded(
             new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, []));
     }
+
+    /// <summary>Restores the exact caller-owned tracker after a failed relational editor mutation.</summary>
+    private sealed record SegmentEditorTrackerSnapshot(
+        IReadOnlyDictionary<object, SegmentEditorTrackedEntrySnapshot> Entries)
+    {
+        internal static SegmentEditorTrackerSnapshot Capture(ApplicationDbContext context) => new(
+            context.ChangeTracker.Entries().ToDictionary(
+                entry => entry.Entity,
+                entry => new SegmentEditorTrackedEntrySnapshot(entry.State, entry.CurrentValues.Clone()),
+                ReferenceEqualityComparer.Instance));
+
+        internal void Restore(ApplicationDbContext context)
+        {
+            var restored = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            foreach (var entry in context.ChangeTracker.Entries().ToArray())
+            {
+                if (Entries.TryGetValue(entry.Entity, out var original))
+                {
+                    entry.CurrentValues.SetValues(original.Values);
+                    entry.State = original.State;
+                    restored.Add(entry.Entity);
+                }
+                else
+                {
+                    entry.State = EntityState.Detached;
+                }
+            }
+
+            foreach (var pair in Entries.Where(pair => !restored.Contains(pair.Key)))
+            {
+                var replacement = context.ChangeTracker.Entries()
+                    .FirstOrDefault(entry => HasSamePrimaryKey(entry, pair.Key, pair.Value.Values));
+                if (replacement != null) replacement.State = EntityState.Detached;
+                var entry = context.Entry(pair.Key);
+                entry.State = EntityState.Unchanged;
+                entry.CurrentValues.SetValues(pair.Value.Values);
+                entry.State = pair.Value.State;
+            }
+        }
+
+        private static bool HasSamePrimaryKey(EntityEntry entry, object entity, PropertyValues values)
+        {
+            if (entry.Entity.GetType() != entity.GetType()) return false;
+            var key = entry.Metadata.FindPrimaryKey();
+            return key != null && key.Properties.All(property =>
+                Equals(entry.Property(property.Name).CurrentValue, values[property.Name]));
+        }
+    }
+
+    /// <summary>One pre-operation entity state and scalar-value snapshot.</summary>
+    private sealed record SegmentEditorTrackedEntrySnapshot(EntityState State, PropertyValues Values);
 
     private void DetachTargetAggregate(Guid segmentId)
     {

@@ -161,12 +161,15 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
 
     private sealed class CancellingSaveInterceptor : SaveChangesInterceptor
     {
+        private bool _cancel = true;
         internal TaskCompletionSource SaveEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <summary>Waits only on the supplied cancellation token after proving final SaveChanges was entered.</summary>
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
+            if (!_cancel) return result;
+            _cancel = false;
             SaveEntered.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return result;
