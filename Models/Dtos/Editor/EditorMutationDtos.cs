@@ -203,3 +203,28 @@ public sealed record EditorDeletedIdsDto(
 /// Non-fatal mutation warning returned to the editor UI.
 /// </summary>
 public sealed record EditorWarningDto(string Code, string Message, string? EntityType, string? EntityId);
+
+/// <summary>Bounded identifiers returned for one lifecycle dependency category.</summary>
+public sealed record EditorLifecycleDependencySampleDto(int Count, IReadOnlyList<Guid> Ids, bool HasMore);
+
+/// <summary>Identifies one waypoint association without exposing Place content.</summary>
+public sealed record EditorLifecycleWaypointAssociationDto(Guid SegmentId, Guid PlaceId);
+
+/// <summary>Bounded waypoint-association identities returned for lifecycle confirmation.</summary>
+public sealed record EditorLifecycleAssociationSampleDto(
+    int Count,
+    IReadOnlyList<EditorLifecycleWaypointAssociationDto> Ids,
+    bool HasMore);
+
+/// <summary>Opaque server-owned confirmation challenge for destructive lifecycle operations.</summary>
+public sealed record EditorLifecycleConflictDto(
+    string Code,
+    string Operation,
+    Guid TargetId,
+    EditorLifecycleDependencySampleDto EndpointSegments,
+    EditorLifecycleDependencySampleDto WaypointOnlySegments,
+    EditorLifecycleAssociationSampleDto WaypointAssociations,
+    EditorLifecycleDependencySampleDto DeletedPlaces,
+    EditorLifecycleDependencySampleDto DeletedAreas,
+    string ConfirmationToken,
+    DateTimeOffset ExpiresAt);

@@ -239,6 +239,36 @@ export interface EditorPlaceDeleteResult {
   placeId: Guid;
 }
 
+export interface EditorLifecycleDependencySample {
+  count: number;
+  ids: Guid[];
+  hasMore: boolean;
+}
+
+export interface EditorLifecycleWaypointAssociation {
+  segmentId: Guid;
+  placeId: Guid;
+}
+
+export interface EditorLifecycleAssociationSample {
+  count: number;
+  ids: EditorLifecycleWaypointAssociation[];
+  hasMore: boolean;
+}
+
+export interface EditorLifecycleConflict {
+  code: string;
+  operation: string;
+  targetId: Guid;
+  endpointSegments: EditorLifecycleDependencySample;
+  waypointOnlySegments: EditorLifecycleDependencySample;
+  waypointAssociations: EditorLifecycleAssociationSample;
+  deletedPlaces: EditorLifecycleDependencySample;
+  deletedAreas: EditorLifecycleDependencySample;
+  confirmationToken: string;
+  expiresAt: string;
+}
+
 export interface EditorAreaSaveRequest {
   name: string;
   notesHtml: string | null;

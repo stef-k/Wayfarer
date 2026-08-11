@@ -83,6 +83,9 @@ public sealed class TripEditorRegionControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
+        var challengeResult = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
+        var challenge = Assert.IsType<EditorLifecycleConflictDto>(Assert.IsType<ConflictObjectResult>(challengeResult).Value);
+        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
         var result = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
 
         var envelope = AssertMutation<EditorRegionDto?>(result);
@@ -99,6 +102,23 @@ public sealed class TripEditorRegionControllerTests : TestBase
         Assert.Empty(db.Places.Where(p => deletedPlaceIds.Contains(p.Id)));
         Assert.Empty(db.Areas.Where(a => deletedAreaIds.Contains(a.Id)));
         Assert.Empty(db.Segments.Where(s => deletedSegmentIds.Contains(s.Id)));
+    }
+
+    [Fact]
+    public async Task DeleteRegionWithChildrenRequiresServerConfirmationWithoutMutation()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripWithDeleteGraph(db, "owner-user");
+        var deletedRegion = trip.Regions.Single(r => r.Name == "Delete Me");
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains(db.Regions, region => region.Id == deletedRegion.Id);
+        Assert.Contains(db.Places, place => place.RegionId == deletedRegion.Id);
+        Assert.Contains(db.Areas, area => area.RegionId == deletedRegion.Id);
     }
 
     [Fact]

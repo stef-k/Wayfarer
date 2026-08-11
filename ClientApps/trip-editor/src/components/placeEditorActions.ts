@@ -1,5 +1,5 @@
 import { nextTick } from 'vue';
-import { createPlace, deletePlace, orderPlaces, updatePlace } from '../api/tripEditorApi';
+import { createPlace, deletePlace, EditorLifecycleConfirmationError, orderPlaces, updatePlace } from '../api/tripEditorApi';
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildPlaceCreateTarget, buildPlaceEditTarget } from './regionPlaceEditorTargets';
@@ -135,21 +135,33 @@ export function usePlaceEditorActions(context: any) {
       return;
     }
 
-    if (!(await confirm({
-      title: 'Delete place?',
-      message: 'Delete this place and any segments connected to it?',
-      confirmLabel: 'Delete',
-      cancelLabel: 'Keep place',
-      variant: 'danger'
-    }))) {
-      return;
-    }
-
     context.isSaving.value = true;
     context.resetFeedback();
     try {
       const deletedTarget = context.activePlaceTarget.value;
-      const result = await deletePlace(context.props.editorEndpoint, context.activePlace.value.id, context.props.antiforgeryToken);
+      let confirmationToken: string | undefined;
+      let result: Awaited<ReturnType<typeof deletePlace>> | undefined;
+      for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
+        try {
+          result = await deletePlace(context.props.editorEndpoint, context.activePlace.value.id, context.props.antiforgeryToken, confirmationToken);
+        } catch (error) {
+          if (!(error instanceof EditorLifecycleConfirmationError)) throw error;
+          const warning = error.conflict;
+          // The dependency request is complete while the user decides, so its trigger can receive restored focus.
+          context.isSaving.value = false;
+          const confirmed = await confirm({
+            title: warning.code === 'lifecycle-confirmation-stale' ? 'Dependencies changed' : 'Delete place?',
+            message: `This deletes ${warning.endpointSegments.count} connected segment(s) and updates ${warning.waypointOnlySegments.count} waypoint route(s).`,
+            confirmLabel: 'Delete',
+            cancelLabel: 'Keep place',
+            variant: 'danger'
+          });
+          if (!confirmed) return;
+          context.isSaving.value = true;
+          confirmationToken = warning.confirmationToken;
+        }
+      }
+      if (!result) throw new Error('Place dependencies changed repeatedly. Please retry.');
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       Object.assign(context.placeDraft, emptyPlaceDraft());
       Object.assign(context.areaDraft, emptyAreaDraft());

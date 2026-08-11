@@ -1,4 +1,4 @@
-import { createRegion, deleteRegion, orderRegions, updateRegion } from '../api/tripEditorApi';
+import { createRegion, deleteRegion, EditorLifecycleConfirmationError, orderRegions, updateRegion } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorRegion, EditorRegionSaveRequest, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildRegionCreateTarget, buildRegionEditTarget } from './regionPlaceEditorTargets';
@@ -83,21 +83,33 @@ export function useRegionEditorActions(context: any) {
       return;
     }
 
-    if (!(await confirm({
-      title: 'Delete region?',
-      message: 'Delete this region, its child places and areas, and any segments connected to deleted places?',
-      confirmLabel: 'Delete',
-      cancelLabel: 'Keep region',
-      variant: 'danger'
-    }))) {
-      return;
-    }
-
     context.isSaving.value = true;
     context.resetFeedback();
     try {
       const deletedTarget = context.activeRegionTarget.value;
-      const result = await deleteRegion(context.props.editorEndpoint, context.activeRegion.value.id, context.props.antiforgeryToken);
+      let confirmationToken: string | undefined;
+      let result: Awaited<ReturnType<typeof deleteRegion>> | undefined;
+      for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
+        try {
+          result = await deleteRegion(context.props.editorEndpoint, context.activeRegion.value.id, context.props.antiforgeryToken, confirmationToken);
+        } catch (error) {
+          if (!(error instanceof EditorLifecycleConfirmationError)) throw error;
+          const warning = error.conflict;
+          // The dependency request is complete while the user decides, so its trigger can receive restored focus.
+          context.isSaving.value = false;
+          const confirmed = await confirm({
+            title: warning.code === 'lifecycle-confirmation-stale' ? 'Dependencies changed' : 'Delete region?',
+            message: `This deletes ${warning.deletedPlaces.count} place(s), ${warning.deletedAreas.count} area(s), ${warning.endpointSegments.count} connected segment(s), and updates ${warning.waypointOnlySegments.count} waypoint route(s).`,
+            confirmLabel: 'Delete',
+            cancelLabel: 'Keep region',
+            variant: 'danger'
+          });
+          if (!confirmed) return;
+          context.isSaving.value = true;
+          confirmationToken = warning.confirmationToken;
+        }
+      }
+      if (!result) throw new Error('Region dependencies changed repeatedly. Please retry.');
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.clearAllDraftsAndBaselines();
       context.props.editorSurface.clearActiveTarget(deletedTarget);

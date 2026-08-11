@@ -23,6 +23,7 @@ public class TripsController : BaseApiController
     private readonly ITripTagService _tripTagService;
     private readonly IApplicationSettingsService _settingsService;
     private readonly ICacheWarmupScheduler _warmupScheduler;
+    private readonly PlaceRegionLifecycleService _lifecycle;
 
     /// <summary>
     /// Initializes a new instance of <see cref="TripsController"/>.
@@ -32,12 +33,16 @@ public class TripsController : BaseApiController
         ILogger<BaseApiController> logger,
         ITripTagService tripTagService,
         IApplicationSettingsService settingsService,
-        ICacheWarmupScheduler warmupScheduler)
+        ICacheWarmupScheduler warmupScheduler,
+        PlaceRegionLifecycleService? lifecycle = null)
         : base(dbContext, logger)
     {
         _tripTagService = tripTagService;
         _settingsService = settingsService;
         _warmupScheduler = warmupScheduler;
+        _lifecycle = lifecycle ?? new PlaceRegionLifecycleService(
+            dbContext,
+            new LifecycleDependencyConfirmation(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()));
     }
 
     /// <summary>
@@ -727,76 +732,46 @@ return Ok(dto);
         if (place == null) return NotFound("Place not found.");
         if (place.Region.Trip.UserId != user.Id) return Unauthorized("Not your place.");
 
-        bool anyChange = false;
-
-        // Region move
-        if (request.RegionId.HasValue && request.RegionId.Value != place.RegionId)
-        {
-            var newRegion = await _dbContext.Regions
-                .Include(r => r.Trip)
-                .FirstOrDefaultAsync(r => r.Id == request.RegionId.Value);
-            if (newRegion == null || newRegion.Trip.UserId != user.Id)
-                return BadRequest("Invalid regionId.");
-
-            place.RegionId = newRegion.Id;
-            // Default order at end if not explicitly given
-            if (!request.DisplayOrder.HasValue)
-                place.DisplayOrder = await GetNextPlaceOrder(newRegion.Id);
-            anyChange = true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Name))
-        {
-            place.Name = request.Name!;
-            anyChange = true;
-        }
-
-        // Coordinates
+        var targetRegionId = request.RegionId ?? place.RegionId;
+        var targetRegionOwned = await _dbContext.Regions.AsNoTracking()
+            .AnyAsync(region => region.Id == targetRegionId && region.TripId == place.Region.TripId && region.UserId == user.Id);
+        if (!targetRegionOwned) return BadRequest("Invalid regionId.");
+        var location = place.Location == null ? null : (NetTopologySuite.Geometries.Point)place.Location.Copy();
         if (request.Latitude.HasValue || request.Longitude.HasValue)
         {
             if (!(request.Latitude.HasValue && request.Longitude.HasValue))
                 return BadRequest("Both latitude and longitude must be provided together.");
-            double lat = request.Latitude.Value; double lon = request.Longitude.Value;
+            var lat = request.Latitude.Value;
+            var lon = request.Longitude.Value;
             if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
                 return BadRequest("Latitude or Longitude is out of range.");
-            place.Location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
-            anyChange = true;
+            location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
-
-        if (request.Notes != null)
-        {
-            place.Notes = request.Notes;
-            anyChange = true;
-        }
-
-        if (request.DisplayOrder.HasValue)
-        {
-            place.DisplayOrder = request.DisplayOrder.Value;
-            anyChange = true;
-        }
-
-        // Icon resets/updates
-        if (request.ClearIcon == true || (request.IconName != null && string.IsNullOrWhiteSpace(request.IconName)))
-        {
-            place.IconName = "marker";
-            anyChange = true;
-        }
-        else if (request.IconName != null)
-        {
-            place.IconName = request.IconName;
-            anyChange = true;
-        }
-
-        if (request.ClearMarkerColor == true || (request.MarkerColor != null && string.IsNullOrWhiteSpace(request.MarkerColor)))
-        {
-            place.MarkerColor = "bg-blue";
-            anyChange = true;
-        }
-        else if (request.MarkerColor != null)
-        {
-            place.MarkerColor = request.MarkerColor;
-            anyChange = true;
-        }
+        var iconName = request.ClearIcon == true || request.IconName != null && string.IsNullOrWhiteSpace(request.IconName)
+            ? "marker" : request.IconName ?? place.IconName;
+        var markerColor = request.ClearMarkerColor == true || request.MarkerColor != null && string.IsNullOrWhiteSpace(request.MarkerColor)
+            ? "bg-blue" : request.MarkerColor ?? place.MarkerColor;
+        var lifecycle = await _lifecycle.UpdatePlaceAsync(
+            place.Region.TripId,
+            placeId,
+            user.Id,
+            new PlaceLifecycleUpdate(
+                targetRegionId,
+                string.IsNullOrWhiteSpace(request.Name) ? place.Name : request.Name,
+                request.Notes ?? place.Notes ?? string.Empty,
+                place.Address ?? string.Empty,
+                iconName ?? "marker",
+                markerColor ?? "bg-blue",
+                location,
+                request.DisplayOrder),
+            HttpContext.RequestAborted);
+        if (!lifecycle.Succeeded)
+            return lifecycle.ErrorCode == "lifecycle-concurrency-conflict"
+                ? Conflict(new { code = lifecycle.ErrorCode })
+                : lifecycle.Errors != null
+                ? BadRequest(new { code = lifecycle.ErrorCode, errors = lifecycle.Errors })
+                : NotFound("Place not found.");
+        place = lifecycle.Place!;
 
         // Return DTO to ensure consistent serialization (location as double[] not GeoJSON)
         var placeDto = new ApiTripPlaceDto
@@ -812,10 +787,6 @@ return Ok(dto);
                 ? new[] { place.Location.X, place.Location.Y }
                 : null
         };
-
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", place = placeDto });
-
-        await _dbContext.SaveChangesAsync();
 
         // Schedule background cache warm-up for external images (debounced)
         await _warmupScheduler.ScheduleWarmupAsync(place.Region.TripId);
@@ -838,8 +809,14 @@ return Ok(dto);
         if (place == null) return NotFound("Place not found.");
         if (place.Region.Trip.UserId != user.Id) return Unauthorized("Not your place.");
 
-        _dbContext.Places.Remove(place);
-        await _dbContext.SaveChangesAsync();
+        var result = await _lifecycle.DeletePlaceAsync(
+            place.Region.TripId,
+            placeId,
+            user.Id,
+            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
+            HttpContext.RequestAborted);
+        if (result.Warning != null) return Conflict(result.Warning);
+        if (!result.Succeeded) return NotFound("Place not found.");
         return Ok(new { success = true, message = "Place deleted.", placeId });
     }
 
@@ -1152,8 +1129,14 @@ return Ok(dto);
         if (string.Equals(region.Name, ShadowRegionName, StringComparison.OrdinalIgnoreCase))
             return BadRequest("Cannot delete the Unassigned Places region.");
 
-        _dbContext.Regions.Remove(region);
-        await _dbContext.SaveChangesAsync();
+        var result = await _lifecycle.DeleteRegionAsync(
+            region.TripId,
+            regionId,
+            user.Id,
+            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
+            HttpContext.RequestAborted);
+        if (result.Warning != null) return Conflict(result.Warning);
+        if (!result.Succeeded) return NotFound("Region not found.");
         return Ok(new { success = true, message = "Region deleted.", regionId });
     }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
@@ -18,7 +19,7 @@ public sealed class TripEditorPlaceMutationService
     private readonly IIconColorProvider _iconColorProvider;
     private readonly ILogger<TripEditorPlaceMutationService> _logger;
     private readonly TripEditorPlaceMutationReader _reader;
-    private readonly TripEditorPlaceRouteEffects _routeEffects;
+    private readonly PlaceRegionLifecycleService _lifecycle;
     private readonly ReverseGeocodingService _reverseGeocodingService;
 
     /// <summary>
@@ -30,15 +31,17 @@ public sealed class TripEditorPlaceMutationService
         IIconColorProvider iconColorProvider,
         ReverseGeocodingService reverseGeocodingService,
         TripEditorPlaceMutationReader? reader = null,
-        TripEditorPlaceRouteEffects? routeEffects = null,
-        ILogger<TripEditorPlaceMutationService>? logger = null)
+        ILogger<TripEditorPlaceMutationService>? logger = null,
+        PlaceRegionLifecycleService? lifecycle = null)
     {
         _dbContext = dbContext;
         _environment = environment;
         _iconColorProvider = iconColorProvider;
         _reverseGeocodingService = reverseGeocodingService;
         _reader = reader ?? new TripEditorPlaceMutationReader(dbContext);
-        _routeEffects = routeEffects ?? new TripEditorPlaceRouteEffects(dbContext);
+        _lifecycle = lifecycle ?? new PlaceRegionLifecycleService(
+            dbContext,
+            new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider()));
         _logger = logger ?? NullLogger<TripEditorPlaceMutationService>.Instance;
     }
 
@@ -130,44 +133,35 @@ public sealed class TripEditorPlaceMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
         }
 
-        var oldRegionId = place.RegionId;
-        var oldLocation = place.Location == null ? null : new EditorCoordinateDto(place.Location.Y, place.Location.X);
-        var locationChanged = !CoordinatesEqual(oldLocation, update.Location);
-        var moved = oldRegionId != targetRegion.Id;
-
-        place.Name = update.Name.Trim();
-        place.Notes = update.NotesHtml ?? string.Empty;
-        place.IconName = update.IconName;
-        place.MarkerColor = update.MarkerColor;
-        place.Location = ToPoint(update.Location);
         var address = await ResolveAddressAsync(userId, place.Id, update.Address, update.Location, update.ReverseGeocode, cancellationToken);
-        place.Address = address.Value;
-
-        if (moved)
+        var lifecycle = await _lifecycle.UpdatePlaceAsync(
+            tripId,
+            placeId,
+            userId,
+            new PlaceLifecycleUpdate(
+                targetRegion.Id,
+                update.Name.Trim(),
+                update.NotesHtml ?? string.Empty,
+                address.Value,
+                update.IconName,
+                update.MarkerColor,
+                ToPoint(update.Location)),
+            cancellationToken);
+        if (!lifecycle.Succeeded)
         {
-            place.RegionId = targetRegion.Id;
-            place.Region = targetRegion;
-            place.DisplayOrder = NextPlaceOrder(targetRegion);
-        }
-
-        var affectedSegments = locationChanged
-            ? await _routeEffects.RewriteEndpointRoutesAsync(trip, place.Id, update.Location, cancellationToken)
-            : Array.Empty<Segment>();
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        if (moved)
-        {
-            await _routeEffects.NormalizePlaceOrdersAsync(oldRegionId, cancellationToken);
-            await _routeEffects.NormalizePlaceOrdersAsync(targetRegion.Id, cancellationToken);
+            if (lifecycle.ErrorCode == "lifecycle-concurrency-conflict")
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Conflicted(new { code = lifecycle.ErrorCode });
+            return lifecycle.Errors != null
+                ? EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(lifecycle.Errors)
+                : EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
         }
 
         var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
-        var orderRegions = moved ? new[] { oldRegionId, targetRegion.Id } : Array.Empty<Guid>();
-        var segmentOrder = locationChanged ? await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken) : null;
-        var segmentDtos = affectedSegments.Count > 0
-            ? await _reader.LoadSegmentDtosAsync(affectedSegments.Select(s => s.Id).ToArray(), tripId, cancellationToken)
+        var segmentOrder = lifecycle.LocationChanged ? await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken) : null;
+        var segmentDtos = lifecycle.Segments.Count > 0
+            ? await _reader.LoadSegmentDtosAsync(lifecycle.Segments.Select(s => s.Id).ToArray(), tripId, cancellationToken)
             : Array.Empty<EditorSegmentDto>();
-        var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, orderRegions, segmentDtos, segmentOrder, locationChanged, cancellationToken);
+        var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, lifecycle.OrderRegionIds, segmentDtos, segmentOrder, lifecycle.LocationChanged, cancellationToken);
 
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
             new EditorMutationResult<EditorPlaceDto>(true, dto, affected, EditorDeletedIdsDto.Empty, address.Warnings));
@@ -180,48 +174,38 @@ public sealed class TripEditorPlaceMutationService
         Guid tripId,
         Guid placeId,
         string userId,
+        string? confirmationToken,
         CancellationToken cancellationToken)
     {
-        var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);
-        if (trip == null)
-        {
+        var result = await _lifecycle.DeletePlaceAsync(tripId, placeId, userId, confirmationToken, cancellationToken);
+        if (result.Warning != null)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDeleteResult>>.Conflicted(result.Warning);
+        if (!result.Succeeded || !result.RegionId.HasValue)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDeleteResult>>.NotFound();
-        }
 
-        var place = trip.Regions.SelectMany(r => r.Places).FirstOrDefault(p => p.Id == placeId);
-        if (place == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDeleteResult>>.NotFound();
-        }
-
-        var regionId = place.RegionId;
-        var deletedSegmentIds = trip.Segments
-            .Where(s => s.FromPlaceId == placeId || s.ToPlaceId == placeId)
-            .OrderBy(s => s.DisplayOrder)
-            .ThenBy(s => s.Id)
-            .Select(s => s.Id)
-            .ToList();
-
-        _dbContext.Segments.RemoveRange(trip.Segments.Where(s => deletedSegmentIds.Contains(s.Id)));
-        _dbContext.Places.Remove(place);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await _routeEffects.NormalizePlaceOrdersAsync(regionId, cancellationToken);
-        await _routeEffects.NormalizeSegmentOrdersAsync(tripId, userId, cancellationToken);
-
+        var survivingDtos = await _reader.LoadSegmentDtosAsync(result.SurvivingSegments.Select(segment => segment.Id).ToArray(), tripId, cancellationToken);
         var affected = await _reader.BuildAffectedAsync(
             tripId,
             userId,
             Array.Empty<EditorPlaceDto>(),
-            new[] { regionId },
-            Array.Empty<EditorSegmentDto>(),
+            new[] { result.RegionId.Value },
+            survivingDtos,
             await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken),
             true,
             cancellationToken);
-        var deletedIds = new EditorDeletedIdsDto(Array.Empty<Guid>(), new[] { placeId }, Array.Empty<Guid>(), deletedSegmentIds, Array.Empty<string>());
+        var deletedIds = new EditorDeletedIdsDto(Array.Empty<Guid>(), new[] { placeId }, Array.Empty<Guid>(), result.DeletedSegmentIds, Array.Empty<string>());
 
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDeleteResult>>.Succeeded(
             new EditorMutationResult<EditorPlaceDeleteResult>(true, new EditorPlaceDeleteResult(placeId), affected, deletedIds, Array.Empty<EditorWarningDto>()));
     }
+
+    /// <summary>Compatibility overload for callers without an HTTP confirmation header.</summary>
+    public Task<EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDeleteResult>>> DeletePlaceAsync(
+        Guid tripId,
+        Guid placeId,
+        string userId,
+        CancellationToken cancellationToken) =>
+        DeletePlaceAsync(tripId, placeId, userId, null, cancellationToken);
 
     /// <summary>
     /// Persists the complete desired order for places inside one normal region.

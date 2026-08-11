@@ -51,7 +51,12 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _placeMutations.DeletePlaceAsync(tripId, placeId, userId!, cancellationToken);
+        var outcome = await _placeMutations.DeletePlaceAsync(
+            tripId,
+            placeId,
+            userId!,
+            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
+            cancellationToken);
         return ToActionResult(outcome);
     }
 

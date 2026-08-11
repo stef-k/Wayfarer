@@ -1,4 +1,4 @@
-import { readonly, ref } from 'vue';
+import { nextTick, readonly, ref } from 'vue';
 
 export type ConfirmDialogVariant = 'default' | 'warning' | 'danger';
 
@@ -20,6 +20,7 @@ const focusFallback = ref<HTMLElement | null>(null);
 let nextDialogId = 0;
 let activeResolver: ((confirmed: boolean) => void) | null = null;
 let activeSettled = false;
+let focusRestorationObserver: MutationObserver | null = null;
 
 /// Identifies accidental overlapping confirmation requests without replacing the active dialog.
 export class ConfirmDialogAlreadyOpenError extends Error {
@@ -42,7 +43,10 @@ export const confirm = (options: ConfirmDialogOptions): Promise<boolean> => {
     return Promise.reject(new ConfirmDialogAlreadyOpenError());
   }
 
-  const returnFocusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const returnFocusTarget = activeElement && activeElement !== document.body ? activeElement : null;
+  focusRestorationObserver?.disconnect();
+  focusRestorationObserver = null;
   const dialog: ActiveConfirmDialog = {
     id: ++nextDialogId,
     title: options.title,
@@ -73,14 +77,14 @@ export const settleConfirmDialog = (confirmed: boolean): void => {
   clearActiveDialog();
 
   resolver(confirmed);
-  window.setTimeout(() => {
+  void nextTick(() => {
     // A chained dialog owns focus; stale restoration would move focus behind it.
     if (activeDialog.value || nextDialogId !== settledDialogId) {
       return;
     }
 
-    restoreFocus(returnFocusTarget);
-  }, 0);
+    restoreFocusWhenReady(returnFocusTarget);
+  });
 };
 
 /// Disposes the Trip Editor confirm host and cancels any pending confirmation owned by it.
@@ -101,11 +105,35 @@ function clearActiveDialog(): void {
   activeDialog.value = null;
 }
 
-function restoreFocus(returnFocusTarget: HTMLElement | null): void {
+function restoreFocusWhenReady(returnFocusTarget: HTMLElement | null): void {
   if (returnFocusTarget && tryFocus(returnFocusTarget)) {
     return;
   }
 
+  // Vue may re-enable the trigger immediately after the dialog resolves; observe that state instead of racing it.
+  if (returnFocusTarget && document.contains(returnFocusTarget)) {
+    focusRestorationObserver?.disconnect();
+    focusRestorationObserver = new MutationObserver(() => {
+      if (!document.contains(returnFocusTarget)) {
+        focusRestorationObserver?.disconnect();
+        focusRestorationObserver = null;
+        restoreFallbackFocus();
+        return;
+      }
+
+      if (tryFocus(returnFocusTarget)) {
+        focusRestorationObserver?.disconnect();
+        focusRestorationObserver = null;
+      }
+    });
+    focusRestorationObserver.observe(document.body, { attributes: true, attributeFilter: ['disabled', 'hidden'], childList: true, subtree: true });
+    return;
+  }
+
+  restoreFallbackFocus();
+}
+
+function restoreFallbackFocus(): void {
   if (focusFallback.value) {
     tryFocus(focusFallback.value);
   }

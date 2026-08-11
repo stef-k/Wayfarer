@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
@@ -12,13 +13,22 @@ namespace Wayfarer.Services;
 public sealed class TripEditorRegionMutationService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly PlaceRegionLifecycleService _lifecycle;
+    private readonly TripEditorPlaceMutationReader _reader;
 
     /// <summary>
     /// Initializes a new region mutation service for the editor API.
     /// </summary>
-    public TripEditorRegionMutationService(ApplicationDbContext dbContext)
+    public TripEditorRegionMutationService(
+        ApplicationDbContext dbContext,
+        PlaceRegionLifecycleService? lifecycle = null,
+        TripEditorPlaceMutationReader? reader = null)
     {
         _dbContext = dbContext;
+        _lifecycle = lifecycle ?? new PlaceRegionLifecycleService(
+            dbContext,
+            new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider()));
+        _reader = reader ?? new TripEditorPlaceMutationReader(dbContext);
     }
 
     /// <summary>
@@ -161,52 +171,23 @@ public sealed class TripEditorRegionMutationService
         Guid tripId,
         Guid regionId,
         string userId,
+        string? confirmationToken,
         CancellationToken cancellationToken)
     {
-        var trip = await _dbContext.Trips
-            .Include(t => t.Regions).ThenInclude(r => r.Places)
-            .Include(t => t.Regions).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-        if (trip == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>.NotFound();
-        }
-
-        var region = trip.Regions.FirstOrDefault(r => r.Id == regionId);
-        if (region == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>.NotFound();
-        }
-
-        if (IsShadowRegion(region))
-        {
+        var shadow = await _dbContext.Regions.AsNoTracking()
+            .AnyAsync(region => region.Id == regionId && region.TripId == tripId && region.UserId == userId && region.Name == "Unassigned Places", cancellationToken);
+        if (shadow)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>.Forbidden("The shadow region cannot be deleted.");
-        }
-
-        var deletedPlaceIds = region.Places.OrderBy(p => p.DisplayOrder).ThenBy(p => p.Id).Select(p => p.Id).ToList();
-        var deletedAreaIds = region.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Id).Select(a => a.Id).ToList();
-        var deletedSegmentIds = trip.Segments
-            .Where(s => (s.FromPlaceId.HasValue && deletedPlaceIds.Contains(s.FromPlaceId.Value))
-                || (s.ToPlaceId.HasValue && deletedPlaceIds.Contains(s.ToPlaceId.Value)))
-            .OrderBy(s => s.DisplayOrder)
-            .ThenBy(s => s.Id)
-            .Select(s => s.Id)
-            .ToList();
-
-        var deletedSegments = trip.Segments.Where(s => deletedSegmentIds.Contains(s.Id)).ToList();
-        _dbContext.Segments.RemoveRange(deletedSegments);
-        _dbContext.Areas.RemoveRange(region.Areas);
-        _dbContext.Places.RemoveRange(region.Places);
-        _dbContext.Regions.Remove(region);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        await NormalizeRegionOrdersAsync(tripId, userId, cancellationToken);
-        await NormalizeSegmentOrdersAsync(tripId, userId, cancellationToken);
+        var result = await _lifecycle.DeleteRegionAsync(tripId, regionId, userId, confirmationToken, cancellationToken);
+        if (result.Warning != null)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>.Conflicted(result.Warning);
+        if (!result.Succeeded)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>.NotFound();
 
         var regionOrder = await LoadRegionOrderAsync(tripId, userId, cancellationToken);
         var segmentOrder = await LoadSegmentOrderAsync(tripId, userId, cancellationToken);
         var visitProgress = await LoadVisitProgressAsync(tripId, userId, cancellationToken);
+        var survivingSegments = await _reader.LoadSegmentDtosAsync(result.SurvivingSegments.Select(segment => segment.Id).ToArray(), tripId, cancellationToken);
         var affected = new EditorAffectedSlicesDto(
             null,
             Array.Empty<EditorRegionDto>(),
@@ -215,17 +196,25 @@ public sealed class TripEditorRegionMutationService
             new Dictionary<Guid, IReadOnlyList<Guid>>(),
             Array.Empty<EditorAreaDto>(),
             new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorSegmentDto>(),
+            survivingSegments,
             segmentOrder,
             Array.Empty<EditorTagDto>(),
             null,
             visitProgress,
             null);
-        var deletedIds = new EditorDeletedIdsDto(new[] { regionId }, deletedPlaceIds, deletedAreaIds, deletedSegmentIds, Array.Empty<string>());
+        var deletedIds = new EditorDeletedIdsDto(new[] { regionId }, result.PlaceIds, result.AreaIds, result.SegmentIds, Array.Empty<string>());
 
         return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>.Succeeded(
             new EditorMutationResult<EditorRegionDto?>(true, null, affected, deletedIds, Array.Empty<EditorWarningDto>()));
     }
+
+    /// <summary>Compatibility overload for callers without an HTTP confirmation header.</summary>
+    public Task<EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto?>>> DeleteRegionAsync(
+        Guid tripId,
+        Guid regionId,
+        string userId,
+        CancellationToken cancellationToken) =>
+        DeleteRegionAsync(tripId, regionId, userId, null, cancellationToken);
 
     /// <summary>
     /// Persists the complete desired order for normal regions.

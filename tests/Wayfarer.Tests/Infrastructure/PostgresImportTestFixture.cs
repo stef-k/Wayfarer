@@ -132,3 +132,11 @@ public sealed class PostgresImportTestCollection : ICollectionFixture<PostgresIm
     /// <summary>Stable collection name for PostgreSQL import tests.</summary>
     public const string Name = "PostgreSQL import reconciliation";
 }
+
+/// <summary>Runs provider environment evidence without overlapping fixture-owned provider rows.</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PostgresEnvironmentEvidenceTestCollection : ICollectionFixture<PostgresImportTestFixture>
+{
+    /// <summary>Stable collection name for isolated provider environment evidence.</summary>
+    public const string Name = "PostgreSQL environment evidence";
+}

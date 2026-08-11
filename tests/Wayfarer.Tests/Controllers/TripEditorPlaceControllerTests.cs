@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
@@ -91,6 +93,9 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
+        var challengeResult = await controller.DeletePlace(trip.Id, deleted.Id, CancellationToken.None);
+        var challenge = Assert.IsType<EditorLifecycleConflictDto>(Assert.IsType<ConflictObjectResult>(challengeResult).Value);
+        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
         var result = await controller.DeletePlace(trip.Id, deleted.Id, CancellationToken.None);
 
         var envelope = AssertMutation<EditorPlaceDeleteResult>(result);
@@ -143,15 +148,94 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var movedRoute = db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!;
         Assert.Equal(22, movedRoute.Coordinates[0].X);
         Assert.Equal(11, movedRoute.Coordinates[0].Y);
-        Assert.Single(movedEnvelope.Affected.Segments);
+        var movedSegment = Assert.Single(movedEnvelope.Affected.Segments);
+        Assert.Equal(segment.Id, movedSegment.Id);
+        Assert.Equal(db.Segments.Single(s => s.Id == segment.Id).EstimatedDistanceKm, movedSegment.EstimatedDistanceKm);
+        Assert.Equal(db.Segments.Single(s => s.Id == segment.Id).EstimatedDuration?.TotalMinutes, movedSegment.EstimatedDurationMinutes);
+        Assert.Equal(db.Segments.Single(s => s.Id == segment.Id).EstimatedDurationSource.ToString(), movedSegment.EstimatedDurationSource);
+        Assert.Equal(22, movedSegment.Route!.Value.GetProperty("coordinates")[0][0].GetDouble());
+        Assert.Equal(11, movedSegment.Route.Value.GetProperty("coordinates")[0][1].GetDouble());
 
         var cleared = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(place.RegionId, "Cleared", null, null));
-        Assert.Single(AssertMutation<EditorPlaceDto>(cleared).Affected.Segments);
+        var clearedSegment = Assert.Single(AssertMutation<EditorPlaceDto>(cleared).Affected.Segments);
+        Assert.Null(clearedSegment.Route);
+        Assert.Null(clearedSegment.EstimatedDistanceKm);
+        Assert.Null(clearedSegment.EstimatedDurationMinutes);
         Assert.Null(db.Segments.Single(s => s.Id == segment.Id).RouteGeometry);
     }
 
     [Fact]
-    public async Task InvalidPersistedRouteClearsToNullDuringEndpointRewrite()
+    public async Task CoordinateUpdateRewritesOnlyTheReferencedWaypointVertex()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var waypoint = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
+        var segment = trip.Segments.Single(s => s.FromPlaceId != waypoint.Id && s.ToPlaceId != waypoint.Id);
+        segment.RouteGeometry = new LineString(new[]
+        {
+            new Coordinate(22, 40),
+            new Coordinate(22.5, 39.5),
+            new Coordinate(23, 37),
+            new Coordinate(21.5, 39.5),
+            new Coordinate(22, 40)
+        }) { SRID = 4326 };
+        segment.Waypoints.Add(new SegmentWaypoint
+        {
+            Segment = segment,
+            SegmentId = segment.Id,
+            Place = waypoint,
+            PlaceId = waypoint.Id,
+            Position = 0,
+            RouteVertexIndex = 2
+        });
+        db.SaveChanges();
+        var original = segment.RouteGeometry.Copy();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await SendJson(
+            controller,
+            c => c.UpdatePlace(trip.Id, waypoint.Id, CancellationToken.None),
+            ValidUpdateBody(waypoint.RegionId, "Moved waypoint", 38, 24));
+
+        var envelope = AssertMutation<EditorPlaceDto>(result);
+        var route = db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!;
+        Assert.Equal(24, route.Coordinates[2].X);
+        Assert.Equal(38, route.Coordinates[2].Y);
+        Assert.Equal(original.Coordinates.Where((_, index) => index != 2), route.Coordinates.Where((_, index) => index != 2));
+        Assert.Equal(
+            trip.Segments.Where(item => item.FromPlaceId == waypoint.Id || item.ToPlaceId == waypoint.Id || item.Waypoints.Any(child => child.PlaceId == waypoint.Id)).Select(item => item.Id).Distinct().Order(),
+            envelope.Affected.Segments.Select(item => item.Id).Order());
+    }
+
+    [Fact]
+    public async Task DeleteWaypointOnlyPlaceRequiresServerConfirmationWithoutMutation()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var waypoint = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
+        var segment = trip.Segments.Single(s => s.FromPlaceId != waypoint.Id && s.ToPlaceId != waypoint.Id);
+        segment.Waypoints.Add(new SegmentWaypoint
+        {
+            Segment = segment,
+            SegmentId = segment.Id,
+            Place = waypoint,
+            PlaceId = waypoint.Id,
+            Position = 0
+        });
+        db.SaveChanges();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var result = await controller.DeletePlace(trip.Id, waypoint.Id, CancellationToken.None);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains(db.Places, place => place.Id == waypoint.Id);
+        Assert.Contains(db.Set<SegmentWaypoint>(), item => item.PlaceId == waypoint.Id);
+    }
+
+    [Fact]
+    public async Task InvalidPersistedRouteAbortsEndpointRewriteWithoutMutation()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
@@ -159,13 +243,20 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var segment = trip.Segments.Single(s => s.FromPlaceId == place.Id);
         segment.RouteGeometry = new LineString(Array.Empty<Coordinate>()) { SRID = 4326 };
         db.SaveChanges();
+        var unrelated = trip.Regions.Single(region => region.Name == "Thessaloniki").Places.Single();
+        unrelated.Notes = "pending unrelated edit";
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(place.RegionId, "Moved", 11, 22));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(place.RegionId, "Moved", 11, 22)));
 
-        Assert.Single(AssertMutation<EditorPlaceDto>(result).Affected.Segments);
-        Assert.Null(db.Segments.Single(s => s.Id == segment.Id).RouteGeometry);
+        Assert.Equal(23, db.Places.Single(item => item.Id == place.Id).Location!.X);
+        Assert.Equal(0, db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!.NumPoints);
+        Assert.Equal(EntityState.Modified, db.Entry(unrelated).State);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        Assert.Equal("pending unrelated edit", db.Places.Single(item => item.Id == unrelated.Id).Notes);
     }
 
     [Fact]
