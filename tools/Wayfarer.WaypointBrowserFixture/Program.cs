@@ -121,18 +121,20 @@ static async Task VerifyPreservedAsync(ApplicationDbContext context, WaypointFix
         .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
         .SingleAsync(item => item.Id == manifest.WaypointSegmentId);
     var coordinates = segment.RouteGeometry?.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray();
-    if (segment.EstimatedDistanceKm != manifest.EstimatedDistanceKm
-        || segment.EstimatedDuration != TimeSpan.FromMinutes(manifest.EstimatedDurationMinutes)
-        || segment.EstimatedDurationSource.ToString() != manifest.EstimatedDurationSource
-        || segment.Mode != manifest.Mode
-        || segment.TransportProfileId != manifest.ProfileId
-        || coordinates == null || !coordinates.SelectMany(item => item).SequenceEqual(manifest.RouteCoordinates.SelectMany(item => item))
-        || !segment.Waypoints.Select(item => item.PlaceId).SequenceEqual(new[] { manifest.WaypointId })
-        || !segment.Waypoints.Select(item => item.Position).SequenceEqual(new[] { 0 })
-        || !segment.Waypoints.Select(item => item.RouteVertexIndex).SequenceEqual(new int?[] { 2 })
-        || segment.Notes != expectedNotes
-        || segment.RowVersion == manifest.OriginalRowVersion)
-        throw new InvalidOperationException("Provider reread did not preserve the exact #407 aggregate fixture.");
+    var failures = new List<string>();
+    if (segment.EstimatedDistanceKm != manifest.EstimatedDistanceKm) failures.Add($"distance={segment.EstimatedDistanceKm}");
+    if (segment.EstimatedDuration != TimeSpan.FromMinutes(manifest.EstimatedDurationMinutes)) failures.Add($"duration={segment.EstimatedDuration}");
+    if (segment.EstimatedDurationSource.ToString() != manifest.EstimatedDurationSource) failures.Add($"provenance={segment.EstimatedDurationSource}");
+    if (segment.Mode != manifest.Mode) failures.Add($"mode={segment.Mode}");
+    if (segment.TransportProfileId != manifest.ProfileId) failures.Add($"profile={segment.TransportProfileId}");
+    if (coordinates == null || !coordinates.SelectMany(item => item).SequenceEqual(manifest.RouteCoordinates.SelectMany(item => item))) failures.Add("geometry");
+    if (!segment.Waypoints.Select(item => item.PlaceId).SequenceEqual(new[] { manifest.WaypointId })) failures.Add("waypoint IDs");
+    if (!segment.Waypoints.Select(item => item.Position).SequenceEqual(new[] { 0 })) failures.Add("waypoint positions");
+    if (!segment.Waypoints.Select(item => item.RouteVertexIndex).SequenceEqual(new int?[] { 2 })) failures.Add("route vertex indices");
+    if (segment.Notes != expectedNotes) failures.Add($"notes={segment.Notes}");
+    if (segment.RowVersion == manifest.OriginalRowVersion) failures.Add($"token={segment.RowVersion}");
+    if (failures.Count > 0)
+        throw new InvalidOperationException("Provider reread mismatch: " + string.Join(", ", failures));
     Console.WriteLine("provider-reread: measurements, provenance, profile, geometry, waypoint identity/order/indices, notes, and token refresh verified");
 }
 
