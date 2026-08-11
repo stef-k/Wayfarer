@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canMutateSegmentRoute, invokeSegmentRouteAction } from '../../ClientApps/trip-editor/src/components/segmentRouteWorkPolicy.js';
+import { canMutateSegmentRoute, invokeSegmentRouteAction } from '../../ClientApps/trip-editor/src/components/segmentRouteWorkPolicy.ts';
 
 test('waypoint-bearing custom and fallback routes disable every route mutation', () => {
   assert.equal(canMutateSegmentRoute({ waypointPlaceIds: ['waypoint'], route: { coordinates: [[0, 0], [1, 1]] } }), false);

@@ -10,6 +10,7 @@ import { buildSegmentRequest, emptySegmentDraft, toSegmentDraft } from './region
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
+import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
 
 declare global {
   interface Window {
@@ -245,11 +246,12 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
 }
 
 function drawRoute(): void {
-  beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state);
+  invokeSegmentRouteAction(draft, () =>
+    beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state));
 }
 
 function clearRoute(): void {
-  draft.route = null;
+  invokeSegmentRouteAction(draft, () => { draft.route = null; });
 }
 
 function toggleVisibility(segment: EditorSegment): void {
