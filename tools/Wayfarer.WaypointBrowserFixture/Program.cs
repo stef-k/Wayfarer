@@ -185,13 +185,17 @@ static Place Place(Region region, string userId, string name, int order, double 
     return place;
 }
 
-static Segment Segment(Trip trip, string userId, TransportProfile profile, int order, Place from, Place to, string notes, bool custom) => new()
+static Segment Segment(Trip trip, string userId, TransportProfile profile, int order, Place from, Place to, string notes, bool custom)
 {
-    Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = userId, FromPlace = from, FromPlaceId = from.Id,
-    ToPlace = to, ToPlaceId = to.Id, Mode = profile.Key, TransportProfile = profile, TransportProfileId = profile.Id,
-    DisplayOrder = order, Notes = notes, EstimatedDistanceKm = custom ? 9.407 : 3.0,
-    EstimatedDuration = TimeSpan.FromMinutes(custom ? 47 : 15), EstimatedDurationSource = EstimatedDurationSource.Manual
-};
+    const double waypointDistanceKm = 8.303;
+    return new()
+    {
+        Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = userId, FromPlace = from, FromPlaceId = from.Id,
+        ToPlace = to, ToPlaceId = to.Id, Mode = profile.Key, TransportProfile = profile, TransportProfileId = profile.Id,
+        DisplayOrder = order, Notes = notes, EstimatedDistanceKm = custom ? waypointDistanceKm : 3.0,
+        EstimatedDuration = TimeSpan.FromMinutes(custom ? 47 : 15), EstimatedDurationSource = EstimatedDurationSource.Manual
+    };
+}
 
 static LineString Line(params Coordinate[] coordinates) => new(coordinates) { SRID = 4326 };
 static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
