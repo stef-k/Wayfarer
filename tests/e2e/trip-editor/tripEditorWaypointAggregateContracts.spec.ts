@@ -43,6 +43,29 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
 
     await openSegment(page, fixture.waypointSegmentId);
     const form = page.locator('#trip-editor-segment-form');
+    const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
+    const clearRoute = page.getByRole('button', { name: 'Clear Route' });
+    const routeExplanation = page.getByText('Route editing for segments with intermediate places will be available in a later update.');
+    await expect(drawRoute).toBeDisabled();
+    await expect(clearRoute).toBeDisabled();
+    await expect(routeExplanation).toBeVisible();
+    const explanationId = await routeExplanation.getAttribute('id');
+    expect(explanationId).toBeTruthy();
+    await expect(drawRoute).toHaveAttribute('aria-describedby', explanationId!);
+    await expect(clearRoute).toHaveAttribute('aria-describedby', explanationId!);
+    await expect(form.getByLabel('From place')).toBeEnabled();
+    await expect(notesEditor(form)).toBeEditable();
+    const forbiddenRequests: string[] = [];
+    page.on('request', request => {
+      if (request.method() !== 'GET' && request.url().includes('/segments')) forbiddenRequests.push(request.url());
+    });
+    await expect(drawRoute.click({ timeout: 500 })).rejects.toThrow();
+    await expect(clearRoute.click({ timeout: 500 })).rejects.toThrow();
+    await drawRoute.focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Space');
+    await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
+    expect(forbiddenRequests).toEqual([]);
     await notesEditor(form).fill('Browser ordinary visible edit');
     const ordinaryRequest = captureNextPut(page, fixture.waypointSegmentId);
     const ordinaryResponse = waitForPut(page, fixture.waypointSegmentId);
@@ -143,6 +166,7 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expectMountedWorkspace(page);
     await openSegment(page, fixture.zeroSegmentId);
+    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeEnabled();
     const zeroBefore = (await editorState(page)).segmentsById[fixture.zeroSegmentId];
     expect(zeroBefore.waypointPlaceIds).toEqual([]);
     await notesEditor(form).fill('Zero waypoint update remains functional');

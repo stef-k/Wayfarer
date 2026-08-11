@@ -1,7 +1,9 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -94,6 +96,72 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         await AssertOriginalAggregateAsync(seed);
     }
 
+    /// <summary>A serialization failure after token comparison is classified only after exact cleanup restores a reusable context.</summary>
+    [PostgresFact]
+    public async Task SerializationFailure_SuccessfulCleanup_ReturnsWriteConflictAndReusableContext()
+    {
+        var plan = new FailurePlan();
+        var seed = await SeedAsync();
+        await using var context = fixture.CreateContext(new SerializationSaveInterceptor(plan));
+
+        var outcome = await ReplaceOutcomeAsync(context, seed);
+
+        Assert.Equal(EditorRegionMutationStatus.Conflict, outcome.Status);
+        Assert.Equal("segment-write-conflict", Assert.IsType<EditorSegmentConflictDto>(outcome.Conflict).Code);
+        await AssertContextReusableAsync(context, seed);
+        await AssertOriginalAggregateAsync(seed);
+    }
+
+    /// <summary>A rollback failure cannot replace the original serialization failure and invalidates the context.</summary>
+    [PostgresFact]
+    public async Task SerializationAndRollbackFailure_RetainsBothAndInvalidatesContext()
+    {
+        var plan = new FailurePlan();
+        var seed = await SeedAsync();
+        await using var context = fixture.CreateContext(new SerializationSaveInterceptor(plan), new RollbackFailureInterceptor(plan));
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(() => ReplaceAsync(context, seed, CancellationToken.None));
+
+        Assert.Contains(PostgresErrorCodes.SerializationFailure, exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Deterministic #407 rollback failure.", exception.ToString(), StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+        await AssertOriginalAggregateAsync(seed);
+    }
+
+    /// <summary>A recovery failure cannot replace the original serialization failure and invalidates the context.</summary>
+    [PostgresFact]
+    public async Task SerializationAndRecoveryFailure_RetainsBothAndInvalidatesContext()
+    {
+        var plan = new FailurePlan();
+        var seed = await SeedAsync();
+        await using var context = fixture.CreateContext(new SerializationSaveInterceptor(plan), new RecoveryFailureInterceptor(plan));
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(() => ReplaceAsync(context, seed, CancellationToken.None));
+
+        Assert.Contains(PostgresErrorCodes.SerializationFailure, exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Deterministic #407 recovery failure.", exception.ToString(), StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+        await AssertOriginalAggregateAsync(seed);
+    }
+
+    /// <summary>Serialization, rollback, and recovery failures are retained together before invalidation.</summary>
+    [PostgresFact]
+    public async Task SerializationRollbackAndRecoveryFailure_RetainsAllAndInvalidatesContext()
+    {
+        var plan = new FailurePlan();
+        var seed = await SeedAsync();
+        await using var context = fixture.CreateContext(
+            new SerializationSaveInterceptor(plan), new RollbackFailureInterceptor(plan), new RecoveryFailureInterceptor(plan));
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(() => ReplaceAsync(context, seed, CancellationToken.None));
+
+        Assert.Contains(PostgresErrorCodes.SerializationFailure, exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Deterministic #407 rollback failure.", exception.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Deterministic #407 recovery failure.", exception.ToString(), StringComparison.Ordinal);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+        await AssertOriginalAggregateAsync(seed);
+    }
+
     private async Task<SegmentSeed> SeedAsync()
     {
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
@@ -107,6 +175,16 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         await support.Service(context).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
             TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
                 mode: seed.SecondProfileKey, notes: "must roll back"), null, cancellationToken);
+    }
+
+    private async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>> ReplaceOutcomeAsync(
+        ApplicationDbContext context, SegmentSeed seed)
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var token = await support.TokenAsync(context, seed);
+        return await support.Service(context).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey, notes: "must roll back"), null, CancellationToken.None);
     }
 
     private async Task AssertOriginalAggregateAsync(SegmentSeed seed)
@@ -156,6 +234,24 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
             _fail = false;
             plan.OperationFailed = true;
             throw new InvalidOperationException("Deterministic #407 provider failure.");
+        }
+    }
+
+    private sealed class SerializationSaveInterceptor(FailurePlan plan) : SaveChangesInterceptor
+    {
+        private bool _fail = true;
+
+        /// <summary>Injects SQLSTATE 40001 only after the editor has completed its aggregate comparison.</summary>
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (!_fail) return ValueTask.FromResult(result);
+            _fail = false;
+            plan.OperationFailed = true;
+            return ValueTask.FromException<InterceptionResult<int>>(new PostgresException(
+                "serialization", "ERROR", "ERROR", PostgresErrorCodes.SerializationFailure,
+                null!, null!, 0, 0, null!, null!, "public", null!, null!, null!,
+                null!, "predicate.c", "1", "serialization_failure"));
         }
     }
 
