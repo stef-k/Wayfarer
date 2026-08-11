@@ -167,8 +167,7 @@ async function saveDraft(): Promise<void> {
           return;
         }
       }
-      if (error.conflict.code === 'segment-aggregate-stale' || error.conflict.code === 'segment-write-conflict')
-        Object.assign(draft, toSegmentDraft(error.conflict.currentSegment));
+      // Keep the user's complete visible and hidden proposal retryable after canonical contention.
     }
     applyError(error, 'Segment save failed.');
   } finally {

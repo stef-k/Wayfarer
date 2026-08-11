@@ -56,7 +56,7 @@ public sealed partial class TripEditorSegmentMutationService
             var canonicalTrip = await _dbContext.Trips.AsNoTracking()
                 .Include(item => item.Regions).ThenInclude(item => item.Places)
                 .SingleAsync(item => item.Id == candidateTrip.Id && item.UserId == userId, cancellationToken);
-            var referenceErrors = ValidatePlaceReferences(request, canonicalTrip);
+            var referenceErrors = ValidatePlaceReferences(request, canonicalTrip, validateRouteCoordinates: false);
             if (referenceErrors.Count > 0)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
@@ -104,6 +104,13 @@ public sealed partial class TripEditorSegmentMutationService
                             "Saving this anchor change requires clearing the custom route.", issued.ExpiresAt, issued.Token));
                 }
                 request = request with { Route = null, WaypointRouteVertexIndices = request.WaypointRouteVertexIndices.Select(_ => (int?)null).ToArray() };
+            }
+
+            referenceErrors = ValidatePlaceReferences(request, canonicalTrip);
+            if (referenceErrors.Count > 0)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(referenceErrors);
             }
 
             var reconciliation = await SegmentRouteReconciler.ReconcileLockedAsync(

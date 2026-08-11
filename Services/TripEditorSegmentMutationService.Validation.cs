@@ -6,7 +6,8 @@ namespace Wayfarer.Services;
 /// <summary>Field-keyed complete-request validation for editor Segment aggregates.</summary>
 public sealed partial class TripEditorSegmentMutationService
 {
-    private static Dictionary<string, string[]> ValidatePlaceReferences(EditorSegmentSaveRequest request, Trip trip)
+    private static Dictionary<string, string[]> ValidatePlaceReferences(
+        EditorSegmentSaveRequest request, Trip trip, bool validateRouteCoordinates = true)
     {
         var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var places = trip.Regions.SelectMany(region => region.Places).ToDictionary(place => place.Id);
@@ -27,7 +28,7 @@ public sealed partial class TripEditorSegmentMutationService
         if (request.ToPlaceId.HasValue && places.TryGetValue(request.ToPlaceId.Value, out var to) && to.Location == null) errors["toPlaceId"] = ["The anchor requires a location."];
         for (var index = 0; index < request.WaypointPlaceIds.Count; index++)
             if (places.TryGetValue(request.WaypointPlaceIds[index], out var waypoint) && waypoint.Location == null) errors[$"waypointPlaceIds[{index}]"] = ["The waypoint anchor requires a location."];
-        ValidateWaypointIndices(request, places, errors);
+        if (validateRouteCoordinates) ValidateWaypointIndices(request, places, errors);
         return errors;
     }
 

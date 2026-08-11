@@ -113,7 +113,7 @@ public sealed class TripEditorSegmentAggregatePostgresTests(PostgresImportTestFi
         var from = scenario == "endpoint" ? seed.AlternateId : seed.FromId;
         var outcome = await support.Service(context).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
             TripEditorSegmentMutationPostgresTestSupport.Body(seed, ids, ids.Select(_ => (int?)null).ToArray(), token,
-                fromId: from), null, CancellationToken.None);
+                fromId: from, customRoute: scenario == "endpoint"), null, CancellationToken.None);
 
         Assert.Equal(EditorRegionMutationStatus.Conflict, outcome.Status);
         Assert.Equal("segment-route-clear-confirmation-required", Assert.IsType<EditorSegmentConflictDto>(outcome.Conflict).Code);
