@@ -92,7 +92,7 @@ try {
         $env:WAYFARER_E2E_WAYPOINT_HELPER = $helper
         $hostProcess = Start-Process -FilePath 'dotnet.exe' -ArgumentList (Join-Path $publishDirectory 'Wayfarer.dll') -WorkingDirectory $publishDirectory -PassThru -WindowStyle Hidden -RedirectStandardOutput $hostLog -RedirectStandardError $hostErrorLog
         Wait-Port $hostPort $true
-        Invoke-Checked 'npx.cmd' @('playwright', 'test', 'tests/e2e/trip-editor/tripEditorWaypointAggregateContracts.spec.ts', '--config=playwright.config.ts', '--project=chromium', '--workers=1', '--retries=0', '--reporter=line')
+        Invoke-Checked 'npx.cmd' @('playwright', 'test', 'tests/e2e/trip-editor/tripEditorWaypointAggregateContracts.spec.ts', '--config=playwright.config.ts', '--project=chromium', '--workers=1', '--retries=0', "--output=$(Join-Path $runRoot 'playwright')", '--reporter=line')
     } finally {
         Pop-Location
     }

@@ -97,7 +97,7 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     var manifest = new WaypointFixtureManifest(trip.Id, user.Id, user.UserName!, password, profile.Id, profile.Key,
         waypointSegment.Id, zeroSegment.Id, from.Id, waypoint.Id, alternate.Id, to.Id,
         waypointSegment.EstimatedDistanceKm!.Value, waypointSegment.EstimatedDuration!.Value.TotalMinutes,
-        waypointSegment.EstimatedDurationSource, 0,
+        waypointSegment.EstimatedDurationSource.ToString(), 0,
         waypointSegment.RouteGeometry!.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray(),
         [shadow.Id, region.Id], [from.Id, waypoint.Id, alternate.Id, to.Id]);
     await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(manifest, FixtureJson.Options));
@@ -123,7 +123,7 @@ static async Task VerifyPreservedAsync(ApplicationDbContext context, WaypointFix
     var coordinates = segment.RouteGeometry?.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray();
     if (segment.EstimatedDistanceKm != manifest.EstimatedDistanceKm
         || segment.EstimatedDuration != TimeSpan.FromMinutes(manifest.EstimatedDurationMinutes)
-        || segment.EstimatedDurationSource != manifest.EstimatedDurationSource
+        || segment.EstimatedDurationSource.ToString() != manifest.EstimatedDurationSource
         || segment.Mode != manifest.Mode
         || segment.TransportProfileId != manifest.ProfileId
         || coordinates == null || !coordinates.SelectMany(item => item).SequenceEqual(manifest.RouteCoordinates.SelectMany(item => item))
@@ -200,7 +200,7 @@ static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
 internal sealed record WaypointFixtureManifest(
     Guid TripId, string UserId, string Username, string Password, Guid ProfileId, string Mode,
     Guid WaypointSegmentId, Guid ZeroSegmentId, Guid FromId, Guid WaypointId, Guid AlternateId, Guid ToId,
-    double EstimatedDistanceKm, double EstimatedDurationMinutes, EstimatedDurationSource EstimatedDurationSource,
+    double EstimatedDistanceKm, double EstimatedDurationMinutes, string EstimatedDurationSource,
     uint OriginalRowVersion, double[][] RouteCoordinates,
     Guid[] RegionIds, Guid[] PlaceIds);
 
