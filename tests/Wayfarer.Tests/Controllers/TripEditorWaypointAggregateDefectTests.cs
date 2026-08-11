@@ -28,7 +28,9 @@ public sealed class TripEditorWaypointAggregateDefectTests : TestBase
         await TripEditorSegmentControllerTests.SendJson(
             controller,
             item => item.UpdateSegment(graph.Trip.Id, graph.Segment.Id, CancellationToken.None),
-            TripEditorSegmentControllerTests.ValidBody(graph.From.Id, graph.To.Id, "walk", "null"));
+            TripEditorSegmentControllerTests.ValidBody(graph.From.Id, graph.To.Id, "walk", "null")
+                .Replace("\"waypointPlaceIds\": []", $"\"waypointPlaceIds\": [\"{graph.Waypoint.Id}\"]", StringComparison.Ordinal)
+                .Replace("\"waypointRouteVertexIndices\": []", "\"waypointRouteVertexIndices\": [null]", StringComparison.Ordinal));
 
         Assert.Equal(
             [graph.Waypoint.Id],
@@ -72,9 +74,21 @@ public sealed class TripEditorWaypointAggregateDefectTests : TestBase
             item => item.UpdateSegment(graph.Trip.Id, graph.Segment.Id, CancellationToken.None),
             TripEditorSegmentControllerTests.ValidBody(graph.To.Id, graph.From.Id, "walk", "null"));
 
-        var conflict = Assert.IsType<ObjectResult>(result);
+        var conflict = Assert.IsAssignableFrom<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, conflict.StatusCode);
         Assert.True(controller.Response.Headers.ContainsKey("X-Wayfarer-Clear-Route-Confirmation"));
+        var warning = Assert.IsType<EditorSegmentConflictDto>(conflict.Value);
+        Assert.Equal("segment-route-clear-confirmation-required", warning.Code);
+
+        controller.Request.Headers["X-Wayfarer-Clear-Route-Confirmation"] =
+            controller.Response.Headers["X-Wayfarer-Clear-Route-Confirmation"];
+        var confirmed = await TripEditorSegmentControllerTests.SendJson(
+            controller,
+            item => item.UpdateSegment(graph.Trip.Id, graph.Segment.Id, CancellationToken.None),
+            TripEditorSegmentControllerTests.ValidBody(graph.To.Id, graph.From.Id, "walk", "null"));
+
+        Assert.IsType<OkObjectResult>(confirmed);
+        Assert.Null(db.Segments.Single(item => item.Id == graph.Segment.Id).RouteGeometry);
     }
 
     /// <summary>The narrow notes writer needs row-version protection without aggregate attachment.</summary>

@@ -119,7 +119,7 @@ export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest 
 }
 
 export function emptySegmentDraft(): EditorSegmentDraft {
-  return { id: null, fromPlaceId: null, toPlaceId: null, mode: '', estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null };
+  return { id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null };
 }
 
 export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraft {
@@ -131,12 +131,17 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
     id: segment.id,
     fromPlaceId: segment.fromPlaceId,
     toPlaceId: segment.toPlaceId,
+    waypointPlaceIds: [...segment.waypointPlaceIds],
+    waypointRouteVertexIndices: [...segment.waypointRouteVertexIndices],
     mode: segment.mode,
+    transportProfileId: segment.transportProfileId,
     estimatedDistanceKm: segment.estimatedDistanceKm ?? '',
     estimatedDurationMinutes: segment.estimatedDurationMinutes ?? '',
     estimatedDurationSource: segment.estimatedDurationSource,
     notesHtml: normalizeNotesHtml(segment.notesHtml),
-    route: cloneGeometry(segment.route)
+    route: cloneGeometry(segment.route),
+    effectiveRoute: cloneGeometry(segment.effectiveRoute),
+    aggregateConcurrencyToken: segment.aggregateConcurrencyToken
   };
 }
 
@@ -144,12 +149,15 @@ export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSav
   return {
     fromPlaceId: value.fromPlaceId || null,
     toPlaceId: value.toPlaceId || null,
+    waypointPlaceIds: [...value.waypointPlaceIds],
+    waypointRouteVertexIndices: [...value.waypointRouteVertexIndices],
     mode: value.mode || null,
     estimatedDistanceKm: nullableNumber(value.estimatedDistanceKm),
     estimatedDurationMinutes: nullableNumber(value.estimatedDurationMinutes),
     estimatedDurationSource: value.estimatedDurationSource,
     notesHtml: normalizeNotesHtml(value.notesHtml),
-    route: cloneGeometry(value.route)
+    route: cloneGeometry(value.route),
+    aggregateConcurrencyToken: value.aggregateConcurrencyToken
   };
 }
 

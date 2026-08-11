@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { createSegment, deleteSegment, orderSegments, updateSegment } from '../api/tripEditorApi';
+import { createSegment, deleteSegment, EditorSegmentConflictError, orderSegments, updateSegment } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
@@ -37,7 +37,7 @@ const emit = defineEmits<{
   routeDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
 }>();
 
-const segmentFields = ['fromPlaceId', 'toPlaceId', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'estimatedDurationSource', 'notesHtml', 'route', 'route.coordinates'];
+const segmentFields = ['fromPlaceId', 'toPlaceId', 'waypointPlaceIds', 'waypointRouteVertexIndices', 'aggregateConcurrencyToken', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'estimatedDurationSource', 'notesHtml', 'route', 'route.coordinates'];
 const segmentFormId = 'trip-editor-segment-form';
 const segmentList = ref<HTMLElement | null>(null);
 const segmentListKey = ref(0);
@@ -151,6 +151,25 @@ async function saveDraft(): Promise<void> {
     emit('routeDraftPreviewChanged', null);
     markSaved();
   } catch (error) {
+    if (error instanceof EditorSegmentConflictError && draft.id) {
+      if (error.confirmationToken && await confirm({
+        title: 'Clear custom route?', message: error.conflict.warning,
+        confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning'
+      })) {
+        try {
+          const confirmed = await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, buildSegmentRequest(draft), error.confirmationToken);
+          emit('mutationApplied', confirmed as EditorMutationResult<unknown>);
+          Object.assign(draft, toSegmentDraft(confirmed.data));
+          markSaved();
+          return;
+        } catch (retryError) {
+          applyError(retryError, 'Segment save failed.');
+          return;
+        }
+      }
+      if (error.conflict.code === 'segment-aggregate-stale' || error.conflict.code === 'segment-write-conflict')
+        Object.assign(draft, toSegmentDraft(error.conflict.currentSegment));
+    }
     applyError(error, 'Segment save failed.');
   } finally {
     isSaving.value = false;

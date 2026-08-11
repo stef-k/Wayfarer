@@ -971,19 +971,31 @@ return Ok(dto);
         if (user == null) return Unauthorized("Missing or invalid API token.");
         if (request == null) return BadRequest("Invalid request.");
 
-        var segment = await _dbContext.Segments
+        var segment = await _dbContext.Segments.AsNoTracking()
             .Include(s => s.Trip)
             .FirstOrDefaultAsync(s => s.Id == segmentId);
         if (segment == null) return NotFound("Segment not found.");
         if (segment.Trip.UserId != user.Id) return Unauthorized("Not your segment.");
 
+        var notes = request.Notes ?? segment.Notes;
         if (request.Notes != null)
         {
-            segment.Notes = request.Notes;
+            if (_dbContext.Database.IsRelational())
+                await _dbContext.Segments.Where(item => item.Id == segmentId && item.UserId == user.Id)
+                    .ExecuteUpdateAsync(update => update.SetProperty(item => item.Notes, request.Notes));
+            else
+            {
+                var notesOnly = _dbContext.ChangeTracker.Entries<Segment>()
+                    .FirstOrDefault(entry => entry.Entity.Id == segmentId)?.Entity
+                    ?? new Segment { Id = segmentId, UserId = user.Id, TripId = segment.TripId };
+                if (_dbContext.Entry(notesOnly).State == EntityState.Detached) _dbContext.Attach(notesOnly);
+                notesOnly.Notes = request.Notes;
+                _dbContext.Entry(notesOnly).Property(item => item.Notes).IsModified = true;
+                await _dbContext.SaveChangesAsync();
+            }
         }
 
-        await _dbContext.SaveChangesAsync();
-        return Ok(new { success = true, segment = new { segment.Id, segment.Notes } });
+        return Ok(new { success = true, segment = new { segment.Id, Notes = notes } });
     }
 
     /// <summary>

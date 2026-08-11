@@ -76,7 +76,11 @@ export interface EditorSegment {
   tripId: Guid;
   fromPlaceId: Guid | null;
   toPlaceId: Guid | null;
+  waypointPlaceIds: Guid[];
+  waypointRouteVertexIndices: Array<number | null>;
   mode: string;
+  transportProfileId: Guid | null;
+  hasCustomRoute: boolean;
   estimatedDistanceKm: number | null;
   estimatedDurationMinutes: number | null;
   estimatedDurationSource: 'Automatic' | 'Manual';
@@ -292,12 +296,18 @@ export interface EditorAreaDeleteResult {
 export interface EditorSegmentSaveRequest {
   fromPlaceId: Guid | null;
   toPlaceId: Guid | null;
+  waypointPlaceIds: Guid[];
+  waypointRouteVertexIndices: Array<number | null>;
   mode: string | null;
+  transportProfileId?: Guid | null;
   estimatedDistanceKm: number | null;
   estimatedDurationMinutes: number | null;
   estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string | null;
   route: GeoJsonLineString | null;
+  effectiveRoute: GeoJsonLineString | null;
+  aggregateConcurrencyToken: string;
+  aggregateConcurrencyToken: string | null;
 }
 
 export interface EditorSegmentOrderRequest {
@@ -338,12 +348,25 @@ export interface EditorSegmentDraft {
   id: Guid | null;
   fromPlaceId: Guid | null;
   toPlaceId: Guid | null;
+  waypointPlaceIds: Guid[];
+  waypointRouteVertexIndices: Array<number | null>;
   mode: string;
+  transportProfileId: Guid | null;
   estimatedDistanceKm: string | number;
   estimatedDurationMinutes: string | number;
   estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string;
   route: GeoJsonLineString | null;
+  effectiveRoute: GeoJsonLineString | null;
+  aggregateConcurrencyToken: string | null;
+}
+
+export interface EditorSegmentConflict {
+  code: string;
+  operation: string;
+  currentSegment: EditorSegment;
+  warning: string;
+  expiresAt: string | null;
 }
 
 export interface EditorMutationResult<TData> {
@@ -388,6 +411,7 @@ export interface EditorWarning {
 export interface ValidationProblemDetails {
   title?: string;
   status?: number;
+  code?: string;
   errors?: Record<string, string[]>;
 }
 

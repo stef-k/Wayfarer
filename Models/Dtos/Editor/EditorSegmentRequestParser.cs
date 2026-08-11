@@ -16,7 +16,7 @@ internal static class EditorSegmentRequestParser
     public static bool TryParseSave(JsonElement request, out EditorSegmentSaveRequest update, out Dictionary<string, string[]> errors)
     {
         errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        update = new EditorSegmentSaveRequest(null, null, string.Empty, null, null, EstimatedDurationSource.Automatic, null, null);
+        update = new EditorSegmentSaveRequest(null, null, [], [], string.Empty, null, null, EstimatedDurationSource.Automatic, null, null, null);
         if (!ValidateObject(request, errors, "Segment mutation request must be a JSON object."))
         {
             return false;
@@ -25,6 +25,8 @@ internal static class EditorSegmentRequestParser
         RejectFields(request, ServerOwnedFields, "The field is server-owned and cannot be updated.", errors);
         var fromPlaceId = ReadRequiredNullableGuid(request, "fromPlaceId", errors);
         var toPlaceId = ReadRequiredNullableGuid(request, "toPlaceId", errors);
+        var waypointPlaceIds = ReadRequiredGuidArray(request, "waypointPlaceIds", errors);
+        var waypointIndices = ReadRequiredNullableIntArray(request, "waypointRouteVertexIndices", errors);
         var mode = ReadRequiredNullableString(request, "mode", errors);
         var distance = ReadIgnoredRequiredNumber(request, "estimatedDistanceKm", errors);
         var durationSource = ReadRequiredDurationSource(request, errors);
@@ -35,6 +37,13 @@ internal static class EditorSegmentRequestParser
             errors["estimatedDurationMinutes"] = ["Manual duration is required."];
         var notesHtml = ReadRequiredNullableString(request, "notesHtml", errors);
         var route = ReadRequiredNullableRoute(request, errors);
+        var aggregateToken = ReadRequiredNullableString(request, "aggregateConcurrencyToken", errors);
+        if (waypointPlaceIds.Count != waypointIndices.Count)
+            errors["waypointRouteVertexIndices"] = ["Waypoint IDs and route vertex indices must have matching lengths."];
+        if (route == null)
+            for (var index = 0; index < waypointIndices.Count; index++)
+                if (waypointIndices[index].HasValue)
+                    errors[$"waypointRouteVertexIndices[{index}]"] = ["The route vertex index must be null when route is null."];
         ValidateMode(mode, errors);
         ValidateNotes(notesHtml, errors);
 
@@ -46,12 +55,15 @@ internal static class EditorSegmentRequestParser
         update = new EditorSegmentSaveRequest(
             fromPlaceId,
             toPlaceId,
+            waypointPlaceIds,
+            waypointIndices,
             CanonicalMode(mode),
             distance,
             duration,
             durationSource,
             EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
-            route);
+            route,
+            aggregateToken);
         return true;
     }
 
@@ -138,6 +150,54 @@ internal static class EditorSegmentRequestParser
         }
 
         return value;
+    }
+
+    private static IReadOnlyList<Guid> ReadRequiredGuidArray(JsonElement request, string name, Dictionary<string, string[]> errors)
+    {
+        if (!request.TryGetProperty(name, out var property))
+        {
+            errors[name] = ["The field is required."];
+            return [];
+        }
+        if (property.ValueKind != JsonValueKind.Array)
+        {
+            errors[name] = ["The field must be an array."];
+            return [];
+        }
+        var values = new List<Guid>();
+        var index = 0;
+        foreach (var item in property.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String || !Guid.TryParse(item.GetString(), out var value))
+                errors[$"{name}[{index}]"] = ["The waypoint ID must be a GUID string."];
+            else values.Add(value);
+            index++;
+        }
+        return values;
+    }
+
+    private static IReadOnlyList<int?> ReadRequiredNullableIntArray(JsonElement request, string name, Dictionary<string, string[]> errors)
+    {
+        if (!request.TryGetProperty(name, out var property))
+        {
+            errors[name] = ["The field is required."];
+            return [];
+        }
+        if (property.ValueKind != JsonValueKind.Array)
+        {
+            errors[name] = ["The field must be an array."];
+            return [];
+        }
+        var values = new List<int?>();
+        var index = 0;
+        foreach (var item in property.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Null) values.Add(null);
+            else if (item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out var value)) values.Add(value);
+            else errors[$"{name}[{index}]"] = ["The route vertex index must be an integer or null."];
+            index++;
+        }
+        return values;
     }
 
     private static string? ReadRequiredNullableString(JsonElement request, string name, Dictionary<string, string[]> errors)

@@ -159,12 +159,15 @@ public sealed class EditorRichNotesRequestHtmlTests
         {
           "fromPlaceId": null,
           "toPlaceId": null,
+          "waypointPlaceIds": [],
+          "waypointRouteVertexIndices": [],
           "mode": "walk",
           "estimatedDistanceKm": null,
           "estimatedDurationMinutes": null,
           "estimatedDurationSource": "Automatic",
           "notesHtml": "{{JsonEncodedText(notesHtml)}}",
-          "route": null
+          "route": null,
+          "aggregateConcurrencyToken": null
         }
         """), out var segment, out _));
         Assert.Equal(expectedNotesHtml, segment.NotesHtml);

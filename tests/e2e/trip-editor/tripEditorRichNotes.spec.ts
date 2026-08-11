@@ -486,12 +486,12 @@ function prepareRichNotesState(state: MutableEditorState): void {
     id: segmentId,
     tripId: state.tripId,
     fromPlaceId: placeId,
-    toPlaceId: placeId,
-    mode: state.options.transportModes[0]?.value ?? 'walk',
+    toPlaceId: placeId, waypointPlaceIds: [], waypointRouteVertexIndices: [],
+    mode: state.options.transportModes[0]?.value ?? 'walk', transportProfileId: null, hasCustomRoute: true,
     estimatedDistanceKm: 1,
     estimatedDurationMinutes: 10, estimatedDurationSource: 'Manual',
     notesHtml: '<p>Persisted segment note</p>',
-    route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] },
+    route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] }, effectiveRoute: { type: 'LineString', coordinates: [[23, 37], [24, 38]] }, aggregateConcurrencyToken: 'opaque-rich-notes-segment',
     displayOrder: 1,
     capabilities: editableCapabilities()
   };

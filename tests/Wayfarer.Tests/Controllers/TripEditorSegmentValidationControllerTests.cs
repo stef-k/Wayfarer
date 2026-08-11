@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json.Nodes;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -10,6 +11,51 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorSegmentValidationControllerTests : TestBase
 {
+    /// <summary>Waypoint arrays are required complete-replacement fields and null is never preserve.</summary>
+    [Theory]
+    [InlineData("waypointPlaceIds", "segment-field-required")]
+    [InlineData("waypointRouteVertexIndices", "segment-field-required")]
+    public async Task SaveRejectsMissingWaypointAggregateFieldsWithStableCode(string field, string expectedCode)
+    {
+        using var db = CreateDbContext();
+        var graph = TripEditorSegmentControllerTests.SeedTripGraph(db, "owner-user");
+        var controller = TripEditorSegmentControllerTests.BuildController(db);
+        TripEditorSegmentControllerTests.ConfigureControllerWithUserRole(controller, "owner-user");
+        var request = JsonNode.Parse(TripEditorSegmentControllerTests.ValidBody(
+            graph.FirstPlace.Id, graph.SecondPlace.Id, "walk", "null"))!.AsObject();
+        request.Remove(field);
+        var body = request.ToJsonString();
+
+        var result = await TripEditorSegmentControllerTests.SendJson(
+            controller, item => item.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None), body);
+        var problem = TripEditorSegmentControllerTests.AssertValidationProblem(result);
+
+        Assert.Contains(field, problem.Errors.Keys);
+        Assert.Equal(expectedCode, problem.Extensions["code"]);
+    }
+
+    /// <summary>Explicit null arrays and position-count mismatches are deterministic shape errors.</summary>
+    [Fact]
+    public async Task SaveRejectsNullAndMismatchedWaypointArrays()
+    {
+        using var db = CreateDbContext();
+        var graph = TripEditorSegmentControllerTests.SeedTripGraph(db, "owner-user");
+        var controller = TripEditorSegmentControllerTests.BuildController(db);
+        TripEditorSegmentControllerTests.ConfigureControllerWithUserRole(controller, "owner-user");
+        var nullArrayBody = TripEditorSegmentControllerTests.ValidBody(graph.FirstPlace.Id, graph.SecondPlace.Id, "walk", "null")
+            .Replace("\"waypointPlaceIds\": []", "\"waypointPlaceIds\": null", StringComparison.Ordinal);
+        var mismatchBody = TripEditorSegmentControllerTests.ValidBody(graph.FirstPlace.Id, graph.SecondPlace.Id, "walk", "null")
+            .Replace("\"waypointPlaceIds\": []", $"\"waypointPlaceIds\": [\"{graph.FirstPlace.Id}\"]", StringComparison.Ordinal);
+
+        var nullResult = await TripEditorSegmentControllerTests.SendJson(
+            controller, item => item.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None), nullArrayBody);
+        var mismatchResult = await TripEditorSegmentControllerTests.SendJson(
+            controller, item => item.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None), mismatchBody);
+
+        Assert.Equal("segment-array-invalid", TripEditorSegmentControllerTests.AssertValidationProblem(nullResult).Extensions["code"]);
+        Assert.Contains("waypointRouteVertexIndices", TripEditorSegmentControllerTests.AssertValidationProblem(mismatchResult).Errors.Keys);
+    }
+
     /// <summary>Missing provenance is never inferred and receives the deterministic stale-client field error.</summary>
     [Fact]
     public async Task SaveRejectsMissingDurationSourceAsStaleClient()

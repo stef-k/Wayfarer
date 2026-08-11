@@ -112,12 +112,18 @@ public sealed record EditorSegmentDto(
     Guid TripId,
     Guid? FromPlaceId,
     Guid? ToPlaceId,
+    IReadOnlyList<Guid> WaypointPlaceIds,
+    IReadOnlyList<int?> WaypointRouteVertexIndices,
     string Mode,
+    Guid? TransportProfileId,
+    bool HasCustomRoute,
     double? EstimatedDistanceKm,
     double? EstimatedDurationMinutes,
     string EstimatedDurationSource,
     string NotesHtml,
     JsonElement? Route,
+    JsonElement? EffectiveRoute,
+    string AggregateConcurrencyToken,
     int DisplayOrder,
     EditorEntityCapabilitiesDto Capabilities);
 

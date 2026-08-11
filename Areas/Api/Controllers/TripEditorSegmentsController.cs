@@ -34,7 +34,9 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _segmentMutations.UpdateSegmentAsync(tripId, segmentId, userId!, Request.Body, cancellationToken);
+        var outcome = await _segmentMutations.UpdateSegmentAsync(
+            tripId, segmentId, userId!, Request.Body,
+            Request.Headers["X-Wayfarer-Clear-Route-Confirmation"].FirstOrDefault(), cancellationToken);
         return ToActionResult(outcome);
     }
 

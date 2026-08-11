@@ -18,6 +18,8 @@ public enum EstimatedDurationSource
 /// </summary>
 public class Segment
 {
+    /// <summary>PostgreSQL xmin value used only through opaque editor aggregate tokens.</summary>
+    public uint RowVersion { get; set; }
     /// <summary>Primary key.</summary>
     public Guid Id { get; set; }
 

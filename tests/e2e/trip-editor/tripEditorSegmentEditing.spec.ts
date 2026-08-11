@@ -18,6 +18,29 @@ const secondSegmentId = '00000000-0000-0000-0000-000000266002';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe.serial('Trip Editor segment editing', () => {
+  test('ordinary edits invisibly preserve waypoint aggregate state and token', async ({ page }) => {
+    await signIn(page);
+    const hiddenWaypointId = '00000000-0000-0000-0000-000000266099';
+    const state = await loadWorkspaceWithSegmentFixture(page, fixture => {
+      Object.assign(fixture.segmentsById[segmentId], {
+        waypointPlaceIds: [hiddenWaypointId], waypointRouteVertexIndices: [null],
+        route: null, effectiveRoute: { type: 'LineString', coordinates: [[23, 37], [23.5, 37.5], [24, 38]] },
+        hasCustomRoute: false, aggregateConcurrencyToken: 'opaque-segment-token'
+      });
+    });
+    let submitted: Record<string, any> | null = null;
+    await page.unroute(editorApiMatcher);
+    await page.route(editorApiMatcher, async route => {
+      if (route.request().method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
+      submitted = route.request().postDataJSON();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(segmentMutationResult(state.segmentsById[segmentId], null)) });
+    });
+    await openEditableSegment(page);
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+    await expect.poll(() => submitted).not.toBeNull();
+    expect(submitted).toMatchObject({ waypointPlaceIds: [hiddenWaypointId], waypointRouteVertexIndices: [null], aggregateConcurrencyToken: 'opaque-segment-token' });
+  });
+
   test('adds and edits segments through docked and expanded shared draft', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithSegmentFixture(page);
@@ -317,12 +340,18 @@ function segmentFixture(state: MutableEditorState, id: string, fromPlaceId: stri
     tripId: state.tripId,
     fromPlaceId,
     toPlaceId,
+    waypointPlaceIds: [],
+    waypointRouteVertexIndices: [],
     mode: 'walk',
+    transportProfileId: null,
+    hasCustomRoute: route !== null,
     estimatedDistanceKm: 2,
     estimatedDurationMinutes: 30,
     estimatedDurationSource: 'Manual',
     notesHtml,
     route: route ? { type: 'LineString', coordinates: route } : null,
+    effectiveRoute: route ? { type: 'LineString', coordinates: route } : null,
+    aggregateConcurrencyToken: `opaque-${id}`,
     displayOrder: id === segmentId ? 1 : 2,
     capabilities: { canEdit: true, canRename: false, canDelete: true, canReorder: true, canMove: false, canAddChildren: false, canTargetForSearchAdd: false }
   };

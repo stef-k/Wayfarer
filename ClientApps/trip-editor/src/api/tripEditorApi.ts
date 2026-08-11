@@ -17,6 +17,7 @@ import type {
   EditorRegionOrderResult,
   EditorRegionSaveRequest,
   EditorSegment,
+  EditorSegmentConflict,
   EditorSegmentDeleteResult,
   EditorSegmentOrderRequest,
   EditorSegmentOrderResult,
@@ -48,6 +49,13 @@ export class EditorLifecycleConfirmationError extends Error {
   constructor(conflict: EditorLifecycleConflict) {
     super(conflict.code);
     this.conflict = conflict;
+  }
+}
+
+/// Error raised for Segment-specific stale or route-clear conflicts.
+export class EditorSegmentConflictError extends Error {
+  constructor(readonly conflict: EditorSegmentConflict, readonly confirmationToken: string | null) {
+    super(conflict.code);
   }
 }
 
@@ -261,8 +269,9 @@ export const updateSegment = async (
   endpoint: string,
   segmentId: string,
   antiforgeryToken: string,
-  request: EditorSegmentSaveRequest
-): Promise<EditorMutationResult<EditorSegment>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'PUT', antiforgeryToken, request, 'segment update');
+  request: EditorSegmentSaveRequest,
+  confirmationToken?: string
+): Promise<EditorMutationResult<EditorSegment>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'PUT', antiforgeryToken, request, 'segment update', confirmationToken, true);
 
 /// Deletes a segment through the same-origin editor API.
 export const deleteSegment = async (
@@ -284,7 +293,8 @@ const sendMutation = async <TData>(
   antiforgeryToken: string,
   request: unknown,
   label: string,
-  confirmationToken?: string
+  confirmationToken?: string,
+  segmentConfirmation = false
 ): Promise<EditorMutationResult<TData>> => {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -301,7 +311,7 @@ const sendMutation = async <TData>(
     init.body = JSON.stringify(request);
   }
   if (confirmationToken) {
-    headers['X-Wayfarer-Dependency-Confirmation'] = confirmationToken;
+    headers[segmentConfirmation ? 'X-Wayfarer-Clear-Route-Confirmation' : 'X-Wayfarer-Dependency-Confirmation'] = confirmationToken;
   }
 
   const response = await fetch(url, init);
@@ -310,7 +320,10 @@ const sendMutation = async <TData>(
   }
 
   if (response.status === 409) {
-    throw new EditorLifecycleConfirmationError((await response.json()) as EditorLifecycleConflict);
+    const conflict = await response.json() as EditorLifecycleConflict | EditorSegmentConflict;
+    if (String(conflict.code).startsWith('segment-'))
+      throw new EditorSegmentConflictError(conflict as EditorSegmentConflict, response.headers.get('X-Wayfarer-Clear-Route-Confirmation'));
+    throw new EditorLifecycleConfirmationError(conflict as EditorLifecycleConflict);
   }
 
   if (!response.ok) {

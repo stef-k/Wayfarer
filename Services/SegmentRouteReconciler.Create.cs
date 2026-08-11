@@ -22,29 +22,18 @@ public static partial class SegmentRouteReconciler
 
         if (!dbContext.Database.IsRelational())
         {
-            dbContext.Segments.Add(NewSegment(creation));
-            await dbContext.SaveChangesAsync(cancellationToken);
-            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: false, cancellationToken);
+            var result = await ReconcileNewTrackedAsync(dbContext, creation, proposal, cancellationToken);
             if (result.Succeeded) await dbContext.SaveChangesAsync(cancellationToken);
-            else
-            {
-                dbContext.ChangeTracker.Clear();
-                var created = await dbContext.Segments.SingleAsync(item => item.Id == creation.Id, cancellationToken);
-                dbContext.Segments.Remove(created);
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
+            else dbContext.ChangeTracker.Clear();
             return result;
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
-            dbContext.Segments.Add(NewSegment(creation));
-            await dbContext.SaveChangesAsync(cancellationToken);
             await LockProfilesAsync(dbContext,
                 proposal.Measurement?.TransportProfileId is Guid profileId ? [profileId] : [], cancellationToken);
-            await LockSegmentAsync(dbContext, creation.Id, cancellationToken);
-            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: true, cancellationToken);
+            var result = await ReconcileNewTrackedAsync(dbContext, creation, proposal, cancellationToken);
             if (!result.Succeeded)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
@@ -61,6 +50,29 @@ public static partial class SegmentRouteReconciler
             dbContext.ChangeTracker.Clear();
             throw;
         }
+    }
+
+    /// <summary>Validates and composes a new application-identified aggregate before its only insert boundary.</summary>
+    private static async Task<SegmentRouteReconciliationResult> ReconcileNewTrackedAsync(
+        ApplicationDbContext dbContext,
+        SegmentCreation creation,
+        SegmentRouteProposal proposal,
+        CancellationToken cancellationToken)
+    {
+        var segment = NewSegment(creation);
+        var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
+        var geometry = CopyGeometry(proposal);
+        var errors = Validate(creation.TripId, proposal, placesById, geometry);
+        var anchors = BuildAnchorChain(proposal, placesById);
+        var measurement = await CalculateMeasurementsAsync(
+            dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
+        if (errors.Count > 0) return new(false, errors, anchors);
+
+        dbContext.Segments.Add(segment);
+        ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+        ApplyMeasurements(segment, measurement!);
+        if (proposal.ApplyNotes) segment.Notes = proposal.NotesHtml ?? string.Empty;
+        return new(true, [], anchors);
     }
 
     private static Segment NewSegment(SegmentCreation creation) => new()

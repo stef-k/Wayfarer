@@ -88,7 +88,9 @@ public sealed partial class TripEditorController : ControllerBase
             .AsNoTracking()
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments)
+            .Include(t => t.Segments).ThenInclude(s => s.FromPlace)
+            .Include(t => t.Segments).ThenInclude(s => s.ToPlace)
+            .Include(t => t.Segments).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
             .Include(t => t.Tags)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
@@ -127,7 +129,8 @@ public sealed partial class TripEditorController : ControllerBase
                 visitsByPlaceId,
                 await BuildOptionsAsync(cancellationToken),
                 publicUrl,
-                progressPublicUrl));
+                progressPublicUrl,
+                segment => _segmentMutations.IssueAggregateToken(userId, tripId, segment)));
         }
         catch (EditorInvalidAreaGeometryException ex)
         {
@@ -464,8 +467,8 @@ public sealed partial class TripEditorController : ControllerBase
             EditorRegionMutationStatus.Success => Ok(outcome.Result),
             EditorRegionMutationStatus.NotFound => NotFound(),
             EditorRegionMutationStatus.Forbidden => ForbiddenProblem(outcome.ForbiddenDetail ?? "The operation is forbidden."),
-            EditorRegionMutationStatus.ValidationFailed => ValidationError(outcome.ValidationErrors ?? new Dictionary<string, string[]>()),
-            EditorRegionMutationStatus.Conflict => Conflict(outcome.Conflict),
+            EditorRegionMutationStatus.ValidationFailed => ValidationError(outcome.ValidationErrors ?? new Dictionary<string, string[]>(), outcome.Code),
+            EditorRegionMutationStatus.Conflict => SegmentConflict(outcome.Conflict),
             _ => StatusCode(StatusCodes.Status500InternalServerError)
         };
 
@@ -486,13 +489,21 @@ public sealed partial class TripEditorController : ControllerBase
         };
     }
 
-    private static IActionResult ValidationError(Dictionary<string, string[]> errors)
+    private IActionResult SegmentConflict(object? conflict)
+    {
+        if (conflict is EditorSegmentConflictDto segmentConflict && segmentConflict.ConfirmationToken != null)
+            Response.Headers["X-Wayfarer-Clear-Route-Confirmation"] = segmentConflict.ConfirmationToken;
+        return Conflict(conflict);
+    }
+
+    private static IActionResult ValidationError(Dictionary<string, string[]> errors, string? code = null)
     {
         var problem = new ValidationProblemDetails(errors)
         {
             Status = StatusCodes.Status400BadRequest,
             Title = "One or more validation errors occurred."
         };
+        if (!string.IsNullOrWhiteSpace(code)) problem.Extensions["code"] = code;
 
         return new BadRequestObjectResult(problem)
         {

@@ -1172,6 +1172,12 @@ namespace Wayfarer.Migrations
                     b.Property<LineString>("RouteGeometry")
                         .HasColumnType("geography(LineString,4326)");
 
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.Property<Guid?>("ToPlaceId")
                         .HasColumnType("uuid");
 
