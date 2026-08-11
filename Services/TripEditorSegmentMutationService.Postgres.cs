@@ -2,6 +2,7 @@ using System.Data;
 using System.Runtime.ExceptionServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
@@ -127,8 +128,7 @@ public sealed partial class TripEditorSegmentMutationService
         catch (Exception conflict) when (conflict is DbUpdateConcurrencyException
             || conflict is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
         {
-            await transaction.RollbackAsync(CancellationToken.None);
-            await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, candidateSegment.Id, CancellationToken.None);
+            await CleanupRelationalFailureAsync(transaction, candidateSegment.Id, trackerSnapshot, conflict);
             var currentVersion = await _dbContext.Segments.AsNoTracking()
                 .Where(item => item.Id == candidateSegment.Id)
                 .Select(item => item.RowVersion)
@@ -147,15 +147,7 @@ public sealed partial class TripEditorSegmentMutationService
         }
         catch (Exception original)
         {
-            var cleanup = new List<Exception>();
-            try { await transaction.RollbackAsync(CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
-            try { await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, candidateSegment.Id, CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
-            try { trackerSnapshot.Restore(_dbContext); } catch (Exception failure) { cleanup.Add(failure); }
-            if (cleanup.Count > 0)
-            {
-                try { await _dbContext.DisposeAsync(); } catch (Exception failure) { cleanup.Add(failure); }
-                throw new AggregateException("Segment editor mutation failed and cleanup could not restore context coherence.", [original, .. cleanup]);
-            }
+            await CleanupRelationalFailureAsync(transaction, candidateSegment.Id, trackerSnapshot, original);
             ExceptionDispatchInfo.Capture(original).Throw();
             throw;
         }
@@ -164,6 +156,25 @@ public sealed partial class TripEditorSegmentMutationService
         var affected = await BuildAffectedAsync(candidateTrip.Id, [dto], false, cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Succeeded(
             new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, []));
+    }
+
+    /// <summary>Performs mandatory rollback, aggregate recovery, and exact tracker restoration before a failure may be classified.</summary>
+    private async Task CleanupRelationalFailureAsync(
+        IDbContextTransaction transaction,
+        Guid segmentId,
+        SegmentEditorTrackerSnapshot trackerSnapshot,
+        Exception original)
+    {
+        var cleanup = new List<Exception>();
+        try { await transaction.RollbackAsync(CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
+        try { await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, segmentId, CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
+        try { trackerSnapshot.Restore(_dbContext); } catch (Exception failure) { cleanup.Add(failure); }
+        if (cleanup.Count == 0) return;
+
+        try { await _dbContext.DisposeAsync(); } catch (Exception failure) { cleanup.Add(failure); }
+        throw new AggregateException(
+            "Segment editor mutation failed and cleanup could not restore context coherence.",
+            [original, .. cleanup]);
     }
 
     /// <summary>Restores the exact caller-owned tracker after a failed relational editor mutation.</summary>
