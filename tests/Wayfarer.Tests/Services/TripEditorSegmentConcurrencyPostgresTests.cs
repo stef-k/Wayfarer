@@ -140,6 +140,8 @@ public sealed class TripEditorSegmentConcurrencyPostgresTests(PostgresImportTest
         await using var editor = fixture.CreateContext(gate);
         var token = await support.TokenAsync(editor, seed);
         var originalVersion = (await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(editor, seed.SegmentId!.Value)).RowVersion;
+        var originalUpdatedAt = await editor.Trips.AsNoTracking().Where(item => item.Id == seed.TripId)
+            .Select(item => item.UpdatedAt).SingleAsync();
         var aggregate = support.Service(editor).UpdateSegmentAsync(seed.TripId, seed.SegmentId.Value, seed.UserId,
             TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
                 mode: seed.SecondProfileKey, notes: "editor notes"), null, CancellationToken.None);
@@ -148,13 +150,13 @@ public sealed class TripEditorSegmentConcurrencyPostgresTests(PostgresImportTest
         await using var notes = fixture.CreateContext();
         await notes.Database.OpenConnectionAsync();
         var notesPid = await BackendPidAsync(notes);
-        var notesWrite = notes.Segments.Where(item => item.Id == seed.SegmentId && item.UserId == seed.UserId)
-            .ExecuteUpdateAsync(update => update.SetProperty(item => item.Notes, "mobile notes"));
+        var notesWrite = SegmentNotesMutation.UpdateRelationalAsync(
+            notes, seed.TripId, seed.SegmentId.Value, seed.UserId, "mobile notes", CancellationToken.None);
         await WaitUntilBlockedAsync(notesPid);
         gate.ReleaseSave.TrySetResult();
 
         var outcome = await aggregate;
-        Assert.Equal(1, await notesWrite);
+        Assert.True(await notesWrite);
         Assert.Equal(EditorRegionMutationStatus.Success, outcome.Status);
         await using var verification = fixture.CreateContext();
         var stored = await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(verification, seed.SegmentId.Value);
@@ -162,6 +164,8 @@ public sealed class TripEditorSegmentConcurrencyPostgresTests(PostgresImportTest
         Assert.Equal(seed.SecondProfileId, stored.TransportProfileId);
         Assert.Equal("mobile notes", stored.Notes);
         Assert.NotEqual(originalVersion, stored.RowVersion);
+        Assert.True(await verification.Trips.Where(item => item.Id == seed.TripId)
+            .Select(item => item.UpdatedAt).SingleAsync() > originalUpdatedAt);
         Assert.False(string.IsNullOrWhiteSpace(outcome.Result!.Data.AggregateConcurrencyToken));
     }
 

@@ -20,14 +20,14 @@ internal static class SegmentNotesMutation
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            var segmentCount = await context.Segments
+                .Where(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.Notes, notes), cancellationToken);
             var tripCount = await context.Trips
                 .Where(item => item.Id == tripId && item.UserId == userId)
                 .ExecuteUpdateAsync(update => update.SetProperty(
                     item => item.UpdatedAt,
                     item => item.UpdatedAt > updatedAt ? item.UpdatedAt : updatedAt), cancellationToken);
-            var segmentCount = await context.Segments
-                .Where(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId)
-                .ExecuteUpdateAsync(update => update.SetProperty(item => item.Notes, notes), cancellationToken);
             if (tripCount != 1 || segmentCount != 1)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
