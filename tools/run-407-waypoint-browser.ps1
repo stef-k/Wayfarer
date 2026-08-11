@@ -77,6 +77,11 @@ try {
         Invoke-Checked 'npm.cmd' @('run', 'build')
         Invoke-Checked 'dotnet.exe' @('publish', 'Wayfarer.csproj', '-c', 'Release', '-o', $publishDirectory)
         Invoke-Checked 'dotnet.exe' @('publish', 'tools\Wayfarer.WaypointBrowserFixture\Wayfarer.WaypointBrowserFixture.csproj', '-c', 'Release', '-o', $helperDirectory)
+        $installedBrowserCache = Join-Path $env:LOCALAPPDATA 'ms-playwright'
+        if (Test-Path -LiteralPath $installedBrowserCache) {
+            New-Item -ItemType Directory -Path $browserDirectory -Force | Out-Null
+            Get-ChildItem -LiteralPath $installedBrowserCache | Copy-Item -Destination $browserDirectory -Recurse -Force
+        }
         Invoke-Checked 'npx.cmd' @('playwright', 'install', 'chromium')
         $helper = Join-Path $helperDirectory 'Wayfarer.WaypointBrowserFixture.dll'
         Invoke-Checked 'dotnet.exe' @($helper, 'provision', $manifestPath, $password)
