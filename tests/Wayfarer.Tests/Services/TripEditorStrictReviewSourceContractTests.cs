@@ -61,8 +61,57 @@ public sealed class TripEditorStrictReviewSourceContractTests
         Assert.Contains("Browser execution and cleanup both failed", runner, StringComparison.Ordinal);
     }
 
+    /// <summary>The canonical browser distance must be derived independently from literal fixture geometry.</summary>
+    [Fact]
+    public void WaypointBrowserFixture_UsesIndependentLiteralDistanceEvidence()
+    {
+        var fixture = Read("tools", "Wayfarer.WaypointBrowserFixture", "Program.cs");
+
+        Assert.Contains("const double earthRadiusMetres = 6_371_000d;", fixture, StringComparison.Ordinal);
+        Assert.Contains("MidpointRounding.AwayFromZero", fixture, StringComparison.Ordinal);
+        Assert.Contains("AssertCanonicalDistance", fixture, StringComparison.Ordinal);
+        Assert.Contains("8.303", fixture, StringComparison.Ordinal);
+        Assert.Contains("9.407", fixture, StringComparison.Ordinal);
+    }
+
+    /// <summary>Create recovery must compare materially relevant provider state through a complete immutable projection.</summary>
+    [Fact]
+    public void CreateRecovery_UsesCompleteProviderSnapshot()
+    {
+        var tests = Read("tests", "Wayfarer.Tests", "Services", "TripEditorSegmentCreatePostgresTests.cs");
+
+        Assert.Contains("CreateRecoveryProviderSnapshot", tests, StringComparison.Ordinal);
+        Assert.Contains("RouteCoordinates", tests, StringComparison.Ordinal);
+        Assert.Contains("WaypointSnapshots", tests, StringComparison.Ordinal);
+        Assert.Contains("RowVersion", tests, StringComparison.Ordinal);
+        Assert.Contains("LocationSrid", tests, StringComparison.Ordinal);
+    }
+
+    /// <summary>The restoration aggregate must retain the exact injected operation exception object.</summary>
+    [Fact]
+    public void RestorationFailure_AssertsOriginalOperationIdentity()
+    {
+        var tests = Read("tests", "Wayfarer.Tests", "Services", "TripEditorSegmentRecoveryPostgresTests.cs");
+
+        Assert.Equal(2, Count(tests, "original => Assert.Same(operation.Failure, original)"));
+    }
+
+    /// <summary>Cleanup verification must be independent and failed-run evidence must never be deleted.</summary>
+    [Fact]
+    public void WaypointBrowserRunner_VerifiesCleanupSeparatelyAndRetainsFailureEvidence()
+    {
+        var runner = Read("tools", "run-407-waypoint-browser.ps1");
+
+        Assert.Contains("cleanupVerificationAttempted", runner, StringComparison.Ordinal);
+        Assert.Contains("Retained evidence directory:", runner, StringComparison.Ordinal);
+        Assert.Contains("if (!$originalFailure -and $cleanupFailures.Count -eq 0)", runner, StringComparison.Ordinal);
+    }
+
     private static string Read(params string[] path) => File.ReadAllText(
         Path.Combine(FindRepositoryRoot(), Path.Combine(path)));
+
+    private static int Count(string source, string value) =>
+        source.Split(value, StringSplitOptions.None).Length - 1;
 
     private static string FindRepositoryRoot()
     {
