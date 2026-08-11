@@ -20,6 +20,13 @@ internal sealed class TripEditorSegmentMutationPostgresTestSupport(PostgresImpor
         new SegmentAggregateTokenService(_protection),
         new SegmentRouteClearConfirmation(_protection, TimeProvider.System));
 
+    /// <summary>Creates a service with deterministic application-generated Segment identity.</summary>
+    internal TripEditorSegmentMutationService Service(ApplicationDbContext context, Func<Guid> segmentIdFactory) => new(
+        context,
+        new SegmentAggregateTokenService(_protection),
+        new SegmentRouteClearConfirmation(_protection, TimeProvider.System),
+        segmentIdFactory);
+
     /// <summary>Seeds one trip with canonical profiles, four places, and an optional custom waypoint Segment.</summary>
     internal async Task<SegmentSeed> SeedAsync(bool includeSegment = true, bool customRoute = true)
     {

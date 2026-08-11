@@ -14,6 +14,7 @@ public sealed partial class TripEditorSegmentMutationService
     private readonly ApplicationDbContext _dbContext;
     private readonly SegmentAggregateTokenService _aggregateTokens;
     private readonly SegmentRouteClearConfirmation _routeConfirmation;
+    private readonly Func<Guid> _segmentIdFactory;
 
     /// <summary>
     /// Initializes a new segment mutation service for the editor API.
@@ -39,10 +40,21 @@ public sealed partial class TripEditorSegmentMutationService
         ApplicationDbContext dbContext,
         SegmentAggregateTokenService aggregateTokens,
         SegmentRouteClearConfirmation routeConfirmation)
+        : this(dbContext, aggregateTokens, routeConfirmation, Guid.NewGuid)
+    {
+    }
+
+    /// <summary>Initializes deterministic application-ID generation for provider boundary tests.</summary>
+    internal TripEditorSegmentMutationService(
+        ApplicationDbContext dbContext,
+        SegmentAggregateTokenService aggregateTokens,
+        SegmentRouteClearConfirmation routeConfirmation,
+        Func<Guid> segmentIdFactory)
     {
         _dbContext = dbContext;
         _aggregateTokens = aggregateTokens;
         _routeConfirmation = routeConfirmation;
+        _segmentIdFactory = segmentIdFactory;
     }
 
     /// <summary>
@@ -89,7 +101,7 @@ public sealed partial class TripEditorSegmentMutationService
         if (_dbContext.Database.IsRelational())
             return await CreateRelationalAsync(trip.Id, userId, parsed.Value!, mode.Value, cancellationToken);
 
-        var segmentId = Guid.NewGuid();
+        var segmentId = _segmentIdFactory();
         var creation = new SegmentCreation(segmentId, userId, trip.Id, NextSegmentOrder(trip));
         var proposal = BuildProposal(segmentId, parsed.Value!, mode.Value);
         var reconciliation = await SegmentRouteReconciler.ReconcileNewLockedAsync(

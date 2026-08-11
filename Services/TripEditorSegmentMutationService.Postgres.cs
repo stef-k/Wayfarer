@@ -21,7 +21,7 @@ public sealed partial class TripEditorSegmentMutationService
         CancellationToken cancellationToken)
     {
         var trackerSnapshot = SegmentEditorTrackerSnapshot.Capture(_dbContext);
-        var segmentId = Guid.NewGuid();
+        var segmentId = _segmentIdFactory();
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
@@ -62,9 +62,25 @@ public sealed partial class TripEditorSegmentMutationService
             await _dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
+        catch (DbUpdateException collision) when (
+            collision.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            await CleanupRelationalFailureAsync(transaction, segmentId, trackerSnapshot, collision, creating: true);
+            var ownedCollision = await _dbContext.Segments.AsNoTracking()
+                .AnyAsync(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId, CancellationToken.None);
+            if (!ownedCollision)
+            {
+                ExceptionDispatchInfo.Capture(collision).Throw();
+                throw;
+            }
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
+                new EditorSegmentConflictDto("segment-write-conflict", "create",
+                    await LoadSegmentDtoAsync(segmentId, tripId, userId, CancellationToken.None),
+                    "The Segment could not be created because its identity changed. Try saving again.", null, null));
+        }
         catch (Exception original)
         {
-            await CleanupRelationalFailureAsync(transaction, segmentId, trackerSnapshot, original);
+            await CleanupRelationalFailureAsync(transaction, segmentId, trackerSnapshot, original, creating: true);
             ExceptionDispatchInfo.Capture(original).Throw();
             throw;
         }
@@ -226,11 +242,17 @@ public sealed partial class TripEditorSegmentMutationService
         IDbContextTransaction transaction,
         Guid segmentId,
         SegmentEditorTrackerSnapshot trackerSnapshot,
-        Exception original)
+        Exception original,
+        bool creating = false)
     {
         var cleanup = new List<Exception>();
         try { await transaction.RollbackAsync(CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
-        try { await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, segmentId, CancellationToken.None); } catch (Exception failure) { cleanup.Add(failure); }
+        try
+        {
+            if (creating) await RecoverCreateAttemptAsync(segmentId);
+            else await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, segmentId, CancellationToken.None);
+        }
+        catch (Exception failure) { cleanup.Add(failure); }
         try { trackerSnapshot.Restore(_dbContext); } catch (Exception failure) { cleanup.Add(failure); }
         if (cleanup.Count == 0) return;
 
@@ -238,6 +260,13 @@ public sealed partial class TripEditorSegmentMutationService
         throw new AggregateException(
             "Segment editor mutation failed and cleanup could not restore context coherence.",
             [original, .. cleanup]);
+    }
+
+    /// <summary>Detaches a never-committed create attempt before checking whether its application ID already exists.</summary>
+    private async Task RecoverCreateAttemptAsync(Guid segmentId)
+    {
+        DetachTargetAggregate(segmentId);
+        await SegmentRouteReconciler.LoadAggregateAsync(_dbContext, segmentId, CancellationToken.None);
     }
 
     /// <summary>Restores the exact caller-owned tracker after a failed relational editor mutation.</summary>
