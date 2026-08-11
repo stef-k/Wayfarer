@@ -27,6 +27,16 @@ internal sealed class TripEditorSegmentMutationPostgresTestSupport(PostgresImpor
         new SegmentRouteClearConfirmation(_protection, TimeProvider.System),
         segmentIdFactory);
 
+    /// <summary>Creates a service with deterministic internal context-recovery failure injection.</summary>
+    internal TripEditorSegmentMutationService Service(
+        ApplicationDbContext context,
+        ISegmentEditorContextRecovery contextRecovery) => new(
+        context,
+        new SegmentAggregateTokenService(_protection),
+        new SegmentRouteClearConfirmation(_protection, TimeProvider.System),
+        Guid.NewGuid,
+        contextRecovery);
+
     /// <summary>Seeds one trip with canonical profiles, four places, and an optional custom waypoint Segment.</summary>
     internal async Task<SegmentSeed> SeedAsync(bool includeSegment = true, bool customRoute = true)
     {

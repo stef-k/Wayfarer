@@ -16,12 +16,18 @@ import {
 const execute = promisify(execFile);
 
 type Fixture = {
+  profileId: string;
+  mode: string;
   waypointSegmentId: string;
   zeroSegmentId: string;
   fromId: string;
   waypointId: string;
   alternateId: string;
   toId: string;
+  estimatedDistanceKm: number;
+  estimatedDurationMinutes: number;
+  estimatedDurationSource: string;
+  routeCoordinates: number[][];
 };
 
 test.describe.serial('#407 persisted waypoint aggregate', () => {
@@ -38,7 +44,12 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
     const original = structuredClone(initial.segmentsById[fixture.waypointSegmentId]);
     expect(original.waypointPlaceIds).toEqual([fixture.waypointId]);
     expect(original.waypointRouteVertexIndices).toEqual([2]);
-    expect(original.route?.coordinates).toHaveLength(4);
+    expect(original.estimatedDistanceKm).toBe(fixture.estimatedDistanceKm);
+    expect(original.estimatedDurationMinutes).toBe(fixture.estimatedDurationMinutes);
+    expect(original.estimatedDurationSource).toBe(fixture.estimatedDurationSource);
+    expect(original.mode).toBe(fixture.mode);
+    expect(original.transportProfileId).toBe(fixture.profileId);
+    expect(original.route?.coordinates).toEqual(fixture.routeCoordinates);
     await expectNoWaypointAuthoring(page);
 
     await openSegment(page, fixture.waypointSegmentId);
@@ -81,6 +92,7 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
     expectHiddenAggregate(saved, original);
     expect(saved.notesHtml).toContain('Browser ordinary visible edit');
     expect(saved.aggregateConcurrencyToken).not.toBe(original.aggregateConcurrencyToken);
+    await fixtureControl('verify-preserved');
 
     await openSegment(page, fixture.waypointSegmentId);
     await notesEditor(form).fill('Draft survives stale aggregate');
@@ -199,7 +211,7 @@ async function loadFixture(): Promise<Fixture> {
   return JSON.parse(await readFile(path, 'utf8')) as Fixture;
 }
 
-async function fixtureControl(command: 'drift'): Promise<void> {
+async function fixtureControl(command: 'drift' | 'verify-preserved'): Promise<void> {
   await execute('dotnet', [required('WAYFARER_E2E_WAYPOINT_HELPER'), command,
     required('WAYFARER_E2E_WAYPOINT_FIXTURE')], { env: process.env });
 }

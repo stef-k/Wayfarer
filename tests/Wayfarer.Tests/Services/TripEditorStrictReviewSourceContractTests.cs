@@ -36,20 +36,29 @@ public sealed class TripEditorStrictReviewSourceContractTests
 
         Assert.Contains("EstimatedDistanceKm", fixture, StringComparison.Ordinal);
         Assert.Contains("EstimatedDurationSource", fixture, StringComparison.Ordinal);
-        Assert.DoesNotContain("provider-reread", browser, StringComparison.Ordinal);
-        Assert.Fail("Strict-review red checkpoint: browser/provider reread omitted complete measurement and provenance assertions.");
+        Assert.Contains("estimatedDistanceKm", browser, StringComparison.Ordinal);
+        Assert.Contains("estimatedDurationMinutes", browser, StringComparison.Ordinal);
+        Assert.Contains("estimatedDurationSource", browser, StringComparison.Ordinal);
+        Assert.Contains("transportProfileId", browser, StringComparison.Ordinal);
+        Assert.Contains("routeCoordinates", browser, StringComparison.Ordinal);
+        Assert.Contains("verify-preserved", browser, StringComparison.Ordinal);
+        Assert.Contains("provider-reread", fixture, StringComparison.Ordinal);
     }
 
     /// <summary>The definitive #407 browser entrypoint must own setup and unconditional verified cleanup.</summary>
     [Fact]
     public void WaypointBrowserRunner_IsFinallyProtectedAndRunOwned()
     {
-        var scripts = Directory.Exists(Path.Combine(FindRepositoryRoot(), "tools"))
-            ? Directory.GetFiles(Path.Combine(FindRepositoryRoot(), "tools"), "*407*", SearchOption.TopDirectoryOnly)
-            : [];
+        var runner = Read("tools", "run-407-waypoint-browser.ps1");
 
-        Assert.Empty(scripts);
-        Assert.Fail("Strict-review red checkpoint: #407 browser execution lacked finally-protected orchestration.");
+        Assert.Contains("finally", runner, StringComparison.Ordinal);
+        Assert.Contains("verify-cleanup", runner, StringComparison.Ordinal);
+        Assert.Contains("--workers=1", runner, StringComparison.Ordinal);
+        Assert.Contains("--retries=0", runner, StringComparison.Ordinal);
+        Assert.Contains("Wait-Port $databasePort $false", runner, StringComparison.Ordinal);
+        Assert.Contains("Wait-Port $hostPort $false", runner, StringComparison.Ordinal);
+        Assert.Contains("Remove-Item -LiteralPath $resolvedRunRoot", runner, StringComparison.Ordinal);
+        Assert.Contains("Browser execution and cleanup both failed", runner, StringComparison.Ordinal);
     }
 
     private static string Read(params string[] path) => File.ReadAllText(

@@ -253,10 +253,10 @@ public sealed partial class TripEditorSegmentMutationService
             else await SegmentRouteReconciler.RecoverAggregateAsync(_dbContext, segmentId, CancellationToken.None);
         }
         catch (Exception failure) { cleanup.Add(failure); }
-        try { trackerSnapshot.Restore(_dbContext); } catch (Exception failure) { cleanup.Add(failure); }
+        try { _contextRecovery.RestoreTracker(_dbContext, trackerSnapshot); } catch (Exception failure) { cleanup.Add(failure); }
         if (cleanup.Count == 0) return;
 
-        try { await _dbContext.DisposeAsync(); } catch (Exception failure) { cleanup.Add(failure); }
+        try { await _contextRecovery.InvalidateAsync(_dbContext); } catch (Exception failure) { cleanup.Add(failure); }
         throw new AggregateException(
             "Segment editor mutation failed and cleanup could not restore context coherence.",
             [original, .. cleanup]);
@@ -270,7 +270,7 @@ public sealed partial class TripEditorSegmentMutationService
     }
 
     /// <summary>Restores the exact caller-owned tracker after a failed relational editor mutation.</summary>
-    private sealed record SegmentEditorTrackerSnapshot(
+    internal sealed record SegmentEditorTrackerSnapshot(
         IReadOnlyDictionary<object, SegmentEditorTrackedEntrySnapshot> Entries)
     {
         internal static SegmentEditorTrackerSnapshot Capture(ApplicationDbContext context) => new(
@@ -318,7 +318,7 @@ public sealed partial class TripEditorSegmentMutationService
     }
 
     /// <summary>One pre-operation entity state and scalar-value snapshot.</summary>
-    private sealed record SegmentEditorTrackedEntrySnapshot(EntityState State, PropertyValues Values);
+    internal sealed record SegmentEditorTrackedEntrySnapshot(EntityState State, PropertyValues Values);
 
     private void DetachTargetAggregate(Guid segmentId)
     {
@@ -329,4 +329,28 @@ public sealed partial class TripEditorSegmentMutationService
             .SingleOrDefault(entry => entry.Entity.Id == segmentId);
         if (segment != null) segment.State = EntityState.Detached;
     }
+}
+
+/// <summary>Owns exact tracker restoration and invalidation of an incoherent editor context.</summary>
+internal interface ISegmentEditorContextRecovery
+{
+    /// <summary>Restores the pre-operation tracked entities and scalar values.</summary>
+    void RestoreTracker(
+        ApplicationDbContext context,
+        TripEditorSegmentMutationService.SegmentEditorTrackerSnapshot snapshot);
+
+    /// <summary>Invalidates a context whose transaction cleanup could not establish coherence.</summary>
+    ValueTask InvalidateAsync(ApplicationDbContext context);
+}
+
+/// <summary>Uses EF tracker restoration and disposal for production editor cleanup.</summary>
+internal sealed class SegmentEditorContextRecovery : ISegmentEditorContextRecovery
+{
+    /// <inheritdoc />
+    public void RestoreTracker(
+        ApplicationDbContext context,
+        TripEditorSegmentMutationService.SegmentEditorTrackerSnapshot snapshot) => snapshot.Restore(context);
+
+    /// <inheritdoc />
+    public ValueTask InvalidateAsync(ApplicationDbContext context) => context.DisposeAsync();
 }

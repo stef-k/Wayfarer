@@ -15,6 +15,7 @@ public sealed partial class TripEditorSegmentMutationService
     private readonly SegmentAggregateTokenService _aggregateTokens;
     private readonly SegmentRouteClearConfirmation _routeConfirmation;
     private readonly Func<Guid> _segmentIdFactory;
+    private readonly ISegmentEditorContextRecovery _contextRecovery;
 
     /// <summary>
     /// Initializes a new segment mutation service for the editor API.
@@ -50,11 +51,23 @@ public sealed partial class TripEditorSegmentMutationService
         SegmentAggregateTokenService aggregateTokens,
         SegmentRouteClearConfirmation routeConfirmation,
         Func<Guid> segmentIdFactory)
+        : this(dbContext, aggregateTokens, routeConfirmation, segmentIdFactory, new SegmentEditorContextRecovery())
+    {
+    }
+
+    /// <summary>Initializes deterministic ID and internal context-recovery behavior for provider boundary tests.</summary>
+    internal TripEditorSegmentMutationService(
+        ApplicationDbContext dbContext,
+        SegmentAggregateTokenService aggregateTokens,
+        SegmentRouteClearConfirmation routeConfirmation,
+        Func<Guid> segmentIdFactory,
+        ISegmentEditorContextRecovery contextRecovery)
     {
         _dbContext = dbContext;
         _aggregateTokens = aggregateTokens;
         _routeConfirmation = routeConfirmation;
         _segmentIdFactory = segmentIdFactory;
+        _contextRecovery = contextRecovery;
     }
 
     /// <summary>

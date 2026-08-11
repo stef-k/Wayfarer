@@ -101,17 +101,28 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
         var seed = await support.SeedAsync(includeSegment: false);
         var plan = new FailurePlan();
+        var generatedId = Guid.NewGuid();
+        var save = new PlannedSaveFailureInterceptor(plan);
+        var recovery = new CreateRecoveryReadFailureInterceptor(plan);
+        var before = await ReadUnrelatedStateAsync(seed);
         await using var context = fixture.CreateContext(
-            new PlannedSaveFailureInterceptor(plan), new CreateRecoveryReadFailureInterceptor(plan));
+            save, recovery);
 
         var exception = await Assert.ThrowsAsync<AggregateException>(
-            () => CreateAsync(context, support, seed, CancellationToken.None));
+            () => support.Service(context, () => generatedId).CreateSegmentAsync(
+                seed.TripId, seed.UserId,
+                TripEditorSegmentMutationPostgresTestSupport.Body(
+                    seed, [seed.FirstWaypointId, seed.SecondWaypointId], [1, 2], null, customRoute: true),
+                CancellationToken.None));
 
-        Assert.Contains("Deterministic create save failure.", exception.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Deterministic create recovery-read failure.", exception.ToString(), StringComparison.Ordinal);
+        Assert.Collection(exception.InnerExceptions,
+            original => Assert.Same(save.Failure, original),
+            recoveryFailure => Assert.Same(recovery.Failure, recoveryFailure));
         await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
-        await AssertNoSegmentsAsync(seed);
-        Assert.Fail("Strict-review red checkpoint: create recovery identity, ordering, and complete residue assertions were missing.");
+        await using var verification = fixture.CreateContext();
+        Assert.False(await verification.Segments.AsNoTracking().AnyAsync(item => item.Id == generatedId));
+        Assert.False(await verification.Set<SegmentWaypoint>().AsNoTracking().AnyAsync(item => item.SegmentId == generatedId));
+        Assert.Equal(before, await ReadUnrelatedStateAsync(seed));
     }
 
     /// <summary>An application-generated ID collision returns the bounded create conflict without partial state.</summary>
@@ -157,6 +168,27 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
             .Where(item => verification.Segments.Where(segment => segment.TripId == seed.TripId)
                 .Select(segment => segment.Id).Contains(item.SegmentId)).ToListAsync());
     }
+
+    private async Task<CreateUnrelatedState> ReadUnrelatedStateAsync(SegmentSeed seed)
+    {
+        await using var context = fixture.CreateContext();
+        var trip = await context.Trips.AsNoTracking().SingleAsync(item => item.Id == seed.TripId);
+        return new(
+            trip.UpdatedAt,
+            await context.Segments.AsNoTracking().CountAsync(item => item.TripId == seed.TripId),
+            await context.Regions.AsNoTracking().CountAsync(item => item.TripId == seed.TripId),
+            await context.Places.AsNoTracking().CountAsync(item => item.Region.TripId == seed.TripId),
+            string.Join('|', await context.Set<TransportProfile>().AsNoTracking()
+                .Where(item => item.Id == seed.FirstProfileId || item.Id == seed.SecondProfileId)
+                .OrderBy(item => item.Id).Select(item => item.Label).ToArrayAsync()));
+    }
+
+    private sealed record CreateUnrelatedState(
+        DateTime UpdatedAt,
+        int SegmentCount,
+        int RegionCount,
+        int PlaceCount,
+        string ProfileLabels);
 
     private sealed class FinalSaveRecorder : SaveChangesInterceptor
     {
@@ -213,12 +245,14 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
 
     private sealed class PlannedSaveFailureInterceptor(FailurePlan plan) : SaveChangesInterceptor
     {
+        internal InvalidOperationException Failure { get; } = new("Deterministic create save failure.");
+
         /// <summary>Arms rollback failure after preserving the original operation failure.</summary>
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
             plan.Failed = true;
-            return ValueTask.FromException<InterceptionResult<int>>(new InvalidOperationException("Deterministic create save failure."));
+            return ValueTask.FromException<InterceptionResult<int>>(Failure);
         }
     }
 
@@ -235,6 +269,8 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
 
     private sealed class CreateRecoveryReadFailureInterceptor(FailurePlan plan) : DbCommandInterceptor
     {
+        internal InvalidOperationException Failure { get; } = new("Deterministic create recovery-read failure.");
+
         /// <summary>Fails only the generated-ID reload after the final create save has failed.</summary>
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
@@ -242,7 +278,7 @@ public sealed class TripEditorSegmentCreatePostgresTests(PostgresImportTestFixtu
         {
             if (plan.Failed && command.CommandText.Contains("FROM \"Segments\" AS", StringComparison.Ordinal))
                 return ValueTask.FromException<InterceptionResult<DbDataReader>>(
-                    new InvalidOperationException("Deterministic create recovery-read failure."));
+                    Failure);
             return ValueTask.FromResult(result);
         }
     }

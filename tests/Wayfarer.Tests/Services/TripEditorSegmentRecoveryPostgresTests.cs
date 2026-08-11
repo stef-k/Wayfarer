@@ -21,19 +21,16 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         var plan = new FailurePlan();
         var seed = await SeedAsync();
         await using var context = fixture.CreateContext(new FailingSaveInterceptor(plan));
-        context.ChangeTracker.StateChanged += (_, args) =>
-        {
-            if (plan.OperationFailed && args.NewState == EntityState.Detached)
-                throw new InvalidOperationException("Deterministic #407 restoration failure.");
-        };
+        var recovery = new FailingContextRecovery(failRestore: true, failDispose: false);
 
-        var exception = await Assert.ThrowsAsync<AggregateException>(() => ReplaceAsync(context, seed, CancellationToken.None));
+        var exception = await Assert.ThrowsAsync<AggregateException>(
+            () => ReplaceAsync(context, seed, CancellationToken.None, recovery));
 
-        Assert.Contains("Deterministic #407 provider failure.", exception.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Deterministic #407 restoration failure.", exception.ToString(), StringComparison.Ordinal);
+        Assert.Collection(exception.InnerExceptions,
+            original => Assert.Equal("Deterministic #407 provider failure.", original.Message),
+            restoration => Assert.Same(recovery.RestorationFailure, restoration));
         await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
         await AssertOriginalAggregateAsync(seed);
-        Assert.Fail("Strict-review red checkpoint: restoration failure identity and ordering were not executable coverage.");
     }
 
     /// <summary>A disposal failure cannot replace any earlier cleanup failure.</summary>
@@ -42,19 +39,23 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
     {
         var plan = new FailurePlan();
         var seed = await SeedAsync();
-        await using var context = fixture.CreateContext(
-            (options, services) => new ThrowingDisposeContext(options, services),
-            new FailingSaveInterceptor(plan), new RollbackFailureInterceptor(plan), new RecoveryFailureInterceptor(plan));
-        context.ChangeTracker.StateChanged += (_, args) =>
-        {
-            if (plan.OperationFailed && args.NewState == EntityState.Detached)
-                throw new InvalidOperationException("Deterministic #407 restoration failure.");
-        };
+        var operation = new FailingSaveInterceptor(plan);
+        var rollback = new RollbackFailureInterceptor(plan);
+        var providerRecovery = new RecoveryFailureInterceptor(plan);
+        var contextRecovery = new FailingContextRecovery(failRestore: true, failDispose: true);
+        await using var context = fixture.CreateContext(operation, rollback, providerRecovery);
 
-        var exception = await Assert.ThrowsAsync<AggregateException>(() => ReplaceAsync(context, seed, CancellationToken.None));
+        var exception = await Assert.ThrowsAsync<AggregateException>(
+            () => ReplaceAsync(context, seed, CancellationToken.None, contextRecovery));
 
-        Assert.Contains("Deterministic #407 disposal failure.", exception.ToString(), StringComparison.Ordinal);
-        Assert.Fail("Strict-review red checkpoint: disposal failure retention and deterministic ordering were not executable coverage.");
+        Assert.Collection(exception.InnerExceptions,
+            original => Assert.Same(operation.Failure, original),
+            rollbackFailure => Assert.Same(rollback.Failure, rollbackFailure),
+            recoveryFailure => Assert.Same(providerRecovery.Failure, recoveryFailure),
+            restorationFailure => Assert.Same(contextRecovery.RestorationFailure, restorationFailure),
+            disposalFailure => Assert.Same(contextRecovery.DisposalFailure, disposalFailure));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => context.Segments.CountAsync());
+        await AssertOriginalAggregateAsync(seed);
     }
     /// <summary>A provider failure after destructive replacement rolls back every aggregate field and restores tracker coherence.</summary>
     [PostgresFact]
@@ -219,6 +220,20 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
                 mode: seed.SecondProfileKey, notes: "must roll back"), null, cancellationToken);
     }
 
+    private async Task ReplaceAsync(
+        ApplicationDbContext context,
+        SegmentSeed seed,
+        CancellationToken cancellationToken,
+        ISegmentEditorContextRecovery contextRecovery)
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var token = await support.TokenAsync(context, seed);
+        await support.Service(context, contextRecovery).UpdateSegmentAsync(
+            seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed, [seed.AlternateId], [null], token,
+                mode: seed.SecondProfileKey, notes: "must roll back"), null, cancellationToken);
+    }
+
     private async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>> ReplaceOutcomeAsync(
         ApplicationDbContext context, SegmentSeed seed)
     {
@@ -267,6 +282,7 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
     private sealed class FailingSaveInterceptor(FailurePlan plan) : SaveChangesInterceptor
     {
         private bool _fail = true;
+        internal InvalidOperationException Failure { get; } = new("Deterministic #407 provider failure.");
 
         /// <summary>Fails the first final save after the destructive replacement has changed tracked state.</summary>
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
@@ -275,7 +291,7 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
             if (!_fail) return ValueTask.FromResult(result);
             _fail = false;
             plan.OperationFailed = true;
-            throw new InvalidOperationException("Deterministic #407 provider failure.");
+            throw Failure;
         }
     }
 
@@ -316,17 +332,21 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
 
     private sealed class RollbackFailureInterceptor(FailurePlan plan) : DbTransactionInterceptor
     {
+        internal InvalidOperationException Failure { get; } = new("Deterministic #407 rollback failure.");
+
         /// <summary>Fails cleanup rollback only after the deterministic operation failure.</summary>
         public override ValueTask<InterceptionResult> TransactionRollingBackAsync(
             DbTransaction transaction, TransactionEventData eventData, InterceptionResult result,
             CancellationToken cancellationToken = default) =>
             plan.OperationFailed
-                ? ValueTask.FromException<InterceptionResult>(new InvalidOperationException("Deterministic #407 rollback failure."))
+                ? ValueTask.FromException<InterceptionResult>(Failure)
                 : ValueTask.FromResult(result);
     }
 
     private sealed class RecoveryFailureInterceptor(FailurePlan plan) : DbCommandInterceptor
     {
+        internal InvalidOperationException Failure { get; } = new("Deterministic #407 recovery failure.");
+
         /// <summary>Fails the first recovery read after rollback without affecting setup or pre-mutation reads.</summary>
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
@@ -334,27 +354,31 @@ public sealed class TripEditorSegmentRecoveryPostgresTests(PostgresImportTestFix
         {
             if (plan.OperationFailed && command.CommandText.Contains("FROM \"Segments\" AS", StringComparison.Ordinal))
                 return ValueTask.FromException<InterceptionResult<DbDataReader>>(
-                    new InvalidOperationException("Deterministic #407 recovery failure."));
+                    Failure);
             return ValueTask.FromResult(result);
         }
     }
 
 
-    private sealed class ThrowingDisposeContext(
-        DbContextOptions<ApplicationDbContext> options,
-        IServiceProvider services) : ApplicationDbContext(options, services)
+    private sealed class FailingContextRecovery(bool failRestore, bool failDispose) : ISegmentEditorContextRecovery
     {
-        private bool _failureReported;
+        internal InvalidOperationException RestorationFailure { get; } = new("Deterministic #407 restoration failure.");
+        internal InvalidOperationException DisposalFailure { get; } = new("Deterministic #407 disposal failure.");
 
-        /// <summary>Disposes the real context, then reports the deterministic invalidation failure.</summary>
-        public override async ValueTask DisposeAsync()
+        /// <summary>Restores normally or injects the exact restoration-seam failure.</summary>
+        public void RestoreTracker(
+            ApplicationDbContext context,
+            TripEditorSegmentMutationService.SegmentEditorTrackerSnapshot snapshot)
         {
-            await base.DisposeAsync();
-            if (!_failureReported)
-            {
-                _failureReported = true;
-                throw new InvalidOperationException("Deterministic #407 disposal failure.");
-            }
+            if (failRestore) throw RestorationFailure;
+            snapshot.Restore(context);
+        }
+
+        /// <summary>Invalidates the real context before optionally injecting disposal failure.</summary>
+        public async ValueTask InvalidateAsync(ApplicationDbContext context)
+        {
+            await context.DisposeAsync();
+            if (failDispose) throw DisposalFailure;
         }
     }
 }

@@ -8,7 +8,7 @@ using Wayfarer.Util;
 
 const string connectionVariable = "WAYFARER_TEST_POSTGRES_CONNECTION";
 if (args.Length is < 2 or > 3)
-    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|cleanup|verify-cleanup> <manifest> [password].");
+    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|cleanup|verify-cleanup> <manifest> [password].");
 
 var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
@@ -24,12 +24,15 @@ switch (command)
     case "provision":
         await context.Database.MigrateAsync();
         var password = args.Length == 3 ? args[2] : throw new InvalidOperationException("Provision requires a run-owned password.");
-        var provisioned = await ProvisionAsync(context, password);
+        var provisioned = await ProvisionAsync(context, password, manifestPath);
         await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(provisioned, FixtureJson.Options));
         Console.WriteLine(manifestPath);
         break;
     case "drift":
         await DriftAsync(context, await ReadAsync(manifestPath));
+        break;
+    case "verify-preserved":
+        await VerifyPreservedAsync(context, await ReadAsync(manifestPath));
         break;
     case "cleanup":
         var cleanupManifest = await ReadAsync(manifestPath);
@@ -44,7 +47,7 @@ switch (command)
 }
 
 /// <summary>Creates one exact run-owned #407 Identity and waypoint aggregate fixture.</summary>
-static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext context, string password)
+static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext context, string password, string manifestPath)
 {
     var run = Guid.NewGuid().ToString("N");
     var user = new ApplicationUser
@@ -91,9 +94,15 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     context.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = role.Id });
     context.Trips.Add(trip);
     context.Set<TransportProfile>().Add(profile);
+    var manifest = new WaypointFixtureManifest(trip.Id, user.Id, user.UserName!, password, profile.Id, profile.Key,
+        waypointSegment.Id, zeroSegment.Id, from.Id, waypoint.Id, alternate.Id, to.Id,
+        waypointSegment.EstimatedDistanceKm!.Value, waypointSegment.EstimatedDuration!.Value.TotalMinutes,
+        waypointSegment.EstimatedDurationSource, 0,
+        waypointSegment.RouteGeometry!.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray(),
+        [shadow.Id, region.Id], [from.Id, waypoint.Id, alternate.Id, to.Id]);
+    await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(manifest, FixtureJson.Options));
     await context.SaveChangesAsync();
-    return new(trip.Id, user.Id, user.UserName!, password, profile.Id, waypointSegment.Id, zeroSegment.Id,
-        from.Id, waypoint.Id, alternate.Id, to.Id, [shadow.Id, region.Id], [from.Id, waypoint.Id, alternate.Id, to.Id]);
+    return manifest with { OriginalRowVersion = waypointSegment.RowVersion };
 }
 
 /// <summary>Changes the Segment row version through a second EF context for stale-token browser coverage.</summary>
@@ -102,6 +111,29 @@ static async Task DriftAsync(ApplicationDbContext context, WaypointFixtureManife
     var segment = await context.Segments.SingleAsync(item => item.Id == manifest.WaypointSegmentId);
     segment.Notes = $"Externally drifted {Guid.NewGuid():N}";
     await context.SaveChangesAsync();
+}
+
+/// <summary>Rereads the ordinary notes save and proves every hidden aggregate field against independent constants.</summary>
+static async Task VerifyPreservedAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
+{
+    const string expectedNotes = "<p>Browser ordinary visible edit</p>";
+    var segment = await context.Segments.AsNoTracking()
+        .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
+        .SingleAsync(item => item.Id == manifest.WaypointSegmentId);
+    var coordinates = segment.RouteGeometry?.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray();
+    if (segment.EstimatedDistanceKm != manifest.EstimatedDistanceKm
+        || segment.EstimatedDuration != TimeSpan.FromMinutes(manifest.EstimatedDurationMinutes)
+        || segment.EstimatedDurationSource != manifest.EstimatedDurationSource
+        || segment.Mode != manifest.Mode
+        || segment.TransportProfileId != manifest.ProfileId
+        || coordinates == null || !coordinates.SelectMany(item => item).SequenceEqual(manifest.RouteCoordinates.SelectMany(item => item))
+        || !segment.Waypoints.Select(item => item.PlaceId).SequenceEqual(new[] { manifest.WaypointId })
+        || !segment.Waypoints.Select(item => item.Position).SequenceEqual(new[] { 0 })
+        || !segment.Waypoints.Select(item => item.RouteVertexIndex).SequenceEqual(new int?[] { 2 })
+        || segment.Notes != expectedNotes
+        || segment.RowVersion == manifest.OriginalRowVersion)
+        throw new InvalidOperationException("Provider reread did not preserve the exact #407 aggregate fixture.");
+    Console.WriteLine("provider-reread: measurements, provenance, profile, geometry, waypoint identity/order/indices, notes, and token refresh verified");
 }
 
 /// <summary>Deletes only captured fixture identities.</summary>
@@ -166,8 +198,10 @@ static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
 
 /// <summary>Exact captured identities used by #407 browser setup, mutation, and cleanup.</summary>
 internal sealed record WaypointFixtureManifest(
-    Guid TripId, string UserId, string Username, string Password, Guid ProfileId,
+    Guid TripId, string UserId, string Username, string Password, Guid ProfileId, string Mode,
     Guid WaypointSegmentId, Guid ZeroSegmentId, Guid FromId, Guid WaypointId, Guid AlternateId, Guid ToId,
+    double EstimatedDistanceKm, double EstimatedDurationMinutes, EstimatedDurationSource EstimatedDurationSource,
+    uint OriginalRowVersion, double[][] RouteCoordinates,
     Guid[] RegionIds, Guid[] PlaceIds);
 
 internal static class FixtureJson
