@@ -33,6 +33,9 @@ public static partial class SegmentRouteReconciler
         {
             await LockProfilesAsync(dbContext,
                 proposal.Measurement?.TransportProfileId is Guid profileId ? [profileId] : [], cancellationToken);
+            await LockPlacesAndRegionsAsync(dbContext, proposal.Waypoints.Select(item => (Guid?)item.PlaceId)
+                .Append(proposal.FromPlaceId).Append(proposal.ToPlaceId)
+                .Where(item => item.HasValue).Select(item => item!.Value).ToArray(), cancellationToken);
             var result = await ReconcileNewTrackedAsync(dbContext, creation, proposal, cancellationToken);
             if (!result.Succeeded)
             {
@@ -44,10 +47,23 @@ public static partial class SegmentRouteReconciler
             await transaction.CommitAsync(cancellationToken);
             return result;
         }
-        catch
+        catch (Exception original)
         {
-            await transaction.RollbackAsync(CancellationToken.None);
-            dbContext.ChangeTracker.Clear();
+            var cleanup = new List<Exception>();
+            try { await transaction.RollbackAsync(CancellationToken.None); }
+            catch (Exception failure) { cleanup.Add(failure); }
+            foreach (var entry in dbContext.ChangeTracker.Entries<SegmentWaypoint>()
+                         .Where(entry => entry.Entity.SegmentId == creation.Id).ToArray())
+                entry.State = EntityState.Detached;
+            var segmentEntry = dbContext.ChangeTracker.Entries<Segment>()
+                .SingleOrDefault(entry => entry.Entity.Id == creation.Id);
+            if (segmentEntry != null) segmentEntry.State = EntityState.Detached;
+            if (cleanup.Count > 0)
+            {
+                try { await dbContext.DisposeAsync(); } catch (Exception failure) { cleanup.Add(failure); }
+                throw new AggregateException("Segment creation failed and rollback could not prove context coherence.", [original, .. cleanup]);
+            }
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(original).Throw();
             throw;
         }
     }

@@ -86,6 +86,8 @@ export interface EditorSegment {
   estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string;
   route: GeoJsonLineString | null;
+  effectiveRoute: GeoJsonLineString | null;
+  aggregateConcurrencyToken: string;
   displayOrder: number;
   capabilities: EditorEntityCapabilities;
 }
@@ -299,14 +301,11 @@ export interface EditorSegmentSaveRequest {
   waypointPlaceIds: Guid[];
   waypointRouteVertexIndices: Array<number | null>;
   mode: string | null;
-  transportProfileId?: Guid | null;
   estimatedDistanceKm: number | null;
   estimatedDurationMinutes: number | null;
   estimatedDurationSource: 'Automatic' | 'Manual';
   notesHtml: string | null;
   route: GeoJsonLineString | null;
-  effectiveRoute: GeoJsonLineString | null;
-  aggregateConcurrencyToken: string;
   aggregateConcurrencyToken: string | null;
 }
 
