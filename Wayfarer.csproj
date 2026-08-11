@@ -19,7 +19,7 @@
     <ItemGroup>
         <PackageReference Include="CsvHelper" Version="33.1.0" />
         <PackageReference Include="GeoTimeZone" Version="6.0.0" />
-        <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
+        <PackageReference Include="HtmlSanitizer" Version="9.2.995" />
 
 
         <!-- EF Core packages for .NET 10 -->
@@ -31,6 +31,8 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+        <!-- Override EF Core's vulnerable SQLite native bundle until its dependency floor advances. -->
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
