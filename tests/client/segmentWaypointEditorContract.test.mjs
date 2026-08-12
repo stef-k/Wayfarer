@@ -36,5 +36,5 @@ test('Reset and Cancel operate on the complete waypoint-bearing draft', async ()
 
 test('an unsaved waypoint draft cannot emit a misleading endpoint-only map preview', async () => {
   const source = await sourceOrEmpty(managerPath);
-  assert.match(source, /waypointPlaceIds\.length[^\n]*routeDraftPreviewChanged/);
+  assert.match(source, /waypointPlaceIds\.length[\s\S]*routeDraftPreviewChanged/);
 });

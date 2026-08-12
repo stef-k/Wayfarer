@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { EditorRegion, EditorSegmentDraft, EditorTripState, Guid } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
+import SegmentWaypointEditor from './SegmentWaypointEditor.vue';
 import { fallbackRoute } from './segmentRouteMapWork';
 
 const props = defineProps<{
@@ -10,10 +11,12 @@ const props = defineProps<{
   formId: string;
   formSummaryErrors: string[];
   isDirty: boolean;
+  isSaving: boolean;
   state: EditorTripState;
 }>();
 
 defineEmits<{
+  clearError: [key: string];
   save: [];
 }>();
 
@@ -25,6 +28,10 @@ const transportModes = computed(() => {
   return [{ value: props.draft.mode, label: `${props.draft.mode} (inactive)`, speedKmh: null, inactive: true }, ...active];
 });
 const routeSummary = computed(() => {
+  if (props.isDirty && props.draft.waypointRows.length > 0) {
+    return 'The map keeps the saved route while intermediate-place changes are unsaved. It updates after Save.';
+  }
+
   if (props.draft.route) {
     return `${props.isDirty ? 'Unsaved' : 'Saved'} route · ${props.draft.route.coordinates.length} custom route points`;
   }
@@ -47,7 +54,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
 
     <label class="trip-editor-field">
       <span>From place</span>
-      <select v-model="draft.fromPlaceId">
+      <select v-model="draft.fromPlaceId" data-segment-field="fromPlaceId" @change="$emit('clearError', 'fromPlaceId')">
         <option :value="null">Unlinked</option>
         <optgroup v-for="region in normalRegions" :key="region.id" :label="region.name">
           <option v-for="placeId in orderedPlaceIds(region.id)" :key="placeId" :value="placeId">{{ state.placesById[placeId]?.name }}</option>
@@ -56,9 +63,11 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       <small v-for="message in fieldErrors('fromPlaceId')" :key="message">{{ message }}</small>
     </label>
 
+    <SegmentWaypointEditor :draft="draft" :field-errors="fieldErrors" :is-saving="isSaving" :state="state" @clear-error="$emit('clearError', $event)" />
+
     <label class="trip-editor-field">
       <span>To place</span>
-      <select v-model="draft.toPlaceId">
+      <select v-model="draft.toPlaceId" data-segment-field="toPlaceId" @change="$emit('clearError', 'toPlaceId')">
         <option :value="null">Unlinked</option>
         <optgroup v-for="region in normalRegions" :key="region.id" :label="region.name">
           <option v-for="placeId in orderedPlaceIds(region.id)" :key="placeId" :value="placeId">{{ state.placesById[placeId]?.name }}</option>

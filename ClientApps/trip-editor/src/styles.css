@@ -229,6 +229,52 @@ body {
   color: inherit;
 }
 
+/* Keeps the cohesive intermediate-place workflow contained at desktop, zoom, and phone widths. */
+.segment-waypoints {
+  min-width: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .375rem;
+  padding: .75rem;
+}
+
+.segment-waypoints__add,
+.segment-waypoints__row,
+.segment-waypoints__actions {
+  display: flex;
+  min-width: 0;
+  gap: .5rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.segment-waypoints__row {
+  padding-block: .5rem;
+  border-block-start: 1px solid var(--bs-border-color);
+}
+
+.segment-waypoints__select,
+.segment-waypoints__add .trip-editor-field {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.segment-waypoints select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 430px) {
+  .segment-waypoints__actions,
+  .segment-waypoints__actions .btn {
+    width: 100%;
+  }
+
+  .segment-waypoints__actions .btn {
+    min-height: 2.75rem;
+    flex: 1 1 8rem;
+  }
+}
+
 .trip-editor-tags {
   display: flex;
   flex-wrap: wrap;

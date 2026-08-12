@@ -24,6 +24,7 @@ const routeWorkDisabled = computed(() => !canMutateSegmentRoute(props.draft));
 
 defineEmits<{
   cancel: [];
+  clearError: [key: string];
   clearRoute: [];
   delete: [];
   drawRoute: [];
@@ -41,8 +42,10 @@ defineEmits<{
         :form-id="formId"
         :form-summary-errors="formSummaryErrors"
         :is-dirty="isDirty"
+        :is-saving="isSaving"
         :state="state"
         @save="$emit('save')"
+        @clear-error="$emit('clearError', $event)"
       />
     </template>
 

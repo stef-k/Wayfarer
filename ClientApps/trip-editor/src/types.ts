@@ -349,6 +349,8 @@ export interface EditorSegmentDraft {
   toPlaceId: Guid | null;
   waypointPlaceIds: Guid[];
   waypointRouteVertexIndices: Array<number | null>;
+  /** Client-only logical rows; identifiers never cross the API boundary. */
+  waypointRows: EditorSegmentWaypointDraftRow[];
   mode: string;
   transportProfileId: Guid | null;
   estimatedDistanceKm: string | number;
@@ -358,6 +360,12 @@ export interface EditorSegmentDraft {
   route: GeoJsonLineString | null;
   effectiveRoute: GeoJsonLineString | null;
   aggregateConcurrencyToken: string | null;
+}
+
+export interface EditorSegmentWaypointDraftRow {
+  clientId: string;
+  placeId: Guid;
+  routeVertexIndex: number | null;
 }
 
 export interface EditorSegmentConflict {

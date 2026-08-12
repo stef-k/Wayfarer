@@ -1,4 +1,4 @@
-import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest } from '../types';
+import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorCoordinate, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest, EditorSegmentWaypointDraftRow } from '../types';
 import { normalizeNotesHtml } from '../notes/notesHtml';
 
 export const defaultPlaceIconName = 'marker';
@@ -119,7 +119,7 @@ export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest 
 }
 
 export function emptySegmentDraft(): EditorSegmentDraft {
-  return { id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null };
+  return { id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], waypointRows: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null };
 }
 
 export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraft {
@@ -127,12 +127,14 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
     return emptySegmentDraft();
   }
 
+  const waypointRows = segment.waypointPlaceIds.map((placeId, index) => createWaypointRow(placeId, segment.waypointRouteVertexIndices[index] ?? null));
   return {
     id: segment.id,
     fromPlaceId: segment.fromPlaceId,
     toPlaceId: segment.toPlaceId,
     waypointPlaceIds: [...segment.waypointPlaceIds],
     waypointRouteVertexIndices: [...segment.waypointRouteVertexIndices],
+    waypointRows,
     mode: segment.mode,
     transportProfileId: segment.transportProfileId,
     estimatedDistanceKm: segment.estimatedDistanceKm ?? '',
@@ -146,11 +148,12 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
 }
 
 export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSaveRequest {
+  const waypointRows = value.waypointRows;
   return {
     fromPlaceId: value.fromPlaceId || null,
     toPlaceId: value.toPlaceId || null,
-    waypointPlaceIds: [...value.waypointPlaceIds],
-    waypointRouteVertexIndices: [...value.waypointRouteVertexIndices],
+    waypointPlaceIds: waypointRows.map(row => row.placeId),
+    waypointRouteVertexIndices: waypointRows.map(row => row.routeVertexIndex),
     mode: value.mode || null,
     estimatedDistanceKm: nullableNumber(value.estimatedDistanceKm),
     estimatedDurationMinutes: nullableNumber(value.estimatedDurationMinutes),
@@ -159,6 +162,28 @@ export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSav
     route: cloneGeometry(value.route),
     aggregateConcurrencyToken: value.aggregateConcurrencyToken
   };
+}
+
+/** Creates one stable client-only waypoint row while keeping API identity out of the UI key. */
+export function createWaypointRow(placeId: string, routeVertexIndex: number | null = null): EditorSegmentWaypointDraftRow {
+  return { clientId: crypto.randomUUID(), placeId, routeVertexIndex };
+}
+
+/** Keeps the legacy array mirrors aligned for route policy and diagnostics. */
+export function syncWaypointArrays(value: EditorSegmentDraft): void {
+  value.waypointPlaceIds = value.waypointRows.map(row => row.placeId);
+  value.waypointRouteVertexIndices = value.waypointRows.map(row => row.routeVertexIndex);
+}
+
+/** Associates indexed server errors with the logical rows present at submission time. */
+export function mapWaypointErrors(errors: Record<string, string[]>, submittedWaypointRows: EditorSegmentWaypointDraftRow[]): Record<string, string[]> {
+  const mapped: Record<string, string[]> = {};
+  for (const [key, messages] of Object.entries(errors)) {
+    const match = /^waypoint(?:PlaceIds|RouteVertexIndices)\[(\d+)\]$/i.exec(key);
+    const row = match ? submittedWaypointRows[Number(match[1])] : null;
+    mapped[row ? `waypoint.${row.clientId}` : key] = [...(mapped[row ? `waypoint.${row.clientId}` : key] ?? []), ...messages];
+  }
+  return mapped;
 }
 
 function cloneGeometry<T>(geometry: T): T {
