@@ -62,7 +62,9 @@ const isDraftOpen = computed(() => props.editorSurface.isTargetActive(activeSegm
 const baselineRequest = computed(() => draft.id ? buildSegmentRequest(persistedBaseline.value) : createBaselineRequest.value ?? buildSegmentRequest(emptySegmentDraft()));
 const isDirty = computed(() => JSON.stringify(buildSegmentRequest(draft)) !== JSON.stringify(baselineRequest.value));
 const statusText = computed(() => isSaving.value ? 'Saving...' : isOrdering.value ? 'Saving order...' : saveError.value ? 'Save failed' : isDirty.value ? 'Unsaved changes' : lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved');
-const formSummaryErrors = computed(() => Object.entries(validationErrors.value).filter(([key]) => !segmentFields.includes(key)).flatMap(([, messages]) => messages));
+const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
+  .filter(([key]) => !segmentFields.includes(key) && !key.startsWith('waypoint.'))
+  .flatMap(([, messages]) => messages));
 const activeSegmentTarget = computed<EditorTarget>(() => draft.id && activeSegment.value
   ? buildSegmentEditTarget(activeSegment.value, segmentLabel(activeSegment.value))
   : buildSegmentCreateTarget());
@@ -128,10 +130,16 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
 }
 
 function resetDraft(): void {
+  const focusSelector = resetFocusSelector(draft, draft.id ? persistedBaseline.value : emptySegmentDraft());
   Object.assign(draft, draft.id ? cloneDraft(persistedBaseline.value) : emptySegmentDraft());
   resetFeedback();
   syncRouteDraftPreview();
-  void nextTick(() => document.querySelector<HTMLElement>('.segment-waypoints legend')?.focus());
+  void nextTick(async () => {
+    await nextTick();
+    const requested = focusSelector ? document.querySelector<HTMLElement>(focusSelector) : null;
+    const target = requested && isFocusable(requested) ? requested : document.querySelector<HTMLElement>('[data-segment-waypoint-group]');
+    target?.focus();
+  });
 }
 
 async function cancelDraft(): Promise<void> {
@@ -384,7 +392,7 @@ function syncRouteDraftPreview(): void {
     return;
   }
 
-  if (draft.waypointPlaceIds.length > 0 && isDirty.value) {
+  if (draft.waypointPlaceIds.length > 0) {
     emit('routeDraftPreviewChanged', null);
     return;
   }
@@ -442,7 +450,8 @@ function applyError(error: unknown, fallback: string, submittedWaypointRows: Edi
       const firstKey = Object.keys(validationErrors.value)[0];
       const rowId = firstKey?.startsWith('waypoint.') ? firstKey.slice('waypoint.'.length) : null;
       const target = rowId ? document.querySelector<HTMLElement>(`[data-waypoint-client-id="${CSS.escape(rowId)}"]`)
-        : firstKey ? document.querySelector<HTMLElement>(`[data-segment-field="${CSS.escape(firstKey)}"]`) : null;
+        : firstKey?.startsWith('waypoint') ? document.querySelector<HTMLElement>('[data-segment-waypoint-group]')
+          : firstKey ? document.querySelector<HTMLElement>(`[data-segment-field="${CSS.escape(firstKey)}"]`) : null;
       target?.focus();
     });
   }
@@ -454,6 +463,27 @@ function resetFeedback(): void {
   validationErrors.value = {};
   saveError.value = null;
   segmentConflict.value = null;
+}
+
+/** Resolves Reset focus from the first changed visible Segment control in document order. */
+function resetFocusSelector(current: EditorSegmentDraft, baseline: EditorSegmentDraft): string | null {
+  const changed = (key: keyof EditorSegmentDraft): boolean => JSON.stringify(current[key]) !== JSON.stringify(baseline[key]);
+  const ordered: Array<[() => boolean, string]> = [
+    [() => changed('fromPlaceId'), '[data-segment-field="fromPlaceId"]'],
+    [() => changed('waypointPlaceIds') || changed('waypointRouteVertexIndices'), '[data-segment-waypoint-group]'],
+    [() => changed('toPlaceId'), '[data-segment-field="toPlaceId"]'],
+    [() => changed('mode'), '[data-segment-field="mode"]'],
+    [() => changed('estimatedDurationSource'), `[data-segment-field="estimatedDurationSource"][value="${baseline.estimatedDurationSource}"]`],
+    [() => changed('estimatedDurationMinutes'), '[data-segment-field="estimatedDurationMinutes"]'],
+    [() => changed('notesHtml'), '[data-segment-field="notesHtml"]'],
+    [() => changed('route'), '[data-segment-field="route"]']
+  ];
+  return ordered.find(([isChanged]) => isChanged())?.[1] ?? null;
+}
+
+/** Rejects hidden or disabled Reset destinations after responsive rerendering. */
+function isFocusable(element: HTMLElement): boolean {
+  return !element.hasAttribute('disabled') && element.getClientRects().length > 0;
 }
 
 /** Replaces the complete draft only after explicit confirmation against current server state. */

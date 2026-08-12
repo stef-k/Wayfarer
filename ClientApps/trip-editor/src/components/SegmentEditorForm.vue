@@ -78,7 +78,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
 
     <label class="trip-editor-field">
       <span>Transport mode</span>
-      <select v-model="draft.mode">
+      <select v-model="draft.mode" data-segment-field="mode">
         <option value="">Unset</option>
         <option v-for="mode in transportModes" :key="mode.value" :value="mode.value" :disabled="'inactive' in mode && mode.inactive">{{ mode.label }}</option>
       </select>
@@ -94,22 +94,24 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
 
       <div class="trip-editor-field">
         <span>Duration estimate</span>
-        <label><input v-model="draft.estimatedDurationSource" type="radio" value="Automatic" /> Use automatic estimate</label>
-        <label><input v-model="draft.estimatedDurationSource" type="radio" value="Manual" /> Enter manually</label>
+        <label><input v-model="draft.estimatedDurationSource" data-segment-field="estimatedDurationSource" type="radio" value="Automatic" /> Use automatic estimate</label>
+        <label><input v-model="draft.estimatedDurationSource" data-segment-field="estimatedDurationSource" type="radio" value="Manual" /> Enter manually</label>
         <small v-for="message in fieldErrors('estimatedDurationSource')" :key="message">{{ message }}</small>
       </div>
 
       <label class="trip-editor-field">
         <span>Estimated duration minutes</span>
-        <input v-if="draft.estimatedDurationSource === 'Manual'" v-model="draft.estimatedDurationMinutes" type="number" min="0" step="any" />
+        <input v-if="draft.estimatedDurationSource === 'Manual'" v-model="draft.estimatedDurationMinutes" data-segment-field="estimatedDurationMinutes" type="number" min="0" step="any" />
         <input v-else :value="draft.estimatedDurationMinutes" type="number" disabled readonly aria-readonly="true" :placeholder="draft.estimatedDurationMinutes === '' ? 'Unavailable until route and speed are available' : undefined" />
         <small v-for="message in fieldErrors('estimatedDurationMinutes')" :key="message">{{ message }}</small>
       </label>
     </div>
 
-    <RichNotesEditor :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+    <div data-segment-field="notesHtml" tabindex="-1">
+      <RichNotesEditor :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+    </div>
 
-    <div class="trip-editor-field">
+    <div class="trip-editor-field" data-segment-field="route" tabindex="-1">
       <span>Route</span>
       <p class="trip-editor-empty-state">{{ routeSummary }}</p>
       <small v-for="message in [...fieldErrors('route'), ...fieldErrors('route.coordinates')]" :key="message">{{ message }}</small>

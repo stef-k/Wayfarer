@@ -34,7 +34,7 @@ type Fixture = {
 
 test.describe.serial('#407/#408 persisted waypoint aggregate and accessible editor', () => {
   test('mounted editor authors waypoints and preserves the complete aggregate through failures and confirmation', async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     const fixture = await loadFixture();
     await signIn(page);
     const response = await page.goto(absoluteUrl(editorPath), { waitUntil: 'domcontentloaded' });
@@ -55,8 +55,8 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
 
     await openSegment(page, fixture.waypointSegmentId);
     const form = page.locator('#trip-editor-segment-form');
-    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
-    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
     const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
     const clearRoute = page.getByRole('button', { name: 'Clear Route' });
     const routeExplanation = page.getByText('Route editing for segments with intermediate places will be available in a later update.');
@@ -166,14 +166,20 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect(cleared.fromPlaceId).toBe(fixture.alternateId);
     expect(cleared.route).toBeNull();
     expect(cleared.waypointRouteVertexIndices).toEqual([null]);
-    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
-    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"][data-route-kind="fallback"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"][data-route-kind="fallback"]`)).toHaveCount(1);
 
     await openSegment(page, fixture.staleSegmentId);
     const staleSelector = form.getByLabel(/Intermediate place 1:/);
-    await expect.soft(staleSelector).toHaveValue(fixture.staleWaypointId);
-    await expect.soft(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toBeDisabled();
-    await expect.soft(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toContainText(/Shadow waypoint .*unavailable/i);
+    await expect(staleSelector).toHaveValue(fixture.staleWaypointId);
+    await expect(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toHaveAttribute('disabled', '');
+    await expect(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toContainText(/Shadow waypoint .*unavailable/i);
+    const staleState = (await editorState(page)).segmentsById[fixture.staleSegmentId];
+    expect(staleState.effectiveRoute.coordinates).toHaveLength(3);
+    expect(staleState.effectiveRoute.coordinates[1]).toEqual([23.73, 38.05]);
+    const fallbackPath = page.locator(`[data-segment-id="${fixture.staleSegmentId}"][data-route-owner="saved"][data-route-kind="fallback"]`);
+    await expect(fallbackPath).toHaveCount(1);
+    expect((await fallbackPath.getAttribute('d'))?.match(/[ML]/g)?.length).toBeGreaterThanOrEqual(3);
 
     await openSegment(page, fixture.waypointSegmentId);
     await notesEditor(form).fill('Failed save keeps this draft');
@@ -250,14 +256,14 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect((await invalidResponse).ok()).toBeFalsy();
     await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
     await expect(form.getByLabel(/Intermediate place 1: Alternate/).locator('..').locator('small')).toHaveCount(1);
-    await expect.soft(form.locator('.trip-editor-form-error')).not.toContainText(/waypoint/i);
+    await expect(form.locator('.trip-editor-form-error')).toHaveCount(0);
     await form.getByRole('button', { name: /Move Alternate .* down/ }).click();
     await expect(form.getByLabel(/Intermediate place 2: Alternate/).locator('..').locator('small')).toHaveCount(1);
     await page.getByRole('button', { name: 'Reset' }).click();
 
     await form.getByLabel('From place').selectOption(fixture.toId);
     await page.getByRole('button', { name: 'Reset' }).click();
-    await expect.soft(form.getByLabel('From place')).toBeFocused();
+    await expect(form.getByLabel('From place')).toBeFocused();
 
     const aggregateValidation = async (route: Route): Promise<void> => {
       if (route.request().method() !== 'PUT') return route.fallback();
@@ -268,8 +274,9 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.route(pathRegex(`${editorApiPath}/segments/${fixture.zeroSegmentId}`), aggregateValidation);
     await notesEditor(form).fill('Aggregate validation focus');
     await page.getByRole('button', { name: 'Save Segment' }).click();
-    await expect.soft(form.getByRole('group', { name: 'Intermediate places' })).toBeFocused();
+    await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeFocused();
     await page.unroute(pathRegex(`${editorApiPath}/segments/${fixture.zeroSegmentId}`), aggregateValidation);
+    await page.getByRole('button', { name: 'Reset' }).click();
 
     for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
       await page.setViewportSize(viewport);
@@ -296,7 +303,7 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.getByRole('button', { name: 'Save Segment' }).click();
     expect((await createResponse).ok()).toBeTruthy();
     const created = Object.values((await editorState(page)).segmentsById as Record<string, any>)
-      .find(segment => segment.id !== fixture.waypointSegmentId && segment.id !== fixture.zeroSegmentId);
+      .find(segment => ![fixture.waypointSegmentId, fixture.zeroSegmentId, fixture.staleSegmentId].includes(segment.id));
     expect(created?.waypointPlaceIds).toEqual([]);
     expect(created?.waypointRouteVertexIndices).toEqual([]);
     expect((await page.request.get(absoluteUrl(`/Public/Trip/${fixture.waypointSegmentId}`))).status()).toBe(404);

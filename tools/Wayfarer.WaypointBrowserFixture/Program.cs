@@ -77,7 +77,7 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     var waypoint = Place(region, user.Id, $"Waypoint {run}", 2, 23.74, 37.99);
     var alternate = Place(region, user.Id, $"Alternate {run}", 3, 23.76, 38.00);
     var to = Place(region, user.Id, $"To {run}", 4, 23.78, 38.01);
-    var staleWaypoint = Place(shadow, user.Id, $"Shadow waypoint {run}", 1, 23.73, 37.985);
+    var staleWaypoint = Place(shadow, user.Id, $"Shadow waypoint {run}", 1, 23.73, 38.05);
     var profile = new TransportProfile
     {
         Id = Guid.NewGuid(), Key = $"issue407-{run}"[..40], Label = "Issue 407 fixture walk", Category = "fixture",

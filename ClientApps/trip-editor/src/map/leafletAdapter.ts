@@ -310,7 +310,8 @@ const renderArea = (area: EditorArea, layers: LayerGroup): void => {
 };
 
 const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: LayerGroup): void => {
-  const coordinates = segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state);
+  // The server-supplied effective route is authoritative for custom and waypoint fallback rendering.
+  const coordinates = segment.effectiveRoute?.coordinates ?? segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state);
   if (!coordinates || coordinates.length < 2) {
     return;
   }
@@ -325,7 +326,7 @@ const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: L
   if (element) {
     element.dataset.segmentId = segment.id;
     element.dataset.routeOwner = 'saved';
-    element.dataset.routeKind = segment.route === null ? 'fallback' : 'custom';
+    element.dataset.routeKind = segment.hasCustomRoute ? 'custom' : 'fallback';
   }
 };
 
@@ -555,7 +556,7 @@ const extendArea = (bounds: L.LatLngBounds, area: EditorArea): void => {
 };
 
 const extendSegment = (bounds: L.LatLngBounds, segment: EditorSegment, state: EditorTripState): void => {
-  (segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state))?.forEach(coordinate => extendLongitudeLatitude(bounds, coordinate));
+  (segment.effectiveRoute?.coordinates ?? segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state))?.forEach(coordinate => extendLongitudeLatitude(bounds, coordinate));
 };
 
 const extendLongitudeLatitude = (bounds: L.LatLngBounds, [longitude, latitude]: [number, number]): void => {

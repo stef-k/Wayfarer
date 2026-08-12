@@ -17,6 +17,7 @@ const legend = ref<HTMLElement | null>(null);
 const rowControls = new Map<string, HTMLSelectElement>();
 const announcement = ref('');
 const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
+const aggregateErrors = computed(() => [...new Set([...props.fieldErrors('waypointPlaceIds'), ...props.fieldErrors('waypointRouteVertexIndices')])]);
 
 defineExpose({ focusLegend: () => legend.value?.focus() });
 
@@ -36,6 +37,7 @@ function addWaypoint(): void {
   const row = createWaypointRow(placeToAdd.value);
   props.draft.waypointRows.push(row);
   syncWaypointArrays(props.draft);
+  clearAggregateErrors();
   const name = placeName(row.placeId);
   placeToAdd.value = '';
   announcement.value = `${name} added as intermediate place ${props.draft.waypointRows.length}.`;
@@ -46,6 +48,7 @@ function substitute(row: EditorSegmentWaypointDraftRow, placeId: string): void {
   row.placeId = placeId;
   syncWaypointArrays(props.draft);
   emit('clearError', `waypoint.${row.clientId}`);
+  clearAggregateErrors();
 }
 
 function move(row: EditorSegmentWaypointDraftRow, offset: number): void {
@@ -67,6 +70,8 @@ function remove(row: EditorSegmentWaypointDraftRow): void {
   const name = placeName(row.placeId);
   props.draft.waypointRows.splice(index, 1);
   syncWaypointArrays(props.draft);
+  emit('clearError', `waypoint.${row.clientId}`);
+  clearAggregateErrors();
   announcement.value = `${name} removed.`;
   void nextTick(() => {
     const target = props.draft.waypointRows[index] ?? props.draft.waypointRows[index - 1];
@@ -78,12 +83,27 @@ function placeName(id: string | null): string {
   return id ? props.state.placesById[id]?.name ?? `Unavailable place ${id}` : 'Place';
 }
 
+/** Clears only aggregate errors made obsolete by a changed waypoint collection. */
+function clearAggregateErrors(): void {
+  emit('clearError', 'waypointPlaceIds');
+  emit('clearError', 'waypointRouteVertexIndices');
+}
+
+/** Describes a persisted current value that is outside the normal eligible catalogue. */
+function unavailableCurrentLabel(row: EditorSegmentWaypointDraftRow): string {
+  const place = props.state.placesById[row.placeId];
+  if (!place) return 'Place no longer available';
+  const region = props.state.regionsById[place.regionId];
+  if (!region || !props.state.regionOrder.includes(place.regionId) || region.isShadow) return `${place.name} — region unavailable`;
+  return `${place.name} — unavailable in this Region`;
+}
+
 const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.draft.fromPlaceId) : 'From not selected',
   ...props.draft.waypointRows.map(row => placeName(row.placeId)), props.draft.toPlaceId ? placeName(props.draft.toPlaceId) : 'To not selected'].join(' → '));
 </script>
 
 <template>
-  <fieldset class="segment-waypoints" :disabled="isSaving">
+  <fieldset class="segment-waypoints" data-segment-waypoint-group tabindex="-1" :disabled="isSaving" :aria-invalid="aggregateErrors.length > 0 ? 'true' : undefined" :aria-errormessage="aggregateErrors.length > 0 ? 'segment-waypoint-errors' : undefined">
     <legend ref="legend" tabindex="-1">Intermediate places</legend>
     <p v-if="draft.waypointRows.length === 0" class="trip-editor-empty-state">No intermediate saved Place selected.</p>
     <div class="segment-waypoints__add">
@@ -100,7 +120,7 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
       <label class="trip-editor-field segment-waypoints__select">
         <span>{{ `Intermediate place ${index + 1}: ${placeName(row.placeId)}` }}</span>
         <select :ref="element => { if (element) rowControls.set(row.clientId, element as HTMLSelectElement); }" :data-waypoint-client-id="row.clientId" :value="row.placeId" @change="substitute(row, ($event.target as HTMLSelectElement).value)">
-          <option v-if="!state.placesById[row.placeId]" :value="row.placeId" disabled>{{ placeName(row.placeId) }} — unavailable</option>
+          <option v-if="!choices(row).some(place => place.id === row.placeId)" :value="row.placeId" disabled>{{ unavailableCurrentLabel(row) }}</option>
           <option v-for="place in choices(row)" :key="place.id" :value="place.id" :disabled="!place.location">{{ place.name }}{{ place.location ? '' : ' — location required' }}</option>
         </select>
         <small v-for="message in fieldErrors(`waypoint.${row.clientId}`)" :key="message">{{ message }}</small>
@@ -111,7 +131,9 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
         <button type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" :aria-label="`Remove ${placeName(row.placeId)}`" @click="remove(row)">Remove</button>
       </div>
     </div>
-    <small v-for="message in [...fieldErrors('waypointPlaceIds'), ...fieldErrors('waypointRouteVertexIndices')]" :key="message">{{ message }}</small>
+    <div v-if="aggregateErrors.length > 0" id="segment-waypoint-errors">
+      <small v-for="message in aggregateErrors" :key="message">{{ message }}</small>
+    </div>
     <p><strong>Journey order:</strong> {{ journeyOrder }}</p>
     <span class="visually-hidden" aria-live="polite">{{ announcement }}</span>
   </fieldset>
