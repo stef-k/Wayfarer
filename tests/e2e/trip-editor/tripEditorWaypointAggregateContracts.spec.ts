@@ -254,11 +254,24 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     const invalidResponse = page.waitForResponse(candidate => candidate.request().method() === 'PUT' && candidate.status() === 400 && candidate.url().endsWith(`/segments/${fixture.zeroSegmentId}`));
     await page.getByRole('button', { name: 'Save Segment' }).click();
     expect((await invalidResponse).ok()).toBeFalsy();
-    await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
-    await expect(form.getByLabel(/Intermediate place 1: Alternate/).locator('..').locator('small')).toHaveCount(1);
+    const invalidWaypoint = form.getByLabel(/Intermediate place 1: Alternate/);
+    await expect(invalidWaypoint).toBeFocused();
+    await expect(invalidWaypoint).toHaveAttribute('aria-invalid', 'true');
+    const rowErrorId = await invalidWaypoint.getAttribute('aria-errormessage');
+    expect(rowErrorId).toBeTruthy();
+    const rowError = form.locator(`#${rowErrorId}`);
+    await expect(rowError).toBeVisible();
+    await expect(rowError).toContainText('A waypoint cannot match an endpoint.');
     await expect(form.locator('.trip-editor-form-error')).toHaveCount(0);
     await form.getByRole('button', { name: /Move Alternate .* down/ }).click();
-    await expect(form.getByLabel(/Intermediate place 2: Alternate/).locator('..').locator('small')).toHaveCount(1);
+    const reorderedInvalidWaypoint = form.getByLabel(/Intermediate place 2: Alternate/);
+    await expect(reorderedInvalidWaypoint).toHaveAttribute('aria-errormessage', rowErrorId!);
+    await expect(rowError).toContainText('A waypoint cannot match an endpoint.');
+    await form.getByRole('button', { name: /Remove Waypoint / }).click();
+    await reorderedInvalidWaypoint.selectOption(fixture.waypointId);
+    await expect(reorderedInvalidWaypoint).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(reorderedInvalidWaypoint).not.toHaveAttribute('aria-errormessage', /.+/);
+    await expect(rowError).toHaveCount(0);
     await page.getByRole('button', { name: 'Reset' }).click();
 
     await form.getByLabel('From place').selectOption(fixture.toId);
@@ -277,6 +290,18 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeFocused();
     await page.unroute(pathRegex(`${editorApiPath}/segments/${fixture.zeroSegmentId}`), aggregateValidation);
     await page.getByRole('button', { name: 'Reset' }).click();
+
+    await notesEditor(form).fill('Notes-only Reset focus');
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(notesEditor(form)).toBeFocused();
+    await expect(notesEditor(form)).toHaveAttribute('contenteditable', 'true');
+    await expect(notesEditor(form)).toHaveAttribute('aria-labelledby', `${segmentFormId}-notes-label`);
+
+    const clearRoute = page.getByRole('button', { name: 'Clear Route' });
+    await expect(clearRoute).toBeEnabled();
+    await clearRoute.click();
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeFocused();
 
     for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
       await page.setViewportSize(viewport);
