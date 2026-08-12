@@ -187,7 +187,7 @@ public sealed class TripEditorRegionMutationService
         var regionOrder = await LoadRegionOrderAsync(tripId, userId, cancellationToken);
         var segmentOrder = await LoadSegmentOrderAsync(tripId, userId, cancellationToken);
         var visitProgress = await LoadVisitProgressAsync(tripId, userId, cancellationToken);
-        var survivingSegments = await _reader.LoadSegmentDtosAsync(result.SurvivingSegments.Select(segment => segment.Id).ToArray(), tripId, cancellationToken);
+        var survivingSegments = await _reader.LoadSegmentDtosAsync(result.SurvivingSegments.Select(segment => segment.Id).ToArray(), tripId, userId, cancellationToken);
         var affected = new EditorAffectedSlicesDto(
             null,
             Array.Empty<EditorRegionDto>(),

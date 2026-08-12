@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 
@@ -8,16 +9,65 @@ namespace Wayfarer.Services;
 /// <summary>
 /// Executes Trip Editor segment mutations and builds their mutation result envelopes.
 /// </summary>
-public sealed class TripEditorSegmentMutationService
+public sealed partial class TripEditorSegmentMutationService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly SegmentAggregateTokenService _aggregateTokens;
+    private readonly SegmentRouteClearConfirmation _routeConfirmation;
+    private readonly Func<Guid> _segmentIdFactory;
+    private readonly ISegmentEditorContextRecovery _contextRecovery;
 
     /// <summary>
     /// Initializes a new segment mutation service for the editor API.
     /// </summary>
     public TripEditorSegmentMutationService(ApplicationDbContext dbContext)
+        : this(dbContext, CreateFallbackServices())
+    {
+    }
+
+    /// <summary>Issues the initial editor token after authoritative Segment loading.</summary>
+    public string IssueAggregateToken(string userId, Guid tripId, Segment segment) =>
+        _aggregateTokens.Issue(userId, tripId, segment.Id, segment.RowVersion);
+
+    private TripEditorSegmentMutationService(
+        ApplicationDbContext dbContext,
+        (SegmentAggregateTokenService Tokens, SegmentRouteClearConfirmation Confirmation) services)
+        : this(dbContext, services.Tokens, services.Confirmation)
+    {
+    }
+
+    /// <summary>Initializes the production editor aggregate dependencies.</summary>
+    public TripEditorSegmentMutationService(
+        ApplicationDbContext dbContext,
+        SegmentAggregateTokenService aggregateTokens,
+        SegmentRouteClearConfirmation routeConfirmation)
+        : this(dbContext, aggregateTokens, routeConfirmation, Guid.NewGuid)
+    {
+    }
+
+    /// <summary>Initializes deterministic application-ID generation for provider boundary tests.</summary>
+    internal TripEditorSegmentMutationService(
+        ApplicationDbContext dbContext,
+        SegmentAggregateTokenService aggregateTokens,
+        SegmentRouteClearConfirmation routeConfirmation,
+        Func<Guid> segmentIdFactory)
+        : this(dbContext, aggregateTokens, routeConfirmation, segmentIdFactory, new SegmentEditorContextRecovery())
+    {
+    }
+
+    /// <summary>Initializes deterministic ID and internal context-recovery behavior for provider boundary tests.</summary>
+    internal TripEditorSegmentMutationService(
+        ApplicationDbContext dbContext,
+        SegmentAggregateTokenService aggregateTokens,
+        SegmentRouteClearConfirmation routeConfirmation,
+        Func<Guid> segmentIdFactory,
+        ISegmentEditorContextRecovery contextRecovery)
     {
         _dbContext = dbContext;
+        _aggregateTokens = aggregateTokens;
+        _routeConfirmation = routeConfirmation;
+        _segmentIdFactory = segmentIdFactory;
+        _contextRecovery = contextRecovery;
     }
 
     /// <summary>
@@ -29,7 +79,7 @@ public sealed class TripEditorSegmentMutationService
         Stream requestBody,
         CancellationToken cancellationToken)
     {
-        var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);
+        var trip = await LoadTripCandidateAsync(tripId, userId, cancellationToken);
         if (trip == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.NotFound();
@@ -38,13 +88,20 @@ public sealed class TripEditorSegmentMutationService
         var parsed = await ParseAndValidateSaveAsync(requestBody, cancellationToken);
         if (parsed.ValidationErrors != null)
         {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(parsed.ValidationErrors);
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                parsed.ValidationErrors, SegmentValidationCode(parsed.ValidationErrors));
         }
+
+        if (parsed.Value!.AggregateConcurrencyToken != null)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                new() { ["aggregateConcurrencyToken"] = ["Create requires an explicit null aggregate token."] },
+                "segment-aggregate-token-invalid");
 
         var referenceErrors = ValidatePlaceReferences(parsed.Value!, trip);
         if (referenceErrors.Count > 0)
         {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(referenceErrors);
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                referenceErrors, SegmentValidationCode(referenceErrors));
         }
 
         var mode = await ResolveModeAsync(parsed.Value!.Mode, null, cancellationToken);
@@ -54,15 +111,22 @@ public sealed class TripEditorSegmentMutationService
                 new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile."] });
         }
 
-        var segmentId = Guid.NewGuid();
+        if (_dbContext.Database.IsRelational())
+            return await CreateRelationalAsync(trip.Id, userId, parsed.Value!, mode.Value, cancellationToken);
+
+        var segmentId = _segmentIdFactory();
         var creation = new SegmentCreation(segmentId, userId, trip.Id, NextSegmentOrder(trip));
         var proposal = BuildProposal(segmentId, parsed.Value!, mode.Value);
-        _dbContext.ChangeTracker.Clear();
-        var reconciliation = await SegmentRouteReconciler.CreateAsync(_dbContext, creation, proposal, cancellationToken);
+        var reconciliation = await SegmentRouteReconciler.ReconcileNewLockedAsync(
+            _dbContext, creation, proposal, cancellationToken);
         if (!reconciliation.Succeeded)
+        {
+            _dbContext.ChangeTracker.Clear();
             return ReconciliationFailed(reconciliation);
+        }
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
-        var dto = await LoadSegmentDtoAsync(segmentId, tripId, cancellationToken);
+        var dto = await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken);
         var affected = await BuildAffectedAsync(tripId, new[] { dto }, includeOrder: true, cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Succeeded(
             new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
@@ -76,8 +140,25 @@ public sealed class TripEditorSegmentMutationService
         Guid segmentId,
         string userId,
         Stream requestBody,
+        string? confirmationToken,
         CancellationToken cancellationToken)
     {
+        if (_dbContext.Database.IsRelational())
+        {
+            var trackerSnapshot = SegmentEditorTrackerSnapshot.Capture(_dbContext);
+            var candidate = await _dbContext.Segments.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId, cancellationToken);
+            if (candidate == null)
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.NotFound();
+            var relationalRequest = await ParseAndValidateSaveAsync(requestBody, cancellationToken);
+            if (relationalRequest.ValidationErrors != null)
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                    relationalRequest.ValidationErrors, SegmentValidationCode(relationalRequest.ValidationErrors));
+            var candidateTrip = new Trip { Id = tripId, UserId = userId, Name = string.Empty, UpdatedAt = DateTime.UtcNow };
+            return await UpdateRelationalAsync(candidateTrip, candidate, relationalRequest.Value!, userId,
+                confirmationToken, cancellationToken, trackerSnapshot: trackerSnapshot);
+        }
+
         var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);
         if (trip == null)
         {
@@ -93,8 +174,16 @@ public sealed class TripEditorSegmentMutationService
         var parsed = await ParseAndValidateSaveAsync(requestBody, cancellationToken);
         if (parsed.ValidationErrors != null)
         {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(parsed.ValidationErrors);
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                parsed.ValidationErrors, SegmentValidationCode(parsed.ValidationErrors));
         }
+
+        var submittedVersion = segment.RowVersion;
+
+        if (submittedVersion != segment.RowVersion)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
+                new EditorSegmentConflictDto("segment-aggregate-stale", "update", await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken),
+                    "The Segment changed. Reload its authoritative state before saving.", null, null));
 
         var referenceErrors = ValidatePlaceReferences(parsed.Value!, trip);
         if (referenceErrors.Count > 0)
@@ -109,13 +198,32 @@ public sealed class TripEditorSegmentMutationService
                 new Dictionary<string, string[]> { ["mode"] = ["Mode must match an active transport profile or preserve the segment's current inactive profile."] });
         }
 
+        if (RequiresRouteClearConfirmation(segment, parsed.Value!))
+        {
+            var fingerprint = BuildConfirmationFingerprint(userId, tripId, segment, parsed.Value!, mode.Value.ProfileId);
+            if (!_routeConfirmation.IsValid(confirmationToken, segmentId, fingerprint))
+            {
+                var issued = _routeConfirmation.Issue(segmentId, fingerprint);
+                var code = string.IsNullOrWhiteSpace(confirmationToken)
+                    ? "segment-route-clear-confirmation-required"
+                    : "segment-route-clear-confirmation-stale";
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
+                    new EditorSegmentConflictDto(code, "update", await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken),
+                        "Saving this anchor change requires clearing the custom route.", issued.ExpiresAt, issued.Token));
+            }
+            parsed = (parsed.Value! with
+            {
+                Route = null,
+                WaypointRouteVertexIndices = parsed.Value.WaypointRouteVertexIndices.Select(_ => (int?)null).ToArray()
+            }, null);
+        }
+
         var proposal = BuildProposal(segment.Id, parsed.Value!, mode.Value);
-        _dbContext.ChangeTracker.Clear();
         var reconciliation = await SegmentRouteReconciler.ReconcileAsync(_dbContext, proposal, cancellationToken);
         if (!reconciliation.Succeeded)
             return ReconciliationFailed(reconciliation);
 
-        var dto = await LoadSegmentDtoAsync(segmentId, tripId, cancellationToken);
+        var dto = await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken);
         var affected = await BuildAffectedAsync(tripId, new[] { dto }, includeOrder: false, cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Succeeded(
             new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
@@ -192,7 +300,7 @@ public sealed class TripEditorSegmentMutationService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var segmentOrder = await LoadSegmentOrderAsync(tripId, cancellationToken);
-        var segmentDtos = await LoadSegmentDtosAsync(orderRequest.SegmentIds, tripId, cancellationToken);
+        var segmentDtos = await LoadSegmentDtosAsync(orderRequest.SegmentIds, tripId, userId, cancellationToken);
         var affected = await BuildAffectedAsync(tripId, segmentDtos, includeOrder: true, cancellationToken);
         var data = new EditorSegmentOrderResult(segmentOrder);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentOrderResult>>.Succeeded(
@@ -213,6 +321,14 @@ public sealed class TripEditorSegmentMutationService
     private async Task<Trip?> LoadTripGraphAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
         await _dbContext.Trips
             .Include(t => t.Regions).ThenInclude(r => r.Places)
+            .Include(t => t.Segments).ThenInclude(s => s.FromPlace)
+            .Include(t => t.Segments).ThenInclude(s => s.ToPlace)
+            .Include(t => t.Segments).ThenInclude(s => s.Waypoints).ThenInclude(w => w.Place)
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+
+    private async Task<Trip?> LoadTripCandidateAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
+        await _dbContext.Trips.AsNoTracking()
+            .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
@@ -221,28 +337,12 @@ public sealed class TripEditorSegmentMutationService
             .Include(s => s.Trip)
             .FirstOrDefaultAsync(s => s.Id == segmentId && s.TripId == tripId && s.Trip.UserId == userId, cancellationToken);
 
-    private static Dictionary<string, string[]> ValidatePlaceReferences(EditorSegmentSaveRequest request, Trip trip)
-    {
-        var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        var placeIds = trip.Regions.SelectMany(r => r.Places).Select(p => p.Id).ToHashSet();
-        if (request.FromPlaceId.HasValue && !placeIds.Contains(request.FromPlaceId.Value))
-        {
-            errors["fromPlaceId"] = new[] { "From place must belong to this trip." };
-        }
-
-        if (request.ToPlaceId.HasValue && !placeIds.Contains(request.ToPlaceId.Value))
-        {
-            errors["toPlaceId"] = new[] { "To place must belong to this trip." };
-        }
-
-        return errors;
-    }
-
     private static SegmentRouteProposal BuildProposal(
         Guid segmentId,
         EditorSegmentSaveRequest request,
         (string Key, Guid? ProfileId) mode) =>
-        new(segmentId, request.FromPlaceId, request.ToPlaceId, [], request.Route,
+        new(segmentId, request.FromPlaceId, request.ToPlaceId,
+            request.WaypointPlaceIds.Select((id, index) => new SegmentWaypointProposal(id, index, request.WaypointRouteVertexIndices[index])).ToArray(), request.Route,
             new(mode.Key, mode.ProfileId, request.EstimatedDurationSource, request.EstimatedDurationMinutes),
             ApplyNotes: true, NotesHtml: request.NotesHtml);
 
@@ -281,17 +381,24 @@ public sealed class TripEditorSegmentMutationService
         return (preserveCurrent ? currentMode! : resolved, profileId);
     }
 
-    private async Task<EditorSegmentDto> LoadSegmentDtoAsync(Guid segmentId, Guid tripId, CancellationToken cancellationToken)
+    private async Task<EditorSegmentDto> LoadSegmentDtoAsync(Guid segmentId, Guid tripId, string userId, CancellationToken cancellationToken)
     {
-        var segment = await _dbContext.Segments.AsNoTracking().SingleAsync(s => s.Id == segmentId, cancellationToken);
-        return EditorTripStateMapper.ToSegment(tripId, segment);
+        var segment = await _dbContext.Segments.AsNoTracking()
+            .Include(item => item.FromPlace).Include(item => item.ToPlace)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
+            .SingleAsync(s => s.Id == segmentId, cancellationToken);
+        return EditorTripStateMapper.ToSegment(tripId, segment, _aggregateTokens.Issue(userId, tripId, segmentId, segment.RowVersion), true);
     }
 
-    private async Task<IReadOnlyList<EditorSegmentDto>> LoadSegmentDtosAsync(IReadOnlyList<Guid> ids, Guid tripId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<EditorSegmentDto>> LoadSegmentDtosAsync(
+        IReadOnlyList<Guid> ids, Guid tripId, string userId, CancellationToken cancellationToken)
     {
-        var segments = await _dbContext.Segments.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+        var segments = await _dbContext.Segments.AsNoTracking().Include(item => item.FromPlace).Include(item => item.ToPlace)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
+            .Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
         var byId = segments.ToDictionary(s => s.Id);
-        return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id])).ToList();
+        return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id],
+            _aggregateTokens.Issue(userId, tripId, id, byId[id].RowVersion), true)).ToList();
     }
 
     private async Task<EditorAffectedSlicesDto> BuildAffectedAsync(
@@ -340,6 +447,44 @@ public sealed class TripEditorSegmentMutationService
 
     private static int NextSegmentOrder(Trip trip) =>
         (trip.Segments.Count == 0 ? 0 : trip.Segments.Max(s => s.DisplayOrder)) + 1;
+
+    private static bool RequiresRouteClearConfirmation(Segment current, EditorSegmentSaveRequest proposed)
+    {
+        if (current.RouteGeometry == null || (current.Waypoints.Count == 0 && proposed.WaypointPlaceIds.Count == 0)) return false;
+        var currentIds = current.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray();
+        var pureRemoval = current.FromPlaceId == proposed.FromPlaceId && current.ToPlaceId == proposed.ToPlaceId
+            && proposed.WaypointPlaceIds.Count < currentIds.Length
+            && IsOrderPreservingSubsequence(proposed.WaypointPlaceIds, currentIds);
+        return !pureRemoval && (current.FromPlaceId != proposed.FromPlaceId || current.ToPlaceId != proposed.ToPlaceId
+            || !currentIds.SequenceEqual(proposed.WaypointPlaceIds));
+    }
+
+    private static bool IsOrderPreservingSubsequence(IReadOnlyList<Guid> proposed, IReadOnlyList<Guid> current)
+    {
+        var cursor = 0;
+        foreach (var id in current)
+            if (cursor < proposed.Count && proposed[cursor] == id) cursor++;
+        return cursor == proposed.Count;
+    }
+
+    private static string BuildConfirmationFingerprint(string userId, Guid tripId, Segment current,
+        EditorSegmentSaveRequest proposed, Guid? profileId)
+    {
+        var geometryIdentity = current.RouteGeometry == null
+            ? "none"
+            : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(current.RouteGeometry.AsBinary()));
+        var currentState = new SegmentRouteClearState(current.RowVersion, current.FromPlaceId, current.ToPlaceId,
+            current.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray(), current.TransportProfileId, geometryIdentity);
+        var proposedState = new SegmentRouteClearState(current.RowVersion, proposed.FromPlaceId, proposed.ToPlaceId,
+            proposed.WaypointPlaceIds, profileId, geometryIdentity);
+        return SegmentRouteClearConfirmation.Fingerprint(userId, tripId, currentState, proposedState);
+    }
+
+    private static (SegmentAggregateTokenService Tokens, SegmentRouteClearConfirmation Confirmation) CreateFallbackServices()
+    {
+        var provider = new EphemeralDataProtectionProvider();
+        return (new SegmentAggregateTokenService(provider), new SegmentRouteClearConfirmation(provider, TimeProvider.System));
+    }
 
     private static async Task<(JsonElement? Value, Dictionary<string, string[]>? ValidationErrors)> ParseJsonBodyAsync(
         Stream requestBody,

@@ -159,7 +159,7 @@ public sealed class TripEditorPlaceMutationService
         var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
         var segmentOrder = lifecycle.LocationChanged ? await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken) : null;
         var segmentDtos = lifecycle.Segments.Count > 0
-            ? await _reader.LoadSegmentDtosAsync(lifecycle.Segments.Select(s => s.Id).ToArray(), tripId, cancellationToken)
+            ? await _reader.LoadSegmentDtosAsync(lifecycle.Segments.Select(s => s.Id).ToArray(), tripId, userId, cancellationToken)
             : Array.Empty<EditorSegmentDto>();
         var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, lifecycle.OrderRegionIds, segmentDtos, segmentOrder, lifecycle.LocationChanged, cancellationToken);
 
@@ -183,7 +183,7 @@ public sealed class TripEditorPlaceMutationService
         if (!result.Succeeded || !result.RegionId.HasValue)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDeleteResult>>.NotFound();
 
-        var survivingDtos = await _reader.LoadSegmentDtosAsync(result.SurvivingSegments.Select(segment => segment.Id).ToArray(), tripId, cancellationToken);
+        var survivingDtos = await _reader.LoadSegmentDtosAsync(result.SurvivingSegments.Select(segment => segment.Id).ToArray(), tripId, userId, cancellationToken);
         var affected = await _reader.BuildAffectedAsync(
             tripId,
             userId,

@@ -67,6 +67,20 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
         return new ApplicationDbContext(options, _serviceProvider);
     }
 
+    /// <summary>Creates a specialized test context over the same guarded PostgreSQL database.</summary>
+    internal TContext CreateContext<TContext>(
+        Func<DbContextOptions<ApplicationDbContext>, IServiceProvider, TContext> factory,
+        params IInterceptor[] interceptors)
+        where TContext : ApplicationDbContext
+    {
+        RequireAvailable();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(_connectionString!, provider => provider.UseNetTopologySuite())
+            .AddInterceptors(interceptors)
+            .Options;
+        return factory(options, _serviceProvider);
+    }
+
     /// <summary>Seeds a fixture-owned identity user and records it for targeted cleanup.</summary>
     public async Task<ApplicationUser> CreateUserAsync()
     {

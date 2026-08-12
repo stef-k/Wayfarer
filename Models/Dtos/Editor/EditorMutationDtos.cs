@@ -116,12 +116,15 @@ public sealed record EditorAreaDeleteResult(Guid AreaId);
 public sealed record EditorSegmentSaveRequest(
     Guid? FromPlaceId,
     Guid? ToPlaceId,
+    IReadOnlyList<Guid> WaypointPlaceIds,
+    IReadOnlyList<int?> WaypointRouteVertexIndices,
     string Mode,
     double? EstimatedDistanceKm,
     double? EstimatedDurationMinutes,
     EstimatedDurationSource EstimatedDurationSource,
     string? NotesHtml,
-    NetTopologySuite.Geometries.LineString? Route);
+    NetTopologySuite.Geometries.LineString? Route,
+    string? AggregateConcurrencyToken);
 
 /// <summary>
 /// Complete desired trip-level segment order.
@@ -137,6 +140,15 @@ public sealed record EditorSegmentOrderResult(IReadOnlyList<Guid> SegmentOrder);
 /// Segment delete data returned by the segment delete endpoint.
 /// </summary>
 public sealed record EditorSegmentDeleteResult(Guid SegmentId);
+
+/// <summary>Non-success Segment aggregate state returned for deterministic editor recovery.</summary>
+public sealed record EditorSegmentConflictDto(
+    string Code,
+    string Operation,
+    EditorSegmentDto CurrentSegment,
+    string Warning,
+    DateTimeOffset? ExpiresAt,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? ConfirmationToken);
 
 /// <summary>
 /// Standard success envelope returned by editor mutation endpoints.

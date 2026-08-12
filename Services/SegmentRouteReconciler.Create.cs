@@ -22,29 +22,21 @@ public static partial class SegmentRouteReconciler
 
         if (!dbContext.Database.IsRelational())
         {
-            dbContext.Segments.Add(NewSegment(creation));
-            await dbContext.SaveChangesAsync(cancellationToken);
-            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: false, cancellationToken);
+            var result = await ReconcileNewLockedAsync(dbContext, creation, proposal, cancellationToken);
             if (result.Succeeded) await dbContext.SaveChangesAsync(cancellationToken);
-            else
-            {
-                dbContext.ChangeTracker.Clear();
-                var created = await dbContext.Segments.SingleAsync(item => item.Id == creation.Id, cancellationToken);
-                dbContext.Segments.Remove(created);
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
+            else dbContext.ChangeTracker.Clear();
             return result;
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
-            dbContext.Segments.Add(NewSegment(creation));
-            await dbContext.SaveChangesAsync(cancellationToken);
             await LockProfilesAsync(dbContext,
                 proposal.Measurement?.TransportProfileId is Guid profileId ? [profileId] : [], cancellationToken);
-            await LockSegmentAsync(dbContext, creation.Id, cancellationToken);
-            var result = await ReconcileLockedAsync(dbContext, proposal, refreshCanonicalState: true, cancellationToken);
+            await LockPlacesAndRegionsAsync(dbContext, proposal.Waypoints.Select(item => (Guid?)item.PlaceId)
+                .Append(proposal.FromPlaceId).Append(proposal.ToPlaceId)
+                .Where(item => item.HasValue).Select(item => item!.Value).ToArray(), cancellationToken);
+            var result = await ReconcileNewLockedAsync(dbContext, creation, proposal, cancellationToken);
             if (!result.Succeeded)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
@@ -55,12 +47,48 @@ public static partial class SegmentRouteReconciler
             await transaction.CommitAsync(cancellationToken);
             return result;
         }
-        catch
+        catch (Exception original)
         {
-            await transaction.RollbackAsync(CancellationToken.None);
-            dbContext.ChangeTracker.Clear();
+            var cleanup = new List<Exception>();
+            try { await transaction.RollbackAsync(CancellationToken.None); }
+            catch (Exception failure) { cleanup.Add(failure); }
+            foreach (var entry in dbContext.ChangeTracker.Entries<SegmentWaypoint>()
+                         .Where(entry => entry.Entity.SegmentId == creation.Id).ToArray())
+                entry.State = EntityState.Detached;
+            var segmentEntry = dbContext.ChangeTracker.Entries<Segment>()
+                .SingleOrDefault(entry => entry.Entity.Id == creation.Id);
+            if (segmentEntry != null) segmentEntry.State = EntityState.Detached;
+            if (cleanup.Count > 0)
+            {
+                try { await dbContext.DisposeAsync(); } catch (Exception failure) { cleanup.Add(failure); }
+                throw new AggregateException("Segment creation failed and rollback could not prove context coherence.", [original, .. cleanup]);
+            }
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(original).Throw();
             throw;
         }
+    }
+
+    /// <summary>Validates and composes a new application-identified aggregate before its only insert boundary.</summary>
+    internal static async Task<SegmentRouteReconciliationResult> ReconcileNewLockedAsync(
+        ApplicationDbContext dbContext,
+        SegmentCreation creation,
+        SegmentRouteProposal proposal,
+        CancellationToken cancellationToken)
+    {
+        var segment = NewSegment(creation);
+        var placesById = await LoadProposalPlacesAsync(dbContext, proposal, cancellationToken);
+        var geometry = CopyGeometry(proposal);
+        var errors = Validate(creation.TripId, proposal, placesById, geometry);
+        var anchors = BuildAnchorChain(proposal, placesById);
+        var measurement = await CalculateMeasurementsAsync(
+            dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
+        if (errors.Count > 0) return new(false, errors, anchors);
+
+        dbContext.Segments.Add(segment);
+        ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
+        ApplyMeasurements(segment, measurement!);
+        if (proposal.ApplyNotes) segment.Notes = proposal.NotesHtml ?? string.Empty;
+        return new(true, [], anchors);
     }
 
     private static Segment NewSegment(SegmentCreation creation) => new()

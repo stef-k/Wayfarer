@@ -8,27 +8,28 @@ public sealed record EditorRegionMutationOutcome<T>(
     T? Result,
     Dictionary<string, string[]>? ValidationErrors,
     string? ForbiddenDetail,
-    object? Conflict)
+    object? Conflict,
+    string? Code)
 {
     /// <summary>Creates a successful mutation outcome.</summary>
     public static EditorRegionMutationOutcome<T> Succeeded(T result) =>
-        new(EditorRegionMutationStatus.Success, result, null, null, null);
+        new(EditorRegionMutationStatus.Success, result, null, null, null, null);
 
     /// <summary>Creates a not-found outcome for hidden or missing trips/entities.</summary>
     public static EditorRegionMutationOutcome<T> NotFound() =>
-        new(EditorRegionMutationStatus.NotFound, default, null, null, null);
+        new(EditorRegionMutationStatus.NotFound, default, null, null, null, null);
 
     /// <summary>Creates a forbidden outcome for valid but blocked region operations.</summary>
     public static EditorRegionMutationOutcome<T> Forbidden(string detail) =>
-        new(EditorRegionMutationStatus.Forbidden, default, null, detail, null);
+        new(EditorRegionMutationStatus.Forbidden, default, null, detail, null, null);
 
     /// <summary>Creates a validation-failed outcome with field-keyed errors.</summary>
-    public static EditorRegionMutationOutcome<T> ValidationFailed(Dictionary<string, string[]> errors) =>
-        new(EditorRegionMutationStatus.ValidationFailed, default, errors, null, null);
+    public static EditorRegionMutationOutcome<T> ValidationFailed(Dictionary<string, string[]> errors, string code = "segment-request-invalid") =>
+        new(EditorRegionMutationStatus.ValidationFailed, default, errors, null, null, code);
 
     /// <summary>Creates a bounded lifecycle conflict outcome.</summary>
     public static EditorRegionMutationOutcome<T> Conflicted(object conflict) =>
-        new(EditorRegionMutationStatus.Conflict, default, null, null, conflict);
+        new(EditorRegionMutationStatus.Conflict, default, null, null, conflict, null);
 }
 
 /// <summary>

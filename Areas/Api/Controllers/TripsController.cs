@@ -965,25 +965,43 @@ return Ok(dto);
     /// <response code="401">If the API token is missing, invalid, or user doesn't own the segment</response>
     /// <response code="404">If the segment doesn't exist</response>
     [HttpPut("segments/{segmentId}")]
-    public async Task<IActionResult> UpdateSegmentNotes(Guid segmentId, [FromBody] SegmentUpdateRequestDto request)
+    public async Task<IActionResult> UpdateSegmentNotes(
+        Guid segmentId,
+        [FromBody] SegmentUpdateRequestDto request,
+        CancellationToken cancellationToken = default)
     {
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
         if (request == null) return BadRequest("Invalid request.");
 
-        var segment = await _dbContext.Segments
+        var segment = await _dbContext.Segments.AsNoTracking()
             .Include(s => s.Trip)
             .FirstOrDefaultAsync(s => s.Id == segmentId);
         if (segment == null) return NotFound("Segment not found.");
         if (segment.Trip.UserId != user.Id) return Unauthorized("Not your segment.");
 
+        var notes = request.Notes ?? segment.Notes;
         if (request.Notes != null)
         {
-            segment.Notes = request.Notes;
+            if (_dbContext.Database.IsRelational())
+            {
+                if (!await SegmentNotesMutation.UpdateRelationalAsync(
+                        _dbContext, segment.TripId, segmentId, user.Id, request.Notes, cancellationToken))
+                    return NotFound("Segment not found.");
+            }
+            else
+            {
+                var notesOnly = _dbContext.ChangeTracker.Entries<Segment>()
+                    .FirstOrDefault(entry => entry.Entity.Id == segmentId)?.Entity
+                    ?? new Segment { Id = segmentId, UserId = user.Id, TripId = segment.TripId };
+                if (_dbContext.Entry(notesOnly).State == EntityState.Detached) _dbContext.Attach(notesOnly);
+                notesOnly.Notes = request.Notes;
+                _dbContext.Entry(notesOnly).Property(item => item.Notes).IsModified = true;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
         }
 
-        await _dbContext.SaveChangesAsync();
-        return Ok(new { success = true, segment = new { segment.Id, segment.Notes } });
+        return Ok(new { success = true, segment = new { segment.Id, Notes = notes } });
     }
 
     /// <summary>

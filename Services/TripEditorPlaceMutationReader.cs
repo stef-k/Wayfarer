@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 
@@ -10,13 +11,21 @@ namespace Wayfarer.Services;
 public sealed class TripEditorPlaceMutationReader
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly SegmentAggregateTokenService _aggregateTokens;
 
     /// <summary>
     /// Initializes a reader for Trip Editor place mutation responses.
     /// </summary>
     public TripEditorPlaceMutationReader(ApplicationDbContext dbContext)
+        : this(dbContext, new SegmentAggregateTokenService(new EphemeralDataProtectionProvider()))
+    {
+    }
+
+    /// <summary>Initializes authoritative affected-Segment projection.</summary>
+    public TripEditorPlaceMutationReader(ApplicationDbContext dbContext, SegmentAggregateTokenService aggregateTokens)
     {
         _dbContext = dbContext;
+        _aggregateTokens = aggregateTokens;
     }
 
     /// <summary>
@@ -83,11 +92,16 @@ public sealed class TripEditorPlaceMutationReader
     /// <summary>
     /// Loads segment DTOs in caller-specified order.
     /// </summary>
-    public async Task<IReadOnlyList<EditorSegmentDto>> LoadSegmentDtosAsync(IReadOnlyList<Guid> ids, Guid tripId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<EditorSegmentDto>> LoadSegmentDtosAsync(
+        IReadOnlyList<Guid> ids, Guid tripId, string userId, CancellationToken cancellationToken)
     {
-        var segments = await _dbContext.Segments.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
+        var segments = await _dbContext.Segments.AsNoTracking()
+            .Include(item => item.FromPlace).Include(item => item.ToPlace)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
+            .Where(s => ids.Contains(s.Id) && s.TripId == tripId && s.UserId == userId).ToListAsync(cancellationToken);
         var byId = segments.ToDictionary(s => s.Id);
-        return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id])).ToList();
+        return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id],
+            _aggregateTokens.Issue(userId, tripId, id, byId[id].RowVersion), true)).ToList();
     }
 
     /// <summary>

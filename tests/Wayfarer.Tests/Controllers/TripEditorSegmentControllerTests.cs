@@ -143,12 +143,15 @@ public sealed class TripEditorSegmentControllerTests : TestBase
         {
           "fromPlaceId": {{GuidJson(fromPlaceId)}},
           "toPlaceId": {{GuidJson(toPlaceId)}},
+          "waypointPlaceIds": [],
+          "waypointRouteVertexIndices": [],
           "mode": {{StringJson(mode)}},
           "estimatedDistanceKm": 12.5,
           "estimatedDurationMinutes": 35,
           "estimatedDurationSource": "Manual",
           "notesHtml": null,
-          "route": {{routeJson}}
+          "route": {{routeJson}},
+          "aggregateConcurrencyToken": null
         }
         """;
 

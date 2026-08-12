@@ -9,6 +9,10 @@ public sealed class SegmentMeasurementConfiguration : IEntityTypeConfiguration<S
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<Segment> builder)
     {
+        // PostgreSQL supplies xmin; this is a concurrency mapping, not an application column.
+        builder.Property(segment => segment.RowVersion)
+            .HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
+
         builder.Property(segment => segment.EstimatedDurationSource)
             .HasConversion<int>()
             .HasDefaultValue(EstimatedDurationSource.Automatic)

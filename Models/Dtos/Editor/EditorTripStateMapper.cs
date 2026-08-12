@@ -20,7 +20,8 @@ public static class EditorTripStateMapper
         IReadOnlyDictionary<Guid, IReadOnlyList<PlaceVisitEvent>> visitsByPlaceId,
         EditorOptionsDto options,
         string? publicUrl,
-        string? progressPublicUrl)
+        string? progressPublicUrl,
+        Func<Segment, string>? aggregateTokenFactory = null)
     {
         ArgumentNullException.ThrowIfNull(trip);
 
@@ -45,7 +46,7 @@ public static class EditorTripStateMapper
                 .ToList()),
             AreasById = areas.ToDictionary(a => a.Area.Id, a => ToArea(trip.Id, a.Region.Id, a.Area)),
             AreaOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).Select(a => a.Id).ToList()),
-            SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s)),
+            SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s, aggregateTokenFactory?.Invoke(s) ?? string.Empty, true)),
             SegmentOrder = segments.Select(s => s.Id).ToList(),
             TagsBySlug = trip.Tags.OrderBy(t => t.Name).ToDictionary(t => t.Slug, t => new EditorTagDto(t.Id, t.Name, t.Slug)),
             TagOrder = trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug).ToList(),
@@ -112,20 +113,40 @@ public static class EditorTripStateMapper
     /// <summary>
     /// Maps a segment into the editor segment contract.
     /// </summary>
-    public static EditorSegmentDto ToSegment(Guid tripId, Segment segment) =>
-        new(
+    public static EditorSegmentDto ToSegment(Guid tripId, Segment segment, string aggregateConcurrencyToken = "", bool waypointsAuthoritative = false)
+    {
+        if (!waypointsAuthoritative)
+            throw new InvalidOperationException("Authoritative Segment mapping requires explicitly loaded waypoint children.");
+        return new(
             segment.Id,
             tripId,
             segment.FromPlaceId,
             segment.ToPlaceId,
+            segment.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray(),
+            segment.Waypoints.OrderBy(item => item.Position).Select(item => item.RouteVertexIndex).ToArray(),
             segment.Mode ?? string.Empty,
+            segment.TransportProfileId,
+            segment.RouteGeometry != null,
             segment.EstimatedDistanceKm,
             segment.EstimatedDuration?.TotalMinutes,
             segment.EstimatedDurationSource.ToString(),
             segment.Notes ?? string.Empty,
             ToGeoJson(segment.RouteGeometry),
+            ToGeoJson(segment.RouteGeometry ?? BuildEffectiveRoute(segment)),
+            aggregateConcurrencyToken,
             segment.DisplayOrder,
             EditableLeafCapabilities());
+    }
+
+    private static LineString? BuildEffectiveRoute(Segment segment)
+    {
+        var coordinates = new List<Coordinate>();
+        if (segment.FromPlace?.Location is Point from) coordinates.Add(from.Coordinate);
+        coordinates.AddRange(segment.Waypoints.OrderBy(item => item.Position)
+            .Where(item => item.Place.Location != null).Select(item => item.Place.Location!.Coordinate));
+        if (segment.ToPlace?.Location is Point to) coordinates.Add(to.Coordinate);
+        return coordinates.Count >= 2 ? new LineString(coordinates.ToArray()) { SRID = 4326 } : null;
+    }
 
     /// <summary>
     /// Maps a place into the editor place contract.

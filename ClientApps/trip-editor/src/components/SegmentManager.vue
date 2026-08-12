@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { createSegment, deleteSegment, orderSegments, updateSegment } from '../api/tripEditorApi';
+import { createSegment, deleteSegment, EditorSegmentConflictError, orderSegments, updateSegment } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
@@ -10,6 +10,7 @@ import { buildSegmentRequest, emptySegmentDraft, toSegmentDraft } from './region
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
+import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
 
 declare global {
   interface Window {
@@ -37,7 +38,7 @@ const emit = defineEmits<{
   routeDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
 }>();
 
-const segmentFields = ['fromPlaceId', 'toPlaceId', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'estimatedDurationSource', 'notesHtml', 'route', 'route.coordinates'];
+const segmentFields = ['fromPlaceId', 'toPlaceId', 'waypointPlaceIds', 'waypointRouteVertexIndices', 'aggregateConcurrencyToken', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'estimatedDurationSource', 'notesHtml', 'route', 'route.coordinates'];
 const segmentFormId = 'trip-editor-segment-form';
 const segmentList = ref<HTMLElement | null>(null);
 const segmentListKey = ref(0);
@@ -151,6 +152,24 @@ async function saveDraft(): Promise<void> {
     emit('routeDraftPreviewChanged', null);
     markSaved();
   } catch (error) {
+    if (error instanceof EditorSegmentConflictError && draft.id) {
+      if (error.confirmationToken && await confirm({
+        title: 'Clear custom route?', message: error.conflict.warning,
+        confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning'
+      })) {
+        try {
+          const confirmed = await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, buildSegmentRequest(draft), error.confirmationToken);
+          emit('mutationApplied', confirmed as EditorMutationResult<unknown>);
+          Object.assign(draft, toSegmentDraft(confirmed.data));
+          markSaved();
+          return;
+        } catch (retryError) {
+          applyError(retryError, 'Segment save failed.');
+          return;
+        }
+      }
+      // Keep the user's complete visible and hidden proposal retryable after canonical contention.
+    }
     applyError(error, 'Segment save failed.');
   } finally {
     isSaving.value = false;
@@ -227,11 +246,12 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
 }
 
 function drawRoute(): void {
-  beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state);
+  invokeSegmentRouteAction(draft, () =>
+    beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state));
 }
 
 function clearRoute(): void {
-  draft.route = null;
+  invokeSegmentRouteAction(draft, () => { draft.route = null; });
 }
 
 function toggleVisibility(segment: EditorSegment): void {
