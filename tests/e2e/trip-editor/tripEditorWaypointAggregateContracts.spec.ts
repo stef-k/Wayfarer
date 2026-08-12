@@ -268,9 +268,10 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(reorderedInvalidWaypoint).toHaveAttribute('aria-errormessage', rowErrorId!);
     await expect(rowError).toContainText('A waypoint cannot duplicate an endpoint.');
     await form.getByRole('button', { name: /Remove Waypoint / }).click();
-    await reorderedInvalidWaypoint.selectOption(fixture.waypointId);
-    await expect(reorderedInvalidWaypoint).not.toHaveAttribute('aria-invalid', 'true');
-    await expect(reorderedInvalidWaypoint).not.toHaveAttribute('aria-errormessage', /.+/);
+    const retainedInvalidWaypoint = form.locator(`select[aria-errormessage="${rowErrorId}"]`);
+    await retainedInvalidWaypoint.selectOption(fixture.waypointId);
+    await expect(retainedInvalidWaypoint).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(retainedInvalidWaypoint).not.toHaveAttribute('aria-errormessage', /.+/);
     await expect(rowError).toHaveCount(0);
     await page.getByRole('button', { name: 'Reset' }).click();
 
