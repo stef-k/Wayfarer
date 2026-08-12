@@ -101,6 +101,11 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect((await staleRequest).waypointPlaceIds).toEqual([fixture.waypointId]);
     await expect(activeEditorAlert(page)).toContainText(/segment-aggregate-stale|changed|reload/i);
     await expect(notesEditor(form)).toContainText('Draft survives stale aggregate');
+    await expect(page.getByRole('heading', { name: 'Current saved Segment' })).toBeFocused();
+    await page.getByRole('button', { name: 'Reload current saved Segment' }).click();
+    const reloadConfirmation = page.getByRole('dialog', { name: 'Reload current saved Segment?' });
+    await reloadConfirmation.getByRole('button', { name: 'Reload saved Segment' }).click();
+    await expect(notesEditor(form)).toContainText('Externally drifted');
     const staleCanonical = (await editorState(page)).segmentsById[fixture.waypointSegmentId];
     expect(staleCanonical.notesHtml).toContain('Externally drifted');
     expectHiddenAggregate(staleCanonical, original);
@@ -222,11 +227,16 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(form.getByLabel(/Intermediate place 1:/)).toHaveValue(fixture.alternateId);
     await expect(form.getByLabel(/Intermediate place 2:/)).toHaveCount(0);
 
+    await placeToAdd.selectOption(fixture.waypointId);
+    await form.getByRole('button', { name: 'Add intermediate place' }).click();
     await form.getByLabel('From place').selectOption(fixture.alternateId);
     const invalidResponse = page.waitForResponse(candidate => candidate.request().method() === 'PUT' && candidate.status() === 400 && candidate.url().endsWith(`/segments/${fixture.zeroSegmentId}`));
     await page.getByRole('button', { name: 'Save Segment' }).click();
     expect((await invalidResponse).ok()).toBeFalsy();
     await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
+    await expect(form.getByLabel(/Intermediate place 1: Alternate/).locator('..').locator('small')).toHaveCount(1);
+    await form.getByRole('button', { name: /Move Alternate .* down/ }).click();
+    await expect(form.getByLabel(/Intermediate place 2: Alternate/).locator('..').locator('small')).toHaveCount(1);
     await page.getByRole('button', { name: 'Reset' }).click();
 
     for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
