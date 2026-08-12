@@ -190,6 +190,9 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await placeToAdd.selectOption(fixture.waypointId);
     await form.getByRole('button', { name: 'Add intermediate place' }).press('Space');
     await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
+    await form.getByLabel(/Intermediate place 1:/).selectOption(fixture.alternateId);
+    await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/From .* → Alternate .* → To /);
+    await form.getByLabel(/Intermediate place 1:/).selectOption(fixture.waypointId);
     await placeToAdd.selectOption(fixture.alternateId);
     await form.getByRole('button', { name: 'Add intermediate place' }).press('Enter');
     await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/From .* → Waypoint .* → Alternate .* → To /);
