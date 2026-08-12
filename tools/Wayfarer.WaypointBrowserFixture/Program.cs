@@ -8,7 +8,7 @@ using Wayfarer.Util;
 
 const string connectionVariable = "WAYFARER_TEST_POSTGRES_CONNECTION";
 if (args.Length is < 2 or > 3)
-    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|cleanup|verify-cleanup> <manifest> [password].");
+    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|verify-ui|cleanup|verify-cleanup> <manifest> [password].");
 
 var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
@@ -33,6 +33,9 @@ switch (command)
         break;
     case "verify-preserved":
         await VerifyPreservedAsync(context, await ReadAsync(manifestPath));
+        break;
+    case "verify-ui":
+        await VerifyUiAsync(context, await ReadAsync(manifestPath));
         break;
     case "cleanup":
         var cleanupManifest = await ReadAsync(manifestPath);
@@ -138,6 +141,19 @@ static async Task VerifyPreservedAsync(ApplicationDbContext context, WaypointFix
     if (failures.Count > 0)
         throw new InvalidOperationException("Provider reread mismatch: " + string.Join(", ", failures));
     Console.WriteLine("provider-reread: measurements, provenance, profile, geometry, waypoint identity/order/indices, notes, and token refresh verified");
+}
+
+/// <summary>Rereads the final #408 visible workflow without duplicating #407 provider coverage.</summary>
+static async Task VerifyUiAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
+{
+    var segment = await context.Segments.AsNoTracking()
+        .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
+        .SingleAsync(item => item.Id == manifest.ZeroSegmentId);
+    if (!segment.Waypoints.Select(item => item.PlaceId).SequenceEqual(new[] { manifest.AlternateId }) ||
+        !segment.Waypoints.Select(item => item.Position).SequenceEqual(new[] { 0 }) ||
+        segment.Waypoints.Single().RouteVertexIndex != null || segment.RouteGeometry != null)
+        throw new InvalidOperationException("#408 provider reread did not preserve the visible waypoint order/removal result.");
+    Console.WriteLine("provider-reread: #408 visible waypoint order, removal, null indices, and fallback state verified");
 }
 
 /// <summary>Deletes only captured fixture identities.</summary>

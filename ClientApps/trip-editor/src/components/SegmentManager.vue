@@ -160,24 +160,28 @@ async function saveDraft(): Promise<void> {
     markSaved();
   } catch (error) {
     if (error instanceof EditorSegmentConflictError && draft.id) {
-      if (error.confirmationToken && error.conflict.code === 'segment-route-clear-confirmation-required' && await confirm({
-        title: 'Clear custom route?', message: error.conflict.warning,
-        confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning'
-      })) {
+      if (error.confirmationToken && error.conflict.code === 'segment-route-clear-confirmation-required') {
+        const accepted = await confirm({ title: 'Clear custom route?', message: error.conflict.warning,
+          confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning' });
+        if (!accepted) {
+          void nextTick(() => document.querySelector<HTMLElement>(`button[form="${segmentFormId}"]`)?.focus());
+          return;
+        }
         try {
           const confirmed = await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, buildSegmentRequest(draft), error.confirmationToken);
           emit('mutationApplied', confirmed as EditorMutationResult<unknown>);
           persistedBaseline.value = toSegmentDraft(confirmed.data);
           Object.assign(draft, toSegmentDraft(confirmed.data));
+          emit('routeDraftPreviewChanged', null);
           markSaved();
           return;
         } catch (retryError) {
+          if (retryError instanceof EditorSegmentConflictError) showConflict(retryError.conflict);
           applyError(retryError, 'Segment save failed.', submittedWaypointRows);
           return;
         }
       }
-      segmentConflict.value = error.conflict;
-      void nextTick(() => document.getElementById('segment-conflict-heading')?.focus());
+      showConflict(error.conflict);
       // Keep the user's complete visible and hidden proposal retryable after canonical contention.
     }
     applyError(error, 'Segment save failed.', submittedWaypointRows);
@@ -417,6 +421,11 @@ function confirmDiscard(message: string): Promise<boolean> {
 
 function fieldErrors(key: string): string[] {
   return validationErrors.value[key] ?? [];
+}
+
+function showConflict(conflict: EditorSegmentConflict): void {
+  segmentConflict.value = conflict;
+  void nextTick(() => document.getElementById('segment-conflict-heading')?.focus());
 }
 
 function clearFieldError(key: string): void {

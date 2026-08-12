@@ -30,8 +30,8 @@ type Fixture = {
   routeCoordinates: number[][];
 };
 
-test.describe.serial('#407 persisted waypoint aggregate', () => {
-  test('mounted editor preserves hidden aggregate through success, contention, confirmation, failure, and zero-waypoint work', async ({ page }) => {
+test.describe.serial('#407/#408 persisted waypoint aggregate and accessible editor', () => {
+  test('mounted editor authors waypoints and preserves the complete aggregate through failures and confirmation', async ({ page }) => {
     test.setTimeout(120_000);
     const fixture = await loadFixture();
     await signIn(page);
@@ -50,7 +50,6 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
     expect(original.mode).toBe(fixture.mode);
     expect(original.transportProfileId).toBe(fixture.profileId);
     expect(original.route?.coordinates).toEqual(fixture.routeCoordinates);
-    await expectNoWaypointAuthoring(page);
 
     await openSegment(page, fixture.waypointSegmentId);
     const form = page.locator('#trip-editor-segment-form');
@@ -181,13 +180,61 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
     await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeEnabled();
     const zeroBefore = (await editorState(page)).segmentsById[fixture.zeroSegmentId];
     expect(zeroBefore.waypointPlaceIds).toEqual([]);
-    await notesEditor(form).fill('Zero waypoint update remains functional');
+    await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
+    const placeToAdd = form.getByLabel('Place to add');
+    await placeToAdd.selectOption(fixture.waypointId);
+    await form.getByRole('button', { name: 'Add intermediate place' }).press('Space');
+    await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
+    await placeToAdd.selectOption(fixture.alternateId);
+    await form.getByRole('button', { name: 'Add intermediate place' }).press('Enter');
+    await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/From .* → Waypoint .* → Alternate .* → To /);
+    await form.getByRole('button', { name: /Move Alternate .* up/ }).press('Enter');
+    await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/From .* → Alternate .* → Waypoint .* → To /);
+    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeDisabled();
+    await expect(form.getByText(/map keeps the saved route.*updates after Save/i)).toBeVisible();
+    await notesEditor(form).fill('Waypoint UI save');
     const zeroResponse = waitForPut(page, fixture.zeroSegmentId);
     await page.getByRole('button', { name: 'Save Segment' }).click();
     expect((await zeroResponse).ok()).toBeTruthy();
     const zeroAfter = (await editorState(page)).segmentsById[fixture.zeroSegmentId];
-    expect(zeroAfter.waypointPlaceIds).toEqual([]);
-    expect(zeroAfter.waypointRouteVertexIndices).toEqual([]);
+    expect(zeroAfter.waypointPlaceIds).toEqual([fixture.alternateId, fixture.waypointId]);
+    expect(zeroAfter.waypointRouteVertexIndices).toEqual([null, null]);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expectMountedWorkspace(page);
+    await openSegment(page, fixture.zeroSegmentId);
+    await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/Alternate .* → Waypoint /);
+    await form.getByRole('button', { name: /Remove Waypoint / }).click();
+    const removalResponse = waitForPut(page, fixture.zeroSegmentId);
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+    expect((await removalResponse).ok()).toBeTruthy();
+
+    await placeToAdd.selectOption(fixture.waypointId);
+    await form.getByRole('button', { name: 'Add intermediate place' }).click();
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(form.getByLabel(/Intermediate place 2:/)).toHaveCount(0);
+    await placeToAdd.selectOption(fixture.waypointId);
+    await form.getByRole('button', { name: 'Add intermediate place' }).click();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    const discard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await discard.getByRole('button', { name: 'Discard' }).click();
+    await openSegment(page, fixture.zeroSegmentId);
+    await expect(form.getByLabel(/Intermediate place 1:/)).toHaveValue(fixture.alternateId);
+    await expect(form.getByLabel(/Intermediate place 2:/)).toHaveCount(0);
+
+    await form.getByLabel('From place').selectOption(fixture.alternateId);
+    const invalidResponse = page.waitForResponse(candidate => candidate.request().method() === 'PUT' && candidate.status() === 400 && candidate.url().endsWith(`/segments/${fixture.zeroSegmentId}`));
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+    expect((await invalidResponse).ok()).toBeFalsy();
+    await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
+    await page.getByRole('button', { name: 'Reset' }).click();
+
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }, { width: 640, height: 720 }]) {
+      await page.setViewportSize(viewport);
+      await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
+      expect(await form.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy();
+    }
+    await fixtureControl('verify-ui');
 
     await page.getByRole('button', { name: 'Add Segment' }).click();
     await form.getByLabel('From place').selectOption(fixture.fromId);
@@ -201,7 +248,6 @@ test.describe.serial('#407 persisted waypoint aggregate', () => {
       .find(segment => segment.id !== fixture.waypointSegmentId && segment.id !== fixture.zeroSegmentId);
     expect(created?.waypointPlaceIds).toEqual([]);
     expect(created?.waypointRouteVertexIndices).toEqual([]);
-    await expectNoWaypointAuthoring(page);
     expect((await page.request.get(absoluteUrl(`/Public/Trip/${fixture.waypointSegmentId}`))).status()).toBe(404);
   });
 });
@@ -210,8 +256,7 @@ async function loadFixture(): Promise<Fixture> {
   const path = required('WAYFARER_E2E_WAYPOINT_FIXTURE');
   return JSON.parse(await readFile(path, 'utf8')) as Fixture;
 }
-
-async function fixtureControl(command: 'drift' | 'verify-preserved'): Promise<void> {
+async function fixtureControl(command: 'drift' | 'verify-preserved' | 'verify-ui'): Promise<void> {
   await execute('dotnet', [required('WAYFARER_E2E_WAYPOINT_HELPER'), command,
     required('WAYFARER_E2E_WAYPOINT_FIXTURE')], { env: process.env });
 }
@@ -255,9 +300,4 @@ function expectHiddenAggregate(actual: Record<string, any>, original: Record<str
   expect(actual.waypointRouteVertexIndices).toEqual(original.waypointRouteVertexIndices);
   expect(actual.route).toEqual(original.route);
   expect(actual.transportProfileId).toBe(original.transportProfileId);
-}
-
-async function expectNoWaypointAuthoring(page: Page): Promise<void> {
-  await expect(page.getByRole('button', { name: /add waypoint|reorder waypoint|pick waypoint|waypoint picker|reorder anchor|pick anchor/i })).toHaveCount(0);
-  await expect(page.locator('label').filter({ hasText: /waypoint|route vertex index/i })).toHaveCount(0);
 }
