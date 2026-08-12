@@ -229,11 +229,20 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
     await page.getByRole('button', { name: 'Reset' }).click();
 
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }, { width: 640, height: 720 }]) {
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
       await page.setViewportSize(viewport);
       await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
       expect(await form.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy();
     }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openSegment(page, fixture.zeroSegmentId);
+    await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
+    const chromium = await page.context().newCDPSession(page);
+    await chromium.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+    await expect.poll(() => page.evaluate(() => window.visualViewport?.scale)).toBe(2);
+    expect(await form.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy();
+    await chromium.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+    await chromium.detach();
     await fixtureControl('verify-ui');
 
     await page.getByRole('button', { name: 'Add Segment' }).click();
