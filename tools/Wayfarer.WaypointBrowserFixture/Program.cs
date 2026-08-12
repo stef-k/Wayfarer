@@ -8,7 +8,7 @@ using Wayfarer.Util;
 
 const string connectionVariable = "WAYFARER_TEST_POSTGRES_CONNECTION";
 if (args.Length is < 2 or > 3)
-    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|cleanup|verify-cleanup> <manifest> [password].");
+    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|verify-ui|cleanup|verify-cleanup> <manifest> [password].");
 
 var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
@@ -33,6 +33,9 @@ switch (command)
         break;
     case "verify-preserved":
         await VerifyPreservedAsync(context, await ReadAsync(manifestPath));
+        break;
+    case "verify-ui":
+        await VerifyUiAsync(context, await ReadAsync(manifestPath));
         break;
     case "cleanup":
         var cleanupManifest = await ReadAsync(manifestPath);
@@ -74,6 +77,7 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     var waypoint = Place(region, user.Id, $"Waypoint {run}", 2, 23.74, 37.99);
     var alternate = Place(region, user.Id, $"Alternate {run}", 3, 23.76, 38.00);
     var to = Place(region, user.Id, $"To {run}", 4, 23.78, 38.01);
+    var staleWaypoint = Place(shadow, user.Id, $"Shadow waypoint {run}", 1, 23.73, 38.05);
     var profile = new TransportProfile
     {
         Id = Guid.NewGuid(), Key = $"issue407-{run}"[..40], Label = "Issue 407 fixture walk", Category = "fixture",
@@ -89,18 +93,25 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
         new Coordinate(23.72, 37.98), waypoint.Location!.Coordinate, to.Location!.Coordinate);
     AssertCanonicalDistance(waypointSegment.RouteGeometry.Coordinates, waypointSegment.EstimatedDistanceKm!.Value);
     var zeroSegment = Segment(trip, user.Id, profile, 2, from, to, "Zero waypoint browser", false);
+    var staleSegment = Segment(trip, user.Id, profile, 3, from, to, "Stale waypoint browser", false);
+    staleSegment.Waypoints.Add(new SegmentWaypoint
+    {
+        Segment = staleSegment, SegmentId = staleSegment.Id, Place = staleWaypoint, PlaceId = staleWaypoint.Id,
+        Position = 0, RouteVertexIndex = null
+    });
     trip.Segments.Add(waypointSegment);
     trip.Segments.Add(zeroSegment);
+    trip.Segments.Add(staleSegment);
     context.Users.Add(user);
     context.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = role.Id });
     context.Trips.Add(trip);
     context.Set<TransportProfile>().Add(profile);
     var manifest = new WaypointFixtureManifest(trip.Id, user.Id, user.UserName!, password, profile.Id, profile.Key,
-        waypointSegment.Id, zeroSegment.Id, from.Id, waypoint.Id, alternate.Id, to.Id,
+        waypointSegment.Id, zeroSegment.Id, staleSegment.Id, from.Id, waypoint.Id, staleWaypoint.Id, alternate.Id, to.Id,
         waypointSegment.EstimatedDistanceKm!.Value, waypointSegment.EstimatedDuration!.Value.TotalMinutes,
         waypointSegment.EstimatedDurationSource.ToString(), 0,
         waypointSegment.RouteGeometry!.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray(),
-        [shadow.Id, region.Id], [from.Id, waypoint.Id, alternate.Id, to.Id]);
+        [shadow.Id, region.Id], [from.Id, waypoint.Id, staleWaypoint.Id, alternate.Id, to.Id]);
     await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(manifest, FixtureJson.Options));
     await context.SaveChangesAsync();
     return manifest with { OriginalRowVersion = waypointSegment.RowVersion };
@@ -140,6 +151,19 @@ static async Task VerifyPreservedAsync(ApplicationDbContext context, WaypointFix
     Console.WriteLine("provider-reread: measurements, provenance, profile, geometry, waypoint identity/order/indices, notes, and token refresh verified");
 }
 
+/// <summary>Rereads the final #408 visible workflow without duplicating #407 provider coverage.</summary>
+static async Task VerifyUiAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
+{
+    var segment = await context.Segments.AsNoTracking()
+        .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
+        .SingleAsync(item => item.Id == manifest.ZeroSegmentId);
+    if (!segment.Waypoints.Select(item => item.PlaceId).SequenceEqual(new[] { manifest.AlternateId }) ||
+        !segment.Waypoints.Select(item => item.Position).SequenceEqual(new[] { 0 }) ||
+        segment.Waypoints.Single().RouteVertexIndex != null || segment.RouteGeometry != null)
+        throw new InvalidOperationException("#408 provider reread did not preserve the visible waypoint order/removal result.");
+    Console.WriteLine("provider-reread: #408 visible waypoint order, removal, null indices, and fallback state verified");
+}
+
 /// <summary>Deletes only captured fixture identities.</summary>
 static async Task CleanupAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
 {
@@ -152,7 +176,7 @@ static async Task CleanupAsync(ApplicationDbContext context, WaypointFixtureMani
 /// <summary>Fails unless every captured row and association was removed.</summary>
 static async Task VerifyAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
 {
-    var segmentIds = new[] { manifest.WaypointSegmentId, manifest.ZeroSegmentId };
+    var segmentIds = new[] { manifest.WaypointSegmentId, manifest.ZeroSegmentId, manifest.StaleSegmentId };
     var counts = new Dictionary<string, int>
     {
         ["Trip"] = await context.Trips.CountAsync(item => item.Id == manifest.TripId),
@@ -237,7 +261,7 @@ static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
 /// <summary>Exact captured identities used by #407 browser setup, mutation, and cleanup.</summary>
 internal sealed record WaypointFixtureManifest(
     Guid TripId, string UserId, string Username, string Password, Guid ProfileId, string Mode,
-    Guid WaypointSegmentId, Guid ZeroSegmentId, Guid FromId, Guid WaypointId, Guid AlternateId, Guid ToId,
+    Guid WaypointSegmentId, Guid ZeroSegmentId, Guid StaleSegmentId, Guid FromId, Guid WaypointId, Guid StaleWaypointId, Guid AlternateId, Guid ToId,
     double EstimatedDistanceKm, double EstimatedDurationMinutes, string EstimatedDurationSource,
     uint OriginalRowVersion, double[][] RouteCoordinates,
     Guid[] RegionIds, Guid[] PlaceIds);

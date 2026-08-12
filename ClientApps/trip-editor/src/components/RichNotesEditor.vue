@@ -39,6 +39,13 @@ const toolbarOptions = [
   ['clean']
 ];
 
+/** Focuses the labelled contenteditable surface rather than Quill's structural host. */
+function focusEditor(): void {
+  quill?.focus();
+}
+
+defineExpose({ focusEditor });
+
 onMounted(() => {
   if (!editorHost.value) {
     return;
@@ -57,6 +64,8 @@ onMounted(() => {
     placeholder: 'Add your notes...',
     theme: 'snow'
   });
+
+  quill.root.setAttribute('aria-labelledby', labelId.value);
 
   quill.on('selection-change', handleSelectionChange);
   quill.on('text-change', handleTextChange);

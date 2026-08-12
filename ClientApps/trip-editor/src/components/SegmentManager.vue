@@ -4,9 +4,9 @@ import { createSegment, deleteSegment, EditorSegmentConflictError, orderSegments
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
-import type { EditorMutationResult, EditorSegment, EditorSegmentDraft, EditorSegmentSaveRequest, EditorTripState, Guid } from '../types';
+import type { EditorMutationResult, EditorSegment, EditorSegmentConflict, EditorSegmentDraft, EditorSegmentSaveRequest, EditorSegmentWaypointDraftRow, EditorTripState, Guid } from '../types';
 import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } from './regionPlaceEditorTargets';
-import { buildSegmentRequest, emptySegmentDraft, toSegmentDraft } from './regionPlaceDrafts';
+import { buildSegmentRequest, emptySegmentDraft, mapWaypointErrors, toSegmentDraft } from './regionPlaceDrafts';
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
@@ -44,12 +44,15 @@ const segmentList = ref<HTMLElement | null>(null);
 const segmentListKey = ref(0);
 const draft = reactive<EditorSegmentDraft>(emptySegmentDraft());
 const createBaselineRequest = ref<EditorSegmentSaveRequest | null>(null);
+const persistedBaseline = ref<EditorSegmentDraft>(emptySegmentDraft());
 const isSaving = ref(false);
 const isOrdering = ref(false);
 const validationErrors = ref<Record<string, string[]>>({});
+const segmentConflict = ref<EditorSegmentConflict | null>(null);
 const saveError = ref<string | null>(null);
 const lastSavedAt = ref<string | null>(null);
 const routeMapWork = reactive<SegmentRouteMapWorkState>({ route: null, stopEdit: null });
+const segmentEditorSurface = ref<{ focusNotes: () => void; focusRouteAction: () => boolean } | null>(null);
 let unregisterHandler: (() => void) | null = null;
 let sortable: { destroy: () => void } | null = null;
 let sortableRetry: number | null = null;
@@ -57,17 +60,19 @@ let reorderSnapshotIds: Guid[] | null = null;
 
 const activeSegment = computed(() => (draft.id ? props.state.segmentsById[draft.id] ?? null : null));
 const isDraftOpen = computed(() => props.editorSurface.isTargetActive(activeSegmentTarget.value) || draft.id !== null || Boolean(draft.fromPlaceId || draft.toPlaceId || draft.mode || draft.estimatedDistanceKm || draft.estimatedDurationMinutes || draft.notesHtml || draft.route));
-const baselineRequest = computed(() => draft.id ? buildSegmentRequest(toSegmentDraft(activeSegment.value)) : createBaselineRequest.value ?? buildSegmentRequest(emptySegmentDraft()));
+const baselineRequest = computed(() => draft.id ? buildSegmentRequest(persistedBaseline.value) : createBaselineRequest.value ?? buildSegmentRequest(emptySegmentDraft()));
 const isDirty = computed(() => JSON.stringify(buildSegmentRequest(draft)) !== JSON.stringify(baselineRequest.value));
 const statusText = computed(() => isSaving.value ? 'Saving...' : isOrdering.value ? 'Saving order...' : saveError.value ? 'Save failed' : isDirty.value ? 'Unsaved changes' : lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved');
-const formSummaryErrors = computed(() => Object.entries(validationErrors.value).filter(([key]) => !segmentFields.includes(key)).flatMap(([, messages]) => messages));
+const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
+  .filter(([key]) => !segmentFields.includes(key) && !key.startsWith('waypoint.'))
+  .flatMap(([, messages]) => messages));
 const activeSegmentTarget = computed<EditorTarget>(() => draft.id && activeSegment.value
   ? buildSegmentEditTarget(activeSegment.value, segmentLabel(activeSegment.value))
   : buildSegmentCreateTarget());
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
 watch(
-  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), props.hiddenSegmentIds.has(draft.id ?? '')],
+  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), JSON.stringify(draft.waypointRows), props.hiddenSegmentIds.has(draft.id ?? '')],
   syncRouteDraftPreview,
   { flush: 'sync' }
 );
@@ -96,6 +101,7 @@ async function openCreate(): Promise<void> {
   }
 
   Object.assign(draft, emptySegmentDraft());
+  persistedBaseline.value = emptySegmentDraft();
   createBaselineRequest.value = buildSegmentRequest(draft);
   resetFeedback();
   syncRouteDraftPreview();
@@ -116,6 +122,7 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
     return false;
   }
 
+  persistedBaseline.value = toSegmentDraft(segment);
   Object.assign(draft, toSegmentDraft(segment));
   createBaselineRequest.value = null;
   resetFeedback();
@@ -124,9 +131,21 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
 }
 
 function resetDraft(): void {
-  Object.assign(draft, draft.id ? toSegmentDraft(activeSegment.value) : emptySegmentDraft());
+  const focusDestination = resetFocusDestination(draft, draft.id ? persistedBaseline.value : emptySegmentDraft());
+  Object.assign(draft, draft.id ? cloneDraft(persistedBaseline.value) : emptySegmentDraft());
   resetFeedback();
   syncRouteDraftPreview();
+  void nextTick(async () => {
+    await nextTick();
+    if (focusDestination === 'notes') {
+      segmentEditorSurface.value?.focusNotes();
+      return;
+    }
+    if (focusDestination === 'route' && segmentEditorSurface.value?.focusRouteAction()) return;
+    const requested = focusDestination ? document.querySelector<HTMLElement>(focusDestination) : null;
+    const target = requested && isFocusable(requested) ? requested : document.querySelector<HTMLElement>('[data-segment-waypoint-group]');
+    target?.focus();
+  });
 }
 
 async function cancelDraft(): Promise<void> {
@@ -136,6 +155,7 @@ async function cancelDraft(): Promise<void> {
 async function saveDraft(): Promise<void> {
   isSaving.value = true;
   resetFeedback();
+  const submittedWaypointRows = draft.waypointRows.map(row => ({ ...row }));
   try {
     const request = buildSegmentRequest(draft);
     const wasCreate = draft.id === null;
@@ -146,6 +166,7 @@ async function saveDraft(): Promise<void> {
       emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
     }
     emit('mutationApplied', result as EditorMutationResult<unknown>);
+    persistedBaseline.value = toSegmentDraft(result.data);
     Object.assign(draft, toSegmentDraft(result.data));
     createBaselineRequest.value = null;
     props.editorSurface.replaceActiveTarget(activeSegmentTarget.value);
@@ -153,24 +174,31 @@ async function saveDraft(): Promise<void> {
     markSaved();
   } catch (error) {
     if (error instanceof EditorSegmentConflictError && draft.id) {
-      if (error.confirmationToken && await confirm({
-        title: 'Clear custom route?', message: error.conflict.warning,
-        confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning'
-      })) {
+      if (error.confirmationToken && error.conflict.code === 'segment-route-clear-confirmation-required') {
+        const accepted = await confirm({ title: 'Clear custom route?', message: error.conflict.warning,
+          confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning' });
+        if (!accepted) {
+          void nextTick(() => document.querySelector<HTMLElement>(`button[form="${segmentFormId}"]`)?.focus());
+          return;
+        }
         try {
           const confirmed = await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, buildSegmentRequest(draft), error.confirmationToken);
           emit('mutationApplied', confirmed as EditorMutationResult<unknown>);
+          persistedBaseline.value = toSegmentDraft(confirmed.data);
           Object.assign(draft, toSegmentDraft(confirmed.data));
+          emit('routeDraftPreviewChanged', null);
           markSaved();
           return;
         } catch (retryError) {
-          applyError(retryError, 'Segment save failed.');
+          if (retryError instanceof EditorSegmentConflictError) showConflict(retryError.conflict);
+          applyError(retryError, 'Segment save failed.', submittedWaypointRows);
           return;
         }
       }
+      showConflict(error.conflict);
       // Keep the user's complete visible and hidden proposal retryable after canonical contention.
     }
-    applyError(error, 'Segment save failed.');
+    applyError(error, 'Segment save failed.', submittedWaypointRows);
   } finally {
     isSaving.value = false;
   }
@@ -234,6 +262,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
     hidden.delete(segment.id);
     emit('hiddenSegmentIdsChanged', hidden);
     Object.assign(draft, emptySegmentDraft());
+    persistedBaseline.value = emptySegmentDraft();
     emit('routeDraftPreviewChanged', null);
     createBaselineRequest.value = null;
     props.editorSurface.clearActiveTarget(deletedTarget);
@@ -357,6 +386,7 @@ function restoreSegmentOrder(_previousIds: Guid[]): void {
 function discardDraft(): void {
   stopSegmentRouteEdit(routeMapWork);
   Object.assign(draft, emptySegmentDraft());
+  persistedBaseline.value = emptySegmentDraft();
   createBaselineRequest.value = null;
   resetFeedback();
   emit('routeDraftPreviewChanged', null);
@@ -368,6 +398,10 @@ function syncRouteDraftPreview(): void {
     return;
   }
 
+  if (draft.waypointPlaceIds.length > 0) {
+    emit('routeDraftPreviewChanged', null);
+    return;
+  }
   emit('routeDraftPreviewChanged', buildRouteDraftPreview());
 }
 
@@ -403,9 +437,29 @@ function fieldErrors(key: string): string[] {
   return validationErrors.value[key] ?? [];
 }
 
-function applyError(error: unknown, fallback: string): void {
+function showConflict(conflict: EditorSegmentConflict): void {
+  segmentConflict.value = conflict;
+  void nextTick(() => document.getElementById('segment-conflict-heading')?.focus());
+}
+
+function clearFieldError(key: string): void {
+  if (!(key in validationErrors.value)) return;
+  const next = { ...validationErrors.value };
+  delete next[key];
+  validationErrors.value = next;
+}
+
+function applyError(error: unknown, fallback: string, submittedWaypointRows: EditorSegmentWaypointDraftRow[] = []): void {
   if (error instanceof Error && 'errors' in error) {
-    validationErrors.value = (error as Error & { errors: Record<string, string[]> }).errors;
+    validationErrors.value = mapWaypointErrors((error as Error & { errors: Record<string, string[]> }).errors, submittedWaypointRows);
+    void nextTick(() => {
+      const firstKey = Object.keys(validationErrors.value)[0];
+      const rowId = firstKey?.startsWith('waypoint.') ? firstKey.slice('waypoint.'.length) : null;
+      const target = rowId ? document.querySelector<HTMLElement>(`[data-waypoint-client-id="${CSS.escape(rowId)}"]`)
+        : firstKey?.startsWith('waypoint') ? document.querySelector<HTMLElement>('[data-segment-waypoint-group]')
+          : firstKey ? document.querySelector<HTMLElement>(`[data-segment-field="${CSS.escape(firstKey)}"]`) : null;
+      target?.focus();
+    });
   }
 
   saveError.value = error instanceof Error ? error.message : fallback;
@@ -414,6 +468,46 @@ function applyError(error: unknown, fallback: string): void {
 function resetFeedback(): void {
   validationErrors.value = {};
   saveError.value = null;
+  segmentConflict.value = null;
+}
+
+/** Resolves Reset focus from the first changed visible Segment control in document order. */
+function resetFocusDestination(current: EditorSegmentDraft, baseline: EditorSegmentDraft): string | null {
+  const changed = (key: keyof EditorSegmentDraft): boolean => JSON.stringify(current[key]) !== JSON.stringify(baseline[key]);
+  const ordered: Array<[() => boolean, string]> = [
+    [() => changed('fromPlaceId'), '[data-segment-field="fromPlaceId"]'],
+    [() => changed('waypointPlaceIds') || changed('waypointRouteVertexIndices'), '[data-segment-waypoint-group]'],
+    [() => changed('toPlaceId'), '[data-segment-field="toPlaceId"]'],
+    [() => changed('mode'), '[data-segment-field="mode"]'],
+    [() => changed('estimatedDurationSource'), `[data-segment-field="estimatedDurationSource"][value="${baseline.estimatedDurationSource}"]`],
+    [() => changed('estimatedDurationMinutes'), '[data-segment-field="estimatedDurationMinutes"]'],
+    [() => changed('notesHtml'), 'notes'],
+    [() => changed('route'), 'route']
+  ];
+  return ordered.find(([isChanged]) => isChanged())?.[1] ?? null;
+}
+
+/** Rejects hidden or disabled Reset destinations after responsive rerendering. */
+function isFocusable(element: HTMLElement): boolean {
+  return !element.hasAttribute('disabled') && element.getClientRects().length > 0;
+}
+
+/** Replaces the complete draft only after explicit confirmation against current server state. */
+async function reloadCurrentSegment(): Promise<void> {
+  if (!segmentConflict.value || !(await confirm({ title: 'Reload current saved Segment?', message: 'Discard this complete unsaved Segment draft and load the current saved version?', confirmLabel: 'Reload saved Segment', cancelLabel: 'Keep editing', variant: 'warning' }))) return;
+  persistedBaseline.value = toSegmentDraft(segmentConflict.value.currentSegment);
+  Object.assign(draft, toSegmentDraft(segmentConflict.value.currentSegment));
+  resetFeedback();
+  syncRouteDraftPreview();
+}
+
+function cloneDraft(value: EditorSegmentDraft): EditorSegmentDraft {
+  return JSON.parse(JSON.stringify(value)) as EditorSegmentDraft;
+}
+
+function conflictJourney(segment: EditorSegment): string {
+  return [segment.fromPlaceId, ...segment.waypointPlaceIds, segment.toPlaceId]
+    .map(id => id ? props.state.placesById[id]?.name ?? 'Unavailable place' : 'Not selected').join(' → ');
 }
 
 function markSaved(): void {
@@ -439,9 +533,15 @@ function modeText(segment: EditorSegment): string {
       <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
     </div>
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
+    <section v-if="segmentConflict" class="trip-editor-form-warning segment-conflict" aria-labelledby="segment-conflict-heading">
+      <h3 id="segment-conflict-heading" tabindex="-1">Current saved Segment</h3>
+      <p>{{ conflictJourney(segmentConflict.currentSegment) }}</p>
+      <p>{{ modeText(segmentConflict.currentSegment) }} · {{ segmentConflict.currentSegment.estimatedDistanceKm ?? 'Distance unavailable' }} km · {{ segmentConflict.currentSegment.estimatedDurationMinutes ?? 'Duration unavailable' }} minutes · {{ segmentConflict.currentSegment.estimatedDurationSource }}</p>
+      <button type="button" class="btn btn-outline-light btn-sm" @click="reloadCurrentSegment">Reload current saved Segment</button>
+    </section>
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>
 
-    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
+    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
@@ -453,7 +553,7 @@ function modeText(segment: EditorSegment): string {
         </button>
         <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
 
-        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
+        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
       </li>
     </ul>
     <p v-else class="trip-editor-empty-state">No travel segments added yet.</p>
