@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { EditorRegion, EditorSegmentDraft, EditorTripState, Guid } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
 import SegmentWaypointEditor from './SegmentWaypointEditor.vue';
@@ -19,6 +19,15 @@ defineEmits<{
   clearError: [key: string];
   save: [];
 }>();
+
+const notesEditor = ref<{ focusEditor: () => void } | null>(null);
+
+/** Delegates Reset focus to the real Quill editing surface. */
+function focusNotes(): void {
+  notesEditor.value?.focusEditor();
+}
+
+defineExpose({ focusNotes });
 
 const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
 // Preserve the current inactive or legacy value as a disabled option; changing away removes it from the selectable list.
@@ -108,7 +117,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
     </div>
 
     <div data-segment-field="notesHtml" tabindex="-1">
-      <RichNotesEditor :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+      <RichNotesEditor ref="notesEditor" :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
     </div>
 
     <div class="trip-editor-field" data-segment-field="route" tabindex="-1">

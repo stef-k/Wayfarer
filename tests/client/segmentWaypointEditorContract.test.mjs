@@ -40,7 +40,7 @@ test('Reset focus uses semantic Notes and route component destinations', async (
   const manager = await sourceOrEmpty(managerPath);
   const notes = await sourceOrEmpty(notesPath);
   const surface = await sourceOrEmpty(surfacePath);
-  assert.match(notes, /defineExpose\(\{ focusEditor:/);
+  assert.match(notes, /defineExpose\(\{ focusEditor(?:\s*[:,}])/);
   assert.match(manager, /focusNotes/);
   assert.match(manager, /focusRouteAction/);
   assert.match(surface, /focusRouteAction/);

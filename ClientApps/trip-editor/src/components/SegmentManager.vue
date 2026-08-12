@@ -52,6 +52,7 @@ const segmentConflict = ref<EditorSegmentConflict | null>(null);
 const saveError = ref<string | null>(null);
 const lastSavedAt = ref<string | null>(null);
 const routeMapWork = reactive<SegmentRouteMapWorkState>({ route: null, stopEdit: null });
+const segmentEditorSurface = ref<{ focusNotes: () => void; focusRouteAction: () => boolean } | null>(null);
 let unregisterHandler: (() => void) | null = null;
 let sortable: { destroy: () => void } | null = null;
 let sortableRetry: number | null = null;
@@ -130,13 +131,18 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
 }
 
 function resetDraft(): void {
-  const focusSelector = resetFocusSelector(draft, draft.id ? persistedBaseline.value : emptySegmentDraft());
+  const focusDestination = resetFocusDestination(draft, draft.id ? persistedBaseline.value : emptySegmentDraft());
   Object.assign(draft, draft.id ? cloneDraft(persistedBaseline.value) : emptySegmentDraft());
   resetFeedback();
   syncRouteDraftPreview();
   void nextTick(async () => {
     await nextTick();
-    const requested = focusSelector ? document.querySelector<HTMLElement>(focusSelector) : null;
+    if (focusDestination === 'notes') {
+      segmentEditorSurface.value?.focusNotes();
+      return;
+    }
+    if (focusDestination === 'route' && segmentEditorSurface.value?.focusRouteAction()) return;
+    const requested = focusDestination ? document.querySelector<HTMLElement>(focusDestination) : null;
     const target = requested && isFocusable(requested) ? requested : document.querySelector<HTMLElement>('[data-segment-waypoint-group]');
     target?.focus();
   });
@@ -466,7 +472,7 @@ function resetFeedback(): void {
 }
 
 /** Resolves Reset focus from the first changed visible Segment control in document order. */
-function resetFocusSelector(current: EditorSegmentDraft, baseline: EditorSegmentDraft): string | null {
+function resetFocusDestination(current: EditorSegmentDraft, baseline: EditorSegmentDraft): string | null {
   const changed = (key: keyof EditorSegmentDraft): boolean => JSON.stringify(current[key]) !== JSON.stringify(baseline[key]);
   const ordered: Array<[() => boolean, string]> = [
     [() => changed('fromPlaceId'), '[data-segment-field="fromPlaceId"]'],
@@ -475,8 +481,8 @@ function resetFocusSelector(current: EditorSegmentDraft, baseline: EditorSegment
     [() => changed('mode'), '[data-segment-field="mode"]'],
     [() => changed('estimatedDurationSource'), `[data-segment-field="estimatedDurationSource"][value="${baseline.estimatedDurationSource}"]`],
     [() => changed('estimatedDurationMinutes'), '[data-segment-field="estimatedDurationMinutes"]'],
-    [() => changed('notesHtml'), '[data-segment-field="notesHtml"]'],
-    [() => changed('route'), '[data-segment-field="route"]']
+    [() => changed('notesHtml'), 'notes'],
+    [() => changed('route'), 'route']
   ];
   return ordered.find(([isChanged]) => isChanged())?.[1] ?? null;
 }
@@ -535,7 +541,7 @@ function modeText(segment: EditorSegment): string {
     </section>
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>
 
-    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
+    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
@@ -547,7 +553,7 @@ function modeText(segment: EditorSegment): string {
         </button>
         <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
 
-        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
+        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
       </li>
     </ul>
     <p v-else class="trip-editor-empty-state">No travel segments added yet.</p>

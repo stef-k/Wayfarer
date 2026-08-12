@@ -83,6 +83,16 @@ function placeName(id: string | null): string {
   return id ? props.state.placesById[id]?.name ?? `Unavailable place ${id}` : 'Place';
 }
 
+/** Returns the indexed errors owned by one stable logical row. */
+function rowErrors(row: EditorSegmentWaypointDraftRow): string[] {
+  return props.fieldErrors(`waypoint.${row.clientId}`);
+}
+
+/** Keeps each selector relationship stable while its logical row moves. */
+function rowErrorId(clientId: string): string {
+  return `segment-waypoint-${clientId}-errors`;
+}
+
 /** Clears only aggregate errors made obsolete by a changed waypoint collection. */
 function clearAggregateErrors(): void {
   emit('clearError', 'waypointPlaceIds');
@@ -119,11 +129,13 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
     <div v-for="(row, index) in draft.waypointRows" :key="row.clientId" class="segment-waypoints__row">
       <label class="trip-editor-field segment-waypoints__select">
         <span>{{ `Intermediate place ${index + 1}: ${placeName(row.placeId)}` }}</span>
-        <select :ref="element => { if (element) rowControls.set(row.clientId, element as HTMLSelectElement); }" :data-waypoint-client-id="row.clientId" :value="row.placeId" @change="substitute(row, ($event.target as HTMLSelectElement).value)">
+        <select :ref="element => { if (element) rowControls.set(row.clientId, element as HTMLSelectElement); }" :data-waypoint-client-id="row.clientId" :value="row.placeId" :aria-invalid="rowErrors(row).length > 0 ? 'true' : undefined" :aria-errormessage="rowErrors(row).length > 0 ? rowErrorId(row.clientId) : undefined" @change="substitute(row, ($event.target as HTMLSelectElement).value)">
           <option v-if="!choices(row).some(place => place.id === row.placeId)" :value="row.placeId" disabled>{{ unavailableCurrentLabel(row) }}</option>
           <option v-for="place in choices(row)" :key="place.id" :value="place.id" :disabled="!place.location">{{ place.name }}{{ place.location ? '' : ' — location required' }}</option>
         </select>
-        <small v-for="message in fieldErrors(`waypoint.${row.clientId}`)" :key="message">{{ message }}</small>
+        <div v-if="rowErrors(row).length > 0" :id="rowErrorId(row.clientId)">
+          <small v-for="message in rowErrors(row)" :key="message">{{ message }}</small>
+        </div>
       </label>
       <div class="segment-waypoints__actions">
         <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === 0 || isSaving" :aria-label="`Move ${placeName(row.placeId)} up`" @click="move(row, -1)">Move up</button>
