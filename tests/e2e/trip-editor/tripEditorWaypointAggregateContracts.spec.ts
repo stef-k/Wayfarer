@@ -261,12 +261,12 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect(rowErrorId).toBeTruthy();
     const rowError = form.locator(`#${rowErrorId}`);
     await expect(rowError).toBeVisible();
-    await expect(rowError).toContainText('A waypoint cannot match an endpoint.');
+    await expect(rowError).toContainText('A waypoint cannot duplicate an endpoint.');
     await expect(form.locator('.trip-editor-form-error')).toHaveCount(0);
     await form.getByRole('button', { name: /Move Alternate .* down/ }).click();
     const reorderedInvalidWaypoint = form.getByLabel(/Intermediate place 2: Alternate/);
     await expect(reorderedInvalidWaypoint).toHaveAttribute('aria-errormessage', rowErrorId!);
-    await expect(rowError).toContainText('A waypoint cannot match an endpoint.');
+    await expect(rowError).toContainText('A waypoint cannot duplicate an endpoint.');
     await form.getByRole('button', { name: /Remove Waypoint / }).click();
     await reorderedInvalidWaypoint.selectOption(fixture.waypointId);
     await expect(reorderedInvalidWaypoint).not.toHaveAttribute('aria-invalid', 'true');
