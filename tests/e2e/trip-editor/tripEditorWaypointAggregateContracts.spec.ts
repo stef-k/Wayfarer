@@ -299,7 +299,9 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.getByRole('button', { name: 'Reset' }).click();
     await expect(notesEditor(form)).toBeFocused();
     await expect(notesEditor(form)).toHaveAttribute('contenteditable', 'true');
-    await expect(notesEditor(form)).toHaveAttribute('aria-labelledby', `${segmentFormId}-notes-label`);
+    const notesLabelId = await notesEditor(form).getAttribute('aria-labelledby');
+    expect(notesLabelId).toBeTruthy();
+    await expect(form.locator(`#${notesLabelId}`)).toHaveText('Notes');
 
     const resetRouteButton = page.getByRole('button', { name: 'Clear Route' });
     await expect(resetRouteButton).toBeEnabled();
