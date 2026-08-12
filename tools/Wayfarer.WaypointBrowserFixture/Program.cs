@@ -77,6 +77,7 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     var waypoint = Place(region, user.Id, $"Waypoint {run}", 2, 23.74, 37.99);
     var alternate = Place(region, user.Id, $"Alternate {run}", 3, 23.76, 38.00);
     var to = Place(region, user.Id, $"To {run}", 4, 23.78, 38.01);
+    var staleWaypoint = Place(shadow, user.Id, $"Shadow waypoint {run}", 1, 23.73, 37.985);
     var profile = new TransportProfile
     {
         Id = Guid.NewGuid(), Key = $"issue407-{run}"[..40], Label = "Issue 407 fixture walk", Category = "fixture",
@@ -92,18 +93,25 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
         new Coordinate(23.72, 37.98), waypoint.Location!.Coordinate, to.Location!.Coordinate);
     AssertCanonicalDistance(waypointSegment.RouteGeometry.Coordinates, waypointSegment.EstimatedDistanceKm!.Value);
     var zeroSegment = Segment(trip, user.Id, profile, 2, from, to, "Zero waypoint browser", false);
+    var staleSegment = Segment(trip, user.Id, profile, 3, from, to, "Stale waypoint browser", false);
+    staleSegment.Waypoints.Add(new SegmentWaypoint
+    {
+        Segment = staleSegment, SegmentId = staleSegment.Id, Place = staleWaypoint, PlaceId = staleWaypoint.Id,
+        Position = 0, RouteVertexIndex = null
+    });
     trip.Segments.Add(waypointSegment);
     trip.Segments.Add(zeroSegment);
+    trip.Segments.Add(staleSegment);
     context.Users.Add(user);
     context.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = role.Id });
     context.Trips.Add(trip);
     context.Set<TransportProfile>().Add(profile);
     var manifest = new WaypointFixtureManifest(trip.Id, user.Id, user.UserName!, password, profile.Id, profile.Key,
-        waypointSegment.Id, zeroSegment.Id, from.Id, waypoint.Id, alternate.Id, to.Id,
+        waypointSegment.Id, zeroSegment.Id, staleSegment.Id, from.Id, waypoint.Id, staleWaypoint.Id, alternate.Id, to.Id,
         waypointSegment.EstimatedDistanceKm!.Value, waypointSegment.EstimatedDuration!.Value.TotalMinutes,
         waypointSegment.EstimatedDurationSource.ToString(), 0,
         waypointSegment.RouteGeometry!.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray(),
-        [shadow.Id, region.Id], [from.Id, waypoint.Id, alternate.Id, to.Id]);
+        [shadow.Id, region.Id], [from.Id, waypoint.Id, staleWaypoint.Id, alternate.Id, to.Id]);
     await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(manifest, FixtureJson.Options));
     await context.SaveChangesAsync();
     return manifest with { OriginalRowVersion = waypointSegment.RowVersion };
@@ -168,7 +176,7 @@ static async Task CleanupAsync(ApplicationDbContext context, WaypointFixtureMani
 /// <summary>Fails unless every captured row and association was removed.</summary>
 static async Task VerifyAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
 {
-    var segmentIds = new[] { manifest.WaypointSegmentId, manifest.ZeroSegmentId };
+    var segmentIds = new[] { manifest.WaypointSegmentId, manifest.ZeroSegmentId, manifest.StaleSegmentId };
     var counts = new Dictionary<string, int>
     {
         ["Trip"] = await context.Trips.CountAsync(item => item.Id == manifest.TripId),
@@ -253,7 +261,7 @@ static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
 /// <summary>Exact captured identities used by #407 browser setup, mutation, and cleanup.</summary>
 internal sealed record WaypointFixtureManifest(
     Guid TripId, string UserId, string Username, string Password, Guid ProfileId, string Mode,
-    Guid WaypointSegmentId, Guid ZeroSegmentId, Guid FromId, Guid WaypointId, Guid AlternateId, Guid ToId,
+    Guid WaypointSegmentId, Guid ZeroSegmentId, Guid StaleSegmentId, Guid FromId, Guid WaypointId, Guid StaleWaypointId, Guid AlternateId, Guid ToId,
     double EstimatedDistanceKm, double EstimatedDurationMinutes, string EstimatedDurationSource,
     uint OriginalRowVersion, double[][] RouteCoordinates,
     Guid[] RegionIds, Guid[] PlaceIds);

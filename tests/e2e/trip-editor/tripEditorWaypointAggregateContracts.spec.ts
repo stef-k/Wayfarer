@@ -20,8 +20,10 @@ type Fixture = {
   mode: string;
   waypointSegmentId: string;
   zeroSegmentId: string;
+  staleSegmentId: string;
   fromId: string;
   waypointId: string;
+  staleWaypointId: string;
   alternateId: string;
   toId: string;
   estimatedDistanceKm: number;
@@ -53,6 +55,8 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
 
     await openSegment(page, fixture.waypointSegmentId);
     const form = page.locator('#trip-editor-segment-form');
+    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
+    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
     const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
     const clearRoute = page.getByRole('button', { name: 'Clear Route' });
     const routeExplanation = page.getByText('Route editing for segments with intermediate places will be available in a later update.');
@@ -162,6 +166,14 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect(cleared.fromPlaceId).toBe(fixture.alternateId);
     expect(cleared.route).toBeNull();
     expect(cleared.waypointRouteVertexIndices).toEqual([null]);
+    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
+    await expect.soft(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"][data-route-kind="fallback"]`)).toHaveCount(1);
+
+    await openSegment(page, fixture.staleSegmentId);
+    const staleSelector = form.getByLabel(/Intermediate place 1:/);
+    await expect.soft(staleSelector).toHaveValue(fixture.staleWaypointId);
+    await expect.soft(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toBeDisabled();
+    await expect.soft(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toContainText(/Shadow waypoint .*unavailable/i);
 
     await openSegment(page, fixture.waypointSegmentId);
     await notesEditor(form).fill('Failed save keeps this draft');
@@ -238,9 +250,26 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect((await invalidResponse).ok()).toBeFalsy();
     await expect(form.getByLabel(/Intermediate place 1:/)).toBeFocused();
     await expect(form.getByLabel(/Intermediate place 1: Alternate/).locator('..').locator('small')).toHaveCount(1);
+    await expect.soft(form.locator('.trip-editor-form-error')).not.toContainText(/waypoint/i);
     await form.getByRole('button', { name: /Move Alternate .* down/ }).click();
     await expect(form.getByLabel(/Intermediate place 2: Alternate/).locator('..').locator('small')).toHaveCount(1);
     await page.getByRole('button', { name: 'Reset' }).click();
+
+    await form.getByLabel('From place').selectOption(fixture.toId);
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect.soft(form.getByLabel('From place')).toBeFocused();
+
+    const aggregateValidation = async (route: Route): Promise<void> => {
+      if (route.request().method() !== 'PUT') return route.fallback();
+      await route.fulfill({ status: 400, contentType: 'application/problem+json', body: JSON.stringify({
+        title: 'Validation failed', errors: { waypointRouteVertexIndices: ['Waypoint route mapping is invalid.'] }
+      }) });
+    };
+    await page.route(pathRegex(`${editorApiPath}/segments/${fixture.zeroSegmentId}`), aggregateValidation);
+    await notesEditor(form).fill('Aggregate validation focus');
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+    await expect.soft(form.getByRole('group', { name: 'Intermediate places' })).toBeFocused();
+    await page.unroute(pathRegex(`${editorApiPath}/segments/${fixture.zeroSegmentId}`), aggregateValidation);
 
     for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
       await page.setViewportSize(viewport);
