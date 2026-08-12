@@ -204,6 +204,11 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     const zeroBefore = (await editorState(page)).segmentsById[fixture.zeroSegmentId];
     expect(zeroBefore.waypointPlaceIds).toEqual([]);
     await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
+    const resetRouteButton = page.getByRole('button', { name: 'Clear Route' });
+    await expect(resetRouteButton).toBeEnabled();
+    await resetRouteButton.click();
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeFocused();
     const placeToAdd = form.getByLabel('Place to add');
     await placeToAdd.selectOption(fixture.waypointId);
     await form.getByRole('button', { name: 'Add intermediate place' }).press('Space');
@@ -302,12 +307,6 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     const notesLabelId = await notesEditor(form).getAttribute('aria-labelledby');
     expect(notesLabelId).toBeTruthy();
     await expect(form.locator(`#${notesLabelId}`)).toHaveText('Notes');
-
-    const resetRouteButton = page.getByRole('button', { name: 'Clear Route' });
-    await expect(resetRouteButton).toBeEnabled();
-    await resetRouteButton.click();
-    await page.getByRole('button', { name: 'Reset' }).click();
-    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeFocused();
 
     for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
       await page.setViewportSize(viewport);
