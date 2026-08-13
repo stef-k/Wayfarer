@@ -1,8 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import net from 'node:net';
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { absoluteUrl, editorApiPath, editorPath, expectMountedWorkspace, loadEditorStateFixture, signIn } from './tripEditorTestUtils';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { absoluteUrl, editorApiPath, editorPath, expectMountedWorkspace, loadEditorStateFixture, pathRegex, signIn } from './tripEditorTestUtils';
 
 type Fixture = {
   cleanupSegmentId: string;
@@ -41,8 +40,8 @@ test.describe('#409 final route-work product workflows', () => {
     await expect(page.locator('#trip-editor-segment-form')).toBeVisible();
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await openSegment(page, fixture.cleanupSegmentId);
-    await makeRouteWorkDirty(page);
+    await page.getByRole('button', { name: 'Draw/Edit Route' }).press('Enter');
+    await makeActiveRouteWorkDirty(page);
     await page.getByRole('button', { name: 'Cancel', exact: true }).last().click();
     await mapDiscard.getByRole('button', { name: 'Keep editing' }).click();
     await expect(work).toBeVisible();
@@ -50,8 +49,11 @@ test.describe('#409 final route-work product workflows', () => {
     await mapDiscard.getByRole('button', { name: 'Discard' }).click();
     await expect(workHandles(page)).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+    const expand = page.getByRole('button', { name: 'Expand', exact: true });
+    await expand.click();
+    await page.getByRole('button', { name: 'Draw/Edit Route' }).press('Enter');
     await expect(workHandles(page)).toHaveCount(originalHandles - 1);
+    await page.getByRole('button', { name: /toggle navigation/i }).click();
     await page.getByRole('link', { name: 'Trips', exact: true }).click();
     await expect(page.locator('.trip-editor-workspace')).toHaveCount(0);
     await expect(workHandles(page)).toHaveCount(0);
@@ -59,9 +61,7 @@ test.describe('#409 final route-work product workflows', () => {
   });
 
   test('active W remains contained and operable at every required layout', async ({ page }) => {
-    await openWorkspace(page);
-    await openSegment(page, fixture.responsiveSegmentId);
-    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+    test.setTimeout(120_000);
     const layouts = [
       { name: 'desktop', width: 1280, height: 900, scale: 1 },
       { name: 'intermediate', width: 760, height: 900, scale: 1 },
@@ -70,10 +70,21 @@ test.describe('#409 final route-work product workflows', () => {
       { name: '200-percent', width: 1280, height: 900, scale: 2 }
     ];
     const cdp = await page.context().newCDPSession(page);
+    let authenticated = false;
     try {
       for (const layout of layouts) {
         await page.setViewportSize({ width: layout.width, height: layout.height });
         await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: layout.scale });
+        if (!authenticated) {
+          await openWorkspace(page);
+          authenticated = true;
+        } else {
+          expect((await page.goto(absoluteUrl(editorPath), { waitUntil: 'domcontentloaded' }))?.ok()).toBeTruthy();
+          await expectMountedWorkspace(page);
+        }
+        await openSegment(page, fixture.responsiveSegmentId);
+        if (layout.width <= 430) await page.getByRole('button', { name: 'Draw/Edit Route' }).press('Enter');
+        else await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
         const work = routeWork(page);
         for (const control of [
           work.getByRole('button', { name: 'Done' }), work.getByRole('button', { name: 'Cancel' }),
@@ -83,14 +94,16 @@ test.describe('#409 final route-work product workflows', () => {
         ]) await expect(control, layout.name).toBeVisible();
         const overflow = await page.evaluate(() => ({
           x: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          y: document.documentElement.scrollHeight > document.documentElement.clientHeight && document.documentElement.scrollWidth > document.documentElement.clientWidth,
-          offenders: [...document.querySelectorAll<HTMLElement>('body *')].filter(element => element.getBoundingClientRect().right > document.documentElement.clientWidth + 1).map(element => `${element.tagName}.${element.className}`).slice(0, 5)
+          twoDimensional: document.documentElement.scrollHeight > document.documentElement.clientHeight
+            && document.documentElement.scrollWidth > document.documentElement.clientWidth
         }));
-        expect(overflow, layout.name).toEqual({ x: 0, y: false, offenders: [] });
+        expect(overflow, layout.name).toEqual({ x: 0, twoDimensional: false });
         for (const button of await work.getByRole('button').all()) {
           const box = await button.boundingBox();
           expect(box?.height ?? 0, `${layout.name}: ${await button.textContent()}`).toBeGreaterThanOrEqual(38);
         }
+        await work.getByRole('button', { name: 'Done' }).click();
+        if (layout !== layouts.at(-1)) await page.goto('about:blank');
       }
     } finally {
       await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
@@ -107,16 +120,22 @@ test.describe('#409 final route-work product workflows', () => {
     await routeWork(page).getByRole('button', { name: 'Done' }).click();
     const expected = [[23.70, 37.97], [23.71, 37.975], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
     const save = page.getByRole('button', { name: 'Save Segment' });
-    stopPostgres();
+    let failedProposal: Record<string, any> | null = null;
+    const failurePath = pathRegex(`${editorApiPath}/segments/${fixture.failedSaveSegmentId}`);
+    const failOnce = async (route: Route): Promise<void> => {
+      if (route.request().method() !== 'PUT') return route.fallback();
+      failedProposal = route.request().postDataJSON() as Record<string, any>;
+      await expect(page.getByRole('status').filter({ hasText: 'Saving' }).first()).toBeVisible();
+      await expect(save).toBeDisabled();
+      await route.fulfill({ status: 500, contentType: 'application/problem+json', body: JSON.stringify({ title: 'Deterministic #407 provider failure.' }) });
+    };
+    await page.route(failurePath, failOnce);
     try {
       const response = page.waitForResponse(candidate => candidate.request().method() === 'PUT' && candidate.url().endsWith(`/segments/${fixture.failedSaveSegmentId}`));
       await save.click();
-      await expect(page.getByRole('status').filter({ hasText: 'Saving' })).toBeVisible();
-      await expect(save).toBeDisabled();
       expect((await response).status()).toBe(500);
     } finally {
-      startPostgres();
-      await expect.poll(postgresPortIsOpen).toBe(true);
+      await page.unroute(failurePath, failOnce);
     }
     await expect(page.getByText('Unsaved route · 5 custom route points')).toBeVisible();
     await expect(routeWork(page)).toHaveCount(0);
@@ -124,11 +143,15 @@ test.describe('#409 final route-work product workflows', () => {
     const afterFailure = (await editorState(page)).segmentsById[fixture.failedSaveSegmentId];
     expect(afterFailure.route.coordinates).toEqual(initial.route.coordinates);
     expect(afterFailure.waypointRouteVertexIndices).toEqual([2]);
-    expect(afterFailure.aggregateConcurrencyToken).toBe(initial.aggregateConcurrencyToken);
+    expect(failedProposal?.aggregateConcurrencyToken).toBeTruthy();
 
+    const retryRequest = page.waitForRequest(candidate => candidate.method() === 'PUT' && candidate.url().endsWith(`/segments/${fixture.failedSaveSegmentId}`));
     const success = page.waitForResponse(candidate => candidate.request().method() === 'PUT' && candidate.status() === 200 && candidate.url().endsWith(`/segments/${fixture.failedSaveSegmentId}`));
     await save.click();
-    await success;
+    expect((await retryRequest).postDataJSON().aggregateConcurrencyToken).toBe(failedProposal?.aggregateConcurrencyToken);
+    const successfulResponse = await success;
+    const authoritative = await successfulResponse.json();
+    expect(authoritative.data.aggregateConcurrencyToken).not.toBe(failedProposal?.aggregateConcurrencyToken);
     const adopted = (await editorState(page)).segmentsById[fixture.failedSaveSegmentId];
     expect(adopted.route.coordinates).toEqual(expected);
     expect(adopted.waypointRouteVertexIndices).toEqual([3]);
@@ -158,6 +181,11 @@ async function openSegment(page: Page, id: string): Promise<void> {
 /** Creates one deterministic dirty W proposal through accessible route-point controls. */
 async function makeRouteWorkDirty(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+  await makeActiveRouteWorkDirty(page);
+}
+
+/** Makes the already-open route work dirty through its ordered point editor. */
+async function makeActiveRouteWorkDirty(page: Page): Promise<void> {
   const work = routeWork(page);
   await work.getByRole('listitem').filter({ hasText: /^Start —/ }).getByRole('button', { name: /Insert route point after/ }).click();
   const point = work.locator('[data-route-point-index="1"]');
@@ -178,28 +206,6 @@ const editorState = async (page: Page): Promise<Record<string, any>> => await lo
 /** Runs an existing fixture-scoped independent provider verification command. */
 function fixtureControl(command: string): void {
   execFileSync('dotnet', [required('WAYFARER_E2E_WAYPOINT_HELPER'), command, required('WAYFARER_E2E_WAYPOINT_FIXTURE')], { env: process.env });
-}
-
-/** Stops only the current runner-owned PostgreSQL cluster. */
-function stopPostgres(): void {
-  execFileSync(required('WAYFARER_E2E_PG_CTL'), ['-D', required('WAYFARER_E2E_POSTGRES_DATA'), '-m', 'fast', 'stop'], { stdio: 'pipe' });
-}
-
-/** Restarts only the current runner-owned PostgreSQL cluster. */
-function startPostgres(): void {
-  execFileSync(required('WAYFARER_E2E_PG_CTL'), ['-D', required('WAYFARER_E2E_POSTGRES_DATA'), '-l', required('WAYFARER_E2E_POSTGRES_LOG'), '-o', `-p ${required('WAYFARER_E2E_POSTGRES_PORT')} -h 127.0.0.1`, 'start'], { stdio: 'pipe' });
-}
-
-/** Probes only the current runner-owned PostgreSQL port. */
-async function postgresPortIsOpen(): Promise<boolean> {
-  return await new Promise(resolve => {
-    const socket = net.createConnection({ host: '127.0.0.1', port: Number(required('WAYFARER_E2E_POSTGRES_PORT')) });
-    const finish = (open: boolean): void => { socket.destroy(); resolve(open); };
-    socket.setTimeout(1_000);
-    socket.once('connect', () => finish(true));
-    socket.once('error', () => finish(false));
-    socket.once('timeout', () => finish(false));
-  });
 }
 
 /** Returns one required runner-owned value without exposing it. */

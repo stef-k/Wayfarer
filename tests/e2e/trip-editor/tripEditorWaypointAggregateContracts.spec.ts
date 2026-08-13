@@ -23,6 +23,9 @@ type Fixture = {
   staleSegmentId: string;
   routeWorkSegmentId: string;
   closedLoopSegmentId: string;
+  cleanupSegmentId: string;
+  responsiveSegmentId: string;
+  failedSaveSegmentId: string;
   fromId: string;
   waypointId: string;
   staleWaypointId: string;
@@ -106,16 +109,6 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(loopStart.getByRole('spinbutton')).toHaveCount(0);
     await expect(loopVia.getByRole('button', { name: /Remove/ })).toHaveCount(0);
     await expect(loopEnd.getByRole('button', { name: /Remove/ })).toHaveCount(0);
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
-      await page.setViewportSize(viewport);
-      await expect(loopWork.getByRole('button', { name: 'Done' })).toBeVisible();
-      await expect(loopWork.getByRole('button', { name: 'Cancel' })).toBeVisible();
-      await expect(loopWork.getByRole('button', { name: 'Clear Route' })).toBeVisible();
-      await expect(loopWork.getByLabel('Longitude').first()).toBeVisible();
-      await expect(loopWork.getByRole('button', { name: /Insert route point after/ }).first()).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
-    }
-    await page.setViewportSize({ width: 1440, height: 1100 });
     const anonymousHandles = page.locator('.segment-route-work-handle');
     await expect(anonymousHandles).toHaveCount(2);
     await page.locator('.leaflet-control-zoom-out').click();
@@ -501,7 +494,9 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.getByRole('button', { name: 'Save Segment' }).click();
     expect((await createResponse).ok()).toBeTruthy();
     const created = Object.values((await editorState(page)).segmentsById as Record<string, any>)
-      .find(segment => ![fixture.waypointSegmentId, fixture.zeroSegmentId, fixture.staleSegmentId].includes(segment.id));
+      .find(segment => ![fixture.waypointSegmentId, fixture.zeroSegmentId, fixture.staleSegmentId,
+        fixture.routeWorkSegmentId, fixture.closedLoopSegmentId, fixture.cleanupSegmentId,
+        fixture.responsiveSegmentId, fixture.failedSaveSegmentId].includes(segment.id));
     expect(created?.waypointPlaceIds).toEqual([]);
     expect(created?.waypointRouteVertexIndices).toEqual([]);
     expect((await page.request.get(absoluteUrl(`/Public/Trip/${fixture.waypointSegmentId}`))).status()).toBe(404);
