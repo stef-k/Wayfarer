@@ -226,7 +226,7 @@ public class TripImportService : ITripImportService
             _dbContext.ChangeTracker.Clear();
             await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
                 _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken);
-            await ValidateCompatibilityMeasurementsAsync(source, mapped.Id, cancellationToken);
+            await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
             return mapped.Id;
@@ -264,17 +264,18 @@ public class TripImportService : ITripImportService
     /// <summary>Checks serialized compatibility measurements after canonical reconciliation.</summary>
     private async Task ValidateCompatibilityMeasurementsAsync(
         WayfarerKmlDocument source,
-        Guid targetTripId,
+        Trip mapped,
         CancellationToken cancellationToken)
     {
-        var persisted = await _dbContext.Segments.AsNoTracking().Where(segment => segment.TripId == targetTripId)
-            .OrderBy(segment => segment.DisplayOrder).ThenBy(segment => segment.Id).ToArrayAsync(cancellationToken);
-        var imported = source.Segments.OrderBy(segment => segment.DisplayOrder).ThenBy(segment => segment.Id).ToArray();
-        if (persisted.Length != imported.Length) throw new TripImportValidationException("Imported Segment count changed during reconciliation.");
-        for (var index = 0; index < imported.Length; index++)
+        var persisted = await _dbContext.Segments.AsNoTracking().Where(segment => segment.TripId == mapped.Id)
+            .ToDictionaryAsync(segment => segment.Id, cancellationToken);
+        if (persisted.Count != source.Segments.Count || mapped.Segments.Count != source.Segments.Count)
+            throw new TripImportValidationException("Imported Segment count changed during reconciliation.");
+        for (var index = 0; index < source.Segments.Count; index++)
         {
-            var expected = imported[index];
-            var actual = persisted[index];
+            var expected = source.Segments[index];
+            if (!persisted.TryGetValue(mapped.Segments.ElementAt(index).Id, out var actual))
+                throw new TripImportValidationException("An imported Segment identity changed during reconciliation.");
             if (expected.DistanceKm.HasValue && actual.EstimatedDistanceKm != expected.DistanceKm)
                 throw new TripImportValidationException("Distance compatibility metadata does not match canonical reconciliation.");
             if (expected.DurationSource == EstimatedDurationSource.Manual
