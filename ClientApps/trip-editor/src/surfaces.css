@@ -223,6 +223,8 @@
   border-top: 1px solid var(--trip-editor-border);
   flex: 1 0 100%;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   padding-top: 0.75rem;
 }
 
@@ -237,6 +239,7 @@
   margin: 0;
   max-height: min(34vh, 20rem);
   overflow: auto;
+  min-width: 0;
   padding-left: 1.5rem;
 }
 
