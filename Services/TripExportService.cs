@@ -340,13 +340,9 @@ namespace Wayfarer.Parsers
 
             var regions = await _db.Regions.Include(r => r.Areas).Where(r => r.TripId == tripId).ToListAsync(cancellationToken);
             var places = await _db.Places.Where(p => p.Region.TripId == tripId).ToListAsync(cancellationToken);
-            // PDF rendering owns a separate reader and therefore loads every authorized journey anchor explicitly.
-            var segments = await _db.Segments
-                .Include(segment => segment.FromPlace)
-                .Include(segment => segment.ToPlace)
-                .Include(segment => segment.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
-                .Where(segment => segment.TripId == tripId)
-                .ToListAsync(cancellationToken);
+            // The separate PDF reader explicitly loads each authorized journey anchor.
+            var segments = await _db.Segments.Include(s => s.FromPlace).Include(s => s.ToPlace).Include(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+                .Where(s => s.TripId == tripId).ToListAsync(cancellationToken);
 
             await ReportProgress($"📊 Found {regions.Count} regions, {places.Count} places, {segments.Count} segments");
             cancellationToken.ThrowIfCancellationRequested();
