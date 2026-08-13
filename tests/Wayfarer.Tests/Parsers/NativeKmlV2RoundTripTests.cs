@@ -92,6 +92,89 @@ public sealed class NativeKmlV2RoundTripTests
         Assert.Throws<FormatException>(() => WayfarerKmlParser.ClassifyAndParse(stream));
     }
 
+    /// <summary>Rejects persisted duration provenance outside the two native values before serialization.</summary>
+    [Fact]
+    public void Export_InvalidDurationProvenance_RejectsCompleteDocument()
+    {
+        var (trip, segment, _) = CreateWaypointTrip(true);
+        segment.EstimatedDurationSource = (EstimatedDurationSource)99;
+        segment.EstimatedDuration = null;
+
+        Assert.Throws<InvalidOperationException>(() => TripWayfarerKmlExporter.BuildKml(trip));
+    }
+
+    /// <summary>Preserves explicit and structurally versionless v1 omission of Segments without LineString coordinates.</summary>
+    [Fact]
+    public void V1_SegmentWithoutLineString_IsOmitted()
+    {
+        var tripId = Guid.NewGuid();
+        var segmentId = Guid.NewGuid();
+        foreach (var versionData in new[]
+        {
+            "<Data name=\"WayfarerSchemaVersion\"><value>1</value></Data>",
+            ""
+        })
+        {
+            var kml = $"""
+                <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
+                {versionData}<Data name="TripId"><value>{tripId:D}</value></Data></ExtendedData>
+                <Folder><name>Segments</name><Placemark><ExtendedData>
+                <Data name="SegmentId"><value>{segmentId:D}</value></Data>
+                <Data name="Mode"><value>walk</value></Data>
+                </ExtendedData></Placemark></Folder></Document></kml>
+                """;
+
+            using var stream = Stream(kml);
+            var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
+            Assert.Equal(WayfarerKmlKind.NativeV1, parsed.Kind);
+            Assert.Empty(parsed.Document!.Segments);
+        }
+    }
+
+    /// <summary>Rejects one Area identity reused by different Regions during detached document validation.</summary>
+    [Fact]
+    public void NativeDocument_DuplicateAreaIdentityAcrossRegions_Rejects()
+    {
+        var tripId = Guid.NewGuid();
+        var areaId = Guid.NewGuid();
+        var kml = $"""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
+            <Data name="WayfarerSchemaVersion"><value>1</value></Data>
+            <Data name="TripId"><value>{tripId:D}</value></Data></ExtendedData>
+            <Folder><name>R1</name><ExtendedData><Data name="RegionId"><value>{Guid.NewGuid():D}</value></Data></ExtendedData>
+            <Placemark><ExtendedData><Data name="AreaId"><value>{areaId:D}</value></Data></ExtendedData>
+            <Polygon><outerBoundaryIs><LinearRing><coordinates>0,0 1,0 1,1 0,0</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Folder>
+            <Folder><name>R2</name><ExtendedData><Data name="RegionId"><value>{Guid.NewGuid():D}</value></Data></ExtendedData>
+            <Placemark><ExtendedData><Data name="AreaId"><value>{areaId:D}</value></Data></ExtendedData>
+            <Polygon><outerBoundaryIs><LinearRing><coordinates>2,2 3,2 3,3 2,2</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Folder>
+            </Document></kml>
+            """;
+
+        using var stream = Stream(kml);
+        Assert.Throws<FormatException>(() => WayfarerKmlParser.ClassifyAndParse(stream));
+    }
+
+    /// <summary>Keeps unrelated duplicate generic metadata outside native classification and parsing rules.</summary>
+    [Fact]
+    public void Detection_DuplicateUnrelatedGenericMetadata_RemainsGeneric()
+    {
+        const string kml = """
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Generic</name><Placemark><name>walk</name>
+            <ExtendedData><Data name="foo"><value>one</value></Data><Data name="foo"><value>two</value></Data></ExtendedData>
+            <LineString><coordinates>0,0 0.5,0.25 1,1</coordinates></LineString></Placemark></Document></kml>
+            """;
+        using var classificationStream = Stream(kml);
+        var classified = WayfarerKmlParser.ClassifyAndParse(classificationStream);
+
+        using var genericStream = Stream(kml);
+        var trip = GoogleMyMapsKmlParser.Parse(genericStream, "user1");
+        var segment = Assert.Single(trip.Segments);
+        Assert.Equal(WayfarerKmlKind.Generic, classified.Kind);
+        Assert.Null(classified.Document);
+        Assert.Equal(3, Assert.IsType<LineString>(segment.RouteGeometry).NumPoints);
+        Assert.Empty(segment.Waypoints);
+    }
+
     private static (Trip Trip, Segment Segment, SegmentWaypoint Waypoint) CreateWaypointTrip(bool custom)
     {
         var tripId = Guid.NewGuid();
