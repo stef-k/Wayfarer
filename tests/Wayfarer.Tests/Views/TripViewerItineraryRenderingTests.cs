@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MvcFrontendKit.Extensions;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -50,6 +51,33 @@ public sealed class TripViewerItineraryRenderingTests
                 ["Shadow child", "Zulu equal", "Alpha equal", "Ordered gap", "Zulu null", "Alpha null"],
                 document.QuerySelectorAll("#regions-accordion .place-list-item").Select(element => element.GetAttribute("data-place-name")));
             Assert.All(document.QuerySelectorAll("#readable-modal-body .places-list"), list => Assert.Equal("DIV", list.TagName));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ViewerRendersOrderedWaypointJourneyAndFallbackRoute()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-waypoint-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+
+            var html = await RenderViewerAsync(scope.ServiceProvider, WaypointTrip());
+            var document = await new HtmlParser().ParseDocumentAsync(html);
+            var segment = Assert.Single(document.QuerySelectorAll(".segment-list-item"));
+
+            Assert.Equal(["Start: A", "Via 1: B", "End: C"],
+                segment.QuerySelectorAll(".segment-journey-role").Select(item => item.TextContent.Trim()));
+            Assert.Equal("A → B → C", segment.QuerySelector(".segment-journey-trail")?.TextContent.Trim());
+            Assert.Contains("1 1,2 2,3 3", segment.GetAttribute("data-route-wkt"));
+            Assert.Contains("A → B → C", document.QuerySelector("#readable-modal-body")?.TextContent);
         }
         finally
         {
@@ -132,6 +160,34 @@ public sealed class TripViewerItineraryRenderingTests
         trip.Regions.Add(alphaRegion);
         trip.Regions.Add(shadowRegion);
         trip.Regions.Add(zuluRegion);
+        return trip;
+    }
+
+    /// <summary>Builds the smallest semantic A to B to C viewer fixture.</summary>
+    private static Trip WaypointTrip()
+    {
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Waypoint trip", UpdatedAt = DateTime.UtcNow };
+        var region = Region("00000000-0000-0000-0000-000000000110", "Region", 1, trip);
+        var start = Place("00000000-0000-0000-0000-000000000111", "A", 1, region);
+        var via = Place("00000000-0000-0000-0000-000000000112", "B", 2, region);
+        var end = Place("00000000-0000-0000-0000-000000000113", "C", 3, region);
+        start.Location = new Point(1, 1) { SRID = 4326 };
+        via.Location = new Point(2, 2) { SRID = 4326 };
+        end.Location = new Point(3, 3) { SRID = 4326 };
+        region.Places.Add(start);
+        region.Places.Add(via);
+        region.Places.Add(end);
+        trip.Regions.Add(region);
+        var segment = new Segment
+        {
+            Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = trip.UserId,
+            Mode = "walk", FromPlace = start, FromPlaceId = start.Id, ToPlace = end, ToPlaceId = end.Id
+        };
+        segment.Waypoints.Add(new SegmentWaypoint
+        {
+            Segment = segment, SegmentId = segment.Id, Place = via, PlaceId = via.Id, Position = 0
+        });
+        trip.Segments.Add(segment);
         return trip;
     }
 

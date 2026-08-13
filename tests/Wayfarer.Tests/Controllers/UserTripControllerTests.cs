@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using NetTopologySuite.Geometries;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
@@ -48,6 +49,35 @@ public class UserTripControllerTests : TestBase
         var result = await controller.View(trip.Id);
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task View_ExplicitlyLoadsOrderedWaypointPlaces()
+    {
+        var db = CreateDbContext();
+        var userId = "owner";
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Waypoint trip" };
+        var region = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = userId, Name = "Region" };
+        var start = new Place { Id = Guid.NewGuid(), Region = region, RegionId = region.Id, UserId = userId, Name = "A", Location = new Point(1, 1) { SRID = 4326 } };
+        var via = new Place { Id = Guid.NewGuid(), Region = region, RegionId = region.Id, UserId = userId, Name = "B", Location = new Point(2, 2) { SRID = 4326 } };
+        var end = new Place { Id = Guid.NewGuid(), Region = region, RegionId = region.Id, UserId = userId, Name = "C", Location = new Point(3, 3) { SRID = 4326 } };
+        var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = userId, FromPlace = start, FromPlaceId = start.Id, ToPlace = end, ToPlaceId = end.Id };
+        segment.Waypoints.Add(new SegmentWaypoint { Segment = segment, SegmentId = segment.Id, Place = via, PlaceId = via.Id, Position = 0 });
+        region.Places.Add(start);
+        region.Places.Add(via);
+        region.Places.Add(end);
+        trip.Regions.Add(region);
+        trip.Segments.Add(segment);
+        db.Users.Add(TestDataFixtures.CreateUser(id: userId, username: userId));
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var result = await BuildController(db, userId).View(trip.Id);
+
+        var model = Assert.IsType<Trip>(Assert.IsType<ViewResult>(result).Model);
+        var loadedWaypoint = Assert.Single(Assert.Single(model.Segments).Waypoints);
+        Assert.Equal("B", loadedWaypoint.Place.Name);
     }
 
     [Fact]
