@@ -1,192 +1,198 @@
 using System.Globalization;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
-using System.Linq;
 using Wayfarer.Models;
+using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
-/// <summary>
-/// Builds a “Wayfarer-Extended-KML” document that preserves every Trip,
-/// Region, Place, Area and Segment field so the file can be re-imported 1-for-1.
-/// </summary>
-public class TripWayfarerKmlExporter
+/// <summary>Serializes a completely loaded and validated Trip as deterministic Wayfarer-native KML v2.</summary>
+public static class TripWayfarerKmlExporter
 {
-    private const string KmlNs = "http://www.opengis.net/kml/2.2";
-    private const string WfNs = "https://wayfarer.app/kml/2025/wayfarer";
-    private static readonly XNamespace X = KmlNs;
-    private static readonly CultureInfo CI = CultureInfo.InvariantCulture;
+    private static readonly XNamespace Kml = "http://www.opengis.net/kml/2.2";
+    private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
+    /// <summary>Builds one native v2 document or rejects the complete malformed aggregate.</summary>
     public static string BuildKml(Trip trip)
     {
-        /* 1) <Style> elements (icons) */
-        var styles = (trip.Regions ?? Enumerable.Empty<Region>())
-            .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
-            .Select(p => new { p.IconName, p.MarkerColor })
-            .Distinct()
-            .Select(ic => new XElement(X + "Style",
-                new XAttribute("id", $"wf_{ic.IconName}_{ic.MarkerColor}"),
-                new XElement(X + "IconStyle",
-                    new XElement(X + "Icon",
-                        new XElement(X + "href",
-                            $"/icons/wayfarer-map-icons/dist/png/marker/{ic.MarkerColor}/{ic.IconName}.png")))));
+        ArgumentNullException.ThrowIfNull(trip);
+        ValidateAggregate(trip);
 
+        var document = new XElement(Kml + "Document", new XElement(Kml + "name", trip.Name));
+        AddData(document,
+            ("WayfarerSchemaVersion", "2"),
+            ("TripId", GuidText(trip.Id)),
+            ("UpdatedAt", trip.UpdatedAt.ToString("O", Invariant)),
+            ("CoverImageUrl", trip.CoverImageUrl ?? ""),
+            ("NotesHtml", trip.Notes ?? ""),
+            ("CenterLat", Number(trip.CenterLat)),
+            ("CenterLon", Number(trip.CenterLon)),
+            ("Zoom", Number(trip.Zoom)),
+            ("Tags", string.Join(',', trip.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Slug))));
+        document.Add(trip.Regions.SelectMany(region => region.Places)
+            .Select(place => (place.IconName, place.MarkerColor)).Distinct()
+            .Select(icon => new XElement(Kml + "Style", new XAttribute("id", $"wf_{icon.IconName}_{icon.MarkerColor}"),
+                new XElement(Kml + "IconStyle", new XElement(Kml + "Icon",
+                    new XElement(Kml + "href", $"/icons/wayfarer-map-icons/dist/png/marker/{icon.MarkerColor}/{icon.IconName}.png"))))));
 
-        /* 2) root <Document> */
-        var doc = new XElement(X + "Document",
-            new XElement(X + "name", trip.Name));
+        foreach (var region in trip.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Id))
+            document.Add(BuildRegion(region, trip.Id));
 
-        // core metadata
-        doc.Add(
-            Ext("TripId", trip.Id),
-            Ext("UpdatedAt", trip.UpdatedAt.ToString("O")),
-            Ext("CoverImageUrl", trip.CoverImageUrl),
-            Ext("NotesHtml", trip.Notes ?? string.Empty),
-            Ext("CenterLat", trip.CenterLat),
-            Ext("CenterLon", trip.CenterLon),
-            Ext("Zoom", trip.Zoom));
-
-        // tags - store as comma-separated slugs
-        if (trip.Tags != null && trip.Tags.Any())
+        if (trip.Segments.Count > 0)
         {
-            var tagSlugs = string.Join(",", trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug));
-            doc.Add(Ext("Tags", tagSlugs));
+            var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", "Segments"));
+            foreach (var segment in trip.Segments.OrderBy(segment => segment.DisplayOrder).ThenBy(segment => segment.Id))
+                folder.Add(BuildSegment(segment, trip.Id));
+            document.Add(folder);
         }
 
-        doc.Add(styles);
-
-
-        /* 3) Regions → Places & Areas */
-        foreach (var region in (trip.Regions ?? Enumerable.Empty<Region>())
-                 .OrderBy(r => r.DisplayOrder))
-        {
-            var folder = new XElement(X + "Folder",
-                new XElement(X + "name", region.Name));
-
-            folder.Add(
-                Ext("RegionId", region.Id),
-                Ext("TripId", trip.Id),
-                Ext("DisplayOrder", region.DisplayOrder),
-                Ext("NotesHtml", region.Notes ?? string.Empty),
-                Ext("CenterLat", region.Center?.Y),
-                Ext("CenterLon", region.Center?.X)
-            );
-
-            // — Places —
-            foreach (var place in (region.Places ?? Enumerable.Empty<Place>())
-                     .OrderBy(p => p.DisplayOrder))
-            {
-                if (place.Location == null) continue;
-
-                var placemark = new XElement(X + "Placemark",
-                    new XElement(X + "name", place.Name),
-                    new XElement(X + "styleUrl", $"#wf_{place.IconName}_{place.MarkerColor}"),
-                    new XElement(X + "Point",
-                        new XElement(X + "coordinates",
-                            $"{place.Location.X.ToString(CI)},{place.Location.Y.ToString(CI)},0")));
-
-                placemark.Add(
-                    Ext("PlaceId", place.Id),
-                    Ext("RegionId", region.Id),
-                    Ext("DisplayOrder", place.DisplayOrder),
-                    Ext("NotesHtml", place.Notes ?? string.Empty),
-                    Ext("IconName", place.IconName),
-                    Ext("MarkerColor", place.MarkerColor),
-                    Ext("Address", place.Address ?? string.Empty)
-                );
-
-                folder.Add(placemark);
-            }
-
-            // — Areas —
-            foreach (var area in (region.Areas ?? Enumerable.Empty<Area>())
-                     .OrderBy(a => a.DisplayOrder))
-            {
-                if (area.Geometry is not Polygon poly) continue;
-
-                // build coordinate string: lon,lat,0 pairs space-delimited
-                var coordsText = string.Join(" ",
-                    poly.Coordinates.Select(c =>
-                        $"{c.X.ToString(CI)},{c.Y.ToString(CI)},0"));
-
-                var areaPm = new XElement(X + "Placemark",
-                    new XElement(X + "name", area.Name),
-                    new XElement(X + "Polygon",
-                        new XElement(X + "tessellate", 1),
-                        new XElement(X + "outerBoundaryIs",
-                            new XElement(X + "LinearRing",
-                                new XElement(X + "coordinates", coordsText)
-                            )
-                        )
-                    )
-                );
-
-                areaPm.Add(
-                    Ext("AreaId", area.Id),
-                    Ext("RegionId", region.Id),
-                    Ext("DisplayOrder", area.DisplayOrder),
-                    Ext("FillHex", area.FillHex),
-                    Ext("NotesHtml", area.Notes ?? string.Empty)
-                );
-
-                folder.Add(areaPm);
-            }
-
-            doc.Add(folder);
-        }
-
-
-        /* 4) Segments */
-        if (trip.Segments?.Any() == true)
-        {
-            var segFolder = new XElement(X + "Folder",
-                new XElement(X + "name", "Segments"));
-
-            foreach (var seg in trip.Segments.OrderBy(s => s.DisplayOrder))
-            {
-                if (seg.RouteGeometry is not LineString line) continue;
-
-                var placemark = new XElement(X + "Placemark",
-                    new XElement(X + "name", seg.Mode),
-                    new XElement(X + "LineString",
-                        new XElement(X + "tessellate", 1),
-                        new XElement(X + "coordinates",
-                            string.Join(" ",
-                                line.Coordinates.Select(c =>
-                                    $"{c.X.ToString(CI)},{c.Y.ToString(CI)},0")))));
-
-                placemark.Add(
-                    Ext("SegmentId", seg.Id),
-                    Ext("TripId", trip.Id),
-                    Ext("FromPlaceId", seg.FromPlaceId),
-                    Ext("ToPlaceId", seg.ToPlaceId),
-                    Ext("Mode", seg.Mode),
-                    Ext("DistanceKm", seg.EstimatedDistanceKm),
-                    Ext("DurationMin", seg.EstimatedDuration?.TotalMinutes),
-                    Ext("DisplayOrder", seg.DisplayOrder),
-                    Ext("NotesHtml", seg.Notes ?? string.Empty)
-                );
-
-                segFolder.Add(placemark);
-            }
-
-            doc.Add(segFolder);
-        }
-
-
-        /* 5) Wrap in <kml> and return */
-        var kml = new XDocument(
-            new XDeclaration("1.0", "utf-8", "yes"),
-            new XElement(X + "kml",
-                new XAttribute(XNamespace.Xmlns + "wf", WfNs),
-                doc));
-
-        return kml.ToString();
+        return new XDocument(new XDeclaration("1.0", "utf-8", "yes"),
+            new XElement(Kml + "kml", document)).ToString();
     }
 
-    // helper: one <ExtendedData><Data name=…><value>…</value></Data></ExtendedData>
-    private static XElement Ext(string name, object? val) =>
-        new XElement(X + "ExtendedData",
-            new XElement(X + "Data", new XAttribute("name", name),
-                new XElement(X + "value", val?.ToString() ?? string.Empty)));
+    private static XElement BuildRegion(Region region, Guid tripId)
+    {
+        var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));
+        AddData(folder,
+            ("RegionId", GuidText(region.Id)), ("TripId", GuidText(tripId)),
+            ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", region.Notes ?? ""),
+            ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
+        foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
+            folder.Add(BuildPlace(place, region.Id));
+        foreach (var area in region.Areas.OrderBy(area => area.DisplayOrder).ThenBy(area => area.Id))
+            folder.Add(BuildArea(area, region.Id));
+        return folder;
+    }
+
+    private static XElement BuildPlace(Place place, Guid regionId)
+    {
+        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", place.Name),
+            new XElement(Kml + "styleUrl", $"#wf_{place.IconName}_{place.MarkerColor}"));
+        AddData(placemark,
+            ("PlaceId", GuidText(place.Id)), ("RegionId", GuidText(regionId)),
+            ("DisplayOrder", Number(place.DisplayOrder)), ("NotesHtml", place.Notes ?? ""),
+            ("IconName", place.IconName ?? ""), ("MarkerColor", place.MarkerColor ?? ""),
+            ("Address", place.Address ?? ""));
+        if (place.Location is not null)
+            placemark.Add(new XElement(Kml + "Point", new XElement(Kml + "coordinates", CoordinateText(place.Location.Coordinate))));
+        return placemark;
+    }
+
+    private static XElement BuildArea(Area area, Guid regionId)
+    {
+        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", area.Name));
+        AddData(placemark,
+            ("AreaId", GuidText(area.Id)), ("RegionId", GuidText(regionId)),
+            ("DisplayOrder", Number(area.DisplayOrder)), ("FillHex", area.FillHex ?? ""),
+            ("NotesHtml", area.Notes ?? ""));
+        if (area.Geometry is Polygon polygon)
+            placemark.Add(new XElement(Kml + "Polygon", new XElement(Kml + "outerBoundaryIs",
+                new XElement(Kml + "LinearRing", new XElement(Kml + "coordinates",
+                    string.Join(' ', polygon.Coordinates.Select(CoordinateText)))))));
+        return placemark;
+    }
+
+    private static XElement BuildSegment(Segment segment, Guid tripId)
+    {
+        var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
+        var hasCustomRoute = segment.RouteGeometry is not null;
+        var line = segment.RouteGeometry ?? BuildFallback(segment, waypoints);
+        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", segment.Mode));
+        AddData(placemark,
+            ("SegmentId", GuidText(segment.Id)), ("FromPlaceId", GuidText(segment.FromPlaceId)),
+            ("ToPlaceId", GuidText(segment.ToPlaceId)), ("Mode", segment.Mode),
+            ("TransportProfileKey", segment.TransportProfile?.Key ?? ""),
+            ("DistanceKm", segment.EstimatedDistanceKm?.ToString("0.###", Invariant) ?? ""),
+            ("DurationSeconds", segment.EstimatedDuration?.TotalSeconds.ToString("0", Invariant) ?? ""),
+            ("DurationSource", segment.EstimatedDurationSource.ToString()),
+            ("DisplayOrder", Number(segment.DisplayOrder)), ("NotesHtml", segment.Notes ?? ""),
+            ("HasCustomRoute", hasCustomRoute ? "true" : "false"),
+            ("WaypointPlaceIds", string.Join(',', waypoints.Select(waypoint => GuidText(waypoint.PlaceId)))),
+            ("WaypointRouteVertexIndices", string.Join(',', waypoints.Select(waypoint => waypoint.RouteVertexIndex?.ToString(Invariant) ?? "null"))));
+        AddData(placemark, ("TripId", GuidText(tripId)));
+        if (line is not null)
+            placemark.Add(new XElement(Kml + "LineString", new XElement(Kml + "tessellate", "1"),
+                new XElement(Kml + "coordinates", string.Join(' ', line.Coordinates.Select(CoordinateText)))));
+        return placemark;
+    }
+
+    private static LineString? BuildFallback(Segment segment, IReadOnlyList<SegmentWaypoint> waypoints)
+    {
+        var places = new[] { segment.FromPlace }.Concat(waypoints.Select(waypoint => waypoint.Place)).Append(segment.ToPlace).ToArray();
+        if (places.Any(place => place?.Location is null)) return null;
+        return new LineString(places.Select(place => new Coordinate(place!.Location!.X, place.Location.Y)).ToArray()) { SRID = 4326 };
+    }
+
+    private static void ValidateAggregate(Trip trip)
+    {
+        var regionIds = new HashSet<Guid>();
+        var placeIds = new HashSet<Guid>();
+        foreach (var region in trip.Regions)
+        {
+            if (!regionIds.Add(region.Id) || region.TripId != Guid.Empty && region.TripId != trip.Id)
+                throw new InvalidOperationException("The Trip contains malformed Region identity state.");
+            foreach (var place in region.Places)
+                if (!placeIds.Add(place.Id) || place.RegionId != Guid.Empty && place.RegionId != region.Id)
+                    throw new InvalidOperationException("The Trip contains malformed Place identity state.");
+            if (region.Areas.Any(area => area.Id == Guid.Empty || area.RegionId != Guid.Empty && area.RegionId != region.Id
+                || area.Geometry is not { SRID: 4326, IsValid: true }))
+                throw new InvalidOperationException("The Trip contains malformed Area state.");
+        }
+        var segmentIds = new HashSet<Guid>();
+        foreach (var segment in trip.Segments)
+        {
+            if (!segmentIds.Add(segment.Id) || segment.TripId != trip.Id)
+                throw new InvalidOperationException("The Trip contains malformed Segment identity state.");
+            var errors = SegmentRouteReconciler.ValidateProjectedAggregate(segment);
+            if (errors.Count > 0) throw new InvalidOperationException(string.Join(" ", errors));
+            if (segment.EstimatedDuration is { Ticks: var ticks } && ticks % TimeSpan.TicksPerSecond != 0)
+                throw new InvalidOperationException("Segment duration must use whole seconds.");
+            if (segment.TransportProfileId.HasValue && segment.TransportProfile is null)
+                throw new InvalidOperationException("The Segment transport profile was not loaded.");
+            if (segment.TransportProfile is { } profile
+                && (profile.Key != TransportProfile.NormalizeKey(profile.Key)
+                    || TransportProfile.NormalizeKey(segment.Mode) != profile.Key))
+                throw new InvalidOperationException("Segment mode and transport profile key do not match.");
+            ValidateMeasurements(segment);
+        }
+    }
+
+    private static void ValidateMeasurements(Segment segment)
+    {
+        if (segment.EstimatedDurationSource is not EstimatedDurationSource.Automatic
+            and not EstimatedDurationSource.Manual)
+            throw new InvalidOperationException("Segment duration provenance is invalid.");
+
+        var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
+        var route = segment.RouteGeometry ?? BuildFallback(segment, waypoints);
+        if (route is null)
+        {
+            if (segment.EstimatedDistanceKm.HasValue || segment.EstimatedDurationSource == EstimatedDurationSource.Automatic
+                && segment.EstimatedDuration.HasValue)
+                throw new InvalidOperationException("Unavailable route measurements must be empty.");
+            return;
+        }
+        var measurement = SegmentMeasurementCalculator.CalculateDistance(route.Coordinates);
+        if (segment.EstimatedDistanceKm != measurement.RoundedKilometres)
+            throw new InvalidOperationException("Segment distance is not canonical.");
+        if (segment.EstimatedDurationSource == EstimatedDurationSource.Manual)
+        {
+            if (!segment.EstimatedDuration.HasValue) throw new InvalidOperationException("Manual duration is required.");
+            return;
+        }
+        var speed = segment.TransportProfile?.PlanningSpeedKmh;
+        var expected = speed is > 0 ? SegmentMeasurementCalculator.CalculateAutomaticDuration(measurement.UnroundedMetres, speed.Value) : (TimeSpan?)null;
+        if (segment.EstimatedDuration != expected)
+            throw new InvalidOperationException("Automatic duration is not canonical.");
+    }
+
+    private static void AddData(XElement owner, params (string Name, string Value)[] values) =>
+        owner.Add(new XElement(Kml + "ExtendedData", values.Select(value =>
+            new XElement(Kml + "Data", new XAttribute("name", value.Name), new XElement(Kml + "value", value.Value)))));
+
+    private static string GuidText(Guid value) => value.ToString("D", Invariant).ToLowerInvariant();
+    private static string GuidText(Guid? value) => value.HasValue ? GuidText(value.Value) : "";
+    private static string Number(IFormattable? value) => value?.ToString(null, Invariant) ?? "";
+    private static string CoordinateText(Coordinate coordinate) =>
+        $"{coordinate.X.ToString("R", Invariant)},{coordinate.Y.ToString("R", Invariant)},0";
 }

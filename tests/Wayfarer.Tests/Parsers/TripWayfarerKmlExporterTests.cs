@@ -1,6 +1,6 @@
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
-using Wayfarer.Parsers;
+using Wayfarer.Parsers; using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -264,22 +264,20 @@ public class TripWayfarerKmlExporterTests
             new Coordinate(-73.9855, 40.7580),
             new Coordinate(-73.9776, 40.7614)
         };
-        var lineString = new LineString(lineCoordinates) { SRID = 4326 };
-
+        var lineString = new LineString(lineCoordinates) { SRID = 4326 }; var tripId = Guid.NewGuid();
         var trip = new Trip
         {
-            Id = Guid.NewGuid(),
-            Name = "Trip with Segment",
+            Id = tripId, Name = "Trip with Segment",
             UpdatedAt = DateTime.UtcNow,
             Segments = new List<Segment>
             {
                 new Segment
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.NewGuid(), TripId = tripId,
                     Mode = "driving",
                     RouteGeometry = lineString,
-                    EstimatedDistanceKm = 5.5,
-                    EstimatedDuration = TimeSpan.FromMinutes(15),
+                    EstimatedDistanceKm = SegmentMeasurementCalculator.CalculateDistance(lineString.Coordinates).RoundedKilometres,
+                    EstimatedDuration = TimeSpan.FromMinutes(15), EstimatedDurationSource = EstimatedDurationSource.Manual,
                     DisplayOrder = 0
                 }
             }
@@ -296,8 +294,8 @@ public class TripWayfarerKmlExporterTests
         Assert.Contains("Mode", kml);
         Assert.Contains("driving", kml);
         Assert.Contains("DistanceKm", kml);
-        Assert.Contains("5.5", kml);
-        Assert.Contains("DurationMin", kml);
+        Assert.Contains("DistanceKm", kml);
+        Assert.Contains("DurationSeconds", kml); Assert.Contains("DurationSource", kml);
     }
 
     [Fact]
@@ -355,7 +353,7 @@ public class TripWayfarerKmlExporterTests
     }
 
     [Fact]
-    public void BuildKml_PlaceWithoutLocation_SkipsPlace()
+    public void BuildKml_PlaceWithoutLocation_PreservesNativeIdentityWithoutPoint()
     {
         // Arrange
         var trip = new Trip
@@ -387,8 +385,8 @@ public class TripWayfarerKmlExporterTests
         // Act
         var kml = TripWayfarerKmlExporter.BuildKml(trip);
 
-        // Assert - Place should be skipped
-        Assert.DoesNotContain("<name>No Location Place</name>", kml);
+        // Assert - native v2 must not silently lose a saved Place merely because it has no Point.
+        Assert.Contains("<name>No Location Place</name>", kml); Assert.DoesNotContain("<Point>", kml);
     }
 
     [Fact]
@@ -442,4 +440,5 @@ public class TripWayfarerKmlExporterTests
         Assert.Contains("40.7128", kml);
         Assert.Contains("-74.006", kml);
     }
+
 }

@@ -34,17 +34,15 @@ public class TripImportService : ITripImportService
         string userId,
         TripImportMode mode = TripImportMode.Auto)
     {
-        /* 1 ── detect which flavour of KML (Wayfarer or Google MyMaps ------------------------------ */
-        Trip parsed;
+        /* Parse once with structural namespace-aware native detection. */
         using var mem = new MemoryStream();
         await kmlStream.CopyToAsync(mem);
-        var xmlText = Encoding.UTF8.GetString(mem.ToArray());
         mem.Position = 0;
-
-        bool isWayfarer = xmlText.Contains("<Data name=\"TripId\">");
-        parsed = isWayfarer
-            ? WayfarerKmlParser.Parse(mem)
-            : GoogleMyMapsKmlParser.Parse(mem, userId);
+        var classification = WayfarerKmlParser.ClassifyAndParse(mem);
+        if (classification.Document is not null)
+            return await ImportNativeAsync(classification.Document, userId, mode, CancellationToken.None);
+        mem.Position = 0;
+        var parsed = GoogleMyMapsKmlParser.Parse(mem, userId);
         var importedTagTokens = parsed.Tags.Select(tag => tag.Slug).ToList();
         parsed.Tags.Clear(); // Parser tags are transport values, never persistence entities.
 
@@ -171,6 +169,122 @@ public class TripImportService : ITripImportService
             await transaction.CommitAsync();
         }
         return target.Id;
+    }
+
+    /// <summary>Coordinates one complete native create or authoritative replacement transaction.</summary>
+    private async Task<Guid> ImportNativeAsync(
+        WayfarerKmlDocument source,
+        string userId,
+        TripImportMode mode,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        try
+        {
+            var existing = await _dbContext.Trips.AsNoTracking()
+                .SingleOrDefaultAsync(trip => trip.Id == source.TripId, cancellationToken);
+            var owned = existing?.UserId == userId;
+            if (mode == TripImportMode.Auto && owned) throw new TripDuplicateException(source.TripId);
+            if (mode == TripImportMode.Upsert && !owned)
+                throw new InvalidOperationException("Trip not found or not yours for upsert.");
+
+            var profiles = await _dbContext.Set<TransportProfile>().AsNoTracking()
+                .ToDictionaryAsync(profile => profile.Key, cancellationToken);
+            var createNew = mode != TripImportMode.Upsert;
+            var mapped = WayfarerKmlAggregateMapper.Map(
+                source, userId, profiles, remapIdentities: createNew,
+                targetTripId: createNew ? null : source.TripId);
+            if (createNew) mapped.Name = $"{mapped.Name} (Imported)";
+
+            var reconciledTags = await _tagReconciler.ReconcileAsync(source.Tags, cancellationToken);
+            if (createNew)
+            {
+                foreach (var tag in reconciledTags) mapped.Tags.Add(tag);
+                _dbContext.Trips.Add(mapped);
+            }
+            else
+            {
+                await ReplaceNativeChildrenAsync(mapped, cancellationToken);
+                var target = await _dbContext.Trips.Include(trip => trip.Tags)
+                    .SingleAsync(trip => trip.Id == source.TripId && trip.UserId == userId, cancellationToken);
+                target.Name = mapped.Name;
+                target.Notes = mapped.Notes;
+                target.CoverImageUrl = mapped.CoverImageUrl;
+                target.CenterLat = mapped.CenterLat;
+                target.CenterLon = mapped.CenterLon;
+                target.Zoom = mapped.Zoom;
+                target.UpdatedAt = DateTime.UtcNow;
+                target.Tags.Clear();
+                foreach (var tag in reconciledTags) target.Tags.Add(tag);
+                _dbContext.Regions.AddRange(mapped.Regions);
+                _dbContext.Segments.AddRange(mapped.Segments);
+            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _dbContext.ChangeTracker.Clear();
+            await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
+                _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken);
+            await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            _dbContext.ChangeTracker.Clear();
+            return mapped.Id;
+        }
+        catch
+        {
+            if (transaction is not null) await transaction.RollbackAsync(CancellationToken.None);
+            _dbContext.ChangeTracker.Clear();
+            throw;
+        }
+    }
+
+    /// <summary>Deletes every imported child set so upsert can install the authoritative replacement.</summary>
+    private async Task ReplaceNativeChildrenAsync(Trip mapped, CancellationToken cancellationToken)
+    {
+        if (_dbContext.Database.IsRelational())
+        {
+            await _dbContext.Segments.Where(segment => segment.TripId == mapped.Id).ExecuteDeleteAsync(cancellationToken);
+            await _dbContext.Areas.Where(area => area.Region.TripId == mapped.Id).ExecuteDeleteAsync(cancellationToken);
+            await _dbContext.Places.Where(place => place.Region.TripId == mapped.Id).ExecuteDeleteAsync(cancellationToken);
+            await _dbContext.Regions.Where(region => region.TripId == mapped.Id).ExecuteDeleteAsync(cancellationToken);
+            _dbContext.ChangeTracker.Clear();
+            return;
+        }
+        var target = await _dbContext.Trips.Include(trip => trip.Regions).ThenInclude(region => region.Places)
+            .Include(trip => trip.Regions).ThenInclude(region => region.Areas)
+            .Include(trip => trip.Segments).ThenInclude(segment => segment.Waypoints)
+            .SingleAsync(trip => trip.Id == mapped.Id, cancellationToken);
+        _dbContext.Segments.RemoveRange(target.Segments);
+        _dbContext.Regions.RemoveRange(target.Regions);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        _dbContext.ChangeTracker.Clear();
+    }
+
+    /// <summary>Checks serialized compatibility measurements after canonical reconciliation.</summary>
+    private async Task ValidateCompatibilityMeasurementsAsync(
+        WayfarerKmlDocument source,
+        Trip mapped,
+        CancellationToken cancellationToken)
+    {
+        var persisted = await _dbContext.Segments.AsNoTracking().Where(segment => segment.TripId == mapped.Id)
+            .ToDictionaryAsync(segment => segment.Id, cancellationToken);
+        if (persisted.Count != source.Segments.Count || mapped.Segments.Count != source.Segments.Count)
+            throw new TripImportValidationException("Imported Segment count changed during reconciliation.");
+        for (var index = 0; index < source.Segments.Count; index++)
+        {
+            var expected = source.Segments[index];
+            if (!persisted.TryGetValue(mapped.Segments.ElementAt(index).Id, out var actual))
+                throw new TripImportValidationException("An imported Segment identity changed during reconciliation.");
+            if (expected.DistanceKm.HasValue && actual.EstimatedDistanceKm != expected.DistanceKm)
+                throw new TripImportValidationException("Distance compatibility metadata does not match canonical reconciliation.");
+            if (expected.DurationSource == EstimatedDurationSource.Manual
+                && actual.EstimatedDuration?.TotalSeconds != expected.DurationSeconds)
+                throw new TripImportValidationException("Manual duration did not reconcile exactly.");
+            if (expected.DurationSource == EstimatedDurationSource.Automatic && expected.DurationSeconds.HasValue
+                && actual.EstimatedDuration?.TotalSeconds != expected.DurationSeconds)
+                throw new TripImportValidationException("Automatic duration compatibility metadata does not match canonical reconciliation.");
+        }
     }
 
     /// <summary>Links known import modes before reconciliation while leaving unknown modes to the database compatibility trigger.</summary>

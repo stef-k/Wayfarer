@@ -112,9 +112,9 @@ namespace Wayfarer.Parsers
             var trip = _db.Trips
                            .Include(t => t.Regions).ThenInclude(r => r.Places)
                            .Include(t => t.Regions).ThenInclude(r => r.Areas)
-                           .Include(t => t.Segments)
+                           .Include(t => t.Segments).ThenInclude(s => s.FromPlace).ThenInclude(p => p!.Region).Include(t => t.Segments).ThenInclude(s => s.ToPlace).ThenInclude(p => p!.Region).Include(t => t.Segments).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place).ThenInclude(p => p.Region).Include(t => t.Segments).ThenInclude(s => s.TransportProfile)
                            .Include(t => t.Tags)
-                           .AsNoTracking()
+                           .AsNoTrackingWithIdentityResolution()
                            .FirstOrDefault(t => t.Id == tripId)
                        ?? throw new ArgumentException($"Trip not found: {tripId}", nameof(tripId));
 

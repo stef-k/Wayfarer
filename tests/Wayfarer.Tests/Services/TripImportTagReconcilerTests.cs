@@ -73,6 +73,9 @@ public class TripImportTagReconcilerTests : TestBase
 
     private static MemoryStream ToStream(string kml) => new(Encoding.UTF8.GetBytes(kml));
 
+    /// <summary>Creates a versionless-v1 fixture with the smallest structural native signature.</summary>
     private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData>
-<Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData></Document></kml>";
+<Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData>
+<Folder><name>Imported Region</name><ExtendedData><Data name=""RegionId""><value>00000000-0000-0000-0000-000000000413</value></Data></ExtendedData></Folder>
+</Document></kml>";
 }

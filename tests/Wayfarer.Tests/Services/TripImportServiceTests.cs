@@ -35,7 +35,7 @@ public class TripImportServiceTests : TestBase
   <Document>
     <name>{tripName}</name>
     <ExtendedData>
-      <Data name=""TripId""><value>{tripId}</value></Data>
+      <Data name=""WayfarerSchemaVersion""><value>1</value></Data><Data name=""TripId""><value>{tripId}</value></Data>
       <Data name=""CenterLat""><value>{centerLat}</value></Data>
       <Data name=""CenterLon""><value>{centerLon}</value></Data>
       <Data name=""Zoom""><value>{zoom}</value></Data>{notesXml}
@@ -84,7 +84,7 @@ public class TripImportServiceTests : TestBase
   <Document>
     <name>{tripName}</name>
     <ExtendedData>
-      <Data name=""TripId""><value>{tripId}</value></Data>
+      <Data name=""WayfarerSchemaVersion""><value>1</value></Data><Data name=""TripId""><value>{tripId}</value></Data>
       <Data name=""CenterLat""><value>40.7128</value></Data>
       <Data name=""CenterLon""><value>-74.0060</value></Data>
       <Data name=""Zoom""><value>10</value></Data>
