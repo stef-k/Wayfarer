@@ -204,13 +204,16 @@
   align-items: center;
   background: var(--trip-editor-surface);
   border-bottom: 1px solid var(--trip-editor-border);
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
+  max-width: 100%;
   min-width: 0;
   padding: 0.75rem 1rem;
   position: relative;
+  width: 100%;
   z-index: 2;
 }
 
