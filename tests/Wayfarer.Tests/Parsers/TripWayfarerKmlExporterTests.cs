@@ -478,6 +478,42 @@ public class TripWayfarerKmlExporterTests
         Assert.Contains("1,1,0", kml);
     }
 
+    /// <summary>Proves v2 transport parsing preserves custom and fallback waypoint state.</summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, null)]
+    public void NativeV2_RoundTrip_PreservesWaypointRouteState(bool hasCustomRoute, int? expectedIndex)
+    {
+        var (trip, _, waypoint) = CreateWaypointTrip(hasCustomRoute);
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(TripWayfarerKmlExporter.BuildKml(trip)));
+
+        var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
+
+        Assert.Equal(WayfarerKmlKind.NativeV2, parsed.Kind);
+        var segment = Assert.Single(parsed.Document!.Segments);
+        Assert.Equal(hasCustomRoute, segment.HasCustomRoute);
+        Assert.Equal(waypoint.PlaceId, Assert.Single(segment.WaypointPlaceIds));
+        Assert.Equal(expectedIndex, Assert.Single(segment.WaypointRouteVertexIndices));
+        Assert.NotNull(segment.Geometry);
+    }
+
+    /// <summary>Proves a TripId-like generic document is not classified as native.</summary>
+    [Fact]
+    public void NativeDetection_TripIdWithoutNativeChildren_RemainsGeneric()
+    {
+        const string kml = """
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
+            <Data name="TripId"><value>00000000-0000-0000-0000-000000000001</value></Data>
+            </ExtendedData><Placemark><LineString><coordinates>0,0 1,1</coordinates></LineString></Placemark></Document></kml>
+            """;
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(kml));
+
+        var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
+
+        Assert.Equal(WayfarerKmlKind.Generic, parsed.Kind);
+        Assert.Null(parsed.Document);
+    }
+
     /// <summary>Creates the compact A to B to C aggregate shared by the #413 checkpoint.</summary>
     private static (Trip Trip, Segment Segment, SegmentWaypoint Waypoint) CreateWaypointTrip(bool hasCustomRoute)
     {
@@ -511,12 +547,16 @@ public class TripWayfarerKmlExporterTests
         };
         segment.Waypoints.Add(waypoint);
 
+        var region = new Region { Id = regionId, TripId = tripId, Places = [from, via, to] };
+        from.Region = region;
+        via.Region = region;
+        to.Region = region;
         return (new Trip
         {
             Id = tripId,
             Name = "A to B to C",
             UpdatedAt = DateTime.UtcNow,
-            Regions = [new Region { Id = regionId, TripId = tripId, Places = [from, via, to] }],
+            Regions = [region],
             Segments = [segment]
         }, segment, waypoint);
     }

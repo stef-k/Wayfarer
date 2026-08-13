@@ -427,6 +427,29 @@ public static partial class SegmentRouteReconciler
         return errors;
     }
 
+    /// <summary>Validates a completely loaded detached Segment projection without mutating it.</summary>
+    internal static IReadOnlyList<string> ValidateProjectedAggregate(Segment segment)
+    {
+        ArgumentNullException.ThrowIfNull(segment);
+        var places = new[] { segment.FromPlace, segment.ToPlace }
+            .Concat(segment.Waypoints.Select(waypoint => waypoint.Place))
+            .Where(place => place is not null)
+            .Cast<Place>()
+            .GroupBy(place => place.Id)
+            .ToDictionary(group => group.Key, group => group.Single());
+        var proposal = new SegmentRouteProposal(
+            segment.Id,
+            segment.FromPlaceId,
+            segment.ToPlaceId,
+            segment.Waypoints.OrderBy(waypoint => waypoint.Position)
+                .Select(waypoint => new SegmentWaypointProposal(
+                    waypoint.PlaceId, waypoint.Position, waypoint.RouteVertexIndex)).ToArray(),
+            segment.RouteGeometry,
+            new(segment.Mode, segment.TransportProfileId, segment.EstimatedDurationSource,
+                segment.EstimatedDuration?.TotalMinutes, true));
+        return Validate(segment.TripId, proposal, places, CopyGeometry(proposal));
+    }
+
     private static void ValidateIdentity(
         string label,
         Guid? id,
