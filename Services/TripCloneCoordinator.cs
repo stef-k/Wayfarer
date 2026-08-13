@@ -146,6 +146,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
         string destinationUserId,
         IReadOnlyDictionary<Guid, Guid> placeMap)
     {
+        ValidatePersistedManualDuration(source);
         var segment = new Segment
         {
             Id = Guid.NewGuid(), TripId = cloneTripId, UserId = destinationUserId,
@@ -166,6 +167,20 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             });
         }
         return segment;
+    }
+
+    /// <summary>Rejects persisted Manual duration state that clone reconciliation must not normalize or repair.</summary>
+    private static void ValidatePersistedManualDuration(Segment source)
+    {
+        if (source.EstimatedDurationSource != EstimatedDurationSource.Manual) return;
+
+        var duration = source.EstimatedDuration;
+        var maximumWholeSecondTicks = TimeSpan.MaxValue.Ticks
+            - (TimeSpan.MaxValue.Ticks % TimeSpan.TicksPerSecond);
+        if (!duration.HasValue || duration.Value.Ticks < 0
+            || duration.Value.Ticks > maximumWholeSecondTicks
+            || duration.Value.Ticks % TimeSpan.TicksPerSecond != 0)
+            throw new InvalidOperationException("A persisted Manual Segment duration is invalid.");
     }
 
     /// <summary>Maps an optional endpoint without converting an invalid source reference to null.</summary>

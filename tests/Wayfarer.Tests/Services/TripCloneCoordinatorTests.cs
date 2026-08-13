@@ -23,6 +23,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var customGeometry = Line((0, 0), (1, 1), (2, 2));
         var profile = await db.Set<TransportProfile>().SingleAsync(item => item.Key == "walk");
         profile.IsActive = false;
+        var manualDuration = TimeSpan.FromSeconds(541);
         var automatic = Segment(source, owner.Id, places[0], places[2], places[1], customGeometry, 1);
         automatic.TransportProfileId = profile.Id;
         automatic.EstimatedDurationSource = EstimatedDurationSource.Automatic;
@@ -31,7 +32,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         source.Segments =
         [
             automatic,
-            Segment(source, owner.Id, places[0], places[0], places[1], null, null)
+            Segment(source, owner.Id, places[0], places[0], places[1], null, null, manualDuration)
         ];
         db.Trips.Add(source);
         await db.SaveChangesAsync();
@@ -55,7 +56,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.Null(Assert.Single(loop.Waypoints).RouteVertexIndex);
         Assert.NotEqual(TimeSpan.FromDays(1), custom.EstimatedDuration);
         Assert.Equal(EstimatedDurationSource.Automatic, custom.EstimatedDurationSource);
-        Assert.Equal(TimeSpan.FromMinutes(9), loop.EstimatedDuration);
+        Assert.Equal(manualDuration, loop.EstimatedDuration);
         Assert.Equal(EstimatedDurationSource.Manual, loop.EstimatedDurationSource);
         Assert.NotNull(custom.EstimatedDistanceKm);
         Assert.NotNull(loop.EstimatedDistanceKm);
@@ -136,10 +137,11 @@ public sealed class TripCloneCoordinatorTests : TestBase
 
     /// <summary>Creates one Manual waypoint-bearing source Segment.</summary>
     private static Segment Segment(
-        Trip trip, string userId, Place from, Place to, Place waypoint, LineString? geometry, int? index) => new()
+        Trip trip, string userId, Place from, Place to, Place waypoint, LineString? geometry, int? index,
+        TimeSpan? duration = null) => new()
     {
         Id = Guid.NewGuid(), TripId = trip.Id, UserId = userId, FromPlaceId = from.Id, ToPlaceId = to.Id,
-        Mode = "walk", RouteGeometry = geometry, EstimatedDuration = TimeSpan.FromMinutes(9),
+        Mode = "walk", RouteGeometry = geometry, EstimatedDuration = duration ?? TimeSpan.FromMinutes(9),
         EstimatedDurationSource = EstimatedDurationSource.Manual,
         Waypoints = [new SegmentWaypoint { PlaceId = waypoint.Id, Position = 0, RouteVertexIndex = index }]
     };
