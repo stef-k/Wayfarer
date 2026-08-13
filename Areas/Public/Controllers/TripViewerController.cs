@@ -228,7 +228,9 @@ public class TripViewerController : BaseController
             .Include(t => t.Tags)
             .Include(t => t.Regions!).ThenInclude(r => r.Places!)
             .Include(t => t.Regions!).ThenInclude(a => a.Areas)
-            .Include(t => t.Segments!)
+            .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
+            .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
+            .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
             .FirstOrDefaultAsync(t => t.Id == id);
 
         // Check if trip exists and is public before accessing properties

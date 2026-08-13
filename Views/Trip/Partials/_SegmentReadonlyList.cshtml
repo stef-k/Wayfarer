@@ -1,4 +1,5 @@
 @using Wayfarer.Util
+@using Wayfarer.Models.ViewModels
 @model Wayfarer.Models.Trip
 
 
@@ -26,22 +27,22 @@
                 var modeKey = (seg.Mode ?? "").ToLowerInvariant();
                 var emojiIcon = emoji.TryGetValue(modeKey, out var e) ? e : "❓";
 
-                var fromName = seg.FromPlace?.Name ?? "Start";
-                var toName = seg.ToPlace?.Name ?? "End";
+                // Controller readers explicitly load waypoint Places, making this collection authoritative.
+                var journey = ViewerSegmentJourneyResolver.Resolve(seg, waypointsLoaded: true);
+                var fromName = journey.Anchors.FirstOrDefault()?.DisplayName ?? "Unavailable place";
+                var toName = journey.Anchors.LastOrDefault()?.DisplayName ?? "Unavailable place";
                 var fromRegion = seg.FromPlace?.Region?.Name ?? "";
                 var toRegion = seg.ToPlace?.Region?.Name ?? "";
-                var label = $"{fromName} → {toName}";
+                var label = journey.TrailText ?? "Journey unavailable";
 
                 var durTxt = seg.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
                 var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
 
-                /* preferred: RouteGeometry; fallback: From→To place coords */
-                var startLat = seg.RouteGeometry?.StartPoint?.Y ?? seg.FromPlace?.Location?.Y;
-                var startLon = seg.RouteGeometry?.StartPoint?.X ?? seg.FromPlace?.Location?.X;
-                var endLat = seg.RouteGeometry?.EndPoint?.Y ?? seg.ToPlace?.Location?.Y;
-                var endLon = seg.RouteGeometry?.EndPoint?.X ?? seg.ToPlace?.Location?.X;
-
-                var wkt = seg.RouteGeometry?.AsText();
+                var startLat = journey.Anchors.FirstOrDefault()?.Location?.Y;
+                var startLon = journey.Anchors.FirstOrDefault()?.Location?.X;
+                var endLat = journey.Anchors.LastOrDefault()?.Location?.Y;
+                var endLon = journey.Anchors.LastOrDefault()?.Location?.X;
+                var wkt = journey.RouteWkt;
                 <text>
                     <li class="list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2 segment-list-item-view"
                         title="Click to view the route"
@@ -90,6 +91,8 @@
                                 <div title="To: @toName (@toRegion)">
                                     <strong>To:</strong> @toName (@toRegion)
                                 </div>
+                                @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey,
+                                    new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["Interactive"] = true })
                                 @if (HtmlHelpers.HasVisibleContent(seg?.Notes))
                                 {
                                     <div class="text-muted mt-1 segment-notes-preview" style="max-height: 100px; overflow-y: auto;">

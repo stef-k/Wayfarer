@@ -314,22 +314,6 @@ const init = () => {
     });
 
     const params = new URLSearchParams(window.location.search);
-    const onlySeg = params.get('seg');
-    if (onlySeg) {
-        // find the matching data (you may have serialized WKT into a data-attr)
-        const li = document.querySelector(`.segment-list-item[data-segment-id="${onlySeg}"]`);
-        let coords = [];
-        if (li?.dataset.routeWkt) {
-            coords = wktToCoords(li.dataset.routeWkt);
-        } else {
-            // fallback to from‐to lat/lon
-            const {fromLat, fromLon, toLat, toLon} = li.dataset;
-            coords = [[+fromLat, +fromLon], [+toLat, +toLon]];
-        }
-        if (coords.length >= 2) {
-            addSegment(map, onlySeg, coords, /* optional label */ '');
-        }
-    }
 
     /* ───── visibility toggles ───── */
     $$('.segment-toggle').forEach(cb => cb.addEventListener('change', e => {
@@ -512,11 +496,20 @@ const init = () => {
 
     });
 
+    // Journey Place controls reuse the canonical Place details and marker selection path.
+    $$('.segment-journey-place').forEach(button => {
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            window.wayfarer.openPlaceDetails(button.dataset.placeId);
+            highlightMarker(button.dataset.placeId);
+        });
+    });
+
     /* ADD – segment click centres map on the whole route */
     $$('.segment-list-item').forEach(li => {
         li.addEventListener('click', e => {
             // ignore clicks coming from the visibility checkbox
-            if (e.target.closest('.segment-toggle')) return;
+            if (e.target.closest('.segment-toggle, .segment-journey-place')) return;
 
             const sid = li.dataset.segmentId;
             const pl = getSegmentPolyline(sid);

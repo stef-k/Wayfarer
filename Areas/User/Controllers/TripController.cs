@@ -50,7 +50,9 @@ namespace Wayfarer.Areas.User.Controllers
             var trip = await _dbContext.Trips
                 .Include(t => t.Regions!).ThenInclude(r => r.Places!)
                 .Include(t => t.Regions!).ThenInclude(a => a.Areas)
-                .Include(t => t.Segments!)
+                .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
+                .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
+                .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
                 .Include(t => t.Tags)
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 

@@ -15,6 +15,7 @@ using Microsoft.Extensions.Hosting;
 using MvcFrontendKit.Extensions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
@@ -74,10 +75,43 @@ public sealed class TripViewerItineraryRenderingTests
             var segment = Assert.Single(document.QuerySelectorAll(".segment-list-item"));
 
             Assert.Equal(["Start: A", "Via 1: B", "End: C"],
-                segment.QuerySelectorAll(".segment-journey-role").Select(item => item.TextContent.Trim()));
+                segment.QuerySelectorAll(".segment-journey-role").Select(item => NormalizeText(item.TextContent)));
             Assert.Equal("A → B → C", segment.QuerySelector(".segment-journey-trail")?.TextContent.Trim());
-            Assert.Contains("1 1,2 2,3 3", segment.GetAttribute("data-route-wkt"));
+            Assert.Contains("1 1, 2 2, 3 3", segment.GetAttribute("data-route-wkt"));
             Assert.Contains("A → B → C", document.QuerySelector("#readable-modal-body")?.TextContent);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PdfRendersTheSameOrderedWaypointJourney()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-waypoint-pdf-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
+            var model = new TripPrintViewModel
+            {
+                Trip = trip,
+                Regions = trip.Regions.ToList(),
+                Places = trip.Regions.SelectMany(region => region.Places).ToList(),
+                Segments = trip.Segments.ToList()
+            };
+
+            var html = await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model);
+            var document = await new HtmlParser().ParseDocumentAsync(html);
+
+            Assert.Contains("A → B → C", document.QuerySelector("#segments_all")?.TextContent);
+            Assert.Equal(["Start: A", "Via 1: B", "End: C"],
+                document.QuerySelectorAll("#segments_all .segment-journey-role").Select(item => NormalizeText(item.TextContent)));
         }
         finally
         {
@@ -127,6 +161,21 @@ public sealed class TripViewerItineraryRenderingTests
         await using var writer = new StringWriter();
         var viewContext = new ViewContext(actionContext, view, viewData, tempData, writer, new HtmlHelperOptions());
         await view.RenderAsync(viewContext);
+        return writer.ToString();
+    }
+
+    /// <summary>Renders a production Razor view without introducing a separate browser runner.</summary>
+    private static async Task<string> RenderViewAsync(IServiceProvider services, string path, object model)
+    {
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        var viewResult = services.GetRequiredService<ICompositeViewEngine>().GetView(null, path, isMainPage: true);
+        Assert.True(viewResult.Success, string.Join(Environment.NewLine, viewResult.SearchedLocations ?? []));
+        var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary()) { Model = model };
+        var tempData = new TempDataDictionary(httpContext, services.GetRequiredService<ITempDataProvider>());
+        await using var writer = new StringWriter();
+        var viewContext = new ViewContext(actionContext, Assert.IsAssignableFrom<IView>(viewResult.View), viewData, tempData, writer, new HtmlHelperOptions());
+        await viewContext.View.RenderAsync(viewContext);
         return writer.ToString();
     }
 
@@ -199,6 +248,10 @@ public sealed class TripViewerItineraryRenderingTests
 
     private static string[] Labels(IHtmlCollection<IElement> elements) =>
         elements.Select(element => element.TextContent.Trim()).ToArray();
+
+    /// <summary>Normalizes Razor formatting whitespace while retaining visible wording.</summary>
+    private static string NormalizeText(string value) => string.Join(" ",
+        value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private sealed class EmptyTempDataProvider : ITempDataProvider
     {

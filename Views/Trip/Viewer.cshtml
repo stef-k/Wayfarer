@@ -528,6 +528,21 @@
                     }
                 </div>
 
+                @if (Model.Segments?.Any() == true)
+                {
+                    <div class="segments-readable mt-4">
+                        <h6 class="text-muted mb-3">Journeys</h6>
+                        @foreach (var segment in Model.Segments.OrderBy(item => item.DisplayOrder))
+                        {
+                            var journey = Wayfarer.Models.ViewModels.ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+                            <section class="segment-readable mb-3 pb-3 border-bottom">
+                                <strong>@segment.Mode</strong>
+                                @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey)
+                            </section>
+                        }
+                    </div>
+                }
+
                 <!-- Back to Top Button -->
                 <button type="button"
                         id="btn-back-to-top"

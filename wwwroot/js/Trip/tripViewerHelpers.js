@@ -124,6 +124,14 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
     lon = num(lon);
     if (lat === null || lon === null) return;
 
+    // Canonical Place identity is replace-only across repeated viewer renders.
+    const existing = _places[id]?.marker;
+    if (existing) {
+        existing.off();
+        map.removeLayer(existing);
+        delete _places[id];
+    }
+
     const iconUrl = png(icon(opts.icon), bg(opts.color));
 
     // Use divIcon with visited badge when place has been visited
@@ -173,6 +181,15 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
 /* ---------- segment poly-line ---------- */
 export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
     if (!Array.isArray(coords) || coords.length < 2) return;
+
+    // A Segment registry entry owns one line; rerender replaces and detaches the prior layer.
+    const existing = _segments[id];
+    if (existing) {
+        existing.unbindTooltip();
+        existing.off();
+        map.removeLayer(existing);
+        delete _segments[id];
+    }
 
     // Build rich popup content if segment data provided
     let popupContent = null;
