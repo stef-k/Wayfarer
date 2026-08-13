@@ -9,12 +9,14 @@ public static class TripDtoMapper
 {
     private static readonly GeoJsonWriter _geoJsonWriter = new();
 
-    public static ApiTripDto ToApiDto(this Trip trip)
+    /// <summary>Maps public Trip fields, using prevalidated Segment projections when supplied.</summary>
+    public static ApiTripDto ToApiDto(this Trip trip, IReadOnlyList<ApiTripSegmentDto> resolvedSegments)
     {
         if (trip == null)
         {
             throw new ArgumentNullException(nameof(trip));
         }
+        ArgumentNullException.ThrowIfNull(resolvedSegments);
 
         return new ApiTripDto
         {
@@ -32,11 +34,7 @@ public static class TripDtoMapper
                 .OrderBy(r => r.DisplayOrder)
                 .Select(ToApiDto)
                 .ToList(),
-            Segments = trip.Segments?
-                .Where(s => s != null)
-                .OrderBy(s => s.DisplayOrder)
-                .Select(ToApiDto)
-                .ToList(),
+            Segments = resolvedSegments.OrderBy(segment => segment.DisplayOrder).ToList(),
             Tags = trip.Tags?
                 .Select(t => new ApiTagDto
                 {
@@ -92,7 +90,9 @@ public static class TripDtoMapper
             IconName = place.IconName,
             MarkerColor = place.MarkerColor,
             DisplayOrder = place.DisplayOrder,
-            Location = place.Location is Point pt ? new[] { pt.X, pt.Y } : null
+            Location = place.Location is Point pt && double.IsFinite(pt.X) && double.IsFinite(pt.Y)
+                ? new[] { pt.X, pt.Y }
+                : null
         };
     }
 
@@ -109,12 +109,9 @@ public static class TripDtoMapper
         {
             if (area.Geometry != null)
             {
-                if (area.Geometry.SRID != 4326)
-                {
-                    area.Geometry.SRID = 4326;
-                }
-
-                geoJson = _geoJsonWriter.Write(area.Geometry);
+                var publicGeometry = area.Geometry.Copy();
+                publicGeometry.SRID = 4326;
+                geoJson = _geoJsonWriter.Write(publicGeometry);
             }
         }
         catch
@@ -133,43 +130,4 @@ public static class TripDtoMapper
         };
     }
 
-    public static ApiTripSegmentDto ToApiDto(this Segment segment)
-    {
-        if (segment == null)
-        {
-            return new ApiTripSegmentDto();
-        }
-
-        string? routeJson = null;
-
-        try
-        {
-            if (segment.RouteGeometry != null)
-            {
-                if (segment.RouteGeometry.SRID != 4326)
-                {
-                    segment.RouteGeometry.SRID = 4326;
-                }
-
-                routeJson = _geoJsonWriter.Write(segment.RouteGeometry);
-            }
-        }
-        catch
-        {
-            routeJson = null; // avoid crash from malformed route
-        }
-
-        return new ApiTripSegmentDto
-        {
-            Id = segment.Id,
-            Mode = segment.Mode ?? "",
-            Notes = segment.Notes,
-            DisplayOrder = segment.DisplayOrder,
-            EstimatedDistanceKm = segment.EstimatedDistanceKm,
-            EstimatedDurationMinutes = segment.EstimatedDuration?.TotalMinutes,
-            FromPlaceId = segment.FromPlaceId,
-            ToPlaceId = segment.ToPlaceId,
-            RouteJson = routeJson
-        };
-    }
 }

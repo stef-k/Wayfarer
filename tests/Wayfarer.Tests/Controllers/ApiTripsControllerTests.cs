@@ -1317,7 +1317,7 @@ public class ApiTripsControllerTests : TestBase
                     {
                         new Coordinate(0, 0),
                         new Coordinate(1, 1)
-                    }) { SRID = 3857 } // Different SRID to test conversion
+                    }) { SRID = 4326 }
                 }
             }
         };
