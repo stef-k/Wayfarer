@@ -154,7 +154,7 @@
             @foreach (var s in Model.Segments)
             {
                 // PDF uses the same presentation-only anchor rules as the live viewer.
-                var journey = Wayfarer.Models.ViewModels.ViewerSegmentJourneyResolver.Resolve(s, waypointsLoaded: true);
+                var journey = Wayfarer.Models.ViewModels.ViewerSegmentJourneyResolver.Resolve(s, Model.Trip.Id, waypointsLoaded: true);
                 var dist = s.EstimatedDistanceKm?.ToString("0.##") ?? "—";
                 var dur = s.EstimatedDuration.FormatDuration() ?? "—";
 

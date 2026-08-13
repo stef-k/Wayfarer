@@ -24,7 +24,7 @@ public sealed class ViewerSegmentJourneyResolverTests
         };
         foreignPlace.Region!.TripId = foreignTripId;
 
-        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
         var foreign = result.Anchors.Single(anchor => anchor.Role == (foreignAnchor switch
         {
@@ -46,7 +46,7 @@ public sealed class ViewerSegmentJourneyResolverTests
     {
         var segment = SegmentWithWaypoints(waypointCount);
 
-        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
         Assert.Equal(trail, result.TrailText);
         Assert.Equal(waypointCount, result.WaypointCount);
@@ -62,7 +62,7 @@ public sealed class ViewerSegmentJourneyResolverTests
         segment.ToPlaceId = segment.FromPlaceId;
         segment.ToPlace = segment.FromPlace;
 
-        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
         Assert.Equal("A → B1 → A", result.TrailText);
         Assert.Equal("Start", result.Anchors[0].Role);
@@ -78,7 +78,7 @@ public sealed class ViewerSegmentJourneyResolverTests
         segment.RouteGeometry = Line((1, 1), (1.5, 1.5), (2, 2), (2.5, 2.5), (3, 3));
         Assert.Single(segment.Waypoints).RouteVertexIndex = 2;
 
-        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
         Assert.Equal(5, result.RoutePointCount);
         Assert.Contains("1.5 1.5", result.RouteWkt);
@@ -93,8 +93,8 @@ public sealed class ViewerSegmentJourneyResolverTests
         malformedIndex.RouteGeometry = Line((1, 1), (2, 2), (3, 3));
         Assert.Single(malformedIndex.Waypoints).RouteVertexIndex = 0;
 
-        var positionResult = ViewerSegmentJourneyResolver.Resolve(malformedPosition, waypointsLoaded: true);
-        var indexResult = ViewerSegmentJourneyResolver.Resolve(malformedIndex, waypointsLoaded: true);
+        var positionResult = ViewerSegmentJourneyResolver.Resolve(malformedPosition, malformedPosition.TripId, waypointsLoaded: true);
+        var indexResult = ViewerSegmentJourneyResolver.Resolve(malformedIndex, malformedIndex.TripId, waypointsLoaded: true);
 
         Assert.Empty(positionResult.Anchors);
         Assert.Null(positionResult.RouteWkt);
@@ -107,7 +107,8 @@ public sealed class ViewerSegmentJourneyResolverTests
     [Fact]
     public void Resolve_DoesNotTreatUnloadedWaypointsAsEmpty()
     {
-        var result = ViewerSegmentJourneyResolver.Resolve(SegmentWithWaypoints(0), waypointsLoaded: false);
+        var segment = SegmentWithWaypoints(0);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: false);
 
         Assert.Empty(result.Anchors);
         Assert.Null(result.TrailText);
@@ -122,7 +123,7 @@ public sealed class ViewerSegmentJourneyResolverTests
         waypoint.Place = segment.FromPlace!;
         waypoint.PlaceId = segment.FromPlaceId!.Value;
 
-        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
         Assert.Empty(result.Anchors);
         Assert.Null(result.RouteWkt);
@@ -138,7 +139,7 @@ public sealed class ViewerSegmentJourneyResolverTests
         waypoints[1].Place.Name = " ";
         waypoints[2].Place.Location = null;
 
-        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
         Assert.Equal("Unavailable intermediate place", result.Anchors[1].DisplayName);
         Assert.Equal("Unnamed place", result.Anchors[2].DisplayName);

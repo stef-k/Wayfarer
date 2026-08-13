@@ -299,3 +299,16 @@ export const wktToCoords = wkt => {
         .filter(a => a.length === 2 && !isNaN(a[0]) && !isNaN(a[1]))
         .map(([lon, lat]) => [lat, lon]);      // leaflet order is [lat,lon]
 };
+
+/** Returns drawable Segment coordinates only when authoritative route WKT supplies a line. */
+export const segmentRouteCoords = routeWkt => {
+    const coords = wktToCoords(routeWkt);
+    return coords.length >= 2 ? coords : [];
+};
+
+/** Adds a Segment layer only from resolver-approved route WKT. */
+export const addSegmentFromRouteWkt = (map, sid, routeWkt, label = null, opts = {}) => {
+    const coords = segmentRouteCoords(routeWkt);
+    if (coords.length === 0) return null;
+    return addSegment(map, sid, coords, label, opts);
+};

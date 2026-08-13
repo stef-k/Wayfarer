@@ -28,24 +28,23 @@
                 var emojiIcon = emoji.TryGetValue(modeKey, out var e) ? e : "❓";
 
                 // Controller readers explicitly load waypoint Places, making this collection authoritative.
-                var journey = ViewerSegmentJourneyResolver.Resolve(seg, waypointsLoaded: true);
+                var journey = ViewerSegmentJourneyResolver.Resolve(seg, Model.Id, waypointsLoaded: true);
                 var fromName = journey.Anchors.FirstOrDefault()?.DisplayName ?? "Unavailable place";
                 var toName = journey.Anchors.LastOrDefault()?.DisplayName ?? "Unavailable place";
-                var fromRegion = seg.FromPlace?.Region?.Name ?? "";
-                var toRegion = seg.ToPlace?.Region?.Name ?? "";
+                var fromRegion = journey.Anchors.FirstOrDefault()?.RegionName ?? "";
+                var toRegion = journey.Anchors.LastOrDefault()?.RegionName ?? "";
                 var label = journey.TrailText ?? "Journey unavailable";
 
                 var durTxt = seg.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
                 var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
 
-                var startLat = journey.Anchors.FirstOrDefault()?.Location?.Y;
-                var startLon = journey.Anchors.FirstOrDefault()?.Location?.X;
-                var endLat = journey.Anchors.LastOrDefault()?.Location?.Y;
-                var endLon = journey.Anchors.LastOrDefault()?.Location?.X;
                 var wkt = journey.RouteWkt;
                 <text>
                     <li class="list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2 segment-list-item-view"
-                        title="Click to view the route"
+                        @if (!string.IsNullOrEmpty(wkt))
+                        {
+                        <text> title="Click to view the route" </text>
+                        }
                         data-segment-id="@(seg?.Id)"
                         data-from-place-name="@fromName"
                         data-from-placeregion-name="@fromRegion"
@@ -55,22 +54,6 @@
                         data-transport-mode="@seg?.Mode"
                         data-estimated-distance="@seg?.EstimatedDistanceKm"
                         data-estimated-duration="@seg?.EstimatedDuration.FormatDuration()"
-                        @if (startLat is not null)
-                        {
-                        <text> data-from-lat="@startLat" </text>
-                        }
-                        @if (startLon is not null)
-                        {
-                        <text> data-from-lon="@startLon" </text>
-                        }
-                        @if (endLat is not null)
-                        {
-                        <text> data-to-lat="@endLat" </text>
-                        }
-                        @if (endLon is not null)
-                        {
-                        <text> data-to-lon="@endLon" </text>
-                        }
                         @if (!string.IsNullOrEmpty(wkt))
                         {
                         <text> data-route-wkt="@wkt" </text>
@@ -102,10 +85,13 @@
                             </div>
                         </div>
 
-                        <input type="checkbox"
-                               class="form-check-input segment-toggle ms-2"
-                               checked
-                               title="Show/Hide this segment on map"/>
+                        @if (!string.IsNullOrEmpty(wkt))
+                        {
+                            <input type="checkbox"
+                                   class="form-check-input segment-toggle ms-2"
+                                   checked
+                                   title="Show/Hide this segment on map"/>
+                        }
                     </li>
                 </text>
             }

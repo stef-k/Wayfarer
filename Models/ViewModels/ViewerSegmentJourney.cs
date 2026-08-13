@@ -3,7 +3,12 @@ using NetTopologySuite.Geometries;
 namespace Wayfarer.Models.ViewModels;
 
 /// <summary>Describes one authorized saved-Place position in a viewer Segment journey.</summary>
-public sealed record ViewerJourneyAnchor(string Role, Guid? PlaceId, string DisplayName, Point? Location);
+public sealed record ViewerJourneyAnchor(
+    string Role,
+    Guid? PlaceId,
+    string DisplayName,
+    string? RegionName,
+    Point? Location);
 
 /// <summary>Contains presentation-only Segment anchors, safe route geometry, and neutral degradation.</summary>
 public sealed record ViewerSegmentJourney(
@@ -26,7 +31,7 @@ public static class ViewerSegmentJourneyResolver
     private const double AnchorTolerance = 0.0000001;
 
     /// <summary>Resolves authorized Segment state without repairing malformed or unloaded data.</summary>
-    public static ViewerSegmentJourney Resolve(Segment segment, bool waypointsLoaded)
+    public static ViewerSegmentJourney Resolve(Segment segment, Guid authorizedTripId, bool waypointsLoaded)
     {
         if (!waypointsLoaded)
         {
@@ -41,11 +46,11 @@ public static class ViewerSegmentJourneyResolver
 
         var anchors = new List<ViewerJourneyAnchor>(orderedWaypoints.Length + 2)
         {
-            Anchor("Start", segment.FromPlaceId, segment.FromPlace)
+            Anchor("Start", segment.FromPlaceId, segment.FromPlace, authorizedTripId)
         };
         anchors.AddRange(orderedWaypoints.Select((waypoint, position) =>
-            Anchor($"Via {position + 1}", waypoint.PlaceId, waypoint.Place)));
-        anchors.Add(Anchor("End", segment.ToPlaceId, segment.ToPlace));
+            Anchor($"Via {position + 1}", waypoint.PlaceId, waypoint.Place, authorizedTripId)));
+        anchors.Add(Anchor("End", segment.ToPlaceId, segment.ToPlace, authorizedTripId));
 
         var identities = anchors.Select(anchor => anchor.PlaceId).ToArray();
         var allowedClosedLoop = identities.Length >= 2 && identities[0].HasValue && identities[0] == identities[^1];
@@ -76,12 +81,16 @@ public static class ViewerSegmentJourneyResolver
     }
 
     /// <summary>Builds one neutral anchor without inventing missing identity, names, or coordinates.</summary>
-    private static ViewerJourneyAnchor Anchor(string role, Guid? placeId, Place? place)
+    private static ViewerJourneyAnchor Anchor(string role, Guid? placeId, Place? place, Guid authorizedTripId)
     {
-        var displayName = place == null
+        var authorizedPlace = place != null && placeId == place.Id && place.Region?.TripId == authorizedTripId
+            ? place
+            : null;
+        var displayName = authorizedPlace == null
             ? role == "Start" || role == "End" ? "Unavailable place" : "Unavailable intermediate place"
-            : string.IsNullOrWhiteSpace(place.Name) ? "Unnamed place" : place.Name.Trim();
-        return new(role, place?.Id, displayName, IsValidLocation(place?.Location) ? place!.Location : null);
+            : string.IsNullOrWhiteSpace(authorizedPlace.Name) ? "Unnamed place" : authorizedPlace.Name.Trim();
+        return new(role, authorizedPlace?.Id, displayName, authorizedPlace?.Region?.Name,
+            IsValidLocation(authorizedPlace?.Location) ? authorizedPlace!.Location : null);
     }
 
     /// <summary>Accepts custom geometry only when every semantic anchor mapping remains authoritative.</summary>
