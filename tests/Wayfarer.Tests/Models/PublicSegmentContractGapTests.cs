@@ -93,6 +93,24 @@ public sealed class PublicSegmentContractGapTests : TestBase
     }
 
     [Fact]
+    public void CustomWaypointRoute_RejectsContradictoryWaypointIndex()
+    {
+        var db = CreateDbContext();
+        var geometry = new LineString(
+        [
+            new Coordinate(23.72, 37.98),
+            new Coordinate(23.73, 37.99),
+            new Coordinate(23.74, 38.0)
+        ]) { SRID = 4326 };
+        var segment = LoadJourney(db, geometry, routeVertexIndex: null);
+
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.Null(resolution.Segment);
+        Assert.Equal(PublicSegmentFailure.MalformedState, resolution.Failure);
+    }
+
+    [Fact]
     public void LegacyFallback_RemainsNullWithEmptyWaypoints()
     {
         var db = CreateDbContext();
