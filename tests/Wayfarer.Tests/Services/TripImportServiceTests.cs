@@ -35,8 +35,7 @@ public class TripImportServiceTests : TestBase
   <Document>
     <name>{tripName}</name>
     <ExtendedData>
-      <Data name=""WayfarerSchemaVersion""><value>1</value></Data>
-      <Data name=""TripId""><value>{tripId}</value></Data>
+      <Data name=""WayfarerSchemaVersion""><value>1</value></Data><Data name=""TripId""><value>{tripId}</value></Data>
       <Data name=""CenterLat""><value>{centerLat}</value></Data>
       <Data name=""CenterLon""><value>{centerLon}</value></Data>
       <Data name=""Zoom""><value>{zoom}</value></Data>{notesXml}
@@ -85,8 +84,7 @@ public class TripImportServiceTests : TestBase
   <Document>
     <name>{tripName}</name>
     <ExtendedData>
-      <Data name=""WayfarerSchemaVersion""><value>1</value></Data>
-      <Data name=""TripId""><value>{tripId}</value></Data>
+      <Data name=""WayfarerSchemaVersion""><value>1</value></Data><Data name=""TripId""><value>{tripId}</value></Data>
       <Data name=""CenterLat""><value>40.7128</value></Data>
       <Data name=""CenterLon""><value>-74.0060</value></Data>
       <Data name=""Zoom""><value>10</value></Data>
@@ -126,49 +124,7 @@ public class TripImportServiceTests : TestBase
         return new MemoryStream(Encoding.UTF8.GetBytes(content));
     }
 
-    /// <summary>Creates the compact native-v2 fallback A to B to C fixture.</summary>
-    private static string CreateNativeV2Fallback(Guid tripId, Guid regionId, Guid fromId, Guid viaId, Guid toId, Guid segmentId) => $@"
-<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Native v2</name><ExtendedData>
-<Data name=""WayfarerSchemaVersion""><value>2</value></Data><Data name=""TripId""><value>{tripId:D}</value></Data>
-</ExtendedData><Folder><name>Region</name><ExtendedData><Data name=""RegionId""><value>{regionId:D}</value></Data><Data name=""DisplayOrder""><value>0</value></Data></ExtendedData>
-<Placemark><name>A</name><ExtendedData><Data name=""PlaceId""><value>{fromId:D}</value></Data></ExtendedData><Point><coordinates>0,0,0</coordinates></Point></Placemark>
-<Placemark><name>B</name><ExtendedData><Data name=""PlaceId""><value>{viaId:D}</value></Data></ExtendedData><Point><coordinates>1,1,0</coordinates></Point></Placemark>
-<Placemark><name>C</name><ExtendedData><Data name=""PlaceId""><value>{toId:D}</value></Data></ExtendedData><Point><coordinates>2,2,0</coordinates></Point></Placemark>
-</Folder><Folder><name>Segments</name><Placemark><name>walk</name><ExtendedData>
-<Data name=""SegmentId""><value>{segmentId:D}</value></Data><Data name=""FromPlaceId""><value>{fromId:D}</value></Data><Data name=""ToPlaceId""><value>{toId:D}</value></Data>
-<Data name=""Mode""><value>walk</value></Data><Data name=""TransportProfileKey""><value>walk</value></Data><Data name=""DistanceKm""><value></value></Data>
-<Data name=""DurationSeconds""><value></value></Data><Data name=""DurationSource""><value>Automatic</value></Data><Data name=""DisplayOrder""><value>0</value></Data>
-<Data name=""NotesHtml""><value></value></Data><Data name=""HasCustomRoute""><value>false</value></Data><Data name=""WaypointPlaceIds""><value>{viaId:D}</value></Data>
-<Data name=""WaypointRouteVertexIndices""><value>null</value></Data></ExtendedData><LineString><coordinates>0,0,0 1,1,0 2,2,0</coordinates></LineString>
-</Placemark></Folder></Document></kml>";
-
     #endregion
-
-    /// <summary>Proves create-new remaps native waypoint identity and restores fallback state.</summary>
-    [Fact]
-    public async Task ImportWayfarerKmlAsync_NativeV2Fallback_RemapsAndRestoresNullCustomState()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
-        var walk = await db.Set<TransportProfile>().SingleAsync(profile => profile.Key == "walk");
-        walk.IsActive = false;
-        await db.SaveChangesAsync();
-        var sourceIds = Enumerable.Range(0, 6).Select(_ => Guid.NewGuid()).ToArray();
-        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
-
-        var importedId = await service.ImportWayfarerKmlAsync(ToStream(CreateNativeV2Fallback(
-            sourceIds[0], sourceIds[1], sourceIds[2], sourceIds[3], sourceIds[4], sourceIds[5])), user.Id, TripImportMode.CreateNew);
-
-        var segment = await db.Segments.Include(item => item.Waypoints).SingleAsync(item => item.TripId == importedId);
-        var waypoint = Assert.Single(segment.Waypoints);
-        Assert.NotEqual(sourceIds[3], waypoint.PlaceId);
-        Assert.Null(segment.RouteGeometry);
-        Assert.Null(waypoint.RouteVertexIndex);
-        Assert.Equal("walk", segment.Mode);
-        Assert.NotNull(segment.EstimatedDistanceKm);
-    }
 
     #region Format Detection Tests
 

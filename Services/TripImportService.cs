@@ -218,8 +218,8 @@ public class TripImportService : ITripImportService
                 target.UpdatedAt = DateTime.UtcNow;
                 target.Tags.Clear();
                 foreach (var tag in reconciledTags) target.Tags.Add(tag);
-                foreach (var region in mapped.Regions) target.Regions.Add(region);
-                foreach (var segment in mapped.Segments) target.Segments.Add(segment);
+                _dbContext.Regions.AddRange(mapped.Regions);
+                _dbContext.Segments.AddRange(mapped.Segments);
             }
 
             await _dbContext.SaveChangesAsync(cancellationToken);

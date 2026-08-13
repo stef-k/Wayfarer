@@ -29,6 +29,11 @@ public static class TripWayfarerKmlExporter
             ("CenterLon", Number(trip.CenterLon)),
             ("Zoom", Number(trip.Zoom)),
             ("Tags", string.Join(',', trip.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Slug))));
+        document.Add(trip.Regions.SelectMany(region => region.Places)
+            .Select(place => (place.IconName, place.MarkerColor)).Distinct()
+            .Select(icon => new XElement(Kml + "Style", new XAttribute("id", $"wf_{icon.IconName}_{icon.MarkerColor}"),
+                new XElement(Kml + "IconStyle", new XElement(Kml + "Icon",
+                    new XElement(Kml + "href", $"/icons/wayfarer-map-icons/dist/png/marker/{icon.MarkerColor}/{icon.IconName}.png"))))));
 
         foreach (var region in trip.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Id))
             document.Add(BuildRegion(region, trip.Id));
@@ -61,7 +66,8 @@ public static class TripWayfarerKmlExporter
 
     private static XElement BuildPlace(Place place, Guid regionId)
     {
-        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", place.Name));
+        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", place.Name),
+            new XElement(Kml + "styleUrl", $"#wf_{place.IconName}_{place.MarkerColor}"));
         AddData(placemark,
             ("PlaceId", GuidText(place.Id)), ("RegionId", GuidText(regionId)),
             ("DisplayOrder", Number(place.DisplayOrder)), ("NotesHtml", place.Notes ?? ""),
@@ -128,6 +134,9 @@ public static class TripWayfarerKmlExporter
             foreach (var place in region.Places)
                 if (!placeIds.Add(place.Id) || place.RegionId != Guid.Empty && place.RegionId != region.Id)
                     throw new InvalidOperationException("The Trip contains malformed Place identity state.");
+            if (region.Areas.Any(area => area.Id == Guid.Empty || area.RegionId != Guid.Empty && area.RegionId != region.Id
+                || area.Geometry is not { SRID: 4326, IsValid: true }))
+                throw new InvalidOperationException("The Trip contains malformed Area state.");
         }
         var segmentIds = new HashSet<Guid>();
         foreach (var segment in trip.Segments)
@@ -140,7 +149,37 @@ public static class TripWayfarerKmlExporter
                 throw new InvalidOperationException("Segment duration must use whole seconds.");
             if (segment.TransportProfileId.HasValue && segment.TransportProfile is null)
                 throw new InvalidOperationException("The Segment transport profile was not loaded.");
+            if (segment.TransportProfile is { } profile
+                && (profile.Key != TransportProfile.NormalizeKey(profile.Key)
+                    || TransportProfile.NormalizeKey(segment.Mode) != profile.Key))
+                throw new InvalidOperationException("Segment mode and transport profile key do not match.");
+            ValidateMeasurements(segment);
         }
+    }
+
+    private static void ValidateMeasurements(Segment segment)
+    {
+        var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
+        var route = segment.RouteGeometry ?? BuildFallback(segment, waypoints);
+        if (route is null)
+        {
+            if (segment.EstimatedDistanceKm.HasValue || segment.EstimatedDurationSource == EstimatedDurationSource.Automatic
+                && segment.EstimatedDuration.HasValue)
+                throw new InvalidOperationException("Unavailable route measurements must be empty.");
+            return;
+        }
+        var measurement = SegmentMeasurementCalculator.CalculateDistance(route.Coordinates);
+        if (segment.EstimatedDistanceKm != measurement.RoundedKilometres)
+            throw new InvalidOperationException("Segment distance is not canonical.");
+        if (segment.EstimatedDurationSource == EstimatedDurationSource.Manual)
+        {
+            if (!segment.EstimatedDuration.HasValue) throw new InvalidOperationException("Manual duration is required.");
+            return;
+        }
+        var speed = segment.TransportProfile?.PlanningSpeedKmh;
+        var expected = speed is > 0 ? SegmentMeasurementCalculator.CalculateAutomaticDuration(measurement.UnroundedMetres, speed.Value) : (TimeSpan?)null;
+        if (segment.EstimatedDuration != expected)
+            throw new InvalidOperationException("Automatic duration is not canonical.");
     }
 
     private static void AddData(XElement owner, params (string Name, string Value)[] values) =>

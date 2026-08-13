@@ -64,7 +64,7 @@ internal static class WayfarerKmlAggregateMapper
                     DisplayOrder = sourceArea.DisplayOrder,
                     Notes = sourceArea.Notes,
                     FillHex = sourceArea.FillHex,
-                    Geometry = Copy(sourceArea.Geometry)
+                    Geometry = Copy(sourceArea.Geometry) ?? throw new TripImportValidationException("Area geometry is required.")
                 });
         }
         if (source.Version == 1 && !trip.Regions.Any(region => region.Name == "Unassigned Places"))

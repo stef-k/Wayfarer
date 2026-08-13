@@ -189,7 +189,7 @@ public class TripExportServiceTests : TestBase
                 new Coordinate(-74.0060, 40.7128),
                 new Coordinate(-73.9855, 40.7580)
             }) { SRID = 4326 }
-        };
+        }; segment.EstimatedDistanceKm = SegmentMeasurementCalculator.CalculateDistance(segment.RouteGeometry.Coordinates).RoundedKilometres;
         trip.Regions = new List<Region> { region };
         trip.Segments = new List<Segment> { segment };
         trip.Tags = new List<Tag>();

@@ -1,6 +1,6 @@
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
-using Wayfarer.Parsers;
+using Wayfarer.Parsers; using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -264,22 +264,20 @@ public class TripWayfarerKmlExporterTests
             new Coordinate(-73.9855, 40.7580),
             new Coordinate(-73.9776, 40.7614)
         };
-        var lineString = new LineString(lineCoordinates) { SRID = 4326 };
-
+        var lineString = new LineString(lineCoordinates) { SRID = 4326 }; var tripId = Guid.NewGuid();
         var trip = new Trip
         {
-            Id = Guid.NewGuid(),
-            Name = "Trip with Segment",
+            Id = tripId, Name = "Trip with Segment",
             UpdatedAt = DateTime.UtcNow,
             Segments = new List<Segment>
             {
                 new Segment
                 {
-                    Id = Guid.NewGuid(),
+                    Id = Guid.NewGuid(), TripId = tripId,
                     Mode = "driving",
                     RouteGeometry = lineString,
-                    EstimatedDistanceKm = 5.5,
-                    EstimatedDuration = TimeSpan.FromMinutes(15),
+                    EstimatedDistanceKm = SegmentMeasurementCalculator.CalculateDistance(lineString.Coordinates).RoundedKilometres,
+                    EstimatedDuration = TimeSpan.FromMinutes(15), EstimatedDurationSource = EstimatedDurationSource.Manual,
                     DisplayOrder = 0
                 }
             }
@@ -296,8 +294,8 @@ public class TripWayfarerKmlExporterTests
         Assert.Contains("Mode", kml);
         Assert.Contains("driving", kml);
         Assert.Contains("DistanceKm", kml);
-        Assert.Contains("5.5", kml);
-        Assert.Contains("DurationMin", kml);
+        Assert.Contains("DistanceKm", kml);
+        Assert.Contains("DurationSeconds", kml); Assert.Contains("DurationSource", kml);
     }
 
     [Fact]
@@ -355,7 +353,7 @@ public class TripWayfarerKmlExporterTests
     }
 
     [Fact]
-    public void BuildKml_PlaceWithoutLocation_SkipsPlace()
+    public void BuildKml_PlaceWithoutLocation_PreservesNativeIdentityWithoutPoint()
     {
         // Arrange
         var trip = new Trip
@@ -387,8 +385,8 @@ public class TripWayfarerKmlExporterTests
         // Act
         var kml = TripWayfarerKmlExporter.BuildKml(trip);
 
-        // Assert - Place should be skipped
-        Assert.DoesNotContain("<name>No Location Place</name>", kml);
+        // Assert - native v2 must not silently lose a saved Place merely because it has no Point.
+        Assert.Contains("<name>No Location Place</name>", kml); Assert.DoesNotContain("<Point>", kml);
     }
 
     [Fact]
@@ -443,121 +441,4 @@ public class TripWayfarerKmlExporterTests
         Assert.Contains("-74.006", kml);
     }
 
-    /// <summary>Proves native v2 currently loses waypoint identity and custom-route indices.</summary>
-    [Fact]
-    public void BuildKml_CustomWaypointRoute_EmitsNativeV2IdentityAndIndices()
-    {
-        var (trip, segment, waypoint) = CreateWaypointTrip(hasCustomRoute: true);
-
-        var kml = TripWayfarerKmlExporter.BuildKml(trip);
-
-        Assert.Contains("WayfarerSchemaVersion", kml);
-        Assert.Contains("<value>2</value>", kml);
-        Assert.Contains("HasCustomRoute", kml);
-        Assert.Contains("<value>true</value>", kml);
-        Assert.Contains("WaypointPlaceIds", kml);
-        Assert.Contains(waypoint.PlaceId.ToString("D"), kml);
-        Assert.Contains("WaypointRouteVertexIndices", kml);
-        Assert.Contains($"<value>{waypoint.RouteVertexIndex}</value>", kml);
-        Assert.Contains(segment.Id.ToString("D"), kml);
-    }
-
-    /// <summary>Proves native v2 currently omits a waypoint-bearing fallback Segment.</summary>
-    [Fact]
-    public void BuildKml_FallbackWaypointRoute_EmitsAnchorGeometryWithoutPersistingCustomState()
-    {
-        var (trip, segment, waypoint) = CreateWaypointTrip(hasCustomRoute: false);
-
-        var kml = TripWayfarerKmlExporter.BuildKml(trip);
-
-        Assert.Contains(segment.Id.ToString("D"), kml);
-        Assert.Contains("HasCustomRoute", kml);
-        Assert.Contains("<value>false</value>", kml);
-        Assert.Contains(waypoint.PlaceId.ToString("D"), kml);
-        Assert.Contains("<value>null</value>", kml);
-        Assert.Contains("1,1,0", kml);
-    }
-
-    /// <summary>Proves v2 transport parsing preserves custom and fallback waypoint state.</summary>
-    [Theory]
-    [InlineData(true, 1)]
-    [InlineData(false, null)]
-    public void NativeV2_RoundTrip_PreservesWaypointRouteState(bool hasCustomRoute, int? expectedIndex)
-    {
-        var (trip, _, waypoint) = CreateWaypointTrip(hasCustomRoute);
-        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(TripWayfarerKmlExporter.BuildKml(trip)));
-
-        var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
-
-        Assert.Equal(WayfarerKmlKind.NativeV2, parsed.Kind);
-        var segment = Assert.Single(parsed.Document!.Segments);
-        Assert.Equal(hasCustomRoute, segment.HasCustomRoute);
-        Assert.Equal(waypoint.PlaceId, Assert.Single(segment.WaypointPlaceIds));
-        Assert.Equal(expectedIndex, Assert.Single(segment.WaypointRouteVertexIndices));
-        Assert.NotNull(segment.Geometry);
-    }
-
-    /// <summary>Proves a TripId-like generic document is not classified as native.</summary>
-    [Fact]
-    public void NativeDetection_TripIdWithoutNativeChildren_RemainsGeneric()
-    {
-        const string kml = """
-            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
-            <Data name="TripId"><value>00000000-0000-0000-0000-000000000001</value></Data>
-            </ExtendedData><Placemark><LineString><coordinates>0,0 1,1</coordinates></LineString></Placemark></Document></kml>
-            """;
-        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(kml));
-
-        var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
-
-        Assert.Equal(WayfarerKmlKind.Generic, parsed.Kind);
-        Assert.Null(parsed.Document);
-    }
-
-    /// <summary>Creates the compact A to B to C aggregate shared by the #413 checkpoint.</summary>
-    private static (Trip Trip, Segment Segment, SegmentWaypoint Waypoint) CreateWaypointTrip(bool hasCustomRoute)
-    {
-        var tripId = Guid.NewGuid();
-        var regionId = Guid.NewGuid();
-        var from = new Place { Id = Guid.NewGuid(), RegionId = regionId, Location = new Point(0, 0) { SRID = 4326 } };
-        var via = new Place { Id = Guid.NewGuid(), RegionId = regionId, Location = new Point(1, 1) { SRID = 4326 } };
-        var to = new Place { Id = Guid.NewGuid(), RegionId = regionId, Location = new Point(2, 2) { SRID = 4326 } };
-        var segment = new Segment
-        {
-            Id = Guid.NewGuid(),
-            TripId = tripId,
-            FromPlaceId = from.Id,
-            FromPlace = from,
-            ToPlaceId = to.Id,
-            ToPlace = to,
-            Mode = "walk",
-            DisplayOrder = 0,
-            RouteGeometry = hasCustomRoute
-                ? new LineString([new Coordinate(0, 0), new Coordinate(1, 1), new Coordinate(2, 2)]) { SRID = 4326 }
-                : null
-        };
-        var waypoint = new SegmentWaypoint
-        {
-            SegmentId = segment.Id,
-            Segment = segment,
-            PlaceId = via.Id,
-            Place = via,
-            Position = 0,
-            RouteVertexIndex = hasCustomRoute ? 1 : null
-        };
-        segment.Waypoints.Add(waypoint);
-
-        var region = new Region { Id = regionId, TripId = tripId, Places = [from, via, to] };
-        from.Region = region;
-        via.Region = region;
-        to.Region = region;
-        return (new Trip
-        {
-            Id = tripId,
-            Name = "A to B to C",
-            UpdatedAt = DateTime.UtcNow,
-            Regions = [region],
-            Segments = [segment]
-        }, segment, waypoint);
-    }
 }

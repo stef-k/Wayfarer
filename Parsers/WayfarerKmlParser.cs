@@ -153,7 +153,8 @@ public static class WayfarerKmlParser
                 DisplayOrder = place.DisplayOrder, Notes = place.Notes, IconName = place.IconName, MarkerColor = place.MarkerColor,
                 Address = place.Address, Location = place.Location }).ToList(),
             Areas = region.Areas.Select(area => new Area { Id = area.Id, RegionId = region.Id, Name = area.Name,
-                DisplayOrder = area.DisplayOrder, Notes = area.Notes, FillHex = area.FillHex, Geometry = area.Geometry }).ToList() }).ToList();
+                DisplayOrder = area.DisplayOrder, Notes = area.Notes, FillHex = area.FillHex,
+                Geometry = area.Geometry ?? throw new FormatException("Area geometry is required.") }).ToList() }).ToList();
         var places = trip.Regions.SelectMany(region => region.Places.Select(place => (region, place))).ToDictionary(item => item.place.Id);
         foreach (var (region, place) in places.Values) place.Region = region;
         trip.Segments = source.Segments.Select(segment => new Segment { Id = segment.Id, TripId = source.TripId,

@@ -436,7 +436,7 @@ public static partial class SegmentRouteReconciler
             .Where(place => place is not null)
             .Cast<Place>()
             .GroupBy(place => place.Id)
-            .ToDictionary(group => group.Key, group => group.Single());
+            .ToDictionary(group => group.Key, group => group.First());
         var proposal = new SegmentRouteProposal(
             segment.Id,
             segment.FromPlaceId,
