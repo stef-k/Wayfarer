@@ -364,6 +364,56 @@ public class TripControllerTests : TestBase
     }
 
     [Fact]
+    public async Task Clone_RemapWaypointAggregateAndDefensivelyCopiesGeometry()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var cloner = TestDataFixtures.CreateUser(id: "cloner");
+        db.Users.AddRange(owner, cloner);
+        var sourceTrip = TestDataFixtures.CreateTrip(owner, "Waypoint source", isPublic: true);
+        var region = new Region
+        {
+            Id = Guid.NewGuid(), TripId = sourceTrip.Id, UserId = owner.Id, Name = "Route"
+        };
+        var places = new[]
+        {
+            new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = owner.Id, Name = "A", Location = new Point(0, 0) { SRID = 4326 } },
+            new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = owner.Id, Name = "B", Location = new Point(1, 1) { SRID = 4326 } },
+            new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = owner.Id, Name = "C", Location = new Point(2, 2) { SRID = 4326 } }
+        };
+        region.Places = places.ToList();
+        var geometry = new LineString([new(0, 0), new(1, 1), new(2, 2)]) { SRID = 4326 };
+        var segment = new Segment
+        {
+            Id = Guid.NewGuid(), TripId = sourceTrip.Id, UserId = owner.Id, Mode = "walk",
+            FromPlaceId = places[0].Id, ToPlaceId = places[2].Id, RouteGeometry = geometry,
+            EstimatedDuration = TimeSpan.FromMinutes(7), EstimatedDurationSource = EstimatedDurationSource.Manual,
+            Waypoints = [new SegmentWaypoint { PlaceId = places[1].Id, Position = 0, RouteVertexIndex = 1 }]
+        };
+        sourceTrip.Regions = [region];
+        sourceTrip.Segments = [segment];
+        db.Trips.Add(sourceTrip);
+        await db.SaveChangesAsync();
+
+        var controller = BuildController(db);
+        ConfigureControllerWithUser(controller, cloner.Id);
+        await controller.Clone(sourceTrip.Id);
+
+        var clone = await db.Trips.Include(t => t.Regions!).ThenInclude(r => r.Places)
+            .Include(t => t.Segments).ThenInclude(s => s.Waypoints)
+            .SingleAsync(t => t.UserId == cloner.Id);
+        var clonedSegment = Assert.Single(clone.Segments);
+        var clonedWaypoint = Assert.Single(clonedSegment.Waypoints);
+        var clonedPlaces = clone.Regions.SelectMany(r => r.Places).ToDictionary(p => p.Name);
+        Assert.Equal(clonedPlaces["A"].Id, clonedSegment.FromPlaceId);
+        Assert.Equal(clonedPlaces["B"].Id, clonedWaypoint.PlaceId);
+        Assert.Equal(clonedPlaces["C"].Id, clonedSegment.ToPlaceId);
+        Assert.Equal(0, clonedWaypoint.Position);
+        Assert.Equal(1, clonedWaypoint.RouteVertexIndex);
+        Assert.NotSame(geometry, clonedSegment.RouteGeometry);
+    }
+
+    [Fact]
     public async Task Clone_ClonesTagsFromSourceTrip()
     {
         var db = CreateDbContext();
@@ -543,5 +593,30 @@ public class TripControllerTests : TestBase
         // Assert: immediate warmup scheduled for the cloned trip (not the source)
         warmupMock.Verify(w => w.ScheduleWarmupAsync(
             It.Is<Guid>(id => id != sourceTrip.Id), true), Times.Once);
+    }
+
+    [Fact]
+    public async Task Clone_WarmupFailureDoesNotReportCommittedCloneAsFailed()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var cloner = TestDataFixtures.CreateUser(id: "cloner");
+        db.Users.AddRange(owner, cloner);
+        var sourceTrip = TestDataFixtures.CreateTrip(owner, "Warmup source", isPublic: true);
+        sourceTrip.CoverImageUrl = "https://example.com/cover.jpg";
+        db.Trips.Add(sourceTrip);
+        await db.SaveChangesAsync();
+        var warmup = new Mock<ICacheWarmupScheduler>();
+        warmup.Setup(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), true))
+            .ThrowsAsync(new InvalidOperationException("warmup unavailable"));
+        var controller = BuildControllerWithWarmupMock(db, cloner.Id, warmup);
+
+        var result = await controller.Clone(sourceTrip.Id);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        var clone = await db.Trips.SingleAsync(t => t.UserId == cloner.Id);
+        Assert.Equal("Edit", redirect.ActionName);
+        Assert.Equal(clone.Id, redirect.RouteValues!["id"]);
+        Assert.Contains("success", controller.TempData["AlertType"]?.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 }

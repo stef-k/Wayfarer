@@ -24,6 +24,7 @@ public class TripsController : BaseApiController
     private readonly IApplicationSettingsService _settingsService;
     private readonly ICacheWarmupScheduler _warmupScheduler;
     private readonly PlaceRegionLifecycleService _lifecycle;
+    private readonly TripCloneCoordinator _tripCloneCoordinator;
 
     /// <summary>
     /// Initializes a new instance of <see cref="TripsController"/>.
@@ -34,7 +35,8 @@ public class TripsController : BaseApiController
         ITripTagService tripTagService,
         IApplicationSettingsService settingsService,
         ICacheWarmupScheduler warmupScheduler,
-        PlaceRegionLifecycleService? lifecycle = null)
+        PlaceRegionLifecycleService? lifecycle = null,
+        TripCloneCoordinator? tripCloneCoordinator = null)
         : base(dbContext, logger)
     {
         _tripTagService = tripTagService;
@@ -43,6 +45,7 @@ public class TripsController : BaseApiController
         _lifecycle = lifecycle ?? new PlaceRegionLifecycleService(
             dbContext,
             new LifecycleDependencyConfirmation(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()));
+        _tripCloneCoordinator = tripCloneCoordinator ?? new TripCloneCoordinator(dbContext);
     }
 
     /// <summary>
@@ -1427,144 +1430,22 @@ return Ok(dto);
         if (user == null)
             return Unauthorized("Missing or invalid API token.");
 
-        // Load source trip with all related data
-        var sourceTrip = await _dbContext.Trips
-            .Include(t => t.Regions!).ThenInclude(r => r.Places)
-            .Include(t => t.Regions!).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments)
-            .Include(t => t.Tags)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        if (sourceTrip == null)
-            return NotFound(new { error = "Trip not found" });
-
-        // Validate: only public trips can be cloned
-        if (!sourceTrip.IsPublic)
-            return BadRequest(new { error = "This trip is not public and cannot be cloned" });
-
-        // Validate: don't allow cloning your own trip
-        if (sourceTrip.UserId == user.Id)
-            return BadRequest(new { error = "You already own this trip" });
-
         try
         {
-            // Create cloned trip
-            var clonedTrip = new Trip
-            {
-                Id = Guid.NewGuid(),
-                UserId = user.Id,
-                Name = $"{sourceTrip.Name} (Copy)",
-                Notes = sourceTrip.Notes,
-                IsPublic = false, // Start as private
-                CenterLat = sourceTrip.CenterLat,
-                CenterLon = sourceTrip.CenterLon,
-                Zoom = sourceTrip.Zoom,
-                CoverImageUrl = sourceTrip.CoverImageUrl,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            // Track old -> new ID mappings for places (needed for segments)
-            var placeIdMapping = new Dictionary<Guid, Guid>();
-
-            // Clone regions with places and areas
-            if (sourceTrip.Regions != null)
-            {
-                foreach (var sourceRegion in sourceTrip.Regions)
-                {
-                    var clonedRegion = new Region
-                    {
-                        Id = Guid.NewGuid(),
-                        UserId = user.Id,
-                        TripId = clonedTrip.Id,
-                        Name = sourceRegion.Name,
-                        Notes = sourceRegion.Notes,
-                        DisplayOrder = sourceRegion.DisplayOrder,
-                        CoverImageUrl = sourceRegion.CoverImageUrl,
-                        Center = sourceRegion.Center
-                    };
-
-                    // Clone places within this region
-                    if (sourceRegion.Places != null)
-                    {
-                        foreach (var sourcePlace in sourceRegion.Places)
-                        {
-                            var newPlaceId = Guid.NewGuid();
-                            placeIdMapping[sourcePlace.Id] = newPlaceId;
-
-                            var clonedPlace = new Place
-                            {
-                                Id = newPlaceId,
-                                UserId = user.Id,
-                                RegionId = clonedRegion.Id,
-                                Name = sourcePlace.Name,
-                                Location = sourcePlace.Location,
-                                Notes = sourcePlace.Notes,
-                                DisplayOrder = sourcePlace.DisplayOrder,
-                                IconName = sourcePlace.IconName,
-                                MarkerColor = sourcePlace.MarkerColor,
-                                Address = sourcePlace.Address
-                            };
-
-                            clonedRegion.Places!.Add(clonedPlace);
-                        }
-                    }
-
-                    // Clone areas within this region
-                    if (sourceRegion.Areas != null)
-                    {
-                        foreach (var sourceArea in sourceRegion.Areas)
-                        {
-                            var clonedArea = new Area
-                            {
-                                Id = Guid.NewGuid(),
-                                RegionId = clonedRegion.Id,
-                                Name = sourceArea.Name,
-                                Notes = sourceArea.Notes,
-                                DisplayOrder = sourceArea.DisplayOrder,
-                                FillHex = sourceArea.FillHex,
-                                Geometry = sourceArea.Geometry
-                            };
-
-                            clonedRegion.Areas.Add(clonedArea);
-                        }
-                    }
-
-                    clonedTrip.Regions!.Add(clonedRegion);
-                }
-            }
-
-            // Clone segments with updated place references
-            if (sourceTrip.Segments != null)
-            {
-                foreach (var sourceSegment in sourceTrip.Segments)
-                {
-                    var clonedSegment = SegmentMeasurementWriterReconciler.CreateClone(
-                        sourceSegment, clonedTrip.Id, user.Id, placeIdMapping);
-
-                    clonedTrip.Segments!.Add(clonedSegment);
-                }
-            }
-
-            // Clone tags (tags are shared entities, so we just add the same tag references)
-            if (sourceTrip.Tags != null)
-            {
-                foreach (var tag in sourceTrip.Tags)
-                {
-                    clonedTrip.Tags.Add(tag);
-                }
-            }
-
-            // Save cloned trip to database
-            await SegmentMeasurementWriterReconciler.PersistCloneAsync(_dbContext, clonedTrip);
-
+            var clone = await _tripCloneCoordinator.CloneAsync(id, user.Id);
+            if (clone.Status == TripCloneStatus.NotFound)
+                return NotFound(new { error = "Trip not found" });
+            if (clone.Status == TripCloneStatus.NotPublic)
+                return BadRequest(new { error = "This trip is not public and cannot be cloned" });
+            if (clone.Status == TripCloneStatus.AlreadyOwned)
+                return BadRequest(new { error = "You already own this trip" });
             _logger.LogDebug("User {UserId} cloned trip {SourceTripId} to new trip {ClonedTripId}",
-                user.Id, sourceTrip.Id, clonedTrip.Id);
+                user.Id, id, clone.ClonedTripId);
 
             return Ok(new
             {
-                clonedTripId = clonedTrip.Id,
-                message = $"Trip '{sourceTrip.Name}' has been cloned successfully"
+                clonedTripId = clone.ClonedTripId,
+                message = $"Trip '{clone.SourceTripName}' has been cloned successfully"
             });
         }
         catch (Exception ex)
