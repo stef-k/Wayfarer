@@ -311,7 +311,7 @@
   }
 
   .segment-route-point-list li {
-    grid-template-columns: minmax(10rem, 1fr) repeat(2, minmax(7rem, 0.7fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -332,10 +332,6 @@
     padding-right: 0.75rem;
   }
 
-  /* Stack active route-point fields and actions so long anchors cannot widen the mobile page. */
-  .segment-route-point-list li {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 @media (max-width: 640px) {
