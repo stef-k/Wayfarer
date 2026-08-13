@@ -9,6 +9,36 @@ namespace Wayfarer.Tests.Models;
 public sealed class ViewerSegmentJourneyResolverTests
 {
     [Theory]
+    [InlineData("from")]
+    [InlineData("to")]
+    [InlineData("waypoint")]
+    public void Resolve_RejectsForeignTripAnchorsWithoutDisclosingThem(string foreignAnchor)
+    {
+        var segment = SegmentWithWaypoints(1);
+        var foreignTripId = Guid.NewGuid();
+        var foreignPlace = foreignAnchor switch
+        {
+            "from" => segment.FromPlace!,
+            "to" => segment.ToPlace!,
+            _ => Assert.Single(segment.Waypoints).Place
+        };
+        foreignPlace.Region!.TripId = foreignTripId;
+
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, waypointsLoaded: true);
+
+        var foreign = result.Anchors.Single(anchor => anchor.Role == (foreignAnchor switch
+        {
+            "from" => "Start",
+            "to" => "End",
+            _ => "Via 1"
+        }));
+        Assert.Null(foreign.PlaceId);
+        Assert.DoesNotContain(foreignPlace.Name, foreign.DisplayName, StringComparison.Ordinal);
+        Assert.Null(foreign.Location);
+        Assert.Null(result.RouteWkt);
+    }
+
+    [Theory]
     [InlineData(0, "A → C", 2)]
     [InlineData(1, "A → B1 → C", 3)]
     [InlineData(3, "A → B1 → B2 → B3 → C", 5)]
@@ -122,12 +152,15 @@ public sealed class ViewerSegmentJourneyResolverTests
     {
         var segment = new Segment { Id = Guid.NewGuid(), UserId = "owner", TripId = Guid.NewGuid() };
         segment.FromPlace = Place("A", 1, 1);
+        segment.FromPlace.Region!.TripId = segment.TripId;
         segment.FromPlaceId = segment.FromPlace.Id;
         segment.ToPlace = Place("C", 3, 3);
+        segment.ToPlace.Region!.TripId = segment.TripId;
         segment.ToPlaceId = segment.ToPlace.Id;
         for (var position = 0; position < waypointCount; position++)
         {
             var place = Place($"B{position + 1}", 2 + position * 0.1, 2 + position * 0.1);
+            place.Region!.TripId = segment.TripId;
             segment.Waypoints.Add(new SegmentWaypoint
             {
                 Segment = segment, SegmentId = segment.Id, Place = place, PlaceId = place.Id, Position = position
@@ -138,8 +171,15 @@ public sealed class ViewerSegmentJourneyResolverTests
     }
 
     /// <summary>Builds one saved Place with a valid WGS84 map location.</summary>
-    private static Place Place(string name, double x, double y) =>
-        new() { Id = Guid.NewGuid(), UserId = "owner", RegionId = Guid.NewGuid(), Name = name, Location = new Point(x, y) { SRID = 4326 } };
+    private static Place Place(string name, double x, double y)
+    {
+        var region = new Region { Id = Guid.NewGuid(), TripId = Guid.Empty, UserId = "owner", Name = $"{name} region" };
+        return new Place
+        {
+            Id = Guid.NewGuid(), UserId = "owner", Region = region, RegionId = region.Id, Name = name,
+            Location = new Point(x, y) { SRID = 4326 }
+        };
+    }
 
     /// <summary>Builds custom route geometry without invoking mutation responsibilities.</summary>
     private static LineString Line(params (double X, double Y)[] points) =>

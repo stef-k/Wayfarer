@@ -87,6 +87,49 @@ public sealed class TripViewerItineraryRenderingTests
     }
 
     [Fact]
+    public async Task PublicViewerFailsClosedForForeignWaypointAndUnavailableRouteInteraction()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-foreign-waypoint-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            var foreignRegion = new Region
+            {
+                Id = Guid.NewGuid(), TripId = Guid.NewGuid(), UserId = "foreign", Name = "Foreign private region"
+            };
+            var foreign = new Place
+            {
+                Id = Guid.NewGuid(), Region = foreignRegion, RegionId = foreignRegion.Id, UserId = "foreign",
+                Name = "Foreign private waypoint", Location = new Point(9, 9) { SRID = 4326 }
+            };
+            var waypoint = Assert.Single(trip.Segments).Waypoints.Single();
+            waypoint.Place = foreign;
+            waypoint.PlaceId = foreign.Id;
+
+            var html = await RenderViewerAsync(scope.ServiceProvider, trip);
+            var document = await new HtmlParser().ParseDocumentAsync(html);
+            var segment = Assert.Single(document.QuerySelectorAll(".segment-list-item"));
+
+            Assert.DoesNotContain(foreign.Id.ToString(), html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(foreign.Name, html, StringComparison.Ordinal);
+            Assert.Null(segment.GetAttribute("data-route-wkt"));
+            Assert.Null(segment.GetAttribute("title"));
+            Assert.Empty(segment.QuerySelectorAll(".segment-toggle:not([disabled])"));
+            Assert.Empty(segment.QuerySelectorAll($".segment-journey-place[data-place-id='{foreign.Id}']"));
+            Assert.Contains("Route line is unavailable", segment.TextContent);
+            Assert.Contains("Unavailable intermediate place", document.QuerySelector("#readable-modal-body")?.TextContent);
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PdfRendersTheSameOrderedWaypointJourney()
     {
         var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-waypoint-pdf-render-{Guid.NewGuid():N}");
@@ -112,6 +155,49 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Contains("A → B → C", document.QuerySelector("#segments_all")?.TextContent);
             Assert.Equal(["Start: A", "Via 1: B", "End: C"],
                 document.QuerySelectorAll("#segments_all .segment-journey-role").Select(item => NormalizeText(item.TextContent)));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PdfDoesNotExposeForeignWaypoint()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-foreign-waypoint-pdf-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
+            var foreignRegion = new Region
+            {
+                Id = Guid.NewGuid(), TripId = Guid.NewGuid(), UserId = "foreign", Name = "Foreign PDF region"
+            };
+            var foreign = new Place
+            {
+                Id = Guid.NewGuid(), Region = foreignRegion, RegionId = foreignRegion.Id, UserId = "foreign",
+                Name = "Foreign PDF waypoint", Location = new Point(9, 9) { SRID = 4326 }
+            };
+            var waypoint = Assert.Single(trip.Segments).Waypoints.Single();
+            waypoint.Place = foreign;
+            waypoint.PlaceId = foreign.Id;
+            var model = new TripPrintViewModel
+            {
+                Trip = trip, Regions = trip.Regions.ToList(),
+                Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList()
+            };
+
+            var html = await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model);
+
+            Assert.DoesNotContain(foreign.Id.ToString(), html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(foreign.Name, html, StringComparison.Ordinal);
+            Assert.Contains("Unavailable intermediate place", html);
+            Assert.Contains("Route line is unavailable", html);
         }
         finally
         {
