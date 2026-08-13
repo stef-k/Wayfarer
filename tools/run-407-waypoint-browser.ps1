@@ -23,7 +23,8 @@ $ownedVariables = @(
     'WAYFARER_TEST_POSTGRES_CONNECTION', 'ConnectionStrings__DefaultConnection', 'ASPNETCORE_ENVIRONMENT',
     'ASPNETCORE_URLS', 'WAYFARER_E2E_BASE_URL', 'WAYFARER_E2E_USERNAME', 'WAYFARER_E2E_PASSWORD',
     'WAYFARER_E2E_TRIP_ID', 'WAYFARER_E2E_WAYPOINT_FIXTURE', 'WAYFARER_E2E_WAYPOINT_HELPER',
-    'PLAYWRIGHT_BROWSERS_PATH', 'Logging__LogFilePath__Default')
+    'WAYFARER_E2E_PG_CTL', 'WAYFARER_E2E_POSTGRES_DATA', 'WAYFARER_E2E_POSTGRES_LOG',
+    'WAYFARER_E2E_POSTGRES_PORT', 'PLAYWRIGHT_BROWSERS_PATH', 'Logging__LogFilePath__Default')
 $originalVariables = @{}
 foreach ($name in $ownedVariables) { $originalVariables[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 
@@ -100,9 +101,13 @@ try {
         $env:WAYFARER_E2E_TRIP_ID = [string]$manifest.tripId
         $env:WAYFARER_E2E_WAYPOINT_FIXTURE = $manifestPath
         $env:WAYFARER_E2E_WAYPOINT_HELPER = $helper
+        $env:WAYFARER_E2E_PG_CTL = (Join-Path $postgresBin 'pg_ctl.exe')
+        $env:WAYFARER_E2E_POSTGRES_DATA = $databaseDirectory
+        $env:WAYFARER_E2E_POSTGRES_LOG = $databaseLog
+        $env:WAYFARER_E2E_POSTGRES_PORT = "$databasePort"
         $hostProcess = Start-Process -FilePath 'dotnet.exe' -ArgumentList (Join-Path $publishDirectory 'Wayfarer.dll') -WorkingDirectory $publishDirectory -PassThru -WindowStyle Hidden -RedirectStandardOutput $hostLog -RedirectStandardError $hostErrorLog
         Wait-Port $hostPort $true
-        Invoke-Checked 'npx.cmd' @('playwright', 'test', 'tests/e2e/trip-editor/tripEditorWaypointAggregateContracts.spec.ts', '--config=playwright.config.ts', '--project=chromium', '--workers=1', '--retries=0', "--output=$(Join-Path $runRoot 'playwright')", '--reporter=line')
+        Invoke-Checked 'npx.cmd' @('playwright', 'test', 'tests/e2e/trip-editor/tripEditorWaypointAggregateContracts.spec.ts', 'tests/e2e/trip-editor/tripEditorRouteWorkCompletion.spec.ts', '--config=playwright.config.ts', '--project=chromium', '--workers=1', '--retries=0', "--output=$(Join-Path $runRoot 'playwright')", '--reporter=line')
     } finally {
         Pop-Location
     }
