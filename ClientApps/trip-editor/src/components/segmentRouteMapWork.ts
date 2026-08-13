@@ -1,115 +1,162 @@
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkOptions } from '../map/leafletAdapter';
-import type { EditorSegmentDraft, EditorTripState, GeoJsonLineString } from '../types';
+import type { EditorSegmentDraft, EditorTripState } from '../types';
+import {
+  clearAnonymousNodes,
+  cloneSegmentRouteWorkState,
+  constructSegmentRouteWorkState,
+  insertAnonymousNode,
+  moveAnonymousNode,
+  projectSegmentRouteWork,
+  removeAnonymousNode,
+  type RouteCoordinate,
+  type SegmentRouteWorkNode,
+  type SegmentRouteWorkState
+} from './segmentRouteWorkState.ts';
 
 export type SegmentRouteEditor = {
-  setSegmentRouteWorkRoute: (route: GeoJsonLineString | null) => void;
+  setSegmentRouteWorkState: (state: SegmentRouteWorkState) => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
 };
 
-type SegmentRouteSnapshot = {
-  route: GeoJsonLineString | null;
-  workBaseline: GeoJsonLineString | null;
+type SegmentRouteDraftSnapshot = {
+  route: EditorSegmentDraft['route'];
+  waypointRouteVertexIndices: Array<number | null>;
 };
 
-export type SegmentRouteMapWorkState = {
-  route: GeoJsonLineString | null;
+export type SegmentRouteMapWorkLifecycleState = {
+  work: SegmentRouteWorkState | null;
   stopEdit: (() => void) | null;
 };
 
-/// Starts route-only map-work for the active segment draft.
+export type SegmentRoutePointEditorController = {
+  nodes: () => SegmentRouteWorkNode[];
+  insertAfter: (key: string) => string | null;
+  move: (key: string, coordinate: RouteCoordinate) => boolean;
+  remove: (key: string) => boolean;
+};
+
+/** Builds the unsaved ordered-anchor fallback used by route summaries. */
+export function fallbackRoute(draft: Pick<EditorSegmentDraft, 'fromPlaceId' | 'toPlaceId' | 'waypointRows'>, state: EditorTripState): EditorSegmentDraft['route'] {
+  const placeIds = [draft.fromPlaceId, ...draft.waypointRows.map(row => row.placeId), draft.toPlaceId];
+  if (placeIds.length < 2 || placeIds.some(id => !id || !state.placesById[id]?.location)) return null;
+  return {
+    type: 'LineString',
+    coordinates: placeIds.map(id => {
+      const location = state.placesById[id!].location!;
+      return [location.longitude, location.latitude];
+    })
+  };
+}
+
+/** Starts anchor-aware W while retaining an exact immutable pre-work D snapshot. */
 export function beginSegmentRouteMapWork(
   identity: string,
   draft: EditorSegmentDraft,
   editorSurface: EditorSurfaceController,
   routeEditor: SegmentRouteEditor,
-  state: SegmentRouteMapWorkState,
-  editorState: EditorTripState
-): void {
-  const snapshot = snapshotSegmentRoute(draft, editorState);
-  state.route = cloneGeometry(snapshot.workBaseline);
-  stopSegmentRouteEdit(state);
-  state.stopEdit = routeEditor.startSegmentRouteWork({
+  lifecycle: SegmentRouteMapWorkLifecycleState,
+  editorState: EditorTripState,
+  restoreFocus: () => void
+): string | null {
+  const constructed = constructSegmentRouteWorkState(draft, editorState);
+  if (!constructed.ok) return constructed.message;
+
+  const draftSnapshot = snapshotDraft(draft);
+  const initialWork = cloneSegmentRouteWorkState(constructed.state);
+  stopSegmentRouteEdit(lifecycle);
+  lifecycle.work = cloneSegmentRouteWorkState(constructed.state);
+
+  const sync = (): void => {
+    if (lifecycle.work) routeEditor.setSegmentRouteWorkState(lifecycle.work);
+  };
+  const pointEditor: SegmentRoutePointEditorController = {
+    nodes: () => lifecycle.work?.nodes ?? [],
+    insertAfter: key => {
+      if (!lifecycle.work) return null;
+      const node = insertAnonymousNode(lifecycle.work, key);
+      sync();
+      return node?.key ?? null;
+    },
+    move: (key, coordinate) => {
+      if (!lifecycle.work || !moveAnonymousNode(lifecycle.work, key, coordinate)) return false;
+      sync();
+      return true;
+    },
+    remove: key => {
+      if (!lifecycle.work || !removeAnonymousNode(lifecycle.work, key)) return false;
+      sync();
+      return true;
+    }
+  };
+
+  lifecycle.stopEdit = routeEditor.startSegmentRouteWork({
     identity,
-    initialRoute: state.route,
-    initialRouteKind: draft.route === null ? 'fallback' : 'custom',
-    onChanged: route => {
-      state.route = cloneGeometry(route);
+    initialState: lifecycle.work,
+    onChanged: work => {
+      lifecycle.work = cloneSegmentRouteWorkState(work);
     }
   });
 
   const entered = editorSurface.enterMapWork({
-    modeName: 'Draw segment route',
-    instruction: 'Draw or edit one route polyline.',
-    statusText: () => segmentRouteStatus(state.route),
-    canFinish: () => hasValidRoute(state.route),
-    isDirty: () => !sameGeometry(state.route, snapshot.workBaseline),
-    snapshot: () => snapshot,
-    rollback: rollbackSnapshot => {
-      restoreSegmentRoute(draft, state, rollbackSnapshot as SegmentRouteSnapshot);
-    },
+    modeName: 'Edit segment route',
+    instruction: 'Saved Place anchors are fixed. Add, move, or remove anonymous route points.',
+    statusText: () => segmentRouteStatus(lifecycle.work),
+    canFinish: () => Boolean(lifecycle.work && projectSegmentRouteWork(lifecycle.work)),
+    isDirty: () => JSON.stringify(lifecycle.work) !== JSON.stringify(initialWork),
+    routePointEditor: pointEditor,
+    snapshot: () => draftSnapshot,
+    rollback: snapshot => restoreDraft(draft, snapshot as SegmentRouteDraftSnapshot),
     clear: () => {
-      state.route = null;
-      routeEditor.setSegmentRouteWorkRoute(null);
+      if (!lifecycle.work) return;
+      clearAnonymousNodes(lifecycle.work);
+      sync();
     },
     done: () => {
-      draft.route = sameGeometry(state.route, snapshot.workBaseline)
-        ? cloneGeometry(snapshot.route)
-        : cloneGeometry(state.route);
-      stopSegmentRouteEdit(state);
+      const projection = lifecycle.work ? projectSegmentRouteWork(lifecycle.work) : null;
+      if (!projection) return;
+      draft.route = clone(projection.route);
+      draft.waypointRouteVertexIndices = [...projection.waypointRouteVertexIndices];
+      draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = projection.waypointRouteVertexIndices[index] ?? null; });
+      stopSegmentRouteEdit(lifecycle);
+      queueMicrotask(restoreFocus);
     },
     cancel: () => {
-      stopSegmentRouteEdit(state);
+      stopSegmentRouteEdit(lifecycle);
+      queueMicrotask(restoreFocus);
     }
   });
   if (!entered) {
-    stopSegmentRouteEdit(state);
+    stopSegmentRouteEdit(lifecycle);
+    return 'Route work could not start because another map task is active.';
   }
+  return null;
 }
 
-/// Clears any active adapter-owned temporary route/listener.
-export function stopSegmentRouteEdit(state: SegmentRouteMapWorkState): void {
+/** Clears all adapter-owned route-work state and handlers. */
+export function stopSegmentRouteEdit(state: SegmentRouteMapWorkLifecycleState): void {
   state.stopEdit?.();
   state.stopEdit = null;
+  state.work = null;
 }
 
-export function fallbackRoute(draft: Pick<EditorSegmentDraft, 'fromPlaceId' | 'toPlaceId'>, state: EditorTripState): GeoJsonLineString | null {
-  const from = draft.fromPlaceId ? state.placesById[draft.fromPlaceId]?.location : null;
-  const to = draft.toPlaceId ? state.placesById[draft.toPlaceId]?.location : null;
-  return from && to ? { type: 'LineString', coordinates: [[from.longitude, from.latitude], [to.longitude, to.latitude]] } : null;
+function snapshotDraft(draft: EditorSegmentDraft): SegmentRouteDraftSnapshot {
+  return { route: clone(draft.route), waypointRouteVertexIndices: [...draft.waypointRouteVertexIndices] };
 }
 
-function snapshotSegmentRoute(draft: EditorSegmentDraft, state: EditorTripState): SegmentRouteSnapshot {
-  return {
-    route: cloneGeometry(draft.route),
-    workBaseline: cloneGeometry(draft.route ?? fallbackRoute(draft, state))
-  };
+function restoreDraft(draft: EditorSegmentDraft, snapshot: SegmentRouteDraftSnapshot): void {
+  draft.route = clone(snapshot.route);
+  draft.waypointRouteVertexIndices = [...snapshot.waypointRouteVertexIndices];
+  draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = snapshot.waypointRouteVertexIndices[index] ?? null; });
 }
 
-function restoreSegmentRoute(draft: EditorSegmentDraft, state: SegmentRouteMapWorkState, snapshot: SegmentRouteSnapshot): void {
-  draft.route = cloneGeometry(snapshot.route);
-  state.route = cloneGeometry(snapshot.route);
+function segmentRouteStatus(work: SegmentRouteWorkState | null): string {
+  if (!work) return 'Route work unavailable';
+  const anonymousCount = work.nodes.filter(node => node.kind === 'anonymous').length;
+  const status = work.cleared ? 'Fallback route pending' : work.origin === 'fallback' && !work.changedCustom ? 'Fallback route unchanged' : 'Custom route pending';
+  return `${status} · ${work.nodes.length} route points · ${anonymousCount} editable`;
 }
 
-function hasValidRoute(route: GeoJsonLineString | null): boolean {
-  return Boolean(route?.type === 'LineString' && route.coordinates.length >= 2 && route.coordinates.every(([longitude, latitude]) =>
-    Number.isFinite(longitude) &&
-    Number.isFinite(latitude) &&
-    longitude >= -180 &&
-    longitude <= 180 &&
-    latitude >= -90 &&
-    latitude <= 90));
-}
-
-function sameGeometry(left: GeoJsonLineString | null, right: GeoJsonLineString | null): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function segmentRouteStatus(route: GeoJsonLineString | null): string {
-  const points = route?.coordinates.length ?? 0;
-  return points >= 2 ? `Editing route · ${points} route points ready` : 'Editing route · no route ready';
-}
-
-function cloneGeometry<T>(geometry: T): T {
-  return geometry ? JSON.parse(JSON.stringify(geometry)) as T : geometry;
+function clone<T>(value: T): T {
+  return value ? JSON.parse(JSON.stringify(value)) as T : value;
 }

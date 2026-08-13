@@ -1,6 +1,7 @@
 import { computed, readonly, ref, type Ref } from 'vue';
 import { confirm } from './useConfirmDialog';
 import type { Guid } from '../types';
+import type { SegmentRoutePointEditorController } from '../components/segmentRouteMapWork';
 
 export type EditorSurfaceMode = 'docked' | 'expanded' | 'map-work';
 export type EditorTargetKind = 'metadata' | 'region' | 'place' | 'area' | 'segment';
@@ -29,6 +30,7 @@ export interface MapWorkOptions {
   canFinish?: () => boolean;
   isDirty?: () => boolean;
   clear?: () => void | Promise<void>;
+  routePointEditor?: SegmentRoutePointEditorController;
   snapshot: () => unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -44,6 +46,7 @@ interface ActiveMapWork {
   canFinish: () => boolean;
   isDirty: () => boolean;
   clear?: () => void | Promise<void>;
+  routePointEditor?: SegmentRoutePointEditorController;
   snapshot: unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -184,6 +187,7 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     canFinish: options.canFinish ?? (() => true),
     isDirty: options.isDirty ?? (() => true),
     clear: options.clear,
+    routePointEditor: options.routePointEditor,
     snapshot: options.snapshot(),
     rollback: options.rollback,
     done: options.done,

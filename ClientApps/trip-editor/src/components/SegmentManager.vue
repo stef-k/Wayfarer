@@ -8,7 +8,7 @@ import type { EditorMutationResult, EditorSegment, EditorSegmentConflict, Editor
 import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } from './regionPlaceEditorTargets';
 import { buildSegmentRequest, emptySegmentDraft, mapWaypointErrors, toSegmentDraft } from './regionPlaceDrafts';
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
-import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkState } from './segmentRouteMapWork';
+import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkLifecycleState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
 import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
 
@@ -51,7 +51,7 @@ const validationErrors = ref<Record<string, string[]>>({});
 const segmentConflict = ref<EditorSegmentConflict | null>(null);
 const saveError = ref<string | null>(null);
 const lastSavedAt = ref<string | null>(null);
-const routeMapWork = reactive<SegmentRouteMapWorkState>({ route: null, stopEdit: null });
+const routeMapWork = reactive<SegmentRouteMapWorkLifecycleState>({ work: null, stopEdit: null });
 const segmentEditorSurface = ref<{ focusNotes: () => void; focusRouteAction: () => boolean } | null>(null);
 let unregisterHandler: (() => void) | null = null;
 let sortable: { destroy: () => void } | null = null;
@@ -275,12 +275,25 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
 }
 
 function drawRoute(): void {
-  invokeSegmentRouteAction(draft, () =>
-    beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state));
+  invokeSegmentRouteAction(draft, () => {
+    const error = beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state, focusRouteAction);
+    if (!error) return;
+    saveError.value = error;
+    void nextTick(() => document.getElementById('segment-route-work-error')?.focus());
+  });
 }
 
 function clearRoute(): void {
-  invokeSegmentRouteAction(draft, () => { draft.route = null; });
+  invokeSegmentRouteAction(draft, () => {
+    draft.route = null;
+    draft.waypointRouteVertexIndices = draft.waypointRows.map(() => null);
+    draft.waypointRows.forEach(row => { row.routeVertexIndex = null; });
+  });
+}
+
+/** Returns focus to the route action after map-work teardown completes. */
+function focusRouteAction(): void {
+  void nextTick(() => segmentEditorSurface.value?.focusRouteAction());
 }
 
 function toggleVisibility(segment: EditorSegment): void {
@@ -532,7 +545,7 @@ function modeText(segment: EditorSegment): string {
       <h2>Segments</h2>
       <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
     </div>
-    <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
+    <div v-if="saveError" id="segment-route-work-error" class="trip-editor-form-error" role="alert" tabindex="-1">{{ saveError }}</div>
     <section v-if="segmentConflict" class="trip-editor-form-warning segment-conflict" aria-labelledby="segment-conflict-heading">
       <h3 id="segment-conflict-heading" tabindex="-1">Current saved Segment</h3>
       <p>{{ conflictJourney(segmentConflict.currentSegment) }}</p>

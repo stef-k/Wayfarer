@@ -1,166 +1,148 @@
-import L, { type Map as LeafletMap } from 'leaflet';
-import { ensureLeafletDraw } from './leafletDrawPlugin';
-import type { GeoJsonLineString } from '../types';
+import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
+import {
+  cloneSegmentRouteWorkState,
+  insertAnonymousNode,
+  moveAnonymousNode,
+  workStateGeometry,
+  type SegmentRouteAnchorNode,
+  type SegmentRouteWorkState
+} from '../components/segmentRouteWorkState';
 
 export interface SegmentRouteWorkOptions {
   identity: string;
-  initialRoute: GeoJsonLineString | null;
-  initialRouteKind: 'custom' | 'fallback';
-  onChanged: (route: GeoJsonLineString | null) => void;
+  initialState: SegmentRouteWorkState;
+  onChanged: (state: SegmentRouteWorkState) => void;
 }
 
-type DrawnLayerEvent = { layer: L.Layer };
-type LeafletDrawHandler = { disable: () => void; enable: () => void };
-type LatLngRoute = L.LatLng[];
-
-/// Owns the single temporary Leaflet.Draw polyline used by Trip Editor segment route map-work.
+/** Owns replace-only route-work lines, fixed role indicators, anonymous handles, and listeners. */
 export const createSegmentRouteWorkLayer = (map: LeafletMap): {
   dispose: () => void;
   isActive: () => boolean;
-  setRoute: (route: GeoJsonLineString | null) => void;
+  setState: (state: SegmentRouteWorkState) => void;
   start: (options: SegmentRouteWorkOptions) => () => void;
   stop: () => void;
 } => {
-  ensureLeafletDraw();
-  const featureGroup = L.featureGroup().addTo(map);
-  let drawHandler: LeafletDrawHandler | null = null;
-  let editHandler: LeafletDrawHandler | null = null;
-  let polyline: L.Polyline | null = null;
+  const group = L.featureGroup().addTo(map);
   let options: SegmentRouteWorkOptions | null = null;
+  let state: SegmentRouteWorkState | null = null;
 
   const publish = (): void => {
-    options?.onChanged(polyline ? latLngsToLineString(routeLatLngs(polyline)) : null);
+    if (state) options?.onChanged(cloneSegmentRouteWorkState(state));
   };
 
-  const applyIdentity = (kind: 'custom' | 'fallback'): void => {
-    const element = polyline?.getElement();
-    if (!element || !options) {
-      return;
+  const render = (): void => {
+    group.clearLayers();
+    if (!state || !options) return;
+
+    const geometry = workStateGeometry(state);
+    const line = L.polyline(geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]), routeStyle())
+      .on('click', insertAtNearestInterval)
+      .addTo(group);
+    const element = line.getElement() as SVGElement | null;
+    if (element) {
+      element.dataset.segmentId = options.identity;
+      element.dataset.routeOwner = 'work';
+      element.dataset.routeKind = state.cleared || state.origin === 'fallback' && !state.changedCustom ? 'fallback' : 'custom';
     }
 
-    element.dataset.segmentId = options.identity;
-    element.dataset.routeOwner = 'work';
-    element.dataset.routeKind = kind;
+    state.nodes.forEach((node, index) => {
+      if (node.kind === 'anchor') {
+        L.marker([node.coordinate[1], node.coordinate[0]], {
+          interactive: false,
+          icon: anchorIcon(node)
+        }).addTo(group);
+        return;
+      }
+
+      const marker = L.circleMarker([node.coordinate[1], node.coordinate[0]], anonymousStyle());
+      marker.addTo(group);
+      marker.on('mousedown', () => marker.getElement()?.setAttribute('data-route-point-key', node.key));
+      enableCircleMarkerDragging(marker, coordinate => {
+        if (state && moveAnonymousNode(state, node.key, coordinate)) {
+          publish();
+          render();
+        }
+      });
+    });
   };
 
-  const stopHandlers = (): void => {
-    drawHandler?.disable();
-    editHandler?.disable();
-    drawHandler = null;
-    editHandler = null;
-    map.off(drawCreatedEvent(), onDrawCreated);
-    map.off(drawEditedEvent(), publish);
-    map.off(drawEditVertexEvent(), publish);
-  };
-
-  const stop = (): void => {
-    stopHandlers();
-    featureGroup.clearLayers();
-    polyline = null;
-    options = null;
-  };
-
-  const setRoute = (route: GeoJsonLineString | null, kind: 'custom' | 'fallback' = 'custom'): void => {
-    featureGroup.clearLayers();
-    polyline = routeToLatLngs(route).length >= 2 ? createPolyline(routeToLatLngs(route)) : null;
-    if (polyline) {
-      featureGroup.addLayer(polyline);
-      applyIdentity(kind);
-      startEditMode();
-    } else {
-      startDrawMode();
-    }
-
-    publish();
+  const setState = (next: SegmentRouteWorkState): void => {
+    state = cloneSegmentRouteWorkState(next);
+    render();
   };
 
   const start = (workOptions: SegmentRouteWorkOptions): (() => void) => {
     stop();
     options = workOptions;
-    setRoute(workOptions.initialRoute, workOptions.initialRouteKind);
-    if (polyline?.getBounds().isValid()) {
-      map.fitBounds(polyline.getBounds(), { padding: [32, 32], maxZoom: 14 });
-    }
-
+    state = cloneSegmentRouteWorkState(workOptions.initialState);
+    render();
+    const bounds = group.getBounds();
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 14 });
     return stop;
   };
 
-  const startDrawMode = (): void => {
-    stopHandlers();
-    drawHandler = new (drawPolylineHandler())(map, {
-      repeatMode: false,
-      shapeOptions: routeStyle()
-    }) as LeafletDrawHandler;
-    map.on(drawCreatedEvent(), onDrawCreated);
-    drawHandler.enable();
+  const stop = (): void => {
+    group.clearLayers();
+    options = null;
+    state = null;
   };
 
-  const startEditMode = (): void => {
-    stopHandlers();
-    editHandler = new (editToolbarHandler())(map, {
-      featureGroup,
-      selectedPathOptions: { maintainColor: true }
-    }) as LeafletDrawHandler;
-    map.on(drawEditedEvent(), publish);
-    map.on(drawEditVertexEvent(), publish);
-    editHandler.enable();
-  };
-
-  function onDrawCreated(event: DrawnLayerEvent): void {
-    if (!(event.layer instanceof L.Polyline) || event.layer instanceof L.Polygon) {
-      return;
+  function insertAtNearestInterval(event: LeafletMouseEvent): void {
+    if (!state || state.nodes.length < 2) return;
+    const click = map.latLngToLayerPoint(event.latlng);
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < state.nodes.length - 1; index += 1) {
+      const left = map.latLngToLayerPoint(L.latLng(state.nodes[index].coordinate[1], state.nodes[index].coordinate[0]));
+      const right = map.latLngToLayerPoint(L.latLng(state.nodes[index + 1].coordinate[1], state.nodes[index + 1].coordinate[0]));
+      const distance = L.LineUtil.pointToSegmentDistance(click, left, right);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
     }
-
-    featureGroup.clearLayers();
-    polyline = event.layer;
-    polyline.setStyle(routeStyle());
-    featureGroup.addLayer(polyline);
-    applyIdentity('custom');
-    startEditMode();
-    publish();
+    if (insertAnonymousNode(state, state.nodes[nearestIndex].key)) {
+      publish();
+      render();
+    }
   }
 
-  return {
-    dispose: stop,
-    isActive: () => options !== null,
-    setRoute,
-    start,
-    stop
+  return { dispose: stop, isActive: () => options !== null, setState, start, stop };
+};
+
+const routeStyle = (): L.PathOptions => ({ color: '#f97316', dashArray: '2 7', opacity: 0.9, weight: 4 });
+const anonymousStyle = (): L.CircleMarkerOptions => ({ color: '#111827', fillColor: '#f97316', fillOpacity: 1, radius: 7, weight: 2 });
+
+/** Names fixed roles by position without turning them into editable marker handles. */
+function anchorIcon(node: SegmentRouteAnchorNode): L.DivIcon {
+  return L.divIcon({
+    className: 'segment-route-work-anchor',
+    html: `<span aria-hidden="true">${node.role === 'from' ? 'S' : node.role === 'to' ? 'E' : 'V'}</span>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    tooltipAnchor: [0, -14]
+  });
+}
+
+/** Adds bounded pointer dragging to an anonymous circle marker only. */
+function enableCircleMarkerDragging(marker: L.CircleMarker, changed: (coordinate: [number, number]) => void): void {
+  let moving = false;
+  const move = (event: LeafletMouseEvent): void => { marker.setLatLng(event.latlng); };
+  const finish = (event: LeafletMouseEvent): void => {
+    if (!moving) return;
+    moving = false;
+    mapDrag(marker).enable();
+    marker.off('mousemove', move);
+    marker.off('mouseup', finish);
+    changed([event.latlng.lng, event.latlng.lat]);
   };
-};
+  marker.on('mousedown', () => {
+    moving = true;
+    mapDrag(marker).disable();
+    marker.on('mousemove', move);
+    marker.on('mouseup', finish);
+  });
+}
 
-const routeStyle = (): L.PathOptions => ({
-  color: '#f97316',
-  dashArray: '2 7',
-  opacity: 0.9,
-  weight: 4
-});
-
-const routeToLatLngs = (route: GeoJsonLineString | null): LatLngRoute =>
-  (route?.coordinates ?? []).map(([longitude, latitude]) => L.latLng(latitude, longitude));
-
-const createPolyline = (latLngs: LatLngRoute): L.Polyline =>
-  L.polyline(latLngs, routeStyle());
-
-const routeLatLngs = (polyline: L.Polyline): LatLngRoute => {
-  const latLngs = polyline.getLatLngs();
-  return latLngs.filter(point => point instanceof L.LatLng) as LatLngRoute;
-};
-
-const latLngsToLineString = (latLngs: LatLngRoute): GeoJsonLineString | null =>
-  latLngs.length >= 2
-    ? { type: 'LineString', coordinates: latLngs.map(point => [point.lng, point.lat] as [number, number]) }
-    : null;
-
-const drawPolylineHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>
-  (L as unknown as { Draw: { Polyline: new (map: LeafletMap, options: Record<string, unknown>) => unknown } }).Draw.Polyline;
-
-const editToolbarHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>
-  (L as unknown as { EditToolbar: { Edit: new (map: LeafletMap, options: Record<string, unknown>) => unknown } }).EditToolbar.Edit;
-
-const drawEvent = (name: 'CREATED' | 'EDITED' | 'EDITVERTEX'): string =>
-  (L as unknown as { Draw: { Event: Record<string, string> } }).Draw.Event[name];
-
-const drawCreatedEvent = (): string => drawEvent('CREATED');
-const drawEditedEvent = (): string => drawEvent('EDITED');
-const drawEditVertexEvent = (): string => drawEvent('EDITVERTEX');
+const mapDrag = (marker: L.CircleMarker): { enable: () => void; disable: () => void } =>
+  (marker as unknown as { _map: LeafletMap })._map.dragging;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
+import SegmentRoutePointEditor from './SegmentRoutePointEditor.vue';
 
 const props = defineProps<{
   controller: EditorSurfaceController;
@@ -14,6 +15,7 @@ const statusText = computed(() => {
 });
 const canFinish = computed(() => mapWork.value?.canFinish() ?? false);
 const canClear = computed(() => Boolean(mapWork.value?.clear));
+const routePointEditor = computed(() => mapWork.value?.routePointEditor ?? null);
 
 const onKeydown = async (event: KeyboardEvent): Promise<void> => {
   if (event.key !== 'Escape') {
@@ -50,5 +52,6 @@ watch(
       <button v-if="canClear" type="button" class="btn btn-outline-light btn-sm" @click="mapWork?.clear?.()">Clear Route</button>
       <button type="button" class="btn btn-outline-light btn-sm" @click="controller.cancelMapWork()">Cancel</button>
     </div>
+    <SegmentRoutePointEditor v-if="routePointEditor" :controller="routePointEditor" />
   </div>
 </template>
