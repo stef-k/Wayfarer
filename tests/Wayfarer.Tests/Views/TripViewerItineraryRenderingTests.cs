@@ -78,7 +78,21 @@ public sealed class TripViewerItineraryRenderingTests
                 segment.QuerySelectorAll(".segment-journey-role").Select(item => NormalizeText(item.TextContent)));
             Assert.Equal("A → B → C", segment.QuerySelector(".segment-journey-trail")?.TextContent.Trim());
             Assert.Contains("1 1, 2 2, 3 3", segment.GetAttribute("data-route-wkt"));
+            Assert.True(segment.ClassList.Contains("segment-list-item-view"));
+            Assert.Equal("Click to view the route", segment.GetAttribute("title"));
+            Assert.Single(segment.QuerySelectorAll(".segment-toggle"));
+            Assert.Equal(3, segment.QuerySelectorAll(".segment-journey-place").Length);
             Assert.Contains("A → B → C", document.QuerySelector("#readable-modal-body")?.TextContent);
+
+            var customTrip = WaypointTrip();
+            Assert.Single(customTrip.Segments).RouteGeometry = new LineString([
+                new Coordinate(1, 1), new Coordinate(1.5, 1.5), new Coordinate(2, 2), new Coordinate(3, 3)
+            ]) { SRID = 4326 };
+            var customHtml = await RenderViewerAsync(scope.ServiceProvider, customTrip);
+            var customDocument = await new HtmlParser().ParseDocumentAsync(customHtml);
+            var customSegment = Assert.Single(customDocument.QuerySelectorAll(".segment-list-item"));
+            Assert.True(customSegment.ClassList.Contains("segment-list-item-view"));
+            Assert.Contains("1.5 1.5", customSegment.GetAttribute("data-route-wkt"));
         }
         finally
         {
@@ -116,11 +130,16 @@ public sealed class TripViewerItineraryRenderingTests
 
             Assert.DoesNotContain(foreign.Id.ToString(), html, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(foreign.Name, html, StringComparison.Ordinal);
+            Assert.False(segment.ClassList.Contains("segment-list-item-view"));
             Assert.Null(segment.GetAttribute("data-route-wkt"));
             Assert.Null(segment.GetAttribute("title"));
             Assert.Empty(segment.QuerySelectorAll(".segment-toggle:not([disabled])"));
             Assert.Empty(segment.QuerySelectorAll($".segment-journey-place[data-place-id='{foreign.Id}']"));
             Assert.Contains("Route line is unavailable", segment.TextContent);
+            Assert.Contains("Start: A", NormalizeText(segment.TextContent));
+            Assert.Contains("Via 1: Unavailable intermediate place", NormalizeText(segment.TextContent));
+            Assert.Contains("End: C", NormalizeText(segment.TextContent));
+            Assert.Equal(2, segment.QuerySelectorAll(".segment-journey-place").Length);
             Assert.Contains("Unavailable intermediate place", document.QuerySelector("#readable-modal-body")?.TextContent);
         }
         finally
