@@ -3,42 +3,10 @@ using Wayfarer.Models;
 
 namespace Wayfarer.Services;
 
-/// <summary>Reconciles current zero-waypoint clone and import writers inside their caller-owned transaction.</summary>
+/// <summary>Reconciles every persisted Segment written inside an import or clone transaction.</summary>
 public static class SegmentMeasurementWriterReconciler
 {
-    /// <summary>Creates the current zero-waypoint clone shape before authoritative reconciliation.</summary>
-    public static Segment CreateClone(
-        Segment source,
-        Guid tripId,
-        string userId,
-        IReadOnlyDictionary<Guid, Guid> placeIdMapping) => new()
-    {
-        Id = Guid.NewGuid(), UserId = userId, TripId = tripId,
-        Mode = source.Mode, TransportProfileId = source.TransportProfileId,
-        RouteGeometry = source.RouteGeometry, EstimatedDuration = source.EstimatedDuration,
-        EstimatedDurationSource = source.EstimatedDurationSource, EstimatedDistanceKm = null,
-        DisplayOrder = source.DisplayOrder, Notes = source.Notes,
-        FromPlaceId = source.FromPlaceId.HasValue && placeIdMapping.TryGetValue(source.FromPlaceId.Value, out var from) ? from : null,
-        ToPlaceId = source.ToPlaceId.HasValue && placeIdMapping.TryGetValue(source.ToPlaceId.Value, out var to) ? to : null
-    };
-
-    /// <summary>Persists and reconciles a complete current clone in one caller-independent transaction.</summary>
-    public static async Task PersistCloneAsync(
-        ApplicationDbContext dbContext,
-        Trip clonedTrip,
-        CancellationToken cancellationToken = default)
-    {
-        await using var transaction = dbContext.Database.IsRelational()
-            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
-            : null;
-        dbContext.Trips.Add(clonedTrip);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        dbContext.ChangeTracker.Clear();
-        await ReconcileTripAsync(dbContext, clonedTrip.Id, allowUnavailableAutomatic: true, cancellationToken);
-        if (transaction != null) await transaction.CommitAsync(cancellationToken);
-    }
-
-    /// <summary>Locks and reconciles every current zero-waypoint Segment for one already-persisted trip.</summary>
+    /// <summary>Locks and reconciles every Segment aggregate for one already-persisted Trip.</summary>
     public static async Task ReconcileTripAsync(
         ApplicationDbContext dbContext,
         Guid tripId,
@@ -46,7 +14,7 @@ public static class SegmentMeasurementWriterReconciler
         CancellationToken cancellationToken = default)
     {
         var segmentIds = await dbContext.Segments.AsNoTracking()
-            .Where(segment => segment.TripId == tripId && !segment.Waypoints.Any())
+            .Where(segment => segment.TripId == tripId)
             .OrderBy(segment => segment.Id).Select(segment => segment.Id).ToArrayAsync(cancellationToken);
         var profileIds = await dbContext.Segments.AsNoTracking()
             .Where(segment => segmentIds.Contains(segment.Id) && segment.TransportProfileId != null)
@@ -63,7 +31,10 @@ public static class SegmentMeasurementWriterReconciler
             var segment = await SegmentRouteReconciler.LoadAggregateAsync(dbContext, segmentId, cancellationToken)
                 ?? throw new InvalidOperationException("A Segment changed while measurements were being reconciled.");
             var proposal = new SegmentRouteProposal(
-                segment.Id, segment.FromPlaceId, segment.ToPlaceId, [], segment.RouteGeometry,
+                segment.Id, segment.FromPlaceId, segment.ToPlaceId,
+                segment.Waypoints.OrderBy(item => item.Position)
+                    .Select(item => new SegmentWaypointProposal(item.PlaceId, item.Position, item.RouteVertexIndex)).ToArray(),
+                segment.RouteGeometry,
                 new(segment.Mode, segment.TransportProfileId, segment.EstimatedDurationSource,
                     segment.EstimatedDuration?.TotalMinutes, allowUnavailableAutomatic));
             var result = await SegmentRouteReconciler.ReconcileLockedAsync(
