@@ -272,6 +272,20 @@
   width: 24px;
 }
 
+/* Keeps the visible anonymous SVG handle above the map gesture target during route work. */
+.trip-editor-map .segment-route-work-handle {
+  background: #f97316;
+  border: 2px solid #111827;
+  border-radius: 999px;
+  box-sizing: border-box;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.trip-editor-map .segment-route-work-handle:active {
+  cursor: grabbing;
+}
+
 @media (max-width: 900px) {
   .trip-editor-surface__header,
   .trip-editor-map-work-toolbar {

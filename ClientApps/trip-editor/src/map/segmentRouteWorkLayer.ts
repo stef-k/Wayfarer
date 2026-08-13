@@ -66,11 +66,20 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
         return;
       }
 
-      const marker = L.circleMarker([node.coordinate[1], node.coordinate[0]], anonymousStyle());
+      const marker = L.marker([node.coordinate[1], node.coordinate[0]], {
+        draggable: true,
+        icon: anonymousIcon(),
+        title: `Route point ${state.nodes.slice(0, index + 1).filter(candidate => candidate.kind === 'anonymous').length}`
+      });
       marker.addTo(group);
-      marker.on('mousedown', () => marker.getElement()?.setAttribute('data-route-point-key', node.key));
-      enableCircleMarkerDragging(marker, coordinate => {
-        if (state && moveAnonymousNode(state, node.key, coordinate)) {
+      marker.getElement()?.setAttribute('data-route-point-key', node.key);
+      marker.on('drag', () => {
+        const point = marker.getLatLng();
+        if (state && moveAnonymousNode(state, node.key, [point.lng, point.lat])) publish();
+      });
+      marker.on('dragend', () => {
+        const point = marker.getLatLng();
+        if (state && moveAnonymousNode(state, node.key, [point.lng, point.lat])) {
           publish();
           render();
         }
@@ -155,7 +164,14 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
 };
 
 const routeStyle = (): L.PathOptions => ({ color: '#f97316', dashArray: '2 7', opacity: 0.9, weight: 4 });
-const anonymousStyle = (): L.CircleMarkerOptions => ({ color: '#111827', fillColor: '#f97316', fillOpacity: 1, radius: 7, weight: 2 });
+/** Renders one pointer-draggable anonymous handle without duplicating saved-Place markers. */
+const anonymousIcon = (): L.DivIcon => L.divIcon({
+  className: 'segment-route-work-handle',
+  html: '<span aria-hidden="true"></span>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+  tooltipAnchor: [0, -12]
+});
 
 /** Names fixed roles by position without turning them into editable marker handles. */
 function anchorIcon(node: SegmentRouteAnchorNode): L.DivIcon {
@@ -167,29 +183,6 @@ function anchorIcon(node: SegmentRouteAnchorNode): L.DivIcon {
     tooltipAnchor: [0, -14]
   });
 }
-
-/** Adds bounded pointer dragging to an anonymous circle marker only. */
-function enableCircleMarkerDragging(marker: L.CircleMarker, changed: (coordinate: [number, number]) => void): void {
-  let moving = false;
-  const move = (event: LeafletMouseEvent): void => { marker.setLatLng(event.latlng); };
-  const finish = (event: LeafletMouseEvent): void => {
-    if (!moving) return;
-    moving = false;
-    mapDrag(marker).enable();
-    marker.off('mousemove', move);
-    marker.off('mouseup', finish);
-    changed([event.latlng.lng, event.latlng.lat]);
-  };
-  marker.on('mousedown', () => {
-    moving = true;
-    mapDrag(marker).disable();
-    marker.on('mousemove', move);
-    marker.on('mouseup', finish);
-  });
-}
-
-const mapDrag = (marker: L.CircleMarker): { enable: () => void; disable: () => void } =>
-  (marker as unknown as { _map: LeafletMap })._map.dragging;
 
 const drawPolylineHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>
   (L as unknown as { Draw: { Polyline: new (map: LeafletMap, options: Record<string, unknown>) => unknown } }).Draw.Polyline;

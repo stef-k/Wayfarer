@@ -92,6 +92,7 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect(reread.mode).toBe(fixture.mode);
     await fixtureControl('verify-route-work');
 
+    await page.setViewportSize({ width: 1440, height: 1100 });
     await openSegment(page, fixture.closedLoopSegmentId);
     await drawRoute.click();
     const loopWork = page.getByRole('region', { name: 'Map work' });
@@ -105,21 +106,60 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(loopStart.getByRole('spinbutton')).toHaveCount(0);
     await expect(loopVia.getByRole('button', { name: /Remove/ })).toHaveCount(0);
     await expect(loopEnd.getByRole('button', { name: /Remove/ })).toHaveCount(0);
-    const pointerPoint = loopWork.locator('[data-route-point-index="1"]');
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 760, height: 900 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
+      await page.setViewportSize(viewport);
+      await expect(loopWork.getByRole('button', { name: 'Done' })).toBeVisible();
+      await expect(loopWork.getByRole('button', { name: 'Cancel' })).toBeVisible();
+      await expect(loopWork.getByRole('button', { name: 'Clear Route' })).toBeVisible();
+      await expect(loopWork.getByLabel('Longitude').first()).toBeVisible();
+      await expect(loopWork.getByRole('button', { name: /Insert route point after/ }).first()).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+    }
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    const anonymousHandles = page.locator('.segment-route-work-handle');
+    await expect(anonymousHandles).toHaveCount(2);
+    await page.locator('.leaflet-control-zoom-out').click();
+    await page.locator('.leaflet-control-zoom-out').click();
+    const reachable = await anonymousHandles.evaluateAll(elements => {
+      for (let index = 0; index < elements.length; index += 1) {
+        const box = elements[index].getBoundingClientRect();
+        for (const x of [0.25, 0.5, 0.75]) for (const y of [0.25, 0.5, 0.75]) {
+          const point = { x: box.x + box.width * x, y: box.y + box.height * y };
+          const hit = document.elementFromPoint(point.x, point.y);
+          if (hit === elements[index] || hit && elements[index].contains(hit)) return { index, point };
+        }
+      }
+      return null;
+    });
+    expect(reachable).not.toBeNull();
+    const anonymousHandle = anonymousHandles.nth(reachable!.index);
+    const pointerKey = await anonymousHandle.getAttribute('data-route-point-key');
+    expect(pointerKey).toMatch(/anonymous:/);
+    const pointerPoint = loopWork.locator(`[data-route-point-key="${pointerKey}"]`);
     const pointerLongitude = Number(await pointerPoint.getByLabel('Longitude').inputValue());
     const pointerLatitude = Number(await pointerPoint.getByLabel('Latitude').inputValue());
-    const anonymousHandle = page.locator('.leaflet-overlay-pane path[fill="#f97316"]').first();
     const handleBox = await anonymousHandle.boundingBox();
     expect(handleBox).not.toBeNull();
-    await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+    const startX = reachable!.point.x;
+    const startY = reachable!.point.y;
+    await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 24, handleBox!.y + handleBox!.height / 2 - 16, { steps: 4 });
+    await page.mouse.move(startX + 80, startY - 50, { steps: 16 });
     await page.mouse.up();
-    await expect.poll(async () => Number(await pointerPoint.getByLabel('Longitude').inputValue())).not.toBe(pointerLongitude);
-    await expect.poll(async () => Number(await pointerPoint.getByLabel('Latitude').inputValue())).not.toBe(pointerLatitude);
+    await expect.poll(async () => {
+      const moved = await page.locator(`.segment-route-work-handle[data-route-point-key="${pointerKey}"]`).boundingBox();
+      return moved ? Math.abs(moved.x - handleBox!.x) + Math.abs(moved.y - handleBox!.y) : 0;
+    }).toBeGreaterThan(8);
     await expect(loopStart).toContainText('From ');
     await expect(loopVia).toContainText('Waypoint ');
     await expect(loopEnd).toContainText('From ');
+    await loopWork.getByRole('button', { name: 'Done' }).click();
+    await drawRoute.click();
+    const reopenedPointer = loopWork.locator('[data-route-point-index="3"]');
+    expect([
+      Number(await reopenedPointer.getByLabel('Longitude').inputValue()),
+      Number(await reopenedPointer.getByLabel('Latitude').inputValue())
+    ]).not.toEqual([pointerLongitude, pointerLatitude]);
     await loopStart.getByRole('button', { name: /Insert route point after Start/ }).click();
     const loopInserted = loopWork.locator('[data-route-point-index="1"]');
     await loopInserted.getByLabel('Longitude').fill('23.705');
@@ -442,6 +482,7 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
       expect(await form.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy();
     }
     await page.setViewportSize({ width: 1280, height: 900 });
+    await openSegment(page, fixture.zeroSegmentId);
     await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
     const chromium = await page.context().newCDPSession(page);
     await chromium.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
@@ -489,7 +530,8 @@ async function editorState(page: Page): Promise<Record<string, any>> {
 async function openSegment(page: Page, id: string): Promise<void> {
   const form = page.locator('#trip-editor-segment-form');
   if (await form.isVisible().catch(() => false)) {
-    await page.getByRole('button', { name: 'Cancel' }).filter({ visible: true }).click();
+    const cancel = page.getByRole('button', { name: 'Cancel' }).filter({ visible: true });
+    if (await cancel.isEnabled().catch(() => false)) await cancel.click();
   }
   await page.locator(`[data-segment-id="${id}"] .trip-editor-list-button`).click();
   await expect(form).toBeVisible();
