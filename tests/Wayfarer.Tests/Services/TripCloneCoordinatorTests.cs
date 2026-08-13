@@ -85,6 +85,34 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.False(await db.Trips.AnyAsync(trip => trip.UserId == destination.Id));
     }
 
+    /// <summary>Rejects persisted sub-second Manual duration without leaving destination aggregate residue.</summary>
+    [Fact]
+    public async Task CloneAsync_SubSecondManualDurationLeavesNoCloneResidue()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var destination = TestDataFixtures.CreateUser(id: "destination");
+        db.Users.AddRange(owner, destination);
+        var source = TestDataFixtures.CreateTrip(owner, "Sub-second Manual clone", isPublic: true);
+        var region = RegionWithPlaces(source, owner.Id, out var places);
+        source.Regions = [region];
+        var segment = Segment(source, owner.Id, places[0], places[2], places[1], null, null);
+        segment.EstimatedDuration = TimeSpan.FromTicks(TimeSpan.TicksPerSecond + 4_000_000);
+        source.Segments = [segment];
+        db.Trips.Add(source);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new TripCloneCoordinator(db).CloneAsync(source.Id, destination.Id));
+
+        Assert.False(await db.Trips.AnyAsync(trip => trip.UserId == destination.Id));
+        Assert.False(await db.Regions.AnyAsync(item => item.UserId == destination.Id));
+        Assert.False(await db.Places.AnyAsync(item => item.UserId == destination.Id));
+        Assert.False(await db.Segments.AnyAsync(item => item.UserId == destination.Id));
+        Assert.DoesNotContain(db.ChangeTracker.Entries<SegmentWaypoint>(),
+            entry => entry.Entity.Segment.UserId == destination.Id);
+    }
+
     /// <summary>Creates one source Region containing canonical A, B, and C Places.</summary>
     private static Region RegionWithPlaces(Trip trip, string userId, out Place[] places)
     {
