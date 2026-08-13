@@ -21,6 +21,8 @@ type Fixture = {
   waypointSegmentId: string;
   zeroSegmentId: string;
   staleSegmentId: string;
+  routeWorkSegmentId: string;
+  closedLoopSegmentId: string;
   fromId: string;
   waypointId: string;
   staleWaypointId: string;
@@ -33,6 +35,107 @@ type Fixture = {
 };
 
 test.describe.serial('#407/#408 persisted waypoint aggregate and accessible editor', () => {
+  test('mounted #409 route work persists shifted anchors and preserves closed-loop identity', async ({ page }) => {
+    test.setTimeout(180_000);
+    const fixture = await loadFixture();
+    await signIn(page);
+    const response = await page.goto(absoluteUrl(editorPath), { waitUntil: 'domcontentloaded' });
+    expect(response?.ok()).toBeTruthy();
+    await expectMountedWorkspace(page);
+
+    const expectedInitial = [[23.70, 37.97], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    const expectedEdited = [[23.70, 37.97], [23.71, 37.975], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    const initial = (await editorState(page)).segmentsById[fixture.routeWorkSegmentId];
+    expect(initial.route.coordinates).toEqual(expectedInitial);
+    expect(initial.waypointPlaceIds).toEqual([fixture.waypointId]);
+    expect(initial.waypointRouteVertexIndices).toEqual([2]);
+
+    await openSegment(page, fixture.routeWorkSegmentId);
+    const form = page.locator('#trip-editor-segment-form');
+    const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
+    const mutationRequests: string[] = [];
+    page.on('request', request => {
+      if (request.method() !== 'GET' && request.url().includes('/segments')) mutationRequests.push(request.url());
+    });
+    await drawRoute.click();
+    const routeWork = page.getByRole('region', { name: 'Map work' });
+    const start = routeWork.getByRole('listitem').filter({ hasText: /^Start —/ });
+    const via = routeWork.getByRole('listitem').filter({ hasText: /^Via 1 —/ });
+    const end = routeWork.getByRole('listitem').filter({ hasText: /^End —/ });
+    await expect(start).toContainText('fixed');
+    await expect(via).toContainText('fixed');
+    await expect(end).toContainText('fixed');
+    await start.getByRole('button', { name: /Insert route point after Start/ }).click();
+    const inserted = routeWork.locator('[data-route-point-index="1"]');
+    await inserted.getByLabel('Longitude').fill('23.71');
+    await inserted.getByLabel('Latitude').fill('37.975');
+    await page.keyboard.press('Tab');
+    await expect(via).toHaveAttribute('data-route-point-index', '3');
+    await routeWork.getByRole('button', { name: 'Done' }).click();
+    expect(mutationRequests).toEqual([]);
+    const draftBeforeSave = await editorState(page);
+    expect(draftBeforeSave.segmentsById[fixture.routeWorkSegmentId].route.coordinates).toEqual(expectedInitial);
+    await expect(form.getByText('Unsaved route · 5 custom route points')).toBeVisible();
+
+    const submitted = captureNextPut(page, fixture.routeWorkSegmentId);
+    const savedResponse = waitForPut(page, fixture.routeWorkSegmentId);
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+    expect(await submitted).toMatchObject({ route: { type: 'LineString', coordinates: expectedEdited }, waypointPlaceIds: [fixture.waypointId], waypointRouteVertexIndices: [3] });
+    expect((await savedResponse).ok()).toBeTruthy();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expectMountedWorkspace(page);
+    const reread = (await editorState(page)).segmentsById[fixture.routeWorkSegmentId];
+    expect(reread.route.coordinates).toEqual(expectedEdited);
+    expect(reread.waypointPlaceIds).toEqual([fixture.waypointId]);
+    expect(reread.waypointRouteVertexIndices).toEqual([3]);
+    expect(reread.transportProfileId).toBe(fixture.profileId);
+    expect(reread.mode).toBe(fixture.mode);
+    await fixtureControl('verify-route-work');
+
+    await openSegment(page, fixture.closedLoopSegmentId);
+    await drawRoute.click();
+    const loopWork = page.getByRole('region', { name: 'Map work' });
+    const loopStart = loopWork.getByRole('listitem').filter({ hasText: /^Start —/ });
+    const loopVia = loopWork.getByRole('listitem').filter({ hasText: /^Via 1 —/ });
+    const loopEnd = loopWork.getByRole('listitem').filter({ hasText: /^End —/ });
+    await expect(loopStart).toContainText('From ');
+    await expect(loopEnd).toContainText('From ');
+    await expect(loopVia).toContainText('Waypoint ');
+    await expect(page.locator(`[data-place-marker-icon="${fixture.fromId}"]`)).toHaveCount(1);
+    await expect(loopStart.getByRole('spinbutton')).toHaveCount(0);
+    await expect(loopVia.getByRole('button', { name: /Remove/ })).toHaveCount(0);
+    await expect(loopEnd.getByRole('button', { name: /Remove/ })).toHaveCount(0);
+    const pointerPoint = loopWork.locator('[data-route-point-index="1"]');
+    const pointerLongitude = Number(await pointerPoint.getByLabel('Longitude').inputValue());
+    const pointerLatitude = Number(await pointerPoint.getByLabel('Latitude').inputValue());
+    const anonymousHandle = page.locator('.leaflet-overlay-pane path[fill="#f97316"]').first();
+    const handleBox = await anonymousHandle.boundingBox();
+    expect(handleBox).not.toBeNull();
+    await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handleBox!.x + handleBox!.width / 2 + 24, handleBox!.y + handleBox!.height / 2 - 16, { steps: 4 });
+    await page.mouse.up();
+    await expect.poll(async () => Number(await pointerPoint.getByLabel('Longitude').inputValue())).not.toBe(pointerLongitude);
+    await expect.poll(async () => Number(await pointerPoint.getByLabel('Latitude').inputValue())).not.toBe(pointerLatitude);
+    await expect(loopStart).toContainText('From ');
+    await expect(loopVia).toContainText('Waypoint ');
+    await expect(loopEnd).toContainText('From ');
+    await loopStart.getByRole('button', { name: /Insert route point after Start/ }).click();
+    const loopInserted = loopWork.locator('[data-route-point-index="1"]');
+    await loopInserted.getByLabel('Longitude').fill('23.705');
+    await loopInserted.getByLabel('Latitude').fill('37.98');
+    await page.keyboard.press('Tab');
+    await loopInserted.getByRole('button', { name: /Remove Route point/ }).click();
+    await loopWork.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await drawRoute.click();
+    await expect(loopWork.getByRole('listitem').filter({ hasText: /^Start —/ })).toContainText('From ');
+    await expect(loopWork.getByRole('listitem').filter({ hasText: /^End —/ })).toContainText('From ');
+    await expect(page.locator(`[data-place-marker-icon="${fixture.fromId}"]`)).toHaveCount(1);
+    await loopWork.getByRole('button', { name: 'Done' }).click();
+    await expect(form.getByText(/custom route points/i)).toBeVisible();
+  });
+
   test('mounted editor authors waypoints and preserves the complete aggregate through failures and confirmation', async ({ page }) => {
     test.setTimeout(180_000);
     const fixture = await loadFixture();
@@ -339,7 +442,6 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
       expect(await form.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy();
     }
     await page.setViewportSize({ width: 1280, height: 900 });
-    await openSegment(page, fixture.zeroSegmentId);
     await expect(form.getByRole('group', { name: 'Intermediate places' })).toBeVisible();
     const chromium = await page.context().newCDPSession(page);
     await chromium.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
@@ -369,7 +471,7 @@ async function loadFixture(): Promise<Fixture> {
   const path = required('WAYFARER_E2E_WAYPOINT_FIXTURE');
   return JSON.parse(await readFile(path, 'utf8')) as Fixture;
 }
-async function fixtureControl(command: 'drift' | 'verify-preserved' | 'verify-ui'): Promise<void> {
+async function fixtureControl(command: 'drift' | 'verify-preserved' | 'verify-route-work' | 'verify-ui'): Promise<void> {
   await execute('dotnet', [required('WAYFARER_E2E_WAYPOINT_HELPER'), command,
     required('WAYFARER_E2E_WAYPOINT_FIXTURE')], { env: process.env });
 }
