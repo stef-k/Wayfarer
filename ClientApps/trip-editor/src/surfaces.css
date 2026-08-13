@@ -222,11 +222,18 @@
 
 .segment-route-point-editor {
   border-top: 1px solid var(--trip-editor-border);
+  box-sizing: border-box;
   flex: 1 0 100%;
   min-width: 0;
   max-width: 100%;
   overflow-x: hidden;
   padding-top: 0.75rem;
+}
+
+/* Keeps every active route-work action and coordinate input practical for touch. */
+.trip-editor-map-work-toolbar .btn,
+.segment-route-point-editor input {
+  min-height: 38px;
 }
 
 .segment-route-point-editor h3 {
