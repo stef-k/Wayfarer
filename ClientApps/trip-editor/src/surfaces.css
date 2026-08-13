@@ -331,6 +331,11 @@
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
+
+  /* Stack active route-point fields and actions so long anchors cannot widen the mobile page. */
+  .segment-route-point-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 640px) {
