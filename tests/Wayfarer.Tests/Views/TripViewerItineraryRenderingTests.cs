@@ -88,6 +88,7 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Single(customTrip.Segments).RouteGeometry = new LineString([
                 new Coordinate(1, 1), new Coordinate(1.5, 1.5), new Coordinate(2, 2), new Coordinate(3, 3)
             ]) { SRID = 4326 };
+            Assert.Single(Assert.Single(customTrip.Segments).Waypoints).RouteVertexIndex = 2;
             var customHtml = await RenderViewerAsync(scope.ServiceProvider, customTrip);
             var customDocument = await new HtmlParser().ParseDocumentAsync(customHtml);
             var customSegment = Assert.Single(customDocument.QuerySelectorAll(".segment-list-item"));

@@ -39,8 +39,14 @@
                 var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
 
                 var wkt = journey.RouteWkt;
+                // Only resolver-approved geometry makes the Segment row itself route-interactive.
+                var segmentClasses = "list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2";
+                if (!string.IsNullOrEmpty(wkt))
+                {
+                    segmentClasses += " segment-list-item-view";
+                }
                 <text>
-                    <li class="list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2 segment-list-item-view"
+                    <li class="@segmentClasses"
                         @if (!string.IsNullOrEmpty(wkt))
                         {
                         <text> title="Click to view the route" </text>
