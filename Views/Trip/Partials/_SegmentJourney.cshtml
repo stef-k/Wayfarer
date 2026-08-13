@@ -1,0 +1,38 @@
+@model Wayfarer.Models.ViewModels.ViewerSegmentJourney
+@{
+    var interactive = ViewData["Interactive"] as bool? ?? false;
+}
+
+@* This shared semantic trail stays useful when the map or JavaScript is unavailable. *@
+<div class="segment-journey text-wrap">
+    @if (Model.Anchors.Count > 0)
+    {
+        <ol class="segment-journey-roles mb-1 ps-4">
+            @foreach (var anchor in Model.Anchors)
+            {
+                <li class="segment-journey-role text-break">
+                    <strong>@anchor.Role:</strong>
+                    @if (interactive && anchor.PlaceId.HasValue && anchor.Location != null)
+                    {
+                        <button type="button" class="btn btn-link p-0 align-baseline text-wrap text-start segment-journey-place" data-place-id="@anchor.PlaceId">
+                            @anchor.DisplayName
+                        </button>
+                    }
+                    else
+                    {
+                        <span>@anchor.DisplayName</span>
+                    }
+                </li>
+            }
+        </ol>
+        <div class="segment-journey-trail text-break" aria-label="Journey: @Model.TrailText">@Model.TrailText</div>
+        <div class="small text-muted">
+            @Model.WaypointCount @(Model.WaypointCount == 1 ? "waypoint" : "waypoints") ·
+            @Model.RoutePointCount @(Model.RoutePointCount == 1 ? "route point" : "route points")
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.DegradationMessage))
+    {
+        <div class="small text-muted segment-journey-status">@Model.DegradationMessage</div>
+    }
+</div>

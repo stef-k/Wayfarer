@@ -153,18 +153,19 @@
         <ul style="list-style:none;padding:0;">
             @foreach (var s in Model.Segments)
             {
-                var from = Model.Places.First(p => p.Id == s.FromPlaceId);
-                var to = Model.Places.First(p => p.Id == s.ToPlaceId);
+                // PDF uses the same presentation-only anchor rules as the live viewer.
+                var journey = Wayfarer.Models.ViewModels.ViewerSegmentJourneyResolver.Resolve(s, Model.Trip.Id, waypointsLoaded: true);
                 var dist = s.EstimatedDistanceKm?.ToString("0.##") ?? "—";
                 var dur = s.EstimatedDuration.FormatDuration() ?? "—";
 
                 <li class="avoid-break" style="margin-bottom:.7rem;">
                     <p class="mb-1">
-                        <strong>@from.Name - @to.Name</strong><br/>
+                        <strong>@journey.TrailText</strong><br/>
                         Estimated Distance: @dist km |
                         Estimated Duration: @dur |
                         Transport Mode: @s.Mode
                     </p>
+                    @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey)
 
                     @if (!string.IsNullOrWhiteSpace(Snap($"segment_{s.Id}")))
                     {

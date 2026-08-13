@@ -1,0 +1,18 @@
+@using Wayfarer.Models.ViewModels
+@model Wayfarer.Models.Trip
+
+@* Browser print reuses this readable, map-independent Segment presentation. *@
+@if (Model.Segments?.Any() == true)
+{
+    <div class="segments-readable mt-4">
+        <h6 class="text-muted mb-3">Journeys</h6>
+        @foreach (var segment in Model.Segments.OrderBy(item => item.DisplayOrder))
+        {
+            var journey = ViewerSegmentJourneyResolver.Resolve(segment, Model.Id, waypointsLoaded: true);
+            <section class="segment-readable mb-3 pb-3 border-bottom">
+                <strong>@segment.Mode</strong>
+                @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey)
+            </section>
+        }
+    </div>
+}

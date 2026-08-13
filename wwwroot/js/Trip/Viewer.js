@@ -12,11 +12,10 @@ import {
     initLeaflet,
     addRegionMarker,
     addPlaceMarker,
-    addSegment,
+    addSegmentFromRouteWkt,
     addAreaPolygon,
     setRegionVisible,
     setSegmentVisible,
-    wktToCoords,
     getPlaceMarker,
     getSegmentPolyline,
     canvasRenderer
@@ -295,41 +294,20 @@ const init = () => {
     /* ────────── segments ────────── */
     $$('.segment-list-item').forEach(li => {
         const d = li.dataset;
-        let coords = [];
-        if (d.routeWkt) coords = wktToCoords(d.routeWkt);
-        if (coords.length < 2 && d.fromLat && d.toLat) coords = [[+d.fromLat, +d.fromLon], [+d.toLat, +d.toLon]];
-        if (coords.length >= 2) {
-            const label = `From ${d.fromPlaceName} to ${d.toPlaceName}, ${d.estimatedDistance} km by ${d.transportMode} in ${d.estimatedDuration}`;
-            addSegment(map, d.segmentId, coords, label, {
-                fromPlace: d.fromPlaceName,
-                toPlace: d.toPlaceName,
-                fromRegion: d.fromPlaceregionName,
-                toRegion: d.toPlaceregionName,
-                mode: d.transportMode,
-                distance: d.estimatedDistance ? `${d.estimatedDistance} km` : null,
-                duration: d.estimatedDuration,
-                notes: d.segmentNotes
-            });
-        }
+        const label = `From ${d.fromPlaceName} to ${d.toPlaceName}, ${d.estimatedDistance} km by ${d.transportMode} in ${d.estimatedDuration}`;
+        addSegmentFromRouteWkt(map, d.segmentId, d.routeWkt, label, {
+            fromPlace: d.fromPlaceName,
+            toPlace: d.toPlaceName,
+            fromRegion: d.fromPlaceregionName,
+            toRegion: d.toPlaceregionName,
+            mode: d.transportMode,
+            distance: d.estimatedDistance ? `${d.estimatedDistance} km` : null,
+            duration: d.estimatedDuration,
+            notes: d.segmentNotes
+        });
     });
 
     const params = new URLSearchParams(window.location.search);
-    const onlySeg = params.get('seg');
-    if (onlySeg) {
-        // find the matching data (you may have serialized WKT into a data-attr)
-        const li = document.querySelector(`.segment-list-item[data-segment-id="${onlySeg}"]`);
-        let coords = [];
-        if (li?.dataset.routeWkt) {
-            coords = wktToCoords(li.dataset.routeWkt);
-        } else {
-            // fallback to from‐to lat/lon
-            const {fromLat, fromLon, toLat, toLon} = li.dataset;
-            coords = [[+fromLat, +fromLon], [+toLat, +toLon]];
-        }
-        if (coords.length >= 2) {
-            addSegment(map, onlySeg, coords, /* optional label */ '');
-        }
-    }
 
     /* ───── visibility toggles ───── */
     $$('.segment-toggle').forEach(cb => cb.addEventListener('change', e => {
@@ -512,11 +490,20 @@ const init = () => {
 
     });
 
+    // Journey Place controls reuse the canonical Place details and marker selection path.
+    $$('.segment-journey-place').forEach(button => {
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            window.wayfarer.openPlaceDetails(button.dataset.placeId);
+            highlightMarker(button.dataset.placeId);
+        });
+    });
+
     /* ADD – segment click centres map on the whole route */
-    $$('.segment-list-item').forEach(li => {
+    $$('.segment-list-item[data-route-wkt]').forEach(li => {
         li.addEventListener('click', e => {
             // ignore clicks coming from the visibility checkbox
-            if (e.target.closest('.segment-toggle')) return;
+            if (e.target.closest('.segment-toggle, .segment-journey-place')) return;
 
             const sid = li.dataset.segmentId;
             const pl = getSegmentPolyline(sid);

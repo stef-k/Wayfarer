@@ -1,4 +1,5 @@
 @using Wayfarer.Util
+@using Wayfarer.Models.ViewModels
 @model Wayfarer.Models.Trip
 
 
@@ -26,25 +27,30 @@
                 var modeKey = (seg.Mode ?? "").ToLowerInvariant();
                 var emojiIcon = emoji.TryGetValue(modeKey, out var e) ? e : "❓";
 
-                var fromName = seg.FromPlace?.Name ?? "Start";
-                var toName = seg.ToPlace?.Name ?? "End";
-                var fromRegion = seg.FromPlace?.Region?.Name ?? "";
-                var toRegion = seg.ToPlace?.Region?.Name ?? "";
-                var label = $"{fromName} → {toName}";
+                // Controller readers explicitly load waypoint Places, making this collection authoritative.
+                var journey = ViewerSegmentJourneyResolver.Resolve(seg, Model.Id, waypointsLoaded: true);
+                var fromName = journey.Anchors.FirstOrDefault()?.DisplayName ?? "Unavailable place";
+                var toName = journey.Anchors.LastOrDefault()?.DisplayName ?? "Unavailable place";
+                var fromRegion = journey.Anchors.FirstOrDefault()?.RegionName ?? "";
+                var toRegion = journey.Anchors.LastOrDefault()?.RegionName ?? "";
+                var label = journey.TrailText ?? "Journey unavailable";
 
                 var durTxt = seg.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
                 var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
 
-                /* preferred: RouteGeometry; fallback: From→To place coords */
-                var startLat = seg.RouteGeometry?.StartPoint?.Y ?? seg.FromPlace?.Location?.Y;
-                var startLon = seg.RouteGeometry?.StartPoint?.X ?? seg.FromPlace?.Location?.X;
-                var endLat = seg.RouteGeometry?.EndPoint?.Y ?? seg.ToPlace?.Location?.Y;
-                var endLon = seg.RouteGeometry?.EndPoint?.X ?? seg.ToPlace?.Location?.X;
-
-                var wkt = seg.RouteGeometry?.AsText();
+                var wkt = journey.RouteWkt;
+                // Only resolver-approved geometry makes the Segment row itself route-interactive.
+                var segmentClasses = "list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2";
+                if (!string.IsNullOrEmpty(wkt))
+                {
+                    segmentClasses += " segment-list-item-view";
+                }
                 <text>
-                    <li class="list-group-item segment-list-item py-1 px-2 d-flex justify-content-between gap-2 segment-list-item-view"
-                        title="Click to view the route"
+                    <li class="@segmentClasses"
+                        @if (!string.IsNullOrEmpty(wkt))
+                        {
+                        <text> title="Click to view the route" </text>
+                        }
                         data-segment-id="@(seg?.Id)"
                         data-from-place-name="@fromName"
                         data-from-placeregion-name="@fromRegion"
@@ -54,22 +60,6 @@
                         data-transport-mode="@seg?.Mode"
                         data-estimated-distance="@seg?.EstimatedDistanceKm"
                         data-estimated-duration="@seg?.EstimatedDuration.FormatDuration()"
-                        @if (startLat is not null)
-                        {
-                        <text> data-from-lat="@startLat" </text>
-                        }
-                        @if (startLon is not null)
-                        {
-                        <text> data-from-lon="@startLon" </text>
-                        }
-                        @if (endLat is not null)
-                        {
-                        <text> data-to-lat="@endLat" </text>
-                        }
-                        @if (endLon is not null)
-                        {
-                        <text> data-to-lon="@endLon" </text>
-                        }
                         @if (!string.IsNullOrEmpty(wkt))
                         {
                         <text> data-route-wkt="@wkt" </text>
@@ -90,6 +80,8 @@
                                 <div title="To: @toName (@toRegion)">
                                     <strong>To:</strong> @toName (@toRegion)
                                 </div>
+                                @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey,
+                                    new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["Interactive"] = true })
                                 @if (HtmlHelpers.HasVisibleContent(seg?.Notes))
                                 {
                                     <div class="text-muted mt-1 segment-notes-preview" style="max-height: 100px; overflow-y: auto;">
@@ -99,10 +91,13 @@
                             </div>
                         </div>
 
-                        <input type="checkbox"
-                               class="form-check-input segment-toggle ms-2"
-                               checked
-                               title="Show/Hide this segment on map"/>
+                        @if (!string.IsNullOrEmpty(wkt))
+                        {
+                            <input type="checkbox"
+                                   class="form-check-input segment-toggle ms-2"
+                                   checked
+                                   title="Show/Hide this segment on map"/>
+                        }
                     </li>
                 </text>
             }

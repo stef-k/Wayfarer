@@ -124,6 +124,14 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
     lon = num(lon);
     if (lat === null || lon === null) return;
 
+    // Canonical Place identity is replace-only across repeated viewer renders.
+    const existing = _places[id]?.marker;
+    if (existing) {
+        existing.off();
+        map.removeLayer(existing);
+        delete _places[id];
+    }
+
     const iconUrl = png(icon(opts.icon), bg(opts.color));
 
     // Use divIcon with visited badge when place has been visited
@@ -173,6 +181,15 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
 /* ---------- segment poly-line ---------- */
 export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
     if (!Array.isArray(coords) || coords.length < 2) return;
+
+    // A Segment registry entry owns one line; rerender replaces and detaches the prior layer.
+    const existing = _segments[id];
+    if (existing) {
+        existing.unbindTooltip();
+        existing.off();
+        map.removeLayer(existing);
+        delete _segments[id];
+    }
 
     // Build rich popup content if segment data provided
     let popupContent = null;
@@ -281,4 +298,17 @@ export const wktToCoords = wkt => {
         .map(p => p.trim().split(/\s+/).map(Number))
         .filter(a => a.length === 2 && !isNaN(a[0]) && !isNaN(a[1]))
         .map(([lon, lat]) => [lat, lon]);      // leaflet order is [lat,lon]
+};
+
+/** Returns drawable Segment coordinates only when authoritative route WKT supplies a line. */
+export const segmentRouteCoords = routeWkt => {
+    const coords = wktToCoords(routeWkt);
+    return coords.length >= 2 ? coords : [];
+};
+
+/** Adds a Segment layer only from resolver-approved route WKT. */
+export const addSegmentFromRouteWkt = (map, sid, routeWkt, label = null, opts = {}) => {
+    const coords = segmentRouteCoords(routeWkt);
+    if (coords.length === 0) return null;
+    return addSegment(map, sid, coords, label, opts);
 };
