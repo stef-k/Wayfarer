@@ -12,7 +12,7 @@ import {
   type RouteCoordinate,
   type SegmentRouteWorkNode,
   type SegmentRouteWorkState
-} from './segmentRouteWorkState.ts';
+} from './segmentRouteWorkState';
 
 export type SegmentRouteEditor = {
   setSegmentRouteWorkState: (state: SegmentRouteWorkState) => void;

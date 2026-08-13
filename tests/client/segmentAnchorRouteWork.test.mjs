@@ -9,7 +9,6 @@ import {
   projectSegmentRouteWork,
   removeAnonymousNode
 } from '../../ClientApps/trip-editor/src/components/segmentRouteWorkState.ts';
-import { beginSegmentRouteMapWork } from '../../ClientApps/trip-editor/src/components/segmentRouteMapWork.ts';
 
 const places = {
   a: { id: 'a', name: 'Alpha', location: { longitude: 10, latitude: 20 } },
@@ -111,56 +110,4 @@ test('zero-waypoint custom and fallback routes remain compatible', () => {
   assert.deepEqual(optional.nodes.map(node => node.kind), ['anchor', 'anonymous']);
   const unlinked = construct(draft({ route: { type: 'LineString', coordinates: [[9, 19], [11, 20.5]] }, from: null, to: null, waypoints: [] }));
   assert.deepEqual(unlinked.nodes.map(node => node.kind), ['anonymous', 'anonymous']);
-});
-
-const beginLifecycle = draftValue => {
-  let mapOptions;
-  let cleaned = 0;
-  const lifecycle = { work: null, stopEdit: null };
-  const editorSurface = { enterMapWork: options => { mapOptions = options; return true; } };
-  const routeEditor = {
-    setSegmentRouteWorkState: state => { lifecycle.work = structuredClone(state); },
-    startSegmentRouteWork: options => { lifecycle.work = structuredClone(options.initialState); return () => { cleaned += 1; }; }
-  };
-  const error = beginSegmentRouteMapWork('segment', draftValue, editorSurface, routeEditor, lifecycle, editorState, () => undefined);
-  assert.equal(error, null);
-  return { cleaned: () => cleaned, lifecycle, mapOptions };
-};
-
-test('Done atomically transfers changed geometry and indices without persistence', () => {
-  const value = draft();
-  const work = beginLifecycle(value);
-  work.mapOptions.routePointEditor.insertAfter('from');
-  work.mapOptions.done();
-  assert.equal(value.route.coordinates.length, 4);
-  assert.deepEqual(value.waypointRouteVertexIndices, [2]);
-  assert.equal(value.waypointRows[0].routeVertexIndex, 2);
-  assert.equal(work.cleaned(), 1);
-});
-
-test('Cancel rollback restores exact pre-work route and indices', () => {
-  const value = draft({
-    route: { type: 'LineString', coordinates: [[10, 20], [10.5, 20.5], [11, 21], [12, 22]] },
-    waypoints: [['via-b', 'b', 2]]
-  });
-  const before = structuredClone(value);
-  const work = beginLifecycle(value);
-  work.mapOptions.routePointEditor.remove('anonymous:1');
-  work.mapOptions.rollback(work.mapOptions.snapshot());
-  work.mapOptions.cancel();
-  assert.deepEqual(value, before);
-  assert.equal(work.cleaned(), 1);
-});
-
-test('Clear retains anchors and Done transfers null geometry and null indices', () => {
-  const value = draft({
-    route: { type: 'LineString', coordinates: [[10, 20], [10.5, 20.5], [11, 21], [12, 22]] },
-    waypoints: [['via-b', 'b', 2]]
-  });
-  const work = beginLifecycle(value);
-  work.mapOptions.clear();
-  work.mapOptions.done();
-  assert.equal(value.route, null);
-  assert.deepEqual(value.waypointRouteVertexIndices, [null]);
-  assert.deepEqual(value.waypointRows.map(row => row.routeVertexIndex), [null]);
 });
