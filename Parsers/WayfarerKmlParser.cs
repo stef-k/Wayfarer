@@ -30,8 +30,8 @@ public static class WayfarerKmlParser
         var document = source.Root?.Element(Kml + "Document") ?? throw new FormatException("Missing KML Document.");
         var versionValues = Values(document, "WayfarerSchemaVersion");
         if (versionValues.Count > 1) throw new FormatException("Duplicate Wayfarer schema version metadata.");
-        var hasV2Fields = document.Descendants(Kml + "Placemark").Any(owner =>
-            DirectData(owner).Keys.Any(V2OnlyFields.Contains));
+        var hasV2Fields = document.Descendants(Kml + "Placemark").Any(owner => owner.Elements(Kml + "ExtendedData")
+            .Elements(Kml + "Data").Any(data => data.Attribute("name") is { Value: var name } && V2OnlyFields.Contains(name)));
 
         WayfarerKmlKind kind;
         if (versionValues.Count == 1)
@@ -71,8 +71,11 @@ public static class WayfarerKmlParser
         var regions = owner.Elements(Kml + "Folder").Where(folder => folder.Element(Kml + "name")?.Value != "Segments")
             .Select(folder => ParseRegion(folder, version)).ToArray();
         EnsureUnique(regions.Select(region => region.Id), "Region");
+        EnsureUnique(regions.SelectMany(region => region.Areas).Select(area => area.Id), "Area");
         var segmentsFolder = owner.Elements(Kml + "Folder").SingleOrDefault(folder => folder.Element(Kml + "name")?.Value == "Segments");
-        var segments = segmentsFolder?.Elements(Kml + "Placemark").Select(pm => ParseSegment(pm, version)).ToArray() ?? [];
+        var segments = segmentsFolder?.Elements(Kml + "Placemark")
+            .Where(placemark => version != 1 || HasParseableV1LineString(placemark))
+            .Select(pm => ParseSegment(pm, version)).ToArray() ?? [];
         EnsureUnique(segments.Select(segment => segment.Id), "Segment");
         return new(version, tripId, owner.Element(Kml + "name")?.Value ?? "Imported trip",
             Scalar(owner, "CoverImageUrl"), Scalar(owner, "NotesHtml"), OptionalDouble(owner, "CenterLat"),
@@ -194,6 +197,14 @@ public static class WayfarerKmlParser
     private static IReadOnlyList<Guid> GuidTokens(string value) => Tokens(value).Select(token => Guid.TryParseExact(token, "D", out var id) && token == token.Trim() ? id : throw new FormatException("Invalid waypoint identity token.")).ToArray();
     private static IReadOnlyList<int?> IndexTokens(string value) => Tokens(value).Select(token => token == "null" ? (int?)null : int.TryParse(token, NumberStyles.None, Invariant, out var index) && index >= 0 && token == token.Trim() ? index : throw new FormatException("Invalid waypoint index token.")).ToArray();
     private static IEnumerable<Coordinate> Coordinates(string text) => text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(ParseCoordinate);
+    /// <summary>Identifies legacy Segment geometry that the v1 parser historically retained.</summary>
+    private static bool HasParseableV1LineString(XElement owner)
+    {
+        var text = owner.Element(Kml + "LineString")?.Element(Kml + "coordinates")?.Value;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        try { return Coordinates(text).Count() >= 2; }
+        catch (FormatException) { return false; }
+    }
     private static Point ParsePoint(string text) { var coordinate = ParseCoordinate(text); return Point(coordinate.X, coordinate.Y); }
     private static Point Point(double longitude, double latitude) => new(longitude, latitude) { SRID = 4326 };
     private static Coordinate ParseCoordinate(string token)

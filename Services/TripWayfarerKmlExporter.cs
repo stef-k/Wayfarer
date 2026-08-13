@@ -159,6 +159,10 @@ public static class TripWayfarerKmlExporter
 
     private static void ValidateMeasurements(Segment segment)
     {
+        if (segment.EstimatedDurationSource is not EstimatedDurationSource.Automatic
+            and not EstimatedDurationSource.Manual)
+            throw new InvalidOperationException("Segment duration provenance is invalid.");
+
         var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
         var route = segment.RouteGeometry ?? BuildFallback(segment, waypoints);
         if (route is null)

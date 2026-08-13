@@ -109,10 +109,10 @@ public sealed class NativeKmlV2RoundTripTests
     {
         var tripId = Guid.NewGuid();
         var segmentId = Guid.NewGuid();
-        foreach (var versionData in new[]
+        foreach (var (versionData, lineString) in new[]
         {
-            "<Data name=\"WayfarerSchemaVersion\"><value>1</value></Data>",
-            ""
+            ("<Data name=\"WayfarerSchemaVersion\"><value>1</value></Data>", ""),
+            ("", "<LineString><coordinates> </coordinates></LineString>")
         })
         {
             var kml = $"""
@@ -121,7 +121,7 @@ public sealed class NativeKmlV2RoundTripTests
                 <Folder><name>Segments</name><Placemark><ExtendedData>
                 <Data name="SegmentId"><value>{segmentId:D}</value></Data>
                 <Data name="Mode"><value>walk</value></Data>
-                </ExtendedData></Placemark></Folder></Document></kml>
+                </ExtendedData>{lineString}</Placemark></Folder></Document></kml>
                 """;
 
             using var stream = Stream(kml);
