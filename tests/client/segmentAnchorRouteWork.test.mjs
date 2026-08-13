@@ -107,6 +107,10 @@ test('zero-waypoint custom and fallback routes remain compatible', () => {
   const custom = construct(draft({ route: { type: 'LineString', coordinates: [[10, 20], [11, 20.5], [12, 22]] }, waypoints: [] }));
   assert.equal(custom.nodes[1].kind, 'anonymous');
   assert.deepEqual(projectSegmentRouteWork(custom)?.waypointRouteVertexIndices, []);
+  const optional = construct(draft({ route: { type: 'LineString', coordinates: [[10, 20], [11, 20.5]] }, to: null, waypoints: [] }));
+  assert.deepEqual(optional.nodes.map(node => node.kind), ['anchor', 'anonymous']);
+  const unlinked = construct(draft({ route: { type: 'LineString', coordinates: [[9, 19], [11, 20.5]] }, from: null, to: null, waypoints: [] }));
+  assert.deepEqual(unlinked.nodes.map(node => node.kind), ['anonymous', 'anonymous']);
 });
 
 const beginLifecycle = draftValue => {

@@ -47,15 +47,13 @@ export function constructSegmentRouteWorkState(draft: EditorSegmentDraft, editor
   if (!anchors.ok) return anchors;
 
   if (draft.route === null) {
-    if (anchors.nodes.length < 2) return fail('Route work requires at least two located anchors.');
+    if (draft.waypointRows.length > 0 && anchors.nodes.length < 2) return fail('Route work requires located From and To anchors.');
     return success(anchors.nodes, 'fallback');
   }
 
   const coordinates = validCoordinates(draft.route);
   if (!coordinates) return fail('The saved custom route is malformed. Reload or repair the Segment before editing its route.');
-  if (anchors.nodes.length === 0 && draft.waypointRows.length === 0) {
-    return success(coordinates.map((coordinate, index) => anonymous(index + 1, coordinate)), 'custom');
-  }
+  if (draft.waypointRows.length === 0) return constructLegacyCustom(coordinates, anchors.nodes);
   if (anchors.nodes.length < 2) return fail('The custom route is missing a required endpoint anchor.');
 
   const waypointIndices = draft.waypointRows.map(row => row.routeVertexIndex);
@@ -71,6 +69,19 @@ export function constructSegmentRouteWorkState(draft: EditorSegmentDraft, editor
 
   let anonymousId = 0;
   const nodes = coordinates.map((coordinate, index) => anchorByIndex.get(index) ?? anonymous(++anonymousId, coordinate));
+  return { ok: true, state: { nodes, origin: 'custom', changedCustom: false, cleared: false, nextAnonymousId: anonymousId + 1 } };
+}
+
+/** Preserves optional legacy endpoints while keeping every unowned coordinate anonymous. */
+function constructLegacyCustom(coordinates: RouteCoordinate[], anchors: SegmentRouteAnchorNode[]): SegmentRouteWorkResult {
+  const from = anchors.find(anchor => anchor.role === 'from');
+  const to = anchors.find(anchor => anchor.role === 'to');
+  if (from && !sameCoordinate(coordinates[0], from.coordinate)) return fail('The custom route start no longer matches its saved Place.');
+  if (to && !sameCoordinate(coordinates.at(-1)!, to.coordinate)) return fail('The custom route end no longer matches its saved Place.');
+  let anonymousId = 0;
+  const nodes = coordinates.map((coordinate, index) => index === 0 && from ? from
+    : index === coordinates.length - 1 && to ? to
+      : anonymous(++anonymousId, coordinate));
   return { ok: true, state: { nodes, origin: 'custom', changedCustom: false, cleared: false, nextAnonymousId: anonymousId + 1 } };
 }
 
@@ -113,13 +124,13 @@ export function clearAnonymousNodes(state: SegmentRouteWorkState): void {
 
 /** Derives geometry and waypoint indices atomically from one work-state snapshot. */
 export function projectSegmentRouteWork(state: SegmentRouteWorkState): SegmentRouteProjection | null {
-  if (state.nodes.length < 2 || state.nodes.some(node => !isCoordinate(node.coordinate))) return null;
   const waypointIndices = state.nodes
     .map((node, index) => node.kind === 'anchor' && node.role === 'waypoint' ? index : null)
     .filter((index): index is number => index !== null);
   if (state.cleared || (state.origin === 'fallback' && !state.changedCustom)) {
     return { route: null, waypointRouteVertexIndices: waypointIndices.map(() => null), unchangedFallback: !state.cleared, changedCustom: false };
   }
+  if (state.nodes.length < 2 || state.nodes.some(node => !isCoordinate(node.coordinate))) return null;
   return {
     route: { type: 'LineString', coordinates: state.nodes.map(node => [...node.coordinate]) },
     waypointRouteVertexIndices: waypointIndices,

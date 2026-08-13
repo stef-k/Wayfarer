@@ -1,4 +1,5 @@
 import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
+import { ensureLeafletDraw } from './leafletDrawPlugin';
 import {
   cloneSegmentRouteWorkState,
   insertAnonymousNode,
@@ -22,17 +23,28 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
   start: (options: SegmentRouteWorkOptions) => () => void;
   stop: () => void;
 } => {
+  ensureLeafletDraw();
   const group = L.featureGroup().addTo(map);
   let options: SegmentRouteWorkOptions | null = null;
   let state: SegmentRouteWorkState | null = null;
+  let drawHandler: { disable: () => void; enable: () => void } | null = null;
 
   const publish = (): void => {
     if (state) options?.onChanged(cloneSegmentRouteWorkState(state));
   };
 
   const render = (): void => {
+    stopDraw();
     group.clearLayers();
     if (!state || !options) return;
+
+    if (state.nodes.length < 2) {
+      state.nodes.filter(node => node.kind === 'anchor').forEach(node => {
+        L.marker([node.coordinate[1], node.coordinate[0]], { interactive: false, icon: anchorIcon(node) }).addTo(group);
+      });
+      startDraw();
+      return;
+    }
 
     const geometry = workStateGeometry(state);
     const line = L.polyline(geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]), routeStyle())
@@ -82,6 +94,7 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
   };
 
   const stop = (): void => {
+    stopDraw();
     group.clearLayers();
     options = null;
     state = null;
@@ -105,6 +118,37 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
       publish();
       render();
     }
+  }
+
+  /** Retains the legacy map-draw entry only when W has no complete LineString yet. */
+  function startDraw(): void {
+    drawHandler = new (drawPolylineHandler())(map, { repeatMode: false, shapeOptions: routeStyle() }) as { disable: () => void; enable: () => void };
+    map.on(drawCreatedEvent(), onDrawCreated);
+    drawHandler.enable();
+  }
+
+  function stopDraw(): void {
+    drawHandler?.disable();
+    drawHandler = null;
+    map.off(drawCreatedEvent(), onDrawCreated);
+  }
+
+  function onDrawCreated(event: { layer: L.Layer }): void {
+    if (!state || !(event.layer instanceof L.Polyline) || event.layer instanceof L.Polygon) return;
+    const coordinates = (event.layer.getLatLngs() as L.LatLng[]).map(point => [point.lng, point.lat] as [number, number]);
+    const from = state.nodes.find(node => node.kind === 'anchor' && node.role === 'from');
+    const to = state.nodes.find(node => node.kind === 'anchor' && node.role === 'to');
+    let anonymousId = state.nextAnonymousId;
+    state.nodes = [
+      ...(from ? [from] : []),
+      ...coordinates.map(coordinate => ({ kind: 'anonymous' as const, key: `anonymous:${anonymousId++}`, coordinate })),
+      ...(to ? [to] : [])
+    ];
+    state.nextAnonymousId = anonymousId;
+    state.changedCustom = true;
+    state.cleared = false;
+    publish();
+    render();
   }
 
   return { dispose: stop, isActive: () => options !== null, setState, start, stop };
@@ -146,3 +190,9 @@ function enableCircleMarkerDragging(marker: L.CircleMarker, changed: (coordinate
 
 const mapDrag = (marker: L.CircleMarker): { enable: () => void; disable: () => void } =>
   (marker as unknown as { _map: LeafletMap })._map.dragging;
+
+const drawPolylineHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>
+  (L as unknown as { Draw: { Polyline: new (map: LeafletMap, options: Record<string, unknown>) => unknown } }).Draw.Polyline;
+
+const drawCreatedEvent = (): string =>
+  (L as unknown as { Draw: { Event: Record<string, string> } }).Draw.Event.CREATED;

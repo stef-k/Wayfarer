@@ -105,6 +105,7 @@ export function beginSegmentRouteMapWork(
     canFinish: () => Boolean(lifecycle.work && projectSegmentRouteWork(lifecycle.work)),
     isDirty: () => JSON.stringify(lifecycle.work) !== JSON.stringify(initialWork),
     routePointEditor: pointEditor,
+    restoreFocus,
     snapshot: () => draftSnapshot,
     rollback: snapshot => restoreDraft(draft, snapshot as SegmentRouteDraftSnapshot),
     clear: () => {
@@ -119,11 +120,9 @@ export function beginSegmentRouteMapWork(
       draft.waypointRouteVertexIndices = [...projection.waypointRouteVertexIndices];
       draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = projection.waypointRouteVertexIndices[index] ?? null; });
       stopSegmentRouteEdit(lifecycle);
-      queueMicrotask(restoreFocus);
     },
     cancel: () => {
       stopSegmentRouteEdit(lifecycle);
-      queueMicrotask(restoreFocus);
     }
   });
   if (!entered) {

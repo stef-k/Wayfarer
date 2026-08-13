@@ -77,6 +77,14 @@ watch(
   { flush: 'sync' }
 );
 watch(() => [props.segments.length, props.searchActive, segmentListKey.value], () => nextTick(attachSortable), { immediate: true });
+watch(
+  () => routeMapWork.work?.nodes.some(node => {
+    if (node.kind !== 'anchor') return false;
+    const location = props.state.placesById[node.placeId]?.location;
+    return !location || location.longitude !== node.coordinate[0] || location.latitude !== node.coordinate[1];
+  }) ?? false,
+  stale => { if (stale) void invalidateStaleRouteWork(); }
+);
 
 onMounted(() => {
   unregisterHandler = props.editorSurface.registerTargetHandler(segmentDraftKey, {
@@ -293,7 +301,15 @@ function clearRoute(): void {
 
 /** Returns focus to the route action after map-work teardown completes. */
 function focusRouteAction(): void {
-  void nextTick(() => segmentEditorSurface.value?.focusRouteAction());
+  void nextTick(() => document.querySelector<HTMLButtonElement>('[data-segment-route-action]:not([disabled])')?.focus());
+}
+
+/** Rejects an observed authoritative anchor change instead of merging it into active W. */
+async function invalidateStaleRouteWork(): Promise<void> {
+  await props.editorSurface.invalidateMapWork();
+  saveError.value = 'Saved Place coordinates changed. Reload the current saved Segment before reopening route work.';
+  await nextTick();
+  document.getElementById('segment-route-work-error')?.focus();
 }
 
 function toggleVisibility(segment: EditorSegment): void {
