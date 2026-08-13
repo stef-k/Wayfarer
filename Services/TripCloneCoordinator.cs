@@ -38,23 +38,35 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             : null;
+        try
+        {
+            var source = await LoadSourceAsync(sourceTripId, cancellationToken);
+            if (source == null) return new(TripCloneStatus.NotFound);
+            if (!source.IsPublic) return new(TripCloneStatus.NotPublic);
+            if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
 
-        var source = await LoadSourceAsync(sourceTripId, cancellationToken);
-        if (source == null) return new(TripCloneStatus.NotFound);
-        if (!source.IsPublic) return new(TripCloneStatus.NotPublic);
-        if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
+            var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
+            dbContext.Trips.Add(clone);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.ChangeTracker.Clear();
+            await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
+                dbContext, clone.Id, allowUnavailableAutomatic: true, cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
-        var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
-        dbContext.Trips.Add(clone);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        dbContext.ChangeTracker.Clear();
-        await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
-            dbContext, clone.Id, allowUnavailableAutomatic: true, cancellationToken);
-        if (transaction != null) await transaction.CommitAsync(cancellationToken);
-
-        var requiresWarmup = !string.IsNullOrWhiteSpace(clone.CoverImageUrl)
-            || HtmlHelpers.ExtractExternalImageUrls(clone.Notes).Any();
-        return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup);
+            var requiresWarmup = !string.IsNullOrWhiteSpace(clone.CoverImageUrl)
+                || HtmlHelpers.ExtractExternalImageUrls(clone.Notes).Any();
+            return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup);
+        }
+        catch (Exception cloneFailure) when (transaction != null)
+        {
+            try { await transaction.RollbackAsync(CancellationToken.None); }
+            catch (Exception rollbackFailure)
+            {
+                throw new AggregateException("Trip cloning failed and its transaction rollback also failed.",
+                    cloneFailure, rollbackFailure);
+            }
+            throw;
+        }
     }
 
     /// <summary>Explicitly loads every clone-owned aggregate child inside the coordinator snapshot.</summary>
