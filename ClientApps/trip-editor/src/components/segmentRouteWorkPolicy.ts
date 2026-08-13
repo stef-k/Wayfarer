@@ -2,10 +2,10 @@ import type { EditorSegmentDraft } from '../types';
 
 type SegmentRouteDraft = Pick<EditorSegmentDraft, 'route'> & Partial<Pick<EditorSegmentDraft, 'waypointPlaceIds' | 'waypointRows'>>;
 
-/** Returns whether the current hidden aggregate can safely enter route work before #409. */
-export const canMutateSegmentRoute = (draft: SegmentRouteDraft): boolean => (draft.waypointRows?.length ?? draft.waypointPlaceIds?.length ?? 0) === 0;
+/** Route-work eligibility is validated by the anchor-aware constructor without hiding waypoint drafts. */
+export const canMutateSegmentRoute = (_draft: SegmentRouteDraft): boolean => true;
 
-/** Invokes route work only when the authoritative draft has no intermediate-place anchors. */
+/** Invokes route work; malformed aggregate state is rejected by the anchor-aware constructor. */
 export const invokeSegmentRouteAction = (draft: SegmentRouteDraft, action: () => void): boolean => {
   if (!canMutateSegmentRoute(draft)) return false;
   action();

@@ -37,16 +37,12 @@ const transportModes = computed(() => {
   return [{ value: props.draft.mode, label: `${props.draft.mode} (inactive)`, speedKmh: null, inactive: true }, ...active];
 });
 const routeSummary = computed(() => {
-  if (props.isDirty && props.draft.waypointRows.length > 0) {
-    return 'The map keeps the saved route while intermediate-place changes are unsaved. It updates after Save.';
-  }
-
   if (props.draft.route) {
     return `${props.isDirty ? 'Unsaved' : 'Saved'} route · ${props.draft.route.coordinates.length} custom route points`;
   }
 
   return fallbackRoute(props.draft, props.state)
-    ? `Endpoint fallback available until saved${props.isDirty ? ' · unsaved' : ''}`
+    ? `Ordered anchor fallback available${props.isDirty ? ' · unsaved' : ''}`
     : 'No route';
 });
 

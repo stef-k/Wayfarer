@@ -21,6 +21,11 @@ type Fixture = {
   waypointSegmentId: string;
   zeroSegmentId: string;
   staleSegmentId: string;
+  routeWorkSegmentId: string;
+  closedLoopSegmentId: string;
+  cleanupSegmentId: string;
+  responsiveSegmentId: string;
+  failedSaveSegmentId: string;
   fromId: string;
   waypointId: string;
   staleWaypointId: string;
@@ -33,6 +38,137 @@ type Fixture = {
 };
 
 test.describe.serial('#407/#408 persisted waypoint aggregate and accessible editor', () => {
+  test('mounted #409 route work persists shifted anchors and preserves closed-loop identity', async ({ page }) => {
+    test.setTimeout(180_000);
+    const fixture = await loadFixture();
+    await signIn(page);
+    const response = await page.goto(absoluteUrl(editorPath), { waitUntil: 'domcontentloaded' });
+    expect(response?.ok()).toBeTruthy();
+    await expectMountedWorkspace(page);
+
+    const expectedInitial = [[23.70, 37.97], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    const expectedEdited = [[23.70, 37.97], [23.71, 37.975], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    const initial = (await editorState(page)).segmentsById[fixture.routeWorkSegmentId];
+    expect(initial.route.coordinates).toEqual(expectedInitial);
+    expect(initial.waypointPlaceIds).toEqual([fixture.waypointId]);
+    expect(initial.waypointRouteVertexIndices).toEqual([2]);
+
+    await openSegment(page, fixture.routeWorkSegmentId);
+    const form = page.locator('#trip-editor-segment-form');
+    const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
+    const mutationRequests: string[] = [];
+    page.on('request', request => {
+      if (request.method() !== 'GET' && request.url().includes('/segments')) mutationRequests.push(request.url());
+    });
+    await drawRoute.click();
+    const routeWork = page.getByRole('region', { name: 'Map work' });
+    const start = routeWork.getByRole('listitem').filter({ hasText: /^Start —/ });
+    const via = routeWork.getByRole('listitem').filter({ hasText: /^Via 1 —/ });
+    const end = routeWork.getByRole('listitem').filter({ hasText: /^End —/ });
+    await expect(start).toContainText('fixed');
+    await expect(via).toContainText('fixed');
+    await expect(end).toContainText('fixed');
+    await start.getByRole('button', { name: /Insert route point after Start/ }).click();
+    const inserted = routeWork.locator('[data-route-point-index="1"]');
+    await inserted.getByLabel('Longitude').fill('23.71');
+    await inserted.getByLabel('Latitude').fill('37.975');
+    await page.keyboard.press('Tab');
+    await expect(via).toHaveAttribute('data-route-point-index', '3');
+    await routeWork.getByRole('button', { name: 'Done' }).click();
+    expect(mutationRequests).toEqual([]);
+    const draftBeforeSave = await editorState(page);
+    expect(draftBeforeSave.segmentsById[fixture.routeWorkSegmentId].route.coordinates).toEqual(expectedInitial);
+    await expect(form.getByText('Unsaved route · 5 custom route points')).toBeVisible();
+
+    const submitted = captureNextPut(page, fixture.routeWorkSegmentId);
+    const savedResponse = waitForPut(page, fixture.routeWorkSegmentId);
+    await page.getByRole('button', { name: 'Save Segment' }).click();
+    expect(await submitted).toMatchObject({ route: { type: 'LineString', coordinates: expectedEdited }, waypointPlaceIds: [fixture.waypointId], waypointRouteVertexIndices: [3] });
+    expect((await savedResponse).ok()).toBeTruthy();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expectMountedWorkspace(page);
+    const reread = (await editorState(page)).segmentsById[fixture.routeWorkSegmentId];
+    expect(reread.route.coordinates).toEqual(expectedEdited);
+    expect(reread.waypointPlaceIds).toEqual([fixture.waypointId]);
+    expect(reread.waypointRouteVertexIndices).toEqual([3]);
+    expect(reread.transportProfileId).toBe(fixture.profileId);
+    expect(reread.mode).toBe(fixture.mode);
+    await fixtureControl('verify-route-work');
+
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await openSegment(page, fixture.closedLoopSegmentId);
+    await drawRoute.click();
+    const loopWork = page.getByRole('region', { name: 'Map work' });
+    const loopStart = loopWork.getByRole('listitem').filter({ hasText: /^Start —/ });
+    const loopVia = loopWork.getByRole('listitem').filter({ hasText: /^Via 1 —/ });
+    const loopEnd = loopWork.getByRole('listitem').filter({ hasText: /^End —/ });
+    await expect(loopStart).toContainText('From ');
+    await expect(loopEnd).toContainText('From ');
+    await expect(loopVia).toContainText('Waypoint ');
+    await expect(page.locator(`[data-place-marker-icon="${fixture.fromId}"]`)).toHaveCount(1);
+    await expect(loopStart.getByRole('spinbutton')).toHaveCount(0);
+    await expect(loopVia.getByRole('button', { name: /Remove/ })).toHaveCount(0);
+    await expect(loopEnd.getByRole('button', { name: /Remove/ })).toHaveCount(0);
+    const anonymousHandles = page.locator('.segment-route-work-handle');
+    await expect(anonymousHandles).toHaveCount(2);
+    await page.locator('.leaflet-control-zoom-out').click();
+    await page.locator('.leaflet-control-zoom-out').click();
+    const reachable = await anonymousHandles.evaluateAll(elements => {
+      for (let index = 0; index < elements.length; index += 1) {
+        const box = elements[index].getBoundingClientRect();
+        for (const x of [0.25, 0.5, 0.75]) for (const y of [0.25, 0.5, 0.75]) {
+          const point = { x: box.x + box.width * x, y: box.y + box.height * y };
+          const hit = document.elementFromPoint(point.x, point.y);
+          if (hit === elements[index] || hit && elements[index].contains(hit)) return { index, point };
+        }
+      }
+      return null;
+    });
+    expect(reachable).not.toBeNull();
+    const anonymousHandle = anonymousHandles.nth(reachable!.index);
+    const pointerKey = await anonymousHandle.getAttribute('data-route-point-key');
+    expect(pointerKey).toMatch(/anonymous:/);
+    const pointerPoint = loopWork.locator(`[data-route-point-key="${pointerKey}"]`);
+    const pointerLongitude = Number(await pointerPoint.getByLabel('Longitude').inputValue());
+    const pointerLatitude = Number(await pointerPoint.getByLabel('Latitude').inputValue());
+    const handleBox = await anonymousHandle.boundingBox();
+    expect(handleBox).not.toBeNull();
+    const startX = reachable!.point.x;
+    const startY = reachable!.point.y;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 80, startY - 50, { steps: 16 });
+    await page.mouse.up();
+    await expect.poll(async () => {
+      const moved = await page.locator(`.segment-route-work-handle[data-route-point-key="${pointerKey}"]`).boundingBox();
+      return moved ? Math.abs(moved.x - handleBox!.x) + Math.abs(moved.y - handleBox!.y) : 0;
+    }).toBeGreaterThan(8);
+    await expect(loopStart).toContainText('From ');
+    await expect(loopVia).toContainText('Waypoint ');
+    await expect(loopEnd).toContainText('From ');
+    await loopWork.getByRole('button', { name: 'Done' }).click();
+    await drawRoute.click();
+    const reopenedPointer = loopWork.locator('[data-route-point-index="3"]');
+    expect([
+      Number(await reopenedPointer.getByLabel('Longitude').inputValue()),
+      Number(await reopenedPointer.getByLabel('Latitude').inputValue())
+    ]).not.toEqual([pointerLongitude, pointerLatitude]);
+    await loopStart.getByRole('button', { name: /Insert route point after Start/ }).click();
+    const loopInserted = loopWork.locator('[data-route-point-index="1"]');
+    await loopInserted.getByLabel('Longitude').fill('23.705');
+    await loopInserted.getByLabel('Latitude').fill('37.98');
+    await page.keyboard.press('Tab');
+    await loopInserted.getByRole('button', { name: /Remove Route point/ }).click();
+    await loopWork.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
+    await drawRoute.click();
+    await expect(loopWork.getByRole('listitem').filter({ hasText: /^Start —/ })).toContainText('From ');
+    await expect(loopWork.getByRole('listitem').filter({ hasText: /^End —/ })).toContainText('From ');
+    await expect(page.locator(`[data-place-marker-icon="${fixture.fromId}"]`)).toHaveCount(1);
+    await loopWork.getByRole('button', { name: 'Done' }).click();
+    await expect(form.getByText(/custom route points/i)).toBeVisible();
+  });
+
   test('mounted editor authors waypoints and preserves the complete aggregate through failures and confirmation', async ({ page }) => {
     test.setTimeout(180_000);
     const fixture = await loadFixture();
@@ -59,26 +195,55 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
     const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
     const clearRoute = page.getByRole('button', { name: 'Clear Route' });
-    const routeExplanation = page.getByText('Route editing for segments with intermediate places will be available in a later update.');
-    await expect(drawRoute).toBeDisabled();
-    await expect(clearRoute).toBeDisabled();
-    await expect(routeExplanation).toBeVisible();
-    const explanationId = await routeExplanation.getAttribute('id');
-    expect(explanationId).toBeTruthy();
-    await expect(drawRoute).toHaveAttribute('aria-describedby', explanationId!);
-    await expect(clearRoute).toHaveAttribute('aria-describedby', explanationId!);
+    await expect(drawRoute).toBeEnabled();
+    await expect(clearRoute).toBeEnabled();
     await expect(form.getByLabel('From place')).toBeEnabled();
     await expect(notesEditor(form)).toBeEditable();
     const forbiddenRequests: string[] = [];
     page.on('request', request => {
       if (request.method() !== 'GET' && request.url().includes('/segments')) forbiddenRequests.push(request.url());
     });
-    await expect(drawRoute.click({ timeout: 500 })).rejects.toThrow();
-    await expect(clearRoute.click({ timeout: 500 })).rejects.toThrow();
+
     await drawRoute.focus();
     await page.keyboard.press('Enter');
-    await page.keyboard.press('Space');
-    await expect(page.getByRole('region', { name: 'Map work' })).toHaveCount(0);
+    const routeWork = page.getByRole('region', { name: 'Map work' });
+    await expect(routeWork).toBeVisible();
+    await expect(page.locator('.trip-editor-map')).toHaveAttribute('aria-label', /editing segment route/i);
+    const start = routeWork.getByRole('listitem').filter({ hasText: /^Start —/ });
+    const via = routeWork.getByRole('listitem').filter({ hasText: /^Via 1 —/ });
+    const end = routeWork.getByRole('listitem').filter({ hasText: /^End —/ });
+    await expect(start).toContainText('fixed');
+    await expect(via).toContainText('fixed');
+    await expect(end).toContainText('fixed');
+    await expect(start.getByRole('spinbutton')).toHaveCount(0);
+    await expect(via.getByRole('button', { name: /Remove/ })).toHaveCount(0);
+    await expect(end.getByRole('button', { name: /Remove/ })).toHaveCount(0);
+    await expect(routeWork.getByText(/^Route point 1$/)).toBeVisible();
+
+    await start.getByRole('button', { name: /Insert route point after Start/ }).click();
+    const insertedPoint = routeWork.locator('[data-route-point-index="1"]');
+    const longitude = insertedPoint.getByLabel('Longitude');
+    await expect(longitude).toBeFocused();
+    await longitude.fill('23.71');
+    await insertedPoint.getByLabel('Latitude').fill('37.975');
+    await page.keyboard.press('Tab');
+    const previousPoint = routeWork.locator('[data-route-point-index="2"]');
+    await previousPoint.getByRole('button', { name: /Remove Route point 2/ }).click();
+    await expect(routeWork.getByText(/^Route point 1$/)).toHaveCount(1);
+    await routeWork.getByRole('button', { name: 'Done' }).click();
+    await expect(routeWork).toHaveCount(0);
+    await expect(drawRoute).toBeFocused();
+    expect(forbiddenRequests).toEqual([]);
+
+    await drawRoute.click();
+    await start.getByRole('button', { name: /Insert route point after Start/ }).click();
+    await routeWork.getByRole('button', { name: 'Clear Route' }).click();
+    await expect(routeWork.getByText(/Fallback route pending/)).toBeVisible();
+    await routeWork.getByRole('button', { name: 'Cancel' }).click();
+    const discardMapWork = page.getByRole('dialog', { name: 'Discard map editing changes?' });
+    await discardMapWork.getByRole('button', { name: 'Discard' }).click();
+    await expect(routeWork).toHaveCount(0);
+    await page.getByRole('button', { name: 'Reset' }).click();
     expect(forbiddenRequests).toEqual([]);
     await notesEditor(form).fill('Browser ordinary visible edit');
     const ordinaryRequest = captureNextPut(page, fixture.waypointSegmentId);
@@ -217,8 +382,8 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/From .* → Waypoint .* → Alternate .* → To /);
     await form.getByRole('button', { name: /Move Alternate .* up/ }).press('Enter');
     await expect(form.locator('p', { hasText: 'Journey order:' })).toContainText(/From .* → Alternate .* → Waypoint .* → To /);
-    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeDisabled();
-    await expect(form.getByText(/map keeps the saved route.*updates after Save/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeEnabled();
+    await expect(form.getByText(/Ordered anchor fallback available.*unsaved/i)).toBeVisible();
     await notesEditor(form).fill('Waypoint UI save');
     const zeroResponse = waitForPut(page, fixture.zeroSegmentId);
     await page.getByRole('button', { name: 'Save Segment' }).click();
@@ -329,7 +494,9 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.getByRole('button', { name: 'Save Segment' }).click();
     expect((await createResponse).ok()).toBeTruthy();
     const created = Object.values((await editorState(page)).segmentsById as Record<string, any>)
-      .find(segment => ![fixture.waypointSegmentId, fixture.zeroSegmentId, fixture.staleSegmentId].includes(segment.id));
+      .find(segment => ![fixture.waypointSegmentId, fixture.zeroSegmentId, fixture.staleSegmentId,
+        fixture.routeWorkSegmentId, fixture.closedLoopSegmentId, fixture.cleanupSegmentId,
+        fixture.responsiveSegmentId, fixture.failedSaveSegmentId].includes(segment.id));
     expect(created?.waypointPlaceIds).toEqual([]);
     expect(created?.waypointRouteVertexIndices).toEqual([]);
     expect((await page.request.get(absoluteUrl(`/Public/Trip/${fixture.waypointSegmentId}`))).status()).toBe(404);
@@ -340,7 +507,7 @@ async function loadFixture(): Promise<Fixture> {
   const path = required('WAYFARER_E2E_WAYPOINT_FIXTURE');
   return JSON.parse(await readFile(path, 'utf8')) as Fixture;
 }
-async function fixtureControl(command: 'drift' | 'verify-preserved' | 'verify-ui'): Promise<void> {
+async function fixtureControl(command: 'drift' | 'verify-preserved' | 'verify-route-work' | 'verify-ui'): Promise<void> {
   await execute('dotnet', [required('WAYFARER_E2E_WAYPOINT_HELPER'), command,
     required('WAYFARER_E2E_WAYPOINT_FIXTURE')], { env: process.env });
 }
@@ -358,7 +525,8 @@ async function editorState(page: Page): Promise<Record<string, any>> {
 async function openSegment(page: Page, id: string): Promise<void> {
   const form = page.locator('#trip-editor-segment-form');
   if (await form.isVisible().catch(() => false)) {
-    await page.getByRole('button', { name: 'Cancel' }).filter({ visible: true }).click();
+    const cancel = page.getByRole('button', { name: 'Cancel' }).filter({ visible: true });
+    if (await cancel.isEnabled().catch(() => false)) await cancel.click();
   }
   await page.locator(`[data-segment-id="${id}"] .trip-editor-list-button`).click();
   await expect(form).toBeVisible();

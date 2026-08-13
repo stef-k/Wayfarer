@@ -8,7 +8,7 @@ using Wayfarer.Util;
 
 const string connectionVariable = "WAYFARER_TEST_POSTGRES_CONNECTION";
 if (args.Length is < 2 or > 3)
-    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|verify-ui|cleanup|verify-cleanup> <manifest> [password].");
+    throw new InvalidOperationException("Usage: Wayfarer.WaypointBrowserFixture <provision|drift|verify-preserved|verify-route-work|verify-failed-save|verify-ui|cleanup|verify-cleanup> <manifest> [password].");
 
 var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
@@ -33,6 +33,12 @@ switch (command)
         break;
     case "verify-preserved":
         await VerifyPreservedAsync(context, await ReadAsync(manifestPath));
+        break;
+    case "verify-route-work":
+        await VerifyRouteWorkAsync(context, await ReadAsync(manifestPath));
+        break;
+    case "verify-failed-save":
+        await VerifyFailedSaveAsync(context, await ReadAsync(manifestPath));
         break;
     case "verify-ui":
         await VerifyUiAsync(context, await ReadAsync(manifestPath));
@@ -99,15 +105,41 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
         Segment = staleSegment, SegmentId = staleSegment.Id, Place = staleWaypoint, PlaceId = staleWaypoint.Id,
         Position = 0, RouteVertexIndex = null
     });
+    var routeWorkSegment = Segment(trip, user.Id, profile, 4, from, to, "Anchor-aware route work", true);
+    routeWorkSegment.Waypoints.Add(new SegmentWaypoint
+    {
+        Segment = routeWorkSegment, SegmentId = routeWorkSegment.Id, Place = waypoint, PlaceId = waypoint.Id,
+        Position = 0, RouteVertexIndex = 2
+    });
+    routeWorkSegment.RouteGeometry = Line(from.Location!.Coordinate,
+        new Coordinate(23.72, 37.98), waypoint.Location!.Coordinate, to.Location!.Coordinate);
+    var closedLoopSegment = Segment(trip, user.Id, profile, 5, from, from, "Closed-loop route work", true);
+    closedLoopSegment.Waypoints.Add(new SegmentWaypoint
+    {
+        Segment = closedLoopSegment, SegmentId = closedLoopSegment.Id, Place = waypoint, PlaceId = waypoint.Id,
+        Position = 0, RouteVertexIndex = 2
+    });
+    closedLoopSegment.RouteGeometry = Line(from.Location!.Coordinate, new Coordinate(23.71, 37.985),
+        waypoint.Location!.Coordinate, new Coordinate(23.72, 37.975), from.Location!.Coordinate);
+    var cleanupSegment = AnchoredRouteSegment(trip, user.Id, profile, 6, from, waypoint, to, "Cleanup route work");
+    var responsiveSegment = AnchoredRouteSegment(trip, user.Id, profile, 7, from, waypoint, to, "Responsive route work");
+    var failedSaveSegment = AnchoredRouteSegment(trip, user.Id, profile, 8, from, waypoint, to, "Failed-save route work");
     trip.Segments.Add(waypointSegment);
     trip.Segments.Add(zeroSegment);
     trip.Segments.Add(staleSegment);
+    trip.Segments.Add(routeWorkSegment);
+    trip.Segments.Add(closedLoopSegment);
+    trip.Segments.Add(cleanupSegment);
+    trip.Segments.Add(responsiveSegment);
+    trip.Segments.Add(failedSaveSegment);
     context.Users.Add(user);
     context.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = role.Id });
     context.Trips.Add(trip);
     context.Set<TransportProfile>().Add(profile);
     var manifest = new WaypointFixtureManifest(trip.Id, user.Id, user.UserName!, password, profile.Id, profile.Key,
-        waypointSegment.Id, zeroSegment.Id, staleSegment.Id, from.Id, waypoint.Id, staleWaypoint.Id, alternate.Id, to.Id,
+        waypointSegment.Id, zeroSegment.Id, staleSegment.Id, routeWorkSegment.Id, closedLoopSegment.Id,
+        cleanupSegment.Id, responsiveSegment.Id, failedSaveSegment.Id,
+        from.Id, waypoint.Id, staleWaypoint.Id, alternate.Id, to.Id,
         waypointSegment.EstimatedDistanceKm!.Value, waypointSegment.EstimatedDuration!.Value.TotalMinutes,
         waypointSegment.EstimatedDurationSource.ToString(), 0,
         waypointSegment.RouteGeometry!.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray(),
@@ -115,6 +147,54 @@ static async Task<WaypointFixtureManifest> ProvisionAsync(ApplicationDbContext c
     await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(manifest, FixtureJson.Options));
     await context.SaveChangesAsync();
     return manifest with { OriginalRowVersion = waypointSegment.RowVersion };
+}
+
+/// <summary>Creates an independently owned anchor-aware Segment for one browser workflow.</summary>
+static Segment AnchoredRouteSegment(Trip trip, string userId, TransportProfile profile, int order, Place from, Place waypoint, Place to, string notes)
+{
+    var segment = Segment(trip, userId, profile, order, from, to, notes, true);
+    segment.Waypoints.Add(new SegmentWaypoint
+    {
+        Segment = segment, SegmentId = segment.Id, Place = waypoint, PlaceId = waypoint.Id,
+        Position = 0, RouteVertexIndex = 2
+    });
+    segment.RouteGeometry = Line(from.Location!.Coordinate,
+        new Coordinate(23.72, 37.98), waypoint.Location!.Coordinate, to.Location!.Coordinate);
+    return segment;
+}
+
+/// <summary>Rereads the exact deterministic route-work proposal independently of the browser response.</summary>
+static async Task VerifyRouteWorkAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
+{
+    double[][] expected = [[23.70, 37.97], [23.71, 37.975], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    var segment = await context.Segments.AsNoTracking()
+        .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
+        .SingleAsync(item => item.Id == manifest.RouteWorkSegmentId);
+    var coordinates = segment.RouteGeometry?.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray();
+    var failures = new List<string>();
+    if (coordinates == null || !coordinates.SelectMany(item => item).SequenceEqual(expected.SelectMany(item => item))) failures.Add("coordinate order");
+    if (!segment.Waypoints.Select(item => item.PlaceId).SequenceEqual(new[] { manifest.WaypointId })) failures.Add("waypoint identity");
+    if (!segment.Waypoints.Select(item => item.RouteVertexIndex).SequenceEqual(new int?[] { 3 })) failures.Add("shifted route index");
+    if (segment.RouteGeometry == null) failures.Add("custom route");
+    if (segment.Mode != manifest.Mode || segment.TransportProfileId != manifest.ProfileId) failures.Add("profile authority");
+    if (segment.EstimatedDistanceKm == null || segment.EstimatedDuration == null || segment.EstimatedDurationSource.ToString() != manifest.EstimatedDurationSource) failures.Add("measurement authority");
+    if (segment.RowVersion == manifest.OriginalRowVersion) failures.Add("token refresh");
+    if (failures.Count > 0) throw new InvalidOperationException("Route-work provider reread mismatch: " + string.Join(", ", failures));
+    Console.WriteLine("provider-reread: exact custom coordinate order, waypoint identity, shifted index 3, profile, measurements, provenance, and refreshed token verified");
+}
+
+/// <summary>Independently rereads the retry result after the fixture-scoped provider outage.</summary>
+static async Task VerifyFailedSaveAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
+{
+    double[][] expected = [[23.70, 37.97], [23.71, 37.975], [23.72, 37.98], [23.74, 37.99], [23.78, 38.01]];
+    var segment = await context.Segments.AsNoTracking()
+        .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position))
+        .SingleAsync(item => item.Id == manifest.FailedSaveSegmentId);
+    var coordinates = segment.RouteGeometry?.Coordinates.Select(item => new[] { item.X, item.Y }).ToArray();
+    if (coordinates == null || !coordinates.SelectMany(item => item).SequenceEqual(expected.SelectMany(item => item))
+        || !segment.Waypoints.Select(item => item.RouteVertexIndex).SequenceEqual(new int?[] { 3 }))
+        throw new InvalidOperationException("Failed-save retry provider reread did not preserve exact geometry and shifted waypoint index.");
+    Console.WriteLine("provider-reread: failed-save retry persisted exact geometry and shifted index 3");
 }
 
 /// <summary>Changes the Segment row version through a second EF context for stale-token browser coverage.</summary>
@@ -176,7 +256,8 @@ static async Task CleanupAsync(ApplicationDbContext context, WaypointFixtureMani
 /// <summary>Fails unless every captured row and association was removed.</summary>
 static async Task VerifyAsync(ApplicationDbContext context, WaypointFixtureManifest manifest)
 {
-    var segmentIds = new[] { manifest.WaypointSegmentId, manifest.ZeroSegmentId, manifest.StaleSegmentId };
+    var segmentIds = new[] { manifest.WaypointSegmentId, manifest.ZeroSegmentId, manifest.StaleSegmentId, manifest.RouteWorkSegmentId, manifest.ClosedLoopSegmentId,
+        manifest.CleanupSegmentId, manifest.ResponsiveSegmentId, manifest.FailedSaveSegmentId };
     var counts = new Dictionary<string, int>
     {
         ["Trip"] = await context.Trips.CountAsync(item => item.Id == manifest.TripId),
@@ -261,7 +342,9 @@ static async Task<WaypointFixtureManifest> ReadAsync(string path) =>
 /// <summary>Exact captured identities used by #407 browser setup, mutation, and cleanup.</summary>
 internal sealed record WaypointFixtureManifest(
     Guid TripId, string UserId, string Username, string Password, Guid ProfileId, string Mode,
-    Guid WaypointSegmentId, Guid ZeroSegmentId, Guid StaleSegmentId, Guid FromId, Guid WaypointId, Guid StaleWaypointId, Guid AlternateId, Guid ToId,
+    Guid WaypointSegmentId, Guid ZeroSegmentId, Guid StaleSegmentId, Guid RouteWorkSegmentId, Guid ClosedLoopSegmentId,
+    Guid CleanupSegmentId, Guid ResponsiveSegmentId, Guid FailedSaveSegmentId,
+    Guid FromId, Guid WaypointId, Guid StaleWaypointId, Guid AlternateId, Guid ToId,
     double EstimatedDistanceKm, double EstimatedDurationMinutes, string EstimatedDurationSource,
     uint OriginalRowVersion, double[][] RouteCoordinates,
     Guid[] RegionIds, Guid[] PlaceIds);

@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { EditorSegment, EditorSegmentDraft, EditorTripState } from '../types';
 import EditorSurface from './EditorSurface.vue';
 import SegmentEditorForm from './SegmentEditorForm.vue';
-import { canMutateSegmentRoute } from './segmentRouteWorkPolicy';
 
 const props = defineProps<{
   activeSegment: EditorSegment | null;
@@ -20,7 +19,6 @@ const props = defineProps<{
   target: EditorTarget;
 }>();
 
-const routeWorkDisabled = computed(() => !canMutateSegmentRoute(props.draft));
 const editorForm = ref<{ focusNotes: () => void } | null>(null);
 const routeAction = ref<HTMLButtonElement | null>(null);
 
@@ -68,9 +66,8 @@ defineEmits<{
 
     <template #footer>
       <button v-if="activeSegment?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">Delete</button>
-      <span v-if="routeWorkDisabled" id="segment-route-work-unavailable" class="small text-secondary">Route editing for segments with intermediate places will be available in a later update.</span>
-      <button ref="routeAction" data-segment-route-action type="button" class="btn btn-outline-light btn-sm" :aria-describedby="routeWorkDisabled ? 'segment-route-work-unavailable' : undefined" :disabled="isSaving || routeWorkDisabled" @click="$emit('drawRoute')">Draw/Edit Route</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :aria-describedby="routeWorkDisabled ? 'segment-route-work-unavailable' : undefined" :disabled="isSaving || routeWorkDisabled || draft.route === null" @click="$emit('clearRoute')">Clear Route</button>
+      <button ref="routeAction" data-segment-route-action type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('drawRoute')">Draw/Edit Route</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || draft.route === null" @click="$emit('clearRoute')">Clear Route</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
       <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Segment</button>

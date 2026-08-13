@@ -8,7 +8,8 @@ import TripSidebar from './components/TripSidebar.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
-import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from './types';
+import type { SegmentRouteWorkState } from './components/segmentRouteWorkState';
+import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripMetadata, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
@@ -36,7 +37,7 @@ const polygonEditor = {
   startAreaPolygonWork: (options: AreaPolygonWorkOptions): (() => void) => mapAdapter?.startAreaPolygonWork(options) ?? (() => undefined)
 };
 const routeEditor = {
-  setSegmentRouteWorkRoute: (route: EditorSegment['route']): void => mapAdapter?.setSegmentRouteWorkRoute(route),
+  setSegmentRouteWorkState: (workState: SegmentRouteWorkState): void => mapAdapter?.setSegmentRouteWorkState(workState),
   startSegmentRouteWork: (options: SegmentRouteWorkOptions): (() => void) => mapAdapter?.startSegmentRouteWork(options) ?? (() => undefined)
 };
 
@@ -536,7 +537,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           @clear-preview="clearSearchPreview"
           @preview="previewSearchResult"
         />
-        <div ref="mapElement" class="trip-editor-map" aria-label="Read-only trip map"></div>
+        <div ref="mapElement" class="trip-editor-map" :aria-label="isMapWorkActive ? 'Trip map editing segment route; saved Place anchors are fixed' : 'Read-only trip map'"></div>
       </main>
     </template>
 

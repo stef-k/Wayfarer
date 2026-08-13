@@ -609,7 +609,7 @@ body {
 
 @media (max-width: 900px) {
   .trip-editor-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(220px, 45vh) minmax(360px, 1fr);
     height: auto;
     min-height: calc(100vh - 96px);

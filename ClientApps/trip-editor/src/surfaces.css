@@ -69,6 +69,7 @@
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
   text-transform: uppercase;
 }
 
@@ -203,13 +204,16 @@
   align-items: center;
   background: var(--trip-editor-surface);
   border-bottom: 1px solid var(--trip-editor-border);
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
   justify-content: space-between;
+  max-width: 100%;
   min-width: 0;
   padding: 0.75rem 1rem;
   position: relative;
+  width: 100%;
   z-index: 2;
 }
 
@@ -217,6 +221,83 @@
   display: grid;
   gap: 0.15rem;
   min-width: 0;
+}
+
+.segment-route-point-editor {
+  border-top: 1px solid var(--trip-editor-border);
+  box-sizing: border-box;
+  flex: 1 0 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding-top: 0.75rem;
+}
+
+/* Keeps every active route-work action and coordinate input practical for touch. */
+.trip-editor-map-work-toolbar .btn,
+.segment-route-point-editor input {
+  min-height: 38px;
+}
+
+.segment-route-point-editor h3 {
+  font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+
+.segment-route-point-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  max-height: min(34vh, 20rem);
+  overflow: auto;
+  min-width: 0;
+  padding-left: 1.5rem;
+}
+
+.segment-route-point-list li {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(11rem, 1fr) repeat(2, minmax(8rem, 0.6fr)) auto auto;
+  min-width: 0;
+}
+
+.segment-route-point-list strong,
+.segment-route-point-list label {
+  overflow-wrap: anywhere;
+}
+
+.segment-route-point-list input {
+  max-width: 100%;
+  width: 100%;
+}
+
+.segment-route-work-anchor span {
+  align-items: center;
+  background: var(--trip-editor-surface);
+  border: 2px solid #f97316;
+  border-radius: 999px;
+  color: var(--trip-editor-text);
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+/* Keeps the visible anonymous SVG handle above the map gesture target during route work. */
+.trip-editor-map .segment-route-work-handle {
+  background: #f97316;
+  border: 2px solid #111827;
+  border-radius: 999px;
+  box-sizing: border-box;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.trip-editor-map .segment-route-work-handle:active {
+  cursor: grabbing;
 }
 
 @media (max-width: 900px) {
@@ -242,6 +323,16 @@
   .trip-editor-map-work-toolbar__actions {
     justify-content: flex-start;
   }
+
+  .segment-route-point-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .segment-route-point-editor {
+    align-self: stretch;
+    flex: 1 1 auto;
+    width: 100%;
+  }
 }
 
 @media (max-width: 520px) {
@@ -260,6 +351,7 @@
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
+
 }
 
 @media (max-width: 640px) {
@@ -278,6 +370,8 @@
     /* Match the normal mobile toolbar clearance below Leaflet utilities. */
     top: 4.5rem;
     z-index: 14;
+    max-height: calc(100% - 5.25rem);
+    overflow: auto;
   }
 
   .trip-editor-map-work-toolbar__actions {
@@ -289,6 +383,15 @@
   .trip-editor-map-work-toolbar__actions .btn {
     min-width: 0;
     width: 100%;
+  }
+
+  .segment-route-point-list {
+    max-height: none;
+  }
+
+  .segment-route-point-list li {
+    align-items: stretch;
+    grid-template-columns: 1fr;
   }
 
   .trip-editor-sidebar--mobile-drawer .trip-editor-surface {

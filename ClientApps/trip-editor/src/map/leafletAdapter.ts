@@ -1,6 +1,7 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
+import type { SegmentRouteWorkState } from '../components/segmentRouteWorkState';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer, type AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 import { createMapUtilitiesControl } from './mapUtilitiesControl';
@@ -31,7 +32,7 @@ interface TripEditorMapAdapter {
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
-  setSegmentRouteWorkRoute: (route: EditorSegment['route']) => void;
+  setSegmentRouteWorkState: (state: SegmentRouteWorkState) => void;
   fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
   focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
   focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
@@ -203,7 +204,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
         }
       };
     },
-    setSegmentRouteWorkRoute: route => segmentRouteWork.setRoute(route),
+    setSegmentRouteWorkState: state => segmentRouteWork.setState(state),
     fitAllGeometry: state => fitAllGeometry(map, state),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
     focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),

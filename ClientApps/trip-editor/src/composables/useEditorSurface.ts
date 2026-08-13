@@ -1,6 +1,7 @@
 import { computed, readonly, ref, type Ref } from 'vue';
 import { confirm } from './useConfirmDialog';
 import type { Guid } from '../types';
+import type { SegmentRoutePointEditorController } from '../components/segmentRouteMapWork';
 
 export type EditorSurfaceMode = 'docked' | 'expanded' | 'map-work';
 export type EditorTargetKind = 'metadata' | 'region' | 'place' | 'area' | 'segment';
@@ -29,6 +30,8 @@ export interface MapWorkOptions {
   canFinish?: () => boolean;
   isDirty?: () => boolean;
   clear?: () => void | Promise<void>;
+  routePointEditor?: SegmentRoutePointEditorController;
+  restoreFocus?: () => void;
   snapshot: () => unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -44,6 +47,8 @@ interface ActiveMapWork {
   canFinish: () => boolean;
   isDirty: () => boolean;
   clear?: () => void | Promise<void>;
+  routePointEditor?: SegmentRoutePointEditorController;
+  restoreFocus?: () => void;
   snapshot: unknown;
   rollback: (snapshot: unknown) => void;
   done: () => void | Promise<void>;
@@ -72,6 +77,7 @@ export function useEditorSurface() {
     expand,
     enterMapWork,
     finishMapWork,
+    invalidateMapWork,
     isActiveTargetDirty,
     isTargetActive,
     replaceActiveTarget,
@@ -184,6 +190,8 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     canFinish: options.canFinish ?? (() => true),
     isDirty: options.isDirty ?? (() => true),
     clear: options.clear,
+    routePointEditor: options.routePointEditor,
+    restoreFocus: options.restoreFocus,
     snapshot: options.snapshot(),
     rollback: options.rollback,
     done: options.done,
@@ -203,6 +211,7 @@ export async function finishMapWork(): Promise<void> {
   surfaceMode.value = work.previousSurface;
   activeTarget.value = work.target;
   mapWork.value = null;
+  work.restoreFocus?.();
 }
 
 export async function cancelMapWork(): Promise<boolean> {
@@ -336,7 +345,19 @@ async function cancelActiveMapWork(options?: { confirmDirty?: () => Promise<bool
   surfaceMode.value = work.previousSurface;
   activeTarget.value = work.target;
   mapWork.value = null;
+  work.restoreFocus?.();
   return true;
+}
+
+/** Stops stale map work without a discard prompt and restores its exact captured draft. */
+export async function invalidateMapWork(): Promise<void> {
+  if (!mapWork.value) return;
+  const work = mapWork.value;
+  work.rollback(work.snapshot);
+  await work.cancel?.();
+  surfaceMode.value = work.previousSurface;
+  activeTarget.value = work.target;
+  mapWork.value = null;
 }
 
 function isSameConcreteTarget(current: EditorTarget | null, next: EditorTarget | null): boolean {
