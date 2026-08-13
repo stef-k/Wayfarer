@@ -258,9 +258,12 @@ public class TripsController : BaseApiController
         var trip = _dbContext.Trips
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments)
+            .Include(t => t.Segments).ThenInclude(s => s.FromPlace).ThenInclude(p => p!.Region)
+            .Include(t => t.Segments).ThenInclude(s => s.ToPlace).ThenInclude(p => p!.Region)
+            .Include(t => t.Segments).ThenInclude(s => s.Waypoints)
+                .ThenInclude(w => w.Place).ThenInclude(p => p.Region)
             .Include(t => t.Tags)
-            .AsNoTracking()
+            .AsSplitQuery()
             .FirstOrDefault(t => t.Id == id);
 
         if (trip == null)
@@ -277,31 +280,28 @@ public class TripsController : BaseApiController
             }
         }
 
-        foreach (var place in (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Places ?? Enumerable.Empty<Place>()))
+        var publicSegments = new List<ApiTripSegmentDto>();
+        foreach (var segment in (trip.Segments ?? Enumerable.Empty<Segment>()).OrderBy(item => item.DisplayOrder))
         {
-            if (place.Location != null)
+            var resolution = PublicSegmentResolver.Resolve(segment, trip.Id, _dbContext);
+            if (!resolution.Succeeded)
             {
-                place.Location = SanitizePoint(place.Location);
+                _logger.LogError(
+                    "Public Segment projection failed for authorized Trip {TripId}, Segment {SegmentId}: {Classification}",
+                    trip.Id,
+                    segment.Id,
+                    resolution.Failure);
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    success = false,
+                    message = "The trip could not be loaded."
+                });
             }
+
+            publicSegments.Add(resolution.Segment!);
         }
 
-        foreach (var area in (trip.Regions ?? Enumerable.Empty<Region>()).SelectMany(r => r.Areas ?? Enumerable.Empty<Area>()))
-        {
-            if (area.Geometry != null && area.Geometry.SRID != 4326)
-            {
-                area.Geometry.SRID = 4326;
-            }
-        }
-
-        foreach (var seg in trip.Segments ?? Enumerable.Empty<Segment>())
-        {
-            if (seg.RouteGeometry != null && seg.RouteGeometry.SRID != 4326)
-            {
-                seg.RouteGeometry.SRID = 4326;
-            }
-        }
-
-        var dto = trip.ToApiDto();
+        var dto = trip.ToApiDto(publicSegments);
 
 // Ensure area FillHex default when missing (matches web default #3388FF)
 if (dto.Regions != null)

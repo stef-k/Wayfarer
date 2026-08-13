@@ -24,15 +24,102 @@ public sealed class PublicSegmentContractGapTests : TestBase
     }
 
     [Fact]
+    public void PublicSegmentDto_PreservesExactFieldOrderTypesAndWaypointAllowlist()
+    {
+        var dto = new ApiTripSegmentDto
+        {
+            Id = Guid.NewGuid(),
+            Mode = "walk",
+            EstimatedDistanceKm = null,
+            EstimatedDurationMinutes = null,
+            Notes = null,
+            DisplayOrder = 2,
+            FromPlaceId = null,
+            ToPlaceId = null,
+            RouteJson = null,
+            Waypoints = [new ApiTripSegmentWaypointDto { PlaceId = Guid.NewGuid(), Position = 0, RouteVertexIndex = null }],
+            HasCustomRoute = false
+        };
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(dto, JsonOptions));
+        Assert.Equal(
+            ["id", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notes", "displayOrder",
+                "fromPlaceId", "toPlaceId", "routeJson", "waypoints", "hasCustomRoute"],
+            document.RootElement.EnumerateObject().Select(item => item.Name));
+        var waypoint = document.RootElement.GetProperty("waypoints")[0];
+        Assert.Equal(["placeId", "position", "routeVertexIndex"], waypoint.EnumerateObject().Select(item => item.Name));
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("routeJson").ValueKind);
+        Assert.Equal(JsonValueKind.Null, waypoint.GetProperty("routeVertexIndex").ValueKind);
+    }
+
+    [Fact]
     public void WaypointFallback_ContainsCompleteEffectiveGeoJson()
     {
-        var (segment, _, _, _) = CreateJourney(route: null);
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null);
 
-        var dto = segment.ToApiDto();
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
 
-        Assert.Equal(
-            "{\"type\":\"LineString\",\"coordinates\":[[23.72,37.98],[23.73,37.99],[23.74,38.0]]}",
-            dto.RouteJson);
+        Assert.True(resolution.Succeeded);
+        using var route = JsonDocument.Parse(resolution.Segment!.RouteJson!);
+        var coordinates = route.RootElement.GetProperty("coordinates");
+        Assert.Equal(3, coordinates.GetArrayLength());
+        Assert.Equal(23.73, coordinates[1][0].GetDouble());
+        Assert.False(resolution.Segment.HasCustomRoute);
+        Assert.Null(Assert.Single(resolution.Segment.Waypoints).RouteVertexIndex);
+    }
+
+    [Fact]
+    public void CustomWaypointRoute_PreservesCompleteGeometryAndIndex()
+    {
+        var db = CreateDbContext();
+        var geometry = new LineString(
+        [
+            new Coordinate(23.72, 37.98),
+            new Coordinate(23.73, 37.99),
+            new Coordinate(23.74, 38.0)
+        ]) { SRID = 4326 };
+        var segment = LoadJourney(db, geometry, routeVertexIndex: 1);
+        var originalRoute = segment.RouteGeometry!.Copy();
+
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.True(resolution.Succeeded);
+        Assert.True(resolution.Segment!.HasCustomRoute);
+        Assert.Equal(1, Assert.Single(resolution.Segment.Waypoints).RouteVertexIndex);
+        Assert.Contains("LineString", resolution.Segment.RouteJson);
+        Assert.True(segment.RouteGeometry.EqualsExact(originalRoute));
+        Assert.Equal(4326, segment.RouteGeometry.SRID);
+    }
+
+    [Fact]
+    public void LegacyFallback_RemainsNullWithEmptyWaypoints()
+    {
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null, includeWaypoint: false);
+
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.True(resolution.Succeeded);
+        Assert.Empty(resolution.Segment!.Waypoints);
+        Assert.False(resolution.Segment.HasCustomRoute);
+        Assert.Null(resolution.Segment.RouteJson);
+    }
+
+    [Fact]
+    public void ClosedLoopFallback_UsesOneCanonicalEndpointIdentity()
+    {
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null, closedLoop: true);
+
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.True(resolution.Succeeded);
+        Assert.Equal(resolution.Segment!.FromPlaceId, resolution.Segment.ToPlaceId);
+        using var route = JsonDocument.Parse(resolution.Segment.RouteJson!);
+        var coordinates = route.RootElement.GetProperty("coordinates");
+        Assert.Equal(coordinates[0][0].GetDouble(), coordinates[2][0].GetDouble());
+        Assert.Equal(coordinates[0][1].GetDouble(), coordinates[2][1].GetDouble());
     }
 
     [Fact]
@@ -46,7 +133,12 @@ public sealed class PublicSegmentContractGapTests : TestBase
             ToPlaceId = Guid.NewGuid()
         };
 
-        Assert.Throws<InvalidOperationException>(() => segment.ToApiDto());
+        var db = CreateDbContext();
+
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.Null(resolution.Segment);
+        Assert.Equal(PublicSegmentFailure.UnloadedOrMissingState, resolution.Failure);
     }
 
     [Fact]
@@ -60,7 +152,9 @@ public sealed class PublicSegmentContractGapTests : TestBase
         db.SaveChanges();
         db.ChangeTracker.Clear();
 
-        var loadedTrip = db.Trips.Include(item => item.Segments).Single(item => item.Id == trip.Id);
+        var loadedTrip = db.Trips
+            .Include(item => item.Segments).ThenInclude(item => item.Waypoints)
+            .Single(item => item.Id == trip.Id);
         var loadedSegment = Assert.Single(loadedTrip.Segments);
 
         Assert.True(db.Entry(loadedSegment).Collection(item => item.Waypoints).IsLoaded);
@@ -69,21 +163,29 @@ public sealed class PublicSegmentContractGapTests : TestBase
     [Fact]
     public void PublicProjection_RejectsCrossTripWaypointStateWithoutLeakingIdentity()
     {
-        var (segment, _, _, waypoint) = CreateJourney(route: null);
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null);
+        var waypoint = Assert.Single(segment.Waypoints);
         waypoint.Place.Region.TripId = Guid.NewGuid();
 
-        var exception = Assert.Throws<InvalidOperationException>(() => segment.ToApiDto());
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
 
-        Assert.DoesNotContain(waypoint.PlaceId.ToString(), exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(resolution.Segment);
+        Assert.Equal(PublicSegmentFailure.ForeignState, resolution.Failure);
     }
 
     [Fact]
     public void PublicProjection_RejectsMalformedWaypointOrder()
     {
-        var (segment, _, _, waypoint) = CreateJourney(route: null);
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null);
+        var waypoint = Assert.Single(segment.Waypoints);
         waypoint.Position = 1;
 
-        Assert.Throws<InvalidOperationException>(() => segment.ToApiDto());
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.Null(resolution.Segment);
+        Assert.Equal(PublicSegmentFailure.MalformedState, resolution.Failure);
     }
 
     [Fact]
@@ -113,7 +215,12 @@ public sealed class PublicSegmentContractGapTests : TestBase
         Assert.Contains("LineString", older.RouteJson);
     }
 
-    private static (Segment Segment, Place From, Place To, SegmentWaypoint Waypoint) CreateJourney(LineString? route)
+    private static Segment LoadJourney(
+        ApplicationDbContext db,
+        LineString? route,
+        int? routeVertexIndex = null,
+        bool includeWaypoint = true,
+        bool closedLoop = false)
     {
         var tripId = Guid.NewGuid();
         var region = new Region { Id = Guid.NewGuid(), TripId = tripId };
@@ -126,8 +233,8 @@ public sealed class PublicSegmentContractGapTests : TestBase
             TripId = tripId,
             FromPlaceId = from.Id,
             FromPlace = from,
-            ToPlaceId = to.Id,
-            ToPlace = to,
+            ToPlaceId = closedLoop ? from.Id : to.Id,
+            ToPlace = closedLoop ? from : to,
             RouteGeometry = route
         };
         var waypoint = new SegmentWaypoint
@@ -136,10 +243,27 @@ public sealed class PublicSegmentContractGapTests : TestBase
             SegmentId = segment.Id,
             Place = via,
             PlaceId = via.Id,
-            Position = 0
+            Position = 0,
+            RouteVertexIndex = routeVertexIndex
         };
-        segment.Waypoints.Add(waypoint);
-        return (segment, from, to, waypoint);
+        if (includeWaypoint) segment.Waypoints.Add(waypoint);
+        var trip = new Trip { Id = tripId, UserId = "owner", Name = "Trip", IsPublic = true };
+        region.Trip = trip;
+        region.Places.Add(from);
+        region.Places.Add(via);
+        region.Places.Add(to);
+        trip.Regions.Add(region);
+        trip.Segments.Add(segment);
+        segment.Trip = trip;
+        db.Add(trip);
+        db.SaveChanges();
+        db.ChangeTracker.Clear();
+
+        return db.Segments
+            .Include(item => item.FromPlace).ThenInclude(item => item!.Region)
+            .Include(item => item.ToPlace).ThenInclude(item => item!.Region)
+            .Include(item => item.Waypoints).ThenInclude(item => item.Place).ThenInclude(item => item.Region)
+            .Single(item => item.Id == segment.Id);
     }
 
     private static Place PlaceAt(Region region, double longitude, double latitude) => new()

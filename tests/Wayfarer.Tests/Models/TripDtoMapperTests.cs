@@ -39,7 +39,9 @@ public class TripDtoMapperTests
             }
         };
 
-        var dto = trip.ToApiDto();
+        var dto = trip.ToApiDto(trip.Segments
+            .Select(segment => new ApiTripSegmentDto { Id = segment.Id, DisplayOrder = segment.DisplayOrder })
+            .ToArray());
 
         Assert.Equal(trip.Id, dto.Id);
         Assert.Equal(trip.Name, dto.Name);
@@ -110,42 +112,7 @@ public class TripDtoMapperTests
     }
 
     [Fact]
-    public void ToApiDto_Segment_HandlesMissingGeometryGracefully()
-    {
-        var segment = new Segment
-        {
-            Id = Guid.NewGuid(),
-            Mode = "car",
-            Notes = "N",
-            DisplayOrder = 2,
-            EstimatedDistanceKm = 12.5,
-            EstimatedDuration = TimeSpan.FromMinutes(30),
-            FromPlaceId = Guid.NewGuid(),
-            ToPlaceId = Guid.NewGuid()
-        };
-
-        var dto = segment.ToApiDto();
-
-        Assert.Equal(segment.Id, dto.Id);
-        Assert.Equal("car", dto.Mode);
-        Assert.Null(dto.RouteJson);
-        Assert.Equal(30, dto.EstimatedDurationMinutes);
-    }
-
-    [Fact]
-    public void ToApiDto_Segment_WritesGeoJsonWithSridCorrection()
-    {
-        var line = new LineString(new[] { new Coordinate(0, 0), new Coordinate(1, 1) }) { SRID = 3857 };
-        var segment = new Segment { Id = Guid.NewGuid(), RouteGeometry = line };
-
-        var dto = segment.ToApiDto();
-
-        Assert.NotNull(dto.RouteJson);
-        Assert.Equal(4326, segment.RouteGeometry!.SRID);
-    }
-
-    [Fact]
-    public void ToApiDto_Area_WritesGeoJsonWithSridCorrection()
+    public void ToApiDto_Area_WritesGeoJsonWithoutMutatingSrid()
     {
         var polygon = new Polygon(new LinearRing(new[]
         {
@@ -162,7 +129,7 @@ public class TripDtoMapperTests
         var dto = area.ToApiDto();
 
         Assert.NotNull(dto.GeometryGeoJson);
-        Assert.Equal(4326, area.Geometry!.SRID);
+        Assert.Equal(3857, area.Geometry!.SRID);
     }
 
     [Fact]
@@ -174,12 +141,4 @@ public class TripDtoMapperTests
         Assert.Equal(Guid.Empty, dto.Id);
     }
 
-    [Fact]
-    public void ToApiDto_Segment_ReturnsEmptyDtoOnNull()
-    {
-        var dto = TripDtoMapper.ToApiDto((Segment)null!);
-
-        Assert.NotNull(dto);
-        Assert.Equal(Guid.Empty, dto.Id);
-    }
 }
