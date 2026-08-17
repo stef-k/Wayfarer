@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { absoluteUrl, editorApiPath, editorPath, expectMountedWorkspace, signIn } from './tripEditorTestUtils';
+import { absoluteUrl, editorApiPath, editorPath, expectMountedWorkspace, signIn, tripMap } from './tripEditorTestUtils';
 
 test.describe.serial('Trip Editor remaining parity verification', () => {
   test('public trip and share-progress saves return success from editor endpoints', async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe.serial('Trip Editor remaining parity verification', () => {
     await page.goto(absoluteUrl(editorPath));
     await expectMountedWorkspace(page);
 
-    const map = page.getByLabel('Read-only trip map');
+    const map = tripMap(page);
     const zoomStatus = page.locator('.trip-editor-map-utilities__zoom');
     await expect(zoomStatus).toHaveText(/Zoom: \d+/);
     const initialZoom = await zoomStatus.textContent();

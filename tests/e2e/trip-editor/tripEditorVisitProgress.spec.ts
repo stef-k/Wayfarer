@@ -5,6 +5,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   signIn,
+  tripMap,
   editorPath
 } from './tripEditorTestUtils';
 
@@ -350,7 +351,7 @@ async function expectDialogFitsViewport(page: Page): Promise<void> {
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  const map = tripMap(page);
   await map.evaluate((element, point) => {
     const box = element.getBoundingClientRect();
     const clientX = box.left + box.width * point.xRatio;

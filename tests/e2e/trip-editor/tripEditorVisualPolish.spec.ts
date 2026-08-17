@@ -6,6 +6,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   signIn,
+  tripMap,
   editorPath
 } from './tripEditorTestUtils';
 
@@ -397,7 +398,7 @@ async function expandDockedEditor(page: Page, containedSelector?: string): Promi
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  const map = tripMap(page);
   await map.scrollIntoViewIfNeeded();
   const point = await map.evaluate((element, preferredPoint) => {
     const box = element.getBoundingClientRect();

@@ -166,6 +166,7 @@ test.describe.serial('Trip Editor mobile bottom drawer', () => {
     await capture(page, testInfo, 'phone-search-add-active-place-edit');
 
     await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expectInitializedTripMap(page);
     await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
     await expectDrawerState(page, 'peek');
     const mapWorkEditor = page.locator('.trip-editor-sidebar--mobile-drawer .trip-editor-surface--map-work');

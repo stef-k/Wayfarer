@@ -6,6 +6,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   signIn,
+  tripMap,
   uniqueName
 } from './tripEditorTestUtils';
 
@@ -162,7 +163,7 @@ async function expectSearchAddDraft(page: Page, name: string, regionId: string):
 }
 
 async function mapView(page: Page): Promise<{ latitude: number; longitude: number; zoom: number }> {
-  return await page.getByLabel('Read-only trip map').evaluate(element => ({
+  return await tripMap(page).evaluate(element => ({
     latitude: Number((element as HTMLElement).dataset.tripEditorMapLat),
     longitude: Number((element as HTMLElement).dataset.tripEditorMapLng),
     zoom: Number((element as HTMLElement).dataset.tripEditorMapZoom)

@@ -99,7 +99,7 @@ async function isPhoneDrawerViewport(page: Page): Promise<boolean> {
 
 // Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
 export async function expectInitializedTripMap(page: Page): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  const map = tripMap(page);
   await expect(map).toBeVisible();
   await expect(map).toHaveClass(/leaflet-container/);
   await expect(map.locator('.leaflet-pane')).not.toHaveCount(0);

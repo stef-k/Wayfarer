@@ -5,6 +5,7 @@ import {
   editorApiPath,
   expectMountedWorkspace,
   expectNoSearchAddUi,
+  expectTripMapDescription,
   loadEditorStateFixture,
   signIn,
   editorPath
@@ -49,6 +50,7 @@ test.describe.serial('Trip Editor area editing', () => {
     await measureButton.click();
     await expect(measureButton).toHaveClass(/active/);
     await page.getByRole('button', { name: 'Draw/Edit Area' }).click();
+    await expectTripMapDescription(page, 'Edit the Area geometry. Click the map to place polygon vertices; Done updates the draft.');
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Draw area polygon');
     await expect(measureButton).not.toHaveClass(/active/);
