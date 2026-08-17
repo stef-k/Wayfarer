@@ -5,7 +5,6 @@
  *  • segment polylines  + visibility
  *  • sliding legend + sliding “details” pane
  *  • Google-Maps & Wikipedia helpers
- *  • auto-centering that respects legend width
  */
 
 import {
@@ -18,11 +17,9 @@ import {
     setSegmentVisible,
     getPlaceMarker,
     getSegmentPolyline,
-    getSegmentPresentationSnapshot,
-    refreshSegmentPresentation,
-    setActiveSegment,
     canvasRenderer
 } from './tripViewerHelpers.js';
+import {createViewerSegmentPresentationController} from './viewerSegmentPresentationController.js';
 import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
@@ -190,23 +187,10 @@ const init = () => {
     }
 
     const map = initLeaflet([lat, lon], zoom);
-    const selectSegment = (sid, fit = true) => {
-        setActiveSegment(map, sid);
-        $$('.segment-selection-button').forEach(button => {
-            const selected = button.closest('.segment-list-item')?.dataset.segmentId === sid;
-            if (selected) button.setAttribute('aria-current', 'true');
-            else button.removeAttribute('aria-current');
-        });
-        root.dataset.activeSegmentId = sid ?? '';
-        window.__segmentPresentationSnapshot = getSegmentPresentationSnapshot();
-        const line = sid ? getSegmentPolyline(sid) : null;
-        if (fit && line) {
-            const padX = collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60;
-            map.flyToBounds(line.getBounds(), {animate: !isPrint, duration: isPrint ? 0 : 1.2, padding: [padX, 60]});
-        }
-    };
-    window.wayfarer ??= {};
-    window.wayfarer.selectSegment = sid => selectSegment(sid);
+    const segmentPresentation = createViewerSegmentPresentationController(map, root, {
+        isPrint,
+        paddingX: () => collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60
+    });
     // if user clicks anywhere on map except from markers remove current marker highlight
     map.on('click', e => {
         removeHighlightMarker();
@@ -335,26 +319,11 @@ const init = () => {
     $$('.segment-toggle').forEach(cb => cb.addEventListener('change', e => {
         const sid = e.target.closest('.segment-list-item').dataset.segmentId;
         setSegmentVisible(map, sid, e.target.checked);
-        if (!e.target.checked && root.dataset.activeSegmentId === sid) selectSegment(null, false);
+        if (!e.target.checked && root.dataset.activeSegmentId === sid) segmentPresentation.select(null, false);
     }));
-
-    map.on('zoomend moveend', () => {
-        refreshSegmentPresentation(map);
-        window.__segmentPresentationSnapshot = getSegmentPresentationSnapshot();
-    });
 
     const isolatedSegmentId = isPrint ? new URLSearchParams(location.search).get('seg') : null;
-    if (isolatedSegmentId && getSegmentPolyline(isolatedSegmentId)) {
-        selectSegment(isolatedSegmentId, false);
-        map.fitBounds(getSegmentPolyline(isolatedSegmentId).getBounds(), {padding: [60, 60], animate: false});
-    }
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-        const snapshot = getSegmentPresentationSnapshot();
-        window.__segmentPresentationSnapshot = snapshot;
-        window.__segmentPresentationReady = isPrint
-            ? isolatedSegmentId ? snapshot.segments.length === 1 && snapshot.routeBadgeCount > 0 : snapshot.segments.length === 0
-            : true;
-    }));
+    segmentPresentation.initializePrint(isolatedSegmentId);
 
     /* region check-boxes – stop accordion toggle */
     $$('.region-toggle').forEach(cb => {
@@ -547,7 +516,7 @@ const init = () => {
             if (e.target.closest('.segment-toggle, .segment-journey-place')) return;
 
             const sid = li.dataset.segmentId;
-            selectSegment(sid, false);
+            segmentPresentation.select(sid, false);
             const pl = getSegmentPolyline(sid);
             if (!pl) return;
 
@@ -564,7 +533,7 @@ const init = () => {
         });
         li.querySelector('.segment-selection-button')?.addEventListener('click', e => {
             e.stopPropagation();
-            selectSegment(li.dataset.segmentId);
+            segmentPresentation.select(li.dataset.segmentId);
         });
     });
 

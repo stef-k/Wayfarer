@@ -1422,25 +1422,6 @@ thead th {
     cursor:pointer;
 }
 
-.segment-selection-button {
-    color: inherit;
-    display: block;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    text-decoration: none;
-    white-space: normal;
-}
-
-.segment-selection-button[aria-current="true"] {
-    font-weight: 700;
-    text-decoration: underline;
-    text-decoration-thickness: 0.15em;
-}
-
-.segment-route-hit {
-    cursor: pointer;
-}
-
 body.embed-mode,
 html.embed-mode {
     height: 100vh !important;

@@ -3,6 +3,13 @@
 @using System.Text.Json
 @model Wayfarer.Models.Trip
 
+<style>
+    /* Segment selection is textual, wrapping, and visibly current without moving nested actions. */
+    .segment-selection-button { color: inherit; display: block; max-width: 100%; overflow-wrap: anywhere; text-decoration: none; white-space: normal; }
+    .segment-selection-button[aria-current="true"] { font-weight: 700; text-decoration: underline; text-decoration-thickness: .15em; }
+    .segment-route-hit { cursor: pointer; }
+</style>
+
 
 @if (Model.Segments?.Any() == true)
 {
