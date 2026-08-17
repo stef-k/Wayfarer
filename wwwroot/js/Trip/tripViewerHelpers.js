@@ -13,7 +13,8 @@ import {
     buildSegmentPopup,
     buildAreaPopup
 } from './tripPopupBuilder.js';
-import {placeRouteBadge, placeViewerChevrons, presentViewerCoordinates, resolveViewerAnchors, routeBadgeDataUrl} from './segmentPresentation.js';
+import {placeViewerChevrons, presentViewerCoordinates, resolveViewerAnchors} from './segmentPresentation.js';
+import {createViewerSegmentBadgeRenderer} from './viewerSegmentBadgeRenderer.js';
 
 /* ---------- Wayfarer PNG marker URL ---------- */
 const png = (icon, bg) => `/icons/wayfarer-map-icons/dist/png/marker/${bg}/${icon}.png`;
@@ -110,9 +111,7 @@ const _regions = {};             // regionId → centroid marker
 const _places = {};             // placeId  → {marker, regionId}
 const _segments = {};             // segmentId → polyline
 let _activeSegmentId = null;
-let _activeBadgeLayer = null;
-let _badgeRenderGeneration = 0;
-let _badgeReadiness = {generation: 0, promise: Promise.resolve({ok: true})};
+let _badgeRenderer = null;
 
 /* ---------- region centroid ---------- */
 export const addRegionMarker = (map, id, [lat, lon], name = '') => {
@@ -206,7 +205,7 @@ export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
         delete _segments[id];
     }
 
-    _activeBadgeLayer ??= L.layerGroup().addTo(map);
+    _badgeRenderer ??= createViewerSegmentBadgeRenderer(map);
     const orientation = opts.orientation ?? 'forward';
     const presentation = resolveViewerAnchors(opts.anchors ?? []);
     const presentedCoords = presentViewerCoordinates(coords, orientation);
@@ -324,7 +323,7 @@ export const setSegmentVisible = (map, sid, visible) => {
 /** Transfers active emphasis and badges without changing either Segment aggregate. */
 export const setActiveSegment = (map, sid) => {
     _activeSegmentId = sid && _segments[sid]?.visible ? sid : null;
-    _activeBadgeLayer?.clearLayers();
+    _badgeRenderer?.clear();
     Object.values(_segments).forEach(entry => {
         entry.active = entry.id === _activeSegmentId;
         entry.line.setStyle({weight: entry.active ? 5 : 3, opacity: entry.active ? 1 : 0.72});
@@ -341,7 +340,7 @@ export const getSegmentPresentationSnapshot = () => ({
         lineCount: 1, hitLayerCount: entry.hit ? 1 : 0, chevronCount: entry.chevrons.length,
         anchorLabels: entry.presentation.anchors.map(anchor => anchor.label)
     })),
-    routeBadgeCount: _activeBadgeLayer?.getLayers().length ?? 0
+    routeBadgeCount: _badgeRenderer?.count() ?? 0
 });
 
 /** Removes one complete registry owner including tooltips and listeners. */
@@ -382,64 +381,11 @@ const renderSegmentDecorations = (map, entry) => {
 
 /** Replaces the active-only badge channel with separate decorative L.Icon layers. */
 const renderActiveBadges = (map, entry) => {
-    _activeBadgeLayer?.clearLayers();
-    const generation = ++_badgeRenderGeneration;
-    const size = map.getSize();
-    const mapBounds = {left: 0, top: 0, right: size.x, bottom: size.y};
-    const controlBounds = visibleControlBounds(map);
-    const placedBounds = [];
-    const images = [];
-    entry.presentation.badges.forEach(badge => {
-        const raster = routeBadgeDataUrl(badge.label);
-        const anchor = map.latLngToContainerPoint([badge.location[1], badge.location[0]]);
-        const placement = placeRouteBadge([anchor.x, anchor.y], raster, mapBounds, controlBounds, placedBounds);
-        placedBounds.push({left: placement.left, top: placement.top,
-            right: placement.left + placement.width, bottom: placement.top + placement.height});
-        const marker = L.marker([badge.location[1], badge.location[0]], {
-            icon: L.icon({iconUrl: raster.url, iconSize: [raster.width, raster.height],
-                iconAnchor: [anchor.x - placement.left, anchor.y - placement.top], className: placement.fallback ? 'segment-route-badge-fallback' : ''}),
-            interactive: false, keyboard: false, alt: ''
-        }).addTo(_activeBadgeLayer);
-        images.push(waitForDecodedImage(marker.getElement?.()));
-    });
-    _badgeReadiness = {generation, promise: Promise.all(images)
-        .then(() => ({ok: true}), error => ({ok: false, error}))};
+    _badgeRenderer?.render(entry.presentation.badges);
 };
 
 /** Waits for the current production badge elements and rejects decode/load failures. */
-export const waitForCurrentBadgeImages = async () => {
-    while (true) {
-        const current = _badgeReadiness;
-        const result = await current.promise;
-        if (current.generation !== _badgeRenderGeneration) continue;
-        if (!result.ok) throw result.error;
-        return current.generation;
-    }
-};
-
-/** Uses decode when supported and an explicit complete/load fallback otherwise. */
-const waitForDecodedImage = image => {
-    if (!image) return Promise.reject(new Error('Production route badge image was not attached.'));
-    if (typeof image.decode === 'function') return image.decode().then(() => {
-        if (!image.complete || image.naturalWidth === 0) throw new Error('Production route badge image decode completed without pixels.');
-    });
-    if (image.complete) return image.naturalWidth > 0 ? Promise.resolve() : Promise.reject(new Error('Production route badge image failed to load.'));
-    return new Promise((resolve, reject) => {
-        image.addEventListener('load', resolve, {once: true});
-        image.addEventListener('error', () => reject(new Error('Production route badge image failed to load.')), {once: true});
-    });
-};
-
-/** Projects visible Leaflet controls into map-container coordinates. */
-const visibleControlBounds = map => {
-    const container = map.getContainer();
-    const origin = container.getBoundingClientRect();
-    return [...container.querySelectorAll('.leaflet-control')]
-        .filter(element => element.offsetParent !== null)
-        .map(element => element.getBoundingClientRect())
-        .map(bounds => ({left: bounds.left - origin.left, top: bounds.top - origin.top,
-            right: bounds.right - origin.left, bottom: bounds.bottom - origin.top}));
-};
+export const waitForCurrentBadgeImages = () => _badgeRenderer?.waitForCurrent() ?? Promise.resolve(0);
 
 /** Reprojects cues deterministically while panning leaves their count unchanged. */
 export const refreshSegmentPresentation = map => {
@@ -452,12 +398,9 @@ export const refreshSegmentPresentation = map => {
 export const disposeSegmentPresentation = () => {
     Object.values(_segments).forEach(removeSegmentEntry);
     Object.keys(_segments).forEach(id => delete _segments[id]);
-    _activeBadgeLayer?.clearLayers();
-    _activeBadgeLayer?.remove();
-    _activeBadgeLayer = null;
+    _badgeRenderer?.dispose();
+    _badgeRenderer = null;
     _activeSegmentId = null;
-    _badgeRenderGeneration += 1;
-    _badgeReadiness = {generation: _badgeRenderGeneration, promise: Promise.resolve({ok: true})};
 };
 
 /* ---------- tiny WKT LINESTRING → [lat,lon][] ---------- */
