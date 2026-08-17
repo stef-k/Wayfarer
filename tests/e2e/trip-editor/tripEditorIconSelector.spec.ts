@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import {
   absoluteUrl,
   editorApiPath,
@@ -12,7 +12,9 @@ type MutableEditorState = Record<string, any>;
 
 type TripEditorContainmentMetrics = {
   bodyHeight: number;
+  bodyWidth: number;
   documentHeight: number;
+  documentWidth: number;
   footerTop: number | null;
   sidebarClientHeight: number;
   sidebarOverflowY: string;
@@ -102,7 +104,7 @@ test.describe('Trip Editor icon selector', () => {
     expect(requests).toEqual([]);
   });
 
-  test('filters, selects, sends a mocked place save, and stays contained across responsive themes', async ({ page }, testInfo) => {
+  test('filters, selects, sends a mocked place save, and stays contained across responsive themes', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await signIn(page);
     const requests: Record<string, any>[] = [];
@@ -119,19 +121,20 @@ test.describe('Trip Editor icon selector', () => {
     await expect(colorSelector.locator('[data-icon-selector-selected-name]')).toHaveText('Blue');
     await expectLoadedImages(iconSelector.locator('[data-icon-selector-selected-image]'));
 
-    await openIconSelector(page);
+    const beforeDesktopSelector = await tripEditorContainmentMetrics(page);
+    await openIconSelectorWithKeyboard(page);
     await expectIconSelectorOptionsRender(page);
     await expectIconSelectorScrolls(page);
+    await expectIconOptionReachability(page);
     await expectSelectorPanelContained(page);
+    await expectSelectorOpeningStable(page, beforeDesktopSelector);
     await expectDockedEditorComfortable(page);
     await expectNoPageOverflow(page);
-    await captureEvidence(page, testInfo, 'desktop-light-icon-selector-open');
 
     await setTheme(page, 'dark');
     await expectSelectedPlaceRowProminent(page);
     await expectDockedEditorComfortable(page);
     await expectNoPageOverflow(page);
-    await captureEvidence(page, testInfo, 'desktop-dark-icon-selector-open');
     await setTheme(page, 'light');
 
     await filterIconSelector(page, 'star');
@@ -140,7 +143,7 @@ test.describe('Trip Editor icon selector', () => {
     await expect(iconSelector.locator('[data-icon-selector-selected-name]')).toHaveText('star');
     await expect(iconSelector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
     await expect(sidebarPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
-    await expect(mapMarkerIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
+    await expect(displayedMapPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
     await expectLoadedImages(iconSelector.locator('[data-icon-selector-selected-image]'));
 
     await openColorSelector(page);
@@ -152,7 +155,7 @@ test.describe('Trip Editor icon selector', () => {
     await expect(colorSelector.locator('[data-icon-selector-selected-name]')).toHaveText('Purple');
     await expect(iconSelector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
     await expect(sidebarPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
-    await expect(mapMarkerIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
+    await expect(displayedMapPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
 
     await openIconSelector(page);
     await page.locator('[data-icon-selector-search]').press('Escape');
@@ -162,34 +165,53 @@ test.describe('Trip Editor icon selector', () => {
     await page.keyboard.press('Tab');
     await expect(page.locator('[data-icon-selector-panel]')).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Save Place' }).click();
+    await expectSaveReachableByEditorScroll(page);
+    await page.getByRole('button', { name: 'Save Place', exact: true }).click();
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0].iconName).toBe('star');
     expect(requests[0].markerColor).toBe('bg-purple');
     await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
 
+    await page.setViewportSize({ width: 390, height: 900 });
     await page.reload();
     await expectMountedWorkspace(page);
+    await page.getByRole('button', { name: 'Regions' }).click();
     await openPlace(page);
     await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-selected-name]')).toHaveText('star');
     await expect(page.locator('[data-selector-kind="color"] [data-icon-selector-selected-name]')).toHaveText('Purple');
     await expectLoadedImages(page.locator('[data-icon-selector-selected-image]'));
 
-    await page.setViewportSize({ width: 390, height: 900 });
     await expect(page.getByRole('button', { name: 'Regions' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('heading', { name: /Edit Place - Icon Selector Place/ })).toBeVisible();
-    await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-trigger]')).toBeVisible();
-    await openIconSelector(page);
+    const beforePhoneSelector = await tripEditorContainmentMetrics(page);
+    await openIconSelectorWithKeyboard(page);
+    await expectIconSelectorScrolls(page);
+    await expectIconOptionReachability(page);
     await expectSelectorPanelContained(page);
+    await expectSelectorOpeningStable(page, beforePhoneSelector);
     await expectDockedEditorComfortable(page);
-    await expectTripEditorContainment(page, await tripEditorContainmentMetrics(page));
     await expectNoPageOverflow(page);
-    await captureEvidence(page, testInfo, 'narrow-light-icon-selector-open');
     await setTheme(page, 'dark');
     await expectSelectedPlaceRowProminent(page);
     await expectDockedEditorComfortable(page);
     await expectNoPageOverflow(page);
-    await captureEvidence(page, testInfo, 'narrow-dark-icon-selector-open');
+
+    await page.locator('[data-icon-selector-search]').press('Escape');
+    await expect(page.locator('[data-icon-selector-panel]')).toHaveCount(0);
+    await openIconSelectorWithKeyboard(page);
+    await page.keyboard.press('Tab');
+    await expect(page.locator('[data-icon-selector-panel]')).toHaveCount(0);
+
+    await openIconSelectorWithKeyboard(page);
+    await filterIconSelector(page, 'walk');
+    await expectOnlyMatchingIconOptions(page, 'walk');
+    await page.locator('[data-icon-selector-search]').press('Enter');
+    await expect(iconSelector.locator('[data-icon-selector-selected-name]')).toHaveText('walk');
+    await expectSaveReachableByEditorScroll(page);
+    await page.getByRole('button', { name: 'Save Place', exact: true }).click();
+    await expect.poll(() => requests.length).toBe(2);
+    expect(requests[1].iconName).toBe('walk');
+    expect(requests[1].markerColor).toBe('bg-purple');
   });
 });
 
@@ -264,6 +286,21 @@ async function openIconSelector(page: Page): Promise<void> {
   await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-search]')).toBeFocused();
 }
 
+// Proves the trigger participates in sequential keyboard focus before opening the selector.
+async function openIconSelectorWithKeyboard(page: Page): Promise<void> {
+  const trigger = page.locator('[data-selector-kind="icon"] [data-icon-selector-trigger]');
+  await expect(trigger).toBeVisible();
+  // Start from the adjacent visible field so the proof covers the selector's local sequential focus order.
+  await page.locator('#trip-editor-place-form').getByLabel('Longitude').click();
+  for (let index = 0; index < 10 && !await trigger.evaluate(element => element === document.activeElement); index += 1) {
+    await page.keyboard.press('Tab');
+  }
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-panel]')).toBeVisible();
+  await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-search]')).toBeFocused();
+}
+
 async function openColorSelector(page: Page): Promise<void> {
   await page.locator('[data-selector-kind="color"] [data-icon-selector-trigger]').click();
   await expect(page.locator('[data-selector-kind="color"] [data-icon-selector-panel]')).toBeVisible();
@@ -271,12 +308,16 @@ async function openColorSelector(page: Page): Promise<void> {
 }
 
 async function filterIconSelector(page: Page, query: string): Promise<void> {
-  await page.locator('[data-selector-kind="icon"] [data-icon-selector-search]').fill(query);
+  const search = page.locator('[data-selector-kind="icon"] [data-icon-selector-search]');
+  await search.press('Control+A');
+  await search.pressSequentially(query);
   await expect(page.locator('[data-icon-selector-option]').first()).toBeVisible();
 }
 
 async function filterOpenSelector(page: Page, query: string): Promise<void> {
-  await page.locator('[data-icon-selector-panel] [data-icon-selector-search]').fill(query);
+  const search = page.locator('[data-icon-selector-panel] [data-icon-selector-search]');
+  await search.press('Control+A');
+  await search.pressSequentially(query);
   await expect(page.locator('[data-icon-selector-panel] [data-icon-selector-option]').first()).toBeVisible();
 }
 
@@ -303,6 +344,36 @@ async function expectIconSelectorScrolls(page: Page): Promise<void> {
   expect(metrics.scrolls, 'Icon options panel should have internal scroll when many icons are available.').toBe(true);
 }
 
+// Uses wheel input inside the list and proves it scrolls without moving the surrounding editor owner.
+async function expectIconOptionReachability(page: Page): Promise<void> {
+  const options = page.locator('[data-selector-kind="icon"] [data-icon-selector-options]');
+  const first = options.locator('[data-icon-selector-option]').first();
+  const last = options.locator('[data-icon-selector-option]').last();
+  const editorOwner = page.locator(windowOwnerSelector(await page.evaluate(() => window.innerWidth)));
+  const ownerStart = await editorOwner.evaluate(element => element.scrollTop);
+  await expect(first).toBeInViewport();
+  await options.hover();
+  for (let index = 0; index < 20 && !await optionInsideList(last, options); index += 1) {
+    await page.mouse.wheel(0, 180);
+  }
+  await expect(last).toBeInViewport();
+  expect(await options.evaluate(element => element.scrollTop), 'Options list should consume downward wheel input.').toBeGreaterThan(0);
+  expect(await editorOwner.evaluate(element => element.scrollTop), 'Option scrolling should not move the surrounding editor owner.').toBe(ownerStart);
+  for (let index = 0; index < 20; index += 1) {
+    const scrollTop = await options.evaluate(element => element.scrollTop);
+    if (scrollTop === 0) break;
+    await page.mouse.wheel(0, -Math.min(180, scrollTop));
+  }
+  expect(await options.evaluate(element => element.scrollTop), 'Options list should consume upward wheel input.').toBe(0);
+  expect(await editorOwner.evaluate(element => element.scrollTop), 'Reverse option scrolling should not move the surrounding editor owner.').toBe(ownerStart);
+  await expect(first).toBeInViewport();
+}
+
+async function optionInsideList(option: Locator, list: Locator): Promise<boolean> {
+  const [optionBox, listBox] = await Promise.all([option.boundingBox(), list.boundingBox()]);
+  return Boolean(optionBox && listBox && optionBox.y >= listBox.y && optionBox.y + optionBox.height <= listBox.y + listBox.height);
+}
+
 async function expectColorSelectorOptions(page: Page): Promise<void> {
   const optionNames = await page.locator('[data-selector-kind="color"] [data-icon-selector-option-name]').allTextContents();
   expect(optionNames).toEqual(['Blue', 'Purple', 'Black', 'Green', 'Red']);
@@ -326,6 +397,47 @@ async function expectSelectorPanelContained(page: Page): Promise<void> {
   expect(metrics.panelWidth, 'Open selector should have a comfortable row width.').toBeGreaterThanOrEqual(Math.min(300, metrics.formWidth - 4));
   expect(metrics.panelRight, 'Open selector should stay inside the viewport.').toBeLessThanOrEqual(metrics.viewportWidth + 1);
   expect(metrics.panelRight, 'Open selector should stay inside the editor surface.').toBeLessThanOrEqual(metrics.surfaceRight + 1);
+}
+
+// Confirms the absolutely positioned panel leaves document and footer geometry unchanged.
+async function expectSelectorOpeningStable(page: Page, before: TripEditorContainmentMetrics): Promise<void> {
+  const after = await tripEditorContainmentMetrics(page);
+  expect(after.documentHeight - before.documentHeight, 'Opening the selector should not expand document height.').toBeLessThanOrEqual(1);
+  expect(after.bodyHeight - before.bodyHeight, 'Opening the selector should not expand body height.').toBeLessThanOrEqual(1);
+  expect(after.documentWidth - before.documentWidth, 'Opening the selector should not expand document width.').toBeLessThanOrEqual(1);
+  expect(after.bodyWidth - before.bodyWidth, 'Opening the selector should not expand body width.').toBeLessThanOrEqual(1);
+  if (before.footerTop !== null && after.footerTop !== null) {
+    expect(after.footerTop - before.footerTop, 'Opening the selector should not displace the footer.').toBeLessThanOrEqual(1);
+  }
+}
+
+// Moves the actual outer editor scroll owner and leaves Save visible for a genuine click.
+async function expectSaveReachableByEditorScroll(page: Page): Promise<void> {
+  const owner = page.locator(windowOwnerSelector(await page.evaluate(() => window.innerWidth)));
+  const save = page.getByRole('button', { name: 'Save Place', exact: true });
+  const start = await owner.evaluate(element => element.scrollTop);
+  const maximum = await owner.evaluate(element => element.scrollHeight - element.clientHeight);
+  await movePointerToOwnerGutter(page, owner);
+  await page.mouse.wheel(0, start < maximum ? 180 : -180);
+  await expect.poll(() => owner.evaluate(element => element.scrollTop)).not.toBe(start);
+  // Sequential focus is the reliable visible path through nested editor scrolling to the sticky Save footer.
+  await page.locator('#trip-editor-place-form').getByLabel('Longitude').click();
+  for (let index = 0; index < 20 && !await save.evaluate(element => element === document.activeElement); index += 1) {
+    await page.keyboard.press('Tab');
+  }
+  await expect(save).toBeFocused();
+  await expect(save).toBeInViewport();
+  await expect(save).toBeEnabled();
+}
+
+async function movePointerToOwnerGutter(page: Page, owner: Locator): Promise<void> {
+  const box = await owner.boundingBox();
+  expect(box, 'Editor scroll owner should have a rendered box.').not.toBeNull();
+  await page.mouse.move(box!.x + 2, box!.y + box!.height / 2);
+}
+
+function windowOwnerSelector(viewportWidth: number): string {
+  return viewportWidth <= 640 ? '.trip-editor-mobile-drawer__tab--regions' : '.trip-editor-sidebar';
 }
 
 async function expectSelectedPlaceRowProminent(page: Page): Promise<void> {
@@ -360,7 +472,6 @@ async function expectDockedEditorComfortable(page: Page): Promise<void> {
         ? window.getComputedStyle(document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tab[aria-label="Regions tab"]')!).overflowY
         : '',
       drawerTabScrollHeight: document.querySelector<HTMLElement>('.trip-editor-mobile-drawer__tab[aria-label="Regions tab"]')?.scrollHeight ?? 0,
-      panelBottom: document.querySelector<HTMLElement>('[data-icon-selector-panel]')?.getBoundingClientRect().bottom ?? 0,
       sidebarClientHeight: sidebar?.clientHeight ?? 0,
       sidebarOverflowY: sidebar ? window.getComputedStyle(sidebar).overflowY : '',
       sidebarScrollHeight: sidebar?.scrollHeight ?? 0,
@@ -384,9 +495,6 @@ async function expectDockedEditorComfortable(page: Page): Promise<void> {
   if (metrics.viewportWidth > 640) {
     expect(['auto', 'scroll']).toContain(metrics.sidebarOverflowY);
   }
-  if (metrics.panelBottom > 0) {
-    expect(metrics.panelBottom, 'Open selector panel should stay inside the usable editor surface.').toBeLessThanOrEqual(metrics.viewportHeight + 1);
-  }
 }
 
 async function tripEditorContainmentMetrics(page: Page): Promise<TripEditorContainmentMetrics> {
@@ -397,8 +505,10 @@ async function tripEditorContainmentMetrics(page: Page): Promise<TripEditorConta
     const workspace = document.querySelector<HTMLElement>('.trip-editor-workspace');
     return {
       bodyHeight: document.body?.scrollHeight ?? 0,
+      bodyWidth: document.body?.scrollWidth ?? 0,
       documentHeight: document.documentElement.scrollHeight,
-      footerTop: footer ? footer.getBoundingClientRect().top : null,
+      documentWidth: document.documentElement.scrollWidth,
+      footerTop: footer ? footer.getBoundingClientRect().top + window.scrollY : null,
       sidebarClientHeight: sidebar?.clientHeight ?? 0,
       sidebarOverflowY: sidebar ? window.getComputedStyle(sidebar).overflowY : '',
       sidebarScrollHeight: sidebar?.scrollHeight ?? 0,
@@ -428,8 +538,9 @@ function sidebarPlaceIcon(page: Page): Locator {
   return page.locator(`[data-place-id="${placeId}"] [data-sidebar-place-icon]`);
 }
 
-function mapMarkerIcon(page: Page): Locator {
-  return page.locator(`[data-place-marker-icon="${placeId}"]`);
+// An open place editor replaces its saved marker with the visible draft-preview marker.
+function displayedMapPlaceIcon(page: Page): Locator {
+  return page.locator(`[data-place-marker-icon="${placeId}"], [data-place-draft-preview-marker]`);
 }
 
 function draftMarkers(page: Page): Locator {
@@ -485,8 +596,4 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 
 async function setTheme(page: Page, theme: 'dark' | 'light'): Promise<void> {
   await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
-}
-
-async function captureEvidence(page: Page, testInfo: TestInfo, name: string): Promise<void> {
-  await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', `${name}.png`) });
 }
