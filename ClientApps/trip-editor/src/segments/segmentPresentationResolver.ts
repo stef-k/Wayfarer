@@ -40,6 +40,7 @@ export type ProjectedChevron = { x: number; y: number; angle: number };
 
 export type PresentationRectangle = { left: number; top: number; right: number; bottom: number };
 export type RouteBadgePlacement = { left: number; top: number; width: number; height: number; offsetIndex: number; fallback: boolean };
+export type CombinedRouteBadgeLayout = { labels: readonly string[]; lines: string[]; width: number; height: number };
 
 const routeBadgeOffsets: readonly [number, number][] = [
   [10, -18], [-34, -18], [10, -48], [-34, -48], [18, -34], [-42, -34]
@@ -69,7 +70,7 @@ export const placeRouteBadge = (
   return candidate(routeBadgeOffsets[0], -1, true);
 };
 
-/** Places one combined no-clear pill at a clear affected anchor or clamps it to the map surface. */
+/** Searches finite blocker-edge coordinates for one bounded combined pill, then falls back deterministically. */
 export const placeCombinedRouteBadge = (
   anchors: readonly ProjectedPoint[],
   size: Readonly<{ width: number; height: number }>,
@@ -77,18 +78,50 @@ export const placeCombinedRouteBadge = (
   controlBounds: readonly PresentationRectangle[],
   placedBounds: readonly PresentationRectangle[]
 ): RouteBadgePlacement => {
-  for (const anchor of anchors) {
-    const placement = placeRouteBadge(anchor, size, mapBounds, controlBounds, placedBounds);
-    if (!placement.fallback) return { ...placement, fallback: true };
-  }
+  const inset = 4;
+  const gap = 4;
+  const usable = { left: mapBounds.left + inset, top: mapBounds.top + inset,
+    right: mapBounds.right - inset, bottom: mapBounds.bottom - inset };
+  const blockers = [...controlBounds, ...placedBounds];
   const preferred = placeRouteBadge(anchors[0], size, mapBounds, controlBounds, placedBounds);
-  return {
-    ...preferred,
-    left: Math.max(mapBounds.left, Math.min(preferred.left, mapBounds.right - size.width)),
-    top: Math.max(mapBounds.top, Math.min(preferred.top, mapBounds.bottom - size.height)),
-    fallback: true
-  };
+  const clampX = (value: number): number => Math.max(usable.left, Math.min(value, usable.right - size.width));
+  const clampY = (value: number): number => Math.max(usable.top, Math.min(value, usable.bottom - size.height));
+  const bounded = (left: number, top: number): RouteBadgePlacement => ({ ...preferred,
+    left: clampX(left), top: clampY(top), width: size.width, height: size.height, offsetIndex: -1, fallback: true });
+  const preferredBounded = bounded(preferred.left, preferred.top);
+  const xValues = uniqueSorted([usable.left, usable.right - size.width,
+    ...blockers.flatMap(blocker => [blocker.left - size.width - gap, blocker.right + gap])].map(clampX));
+  const yValues = uniqueSorted([usable.top, usable.bottom - size.height,
+    ...blockers.flatMap(blocker => [blocker.top - size.height - gap, blocker.bottom + gap])].map(clampY));
+  const candidates = [preferredBounded, ...yValues.flatMap(top => xValues.map(left => bounded(left, top)))];
+  return candidates.find(candidate => {
+    const rectangle = withEdges(candidate);
+    return rectangle.left >= usable.left && rectangle.top >= usable.top
+      && rectangle.right <= usable.right && rectangle.bottom <= usable.bottom
+      && !blockers.some(blocker => intersects(rectangle, blocker));
+  }) ?? preferredBounded;
 };
+
+/** Wraps only between semantic tokens unless one token alone must be split to preserve all characters. */
+export const fitCombinedRouteBadgeLabels = (labels: readonly string[], maximumWidth: number): CombinedRouteBadgeLayout => {
+  const width = Math.max(1, maximumWidth);
+  const characterCapacity = Math.max(1, Math.floor((width - 14) / 9));
+  const fittedTokens = labels.flatMap(label => label.length <= characterCapacity
+    ? [label]
+    : Array.from({ length: Math.ceil(label.length / characterCapacity) }, (_, index) =>
+      label.slice(index * characterCapacity, (index + 1) * characterCapacity)));
+  const lines: string[] = [];
+  fittedTokens.forEach(token => {
+    const combined = lines.length ? `${lines.at(-1)}/${token}` : token;
+    if (lines.length && badgeTextWidth(combined) > width) lines.push(token);
+    else if (lines.length) lines[lines.length - 1] = combined;
+    else lines.push(token);
+  });
+  return { labels: [...labels], lines, width, height: 10 + lines.length * 14 };
+};
+
+const badgeTextWidth = (text: string): number => text.length > 1 ? Math.max(34, 14 + text.length * 9) : 24;
+const uniqueSorted = (values: readonly number[]): number[] => [...new Set(values)].sort((left, right) => left - right);
 
 const withEdges = (rectangle: Readonly<{ left: number; top: number; width: number; height: number }>): PresentationRectangle => ({
   left: rectangle.left, top: rectangle.top, right: rectangle.left + rectangle.width, bottom: rectangle.top + rectangle.height

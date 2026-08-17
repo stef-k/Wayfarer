@@ -1,4 +1,5 @@
-import {placeCombinedRouteBadge, placeRouteBadge, routeBadgeDataUrl, routeBadgeDimensions} from './segmentPresentation.js';
+import {fitCombinedRouteBadgeLabels, placeCombinedRouteBadge, placeRouteBadge, routeBadgeDataUrl,
+    routeBadgeDimensions} from './segmentPresentation.js';
 
 /** Owns the viewer's replace-only production badge layers, placement, and image decode generation. */
 export const createViewerSegmentBadgeRenderer = map => {
@@ -33,10 +34,12 @@ export const createViewerSegmentBadgeRenderer = map => {
             return [renderMarker(badge, anchor, raster, placement)];
         });
         if (blocked.length) {
-            const label = blocked.map(item => item.badge.label).join('/');
-            const raster = routeBadgeDataUrl(label);
+            const labels = blocked.map(item => item.badge.label);
+            const label = labels.join('/');
+            const layout = fitCombinedRouteBadgeLabels(labels, mapBounds.right - mapBounds.left - 8);
+            const raster = routeBadgeDataUrl(label, layout);
             const anchors = blocked.map(item => [item.anchor.x, item.anchor.y]);
-            const placement = placeCombinedRouteBadge(anchors, raster, mapBounds, controlBounds, placedBounds);
+            const placement = placeCombinedRouteBadge(anchors, layout, mapBounds, controlBounds, placedBounds);
             images.push(renderMarker({...blocked[0].badge, label}, blocked[0].anchor, raster, placement));
         }
         readiness = Promise.all(images).then(() => ({ok: true}), error => ({ok: false, error}));

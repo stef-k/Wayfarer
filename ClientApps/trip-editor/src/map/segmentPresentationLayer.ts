@@ -1,6 +1,7 @@
 import L, { type Map as LeafletMap } from 'leaflet';
 import type { EditorSegmentPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
-import { placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge, type PresentationRectangle } from '../segments/segmentPresentationResolver';
+import { fitCombinedRouteBadgeLabels, placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge,
+  type CombinedRouteBadgeLayout, type PresentationRectangle } from '../segments/segmentPresentationResolver';
 
 type RegistryEntry = {
   presentation: EditorSegmentPresentation;
@@ -109,23 +110,24 @@ export const createSegmentPresentationLayer = (
       renderBadgeMarker(badge.location, badge.label, anchor, placement);
     });
     if (blocked.length) {
-      const label = blocked.map(item => item.badge.label).join('/');
-      const dimensions = badgeDimensions(label);
+      const labels = blocked.map(item => item.badge.label);
+      const layout = fitCombinedRouteBadgeLabels(labels, mapBounds.right - mapBounds.left - 8);
+      const label = labels.join('/');
       const placement = placeCombinedRouteBadge(blocked.map(item => [item.anchor.x, item.anchor.y]),
-        dimensions, mapBounds, controlBounds, placedBounds);
-      renderBadgeMarker(blocked[0].badge.location, label, blocked[0].anchor, placement);
+        layout, mapBounds, controlBounds, placedBounds);
+      renderBadgeMarker(blocked[0].badge.location, label, blocked[0].anchor, placement, layout);
     }
   };
 
   /** Adds one pointer-transparent route-role badge without changing its canonical Place marker. */
   const renderBadgeMarker = (location: readonly [number, number], label: string, anchor: L.Point,
-    placement: ReturnType<typeof placeRouteBadge>): void => {
+    placement: ReturnType<typeof placeRouteBadge>, layout?: CombinedRouteBadgeLayout): void => {
       L.marker([location[1], location[0]], {
         pane: 'segment-route-role',
         interactive: false,
         keyboard: false,
         alt: '',
-        icon: routeBadgeIcon(label, placement.left - anchor.x, placement.top - anchor.y, placement.fallback)
+        icon: routeBadgeIcon(label, placement.left - anchor.x, placement.top - anchor.y, placement.fallback, layout)
       }).addTo(badgeGroup);
   };
 
@@ -166,12 +168,15 @@ export const createSegmentPresentationLayer = (
 };
 
 /** Produces one decorative pointer-transparent badge without touching the Place marker DOM. */
-function routeBadgeIcon(label: string, leftOffset: number, topOffset: number, fallback: boolean): L.DivIcon {
-  const dimensions = badgeDimensions(label);
+function routeBadgeIcon(label: string, leftOffset: number, topOffset: number, fallback: boolean,
+  layout?: CombinedRouteBadgeLayout): L.DivIcon {
+  const dimensions = layout ?? badgeDimensions(label);
   const pill = label.length > 1 || fallback;
+  const content = layout ? layout.lines.map(escapeHtml).join('<br>') : escapeHtml(label);
+  const layoutStyle = layout ? ` style="box-sizing:border-box;width:${layout.width}px;height:${layout.height}px"` : '';
   return L.divIcon({
     className: 'segment-route-badge-wrapper',
-    html: `<span class="segment-route-badge${pill ? ' segment-route-badge--pill' : ''}" aria-hidden="true">${escapeHtml(label)}</span>`,
+    html: `<span class="segment-route-badge${pill ? ' segment-route-badge--pill' : ''}${layout ? ' segment-route-badge--wrapped' : ''}" aria-hidden="true"${layoutStyle}>${content}</span>`,
     iconSize: [dimensions.width, dimensions.height],
     iconAnchor: [-leftOffset, -topOffset]
   });

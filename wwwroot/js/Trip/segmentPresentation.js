@@ -96,29 +96,61 @@ export const placeRouteBadge = (anchor, size, mapBounds, controlBounds, placedBo
     return candidate(routeBadgeOffsets[0], -1, true);
 };
 
-/** Places one combined no-clear pill at a clear affected anchor or clamps it to the map surface. */
+/** Searches finite blocker-edge coordinates for one bounded combined pill, then falls back deterministically. */
 export const placeCombinedRouteBadge = (anchors, size, mapBounds, controlBounds, placedBounds) => {
-    for (const anchor of anchors) {
-        const placement = placeRouteBadge(anchor, size, mapBounds, controlBounds, placedBounds);
-        if (!placement.fallback) return {...placement, fallback: true};
-    }
+    const inset = 4;
+    const gap = 4;
+    const usable = {left: mapBounds.left + inset, top: mapBounds.top + inset,
+        right: mapBounds.right - inset, bottom: mapBounds.bottom - inset};
+    const blockers = [...controlBounds, ...placedBounds];
     const preferred = placeRouteBadge(anchors[0], size, mapBounds, controlBounds, placedBounds);
-    return {...preferred,
-        left: Math.max(mapBounds.left, Math.min(preferred.left, mapBounds.right - size.width)),
-        top: Math.max(mapBounds.top, Math.min(preferred.top, mapBounds.bottom - size.height)), fallback: true};
+    const clampX = value => Math.max(usable.left, Math.min(value, usable.right - size.width));
+    const clampY = value => Math.max(usable.top, Math.min(value, usable.bottom - size.height));
+    const bounded = (left, top) => ({...preferred, left: clampX(left), top: clampY(top),
+        width: size.width, height: size.height, offsetIndex: -1, fallback: true});
+    const preferredBounded = bounded(preferred.left, preferred.top);
+    const xValues = uniqueSorted([usable.left, usable.right - size.width,
+        ...blockers.flatMap(blocker => [blocker.left - size.width - gap, blocker.right + gap])].map(clampX));
+    const yValues = uniqueSorted([usable.top, usable.bottom - size.height,
+        ...blockers.flatMap(blocker => [blocker.top - size.height - gap, blocker.bottom + gap])].map(clampY));
+    return [preferredBounded, ...yValues.flatMap(top => xValues.map(left => bounded(left, top)))].find(candidate => {
+        const rectangle = {...candidate, right: candidate.left + candidate.width, bottom: candidate.top + candidate.height};
+        return rectangle.left >= usable.left && rectangle.top >= usable.top
+            && rectangle.right <= usable.right && rectangle.bottom <= usable.bottom
+            && !blockers.some(blocker => rectangle.left < blocker.right && rectangle.right > blocker.left
+                && rectangle.top < blocker.bottom && rectangle.bottom > blocker.top);
+    }) ?? preferredBounded;
+};
+
+/** Wraps only between semantic tokens unless one token alone must be split to preserve all characters. */
+export const fitCombinedRouteBadgeLabels = (labels, maximumWidth) => {
+    const width = Math.max(1, maximumWidth);
+    const characterCapacity = Math.max(1, Math.floor((width - 14) / 9));
+    const fittedTokens = labels.flatMap(label => label.length <= characterCapacity ? [label]
+        : Array.from({length: Math.ceil(label.length / characterCapacity)}, (_, index) =>
+            label.slice(index * characterCapacity, (index + 1) * characterCapacity)));
+    const lines = [];
+    fittedTokens.forEach(token => {
+        const combined = lines.length ? `${lines.at(-1)}/${token}` : token;
+        if (lines.length && routeBadgeDimensions(combined).width > width) lines.push(token);
+        else if (lines.length) lines[lines.length - 1] = combined;
+        else lines.push(token);
+    });
+    return {labels: [...labels], lines, width, height: 10 + lines.length * 14};
 };
 
 /** Rasterizes one application-owned badge so leaflet-image captures both shape and text. */
-export const routeBadgeDataUrl = label => {
-    const {width} = routeBadgeDimensions(label);
+export const routeBadgeDataUrl = (label, layout = null) => {
+    const lines = layout?.lines ?? [label];
+    const {width, height} = layout ?? routeBadgeDimensions(label);
     const canvas = document.createElement('canvas');
     canvas.width = width * 2;
-    canvas.height = 48;
+    canvas.height = height * 2;
     const context = canvas.getContext('2d');
     context.scale(2, 2);
     context.fillStyle = '#0057b8';
     context.beginPath();
-    context.roundRect(0, 0, width, 24, 12);
+    context.roundRect(0, 0, width, height, 12);
     context.fill();
     context.strokeStyle = '#ffffff';
     context.lineWidth = 2;
@@ -127,12 +159,13 @@ export const routeBadgeDataUrl = label => {
     context.font = '700 12px sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(label, width / 2, 12);
-    return { url: canvas.toDataURL('image/png'), width, height: 24 };
+    lines.forEach((line, index) => context.fillText(line, width / 2, 5 + 7 + index * 14));
+    return { url: canvas.toDataURL('image/png'), width, height };
 };
 
 /** Returns the production badge box without rasterizing an image that may be combined away. */
 export const routeBadgeDimensions = label => ({width: label.length > 1 ? Math.max(34, 14 + label.length * 9) : 24, height: 24});
+const uniqueSorted = values => [...new Set(values)].sort((left, right) => left - right);
 
 const finiteLocation = input => Number.isFinite(input.longitude) && Number.isFinite(input.latitude)
     ? [input.longitude, input.latitude]

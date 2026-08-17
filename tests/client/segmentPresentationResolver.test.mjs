@@ -138,7 +138,7 @@ test('places editor route badges with bounded collision avoidance', async () => 
     { left: 110, top: 62, width: 24, height: 24, offsetIndex: -1, fallback: true });
 
   const combined = module.placeCombinedRouteBadge([[190, 150], [100, 80]], { width: 50, height: 24 }, bounds, [bounds], []);
-  assert.deepEqual(combined, { left: 150, top: 132, width: 50, height: 24, offsetIndex: -1, fallback: true });
+  assert.deepEqual(combined, { left: 146, top: 132, width: 50, height: 24, offsetIndex: -1, fallback: true });
   assert.ok(combined.left >= bounds.left && combined.top >= bounds.top);
   assert.ok(combined.left + combined.width <= bounds.right && combined.top + combined.height <= bounds.bottom);
   const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?editorParity=${Date.now()}`);

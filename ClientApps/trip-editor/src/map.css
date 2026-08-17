@@ -121,6 +121,13 @@
   border-radius: 11px;
 }
 
+/* Combined fallback pills use resolver-owned line breaks and retain every semantic token. */
+.segment-route-badge--wrapped {
+  line-height: 14px;
+  text-align: center;
+  white-space: normal;
+}
+
 .segment-route-hit {
   cursor: pointer;
 }
